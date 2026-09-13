@@ -4,7 +4,7 @@ ArchForge is an original desktop design application under active development. It
 
 ## Current status
 
-This repository is a development codebase, not a finished or saleable release. The current production core includes semantic entities, work planes, command-based undo/redo, snapping, transactional draw/move/stretch/rotate interactions, incremental viewport synchronization, orthographic frame generation, floor/room semantics, and migrated Bio-Spectre pod/junction geometry rules.
+This repository is a development codebase, not a finished or saleable release. The current production core includes semantic entities, work planes, command-based undo/redo, snapping, transactional draw/move/stretch/rotate interactions, live wall-attached door/window placement, incremental viewport synchronization, synchronized XY/XZ/YZ views, floor/room semantics, and Bio-Spectre pod geometry rules.
 
 ## Development rules
 
@@ -26,4 +26,4 @@ python -m archforge.ui.app
 
 ## Current test baseline
 
-53 automated tests pass in the current development snapshot.
+64 automated tests pass in the current development snapshot.

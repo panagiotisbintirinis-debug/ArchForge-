@@ -1,78 +1,54 @@
 from __future__ import annotations
 import os
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QKeySequence
-from PySide6.QtWidgets import QMainWindow,QToolBar,QDockWidget,QWidget,QVBoxLayout,QFormLayout,QDoubleSpinBox,QLabel,QTreeWidget,QTreeWidgetItem,QTabWidget,QStatusBar,QFileDialog,QMessageBox
-
+from PySide6.QtGui import QAction,QKeySequence
+from PySide6.QtWidgets import QMainWindow,QToolBar,QDockWidget,QWidget,QFormLayout,QDoubleSpinBox,QLabel,QTabWidget,QStatusBar,QFileDialog,QMessageBox
 from archforge.core.model import Document
-from archforge.core.commands import CommandStack, UpdateEntity
+from archforge.core.commands import CommandStack,UpdateEntity
 from .plan_view import PlanView
 from .ortho_view import OrthoView
 
 class MainWindow(QMainWindow):
     def __init__(self):
-        super().__init__();self.setWindowTitle('ArchForge Development');self.resize(1400,900)
-        self.doc=Document();self.stack=CommandStack(self.doc);self.current_path=None
-        self.tabs=QTabWidget();self.plan_view=PlanView(self.doc,self.stack);self.front_view=OrthoView(self.doc,self.stack,'XZ');self.side_view=OrthoView(self.doc,self.stack,'YZ')
-        self.tabs.addTab(self.plan_view,'XY PLAN');self.tabs.addTab(self.front_view,'XZ FRONT');self.tabs.addTab(self.side_view,'YZ SIDE');self.setCentralWidget(self.tabs)
-        self.view=self.plan_view
-        self.setStatusBar(QStatusBar())
-        for v in (self.plan_view,self.front_view,self.side_view):
-            v.statusChanged.connect(self.statusBar().showMessage);v.selectionChangedByView.connect(self._selection_from_view)
-        self.tabs.currentChanged.connect(lambda _i:self._redraw_views())
-        self._build_toolbar();self._build_inspector();self.refresh_inspector()
-
+        super().__init__();self.setWindowTitle('ArchForge Development');self.resize(1400,900);self.doc=Document();self.stack=CommandStack(self.doc);self.current_path=None
+        self.tabs=QTabWidget();self.plan_view=PlanView(self.doc,self.stack);self.front_view=OrthoView(self.doc,self.stack,'XZ');self.side_view=OrthoView(self.doc,self.stack,'YZ');self.tabs.addTab(self.plan_view,'XY PLAN');self.tabs.addTab(self.front_view,'XZ FRONT');self.tabs.addTab(self.side_view,'YZ SIDE');self.setCentralWidget(self.tabs);self.view=self.plan_view;self.setStatusBar(QStatusBar())
+        for v in (self.plan_view,self.front_view,self.side_view):v.statusChanged.connect(self.statusBar().showMessage);v.selectionChangedByView.connect(self._selection_from_view)
+        self.tabs.currentChanged.connect(lambda _i:self._redraw_views());self._build_toolbar();self._build_inspector();self.refresh_inspector()
     def _build_toolbar(self):
         tb=QToolBar('Tools');tb.setMovable(False);self.addToolBar(tb)
-        for text,tool,key in [('Select','select','S'),('Wall','wall','W'),('Move','move','G'),('Stretch','stretch','T'),('Rotate','rotate','R')]:
+        for text,tool,key in [('Select','select','S'),('Wall','wall','W'),('Door','door','D'),('Window','window','N'),('Move','move','G'),('Stretch','stretch','T'),('Rotate','rotate','R')]:
             a=QAction(text,self);a.setShortcut(QKeySequence(key));a.triggered.connect(lambda checked=False,t=tool:self.view.set_tool(t));tb.addAction(a)
-        tb.addSeparator()
-        au=QAction('Undo',self);au.setShortcut(QKeySequence.StandardKey.Undo);au.triggered.connect(self._undo);tb.addAction(au)
-        ar=QAction('Redo',self);ar.setShortcut(QKeySequence.StandardKey.Redo);ar.triggered.connect(self._redo);tb.addAction(ar)
-        tb.addSeparator()
-        sv=QAction('Save',self);sv.setShortcut(QKeySequence.StandardKey.Save);sv.triggered.connect(self.save);tb.addAction(sv)
-        op=QAction('Open',self);op.setShortcut(QKeySequence.StandardKey.Open);op.triggered.connect(self.open);tb.addAction(op)
-
+        tb.addSeparator();au=QAction('Undo',self);au.setShortcut(QKeySequence.StandardKey.Undo);au.triggered.connect(self._undo);tb.addAction(au);ar=QAction('Redo',self);ar.setShortcut(QKeySequence.StandardKey.Redo);ar.triggered.connect(self._redo);tb.addAction(ar);tb.addSeparator();sv=QAction('Save',self);sv.setShortcut(QKeySequence.StandardKey.Save);sv.triggered.connect(self.save);tb.addAction(sv);op=QAction('Open',self);op.setShortcut(QKeySequence.StandardKey.Open);op.triggered.connect(self.open);tb.addAction(op)
     def _build_inspector(self):
-        self.dock=QDockWidget('Inspector',self);self.dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea|Qt.DockWidgetArea.RightDockWidgetArea)
-        self.inspector=QWidget();self.form=QFormLayout(self.inspector);self.dock.setWidget(self.inspector);self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea,self.dock)
-
+        self.dock=QDockWidget('Inspector',self);self.dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea|Qt.DockWidgetArea.RightDockWidgetArea);self.inspector=QWidget();self.form=QFormLayout(self.inspector);self.dock.setWidget(self.inspector);self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea,self.dock)
     def _clear_form(self):
         while self.form.rowCount():self.form.removeRow(0)
-
     def refresh_inspector(self):
         self._clear_form()
-        if len(self.doc.selection)!=1:
-            self.form.addRow(QLabel(f'{len(self.doc.selection)} selected'));return
+        if len(self.doc.selection)!=1:self.form.addRow(QLabel(f'{len(self.doc.selection)} selected'));return
         eid=self.doc.selection[0];e=self.doc.get(eid);self.form.addRow('Type',QLabel(e.kind));self.form.addRow('Name',QLabel(e.name or e.kind.title()))
+        if e.parent_id and e.parent_id in self.doc.entities:
+            host=self.doc.get(e.parent_id);self.form.addRow('Host',QLabel(host.name or f'{host.kind.title()} {host.id[:8]}'))
         for k,v in e.params.items():
             if isinstance(v,(int,float)):
-                sp=QDoubleSpinBox();sp.setDecimals(4);sp.setRange(-1e6,1e6);sp.setValue(float(v));sp.setSingleStep(.1)
-                sp.editingFinished.connect(lambda key=k,widget=sp:self._commit_property(eid,key,widget.value()))
-                self.form.addRow(k,sp)
-
+                sp=QDoubleSpinBox();sp.setDecimals(4);sp.setRange(-1e6,1e6);sp.setValue(float(v));sp.setSingleStep(.1);sp.editingFinished.connect(lambda key=k,widget=sp:self._commit_property(eid,key,widget.value()));self.form.addRow(k,sp)
     def _commit_property(self,eid,key,value):
         try:self.stack.execute(UpdateEntity(eid,{key:value}));self._redraw_views()
         except Exception as exc:QMessageBox.warning(self,'Invalid value',str(exc));self.refresh_inspector()
-
     def _selection_from_view(self):self._redraw_views();self.refresh_inspector()
     def _redraw_views(self):
         for v in (self.plan_view,self.front_view,self.side_view):v.redraw()
     def _undo(self):self.stack.undo();self._redraw_views();self.refresh_inspector()
     def _redo(self):self.stack.redo();self._redraw_views();self.refresh_inspector()
-
     def save(self):
         path=self.current_path
         if not path:path,_=QFileDialog.getSaveFileName(self,'Save ArchForge Project','','ArchForge Project (*.archforge)')
         if path:
             if not path.lower().endswith('.archforge'):path+='.archforge'
             self.doc.save(path);self.current_path=path;self.statusBar().showMessage(f'Saved {os.path.basename(path)}',3000)
-
     def open(self):
         path,_=QFileDialog.getOpenFileName(self,'Open ArchForge Project','','ArchForge Project (*.archforge)')
         if not path:return
         try:
-            self.doc=Document.load(path);self.stack=CommandStack(self.doc)
-            self.plan_view.doc=self.doc;self.plan_view.stack=self.stack;self.plan_view.controller.doc=self.doc;self.plan_view.controller.stack=self.stack
-            self.front_view.rebind(self.doc,self.stack);self.side_view.rebind(self.doc,self.stack);self.current_path=path;self._redraw_views();self.refresh_inspector()
+            self.doc=Document.load(path);self.stack=CommandStack(self.doc);self.plan_view.rebind(self.doc,self.stack);self.front_view.rebind(self.doc,self.stack);self.side_view.rebind(self.doc,self.stack);self.current_path=path;self._redraw_views();self.refresh_inspector()
         except Exception as exc:QMessageBox.critical(self,'Open failed',str(exc))
