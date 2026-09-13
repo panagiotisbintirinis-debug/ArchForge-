@@ -1,77 +1,37 @@
 from __future__ import annotations
-from dataclasses import dataclass, field
+from dataclasses import dataclass,field
 from math import cos,sin,radians
 from typing import List,Tuple,Optional,Dict,Any
-
 from .model import Document
 from .viewport import PreviewState
-
 Point2=Tuple[float,float]
-
 @dataclass(frozen=True)
-class Primitive2D:
-    kind:str
-    points:Tuple[Point2,...]=()
-    radius_x:float=0.0
-    radius_y:float=0.0
-    rotation:float=0.0
-    entity_id:str=''
-    role:str='model'
-    meta:Tuple[Tuple[str,Any],...]=()
-
+class Primitive2D:kind:str;points:Tuple[Point2,...]=();radius_x:float=0.;radius_y:float=0.;rotation:float=0.;entity_id:str='';role:str='model';meta:Tuple[Tuple[str,Any],...]=()
 @dataclass(frozen=True)
-class Handle2D:
-    x:float
-    y:float
-    entity_id:str
-    handle:str
-    cursor:str='size'
-
+class Handle2D:x:float;y:float;entity_id:str;handle:str;cursor:str='size'
 @dataclass
-class PlanFrame:
-    primitives:List[Primitive2D]=field(default_factory=list)
-    handles:List[Handle2D]=field(default_factory=list)
-    hud:Dict[str,float]=field(default_factory=dict)
-    snap:Optional[Dict[str,Any]]=None
-
+class PlanFrame:primitives:List[Primitive2D]=field(default_factory=list);handles:List[Handle2D]=field(default_factory=list);hud:Dict[str,float]=field(default_factory=dict);snap:Optional[Dict[str,Any]]=None
 
 def _box_corners(p):
-    a=radians(p.get('rotation',0.0));c,s=cos(a),sin(a);hw,hd=p['width']/2,p['depth']/2
-    out=[]
-    for lx,ly in [(-hw,-hd),(hw,-hd),(hw,hd),(-hw,hd)]:
-        out.append((p['x']+lx*c-ly*s,p['y']+lx*s+ly*c))
-    return out
-
-
+    a=radians(p.get('rotation',0.));c,s=cos(a),sin(a);hw,hd=p['width']/2,p['depth']/2;return [(p['x']+lx*c-ly*s,p['y']+lx*s+ly*c) for lx,ly in [(-hw,-hd),(hw,-hd),(hw,hd),(-hw,hd)]]
 def _box_handles(eid,p):
-    pts=_box_corners(p);a=radians(p.get('rotation',0.0));c,s=cos(a),sin(a);hw,hd=p['width']/2,p['depth']/2
-    def world(lx,ly):return (p['x']+lx*c-ly*s,p['y']+lx*s+ly*c)
-    specs=[('left',world(-hw,0)),('right',world(hw,0)),('bottom',world(0,-hd)),('top',world(0,hd)),
-           ('bottom_left',pts[0]),('bottom_right',pts[1]),('top_right',pts[2]),('top_left',pts[3])]
-    return [Handle2D(x,y,eid,h) for h,(x,y) in specs]
-
-
+    pts=_box_corners(p);a=radians(p.get('rotation',0.));c,s=cos(a),sin(a);hw,hd=p['width']/2,p['depth']/2
+    def world(lx,ly):return(p['x']+lx*c-ly*s,p['y']+lx*s+ly*c)
+    return [Handle2D(x,y,eid,h) for h,(x,y) in [('left',world(-hw,0)),('right',world(hw,0)),('bottom',world(0,-hd)),('top',world(0,hd)),('bottom_left',pts[0]),('bottom_right',pts[1]),('top_right',pts[2]),('top_left',pts[3])]]
 def _pod_handles(eid,p):
-    cx,cy=p['cx'],p['cy'];rx,ry=p['diameter_x']/2,p['diameter_y']/2
-    return [Handle2D(cx-rx,cy,eid,'left'),Handle2D(cx+rx,cy,eid,'right'),Handle2D(cx,cy-ry,eid,'bottom'),Handle2D(cx,cy+ry,eid,'top')]
-
-
-def entity_primitive(doc:Document,eid:str)->Optional[Primitive2D]:
+    cx,cy=p['cx'],p['cy'];rx,ry=p['diameter_x']/2,p['diameter_y']/2;return [Handle2D(cx-rx,cy,eid,'left'),Handle2D(cx+rx,cy,eid,'right'),Handle2D(cx,cy-ry,eid,'bottom'),Handle2D(cx,cy+ry,eid,'top')]
+def entity_primitive(doc,eid):
     e=doc.get(eid);p=e.params
     if not e.visible:return None
     if e.kind=='wall':return Primitive2D('line',((p['x1'],p['y1']),(p['x2'],p['y2'])),entity_id=eid,meta=(('thickness',p['thickness']),))
     if e.kind=='box':return Primitive2D('polygon',tuple(_box_corners(p)),entity_id=eid)
-    if e.kind=='pod':return Primitive2D('ellipse',((p['cx'],p['cy']),),p['diameter_x']/2,p['diameter_y']/2,p.get('rotation',0.0),eid)
+    if e.kind=='pod':return Primitive2D('ellipse',((p['cx'],p['cy']),),p['diameter_x']/2,p['diameter_y']/2,p.get('rotation',0.),eid)
     if e.kind in ('floor','room'):return Primitive2D('polygon',tuple(tuple(q) for q in p['points']),entity_id=eid,meta=(('semantic',e.kind),))
     if e.kind in ('door','window'):
         if not e.parent_id or e.parent_id not in doc.entities:return None
         from archforge.architecture.openings import plan_segment
-        a,b=plan_segment(doc.get(e.parent_id).params,p)
-        return Primitive2D('line',(a,b),entity_id=eid,role='opening',meta=(('semantic',e.kind),('host',e.parent_id)))
-    return None
-
-
-def selection_handles(doc:Document)->List[Handle2D]:
+        a,b=plan_segment(doc.get(e.parent_id).params,p);return Primitive2D('line',(a,b),entity_id=eid,role='opening',meta=(('semantic',e.kind),('host',e.parent_id)))
+def selection_handles(doc):
     out=[]
     for eid in doc.selection:
         if eid not in doc.entities:continue
@@ -81,33 +41,28 @@ def selection_handles(doc:Document)->List[Handle2D]:
         elif e.kind=='box':out.extend(_box_handles(eid,p))
         elif e.kind=='pod':out.extend(_pod_handles(eid,p))
     return out
-
-
-def preview_primitives(preview:PreviewState)->List[Primitive2D]:
+def preview_primitives(preview):
     g=preview.geometry
-    if preview.kind=='wall' and g:
-        return [Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),entity_id=preview.entity_id or '',role='preview')]
+    if preview.kind=='wall' and g:return [Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),entity_id=preview.entity_id or '',role='preview')]
+    if preview.kind=='opening' and {'x1','y1','x2','y2'}<=set(g):return [Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),role='preview',meta=(('semantic',g.get('opening_kind','opening')),))]
     if preview.kind in ('stretch','rotate') and g:
         eid=preview.entity_id or ''
         if {'x1','y1','x2','y2'}<=set(g):return [Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),entity_id=eid,role='preview')]
         if {'x','y','width','depth'}<=set(g):return [Primitive2D('polygon',tuple(_box_corners(g)),entity_id=eid,role='preview')]
-        if {'cx','cy','diameter_x','diameter_y'}<=set(g):return [Primitive2D('ellipse',((g['cx'],g['cy']),),g['diameter_x']/2,g['diameter_y']/2,g.get('rotation',0.0),eid,'preview')]
+        if {'cx','cy','diameter_x','diameter_y'}<=set(g):return [Primitive2D('ellipse',((g['cx'],g['cy']),),g['diameter_x']/2,g['diameter_y']/2,g.get('rotation',0.),eid,'preview')]
     if preview.kind=='move' and 'entities' in g:
         out=[]
         for eid,p in g['entities'].items():
             if {'x1','y1','x2','y2'}<=set(p):out.append(Primitive2D('line',((p['x1'],p['y1']),(p['x2'],p['y2'])),entity_id=eid,role='preview'))
             elif {'x','y','width','depth'}<=set(p):out.append(Primitive2D('polygon',tuple(_box_corners(p)),entity_id=eid,role='preview'))
-            elif {'cx','cy','diameter_x','diameter_y'}<=set(p):out.append(Primitive2D('ellipse',((p['cx'],p['cy']),),p['diameter_x']/2,p['diameter_y']/2,p.get('rotation',0.0),eid,'preview'))
+            elif {'cx','cy','diameter_x','diameter_y'}<=set(p):out.append(Primitive2D('ellipse',((p['cx'],p['cy']),),p['diameter_x']/2,p['diameter_y']/2,p.get('rotation',0.),eid,'preview'))
         return out
     return []
-
-
-def build_plan_frame(doc:Document,preview:Optional[PreviewState]=None)->PlanFrame:
+def build_plan_frame(doc,preview=None):
     f=PlanFrame()
     for eid in doc.entities:
         p=entity_primitive(doc,eid)
         if p:f.primitives.append(p)
     f.handles=selection_handles(doc)
-    if preview:
-        f.primitives.extend(preview_primitives(preview));f.hud=dict(preview.hud);f.snap=preview.snap
+    if preview:f.primitives.extend(preview_primitives(preview));f.hud=dict(preview.hud);f.snap=preview.snap
     return f

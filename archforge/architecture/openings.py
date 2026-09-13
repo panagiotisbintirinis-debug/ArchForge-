@@ -32,3 +32,27 @@ def elevation_rect(wall_params, opening_params, axis="XZ"):
     component=(a2-a1)/length; c=float(opening_params["offset"]); h=float(opening_params["width"])/2
     lo=a1+component*(c-h); hi=a1+component*(c+h); lo,hi=min(lo,hi),max(lo,hi)
     z0=wall_params["z"]+float(opening_params.get("sill",0.0)); z1=z0+float(opening_params["height"]); return ((lo,z0),(hi,z0),(hi,z1),(lo,z1))
+
+
+def project_to_wall(wall_params, x, y):
+    """Project an XY point to a wall centerline and return (offset, px, py, distance)."""
+    x1=float(wall_params["x1"]); y1=float(wall_params["y1"]); x2=float(wall_params["x2"]); y2=float(wall_params["y2"])
+    dx=x2-x1; dy=y2-y1; ll=dx*dx+dy*dy
+    if ll <= 1e-18: raise ValueError("host wall has zero length")
+    t=((float(x)-x1)*dx+(float(y)-y1)*dy)/ll
+    t=max(0.0,min(1.0,t))
+    px=x1+t*dx; py=y1+t*dy
+    length=ll**0.5
+    return (t*length,px,py,hypot(float(x)-px,float(y)-py))
+
+
+def nearest_wall_projection(doc, x, y, tolerance=0.35):
+    """Return nearest visible wall projection within tolerance, or None."""
+    best=None
+    for eid,e in doc.entities.items():
+        if e.kind!='wall' or not e.visible: continue
+        try: off,px,py,dist=project_to_wall(e.params,x,y)
+        except ValueError: continue
+        if dist <= tolerance and (best is None or dist < best["distance"]):
+            best={"wall_id":eid,"offset":off,"x":px,"y":py,"distance":dist}
+    return best
