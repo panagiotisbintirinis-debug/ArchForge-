@@ -54,37 +54,70 @@ SCHEMAS={
  'pod': {'cx':_finite,'cy':_finite,'floor_level':_finite,'diameter_x':_positive,'diameter_y':_positive,'height':_positive,'shell_thickness':_positive,'rotation':_finite},
  'floor': {'points':_polygon,'z':_finite,'thickness':_positive},
  'room': {'points':_polygon,'z':_finite,'height':_positive},
+ 'door': {'offset':_finite,'width':_positive,'height':_positive,'sill':_finite},
+ 'window': {'offset':_finite,'width':_positive,'height':_positive,'sill':_finite},
 }
 
 def validate_params(kind:str, params:Dict[str,Any])->Dict[str,Any]:
-    out=copy.deepcopy(params); schema=SCHEMAS.get(kind,{})
+    out=copy.deepcopy(params)
+    schema=SCHEMAS.get(kind,{})
     for k,fn in schema.items():
         if k in out: out[k]=fn(out[k])
     return out
 
 class Document:
     def __init__(self):
-        self.entities: Dict[str,Entity]={}; self.children: Dict[str,List[str]]={}; self.dependencies: Dict[str,Set[str]]={}; self.selection: List[str]=[]; self.dirty: Set[str]=set(); self.levels={'Ground':0.0}; self.work_plane=WorkPlane(); self.materials={}; self.constructions={}
+        self.entities: Dict[str,Entity]={}
+        self.children: Dict[str,List[str]]={}
+        self.dependencies: Dict[str,Set[str]]={}
+        self.selection: List[str]=[]
+        self.dirty: Set[str]=set()
+        self.levels={'Ground':0.0}
+        self.work_plane=WorkPlane()
+        self.materials={}
+        self.constructions={}
     def add(self,e:Entity)->str:
         if e.id in self.entities: raise ValueError('duplicate id')
-        e.params=validate_params(e.kind,e.params); self.entities[e.id]=e
-        if e.parent_id: self.children.setdefault(e.parent_id,[]).append(e.id)
-        self.mark_dirty(e.id); return e.id
+        e.params=validate_params(e.kind,e.params)
+        if e.kind in ('door','window'):
+            if not e.parent_id or e.parent_id not in self.entities or self.entities[e.parent_id].kind != 'wall':
+                raise ValueError('door/window must be attached to an existing wall')
+            from archforge.architecture.openings import validate_opening
+            validate_opening(self.entities[e.parent_id].params,e.params,e.kind)
+        self.entities[e.id]=e
+        if e.parent_id:
+            self.children.setdefault(e.parent_id,[]).append(e.id)
+            if e.kind in ('door','window'):
+                self.add_dependency(e.parent_id,e.id)
+        self.mark_dirty(e.id)
+        return e.id
     def get(self,eid:str)->Entity: return self.entities[eid]
     def update(self,eid:str,changes:Dict[str,Any]):
         e=self.get(eid)
         if e.locked: raise PermissionError('entity is locked')
-        p=e.params.copy(); p.update(changes); e.params=validate_params(e.kind,p); e.revision+=1; self.mark_dirty(eid)
+        p=e.params.copy(); p.update(changes); p=validate_params(e.kind,p)
+        if e.kind in ('door','window'):
+            from archforge.architecture.openings import validate_opening
+            validate_opening(self.get(e.parent_id).params,p,e.kind)
+        elif e.kind=='wall':
+            from archforge.architecture.openings import validate_opening
+            for cid in self.children.get(eid,()):
+                child=self.entities.get(cid)
+                if child and child.kind in ('door','window'):
+                    validate_opening(p,child.params,child.kind)
+        e.params=p; e.revision+=1; self.mark_dirty(eid)
     def mark_dirty(self,eid:str):
         stack=[eid]; seen=set()
         while stack:
             a=stack.pop()
             if a in seen: continue
-            seen.add(a); self.dirty.add(a); stack.extend(self.dependencies.get(a,()))
+            seen.add(a); self.dirty.add(a)
+            stack.extend(self.dependencies.get(a,()))
     def add_dependency(self,source:str,dependent:str):
         if source==dependent: raise ValueError('self dependency')
         self.dependencies.setdefault(source,set()).add(dependent)
-        if self._reachable(dependent,source): self.dependencies[source].remove(dependent); raise ValueError('dependency cycle')
+        if self._reachable(dependent,source):
+            self.dependencies[source].remove(dependent); raise ValueError('dependency cycle')
     def _reachable(self,a,b):
         stack=[a]; seen=set()
         while stack:
@@ -98,11 +131,13 @@ class Document:
         def walk(x):
             for c in list(self.children.get(x,())): walk(c)
             ids.append(x)
-        walk(eid); snap={i:self.entities[i].clone() for i in ids}
+        walk(eid)
+        snap={i:self.entities[i].clone() for i in ids}
         for i in ids:
             self.entities.pop(i,None); self.children.pop(i,None); self.dependencies.pop(i,None)
             for s in self.dependencies.values(): s.discard(i)
-            self.selection=[x for x in self.selection if x!=i]; self.dirty.add(i)
+            self.selection=[x for x in self.selection if x!=i]
+            self.dirty.add(i)
         for kids in self.children.values(): kids[:]=[x for x in kids if x not in ids]
         return snap
     def select(self,ids:List[str],add=False):
@@ -112,14 +147,17 @@ class Document:
                 if i not in self.selection:self.selection.append(i)
         else:self.selection=valid
     def to_dict(self):
-        return {'format':4,'entities':[asdict(e) for e in self.entities.values()],'dependencies':{k:sorted(v) for k,v in self.dependencies.items()},'levels':self.levels,'work_plane':asdict(self.work_plane),'materials':self.materials,'constructions':self.constructions}
+        return {'format':4,'entities':[asdict(e) for e in self.entities.values()],
+                'dependencies':{k:sorted(v) for k,v in self.dependencies.items()},
+                'levels':self.levels,'work_plane':asdict(self.work_plane),'materials':self.materials,'constructions':self.constructions}
     @classmethod
     def from_dict(cls,d):
-        doc=cls(); doc.levels=d.get('levels',{'Ground':0.0}); wp=d.get('work_plane')
+        doc=cls(); doc.levels=d.get('levels',{'Ground':0.0}); wp=d.get('work_plane');
         if wp: doc.work_plane=WorkPlane(name=wp.get('name','XY'), origin=tuple(wp.get('origin',(0,0,0))), u=tuple(wp.get('u',(1,0,0))), v=tuple(wp.get('v',(0,1,0))))
         doc.materials=d.get('materials',{});doc.constructions=d.get('constructions',{})
         for raw in d.get('entities',[]): doc.add(Entity(**raw))
-        doc.dependencies={k:set(v) for k,v in d.get('dependencies',{}).items()}; doc.dirty.clear(); return doc
+        doc.dependencies={k:set(v) for k,v in d.get('dependencies',{}).items()}
+        doc.dirty.clear(); return doc
     def save(self,path):
         with open(path,'w',encoding='utf8') as f: json.dump(self.to_dict(),f,indent=2)
     @classmethod

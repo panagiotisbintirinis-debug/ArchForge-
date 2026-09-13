@@ -63,6 +63,11 @@ def entity_primitive(doc:Document,eid:str)->Optional[Primitive2D]:
     if e.kind=='box':return Primitive2D('polygon',tuple(_box_corners(p)),entity_id=eid)
     if e.kind=='pod':return Primitive2D('ellipse',((p['cx'],p['cy']),),p['diameter_x']/2,p['diameter_y']/2,p.get('rotation',0.0),eid)
     if e.kind in ('floor','room'):return Primitive2D('polygon',tuple(tuple(q) for q in p['points']),entity_id=eid,meta=(('semantic',e.kind),))
+    if e.kind in ('door','window'):
+        if not e.parent_id or e.parent_id not in doc.entities:return None
+        from archforge.architecture.openings import plan_segment
+        a,b=plan_segment(doc.get(e.parent_id).params,p)
+        return Primitive2D('line',(a,b),entity_id=eid,role='opening',meta=(('semantic',e.kind),('host',e.parent_id)))
     return None
 
 
