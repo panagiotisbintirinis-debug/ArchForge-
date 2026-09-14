@@ -152,11 +152,22 @@ class Document:
                 'levels':self.levels,'work_plane':asdict(self.work_plane),'materials':self.materials,'constructions':self.constructions}
     @classmethod
     def from_dict(cls,d):
-        doc=cls(); doc.levels=d.get('levels',{'Ground':0.0}); wp=d.get('work_plane');
+        doc=cls(); doc.levels=d.get('levels',{'Ground':0.0}); wp=d.get('work_plane')
         if wp: doc.work_plane=WorkPlane(name=wp.get('name','XY'), origin=tuple(wp.get('origin',(0,0,0))), u=tuple(wp.get('u',(1,0,0))), v=tuple(wp.get('v',(0,1,0))))
         doc.materials=d.get('materials',{});doc.constructions=d.get('constructions',{})
-        for raw in d.get('entities',[]): doc.add(Entity(**raw))
-        doc.dependencies={k:set(v) for k,v in d.get('dependencies',{}).items()}
+        raw_entities=list(d.get('entities',[]))
+        # Load parents and independent semantic objects before attached openings.
+        # This makes persistence robust even if a serializer, merge, or external tool reorders the entity list.
+        deferred=[]
+        for raw in raw_entities:
+            if raw.get('kind') in ('door','window'): deferred.append(raw)
+            else: doc.add(Entity(**raw))
+        for raw in deferred: doc.add(Entity(**raw))
+        # Rebuild declared extra dependencies while preserving mandatory wall->opening dependencies created by add().
+        for source,dependents in d.get('dependencies',{}).items():
+            for dependent in dependents:
+                if source in doc.entities and dependent in doc.entities and dependent not in doc.dependencies.get(source,set()):
+                    doc.add_dependency(source,dependent)
         doc.dirty.clear(); return doc
     def save(self,path):
         with open(path,'w',encoding='utf8') as f: json.dump(self.to_dict(),f,indent=2)
