@@ -40,11 +40,15 @@ def selection_handles(doc):
         if e.kind=='wall':out.extend([Handle2D(p['x1'],p['y1'],eid,'endpoint1'),Handle2D(p['x2'],p['y2'],eid,'endpoint2')])
         elif e.kind=='box':out.extend(_box_handles(eid,p))
         elif e.kind=='pod':out.extend(_pod_handles(eid,p))
+        elif e.kind in ('door','window') and e.parent_id in doc.entities:
+            from archforge.architecture.openings import plan_segment
+            a,b=plan_segment(doc.get(e.parent_id).params,p);mx=(a[0]+b[0])/2;my=(a[1]+b[1])/2
+            out.extend([Handle2D(a[0],a[1],eid,'left','stretch'),Handle2D(b[0],b[1],eid,'right','stretch'),Handle2D(mx,my,eid,'move','move')])
     return out
 def preview_primitives(preview):
     g=preview.geometry
     if preview.kind=='wall' and g:return [Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),entity_id=preview.entity_id or '',role='preview')]
-    if preview.kind=='opening' and {'x1','y1','x2','y2'}<=set(g):return [Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),role='preview',meta=(('semantic',g.get('opening_kind','opening')),))]
+    if preview.kind in ('opening','opening-edit') and {'x1','y1','x2','y2'}<=set(g):return [Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),entity_id=preview.entity_id or '',role='preview',meta=(('semantic',g.get('opening_kind','opening')),))]
     if preview.kind in ('stretch','rotate') and g:
         eid=preview.entity_id or ''
         if {'x1','y1','x2','y2'}<=set(g):return [Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),entity_id=eid,role='preview')]
