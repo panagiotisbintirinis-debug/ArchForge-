@@ -9,7 +9,7 @@ from archforge.kinematics.evaluation import base_part_matrix, evaluate_assembly
 
 Matrix4 = Tuple[Tuple[float,float,float,float],Tuple[float,float,float,float],Tuple[float,float,float,float],Tuple[float,float,float,float]]
 
-NON_GEOMETRY_KINDS = {'mechanical_joint','mechanical_mount'}
+NON_GEOMETRY_KINDS = {'mechanical_joint','mechanical_mount','door','window'}
 FABRICATION_KINDS = {'box','wall','pod','floor','room_floor','mechanical_part'}
 
 
@@ -85,6 +85,24 @@ def _modifier_for_evaluation(doc,modifier):
     return modifier_to_dict(modifier)
 
 
+def _opening_intents_for_host(doc,host_id:str)->List[Dict[str,Any]]:
+    """Return deterministic backend-neutral child opening intent for one host entity.
+
+    Door/window entities remain semantic relationship objects.  Geometry backends consume
+    their copied intent through the host node instead of treating the opening as a solid.
+    """
+    out=[]
+    for oid in sorted(doc.entities):
+        opening=doc.get(oid)
+        if opening.parent_id!=host_id or opening.kind not in ('door','window'):
+            continue
+        intent=copy.deepcopy(opening.params)
+        intent['id']=opening.id
+        intent['kind']=opening.kind
+        out.append(intent)
+    return out
+
+
 def build_evaluation_plan(doc,joint_values:Optional[Mapping[str,float]]=None)->EvaluationPlan:
     """Compile semantic document state into deterministic backend-neutral geometry intent.
 
@@ -93,7 +111,8 @@ def build_evaluation_plan(doc,joint_values:Optional[Mapping[str,float]]=None)->E
       2. kinematic transforms are evaluated separately for rigid mechanical parts,
       3. ordered surface modifiers are attached to their semantic owners and derived
          modifier caches are refreshed from their semantic sources,
-      4. relationship-only entities (joints/mounts) remain in the plan as metadata nodes.
+      4. relationship-only entities remain metadata nodes while host geometry receives
+         copied opening intent for backend evaluation.
 
     The plan is an intermediate representation, not tessellation or boolean geometry.
     A mesh/OCC backend can consume it without changing the architectural source model.
@@ -106,10 +125,15 @@ def build_evaluation_plan(doc,joint_values:Optional[Mapping[str,float]]=None)->E
         mods=tuple(_modifier_for_evaluation(doc,m) for m in ordered_modifiers(doc,eid))
         transform=mech.get(eid)
         role='relationship' if e.kind in NON_GEOMETRY_KINDS else 'geometry'
+        params=copy.deepcopy(e.params)
+        if e.kind in ('wall','pod'):
+            openings=_opening_intents_for_host(doc,eid)
+            if openings:
+                params['_opening_intents']=openings
         nodes.append(EvaluationNode(
             entity_id=eid,
             semantic_kind=e.kind,
-            params=copy.deepcopy(e.params),
+            params=params,
             parent_id=e.parent_id,
             transform=transform,
             modifiers=mods,
