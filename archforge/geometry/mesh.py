@@ -73,29 +73,9 @@ def _triangulate(points):
 
 
 def _wall_mesh(p) -> MeshPayload:
-    x1, y1, z, x2, y2 = map(float, (p['x1'], p['y1'], p['z'], p['x2'], p['y2']))
-    h, t = float(p['height']), float(p['thickness'])
-    dx, dy = x2 - x1, y2 - y1
-    length = math.hypot(dx, dy)
-    if length <= 1e-12:
-        raise ValueError('wall has zero length')
-    nx, ny = -dy / length * t / 2.0, dx / length * t / 2.0
-    v = ((x1 + nx, y1 + ny, z), (x2 + nx, y2 + ny, z),
-         (x2 - nx, y2 - ny, z), (x1 - nx, y1 - ny, z),
-         (x1 + nx, y1 + ny, z + h), (x2 + nx, y2 + ny, z + h),
-         (x2 - nx, y2 - ny, z + h), (x1 - nx, y1 - ny, z + h))
-    # Exterior is +normal of the wall centreline; interior is -normal. Winding is
-    # deliberately outward so Pull means outward and Push means inward.
-    faces = (((0,5,1),(0,4,5),'exterior'),
-             ((3,2,6),(3,6,7),'interior'),
-             ((4,5,6),(4,6,7),'top'),
-             ((0,3,7),(0,7,4),'start'),
-             ((1,5,6),(1,6,2),'end'),
-             ((3,0,1),(3,1,2),'bottom'))
-    tris, roles = [], []
-    for a, b, role in faces:
-        tris.extend((a,b)); roles.extend((role,role))
-    return MeshPayload(v, tuple(tris), tuple(roles))
+    from .wall_detail import detailed_wall_geometry
+    vertices,triangles,roles=detailed_wall_geometry(p,target_step=0.5)
+    return MeshPayload(vertices,triangles,roles)
 
 
 def _box_mesh(p, transform=None) -> MeshPayload:
