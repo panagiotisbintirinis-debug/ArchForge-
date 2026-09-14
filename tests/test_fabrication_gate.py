@@ -5,6 +5,7 @@ from archforge.core.modifiers import SurfaceModifier, SurfaceRef
 from archforge.geometry.backend import GeometryBody, GeometryEvaluation
 from archforge.geometry.fabrication import assess_fabrication, require_fabrication_ready
 from archforge.geometry.preview import PreviewBackend
+from archforge.geometry.validated_mesh import ValidatedMeshBackend
 
 
 def test_preview_geometry_is_never_mislabeled_printable():
@@ -27,6 +28,19 @@ def test_verified_fabrication_mesh_passes_gate():
     evaluation=GeometryEvaluation('test',(body,))
     assert assess_fabrication(evaluation).ready
     require_fabrication_ready(evaluation)
+
+
+def test_exactly_coincident_selected_bodies_are_not_collectively_fabrication_ready():
+    doc=Document()
+    a=Entity('box',{'x':0,'y':0,'z':0,'width':1,'depth':1,'height':1,'rotation':0})
+    b=Entity('box',{'x':0,'y':0,'z':0,'width':1,'depth':1,'height':1,'rotation':0})
+    doc.add(a);doc.add(b)
+    evaluation=ValidatedMeshBackend().evaluate(doc)
+    assert evaluation.body(a.id).quality=='fabrication_mesh'
+    assert evaluation.body(b.id).quality=='fabrication_mesh'
+    report=assess_fabrication(evaluation,[a.id,b.id])
+    assert not report.ready
+    assert any(f.code=='interbody_duplicate_face' for f in report.findings)
 
 
 def test_missing_selected_body_is_blocker():
