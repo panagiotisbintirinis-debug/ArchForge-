@@ -61,21 +61,21 @@ def _pod_mesh(p,segments=32,rings=12):
 def _compact_mesh(vertices,triangles,roles):
  used=sorted({i for tri in triangles for i in tri});remap={old:new for new,old in enumerate(used)}
  return MeshPayload(tuple(vertices[i] for i in used),tuple(tuple(remap[i] for i in tri) for tri in triangles),tuple(roles))
-def _clip_mesh_halfspace(mesh,plane,keep_sign,tolerance=1e-9):
- px,py=map(float,plane['point']);nx,ny=map(float,plane['normal']);vertices=list(mesh.vertices);out_tris=[];out_roles=[];edge_cache={}
- def distance(i):
-  x,y,_=vertices[i];return (x-px)*nx+(y-py)*ny
+def _clip_mesh_scalar(mesh,scalar,keep_positive=True,tolerance=1e-9):
+ """Clip a mesh against one scalar half-space while preserving exact edge intersections."""
+ vertices=list(mesh.vertices);out_tris=[];out_roles=[];edge_cache={}
+ def value(i):return float(scalar(vertices[i]))
  def intersection(a,b):
   key=(a,b) if a<b else (b,a)
   if key in edge_cache:return edge_cache[key]
-  da,db=distance(a),distance(b);den=da-db
+  da,db=value(a),value(b);den=da-db
   if abs(den)<=1e-15:return a
   t=da/den;pa,pb=vertices[a],vertices[b]
   point=tuple(pa[k]+t*(pb[k]-pa[k]) for k in range(3));idx=len(vertices);vertices.append(point);edge_cache[key]=idx;return idx
  for tri,role in zip(mesh.triangles,mesh.triangle_surfaces):
-  poly=list(tri);clipped=[];s=poly[-1];ds=keep_sign*distance(s);s_in=ds>=-tolerance
+  poly=list(tri);clipped=[];s=poly[-1];sv=value(s)*(1.0 if keep_positive else -1.0);s_in=sv>=-tolerance
   for e in poly:
-   de=keep_sign*distance(e);e_in=de>=-tolerance
+   ev=value(e)*(1.0 if keep_positive else -1.0);e_in=ev>=-tolerance
    if e_in:
     if not s_in:clipped.append(intersection(s,e))
     clipped.append(e)
@@ -87,13 +87,42 @@ def _clip_mesh_halfspace(mesh,plane,keep_sign,tolerance=1e-9):
   if len(clean)>1 and clean[0]==clean[-1]:clean.pop()
   if len(clean)<3:continue
   for j in range(1,len(clean)-1):
-   candidate=(clean[0],clean[j],clean[j+1])
-   a,b,c=(vertices[i] for i in candidate)
-   ab=(b[0]-a[0],b[1]-a[1],b[2]-a[2]);ac=(c[0]-a[0],c[1]-a[1],c[2]-a[2])
-   cross=(ab[1]*ac[2]-ab[2]*ac[1],ab[2]*ac[0]-ab[0]*ac[2],ab[0]*ac[1]-ab[1]*ac[0])
+   candidate=(clean[0],clean[j],clean[j+1]);a,b,c=(vertices[i] for i in candidate)
+   ab=(b[0]-a[0],b[1]-a[1],b[2]-a[2]);ac=(c[0]-a[0],c[1]-a[1],c[2]-a[2]);cross=(ab[1]*ac[2]-ab[2]*ac[1],ab[2]*ac[0]-ab[0]*ac[2],ab[0]*ac[1]-ab[1]*ac[0])
    if sum(v*v for v in cross)<=1e-20:continue
    out_tris.append(candidate);out_roles.append(role)
  return _compact_mesh(vertices,out_tris,out_roles)
+def _clip_mesh_halfspace(mesh,plane,keep_sign,tolerance=1e-9):
+ px,py=map(float,plane['point']);nx,ny=map(float,plane['normal'])
+ return _clip_mesh_scalar(mesh,lambda v:(v[0]-px)*nx+(v[1]-py)*ny,keep_positive=keep_sign>0,tolerance=tolerance)
+def _combine_meshes(meshes,tolerance=1e-9):
+ vertices=[];triangles=[];roles=[];index={}
+ scale=1.0/max(tolerance,1e-12)
+ def key(v):return tuple(round(float(x)*scale) for x in v)
+ for mesh in meshes:
+  remap={}
+  for i,v in enumerate(mesh.vertices):
+   k=key(v);idx=index.get(k)
+   if idx is None:idx=len(vertices);vertices.append(v);index[k]=idx
+   remap[i]=idx
+  for tri,role in zip(mesh.triangles,mesh.triangle_surfaces):
+   mapped=tuple(remap[i] for i in tri)
+   if len(set(mapped))==3:triangles.append(mapped);roles.append(role)
+ return MeshPayload(tuple(vertices),tuple(triangles),tuple(roles))
+def _subtract_opening_patch(mesh,geom):
+ """Remove the curved shell projected behind one rectangular planar opening patch.
+
+ The rectangle is interpreted in the patch's semantic tangent/Z frame and extruded along
+ its normal. This is a preview trim, not a fabrication Boolean.
+ """
+ px,py=map(float,geom['plane']['point']);tx,ty=map(float,geom['plane']['tangent']);half=float(geom['patch_width'])/2.0;z0=float(geom['z0']);z1=float(geom['z1'])
+ def q(v):return (v[0]-px)*tx+(v[1]-py)*ty
+ left=_clip_mesh_scalar(mesh,lambda v:(-half)-q(v),True)
+ right=_clip_mesh_scalar(mesh,lambda v:q(v)-half,True)
+ middle=_clip_mesh_scalar(mesh,lambda v:q(v)+half,True);middle=_clip_mesh_scalar(middle,lambda v:half-q(v),True)
+ bottom=_clip_mesh_scalar(middle,lambda v:z0-v[2],True)
+ top=_clip_mesh_scalar(middle,lambda v:v[2]-z1,True)
+ return _combine_meshes((left,right,bottom,top))
 def _active_junction_planes_for_pod(doc,pod_id):
  from archforge.organic.biospectre import junction_plane,junction_section_polygon
  out=[]
@@ -109,9 +138,18 @@ def _active_junction_planes_for_pod(doc,pod_id):
   if abs(signed)<=1e-12:continue
   out.append((plane,1.0 if signed>0 else -1.0))
  return out
+def _active_opening_patches_for_pod(doc,pod_id):
+ from archforge.architecture.openings import pod_opening_patch_geometry
+ out=[]
+ for entity in doc.entities.values():
+  if entity.kind!='organic_opening_patch' or entity.params.get('status')!='active' or entity.params.get('host_id')!=pod_id:continue
+  geom=pod_opening_patch_geometry(doc,entity.params.get('opening_id'))
+  if geom is not None:out.append(geom)
+ return out
 def _pod_mesh_for_node(doc,node):
  mesh=_pod_mesh(node.params)
  for plane,keep_sign in _active_junction_planes_for_pod(doc,node.entity_id):mesh=_clip_mesh_halfspace(mesh,plane,keep_sign)
+ for geom in _active_opening_patches_for_pod(doc,node.entity_id):mesh=_subtract_opening_patch(mesh,geom)
  return mesh
 def _room_slab(doc,node):
  from archforge.architecture.rooms import room_slab_geometry
@@ -137,9 +175,7 @@ def _organic_opening_patch_mesh(doc,node):
  if node.params.get('status')!='active':raise ValueError('organic opening patch is dormant')
  g=pod_opening_patch_geometry(doc,node.params.get('opening_id'))
  if g is None:raise ValueError('organic opening patch has no current host geometry')
- points=tuple(g['points'])
- # The patch is rectangular and already ordered around its vertical tangent plane.
- tris=((0,1,2),(0,2,3))
+ points=tuple(g['points']);tris=((0,1,2),(0,2,3))
  return MeshPayload(points,tris,('opening_patch','opening_patch'))
 def _payload(doc,node):
  k,p=node.semantic_kind,node.params
