@@ -26,8 +26,6 @@ class PlanView(QGraphicsView):
         self._mouse_down=True;hit=self.itemAt(event.position().toPoint())
         if hit in self._handle_items:
             h=self._handle_items[hit];self._active_handle=h
-            # Handles declare their interaction intent. Opening center handles use move;
-            # jamb/end/edge handles use stretch. Selecting here keeps the model and UI in sync.
             self.doc.select([h.entity_id]);self.selectionChangedByView.emit()
             if h.handle=='move' or h.cursor=='move':
                 self.controller.set_tool('move');self.controller.set_target(h.entity_id,h.handle)
@@ -71,15 +69,19 @@ class PlanView(QGraphicsView):
         extent=100;pen=QPen(QColor(225,225,225));pen.setWidthF(0);axis=QPen(QColor(160,160,160));axis.setWidthF(0)
         for i in range(-extent,extent+1):self._scene.addLine(i,-extent,i,extent,axis if i==0 else pen).setZValue(-100);self._scene.addLine(-extent,i,extent,i,axis if i==0 else pen).setZValue(-100)
     def _draw_primitive(self,p:Primitive2D):
-        preview=p.role=='preview';opening=p.role=='opening';pen=QPen(QColor(180,90,20) if opening else (QColor(40,150,70) if preview else QColor(45,55,65)));pen.setWidthF(.06 if opening else (.04 if preview else .035));item=None
+        preview=p.role=='preview';opening=p.role=='opening';room=p.role=='derived-room';pen=QPen(QColor(180,90,20) if opening else (QColor(40,150,70) if preview else QColor(45,55,65)));pen.setWidthF(.06 if opening else (.04 if preview else .035));item=None
         if p.kind=='line':a,b=p.points;item=self._scene.addLine(a[0],a[1],b[0],b[1],pen)
         elif p.kind=='polygon':
             from PySide6.QtGui import QPolygonF
-            item=self._scene.addPolygon(QPolygonF([QPointF(x,y) for x,y in p.points]),pen,QBrush(QColor(80,160,220,40)))
+            brush=QBrush(QColor(90,180,120,28) if room else QColor(80,160,220,40))
+            room_pen=QPen(QColor(110,150,120));room_pen.setWidthF(.015)
+            item=self._scene.addPolygon(QPolygonF([QPointF(x,y) for x,y in p.points]),room_pen if room else pen,brush)
         elif p.kind=='ellipse':
             cx,cy=p.points[0];item=self._scene.addEllipse(cx-p.radius_x,cy-p.radius_y,2*p.radius_x,2*p.radius_y,pen,QBrush(QColor(170,120,210,30)))
+        elif p.kind=='label':
+            meta=dict(p.meta);text=str(meta.get('text',''));cx,cy=p.points[0];item=self._scene.addText(text);item.setDefaultTextColor(QColor(55,80,65));item.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations,True);item.setPos(cx,cy);item.setTransformOriginPoint(item.boundingRect().center());item.setScale(1.0);item.setZValue(8);return
         if item is not None:
-            item.setZValue(10 if opening else (20 if preview else 0))
+            item.setZValue(-10 if room else (10 if opening else (20 if preview else 0)))
             if p.entity_id and not preview:self._entity_items[item]=p.entity_id
     def _draw_handle(self,h):
         r=.09;it=self._scene.addEllipse(h.x-r,h.y-r,2*r,2*r,QPen(QColor(20,90,180),0),QBrush(QColor(255,255,255)));it.setZValue(50);self._handle_items[it]=h
