@@ -44,6 +44,14 @@ def _organic_junction_payload(doc,node)->Optional[PreviewPayload]:
     if points is None:return None
     return PreviewPayload('organic_junction',_bounds(points))
 
+def _organic_opening_patch_payload(doc,node)->Optional[PreviewPayload]:
+    from archforge.architecture.openings import pod_opening_patch_geometry
+    if node.params.get('status')!='active':return None
+    opening_id=node.params.get('opening_id')
+    g=pod_opening_patch_geometry(doc,opening_id)
+    if g is None:return None
+    return PreviewPayload('organic_opening_patch',_bounds(g['points']))
+
 def _payload(doc,node)->Optional[PreviewPayload]:
     p=node.params;kind=node.semantic_kind
     if kind in ('box','mechanical_part'):
@@ -62,11 +70,10 @@ def _payload(doc,node)->Optional[PreviewPayload]:
     if kind=='pod':
         cx,cy,z=float(p['cx']),float(p['cy']),float(p['floor_level']);rx=float(p['diameter_x'])/2;ry=float(p['diameter_y'])/2
         angle=math.radians(float(p.get('rotation',0.0)));c,s=math.cos(angle),math.sin(angle)
-        # Exact axis-aligned extents of a Z-rotated ellipse. The vertical half-ellipsoid
-        # remains in universal XYZ; a storey is only a semantic reference, not a frame.
         ex=math.sqrt((rx*c)**2+(ry*s)**2);ey=math.sqrt((rx*s)**2+(ry*c)**2)
         return PreviewPayload('upper_ellipsoid',((cx-ex,cy-ey,z),(cx+ex,cy+ey,z+float(p['height']))))
     if kind=='organic_junction':return _organic_junction_payload(doc,node)
+    if kind=='organic_opening_patch':return _organic_opening_patch_payload(doc,node)
     if kind in ('floor','room'):
         pts=[(float(x),float(y),float(p['z'])) for x,y in p['points']];top=float(p['z'])+float(p.get('thickness',p.get('height',0.0)))
         return PreviewPayload('polygon_prism' if kind=='floor' else 'room_volume',_bounds(pts+[(x,y,top) for x,y,_ in pts]))
@@ -88,6 +95,8 @@ class PreviewBackend(GeometryBackend):
                         message='derived room element has no currently closed room'
                     elif node.semantic_kind=='organic_junction':
                         message='organic junction is dormant or has no current section'
+                    elif node.semantic_kind=='organic_opening_patch':
+                        message='organic opening patch is dormant or has no valid host opening'
                     else:
                         message='derived geometry is currently unavailable'
                     issues.append(GeometryIssue('warning','preview_geometry_unavailable',message,node.entity_id))
