@@ -56,10 +56,10 @@ def _pod_mesh(p,segments=32,rings=12):
   for i in range(segments):n=(i+1)%segments;a=j*segments+i;b=j*segments+n;c=(j+1)*segments+n;d=(j+1)*segments+i;tris.extend(((a,b,c),(a,c,d)));roles.extend(('pod_shell','pod_shell'))
  return MeshPayload(tuple(v),tuple(tris),tuple(roles))
 def _room_slab(doc,node):
- from archforge.architecture.rooms import find_room_face
- found=find_room_face(doc,node.params['room_signature'])
- if found is None:raise ValueError('derived room element has no currently closed room')
- face,z=found;p=node.params;return _polygon_prism(face.polygon,float(z)+float(p['offset_z']),p['thickness'])
+ from archforge.architecture.rooms import room_slab_geometry
+ g=room_slab_geometry(doc,doc.get(node.entity_id))
+ if g is None:raise ValueError('derived room element has no currently closed room')
+ return _polygon_prism(g['points'],g['z'],g['thickness'])
 def _payload(doc,node):
  k,p=node.semantic_kind,node.params
  if k=='wall':return _wall_mesh(p)

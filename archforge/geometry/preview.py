@@ -25,6 +25,13 @@ def _transform_point(matrix,p:Vec3)->Vec3:
 def _box_corners(width,depth,height):
     return [(x,y,z) for x in (0.0,width) for y in (0.0,depth) for z in (0.0,height)]
 
+def _room_slab_payload(doc,node)->PreviewPayload:
+    from archforge.architecture.rooms import room_slab_geometry
+    g=room_slab_geometry(doc,doc.get(node.entity_id))
+    if g is None:raise ValueError('derived room element has no currently closed room')
+    pts=[(float(x),float(y),float(g['z'])) for x,y in g['points']];top=float(g['z'])+float(g['thickness'])
+    return PreviewPayload('polygon_prism',_bounds(pts+[(x,y,top) for x,y,_ in pts]))
+
 def _payload(doc,node)->PreviewPayload:
     p=node.params;kind=node.semantic_kind
     if kind in ('box','mechanical_part'):
@@ -46,10 +53,8 @@ def _payload(doc,node)->PreviewPayload:
     if kind in ('floor','room'):
         pts=[(float(x),float(y),float(p['z'])) for x,y in p['points']];top=float(p['z'])+float(p.get('thickness',p.get('height',0.0)))
         return PreviewPayload('polygon_prism' if kind=='floor' else 'room_volume',_bounds(pts+[(x,y,top) for x,y,_ in pts]))
-    if kind=='room_floor':
-        from archforge.architecture.rooms import room_floor_geometry
-        g=room_floor_geometry(doc,doc.get(node.entity_id));pts=[(float(x),float(y),float(g['z'])) for x,y in g['points']];top=float(g['z'])+float(g['thickness'])
-        return PreviewPayload('polygon_prism',_bounds(pts+[(x,y,top) for x,y,_ in pts]))
+    if kind in ('room_floor','room_ceiling','room_foundation','room_roof'):
+        return _room_slab_payload(doc,node)
     raise ValueError(f'preview backend does not support {kind}')
 
 class PreviewBackend(GeometryBackend):

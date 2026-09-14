@@ -1,6 +1,7 @@
 from archforge.core.model import Document,Entity
 from archforge.architecture.intent import infer_architecture
 from archforge.geometry.mesh import TessellatedPreviewBackend
+from archforge.geometry.preview import PreviewBackend
 from archforge.geometry.surfaces import surface_roles
 from archforge.geometry.selection import SurfaceHit,BrushSpec,sculpt_modifier_from_hit
 from archforge.geometry.sculpt import SculptedPreviewBackend
@@ -11,11 +12,22 @@ def _house():
  for a,b in [((0,0),(5,0)),((5,0),(5,4)),((5,4),(0,4)),((0,4),(0,0))]:d.add(Entity('wall',{'x1':a[0],'y1':a[1],'x2':b[0],'y2':b[1],'z':0,'height':2.8,'thickness':.2}))
  infer_architecture(d);return d
 
+def _mesh_bounds(mesh):
+ return (tuple(min(v[i] for v in mesh.vertices) for i in range(3)),tuple(max(v[i] for v in mesh.vertices) for i in range(3)))
+
 def test_inferred_house_elements_have_real_preview_geometry():
  d=_house();ev=TessellatedPreviewBackend().evaluate(d)
  for e in d.entities.values():
   if e.kind.startswith('room_'):
    b=ev.body(e.id);assert b.payload.vertices and b.payload.triangles
+
+def test_fast_and_tessellated_backends_cover_same_inferred_house():
+ d=_house();prev=PreviewBackend().evaluate(d);tess=TessellatedPreviewBackend().evaluate(d)
+ assert prev.ok and tess.ok
+ assert {b.entity_id for b in prev.bodies}=={b.entity_id for b in tess.bodies}
+ for e in d.entities.values():
+  if e.kind.startswith('room_'):
+   assert prev.body(e.id).payload.bounds==_mesh_bounds(tess.body(e.id).payload)
 
 def test_ceiling_and_roof_are_sculptable_not_locked_assumptions():
  d=_house();ceiling=next(e for e in d.entities.values() if e.kind=='room_ceiling');roof=next(e for e in d.entities.values() if e.kind=='room_roof')
