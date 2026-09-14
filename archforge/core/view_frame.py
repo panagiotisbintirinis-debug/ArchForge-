@@ -52,6 +52,14 @@ def entity_view_primitives(doc: Document, eid: str, axis: str, override_params: 
         if axis=='XY':return [ViewPrimitive('polygon',tuple(pts),entity_id=eid,meta=(('semantic','floor'),))]
         vals=[q[0] for q in pts] if axis=='XZ' else [q[1] for q in pts];lo,hi=_extent(vals);z0=p['z'];z1=z0+p['thickness']
         return [ViewPrimitive('polygon',((lo,z0),(hi,z0),(hi,z1),(lo,z1)),entity_id=eid,meta=(('semantic','floor'),))]
+    if e.kind=='room_floor':
+        from archforge.architecture.rooms import room_floor_geometry
+        g=room_floor_geometry(doc,e)
+        if g is None:return []
+        pts=g['points']
+        if axis=='XY':return [ViewPrimitive('polygon',tuple(pts),entity_id=eid,role='room-floor',meta=(('semantic','room_floor'),('signature',g['room_signature'])))]
+        vals=[q[0] for q in pts] if axis=='XZ' else [q[1] for q in pts];lo,hi=_extent(vals);z0=g['z'];z1=z0+g['thickness']
+        return [ViewPrimitive('polygon',((lo,z0),(hi,z0),(hi,z1),(lo,z1)),entity_id=eid,role='room-floor',meta=(('semantic','room_floor'),('signature',g['room_signature'])))]
     if e.kind=='room':
         pts=[tuple(q) for q in p['points']]
         if axis=='XY':return [ViewPrimitive('polygon',tuple(pts),entity_id=eid,meta=(('semantic','room'),))]
