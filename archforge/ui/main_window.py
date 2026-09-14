@@ -4,7 +4,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction,QKeySequence
 from PySide6.QtWidgets import QMainWindow,QToolBar,QDockWidget,QWidget,QFormLayout,QDoubleSpinBox,QLabel,QTabWidget,QStatusBar,QFileDialog,QMessageBox
 from archforge.core.model import Document
-from archforge.core.commands import CommandStack,UpdateEntity
+from archforge.core.commands import CommandStack,UpdateEntity,CreateRoomFloors
 from .plan_view import PlanView
 from .ortho_view import OrthoView
 
@@ -18,6 +18,7 @@ class MainWindow(QMainWindow):
         tb=QToolBar('Tools');tb.setMovable(False);self.addToolBar(tb)
         for text,tool,key in [('Select','select','S'),('Wall','wall','W'),('Door','door','D'),('Window','window','N'),('Move','move','G'),('Stretch','stretch','T'),('Rotate','rotate','R')]:
             a=QAction(text,self);a.setShortcut(QKeySequence(key));a.triggered.connect(lambda checked=False,t=tool:self.view.set_tool(t));tb.addAction(a)
+        tb.addSeparator();af=QAction('Auto Floors',self);af.triggered.connect(self._create_auto_floors);tb.addAction(af)
         tb.addSeparator();au=QAction('Undo',self);au.setShortcut(QKeySequence.StandardKey.Undo);au.triggered.connect(self._undo);tb.addAction(au);ar=QAction('Redo',self);ar.setShortcut(QKeySequence.StandardKey.Redo);ar.triggered.connect(self._redo);tb.addAction(ar);tb.addSeparator();sv=QAction('Save',self);sv.setShortcut(QKeySequence.StandardKey.Save);sv.triggered.connect(self.save);tb.addAction(sv);op=QAction('Open',self);op.setShortcut(QKeySequence.StandardKey.Open);op.triggered.connect(self.open);tb.addAction(op)
     def _build_inspector(self):
         self.dock=QDockWidget('Inspector',self);self.dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea|Qt.DockWidgetArea.RightDockWidgetArea);self.inspector=QWidget();self.form=QFormLayout(self.inspector);self.dock.setWidget(self.inspector);self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea,self.dock)
@@ -32,9 +33,21 @@ class MainWindow(QMainWindow):
         for k,v in e.params.items():
             if isinstance(v,(int,float)):
                 sp=QDoubleSpinBox();sp.setDecimals(4);sp.setRange(-1e6,1e6);sp.setValue(float(v));sp.setSingleStep(.1);sp.editingFinished.connect(lambda key=k,widget=sp:self._commit_property(eid,key,widget.value()));self.form.addRow(k,sp)
+            elif e.kind=='room_floor' and k=='room_signature':self.form.addRow('Room',QLabel(str(v)))
     def _commit_property(self,eid,key,value):
         try:self.stack.execute(UpdateEntity(eid,{key:value}));self._redraw_views()
         except Exception as exc:QMessageBox.warning(self,'Invalid value',str(exc));self.refresh_inspector()
+    def _create_auto_floors(self):
+        faces=self.doc.active_room_faces()
+        if not faces:
+            self.statusBar().showMessage('No closed rooms on the current work plane',4000);return
+        existing={e.params.get('room_signature') for e in self.doc.entities.values() if e.kind=='room_floor'}
+        signatures=[f.signature for f in faces if f.signature not in existing]
+        if not signatures:
+            self.statusBar().showMessage('All current rooms already have automatic floors',4000);return
+        try:
+            self.stack.execute(CreateRoomFloors(signatures));self._redraw_views();self.refresh_inspector();self.statusBar().showMessage(f'Created {len(signatures)} automatic floor(s)',4000)
+        except Exception as exc:QMessageBox.warning(self,'Auto Floors',str(exc))
     def _selection_from_view(self):self._redraw_views();self.refresh_inspector()
     def _redraw_views(self):
         for v in (self.plan_view,self.front_view,self.side_view):v.redraw()
