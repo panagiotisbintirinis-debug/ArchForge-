@@ -4,7 +4,7 @@ from typing import Dict, Any, Optional, Tuple, List
 import copy
 from .model import Document
 from .commands import CommandStack, MoveEntities
-from .interaction import WallDrawTransaction,WallEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction,OpeningPlaceTransaction
+from .interaction import WallDrawTransaction,WallEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction,OpeningPlaceTransaction,OpeningEditTransaction
 from .snapping import best_snap
 
 @dataclass
@@ -40,6 +40,10 @@ class PointerController:
     def _plan_xy(self,ev):x,y,_=self._world(ev);return x,y
     @staticmethod
     def _snap_dict(sp):return None if sp is None else {'x':sp.x,'y':sp.y,'z':sp.z,'kind':sp.kind,'entity_id':sp.entity_id}
+    def _opening_preview(self,tx,kind='opening'):
+        seg=tx.preview_segment();geom={'opening_kind':tx.kind,'host_id':tx.host_id,'params':copy.deepcopy(tx.preview)}
+        if seg:geom.update({'x1':seg[0][0],'y1':seg[0][1],'x2':seg[1][0],'y2':seg[1][1]})
+        return PreviewState(kind,geom,{},None,getattr(tx,'eid',None))
     def pointer_down(self,ev):
         x,y=self._plan_xy(ev)
         if self.tool=='wall':
@@ -51,6 +55,9 @@ class PointerController:
         if self.tool=='move':
             ids=list(self.doc.selection)
             if not ids:return self.preview
+            if len(ids)==1 and self.doc.get(ids[0]).kind in ('door','window'):
+                self.active=OpeningEditTransaction(self.doc,self.stack,ids[0],'move')
+                hud=self.active.update(x,y);seg=self.active.preview_segment();geom={'opening_kind':self.active.kind,'host_id':self.active.host_id,'params':copy.deepcopy(self.active.preview),'x1':seg[0][0],'y1':seg[0][1],'x2':seg[1][0],'y2':seg[1][1]};self.preview=PreviewState('opening-edit',geom,hud.values,None,ids[0]);return self.preview
             self._move_start=(x,y);self._move_before={eid:copy.deepcopy(self.doc.get(eid).params) for eid in ids};self.active='move';self.preview=PreviewState('move',{'entities':copy.deepcopy(self._move_before)},{'dx':0.,'dy':0.},None);return self.preview
         if self.tool=='stretch':
             if not self.active_entity or self.active_entity not in self.doc.entities:return self.preview
@@ -58,6 +65,7 @@ class PointerController:
             if e.kind=='wall':self.active=WallEndpointStretchTransaction(self.doc,self.stack,e.id,1 if self.active_handle in ('1','start','endpoint1') else 2,self.grid,self.snap_tolerance)
             elif e.kind=='box':self.active=BoxStretchTransaction(self.doc,self.stack,e.id,self.active_handle or 'right')
             elif e.kind=='pod':self.active=PodStretchTransaction(self.doc,self.stack,e.id,self.active_handle or 'right')
+            elif e.kind in ('door','window'):self.active=OpeningEditTransaction(self.doc,self.stack,e.id,self.active_handle or 'right')
             else:raise ValueError('stretch unsupported for entity kind')
             return self.pointer_move(ev)
         if self.tool=='rotate':
@@ -77,6 +85,9 @@ class PointerController:
             hud=self.active.update(x,y);seg=self.active.preview_segment();geom={'opening_kind':self.active.kind,'host_id':self.active.host_id,'params':copy.deepcopy(self.active.preview)}
             if seg:geom.update({'x1':seg[0][0],'y1':seg[0][1],'x2':seg[1][0],'y2':seg[1][1]})
             self.preview=PreviewState('opening',geom,hud.values,None)
+        elif isinstance(self.active,OpeningEditTransaction):
+            hud=self.active.update(x,y);seg=self.active.preview_segment();geom={'opening_kind':self.active.kind,'host_id':self.active.host_id,'params':copy.deepcopy(self.active.preview),'x1':seg[0][0],'y1':seg[0][1],'x2':seg[1][0],'y2':seg[1][1]}
+            self.preview=PreviewState('opening-edit',geom,hud.values,None,self.active.eid)
         elif self.active=='move' and self._move_start is not None:
             dx=x-self._move_start[0];dy=y-self._move_start[1];previews={}
             for eid,p0 in self._move_before.items():
@@ -91,7 +102,7 @@ class PointerController:
         if self.active is None:return self.preview
         self.pointer_move(ev);committed_id=None
         if isinstance(self.active,WallDrawTransaction):committed_id=self.active.commit((exact or {}).get('length'))
-        elif isinstance(self.active,(WallEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction)):self.active.commit();committed_id=getattr(self.active,'eid',None)
+        elif isinstance(self.active,(WallEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction,OpeningEditTransaction)):self.active.commit();committed_id=getattr(self.active,'eid',None)
         elif isinstance(self.active,OpeningPlaceTransaction):committed_id=self.active.commit()
         elif self.active=='move':
             dx=self.preview.hud.get('dx',0.);dy=self.preview.hud.get('dy',0.)
