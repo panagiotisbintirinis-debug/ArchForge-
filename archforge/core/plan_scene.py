@@ -49,6 +49,11 @@ def preview_primitives(preview):
     g=preview.geometry
     if preview.kind=='wall' and g:return [Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),entity_id=preview.entity_id or '',role='preview')]
     if preview.kind in ('opening','opening-edit') and {'x1','y1','x2','y2'}<=set(g):return [Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),entity_id=preview.entity_id or '',role='preview',meta=(('semantic',g.get('opening_kind','opening')),))]
+    if preview.kind=='stretch' and 'entities' in g:
+        out=[]
+        for eid,p in g['entities'].items():
+            if {'x1','y1','x2','y2'}<=set(p):out.append(Primitive2D('line',((p['x1'],p['y1']),(p['x2'],p['y2'])),entity_id=eid,role='preview'))
+        if out:return out
     if preview.kind in ('stretch','rotate') and g:
         eid=preview.entity_id or ''
         if {'x1','y1','x2','y2'}<=set(g):return [Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),entity_id=eid,role='preview')]
@@ -64,8 +69,6 @@ def preview_primitives(preview):
     return []
 def build_plan_frame(doc,preview=None):
     f=PlanFrame()
-    # Closed wall loops are shown as derived room regions. They are not persistent
-    # entities yet, so wall edits automatically recompute them without stale state.
     try:
         from archforge.architecture.topology import closed_room_polygons,room_metrics
         z=doc.work_plane.origin[2]
