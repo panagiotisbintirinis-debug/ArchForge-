@@ -25,7 +25,14 @@ class PlanView(QGraphicsView):
         if event.button()!=Qt.MouseButton.LeftButton:super().mousePressEvent(event);return
         self._mouse_down=True;hit=self.itemAt(event.position().toPoint())
         if hit in self._handle_items:
-            h=self._handle_items[hit];self._active_handle=h;self.controller.set_tool('stretch');self.controller.set_target(h.entity_id,h.handle)
+            h=self._handle_items[hit];self._active_handle=h
+            # Handles declare their interaction intent. Opening center handles use move;
+            # jamb/end/edge handles use stretch. Selecting here keeps the model and UI in sync.
+            self.doc.select([h.entity_id]);self.selectionChangedByView.emit()
+            if h.handle=='move' or h.cursor=='move':
+                self.controller.set_tool('move');self.controller.set_target(h.entity_id,h.handle)
+            else:
+                self.controller.set_tool('stretch');self.controller.set_target(h.entity_id,h.handle)
         elif self.controller.tool=='select':
             eid=self._entity_items.get(hit)
             if eid:self.doc.select([eid],add=bool(event.modifiers()&Qt.KeyboardModifier.ControlModifier))
