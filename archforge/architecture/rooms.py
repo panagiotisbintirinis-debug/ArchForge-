@@ -6,6 +6,9 @@ from archforge.core.model import Entity
 from archforge.architecture.topology import room_faces
 
 
+ROOM_SLAB_KINDS=frozenset({'room_floor','room_ceiling','room_foundation','room_roof'})
+
+
 def find_room_face(doc, signature: str, tolerance: float = 1e-5):
     """Find an active derived room face by stable signature across all wall levels."""
     # The semantic wall IDs encoded by a signature are globally unique, so scanning all
@@ -32,11 +35,11 @@ def create_room_floor(doc, signature: str, thickness: float = 0.15, offset_z: fl
     return e
 
 
-def room_floor_geometry(doc, floor_entity: Entity, tolerance: float = 1e-5) -> Optional[dict]:
-    """Resolve a room floor's live polygon; return None while its room is not closed."""
-    if floor_entity.kind!='room_floor':
-        raise ValueError('entity is not a room_floor')
-    p=floor_entity.params
+def room_slab_geometry(doc, slab_entity: Entity, tolerance: float = 1e-5) -> Optional[dict]:
+    """Resolve any inferred room slab against the room's current live topology."""
+    if slab_entity.kind not in ROOM_SLAB_KINDS:
+        raise ValueError('entity is not a derived room slab')
+    p=slab_entity.params
     found=find_room_face(doc,p['room_signature'],tolerance=tolerance)
     if found is None:
         return None
@@ -47,3 +50,10 @@ def room_floor_geometry(doc, floor_entity: Entity, tolerance: float = 1e-5) -> O
             'thickness':float(p['thickness']),
             'room_signature':face.signature,
             'wall_ids':tuple(face.wall_ids)}
+
+
+def room_floor_geometry(doc, floor_entity: Entity, tolerance: float = 1e-5) -> Optional[dict]:
+    """Resolve a room floor's live polygon; return None while its room is not closed."""
+    if floor_entity.kind!='room_floor':
+        raise ValueError('entity is not a room_floor')
+    return room_slab_geometry(doc,floor_entity,tolerance=tolerance)
