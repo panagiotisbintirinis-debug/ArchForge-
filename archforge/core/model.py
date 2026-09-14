@@ -149,8 +149,6 @@ class Document:
             for cid in self.children.get(eid,()):
                 child=self.entities.get(cid)
                 if child and child.kind in ('door','window'):validate_opening(p,child.params,child.kind)
-        # Reference fields are intentionally immutable through a generic parameter edit;
-        # relinking is a future explicit command so dependency graphs cannot silently stale.
         if e.kind=='mechanical_joint' and (p['parent_part']!=e.params['parent_part'] or p['child_part']!=e.params['child_part']):
             raise ValueError('joint part references require explicit relink')
         if e.kind=='mechanical_mount' and (p['host_id']!=e.params['host_id'] or p['part_id']!=e.params['part_id']):
@@ -205,7 +203,6 @@ class Document:
             for c in list(self.children.get(x,())):walk(c)
             if x not in ids:ids.append(x)
         walk(eid)
-        # Referential mechanical entities are part of the deletion transaction.
         changed=True
         while changed:
             changed=False
@@ -232,7 +229,7 @@ class Document:
         else:self.selection=valid
     def to_dict(self):
         from .modifiers import modifier_to_dict
-        return {'format':7,'entities':[asdict(e) for e in self.entities.values()],
+        return {'format':6,'entities':[asdict(e) for e in self.entities.values()],
                 'dependencies':{k:sorted(v) for k,v in self.dependencies.items()},
                 'levels':self.levels,'work_plane':asdict(self.work_plane),'materials':self.materials,
                 'constructions':self.constructions,'room_data':copy.deepcopy(self.room_data),
@@ -246,7 +243,6 @@ class Document:
         for raw in raw_entities:
             if raw.get('kind') in ('door','window','mechanical_joint','mechanical_mount'):deferred.append(raw)
             else:doc.add(Entity(**raw))
-        # Openings need walls; joints and mounts need all mechanical parts/hosts.
         for raw in deferred:doc.add(Entity(**raw))
         for source,dependents in d.get('dependencies',{}).items():
             for dependent in dependents:
