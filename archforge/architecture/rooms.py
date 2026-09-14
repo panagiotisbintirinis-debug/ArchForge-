@@ -4,15 +4,14 @@ from typing import Optional
 
 from archforge.core.model import Entity
 from archforge.architecture.topology import room_faces
+from archforge.architecture.room_identity import reconcile_room_bindings, room_id_for_signature
 
 
 ROOM_SLAB_KINDS=frozenset({'room_floor','room_ceiling','room_foundation','room_roof'})
 
 
 def find_room_face(doc, signature: str, tolerance: float = 1e-5):
-    """Find an active derived room face by stable signature across all wall levels."""
-    # The semantic wall IDs encoded by a signature are globally unique, so scanning all
-    # active faces is safe and keeps room floors valid when the current work plane changes.
+    """Find an active topological room face by its current signature."""
     levels=sorted({float(e.params['z']) for e in doc.entities.values() if e.kind=='wall' and e.visible})
     for z in levels:
         for face in room_faces(doc,tolerance=tolerance,z=z):
@@ -21,13 +20,28 @@ def find_room_face(doc, signature: str, tolerance: float = 1e-5):
     return None
 
 
+def find_room_face_by_id(doc, room_id: str, tolerance: float = 1e-5):
+    """Resolve a persistent semantic room ID to its currently enclosed topology face."""
+    levels=sorted({float(e.params['z']) for e in doc.entities.values() if e.kind=='wall' and e.visible})
+    if not levels:
+        levels=[float(doc.work_plane.origin[2])]
+    for z in levels:
+        for face,rid in reconcile_room_bindings(doc,z=z,tolerance=tolerance):
+            if rid==room_id:
+                return face,z
+    return None
+
+
 def create_room_floor(doc, signature: str, thickness: float = 0.15, offset_z: float = 0.0, name: str = 'Auto Floor') -> Entity:
-    """Create a semantic floor linked to a derived room instead of copying its polygon."""
+    """Create a semantic floor linked to a persistent room identity."""
     found=find_room_face(doc,signature)
     if found is None:
         raise ValueError('room signature is not currently active')
-    face,_=found
-    e=Entity('room_floor',{'room_signature':signature,'thickness':float(thickness),'offset_z':float(offset_z)},name=name)
+    face,z=found
+    room_id=room_id_for_signature(doc,signature,z=z)
+    params={'room_signature':signature,'thickness':float(thickness),'offset_z':float(offset_z)}
+    if room_id is not None:params['room_id']=room_id
+    e=Entity('room_floor',params,name=name)
     doc.add(e)
     for wid in face.wall_ids:
         if wid in doc.entities and e.id not in doc.dependencies.get(wid,set()):
@@ -40,7 +54,8 @@ def room_slab_geometry(doc, slab_entity: Entity, tolerance: float = 1e-5) -> Opt
     if slab_entity.kind not in ROOM_SLAB_KINDS:
         raise ValueError('entity is not a derived room slab')
     p=slab_entity.params
-    found=find_room_face(doc,p['room_signature'],tolerance=tolerance)
+    room_id=p.get('room_id')
+    found=find_room_face_by_id(doc,room_id,tolerance=tolerance) if room_id else find_room_face(doc,p['room_signature'],tolerance=tolerance)
     if found is None:
         return None
     face,base_z=found
@@ -48,6 +63,7 @@ def room_slab_geometry(doc, slab_entity: Entity, tolerance: float = 1e-5) -> Opt
     return {'points':[tuple(q) for q in face.polygon],
             'z':z,
             'thickness':float(p['thickness']),
+            'room_id':room_id,
             'room_signature':face.signature,
             'wall_ids':tuple(face.wall_ids)}
 
