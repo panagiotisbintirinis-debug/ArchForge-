@@ -20,3 +20,13 @@ def test_open_pod_is_never_promoted_to_fabrication_mesh():
  ev=ValidatedMeshBackend().evaluate(d);b=ev.body(e.id)
  assert b.watertight is False and b.quality!='fabrication_mesh'
  assert not assess_fabrication(ev).ready
+
+def test_wall_with_door_and_window_can_be_promoted_as_one_closed_host_mesh():
+ d=Document();wall=Entity('wall',{'x1':0.0,'y1':0.0,'z':0.0,'x2':5.0,'y2':0.0,'height':3.0,'thickness':0.2});d.add(wall)
+ d.add(Entity('door',{'offset':1.5,'width':0.9,'height':2.1,'sill':0.0},parent_id=wall.id))
+ d.add(Entity('window',{'offset':3.5,'width':1.2,'height':1.0,'sill':1.0},parent_id=wall.id))
+ ev=ValidatedMeshBackend().evaluate(d);body=ev.body(wall.id)
+ assert body.watertight is True and body.manifold is True
+ assert body.quality=='fabrication_mesh'
+ assert 'opening_reveal' in set(body.payload.triangle_surfaces)
+ assert assess_fabrication(ev,[wall.id]).ready
