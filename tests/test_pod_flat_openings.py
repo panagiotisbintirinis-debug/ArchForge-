@@ -42,7 +42,6 @@ def test_pod_opening_materializes_stable_planar_patch():
     assert geom is not None
     points = geom['points']
     assert len(points) == 4
-    # All four corners lie on one vertical plane, and the patch is wider/taller than the opening.
     px, py = geom['plane']['point']; nx, ny = geom['plane']['normal']
     assert all(abs((x-px)*nx + (y-py)*ny) < 1e-8 for x, y, _ in points)
     assert geom['patch_width'] > door.params['width']
@@ -63,3 +62,32 @@ def test_pod_opening_patch_follows_host_rotation_without_changing_semantic_u():
     n0 = before['plane']['normal']; n1 = after['plane']['normal']
     assert abs(n0[0]) > 0.9 and abs(n0[1]) < 0.1
     assert abs(n1[1]) > 0.9 and abs(n1[0]) < 0.1
+
+
+def test_door_placement_transaction_can_snap_to_pod_boundary():
+    from archforge.core.commands import CommandStack
+    from archforge.core.interaction import OpeningPlaceTransaction
+
+    doc = Document(); pod = _pod(); doc.add(pod); stack = CommandStack(doc)
+    tx = OpeningPlaceTransaction(doc, stack, 'door', 4.02, 0.0, tolerance=0.2)
+    assert tx.host_id == pod.id
+    assert 'surface_u' in tx.preview and 'offset' not in tx.preview
+    eid = tx.commit()
+    opening = doc.get(eid)
+    assert opening.parent_id == pod.id
+    assert opening.kind == 'door'
+
+
+def test_flat_opening_patch_has_preview_and_tessellated_geometry():
+    from archforge.architecture.openings import infer_organic_opening_patches
+    from archforge.geometry.preview import PreviewBackend
+    from archforge.geometry.mesh import TessellatedPreviewBackend
+
+    doc = Document(); pod = _pod(); doc.add(pod); door = _door(pod.id, 0.25); doc.add(door)
+    patch_id = infer_organic_opening_patches(doc).active_ids[0]
+    fast = PreviewBackend().evaluate(doc)
+    tess = TessellatedPreviewBackend().evaluate(doc)
+    assert fast.body(patch_id).semantic_kind == 'organic_opening_patch'
+    mesh = tess.body(patch_id).payload
+    assert mesh.triangles
+    assert set(mesh.triangle_surfaces) == {'opening_patch'}
