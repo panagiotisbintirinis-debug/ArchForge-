@@ -12,11 +12,24 @@ def _wall_frame(p):
     return x1,y1,z,length,float(p['height']),float(p['thickness']),ux,uy,nx,ny
 
 
+def _pod_frame(p):
+    cx=float(p['cx']);cy=float(p['cy']);z=float(p['floor_level'])
+    rx=float(p['diameter_x'])/2.0;ry=float(p['diameter_y'])/2.0;rz=float(p['height'])
+    if min(rx,ry,rz)<=1e-12:raise ValueError('pod dimensions must be positive')
+    a=math.radians(float(p.get('rotation',0.0)));c,s=math.cos(a),math.sin(a)
+    return cx,cy,z,rx,ry,rz,c,s
+
+
 def project_surface_point(doc, owner_id, role, world_point):
     """Project a world hit to backend-neutral semantic surface coordinates.
 
     Returns normalized (u,v) where a stable intrinsic frame exists. Unsupported surface
     kinds return None so callers can retain legacy world-space behavior during migration.
+
+    For ``pod_shell``, ``u`` is azimuth around the pod's own rotated ellipse and ``v`` is
+    normalized elevation from equator/floor (0) to crown (1). The coordinates therefore
+    survive pod translation, rotation and parametric reshaping without depending on mesh
+    triangle identity.
     """
     e=doc.get(owner_id);p=e.params;x,y,zp=map(float,world_point)
     if e.kind=='wall':
@@ -37,6 +50,19 @@ def project_surface_point(doc, owner_id, role, world_point):
         if role in ('top','bottom'):return (lx/w,ly/d)
         if role in ('front','back'):return (lx/w,lz/h)
         if role in ('left','right'):return (ly/d,lz/h)
+    if e.kind=='pod' and role=='pod_shell':
+        cx,cy,z,rx,ry,rz,c,s=_pod_frame(p)
+        dx=x-cx;dy=y-cy
+        # Inverse Z rotation into the pod's semantic local ellipse frame.
+        lx=c*dx+s*dy;ly=-s*dx+c*dy
+        nx=lx/rx;ny=ly/ry
+        if abs(nx)<=1e-12 and abs(ny)<=1e-12:
+            u=0.0  # azimuth is geometrically degenerate at the crown
+        else:
+            u=(math.atan2(ny,nx)/(2.0*math.pi))%1.0
+        sin_phi=max(0.0,min(1.0,(zp-z)/rz))
+        v=math.asin(sin_phi)/(0.5*math.pi)
+        return (u,v)
     return None
 
 
@@ -71,6 +97,13 @@ def evaluate_surface_point(doc, owner_id, role, uv, transform=None):
         a=math.radians(float(p.get('rotation',0.0)));c,s=math.cos(a),math.sin(a)
         ox,oy,oz=map(float,(p['x'],p['y'],p['z']));x,y,z=local
         return (ox+c*x-s*y,oy+s*x+c*y,oz+z)
+    if e.kind=='pod' and role=='pod_shell':
+        cx,cy,z,rx,ry,rz,c,s=_pod_frame(p)
+        theta=2.0*math.pi*(u%1.0);phi=0.5*math.pi*max(0.0,min(1.0,v))
+        rr=math.cos(phi)
+        lx=rx*rr*math.cos(theta);ly=ry*rr*math.sin(theta)
+        point=(cx+c*lx-s*ly,cy+s*lx+c*ly,z+rz*math.sin(phi))
+        return _transform_point(transform,point) if transform is not None else point
     return None
 
 
