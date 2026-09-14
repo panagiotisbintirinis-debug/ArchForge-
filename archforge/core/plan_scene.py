@@ -27,6 +27,11 @@ def entity_primitive(doc,eid):
     if e.kind=='box':return Primitive2D('polygon',tuple(_box_corners(p)),entity_id=eid)
     if e.kind=='pod':return Primitive2D('ellipse',((p['cx'],p['cy']),),p['diameter_x']/2,p['diameter_y']/2,p.get('rotation',0.),eid)
     if e.kind in ('floor','room'):return Primitive2D('polygon',tuple(tuple(q) for q in p['points']),entity_id=eid,meta=(('semantic',e.kind),))
+    if e.kind=='room_floor':
+        from archforge.architecture.rooms import room_floor_geometry
+        g=room_floor_geometry(doc,e)
+        if g is None:return None
+        return Primitive2D('polygon',tuple(g['points']),entity_id=eid,role='room-floor',meta=(('semantic','room_floor'),('signature',g['room_signature']),('thickness',g['thickness']),('z',g['z'])))
     if e.kind in ('door','window'):
         if not e.parent_id or e.parent_id not in doc.entities:return None
         from archforge.architecture.openings import plan_segment
@@ -73,8 +78,7 @@ def build_plan_frame(doc,preview=None):
         from archforge.architecture.topology import room_metrics
         for index,face in enumerate(doc.active_room_faces(),start=1):
             m=room_metrics(face.polygon);data=doc.room_metadata(face.signature)
-            name=data.get('name') or f'Room {index}'
-            use=data.get('use','')
+            name=data.get('name') or f'Room {index}';use=data.get('use','')
             label=name+(f' — {use}' if use else '')+f'\n{m["area"]:.2f} m²'
             meta=(('semantic','derived-room'),('signature',face.signature),('wall_ids',face.wall_ids),('area',m['area']),('perimeter',m['perimeter']),('name',name),('use',use))
             f.primitives.append(Primitive2D('polygon',tuple(face.polygon),role='derived-room',meta=meta))
