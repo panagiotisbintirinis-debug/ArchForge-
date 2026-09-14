@@ -2,7 +2,7 @@ import pytest
 from archforge.core.model import Document, Entity
 from archforge.core.commands import CommandStack
 from archforge.geometry.selection import SurfaceHit, BrushSpec
-from archforge.geometry.sculpt_transaction import SculptTransaction
+from archforge.geometry.sculpt_transaction import SculptTransaction, begin_sculpt_from_ray
 from archforge.geometry.mesh import TessellatedPreviewBackend
 
 
@@ -38,3 +38,22 @@ def test_cancel_leaves_no_modifier():
 def test_transaction_rejects_unsupported_live_operation():
     d,w,stack=_setup()
     with pytest.raises(ValueError):SculptTransaction(d,stack,SurfaceHit(w.id,'exterior',(0,.1,0),(0,1,0)),BrushSpec(1),'cut',.2)
+
+
+def test_viewport_ray_can_begin_preview_and_commit_semantic_sculpt():
+    d,w,stack=_setup()
+    # Approach +normal side of wall from above Y and shoot inward.
+    tx=begin_sculpt_from_ray(d,stack,(2,2,1.5),(0,-1,0),BrushSpec(.7,1,'smooth'),'pull',.25)
+    assert tx is not None
+    assert tx.hit.owner_id==w.id and tx.hit.surface_role=='exterior'
+    assert tx.preview_mesh().vertices!=TessellatedPreviewBackend().evaluate(d).body(w.id).payload.vertices
+    mid=tx.commit()
+    assert d.surface_modifiers[mid].target.owner_id==w.id
+    assert d.surface_modifiers[mid].target.surface_role=='exterior'
+
+
+def test_viewport_ray_miss_does_not_create_transaction_or_history():
+    d,w,stack=_setup()
+    tx=begin_sculpt_from_ray(d,stack,(20,20,20),(0,0,1),BrushSpec(1),'pull',.2)
+    assert tx is None
+    assert not d.surface_modifiers and not stack.done
