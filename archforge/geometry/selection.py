@@ -6,6 +6,7 @@ import math
 
 from archforge.core.modifiers import SurfaceModifier, SurfaceRef
 from .surfaces import validate_surface_role
+from .surface_frame import project_surface_point
 
 Vec2=Tuple[float,float]; Vec3=Tuple[float,float,float]
 
@@ -44,12 +45,15 @@ class BrushSpec:
 def sculpt_modifier_from_hit(doc,hit:SurfaceHit,brush:BrushSpec,operation:str,amount:float,*,order:int=0,name:str='')->SurfaceModifier:
     """Create persistent sculpt intent from a transient viewport hit.
 
-    World point is retained as a recovery hint, while UV (when available) is the preferred
-    backend-neutral location. No triangle/face index is persisted.
+    Intrinsic surface coordinates are preferred whenever the semantic surface exposes a
+    stable frame. The original world point remains a recovery/backward-compatibility hint;
+    no transient triangle or B-rep face index is persisted.
     """
     hit.validate(doc);brush.validate()
     amount=float(amount)
     if not math.isfinite(amount) or amount<0:raise ValueError('sculpt amount must be >= 0')
-    subregion={'world_center':list(hit.world_point),'radius':float(brush.radius),'falloff':brush.falloff,'strength':float(brush.strength)}
-    if hit.uv is not None:subregion['uv_center']=list(hit.uv)
+    subregion={'world_center':list(hit.world_point),'world_hint':list(hit.world_point),'radius':float(brush.radius),'falloff':brush.falloff,'strength':float(brush.strength)}
+    uv=hit.uv if hit.uv is not None else project_surface_point(doc,hit.owner_id,hit.surface_role,hit.world_point)
+    if uv is not None:
+        subregion['uv_center']=list(uv);subregion['coord_system']='surface_uv'
     return SurfaceModifier(SurfaceRef(hit.owner_id,hit.surface_role,subregion),operation,{'amount':amount},name=name,order=order)
