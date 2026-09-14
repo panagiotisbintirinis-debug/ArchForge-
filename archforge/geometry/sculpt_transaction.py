@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import replace
-
 from archforge.core.interaction import HUD
 from archforge.core.modifier_commands import AddSurfaceModifier
 from .selection import BrushSpec, SurfaceHit, sculpt_modifier_from_hit
 from .mesh import TessellatedPreviewBackend
 from .sculpt import apply_brush_modifier
+from .picking import raycast_evaluation
 
 
 class SculptTransaction:
@@ -60,3 +59,19 @@ class SculptTransaction:
     def cancel(self):
         if self.committed: raise RuntimeError('cannot cancel committed transaction')
         self.cancelled=True
+
+
+def begin_sculpt_from_ray(doc, stack, origin, direction, brush: BrushSpec,
+                          operation: str='pull', amount: float=0.0,
+                          evaluation=None):
+    """Bridge the future 3D viewport directly into a semantic sculpt transaction.
+
+    A screen ray hits transient triangles, resolves the stable semantic surface, then the
+    triangle identity is discarded before the transaction begins.
+    """
+    if evaluation is None:
+        evaluation=TessellatedPreviewBackend().evaluate(doc)
+    hit=raycast_evaluation(doc,evaluation,origin,direction)
+    if hit is None:
+        return None
+    return SculptTransaction(doc,stack,hit,brush,operation,amount)
