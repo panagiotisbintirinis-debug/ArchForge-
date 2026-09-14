@@ -61,7 +61,7 @@ def validate_params(kind,params):
  return out
 class Document:
  def __init__(self):
-  self.entities={};self.children={};self.dependencies={};self.selection=[];self.dirty=set();self.levels={'Ground':0.0};self.work_plane=WorkPlane();self.materials={};self.constructions={};self.room_data={};self.surface_modifiers={}
+  self.entities={};self.children={};self.dependencies={};self.selection=[];self.dirty=set();self.levels={'Ground':0.0};self.work_plane=WorkPlane();self.materials={};self.constructions={};self.room_data={};self.room_bindings={};self.surface_modifiers={}
  def _validate_links(self,e):
   if e.kind in ('door','window'):
    if not e.parent_id or e.parent_id not in self.entities or self.entities[e.parent_id].kind!='wall':raise ValueError('door/window must be attached to an existing wall')
@@ -97,17 +97,20 @@ class Document:
   if e.kind=='mechanical_mount' and (p['host_id']!=e.params['host_id'] or p['part_id']!=e.params['part_id']):raise ValueError('mount references require explicit relink')
   e.params=p;e.revision+=1;self.mark_dirty(eid)
  def set_room_metadata(self,signature,**changes):
-  allowed={'name','use','floor_finish','ceiling_finish','notes'};data=copy.deepcopy(self.room_data.get(signature,{}))
+  from archforge.architecture.room_identity import resolve_room_metadata_key
+  key=resolve_room_metadata_key(self,signature);allowed={'name','use','floor_finish','ceiling_finish','notes'};data=copy.deepcopy(self.room_data.get(key,{}))
   if set(changes)-allowed:raise ValueError('unsupported room metadata')
   for k,v in changes.items():
    if v is None:data.pop(k,None)
    else:data[k]=str(v)
-  if data:self.room_data[signature]=data
-  else:self.room_data.pop(signature,None)
- def room_metadata(self,signature):return copy.deepcopy(self.room_data.get(signature,{}))
+  if data:self.room_data[key]=data
+  else:self.room_data.pop(key,None)
+ def room_metadata(self,signature):
+  from archforge.architecture.room_identity import resolve_room_metadata_key
+  key=resolve_room_metadata_key(self,signature);return copy.deepcopy(self.room_data.get(key,self.room_data.get(signature,{})))
  def active_room_faces(self,z=None,tolerance=1e-5):
-  from archforge.architecture.topology import room_faces
-  return room_faces(self,tolerance=tolerance,z=self.work_plane.origin[2] if z is None else z)
+  from archforge.architecture.room_identity import reconcile_room_bindings
+  return [face for face,_ in reconcile_room_bindings(self,z=self.work_plane.origin[2] if z is None else z,tolerance=tolerance)]
  def add_surface_modifier(self,m):
   from .modifiers import add_modifier;return add_modifier(self,m)
  def update_surface_modifier(self,mid,**changes):
@@ -163,12 +166,12 @@ class Document:
   else:self.selection=valid
  def to_dict(self):
   from .modifiers import modifier_to_dict
-  return {'format':7,'entities':[asdict(e) for e in self.entities.values()],'dependencies':{k:sorted(v) for k,v in self.dependencies.items()},'levels':self.levels,'work_plane':asdict(self.work_plane),'materials':self.materials,'constructions':self.constructions,'room_data':copy.deepcopy(self.room_data),'surface_modifiers':[modifier_to_dict(m) for m in self.surface_modifiers.values()]}
+  return {'format':7,'entities':[asdict(e) for e in self.entities.values()],'dependencies':{k:sorted(v) for k,v in self.dependencies.items()},'levels':self.levels,'work_plane':asdict(self.work_plane),'materials':self.materials,'constructions':self.constructions,'room_data':copy.deepcopy(self.room_data),'room_bindings':copy.deepcopy(self.room_bindings),'surface_modifiers':[modifier_to_dict(m) for m in self.surface_modifiers.values()]}
  @classmethod
  def from_dict(cls,d):
   doc=cls();doc.levels=d.get('levels',{'Ground':0.0});wp=d.get('work_plane')
   if wp:doc.work_plane=WorkPlane(name=wp.get('name','XY'),origin=tuple(wp.get('origin',(0,0,0))),u=tuple(wp.get('u',(1,0,0))),v=tuple(wp.get('v',(0,1,0))))
-  doc.materials=d.get('materials',{});doc.constructions=d.get('constructions',{});doc.room_data=copy.deepcopy(d.get('room_data',{}));deferred=[]
+  doc.materials=d.get('materials',{});doc.constructions=d.get('constructions',{});doc.room_data=copy.deepcopy(d.get('room_data',{}));doc.room_bindings=copy.deepcopy(d.get('room_bindings',{}));deferred=[]
   for raw in d.get('entities',[]):
    if raw.get('kind') in ('door','window','mechanical_joint','mechanical_mount'):deferred.append(raw)
    else:doc.add(Entity(**raw))

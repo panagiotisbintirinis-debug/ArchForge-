@@ -44,41 +44,70 @@ class UpdateEntities(Command):
         for eid,p in self.before.items():
             e=doc.get(eid);e.params=copy.deepcopy(p);e.revision+=1;doc.mark_dirty(eid)
 
+
+def _legacy_world_modifier(mod):
+    """True only for pre-parametric modifier state that still needs command-time translation."""
+    region=mod.target.subregion or {}
+    return (
+        mod.params.get('mode')!='mechanism_clearance'
+        and 'uv_center' not in region
+        and 'world_center' in region
+        and isinstance(region.get('world_center'),(list,tuple))
+        and len(region['world_center'])==3
+    )
+
 @dataclass
 class MoveEntities(Command):
-    ids:List[str]; dx:float;dy:float;dz:float=0.0;before:Dict[str,Dict[str,Any]]|None=None
+    ids:List[str]; dx:float;dy:float;dz:float=0.0;before:Dict[str,Dict[str,Any]]|None=None;before_modifiers:Dict[str,Any]|None=None
     def do(self,doc):
-        if self.before is None:self.before={i:copy.deepcopy(doc.get(i).params) for i in self.ids}
+        if self.before is None:
+            self.before={i:copy.deepcopy(doc.get(i).params) for i in self.ids}
+            self.before_modifiers={mid:copy.deepcopy(m) for mid,m in doc.surface_modifiers.items() if m.target.owner_id in self.ids and _legacy_world_modifier(m)}
         for i in self.ids:
             e=doc.get(i); p=e.params
-            if e.kind=='box':doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy,'z':p['z']+self.dz})
+            if e.kind in ('box','mechanical_part'):doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy,'z':p['z']+self.dz})
             elif e.kind=='wall':doc.update(i,{'x1':p['x1']+self.dx,'x2':p['x2']+self.dx,'y1':p['y1']+self.dy,'y2':p['y2']+self.dy,'z':p['z']+self.dz})
             elif e.kind=='pod':doc.update(i,{'cx':p['cx']+self.dx,'cy':p['cy']+self.dy,'floor_level':p['floor_level']+self.dz})
             elif e.kind in ('floor','room'):
                 doc.update(i,{'points':[(x+self.dx,y+self.dy) for x,y in p['points']], 'z':p['z']+self.dz})
+        # Compatibility only: modern UV/local attachments are immutable semantic intent.
+        # Old project files may still contain world-only sculpt centers, so translate those
+        # until they can be migrated to an intrinsic surface frame.
+        for mid,m in doc.surface_modifiers.items():
+            if m.target.owner_id not in self.ids or not _legacy_world_modifier(m):continue
+            c=m.target.subregion['world_center']
+            m.target.subregion['world_center']=[c[0]+self.dx,c[1]+self.dy,c[2]+self.dz]
+            doc.mark_dirty(m.target.owner_id)
     def undo(self,doc):
         for i,p in self.before.items():
             e=doc.get(i);e.params=copy.deepcopy(p);e.revision+=1;doc.mark_dirty(i)
+        if self.before_modifiers:
+            for mid,m in self.before_modifiers.items():
+                doc.surface_modifiers[mid]=copy.deepcopy(m);doc.mark_dirty(m.target.owner_id)
 
 class CreateRoomFloors(Command):
-    """Create one topology-linked floor per active room as a single undo step."""
+    """Create one topology-linked floor per persistent semantic room as one undo step."""
     def __init__(self,signatures:List[str],thickness:float=.15,offset_z:float=0.0):
         self.signatures=list(dict.fromkeys(signatures));self.thickness=float(thickness);self.offset_z=float(offset_z);self.entities:Dict[str,Entity]={}
     def do(self,doc):
         from archforge.architecture.rooms import find_room_face
-        existing={e.params.get('room_signature') for e in doc.entities.values() if e.kind=='room_floor'}
+        from archforge.architecture.room_identity import room_id_for_signature
         created=[]
         try:
             for sig in self.signatures:
-                if sig in existing:continue
                 found=find_room_face(doc,sig)
                 if found is None:raise ValueError('room signature is not currently active')
-                face,_=found
-                e=self.entities.get(sig)
+                face,z=found;room_id=room_id_for_signature(doc,sig,z=z)
+                if any(e.kind=='room_floor' and (e.params.get('room_id')==room_id or e.params.get('room_signature')==sig) for e in doc.entities.values()):continue
+                key=room_id or sig;e=self.entities.get(key)
                 if e is None:
-                    e=Entity('room_floor',{'room_signature':sig,'thickness':self.thickness,'offset_z':self.offset_z},name='Auto Floor')
-                    self.entities[sig]=e
-                doc.add(e.clone());created.append(e.id)
+                    params={'room_signature':sig,'thickness':self.thickness,'offset_z':self.offset_z}
+                    if room_id is not None:params['room_id']=room_id
+                    e=Entity('room_floor',params,name='Auto Floor');self.entities[key]=e
+                else:
+                    e=e.clone();e.params['room_signature']=sig
+                    if room_id is not None:e.params['room_id']=room_id
+                doc.add(e);created.append(e.id)
                 for wid in face.wall_ids:
                     if wid in doc.entities and e.id not in doc.dependencies.get(wid,set()):doc.add_dependency(wid,e.id)
         except Exception:

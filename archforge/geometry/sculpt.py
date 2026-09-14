@@ -5,6 +5,7 @@ import math
 
 from .backend import GeometryBackend, GeometryBody, GeometryEvaluation, GeometryIssue
 from .mesh import MeshPayload, TessellatedPreviewBackend
+from .surface_frame import resolve_modifier_for_node
 
 Vec3 = Tuple[float, float, float]
 
@@ -49,13 +50,7 @@ def _surface_neighbors(mesh: MeshPayload, role: str) -> Dict[int,set]:
 
 
 def apply_brush_modifier(mesh: MeshPayload, raw: dict) -> MeshPayload:
-    """Apply one non-destructive viewport sculpt modifier on a semantic surface.
-
-    Pull/push/inflate/recess displace along evaluated semantic-surface normals.
-    Smooth relaxes only the selected semantic patch. Crease concentrates normal
-    displacement toward the brush centre. This remains preview geometry, not a
-    fabrication-quality remesher or boolean evaluator.
-    """
+    """Apply one non-destructive viewport sculpt modifier on a semantic surface."""
     op=str(raw.get('operation',''))
     supported=('pull','push','inflate','recess','smooth','crease')
     if op not in supported:
@@ -103,7 +98,8 @@ class SculptedPreviewBackend(GeometryBackend):
             for raw in node.modifiers:
                 if not raw.get('enabled',True): continue
                 try:
-                    mesh=apply_brush_modifier(mesh,raw);applied.append(str(raw.get('id','')))
+                    resolved=resolve_modifier_for_node(doc,node,raw)
+                    mesh=apply_brush_modifier(mesh,resolved);applied.append(str(raw.get('id','')))
                 except Exception as exc:
                     failed=True;issues.append(GeometryIssue('warning','preview_modifier_unapplied',str(exc),node.entity_id))
             bodies.append(GeometryBody(node.entity_id,node.semantic_kind,body.surface_keys,tuple(applied),mesh,
