@@ -78,3 +78,24 @@ def test_derived_room_disappears_when_boundary_is_broken():
     eid=list(d.entities)[-1]
     d.update(eid,{'x2':1.0,'y2':0.5})
     assert not any(p.role=='derived-room' for p in build_plan_frame(d).primitives)
+
+
+def test_t_junction_splits_host_wall_topologically():
+    d=Document();d.add(wall(0,0,8,0));d.add(wall(4,0,4,3))
+    g=build_wall_graph(d)
+    # long wall becomes two graph edges plus the branch
+    assert len(g.edges)==3
+    junction=[i for i,p in enumerate(g.nodes) if abs(p[0]-4)<1e-9 and abs(p[1])<1e-9]
+    assert len(junction)==1
+
+
+def test_crossing_partition_wall_divides_rectangle_without_manual_split():
+    d=Document();rectangle(d,0,0,8,4);d.add(wall(4,-1,4,5))
+    rooms=closed_room_polygons(d);areas=sorted(round(polygon_area(p),6) for p in rooms)
+    assert areas==[16.0,16.0]
+
+
+def test_different_level_crossing_walls_do_not_connect():
+    d=Document();d.add(wall(0,0,8,0,z=0));d.add(wall(4,-2,4,2,z=3))
+    g=build_wall_graph(d)
+    assert len(g.nodes)==4 and len(g.edges)==2
