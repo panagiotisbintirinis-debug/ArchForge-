@@ -7,26 +7,16 @@ import uuid
 
 
 SUPPORTED_SCULPT_OPS = {
-    'pull',          # displace a selected surface region along a direction/normal
-    'push',          # inverse displacement
-    'inflate',       # smooth outward bulge
-    'recess',        # smooth inward depression
-    'crease',        # sharpen/fold a region
-    'smooth',        # relaxation/smoothing operation
-    'cut',           # subtractive sculptural cut
-    'add_volume',    # additive local mass
+    'pull', 'push', 'inflate', 'recess', 'crease', 'smooth', 'cut', 'add_volume',
 }
 
 
 @dataclass
 class SurfaceRef:
-    """Stable semantic reference to a deformable building surface.
+    """Stable semantic reference to a deformable surface.
 
-    ``owner_id`` points to the semantic object (wall, floor, roof, pod, room_floor, etc.).
-    ``surface_role`` names the semantic surface (exterior, interior, ceiling, junction,
-    roof_top, soffit, pod_shell, ...). ``subregion`` stores a backend-neutral selector
-    such as UV bounds, a brush mask identifier, or a named patch.  Persistent modifiers
-    never depend on transient mesh face indices.
+    Persistent references use semantic owner + role + backend-neutral subregion data;
+    they never persist transient mesh/B-rep face indices.
     """
     owner_id: str
     surface_role: str
@@ -37,15 +27,18 @@ class SurfaceRef:
             raise ValueError('surface owner does not exist')
         if not self.surface_role or not isinstance(self.surface_role, str):
             raise ValueError('surface_role must be a non-empty string')
+        if not isinstance(self.subregion, dict):
+            raise ValueError('surface subregion must be a dictionary')
+        # Central catalog prevents silently attaching a modifier to a role that a future
+        # tessellation happens not to expose. This is the contract between semantics and
+        # every geometry backend.
+        from archforge.geometry.surfaces import validate_surface_role
+        validate_surface_role(doc, self.owner_id, self.surface_role, require_deformable=True)
 
 
 @dataclass
 class SurfaceModifier:
-    """Non-destructive sculpt operation applied after semantic base geometry.
-
-    The semantic building object remains the source of truth. Geometry backends may
-    evaluate these modifiers into B-rep, mesh, or hybrid output for viewport/export.
-    """
+    """Non-destructive sculpt operation evaluated after semantic base geometry."""
     target: SurfaceRef
     operation: str
     params: Dict[str, Any]
@@ -69,51 +62,42 @@ class SurfaceModifier:
 def modifier_from_dict(raw: Dict[str, Any]) -> SurfaceModifier:
     data = copy.deepcopy(raw)
     target = data.get('target')
-    if isinstance(target, dict):
-        data['target'] = SurfaceRef(**target)
+    if isinstance(target, dict): data['target'] = SurfaceRef(**target)
     return SurfaceModifier(**data)
 
 
-def modifier_to_dict(modifier: SurfaceModifier) -> Dict[str, Any]:
-    return asdict(modifier)
+def modifier_to_dict(modifier: SurfaceModifier) -> Dict[str, Any]: return asdict(modifier)
 
 
 def ordered_modifiers(doc, owner_id: Optional[str] = None) -> List[SurfaceModifier]:
     mods = list(doc.surface_modifiers.values())
-    if owner_id is not None:
-        mods = [m for m in mods if m.target.owner_id == owner_id]
+    if owner_id is not None: mods = [m for m in mods if m.target.owner_id == owner_id]
     return sorted(mods, key=lambda m: (m.order, m.id))
 
 
 def add_modifier(doc, modifier: SurfaceModifier) -> str:
     modifier.validate(doc)
-    if modifier.id in doc.surface_modifiers:
-        raise ValueError('duplicate modifier id')
+    if modifier.id in doc.surface_modifiers: raise ValueError('duplicate modifier id')
     doc.surface_modifiers[modifier.id] = copy.deepcopy(modifier)
     doc.mark_dirty(modifier.target.owner_id)
     return modifier.id
 
 
 def update_modifier(doc, modifier_id: str, **changes) -> None:
-    if modifier_id not in doc.surface_modifiers:
-        raise KeyError(modifier_id)
+    if modifier_id not in doc.surface_modifiers: raise KeyError(modifier_id)
     before = doc.surface_modifiers[modifier_id]
     data = modifier_to_dict(before)
     if 'target' in changes and isinstance(changes['target'], SurfaceRef):
-        changes = dict(changes)
-        changes['target'] = asdict(changes['target'])
+        changes = dict(changes); changes['target'] = asdict(changes['target'])
     data.update(copy.deepcopy(changes))
-    after = modifier_from_dict(data)
-    after.validate(doc)
+    after = modifier_from_dict(data); after.validate(doc)
     old_owner = before.target.owner_id
     doc.surface_modifiers[modifier_id] = after
-    doc.mark_dirty(old_owner)
-    doc.mark_dirty(after.target.owner_id)
+    doc.mark_dirty(old_owner); doc.mark_dirty(after.target.owner_id)
 
 
 def remove_modifier(doc, modifier_id: str) -> SurfaceModifier:
-    if modifier_id not in doc.surface_modifiers:
-        raise KeyError(modifier_id)
+    if modifier_id not in doc.surface_modifiers: raise KeyError(modifier_id)
     modifier = doc.surface_modifiers.pop(modifier_id)
     doc.mark_dirty(modifier.target.owner_id)
     return modifier
