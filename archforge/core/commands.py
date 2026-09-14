@@ -61,24 +61,28 @@ class MoveEntities(Command):
             e=doc.get(i);e.params=copy.deepcopy(p);e.revision+=1;doc.mark_dirty(i)
 
 class CreateRoomFloors(Command):
-    """Create one topology-linked floor per active room as a single undo step."""
+    """Create one topology-linked floor per persistent semantic room as one undo step."""
     def __init__(self,signatures:List[str],thickness:float=.15,offset_z:float=0.0):
         self.signatures=list(dict.fromkeys(signatures));self.thickness=float(thickness);self.offset_z=float(offset_z);self.entities:Dict[str,Entity]={}
     def do(self,doc):
         from archforge.architecture.rooms import find_room_face
-        existing={e.params.get('room_signature') for e in doc.entities.values() if e.kind=='room_floor'}
+        from archforge.architecture.room_identity import room_id_for_signature
         created=[]
         try:
             for sig in self.signatures:
-                if sig in existing:continue
                 found=find_room_face(doc,sig)
                 if found is None:raise ValueError('room signature is not currently active')
-                face,_=found
-                e=self.entities.get(sig)
+                face,z=found;room_id=room_id_for_signature(doc,sig,z=z)
+                if any(e.kind=='room_floor' and (e.params.get('room_id')==room_id or e.params.get('room_signature')==sig) for e in doc.entities.values()):continue
+                key=room_id or sig;e=self.entities.get(key)
                 if e is None:
-                    e=Entity('room_floor',{'room_signature':sig,'thickness':self.thickness,'offset_z':self.offset_z},name='Auto Floor')
-                    self.entities[sig]=e
-                doc.add(e.clone());created.append(e.id)
+                    params={'room_signature':sig,'thickness':self.thickness,'offset_z':self.offset_z}
+                    if room_id is not None:params['room_id']=room_id
+                    e=Entity('room_floor',params,name='Auto Floor');self.entities[key]=e
+                else:
+                    e=e.clone();e.params['room_signature']=sig
+                    if room_id is not None:e.params['room_id']=room_id
+                doc.add(e);created.append(e.id)
                 for wid in face.wall_ids:
                     if wid in doc.entities and e.id not in doc.dependencies.get(wid,set()):doc.add_dependency(wid,e.id)
         except Exception:
