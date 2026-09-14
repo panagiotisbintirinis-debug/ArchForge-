@@ -78,7 +78,7 @@ def _facet_normal(v0, v1, v2) -> Tuple[float, float, float]:
 
 
 def _iter_facets(evaluation: GeometryEvaluation, entity_ids=None):
-    """Iterate over all validated facets across selected bodies."""
+    """Iterate validated STL facets; never silently skip a selected fabrication body."""
     selected = set(entity_ids) if entity_ids is not None else None
     for body in evaluation.bodies:
         if selected is not None and body.entity_id not in selected:
@@ -87,7 +87,9 @@ def _iter_facets(evaluation: GeometryEvaluation, entity_ids=None):
         verts = getattr(payload, 'vertices', None)
         tris = getattr(payload, 'triangles', None)
         if verts is None or tris is None:
-            continue
+            raise ValueError(f'STL export requires triangulated mesh payload for {body.entity_id}')
+        if len(tris) == 0:
+            raise ValueError(f'STL export has no triangle facets for {body.entity_id}')
         for i0, i1, i2 in tris:
             v0, v1, v2 = verts[i0], verts[i1], verts[i2]
             n = _facet_normal(v0, v1, v2)
