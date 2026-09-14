@@ -32,6 +32,18 @@ def _room_slab_payload(doc,node)->Optional[PreviewPayload]:
     pts=[(float(x),float(y),float(g['z'])) for x,y in g['points']];top=float(g['z'])+float(g['thickness'])
     return PreviewPayload('polygon_prism',_bounds(pts+[(x,y,top) for x,y,_ in pts]))
 
+def _organic_junction_payload(doc,node)->Optional[PreviewPayload]:
+    from archforge.organic.biospectre import junction_section_polygon
+    p=node.params
+    if p.get('status')!='active':return None
+    a_id,b_id=p.get('component_a'),p.get('component_b')
+    if a_id not in doc.entities or b_id not in doc.entities:return None
+    a,b=doc.get(a_id),doc.get(b_id)
+    if a.kind!='pod' or b.kind!='pod':return None
+    points=junction_section_polygon(a.params,b.params)
+    if points is None:return None
+    return PreviewPayload('organic_junction',_bounds(points))
+
 def _payload(doc,node)->Optional[PreviewPayload]:
     p=node.params;kind=node.semantic_kind
     if kind in ('box','mechanical_part'):
@@ -54,6 +66,7 @@ def _payload(doc,node)->Optional[PreviewPayload]:
         # remains in universal XYZ; a storey is only a semantic reference, not a frame.
         ex=math.sqrt((rx*c)**2+(ry*s)**2);ey=math.sqrt((rx*s)**2+(ry*c)**2)
         return PreviewPayload('upper_ellipsoid',((cx-ex,cy-ey,z),(cx+ex,cy+ey,z+float(p['height']))))
+    if kind=='organic_junction':return _organic_junction_payload(doc,node)
     if kind in ('floor','room'):
         pts=[(float(x),float(y),float(p['z'])) for x,y in p['points']];top=float(p['z'])+float(p.get('thickness',p.get('height',0.0)))
         return PreviewPayload('polygon_prism' if kind=='floor' else 'room_volume',_bounds(pts+[(x,y,top) for x,y,_ in pts]))
@@ -71,7 +84,13 @@ class PreviewBackend(GeometryBackend):
             try:
                 payload=_payload(doc,node)
                 if payload is None:
-                    issues.append(GeometryIssue('warning','preview_geometry_unavailable','derived room element has no currently closed room',node.entity_id))
+                    if node.semantic_kind in ('room_floor','room_ceiling','room_foundation','room_roof'):
+                        message='derived room element has no currently closed room'
+                    elif node.semantic_kind=='organic_junction':
+                        message='organic junction is dormant or has no current section'
+                    else:
+                        message='derived geometry is currently unavailable'
+                    issues.append(GeometryIssue('warning','preview_geometry_unavailable',message,node.entity_id))
                     continue
                 bodies.append(GeometryBody(node.entity_id,node.semantic_kind,base.surface_keys,base.modifier_ids,payload,quality='preview',modifiers_applied=False))
             except Exception as exc:issues.append(GeometryIssue('error','preview_geometry_failed',str(exc),node.entity_id))

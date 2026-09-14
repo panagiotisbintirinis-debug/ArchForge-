@@ -63,11 +63,26 @@ def _room_slab(doc,node):
  g=room_slab_geometry(doc,doc.get(node.entity_id))
  if g is None:raise ValueError('derived room element has no currently closed room')
  return _polygon_prism(g['points'],g['z'],g['thickness'])
+def _organic_junction_mesh(doc,node):
+ from archforge.organic.biospectre import junction_plane,junction_section_polygon
+ p=node.params
+ if p.get('status')!='active':raise ValueError('organic junction is dormant')
+ a_id,b_id=p.get('component_a'),p.get('component_b')
+ if a_id not in doc.entities or b_id not in doc.entities:raise ValueError('organic junction source is missing')
+ a,b=doc.get(a_id),doc.get(b_id)
+ if a.kind!='pod' or b.kind!='pod':raise ValueError('organic junction sources must be pods')
+ plane=junction_plane(a.params,b.params);points=junction_section_polygon(a.params,b.params)
+ if plane is None or points is None:raise ValueError('organic junction has no current section')
+ px,py=plane['point'];nx,ny=plane['normal'];tx,ty=-ny,nx
+ local=[((x-px)*tx+(y-py)*ty,z) for x,y,z in points]
+ tris=_triangulate(local)
+ return MeshPayload(tuple(points),tuple(tris),tuple('junction' for _ in tris))
 def _payload(doc,node):
  k,p=node.semantic_kind,node.params
  if k=='wall':return _wall_mesh(p)
  if k in('box','mechanical_part'):return _box_mesh(p,node.transform)
  if k=='pod':return _pod_mesh(p)
+ if k=='organic_junction':return _organic_junction_mesh(doc,node)
  if k=='floor':return _polygon_prism(p['points'],p['z'],p['thickness'])
  if k in('room_floor','room_ceiling','room_foundation','room_roof'):return _room_slab(doc,node)
  raise ValueError(f'tessellation not implemented for {k}')

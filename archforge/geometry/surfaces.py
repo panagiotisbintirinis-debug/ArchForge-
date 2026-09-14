@@ -11,7 +11,8 @@ _KIND_ROLES:Dict[str,Tuple[Tuple[str,bool,bool,str],...]]={
  'wall':(('exterior',True,True,'wall exterior face'),('interior',True,True,'wall interior face'),('top',True,True,'wall top'),('start',True,True,'wall start return'),('end',True,True,'wall end return'),('bottom',False,True,'wall bottom')),
  'box':tuple((r,True,True,f'box {r} face') for r in('top','bottom','left','right','front','back')),
  'mechanical_part':tuple((r,True,True,f'mechanical part {r} face') for r in('top','bottom','left','right','front','back')),
- 'pod':(('pod_shell',True,True,'curved pod shell'),('junction',True,True,'generated flat pod junction'),('floor',True,True,'pod floor')),
+ 'pod':(('pod_shell',True,True,'curved pod shell'),('junction',True,True,'legacy generated flat pod junction'),('floor',True,True,'pod floor')),
+ 'organic_junction':(('junction',False,False,'derived flat organic junction surface'),),
  'floor':_slab('floor'),'room_floor':_slab('derived room floor'),'room_ceiling':_slab('derived room ceiling'),'room_foundation':_slab('derived foundation'),'room_roof':_slab('derived roof'),
  'room':(('ceiling',True,False,'generated room ceiling'),('floor_boundary',False,False,'room floor boundary'))}
 def surface_catalog(doc,owner_id):
