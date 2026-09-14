@@ -26,13 +26,31 @@ def points_for(doc:Document,eid:str)->List[SnapPoint]:
             out.append(SnapPoint(x,y,z,'vertex',eid));x2,y2=pts[(i+1)%len(pts)];out.append(SnapPoint((x+x2)/2,(y+y2)/2,z,'midpoint',eid))
     return out
 
+def _wall_projection(eid,p,x,y,tolerance):
+    dx=p['x2']-p['x1'];dy=p['y2']-p['y1'];ll=dx*dx+dy*dy
+    if ll<=1e-18:return None
+    t=((x-p['x1'])*dx+(y-p['y1'])*dy)/ll
+    if t<=1e-9 or t>=1-1e-9:return None
+    px=p['x1']+t*dx;py=p['y1']+t*dy
+    if hypot(px-x,py-y)>tolerance:return None
+    return SnapPoint(px,py,p['z'],'wall',eid)
+
 def best_snap(doc:Document,x:float,y:float,tolerance:float,grid:float|None=None,exclude:Set[str]|None=None):
     exclude=exclude or set();best=None;bestd=tolerance
+    # Explicit semantic snap points have highest priority.
     for eid in doc.entities:
         if eid in exclude:continue
         for sp in points_for(doc,eid):
             d=hypot(sp.x-x,sp.y-y)
             if d <= bestd:best,bestd=sp,d
+    if best:return best
+    # Then allow arbitrary projection to a wall centerline, enabling natural T-junctions.
+    for eid,e in doc.entities.items():
+        if eid in exclude or e.kind!='wall' or not e.visible:continue
+        sp=_wall_projection(eid,e.params,x,y,tolerance)
+        if sp is None:continue
+        d=hypot(sp.x-x,sp.y-y)
+        if d<=bestd:best,bestd=sp,d
     if best:return best
     if grid:
         gx=round(x/grid)*grid;gy=round(y/grid)*grid
