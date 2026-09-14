@@ -4,6 +4,7 @@ import pytest
 
 from archforge.core.model import Document, Entity
 from archforge.geometry.backend import GeometryBody, GeometryEvaluation
+from archforge.geometry.mesh import MeshPayload
 from archforge.geometry.preview import PreviewBackend
 from archforge.geometry.validated_mesh import ValidatedMeshBackend
 from archforge.geometry.fabrication import (
@@ -31,6 +32,28 @@ def test_stl_export_refuses_empty_scope():
     eval_empty = GeometryEvaluation('test', ())
     with pytest.raises(ValueError, match='empty_fabrication_scope'):
         export_stl_text(eval_empty)
+
+
+def test_stl_export_refuses_fabrication_ready_nonmesh_payload():
+    body = GeometryBody(
+        'brep-1', 'mechanical_part', ('brep-1:top',), (), payload=object(),
+        quality='exact_brep', modifiers_applied=True, watertight=True, manifold=True,
+    )
+    evaluation = GeometryEvaluation('exact-test', (body,))
+    assert assess_fabrication(evaluation, ['brep-1']).ready
+    with pytest.raises(ValueError, match='triangulated mesh payload'):
+        export_stl_text(evaluation, ['brep-1'])
+
+
+def test_stl_export_refuses_zero_facet_mesh_payload():
+    body = GeometryBody(
+        'mesh-1', 'mechanical_part', (), (), payload=MeshPayload((), (), ()),
+        quality='fabrication_mesh', modifiers_applied=True, watertight=True, manifold=True,
+    )
+    evaluation = GeometryEvaluation('mesh-test', (body,))
+    assert assess_fabrication(evaluation, ['mesh-1']).ready
+    with pytest.raises(ValueError, match='no triangle facets'):
+        export_stl_binary(evaluation, ['mesh-1'])
 
 
 def test_stl_export_ascii_box():
