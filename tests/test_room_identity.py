@@ -44,7 +44,9 @@ def test_room_metadata_roundtrip_does_not_store_geometry_copy():
     d=Document();rectangle(d);sig=room_faces(d)[0].signature
     d.set_room_metadata(sig,name='Living Room',use='Living',floor_finish='Oak')
     data=d.to_dict()
-    assert data['format']==5 and data['room_data'][sig]['name']=='Living Room'
+    # Room metadata was introduced in format 5. Newer project formats must preserve it
+    # without forcing this subsystem's tests to freeze the whole application version.
+    assert data['format']>=5 and data['room_data'][sig]['name']=='Living Room'
     assert 'points' not in data['room_data'][sig]
     q=Document.from_dict(data)
     assert q.room_metadata(sig)=={'name':'Living Room','use':'Living','floor_finish':'Oak'}
