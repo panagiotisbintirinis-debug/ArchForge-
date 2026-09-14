@@ -76,6 +76,27 @@ def test_door_placement_transaction_can_snap_to_pod_boundary():
     opening = doc.get(eid)
     assert opening.parent_id == pod.id
     assert opening.kind == 'door'
+    patches = [e for e in doc.entities.values() if e.kind == 'organic_opening_patch' and e.params.get('opening_id') == eid]
+    assert len(patches) == 1
+
+
+def test_pod_opening_undo_redo_preserves_flat_patch_identity():
+    from archforge.core.commands import CommandStack
+    from archforge.core.interaction import OpeningPlaceTransaction
+
+    doc = Document(); pod = _pod(); doc.add(pod); stack = CommandStack(doc)
+    opening_id = OpeningPlaceTransaction(doc, stack, 'door', 4.0, 0.0, tolerance=0.2).commit()
+    patch = next(e for e in doc.entities.values() if e.kind == 'organic_opening_patch' and e.params.get('opening_id') == opening_id)
+    patch_id = patch.id
+
+    stack.undo()
+    assert opening_id not in doc.entities
+    assert patch_id not in doc.entities
+
+    stack.redo()
+    assert opening_id in doc.entities
+    assert patch_id in doc.entities
+    assert doc.get(patch_id).params['opening_id'] == opening_id
 
 
 def test_flat_opening_patch_has_preview_and_tessellated_geometry():
