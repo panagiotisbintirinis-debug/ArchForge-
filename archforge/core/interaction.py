@@ -144,7 +144,12 @@ class OpeningPlaceTransaction:
         if host.kind=='wall':validate_opening(host.params,self.preview,self.kind)
         elif host.kind=='pod':validate_pod_opening(host.params,self.preview,self.kind)
         else:raise ValueError('opening host must be a wall or pod')
-        e=Entity(self.kind,dict(self.preview),name=self.kind.title(),parent_id=self.host_id);self.stack.execute(AddEntity(e));return e.id
+        e=Entity(self.kind,dict(self.preview),name=self.kind.title(),parent_id=self.host_id)
+        if host.kind=='pod':
+            from .opening_commands import AddOpeningEntity
+            self.stack.execute(AddOpeningEntity(e))
+        else:self.stack.execute(AddEntity(e))
+        return e.id
     def cancel(self):self.cancelled=True
 
 class OpeningEditTransaction:
@@ -163,13 +168,11 @@ class OpeningEditTransaction:
             u,px,py,distance=project_to_pod(host.params,x,y)
             if self.handle=='move':p['surface_u']=u
             else:
-                # Jamb handles remain conventional: width is measured in the current tangent plane.
                 from archforge.architecture.openings import pod_opening_plan_segment
                 a,b=pod_opening_plan_segment(host.params,{**self.before,'_kind':self.kind});fixed=b if self.handle=='left' else a
                 width=hypot(float(x)-fixed[0],float(y)-fixed[1])
                 if width<=1e-9:raise ValueError('opening width must remain positive')
                 p['width']=width
-                # Re-centre at the pointer/fixed midpoint by projecting that midpoint back to the pod.
                 mu,_,_,_=project_to_pod(host.params,(float(x)+fixed[0])/2.0,(float(y)+fixed[1])/2.0);p['surface_u']=mu
             validate_pod_opening(host.params,p,self.kind);self.preview=p
             return HUD({'surface_u':p['surface_u'],'width':p['width'],'height':p['height'],'sill':p['sill'],'distance':distance,'x':px,'y':py,'valid':1.0})
