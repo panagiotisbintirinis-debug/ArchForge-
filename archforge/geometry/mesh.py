@@ -1,87 +1,196 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import List, Tuple
 import math
 
 from .backend import ContractBackend, GeometryBackend, GeometryBody, GeometryEvaluation, GeometryIssue
 
-Vec3=Tuple[float,float,float]
-Tri=Tuple[int,int,int]
+Vec3 = Tuple[float, float, float]
+Tri = Tuple[int, int, int]
+
 
 @dataclass(frozen=True)
 class MeshPayload:
-    """Viewport tessellation retaining semantic ownership per triangle."""
-    vertices:Tuple[Vec3,...]
-    triangles:Tuple[Tri,...]
-    triangle_surfaces:Tuple[str,...]
+    """Viewport tessellation retaining stable semantic ownership per triangle."""
+    vertices: Tuple[Vec3, ...]
+    triangles: Tuple[Tri, ...]
+    triangle_surfaces: Tuple[str, ...]
 
     def __post_init__(self):
-        if len(self.triangles)!=len(self.triangle_surfaces):
-            raise ValueError('each triangle must retain one semantic surface key')
+        if len(self.triangles) != len(self.triangle_surfaces):
+            raise ValueError('each triangle must retain one semantic surface role')
+        n = len(self.vertices)
+        if any(i < 0 or i >= n for tri in self.triangles for i in tri):
+            raise ValueError('triangle references a missing vertex')
 
 
-def _wall_mesh(p)->MeshPayload:
-    x1,y1,z,x2,y2=map(float,(p['x1'],p['y1'],p['z'],p['x2'],p['y2']))
-    h,t=float(p['height']),float(p['thickness']);dx,dy=x2-x1,y2-y1;L=math.hypot(dx,dy)
-    if L<=1e-12: raise ValueError('wall has zero length')
-    nx,ny=-dy/L*t/2,dx/L*t/2
-    v=((x1+nx,y1+ny,z),(x2+nx,y2+ny,z),(x2-nx,y2-ny,z),(x1-nx,y1-ny,z),
-       (x1+nx,y1+ny,z+h),(x2+nx,y2+ny,z+h),(x2-nx,y2-ny,z+h),(x1-nx,y1-ny,z+h))
-    faces=[((0,1,5),(0,5,4),'exterior'),((3,7,6),(3,6,2),'interior'),
-           ((4,5,6),(4,6,7),'top'),((0,4,7),(0,7,3),'start'),((1,2,6),(1,6,5),'end')]
-    tris=[];roles=[]
-    for a,b,r in faces:tris.extend((a,b));roles.extend((r,r))
-    return MeshPayload(v,tuple(tris),tuple(roles))
+def _area2(poly):
+    return sum(poly[i][0] * poly[(i + 1) % len(poly)][1] - poly[(i + 1) % len(poly)][0] * poly[i][1]
+               for i in range(len(poly)))
 
 
-def _box_mesh(p,transform=None)->MeshPayload:
-    w,d,h=map(float,(p['width'],p['depth'],p['height']))
-    local=[(0,0,0),(w,0,0),(w,d,0),(0,d,0),(0,0,h),(w,0,h),(w,d,h),(0,d,h)]
+def _inside_triangle(p, a, b, c):
+    def cross(u, v, w):
+        return (v[0] - u[0]) * (w[1] - u[1]) - (v[1] - u[1]) * (w[0] - u[0])
+    x, y, z = cross(a, b, p), cross(b, c, p), cross(c, a, p)
+    return (x >= -1e-12 and y >= -1e-12 and z >= -1e-12) or (x <= 1e-12 and y <= 1e-12 and z <= 1e-12)
+
+
+def _triangulate(points):
+    """Ear-clip a simple 2D polygon without introducing a heavy geometry dependency."""
+    pts = [(float(x), float(y)) for x, y in points]
+    if len(pts) < 3:
+        raise ValueError('polygon needs at least three points')
+    area = _area2(pts)
+    if abs(area) <= 1e-12:
+        raise ValueError('polygon area is zero')
+    order = list(range(len(pts)))
+    if area < 0:
+        order.reverse()
+    result = []
+    guard = 0
+    while len(order) > 3:
+        guard += 1
+        if guard > len(pts) * len(pts):
+            raise ValueError('polygon cannot be triangulated')
+        ear_found = False
+        for j in range(len(order)):
+            ia, ib, ic = order[j - 1], order[j], order[(j + 1) % len(order)]
+            a, b, c = pts[ia], pts[ib], pts[ic]
+            convex = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+            if convex <= 1e-12:
+                continue
+            if any(_inside_triangle(pts[k], a, b, c) for k in order if k not in (ia, ib, ic)):
+                continue
+            result.append((ia, ib, ic))
+            del order[j]
+            ear_found = True
+            break
+        if not ear_found:
+            raise ValueError('polygon is self-intersecting or numerically invalid')
+    result.append(tuple(order))
+    return tuple(result)
+
+
+def _wall_mesh(p) -> MeshPayload:
+    x1, y1, z, x2, y2 = map(float, (p['x1'], p['y1'], p['z'], p['x2'], p['y2']))
+    h, t = float(p['height']), float(p['thickness'])
+    dx, dy = x2 - x1, y2 - y1
+    length = math.hypot(dx, dy)
+    if length <= 1e-12:
+        raise ValueError('wall has zero length')
+    nx, ny = -dy / length * t / 2.0, dx / length * t / 2.0
+    v = ((x1 + nx, y1 + ny, z), (x2 + nx, y2 + ny, z),
+         (x2 - nx, y2 - ny, z), (x1 - nx, y1 - ny, z),
+         (x1 + nx, y1 + ny, z + h), (x2 + nx, y2 + ny, z + h),
+         (x2 - nx, y2 - ny, z + h), (x1 - nx, y1 - ny, z + h))
+    quads = ((0, 1, 5, 4, 'exterior'), (3, 7, 6, 2, 'interior'),
+             (4, 5, 6, 7, 'top'), (0, 4, 7, 3, 'start'),
+             (1, 2, 6, 5, 'end'), (3, 2, 1, 0, 'bottom'))
+    tris, roles = [], []
+    for a, b, c, d, role in quads:
+        tris.extend(((a, b, c), (a, c, d)))
+        roles.extend((role, role))
+    return MeshPayload(v, tuple(tris), tuple(roles))
+
+
+def _box_mesh(p, transform=None) -> MeshPayload:
+    w, d, h = map(float, (p['width'], p['depth'], p['height']))
+    local = [(0, 0, 0), (w, 0, 0), (w, d, 0), (0, d, 0),
+             (0, 0, h), (w, 0, h), (w, d, h), (0, d, h)]
     if transform is not None:
-        v=[tuple(sum(transform[r][c]*q[c] for c in range(3))+transform[r][3] for r in range(3)) for q in local]
+        v = [tuple(sum(transform[r][c] * q[c] for c in range(3)) + transform[r][3] for r in range(3)) for q in local]
     else:
-        a=math.radians(float(p.get('rotation',0)));c,s=math.cos(a),math.sin(a);ox,oy,oz=map(float,(p['x'],p['y'],p['z']))
-        v=[(ox+c*x-s*y,oy+s*x+c*y,oz+z) for x,y,z in local]
-    quads=[(0,1,5,4,'side_1'),(1,2,6,5,'side_2'),(2,3,7,6,'side_3'),(3,0,4,7,'side_4'),(4,5,6,7,'top'),(3,2,1,0,'bottom')]
-    tris=[];roles=[]
-    for a,b,c,d,r in quads:tris.extend(((a,b,c),(a,c,d)));roles.extend((r,r))
-    return MeshPayload(tuple(v),tuple(tris),tuple(roles))
+        a = math.radians(float(p.get('rotation', 0.0)))
+        c, s = math.cos(a), math.sin(a)
+        ox, oy, oz = map(float, (p['x'], p['y'], p['z']))
+        v = [(ox + c*x - s*y, oy + s*x + c*y, oz + z) for x, y, z in local]
+    quads = ((0, 1, 5, 4, 'front'), (1, 2, 6, 5, 'right'),
+             (2, 3, 7, 6, 'back'), (3, 0, 4, 7, 'left'),
+             (4, 5, 6, 7, 'top'), (3, 2, 1, 0, 'bottom'))
+    tris, roles = [], []
+    for a, b, c, d, role in quads:
+        tris.extend(((a, b, c), (a, c, d)))
+        roles.extend((role, role))
+    return MeshPayload(tuple(v), tuple(tris), tuple(roles))
 
 
-def _pod_mesh(p,segments=24,rings=8)->MeshPayload:
-    """Upper ellipsoid only: floor plane is the hard lower boundary."""
-    cx,cy,z=map(float,(p['cx'],p['cy'],p['floor_level']));rx=float(p['diameter_x'])/2;ry=float(p['diameter_y'])/2;rz=float(p['height'])
-    verts=[]
-    for j in range(rings+1):
-        phi=(math.pi/2)*(j/rings)
-        rr=math.cos(phi);zz=z+rz*math.sin(phi)
+def _polygon_prism(points, z, thickness) -> MeshPayload:
+    pts = [(float(x), float(y)) for x, y in points]
+    z, thickness = float(z), float(thickness)
+    if thickness <= 0:
+        raise ValueError('thickness must be > 0')
+    top_tris = _triangulate(pts)
+    n = len(pts)
+    verts = tuple((x, y, z) for x, y in pts) + tuple((x, y, z + thickness) for x, y in pts)
+    tris, roles = [], []
+    for a, b, c in top_tris:
+        tris.append((a + n, b + n, c + n)); roles.append('top')
+        tris.append((c, b, a)); roles.append('bottom')
+    for i in range(n):
+        j = (i + 1) % n
+        tris.extend(((i, j, j+n), (i, j+n, i+n)))
+        roles.extend(('edge', 'edge'))
+    return MeshPayload(verts, tuple(tris), tuple(roles))
+
+
+def _pod_mesh(p, segments=32, rings=12) -> MeshPayload:
+    """Upper ellipsoid only: floor level is a hard geometric boundary."""
+    cx, cy, z = map(float, (p['cx'], p['cy'], p['floor_level']))
+    rx, ry, rz = float(p['diameter_x']) / 2.0, float(p['diameter_y']) / 2.0, float(p['height'])
+    verts = []
+    for j in range(rings + 1):
+        phi = (math.pi / 2.0) * (j / rings)
+        radial, zz = math.cos(phi), z + rz * math.sin(phi)
         for i in range(segments):
-            a=2*math.pi*i/segments;verts.append((cx+rx*rr*math.cos(a),cy+ry*rr*math.sin(a),zz))
-    tris=[];roles=[]
+            a = 2.0 * math.pi * i / segments
+            verts.append((cx + rx * radial * math.cos(a), cy + ry * radial * math.sin(a), zz))
+    tris, roles = [], []
     for j in range(rings):
         for i in range(segments):
-            n=(i+1)%segments;a=j*segments+i;b=j*segments+n;c=(j+1)*segments+n;d=(j+1)*segments+i
-            tris.extend(((a,b,c),(a,c,d)));roles.extend(('pod_shell','pod_shell'))
-    return MeshPayload(tuple(verts),tuple(tris),tuple(roles))
+            nxt = (i + 1) % segments
+            a, b = j * segments + i, j * segments + nxt
+            c, d = (j + 1) * segments + nxt, (j + 1) * segments + i
+            tris.extend(((a, b, c), (a, c, d)))
+            roles.extend(('pod_shell', 'pod_shell'))
+    return MeshPayload(tuple(verts), tuple(tris), tuple(roles))
 
 
-def _payload(node):
-    if node.semantic_kind=='wall':return _wall_mesh(node.params)
-    if node.semantic_kind in ('box','mechanical_part'):return _box_mesh(node.params,node.transform)
-    if node.semantic_kind=='pod':return _pod_mesh(node.params)
-    raise ValueError(f'tessellation not implemented for {node.semantic_kind}')
+def _payload(doc, node):
+    kind, p = node.semantic_kind, node.params
+    if kind == 'wall':
+        return _wall_mesh(p)
+    if kind in ('box', 'mechanical_part'):
+        return _box_mesh(p, node.transform)
+    if kind == 'pod':
+        return _pod_mesh(p)
+    if kind == 'floor':
+        return _polygon_prism(p['points'], p['z'], p['thickness'])
+    if kind == 'room_floor':
+        from archforge.architecture.rooms import room_floor_geometry
+        g = room_floor_geometry(doc, doc.get(node.entity_id))
+        if g is None:
+            raise ValueError('room floor has no currently closed room')
+        return _polygon_prism(g['points'], g['z'], g['thickness'])
+    raise ValueError(f'tessellation not implemented for {kind}')
+
 
 class TessellatedPreviewBackend(GeometryBackend):
-    """Actual triangle geometry for 3D viewport; never claims fabrication quality."""
-    name='tessellated-preview'
-    def evaluate_plan(self,doc,plan)->GeometryEvaluation:
-        contract=ContractBackend().evaluate_plan(doc,plan);issues=list(contract.issues);bodies=[]
+    """Real triangle geometry for the 3D viewport; never fabrication evidence."""
+    name = 'tessellated-preview'
+
+    def evaluate_plan(self, doc, plan) -> GeometryEvaluation:
+        contract = ContractBackend().evaluate_plan(doc, plan)
+        issues = list(contract.issues)
+        bodies: List[GeometryBody] = []
         for node in plan.geometry_nodes():
-            base=contract.body(node.entity_id)
+            base = contract.body(node.entity_id)
             try:
-                mesh=_payload(node)
-                bodies.append(GeometryBody(node.entity_id,node.semantic_kind,base.surface_keys,base.modifier_ids,mesh,quality='preview-mesh',modifiers_applied=False))
+                mesh = _payload(doc, node)
+                bodies.append(GeometryBody(node.entity_id, node.semantic_kind, base.surface_keys,
+                                           base.modifier_ids, mesh, quality='preview-mesh',
+                                           modifiers_applied=False))
             except Exception as exc:
-                issues.append(GeometryIssue('warning','tessellation_unavailable',str(exc),node.entity_id))
-        return GeometryEvaluation(self.name,tuple(bodies),tuple(issues))
+                issues.append(GeometryIssue('warning', 'tessellation_unavailable', str(exc), node.entity_id))
+        return GeometryEvaluation(self.name, tuple(bodies), tuple(issues))
