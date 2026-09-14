@@ -24,6 +24,32 @@ class UpdateEntity(Command):
         e=doc.get(self.eid); e.params=copy.deepcopy(self.before);e.revision+=1;doc.mark_dirty(self.eid)
 
 @dataclass
+class UpdateEntities(Command):
+    """Apply several semantic parameter updates as one undo/redo step.
+
+    If validation of any member fails, already-applied members are restored so callers
+    never observe a partially moved wall junction.
+    """
+    changes:Dict[str,Dict[str,Any]]
+    before:Dict[str,Dict[str,Any]]|None=None
+    before_revisions:Dict[str,int]|None=None
+    def do(self,doc):
+        if self.before is None:
+            self.before={eid:copy.deepcopy(doc.get(eid).params) for eid in self.changes}
+            self.before_revisions={eid:doc.get(eid).revision for eid in self.changes}
+        touched=[]
+        try:
+            for eid,delta in self.changes.items():
+                doc.update(eid,delta);touched.append(eid)
+        except Exception:
+            for eid in touched:
+                e=doc.get(eid);e.params=copy.deepcopy(self.before[eid]);e.revision=self.before_revisions[eid];doc.mark_dirty(eid)
+            raise
+    def undo(self,doc):
+        for eid,p in self.before.items():
+            e=doc.get(eid);e.params=copy.deepcopy(p);e.revision+=1;doc.mark_dirty(eid)
+
+@dataclass
 class MoveEntities(Command):
     ids:List[str]; dx:float;dy:float;dz:float=0.0;before:Dict[str,Dict[str,Any]]|None=None
     def do(self,doc):
