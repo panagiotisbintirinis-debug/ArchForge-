@@ -1,7 +1,10 @@
 from __future__ import annotations
 import math
 
+
 def shell_top(p): return p['floor_level']+p['height']
+
+
 def profile_radius(p,z):
     if z < p['floor_level'] or z > shell_top(p): return None
     # upper half ellipsoid only: floor is the equator/hard boundary
@@ -9,25 +12,45 @@ def profile_radius(p,z):
     factor=math.sqrt(max(0.0,1.0-t*t))
     return p['diameter_x']/2*factor,p['diameter_y']/2*factor
 
+
+def _radial_extent(p,nx,ny):
+    """Distance from pod center to its rotated XY ellipse along a world-space ray."""
+    rx=max(float(p['diameter_x'])/2.0,1e-9);ry=max(float(p['diameter_y'])/2.0,1e-9)
+    angle=math.radians(float(p.get('rotation',0.0)));c,s=math.cos(angle),math.sin(angle)
+    # Rotate the world direction into the ellipse's intrinsic frame.
+    lx=c*nx+s*ny;ly=-s*nx+c*ny
+    return 1.0/math.sqrt((lx/rx)**2+(ly/ry)**2)
+
+
 def overlap(a,b):
-    dx=b['cx']-a['cx'];dy=b['cy']-a['cy']
-    rx=(a['diameter_x']+b['diameter_x'])/2; ry=(a['diameter_y']+b['diameter_y'])/2
-    return (dx/rx)**2+(dy/ry)**2 < 1.0
+    """Return whether the two rotated pod footprints physically overlap in XY.
+
+    The center-to-center line is sufficient for centered convex ellipses: each ellipse
+    contains the radial segment from its center to its boundary along that line, so the
+    footprints intersect iff the center distance is less than the two radial reaches.
+    Vertical shell overlap is checked separately by ``junction_plane``.
+    """
+    dx=float(b['cx'])-float(a['cx']);dy=float(b['cy'])-float(a['cy']);distance=math.hypot(dx,dy)
+    if distance<=1e-12:return True
+    nx,ny=dx/distance,dy/distance
+    return distance < _radial_extent(a,nx,ny)+_radial_extent(b,-nx,-ny)
+
 
 def junction_plane(a,b):
     if not overlap(a,b): return None
     z0=max(float(a['floor_level']),float(b['floor_level']))
     z1=min(float(shell_top(a)),float(shell_top(b)))
     if z1<=z0:return None
-    ax=max(a['diameter_x']/2,1e-9); ay=max(a['diameter_y']/2,1e-9)
-    bx=max(b['diameter_x']/2,1e-9); by=max(b['diameter_y']/2,1e-9)
-    # weighted perpendicular separator through center-weighted midpoint
-    nx=b['cx']-a['cx'];ny=b['cy']-a['cy'];L=math.hypot(nx,ny)
-    if L==0:return None
+    # Weighted perpendicular semantic separator. The weights use each pod's actual
+    # rotated radial reach along the center line, so rotating an elliptical pod changes
+    # its junction location/eligibility without changing the underlying semantic IDs.
+    nx=float(b['cx'])-float(a['cx']);ny=float(b['cy'])-float(a['cy']);L=math.hypot(nx,ny)
+    if L<=1e-12:return None
     nx/=L;ny/=L
-    ra=1.0/math.sqrt((nx/ax)**2+(ny/ay)**2);rb=1.0/math.sqrt((nx/bx)**2+(ny/by)**2)
+    ra=_radial_extent(a,nx,ny);rb=_radial_extent(b,-nx,-ny)
     t=ra/(ra+rb)
-    px=a['cx']+(b['cx']-a['cx'])*t;py=a['cy']+(b['cy']-a['cy'])*t
+    px=float(a['cx'])+(float(b['cx'])-float(a['cx']))*t
+    py=float(a['cy'])+(float(b['cy'])-float(a['cy']))*t
     return {'point':(px,py),'normal':(nx,ny),'z0':z0,'z1':z1}
 
 
@@ -76,4 +99,3 @@ def all_pod_junctions(doc):
                     'plane': plane,
                 }
     return result
-
