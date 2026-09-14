@@ -64,6 +64,16 @@ def preview_primitives(preview):
     return []
 def build_plan_frame(doc,preview=None):
     f=PlanFrame()
+    # Closed wall loops are shown as derived room regions. They are not persistent
+    # entities yet, so wall edits automatically recompute them without stale state.
+    try:
+        from archforge.architecture.topology import closed_room_polygons,room_metrics
+        z=doc.work_plane.origin[2]
+        for poly in closed_room_polygons(doc,z=z,tolerance=1e-5):
+            m=room_metrics(poly)
+            f.primitives.append(Primitive2D('polygon',tuple(poly),role='derived-room',meta=(('semantic','derived-room'),('area',m['area']),('perimeter',m['perimeter']))))
+    except (ValueError,KeyError):
+        pass
     for eid in doc.entities:
         p=entity_primitive(doc,eid)
         if p:f.primitives.append(p)
