@@ -45,15 +45,18 @@ class BrushSpec:
 def sculpt_modifier_from_hit(doc,hit:SurfaceHit,brush:BrushSpec,operation:str,amount:float,*,order:int=0,name:str='')->SurfaceModifier:
     """Create persistent sculpt intent from a transient viewport hit.
 
-    Intrinsic surface coordinates are preferred whenever the semantic surface exposes a
-    stable frame. The original world point remains a recovery/backward-compatibility hint;
-    no transient triangle or B-rep face index is persisted.
+    Intrinsic surface coordinates are authoritative whenever the semantic surface exposes
+    a stable frame. In that case the pick's world position is retained only as
+    ``world_hint`` for diagnostics/recovery; ``world_center`` is materialized later in an
+    evaluation copy. Legacy/unsupported surfaces retain world_center until migrated.
     """
     hit.validate(doc);brush.validate()
     amount=float(amount)
     if not math.isfinite(amount) or amount<0:raise ValueError('sculpt amount must be >= 0')
-    subregion={'world_center':list(hit.world_point),'world_hint':list(hit.world_point),'radius':float(brush.radius),'falloff':brush.falloff,'strength':float(brush.strength)}
+    subregion={'world_hint':list(hit.world_point),'radius':float(brush.radius),'falloff':brush.falloff,'strength':float(brush.strength)}
     uv=hit.uv if hit.uv is not None else project_surface_point(doc,hit.owner_id,hit.surface_role,hit.world_point)
     if uv is not None:
         subregion['uv_center']=list(uv);subregion['coord_system']='surface_uv'
+    else:
+        subregion['world_center']=list(hit.world_point);subregion['coord_system']='world_legacy'
     return SurfaceModifier(SurfaceRef(hit.owner_id,hit.surface_role,subregion),operation,{'amount':amount},name=name,order=order)
