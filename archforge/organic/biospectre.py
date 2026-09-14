@@ -16,6 +16,9 @@ def overlap(a,b):
 
 def junction_plane(a,b):
     if not overlap(a,b): return None
+    z0=max(float(a['floor_level']),float(b['floor_level']))
+    z1=min(float(shell_top(a)),float(shell_top(b)))
+    if z1<=z0:return None
     ax=max(a['diameter_x']/2,1e-9); ay=max(a['diameter_y']/2,1e-9)
     bx=max(b['diameter_x']/2,1e-9); by=max(b['diameter_y']/2,1e-9)
     # weighted perpendicular separator through center-weighted midpoint
@@ -25,7 +28,7 @@ def junction_plane(a,b):
     ra=1.0/math.sqrt((nx/ax)**2+(ny/ay)**2);rb=1.0/math.sqrt((nx/bx)**2+(ny/by)**2)
     t=ra/(ra+rb)
     px=a['cx']+(b['cx']-a['cx'])*t;py=a['cy']+(b['cy']-a['cy'])*t
-    return {'point':(px,py),'normal':(nx,ny),'z0':min(a['floor_level'],b['floor_level']),'z1':min(shell_top(a),shell_top(b))}
+    return {'point':(px,py),'normal':(nx,ny),'z0':z0,'z1':z1}
 
 
 def junction_key_for_pods(id_a: str, id_b: str) -> str:
@@ -57,7 +60,6 @@ def find_pod_junctions(doc, pod_id: str):
 
 def all_pod_junctions(doc):
     """Find all unique organic pod junctions across the entire document."""
-    seen = set()
     result = {}
     pod_entities = [e for e in doc.entities.values() if e.kind == 'pod' and e.visible]
     for i in range(len(pod_entities)):
