@@ -85,6 +85,44 @@ class MoveEntities(Command):
             for mid,m in self.before_modifiers.items():
                 doc.surface_modifiers[mid]=copy.deepcopy(m);doc.mark_dirty(m.target.owner_id)
 
+
+def _restore_document_state(doc:Document,state:Dict[str,Any],selection:List[str]):
+    """Restore a serialized semantic snapshot without replacing the live Document object."""
+    restored=Document.from_dict(copy.deepcopy(state))
+    doc.entities=restored.entities
+    doc.children=restored.children
+    doc.dependencies=restored.dependencies
+    doc.levels=restored.levels
+    doc.work_plane=restored.work_plane
+    doc.materials=restored.materials
+    doc.constructions=restored.constructions
+    doc.room_data=restored.room_data
+    doc.room_bindings=restored.room_bindings
+    doc.surface_modifiers=restored.surface_modifiers
+    doc.selection=[eid for eid in selection if eid in doc.entities]
+    # Force derived geometry to rebuild after an undo restoration.
+    doc.dirty=set(doc.entities)
+
+@dataclass
+class DeleteEntities(Command):
+    """Delete semantic entities transactionally, including all cascade side effects."""
+    ids:List[str]
+    before_state:Optional[Dict[str,Any]]=None
+    before_selection:Optional[List[str]]=None
+    def do(self,doc):
+        requested=list(dict.fromkeys(self.ids))
+        if not requested:raise ValueError('delete requires at least one entity')
+        if self.before_state is None:
+            missing=[eid for eid in requested if eid not in doc.entities]
+            if missing:raise KeyError(f"delete entity does not exist: {missing[0]}")
+            self.before_state=copy.deepcopy(doc.to_dict())
+            self.before_selection=list(doc.selection)
+        for eid in requested:
+            if eid in doc.entities:doc.remove(eid)
+    def undo(self,doc):
+        if self.before_state is None:return
+        _restore_document_state(doc,self.before_state,self.before_selection or [])
+
 class CreateRoomFloors(Command):
     """Create one topology-linked floor per persistent semantic room as one undo step."""
     def __init__(self,signatures:List[str],thickness:float=.15,offset_z:float=0.0):
