@@ -5,6 +5,7 @@ import copy
 from .model import Document
 from .commands import CommandStack, MoveEntities
 from .interaction import WallDrawTransaction,WallEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction,OpeningPlaceTransaction,OpeningEditTransaction
+from .wall_junction import ConnectedWallEndpointStretchTransaction
 from .snapping import best_snap
 
 @dataclass
@@ -62,7 +63,7 @@ class PointerController:
         if self.tool=='stretch':
             if not self.active_entity or self.active_entity not in self.doc.entities:return self.preview
             e=self.doc.get(self.active_entity)
-            if e.kind=='wall':self.active=WallEndpointStretchTransaction(self.doc,self.stack,e.id,1 if self.active_handle in ('1','start','endpoint1') else 2,self.grid,self.snap_tolerance)
+            if e.kind=='wall':self.active=ConnectedWallEndpointStretchTransaction(self.doc,self.stack,e.id,1 if self.active_handle in ('1','start','endpoint1') else 2,self.grid,self.snap_tolerance)
             elif e.kind=='box':self.active=BoxStretchTransaction(self.doc,self.stack,e.id,self.active_handle or 'right')
             elif e.kind=='pod':self.active=PodStretchTransaction(self.doc,self.stack,e.id,self.active_handle or 'right')
             elif e.kind in ('door','window'):self.active=OpeningEditTransaction(self.doc,self.stack,e.id,self.active_handle or 'right')
@@ -76,6 +77,8 @@ class PointerController:
         x,y=self._plan_xy(ev)
         if isinstance(self.active,WallDrawTransaction):
             hud=self.active.update(x,y);sx,sy=self.active.start;ex,ey=self.active.end;sp=best_snap(self.doc,x,y,self.snap_tolerance,self.grid);self.preview=PreviewState('wall',{'x1':sx,'y1':sy,'x2':ex,'y2':ey,'z':self.active.z},hud.values,self._snap_dict(sp))
+        elif isinstance(self.active,ConnectedWallEndpointStretchTransaction):
+            hud=self.active.update(x,y);geom=copy.deepcopy(self.active.preview);geom['entities']=copy.deepcopy(self.active.previews);self.preview=PreviewState('stretch',geom,hud.values,None,self.active.eid)
         elif isinstance(self.active,WallEndpointStretchTransaction):hud=self.active.update(x,y);self.preview=PreviewState('stretch',copy.deepcopy(self.active.preview),hud.values,None,self.active.eid)
         elif isinstance(self.active,BoxStretchTransaction):hud=self.active.update(x=x,y=y);self.preview=PreviewState('stretch',copy.deepcopy(self.active.preview),hud.values,None,self.active.eid)
         elif isinstance(self.active,PodStretchTransaction):
@@ -102,7 +105,7 @@ class PointerController:
         if self.active is None:return self.preview
         self.pointer_move(ev);committed_id=None
         if isinstance(self.active,WallDrawTransaction):committed_id=self.active.commit((exact or {}).get('length'))
-        elif isinstance(self.active,(WallEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction,OpeningEditTransaction)):self.active.commit();committed_id=getattr(self.active,'eid',None)
+        elif isinstance(self.active,(ConnectedWallEndpointStretchTransaction,WallEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction,OpeningEditTransaction)):self.active.commit();committed_id=getattr(self.active,'eid',None)
         elif isinstance(self.active,OpeningPlaceTransaction):committed_id=self.active.commit()
         elif self.active=='move':
             dx=self.preview.hud.get('dx',0.);dy=self.preview.hud.get('dy',0.)
