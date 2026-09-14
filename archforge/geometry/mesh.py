@@ -173,10 +173,31 @@ def _organic_junction_mesh(doc,node):
 def _organic_opening_patch_mesh(doc,node):
  from archforge.architecture.openings import pod_opening_patch_geometry
  if node.params.get('status')!='active':raise ValueError('organic opening patch is dormant')
- g=pod_opening_patch_geometry(doc,node.params.get('opening_id'))
+ opening_id=node.params.get('opening_id')
+ g=pod_opening_patch_geometry(doc,opening_id)
  if g is None:raise ValueError('organic opening patch has no current host geometry')
- points=tuple(g['points']);tris=((0,1,2),(0,2,3))
- return MeshPayload(points,tris,('opening_patch','opening_patch'))
+ if opening_id not in doc.entities:raise ValueError('organic opening patch opening is missing')
+ opening=doc.get(opening_id)
+ if opening.kind not in ('door','window'):raise ValueError('organic opening patch source must be door/window')
+ host=doc.get(node.params.get('host_id'))
+ if host.kind!='pod':raise ValueError('organic opening patch host must be pod')
+ px,py=map(float,g['plane']['point']);tx,ty=map(float,g['plane']['tangent'])
+ outer_half=float(g['patch_width'])/2.0;inner_half=float(opening.params['width'])/2.0
+ z0=float(g['z0']);z1=float(g['z1']);open_z0=float(host.params['floor_level'])+float(opening.params.get('sill',0.0));open_z1=open_z0+float(opening.params['height'])
+ vertices=[];triangles=[];roles=[]
+ def point(q,z):return (px+tx*q,py+ty*q,z)
+ def add_rect(q0,q1,za,zb):
+  if q1-q0<=1e-12 or zb-za<=1e-12:return
+  base=len(vertices);vertices.extend((point(q0,za),point(q1,za),point(q1,zb),point(q0,zb)))
+  triangles.extend(((base,base+1,base+2),(base,base+2,base+3)));roles.extend(('opening_patch','opening_patch'))
+ # Side jambs span the full flat patch height. The inner center stays empty.
+ add_rect(-outer_half,-inner_half,z0,z1)
+ add_rect(inner_half,outer_half,z0,z1)
+ # Door openings reach the floor, so this strip naturally disappears for sill==0.
+ add_rect(-inner_half,inner_half,z0,min(open_z0,z1))
+ add_rect(-inner_half,inner_half,max(open_z1,z0),z1)
+ if not triangles:raise ValueError('organic opening patch has no planar frame area')
+ return MeshPayload(tuple(vertices),tuple(triangles),tuple(roles))
 def _payload(doc,node):
  k,p=node.semantic_kind,node.params
  if k=='wall':return _wall_mesh(p)
