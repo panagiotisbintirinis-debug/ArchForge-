@@ -76,6 +76,9 @@ class Document:
         self.work_plane=WorkPlane()
         self.materials={}
         self.constructions={}
+        # User-authored information for automatically derived rooms. Keys are stable
+        # topology signatures made from semantic boundary wall IDs, not copied polygons.
+        self.room_data: Dict[str,Dict[str,Any]]={}
     def add(self,e:Entity)->str:
         if e.id in self.entities: raise ValueError('duplicate id')
         e.params=validate_params(e.kind,e.params)
@@ -106,6 +109,24 @@ class Document:
                 if child and child.kind in ('door','window'):
                     validate_opening(p,child.params,child.kind)
         e.params=p; e.revision+=1; self.mark_dirty(eid)
+    def set_room_metadata(self,signature:str,**changes):
+        if not isinstance(signature,str) or not signature.startswith('room-'):
+            raise ValueError('invalid room signature')
+        allowed={'name','use','floor_finish','ceiling_finish','notes'}
+        unknown=set(changes)-allowed
+        if unknown:raise ValueError('unsupported room metadata: '+', '.join(sorted(unknown)))
+        data=copy.deepcopy(self.room_data.get(signature,{}))
+        for key,value in changes.items():
+            if value is None:data.pop(key,None)
+            else:data[key]=str(value)
+        if data:self.room_data[signature]=data
+        else:self.room_data.pop(signature,None)
+    def room_metadata(self,signature:str)->Dict[str,Any]:
+        return copy.deepcopy(self.room_data.get(signature,{}))
+    def active_room_faces(self,z:Optional[float]=None,tolerance:float=1e-5):
+        from archforge.architecture.topology import room_faces
+        if z is None:z=self.work_plane.origin[2]
+        return room_faces(self,tolerance=tolerance,z=z)
     def mark_dirty(self,eid:str):
         stack=[eid]; seen=set()
         while stack:
@@ -147,23 +168,22 @@ class Document:
                 if i not in self.selection:self.selection.append(i)
         else:self.selection=valid
     def to_dict(self):
-        return {'format':4,'entities':[asdict(e) for e in self.entities.values()],
+        return {'format':5,'entities':[asdict(e) for e in self.entities.values()],
                 'dependencies':{k:sorted(v) for k,v in self.dependencies.items()},
-                'levels':self.levels,'work_plane':asdict(self.work_plane),'materials':self.materials,'constructions':self.constructions}
+                'levels':self.levels,'work_plane':asdict(self.work_plane),'materials':self.materials,
+                'constructions':self.constructions,'room_data':copy.deepcopy(self.room_data)}
     @classmethod
     def from_dict(cls,d):
         doc=cls(); doc.levels=d.get('levels',{'Ground':0.0}); wp=d.get('work_plane')
         if wp: doc.work_plane=WorkPlane(name=wp.get('name','XY'), origin=tuple(wp.get('origin',(0,0,0))), u=tuple(wp.get('u',(1,0,0))), v=tuple(wp.get('v',(0,1,0))))
         doc.materials=d.get('materials',{});doc.constructions=d.get('constructions',{})
+        doc.room_data=copy.deepcopy(d.get('room_data',{}))
         raw_entities=list(d.get('entities',[]))
-        # Load parents and independent semantic objects before attached openings.
-        # This makes persistence robust even if a serializer, merge, or external tool reorders the entity list.
         deferred=[]
         for raw in raw_entities:
             if raw.get('kind') in ('door','window'): deferred.append(raw)
             else: doc.add(Entity(**raw))
         for raw in deferred: doc.add(Entity(**raw))
-        # Rebuild declared extra dependencies while preserving mandatory wall->opening dependencies created by add().
         for source,dependents in d.get('dependencies',{}).items():
             for dependent in dependents:
                 if source in doc.entities and dependent in doc.entities and dependent not in doc.dependencies.get(source,set()):
