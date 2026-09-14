@@ -44,13 +44,15 @@ class Entity:
  kind:str;params:Dict[str,Any];name:str='';id:str=field(default_factory=lambda:str(uuid.uuid4()));parent_id:Optional[str]=None;locked:bool=False;visible:bool=True;revision:int=0
  def clone(self):return copy.deepcopy(self)
 _ROOM_SLAB={'room_signature':_room_signature,'thickness':_positive,'offset_z':_finite}
+_OPENING={'offset':_finite,'surface_u':_finite,'width':_positive,'height':_positive,'sill':_finite,'flat_margin':_nonnegative}
 SCHEMAS={
  'box':{'x':_finite,'y':_finite,'z':_finite,'width':_positive,'depth':_positive,'height':_positive,'rotation':_finite},
  'wall':{'x1':_finite,'y1':_finite,'z':_finite,'x2':_finite,'y2':_finite,'height':_positive,'thickness':_positive},
  'pod':{'cx':_finite,'cy':_finite,'floor_level':_finite,'diameter_x':_positive,'diameter_y':_positive,'height':_positive,'shell_thickness':_positive,'rotation':_finite},
  'floor':{'points':_polygon,'z':_finite,'thickness':_positive},'room':{'points':_polygon,'z':_finite,'height':_positive},'room_floor':_ROOM_SLAB,
  'room_ceiling':_ROOM_SLAB,'room_foundation':_ROOM_SLAB,'room_roof':{**_ROOM_SLAB,'roof_type':_nonempty},
- 'door':{'offset':_finite,'width':_positive,'height':_positive,'sill':_finite},'window':{'offset':_finite,'width':_positive,'height':_positive,'sill':_finite},
+ 'door':_OPENING,'window':_OPENING,
+ 'organic_opening_patch':{'opening_id':_nonempty,'host_id':_nonempty,'status':_nonempty},
  'mechanical_part':{'x':_finite,'y':_finite,'z':_finite,'width':_positive,'depth':_positive,'height':_positive,'rotation':_finite},
  'mechanical_joint':{'joint_type':_nonempty,'parent_part':_nonempty,'child_part':_nonempty,'anchor':_vec3,'axis':_vec3,'min_value':_finite,'max_value':_finite,'value':_finite},
  'mechanical_mount':{'host_id':_nonempty,'part_id':_nonempty,'surface_role':_nonempty,'clearance':_nonnegative,'embed_depth':_nonnegative}}
@@ -64,8 +66,13 @@ class Document:
   self.entities={};self.children={};self.dependencies={};self.selection=[];self.dirty=set();self.levels={'Ground':0.0};self.work_plane=WorkPlane();self.materials={};self.constructions={};self.room_data={};self.room_bindings={};self.surface_modifiers={}
  def _validate_links(self,e):
   if e.kind in ('door','window'):
-   if not e.parent_id or e.parent_id not in self.entities or self.entities[e.parent_id].kind!='wall':raise ValueError('door/window must be attached to an existing wall')
-   from archforge.architecture.openings import validate_opening;validate_opening(self.entities[e.parent_id].params,e.params,e.kind)
+   if not e.parent_id or e.parent_id not in self.entities:raise ValueError('door/window must be attached to an existing wall or pod')
+   host=self.entities[e.parent_id]
+   if host.kind=='wall':
+    from archforge.architecture.openings import validate_opening;validate_opening(host.params,e.params,e.kind)
+   elif host.kind=='pod':
+    from archforge.architecture.openings import validate_pod_opening;validate_pod_opening(host.params,e.params,e.kind)
+   else:raise ValueError('door/window host must be a wall or pod')
   elif e.kind=='mechanical_joint':
    from archforge.kinematics.model import validate_joint;validate_joint(self,e)
   elif e.kind=='mechanical_mount':
@@ -93,6 +100,11 @@ class Document:
    for cid in self.children.get(eid,()):
     child=self.entities.get(cid)
     if child and child.kind in ('door','window'):validate_opening(p,child.params,child.kind)
+  elif e.kind=='pod':
+   from archforge.architecture.openings import validate_pod_opening
+   for cid in self.children.get(eid,()):
+    child=self.entities.get(cid)
+    if child and child.kind in ('door','window'):validate_pod_opening(p,child.params,child.kind)
   if e.kind=='mechanical_joint' and (p['parent_part']!=e.params['parent_part'] or p['child_part']!=e.params['child_part']):raise ValueError('joint part references require explicit relink')
   if e.kind=='mechanical_mount' and (p['host_id']!=e.params['host_id'] or p['part_id']!=e.params['part_id']):raise ValueError('mount references require explicit relink')
   e.params=p;e.revision+=1;self.mark_dirty(eid)
@@ -173,9 +185,11 @@ class Document:
   if wp:doc.work_plane=WorkPlane(name=wp.get('name','XY'),origin=tuple(wp.get('origin',(0,0,0))),u=tuple(wp.get('u',(1,0,0))),v=tuple(wp.get('v',(0,1,0))))
   doc.materials=d.get('materials',{});doc.constructions=d.get('constructions',{});doc.room_data=copy.deepcopy(d.get('room_data',{}));doc.room_bindings=copy.deepcopy(d.get('room_bindings',{}));deferred=[]
   for raw in d.get('entities',[]):
-   if raw.get('kind') in ('door','window','mechanical_joint','mechanical_mount'):deferred.append(raw)
+   if raw.get('kind') in ('door','window','organic_opening_patch','mechanical_joint','mechanical_mount'):deferred.append(raw)
    else:doc.add(Entity(**raw))
-  for raw in deferred:doc.add(Entity(**raw))
+  # Openings must load before their derived organic patch children.
+  for raw in [r for r in deferred if r.get('kind') in ('door','window')]:doc.add(Entity(**raw))
+  for raw in [r for r in deferred if r.get('kind') not in ('door','window')]:doc.add(Entity(**raw))
   for source,deps in d.get('dependencies',{}).items():
    for dep in deps:
     if source in doc.entities and dep in doc.entities and dep not in doc.dependencies.get(source,set()):doc.add_dependency(source,dep)
