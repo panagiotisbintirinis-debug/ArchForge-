@@ -70,11 +70,15 @@ def preview_primitives(preview):
 def build_plan_frame(doc,preview=None):
     f=PlanFrame()
     try:
-        from archforge.architecture.topology import closed_room_polygons,room_metrics
-        z=doc.work_plane.origin[2]
-        for poly in closed_room_polygons(doc,z=z,tolerance=1e-5):
-            m=room_metrics(poly)
-            f.primitives.append(Primitive2D('polygon',tuple(poly),role='derived-room',meta=(('semantic','derived-room'),('area',m['area']),('perimeter',m['perimeter']))))
+        from archforge.architecture.topology import room_metrics
+        for index,face in enumerate(doc.active_room_faces(),start=1):
+            m=room_metrics(face.polygon);data=doc.room_metadata(face.signature)
+            name=data.get('name') or f'Room {index}'
+            use=data.get('use','')
+            label=name+(f' — {use}' if use else '')+f'\n{m["area"]:.2f} m²'
+            meta=(('semantic','derived-room'),('signature',face.signature),('wall_ids',face.wall_ids),('area',m['area']),('perimeter',m['perimeter']),('name',name),('use',use))
+            f.primitives.append(Primitive2D('polygon',tuple(face.polygon),role='derived-room',meta=meta))
+            cx,cy=m['centroid'];f.primitives.append(Primitive2D('label',((cx,cy),),role='derived-room-label',meta=(('signature',face.signature),('text',label))))
     except (ValueError,KeyError):
         pass
     for eid in doc.entities:
