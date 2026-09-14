@@ -54,6 +54,68 @@ def junction_plane(a,b):
     return {'point':(px,py),'normal':(nx,ny),'z0':z0,'z1':z1}
 
 
+def _line_interval_in_pod(p, point, tangent, z, tolerance=1e-10):
+    """Return the interval along a horizontal plane-line that lies inside one pod slice."""
+    floor=float(p['floor_level']);height=float(p['height'])
+    rel=(float(z)-floor)/height
+    if rel < -tolerance or rel > 1.0+tolerance:return None
+    factor2=max(0.0,1.0-rel*rel)
+    if factor2<=tolerance:return None
+    rx=float(p['diameter_x'])/2.0*math.sqrt(factor2)
+    ry=float(p['diameter_y'])/2.0*math.sqrt(factor2)
+    if min(rx,ry)<=tolerance:return None
+
+    angle=math.radians(float(p.get('rotation',0.0)));c,s=math.cos(angle),math.sin(angle)
+    dx=float(point[0])-float(p['cx']);dy=float(point[1])-float(p['cy'])
+    # World XY -> local ellipse coordinates.
+    x0=c*dx+s*dy;y0=-s*dx+c*dy
+    tx=c*float(tangent[0])+s*float(tangent[1])
+    ty=-s*float(tangent[0])+c*float(tangent[1])
+
+    A=(tx/rx)**2+(ty/ry)**2
+    B=2.0*(x0*tx/(rx*rx)+y0*ty/(ry*ry))
+    C=(x0/rx)**2+(y0/ry)**2-1.0
+    if A<=tolerance:return None
+    disc=B*B-4.0*A*C
+    if disc < -tolerance:return None
+    root=math.sqrt(max(0.0,disc))
+    q0=(-B-root)/(2.0*A);q1=(-B+root)/(2.0*A)
+    return (min(q0,q1),max(q0,q1))
+
+
+def junction_section_polygon(a,b,samples=24):
+    """Approximate the shared flat vertical section between two overlapping pod volumes.
+
+    This is a derived preview/semantic surface, not a Boolean-unioned fabrication shell.
+    The polygon is sampled in the stable vertical junction plane and recomputed from the
+    current pod parameters whenever geometry is evaluated.
+    """
+    plane=junction_plane(a,b)
+    if plane is None:return None
+    samples=max(4,int(samples))
+    px,py=map(float,plane['point']);nx,ny=map(float,plane['normal'])
+    tangent=(-ny,nx);z0=float(plane['z0']);z1=float(plane['z1'])
+    left=[];right=[]
+    # Include enough interior samples that a crown degeneracy cannot erase the section.
+    for i in range(samples+1):
+        z=z0+(z1-z0)*i/samples
+        ia=_line_interval_in_pod(a,(px,py),tangent,z)
+        ib=_line_interval_in_pod(b,(px,py),tangent,z)
+        if ia is None or ib is None:continue
+        lo=max(ia[0],ib[0]);hi=min(ia[1],ib[1])
+        if hi-lo<=1e-8:continue
+        left.append((px+tangent[0]*lo,py+tangent[1]*lo,z))
+        right.append((px+tangent[0]*hi,py+tangent[1]*hi,z))
+    if len(left)<2:return None
+    polygon=left+list(reversed(right))
+    # Remove adjacent numerical duplicates while preserving the section cycle.
+    cleaned=[]
+    for point in polygon:
+        if not cleaned or math.dist(point,cleaned[-1])>1e-9:cleaned.append(point)
+    if len(cleaned)>2 and math.dist(cleaned[0],cleaned[-1])<=1e-9:cleaned.pop()
+    return tuple(cleaned) if len(cleaned)>=4 else None
+
+
 def junction_key_for_pods(id_a: str, id_b: str) -> str:
     """Generate a canonical order-independent junction key for two pods."""
     return f"{min(id_a, id_b)}-{max(id_a, id_b)}"
