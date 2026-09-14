@@ -34,7 +34,7 @@ def _wall_mesh(p):
  from .wall_detail import detailed_wall_geometry
  v,t,r=detailed_wall_geometry(p,target_step=.5);return MeshPayload(v,t,r)
 def _box_mesh(p,transform=None):
- w,d,h=map(float,(p['width'],p['depth'],p['height']));local=[(0,0,0),(w,0,0),(w,d,0),(0,d,0),(0,0,h),(w,0,h),(w,d,h),(0,0,h),(w,0,h),(w,d,h),(0,d,h)]
+ w,d,h=map(float,(p['width'],p['depth'],p['height']));local=[(0,0,0),(w,0,0),(w,d,0),(0,d,0),(0,0,h),(w,0,h),(w,d,h),(0,d,h)]
  if transform is not None:v=[tuple(sum(transform[r][c]*q[c] for c in range(3))+transform[r][3] for r in range(3)) for q in local]
  else:
   a=math.radians(float(p.get('rotation',0)));c,s=math.cos(a),math.sin(a);ox,oy,oz=map(float,(p['x'],p['y'],p['z']));v=[(ox+c*x-s*y,oy+s*x+c*y,oz+z) for x,y,z in local]
