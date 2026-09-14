@@ -58,6 +58,62 @@ def _pod_mesh(p,segments=32,rings=12):
  for j in range(rings):
   for i in range(segments):n=(i+1)%segments;a=j*segments+i;b=j*segments+n;c=(j+1)*segments+n;d=(j+1)*segments+i;tris.extend(((a,b,c),(a,c,d)));roles.extend(('pod_shell','pod_shell'))
  return MeshPayload(tuple(v),tuple(tris),tuple(roles))
+def _compact_mesh(vertices,triangles,roles):
+ used=sorted({i for tri in triangles for i in tri});remap={old:new for new,old in enumerate(used)}
+ return MeshPayload(tuple(vertices[i] for i in used),tuple(tuple(remap[i] for i in tri) for tri in triangles),tuple(roles))
+def _clip_mesh_halfspace(mesh,plane,keep_sign,tolerance=1e-9):
+ """Clip a semantic preview mesh against one vertical half-space, sharing cut-edge vertices."""
+ px,py=map(float,plane['point']);nx,ny=map(float,plane['normal']);vertices=list(mesh.vertices);out_tris=[];out_roles=[];edge_cache={}
+ def distance(i):
+  x,y,_=vertices[i];return (x-px)*nx+(y-py)*ny
+ def intersection(a,b):
+  key=(a,b) if a<b else (b,a)
+  if key in edge_cache:return edge_cache[key]
+  da,db=distance(a),distance(b);den=da-db
+  if abs(den)<=1e-15:return a
+  t=da/den;pa,pb=vertices[a],vertices[b]
+  point=tuple(pa[k]+t*(pb[k]-pa[k]) for k in range(3));idx=len(vertices);vertices.append(point);edge_cache[key]=idx;return idx
+ for tri,role in zip(mesh.triangles,mesh.triangle_surfaces):
+  poly=list(tri);clipped=[];s=poly[-1];ds=keep_sign*distance(s);s_in=ds>=-tolerance
+  for e in poly:
+   de=keep_sign*distance(e);e_in=de>=-tolerance
+   if e_in:
+    if not s_in:clipped.append(intersection(s,e))
+    clipped.append(e)
+   elif s_in:clipped.append(intersection(s,e))
+   s=e;s_in=e_in
+  clean=[]
+  for i in clipped:
+   if not clean or clean[-1]!=i:clean.append(i)
+  if len(clean)>1 and clean[0]==clean[-1]:clean.pop()
+  if len(clean)<3:continue
+  for j in range(1,len(clean)-1):
+   candidate=(clean[0],clean[j],clean[j+1])
+   a,b,c=(vertices[i] for i in candidate)
+   ab=(b[0]-a[0],b[1]-a[1],b[2]-a[2]);ac=(c[0]-a[0],c[1]-a[1],c[2]-a[2])
+   cross=(ab[1]*ac[2]-ab[2]*ac[1],ab[2]*ac[0]-ab[0]*ac[2],ab[0]*ac[1]-ab[1]*ac[0])
+   if sum(v*v for v in cross)<=1e-20:continue
+   out_tris.append(candidate);out_roles.append(role)
+ return _compact_mesh(vertices,out_tris,out_roles)
+def _active_junction_planes_for_pod(doc,pod_id):
+ from archforge.organic.biospectre import junction_plane,junction_section_polygon
+ out=[]
+ for entity in doc.entities.values():
+  if entity.kind!='organic_junction' or entity.params.get('status')!='active':continue
+  a_id,b_id=entity.params.get('component_a'),entity.params.get('component_b')
+  if pod_id not in (a_id,b_id) or a_id not in doc.entities or b_id not in doc.entities:continue
+  a,b=doc.get(a_id),doc.get(b_id)
+  if a.kind!='pod' or b.kind!='pod':continue
+  plane=junction_plane(a.params,b.params)
+  if plane is None or junction_section_polygon(a.params,b.params) is None:continue
+  pod=doc.get(pod_id);cx,cy=float(pod.params['cx']),float(pod.params['cy']);px,py=plane['point'];nx,ny=plane['normal'];signed=(cx-px)*nx+(cy-py)*ny
+  if abs(signed)<=1e-12:continue
+  out.append((plane,1.0 if signed>0 else -1.0))
+ return out
+def _pod_mesh_for_node(doc,node):
+ mesh=_pod_mesh(node.params)
+ for plane,keep_sign in _active_junction_planes_for_pod(doc,node.entity_id):mesh=_clip_mesh_halfspace(mesh,plane,keep_sign)
+ return mesh
 def _room_slab(doc,node):
  from archforge.architecture.rooms import room_slab_geometry
  g=room_slab_geometry(doc,doc.get(node.entity_id))
@@ -81,7 +137,7 @@ def _payload(doc,node):
  k,p=node.semantic_kind,node.params
  if k=='wall':return _wall_mesh(p)
  if k in('box','mechanical_part'):return _box_mesh(p,node.transform)
- if k=='pod':return _pod_mesh(p)
+ if k=='pod':return _pod_mesh_for_node(doc,node)
  if k=='organic_junction':return _organic_junction_mesh(doc,node)
  if k=='floor':return _polygon_prism(p['points'],p['z'],p['thickness'])
  if k in('room_floor','room_ceiling','room_foundation','room_roof'):return _room_slab(doc,node)
