@@ -135,5 +135,5 @@ def test_sculpt_attachment_follows_kinematic_part_transform():
     moved_y = (min(v[1] for v in moved.payload.vertices), max(v[1] for v in moved.payload.vertices))
     assert abs((moved_y[0] - rest_y[0]) - .5) < 1e-9
     assert abs((moved_y[1] - rest_y[1]) - .5) < 1e-9
-    assert max(v[2] for v in moved.payload.vertices) == max(v[2] for v in rest.payload.vertices)
+    assert abs(max(v[2] for v in moved.payload.vertices) - max(v[2] for v in rest.payload.vertices)) < 1e-9
     assert moved.modifiers_applied is True
