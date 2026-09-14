@@ -4,6 +4,7 @@ import pytest
 from archforge.core.model import Document, Entity
 from archforge.geometry.mesh import TessellatedPreviewBackend
 from archforge.geometry.preview import PreviewBackend
+from archforge.geometry.sculpt import SculptedPreviewBackend
 from archforge.geometry.selection import BrushSpec, SurfaceHit, sculpt_modifier_from_hit
 from archforge.geometry.surface_frame import evaluate_surface_point, project_surface_point
 
@@ -37,6 +38,14 @@ def _shell_point(p, u, v):
     )
 
 
+def _mesh_diff_count(a, b, tolerance=1e-10):
+    assert len(a.vertices) == len(b.vertices)
+    return sum(
+        1 for va, vb in zip(a.vertices, b.vertices)
+        if math.dist(va, vb) > tolerance
+    )
+
+
 def test_pod_shell_uses_intrinsic_coordinates_that_follow_shape_changes():
     doc = Document()
     pod = _pod(rotation=20.0)
@@ -62,6 +71,38 @@ def test_pod_shell_uses_intrinsic_coordinates_that_follow_shape_changes():
     moved = evaluate_surface_point(doc, pod.id, 'pod_shell', uv)
     assert moved == pytest.approx(_shell_point(doc.get(pod.id).params, *expected_uv))
     assert moved != pytest.approx(point)
+
+
+def test_pod_sculpt_remains_applied_after_rotation_and_reshape():
+    doc = Document()
+    pod = _pod(rotation=10.0)
+    doc.add(pod)
+
+    # Choose coordinates that coincide with tessellation rings/segments so the brush has
+    # a deterministic mesh vertex at its semantic center.
+    uv = (0.125, 0.5)
+    point = _shell_point(pod.params, *uv)
+    modifier = sculpt_modifier_from_hit(
+        doc,
+        SurfaceHit(pod.id, 'pod_shell', point, (1.0, 0.0, 0.0)),
+        BrushSpec(1.0),
+        'pull',
+        0.25,
+    )
+    doc.add_surface_modifier(modifier)
+
+    base_before = TessellatedPreviewBackend().evaluate(doc).body(pod.id).payload
+    sculpt_before = SculptedPreviewBackend().evaluate(doc).body(pod.id)
+    assert sculpt_before.modifiers_applied is True
+    assert modifier.id in sculpt_before.modifier_ids
+    assert _mesh_diff_count(base_before, sculpt_before.payload) > 0
+
+    doc.update(pod.id, {'rotation': 112.0, 'diameter_x': 9.0, 'diameter_y': 6.5, 'height': 4.0})
+    base_after = TessellatedPreviewBackend().evaluate(doc).body(pod.id).payload
+    sculpt_after = SculptedPreviewBackend().evaluate(doc).body(pod.id)
+    assert sculpt_after.modifiers_applied is True
+    assert modifier.id in sculpt_after.modifier_ids
+    assert _mesh_diff_count(base_after, sculpt_after.payload) > 0
 
 
 def test_rotated_pod_mesh_uses_entity_rotation_in_universal_xyz():
