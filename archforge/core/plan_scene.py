@@ -20,6 +20,13 @@ def _box_handles(eid,p):
     return [Handle2D(x,y,eid,h) for h,(x,y) in [('left',world(-hw,0)),('right',world(hw,0)),('bottom',world(0,-hd)),('top',world(0,hd)),('bottom_left',pts[0]),('bottom_right',pts[1]),('top_right',pts[2]),('top_left',pts[3])]]
 def _pod_handles(eid,p):
     cx,cy=p['cx'],p['cy'];rx,ry=p['diameter_x']/2,p['diameter_y']/2;return [Handle2D(cx-rx,cy,eid,'left'),Handle2D(cx+rx,cy,eid,'right'),Handle2D(cx,cy-ry,eid,'bottom'),Handle2D(cx,cy+ry,eid,'top')]
+def _opening_segment(doc,e):
+    if not e.parent_id or e.parent_id not in doc.entities:return None
+    host=doc.get(e.parent_id)
+    from archforge.architecture.openings import plan_segment,pod_opening_plan_segment
+    if host.kind=='wall':return plan_segment(host.params,e.params)
+    if host.kind=='pod':return pod_opening_plan_segment(host.params,{**e.params,'_kind':e.kind})
+    return None
 def entity_primitive(doc,eid):
     e=doc.get(eid);p=e.params
     if not e.visible:return None
@@ -33,9 +40,9 @@ def entity_primitive(doc,eid):
         if g is None:return None
         return Primitive2D('polygon',tuple(g['points']),entity_id=eid,role='room-floor',meta=(('semantic','room_floor'),('signature',g['room_signature']),('thickness',g['thickness']),('z',g['z'])))
     if e.kind in ('door','window'):
-        if not e.parent_id or e.parent_id not in doc.entities:return None
-        from archforge.architecture.openings import plan_segment
-        a,b=plan_segment(doc.get(e.parent_id).params,p);return Primitive2D('line',(a,b),entity_id=eid,role='opening',meta=(('semantic',e.kind),('host',e.parent_id)))
+        seg=_opening_segment(doc,e)
+        if seg is None:return None
+        a,b=seg;return Primitive2D('line',(a,b),entity_id=eid,role='opening',meta=(('semantic',e.kind),('host',e.parent_id)))
 def selection_handles(doc):
     out=[]
     for eid in doc.selection:
@@ -46,8 +53,9 @@ def selection_handles(doc):
         elif e.kind=='box':out.extend(_box_handles(eid,p))
         elif e.kind=='pod':out.extend(_pod_handles(eid,p))
         elif e.kind in ('door','window') and e.parent_id in doc.entities:
-            from archforge.architecture.openings import plan_segment
-            a,b=plan_segment(doc.get(e.parent_id).params,p);mx=(a[0]+b[0])/2;my=(a[1]+b[1])/2
+            seg=_opening_segment(doc,e)
+            if seg is None:continue
+            a,b=seg;mx=(a[0]+b[0])/2;my=(a[1]+b[1])/2
             out.extend([Handle2D(a[0],a[1],eid,'left','stretch'),Handle2D(b[0],b[1],eid,'right','stretch'),Handle2D(mx,my,eid,'move','move')])
     return out
 def preview_primitives(preview):
