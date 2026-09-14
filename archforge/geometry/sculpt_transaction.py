@@ -7,6 +7,8 @@ from .mesh import TessellatedPreviewBackend
 from .sculpt import apply_brush_modifier
 from .picking import raycast_evaluation
 
+LIVE_SCULPT_OPERATIONS=('pull','push','inflate','recess','smooth','crease')
+
 
 class SculptTransaction:
     """Modal begin/preview/adjust/confirm/cancel transaction for surface sculpting.
@@ -16,8 +18,8 @@ class SculptTransaction:
     def __init__(self, doc, stack, hit: SurfaceHit, brush: BrushSpec,
                  operation: str='pull', amount: float=0.0):
         hit.validate(doc); brush.validate()
-        if operation not in ('pull','push'):
-            raise ValueError('live sculpt transaction currently supports pull or push')
+        if operation not in LIVE_SCULPT_OPERATIONS:
+            raise ValueError(f'live sculpt transaction does not yet support {operation}')
         self.doc,self.stack,self.hit,self.brush=doc,stack,hit,brush
         self.operation=operation;self.amount=float(amount);self.cancelled=False;self.committed=False
         if self.amount<0: raise ValueError('amount must be >= 0')
@@ -64,11 +66,7 @@ class SculptTransaction:
 def begin_sculpt_from_ray(doc, stack, origin, direction, brush: BrushSpec,
                           operation: str='pull', amount: float=0.0,
                           evaluation=None):
-    """Bridge the future 3D viewport directly into a semantic sculpt transaction.
-
-    A screen ray hits transient triangles, resolves the stable semantic surface, then the
-    triangle identity is discarded before the transaction begins.
-    """
+    """Bridge a 3D viewport ray directly into a semantic sculpt transaction."""
     if evaluation is None:
         evaluation=TessellatedPreviewBackend().evaluate(doc)
     hit=raycast_evaluation(doc,evaluation,origin,direction)
