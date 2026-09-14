@@ -31,8 +31,10 @@ def test_brush_validation_rejects_invalid_radius_strength_and_falloff():
     with pytest.raises(ValueError):BrushSpec(1,0.5,'magic').validate()
 
 
-def test_world_only_hit_is_allowed_for_surface_without_uv_mapping_yet():
+def test_world_only_wall_top_hit_is_promoted_to_intrinsic_surface_uv():
     doc=Document();w=make_wall(doc)
     mod=sculpt_modifier_from_hit(doc,SurfaceHit(w.id,'top',(2,0,3),(0,0,1)),BrushSpec(0.4),'recess',0.1)
-    assert 'uv_center' not in mod.target.subregion
-    assert mod.target.subregion['world_center']==[2.0,0.0,3.0]
+    region=mod.target.subregion
+    assert region['uv_center']==[0.4,0.5]
+    assert region['coord_system']=='surface_uv'
+    assert region['world_hint']==[2.0,0.0,3.0]
