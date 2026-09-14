@@ -135,3 +135,44 @@ class OpeningPlaceTransaction:
         from archforge.architecture.openings import validate_opening
         validate_opening(self.doc.get(self.host_id).params,self.preview,self.kind);e=Entity(self.kind,dict(self.preview),name=self.kind.title(),parent_id=self.host_id);self.stack.execute(AddEntity(e));return e.id
     def cancel(self):self.cancelled=True
+
+class OpeningEditTransaction:
+    """Directly move or stretch an existing wall-attached opening in plan.
+
+    The opening remains wall-relative: movement projects the pointer onto the host wall,
+    and jamb stretches preserve the opposite jamb instead of scaling around the center.
+    """
+    def __init__(self,doc,stack,eid,handle='move'):
+        e=doc.get(eid)
+        if e.kind not in ('door','window'):raise ValueError('opening edit requires door/window')
+        if not e.parent_id or e.parent_id not in doc.entities or doc.get(e.parent_id).kind!='wall':raise ValueError('opening has no valid host wall')
+        if handle not in ('move','left','right'):raise ValueError('opening handle must be move, left or right')
+        self.doc,self.stack,self.eid,self.handle=doc,stack,eid,handle
+        self.kind=e.kind;self.host_id=e.parent_id;self.before=e.params.copy();self.preview=e.params.copy();self.cancelled=False
+    def update(self,x,y):
+        from archforge.architecture.openings import project_to_wall,validate_opening
+        wall=self.doc.get(self.host_id).params
+        projected,px,py,distance=project_to_wall(wall,x,y)
+        p=self.before.copy()
+        if self.handle=='move':
+            p['offset']=projected
+        else:
+            left=self.before['offset']-self.before['width']/2
+            right=self.before['offset']+self.before['width']/2
+            if self.handle=='left':left=projected
+            else:right=projected
+            if right-left<=1e-9:raise ValueError('opening width must remain positive')
+            p['offset']=(left+right)/2
+            p['width']=right-left
+        validate_opening(wall,p,self.kind)
+        self.preview=p
+        return HUD({'offset':p['offset'],'width':p['width'],'height':p['height'],'sill':p['sill'],'distance':distance,'x':px,'y':py,'valid':1.0})
+    def preview_segment(self):
+        from archforge.architecture.openings import plan_segment
+        return plan_segment(self.doc.get(self.host_id).params,self.preview)
+    def commit(self):
+        if self.cancelled:raise RuntimeError('transaction cancelled')
+        self.stack.execute(UpdateEntity(self.eid,self.preview))
+        return self.eid
+    def cancel(self):
+        self.cancelled=True;self.preview=self.before.copy()
