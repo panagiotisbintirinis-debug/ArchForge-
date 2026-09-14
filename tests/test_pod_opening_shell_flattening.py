@@ -1,3 +1,5 @@
+from math import sqrt
+
 from archforge.core.model import Document, Entity
 from archforge.architecture.openings import infer_organic_opening_patches, pod_opening_patch_geometry
 from archforge.geometry.mesh import TessellatedPreviewBackend
@@ -32,6 +34,16 @@ def _triangle_centroid(mesh, tri):
     return tuple(sum(p[k] for p in pts)/3.0 for k in range(3))
 
 
+def _mesh_area(mesh):
+    total=0.0
+    for tri in mesh.triangles:
+        a,b,c=(mesh.vertices[i] for i in tri)
+        ab=(b[0]-a[0],b[1]-a[1],b[2]-a[2]);ac=(c[0]-a[0],c[1]-a[1],c[2]-a[2])
+        cross=(ab[1]*ac[2]-ab[2]*ac[1],ab[2]*ac[0]-ab[0]*ac[2],ab[0]*ac[1]-ab[1]*ac[0])
+        total += 0.5*sqrt(sum(v*v for v in cross))
+    return total
+
+
 def test_active_flat_opening_patch_removes_curved_shell_inside_patch_footprint():
     doc=Document();pod=_pod();doc.add(pod)
     full=TessellatedPreviewBackend().evaluate(doc).body(pod.id).payload
@@ -40,7 +52,7 @@ def test_active_flat_opening_patch_removes_curved_shell_inside_patch_footprint()
 
     evaluation=TessellatedPreviewBackend().evaluate(doc)
     shell=evaluation.body(pod.id).payload
-    assert len(shell.triangles) < len(full.triangles)
+    assert _mesh_area(shell) < _mesh_area(full)
     assert not any(_inside_patch(_triangle_centroid(shell,t),geom) for t in shell.triangles)
 
 
