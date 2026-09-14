@@ -5,6 +5,7 @@ from .backend import GeometryBackend, GeometryBody, GeometryEvaluation, Geometry
 from .preview import PreviewBackend, PreviewPayload
 from .mesh import MeshPayload, TessellatedPreviewBackend
 from .sculpt import SculptedPreviewBackend, apply_brush_modifier
+from .sculpt_transaction import SculptTransaction
 from .picking import MeshRayHit, raycast_mesh, raycast_evaluation, surface_hit_from_raycast
 from .fabrication import FabricationFinding, FabricationReport, assess_fabrication, require_fabrication_ready
 from .selection import SurfaceHit, BrushSpec, sculpt_modifier_from_hit
@@ -14,7 +15,8 @@ __all__=[
  'SurfaceDescriptor','surface_catalog','surface_roles','resolve_surface',
  'GeometryBackend','GeometryBody','GeometryEvaluation','GeometryIssue','ContractBackend',
  'PreviewBackend','PreviewPayload','MeshPayload','TessellatedPreviewBackend',
- 'SculptedPreviewBackend','apply_brush_modifier','MeshRayHit','raycast_mesh','raycast_evaluation',
- 'surface_hit_from_raycast','FabricationFinding','FabricationReport','assess_fabrication',
- 'require_fabrication_ready','SurfaceHit','BrushSpec','sculpt_modifier_from_hit',
+ 'SculptedPreviewBackend','apply_brush_modifier','SculptTransaction',
+ 'MeshRayHit','raycast_mesh','raycast_evaluation','surface_hit_from_raycast',
+ 'FabricationFinding','FabricationReport','assess_fabrication','require_fabrication_ready',
+ 'SurfaceHit','BrushSpec','sculpt_modifier_from_hit',
 ]
