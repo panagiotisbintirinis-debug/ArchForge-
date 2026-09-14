@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, List, Tuple
+from typing import Iterable, List, Optional, Tuple
 import math
 
 from .backend import ContractBackend, GeometryBackend, GeometryBody, GeometryEvaluation, GeometryIssue
@@ -25,14 +25,14 @@ def _transform_point(matrix,p:Vec3)->Vec3:
 def _box_corners(width,depth,height):
     return [(x,y,z) for x in (0.0,width) for y in (0.0,depth) for z in (0.0,height)]
 
-def _room_slab_payload(doc,node)->PreviewPayload:
+def _room_slab_payload(doc,node)->Optional[PreviewPayload]:
     from archforge.architecture.rooms import room_slab_geometry
     g=room_slab_geometry(doc,doc.get(node.entity_id))
-    if g is None:raise ValueError('derived room element has no currently closed room')
+    if g is None:return None
     pts=[(float(x),float(y),float(g['z'])) for x,y in g['points']];top=float(g['z'])+float(g['thickness'])
     return PreviewPayload('polygon_prism',_bounds(pts+[(x,y,top) for x,y,_ in pts]))
 
-def _payload(doc,node)->PreviewPayload:
+def _payload(doc,node)->Optional[PreviewPayload]:
     p=node.params;kind=node.semantic_kind
     if kind in ('box','mechanical_part'):
         corners=_box_corners(float(p['width']),float(p['depth']),float(p['height']))
@@ -66,6 +66,9 @@ class PreviewBackend(GeometryBackend):
             base=contract.body(node.entity_id)
             try:
                 payload=_payload(doc,node)
+                if payload is None:
+                    issues.append(GeometryIssue('warning','preview_geometry_unavailable','derived room element has no currently closed room',node.entity_id))
+                    continue
                 bodies.append(GeometryBody(node.entity_id,node.semantic_kind,base.surface_keys,base.modifier_ids,payload,quality='preview',modifiers_applied=False))
             except Exception as exc:issues.append(GeometryIssue('error','preview_geometry_failed',str(exc),node.entity_id))
         return GeometryEvaluation(self.name,tuple(bodies),tuple(issues))
