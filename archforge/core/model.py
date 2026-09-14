@@ -15,6 +15,11 @@ def _positive(v: float)->float:
     if v <= 0: raise ValueError('dimension must be > 0')
     return v
 
+def _room_signature(v)->str:
+    v=str(v)
+    if not v.startswith('room-') or len(v)<8:raise ValueError('invalid room signature')
+    return v
+
 def _polygon(v):
     from archforge.architecture.floors import validate_polygon
     return validate_polygon(v)
@@ -54,6 +59,7 @@ SCHEMAS={
  'pod': {'cx':_finite,'cy':_finite,'floor_level':_finite,'diameter_x':_positive,'diameter_y':_positive,'height':_positive,'shell_thickness':_positive,'rotation':_finite},
  'floor': {'points':_polygon,'z':_finite,'thickness':_positive},
  'room': {'points':_polygon,'z':_finite,'height':_positive},
+ 'room_floor': {'room_signature':_room_signature,'thickness':_positive,'offset_z':_finite},
  'door': {'offset':_finite,'width':_positive,'height':_positive,'sill':_finite},
  'window': {'offset':_finite,'width':_positive,'height':_positive,'sill':_finite},
 }
@@ -76,8 +82,6 @@ class Document:
         self.work_plane=WorkPlane()
         self.materials={}
         self.constructions={}
-        # User-authored information for automatically derived rooms. Keys are stable
-        # topology signatures made from semantic boundary wall IDs, not copied polygons.
         self.room_data: Dict[str,Dict[str,Any]]={}
     def add(self,e:Entity)->str:
         if e.id in self.entities: raise ValueError('duplicate id')
