@@ -27,7 +27,9 @@ def assess_fabrication(evaluation: GeometryEvaluation, entity_ids=None) -> Fabri
     """Refuse fabrication unless geometry carries explicit proof required for STL.
 
     This prevents a dangerous future shortcut where viewport triangles are exported while
-    sculpt modifiers, manifold checks, or watertightness were never evaluated.
+    sculpt modifiers, manifold checks, or watertightness were never evaluated. An empty
+    scope is also unsafe: there is no fabrication-ready result when no geometry body was
+    actually selected/evaluated.
     """
     selected = set(entity_ids) if entity_ids is not None else None
     findings=[]
@@ -38,6 +40,8 @@ def assess_fabrication(evaluation: GeometryEvaluation, entity_ids=None) -> Fabri
     if selected is not None:
         missing=selected-{b.entity_id for b in bodies}
         for eid in sorted(missing): findings.append(FabricationFinding('error','missing_body','no evaluated geometry body',eid))
+    if not bodies:
+        findings.append(FabricationFinding('error','empty_fabrication_scope','no evaluated geometry bodies were selected for fabrication'))
     for body in bodies:
         if body.quality not in ('fabrication_mesh','exact_brep'):
             findings.append(FabricationFinding('error','insufficient_geometry_quality',f'{body.quality} geometry is not fabrication geometry',body.entity_id))
