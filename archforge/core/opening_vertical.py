@@ -3,6 +3,22 @@ from __future__ import annotations
 from .commands import UpdateEntity
 
 
+def opening_elevation_handles(doc,eid,axis,override_params=None):
+    """Return [(handle, x_or_y, z), ...] for a selected opening in XZ/YZ."""
+    if axis not in ('XZ','YZ'): raise ValueError('axis must be XZ or YZ')
+    e=doc.get(eid)
+    if e.kind not in ('door','window') or not e.parent_id or e.parent_id not in doc.entities:return []
+    p=override_params if override_params is not None else e.params
+    host=doc.get(e.parent_id).params
+    from archforge.architecture.openings import elevation_rect
+    rect=elevation_rect(host,p,axis)
+    xs=[q[0] for q in rect];mid=(min(xs)+max(xs))/2
+    base=float(host['z']);bottom=base+float(p.get('sill',0.0));top=bottom+float(p['height'])
+    out=[('top',mid,top)]
+    if e.kind=='window':out.append(('bottom',mid,bottom))
+    return out
+
+
 class OpeningVerticalEditTransaction:
     """Edit top/bottom edges of an attached opening in elevation.
 
