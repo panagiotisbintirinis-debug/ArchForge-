@@ -49,7 +49,11 @@ def _payload(doc,node)->Optional[PreviewPayload]:
         return PreviewPayload('wall_prism',_bounds(footprint+[(x,y,z+h) for x,y,_ in footprint]))
     if kind=='pod':
         cx,cy,z=float(p['cx']),float(p['cy']),float(p['floor_level']);rx=float(p['diameter_x'])/2;ry=float(p['diameter_y'])/2
-        return PreviewPayload('upper_ellipsoid',((cx-rx,cy-ry,z),(cx+rx,cy+ry,z+float(p['height']))))
+        angle=math.radians(float(p.get('rotation',0.0)));c,s=math.cos(angle),math.sin(angle)
+        # Exact axis-aligned extents of a Z-rotated ellipse. The vertical half-ellipsoid
+        # remains in universal XYZ; a storey is only a semantic reference, not a frame.
+        ex=math.sqrt((rx*c)**2+(ry*s)**2);ey=math.sqrt((rx*s)**2+(ry*c)**2)
+        return PreviewPayload('upper_ellipsoid',((cx-ex,cy-ey,z),(cx+ex,cy+ey,z+float(p['height']))))
     if kind in ('floor','room'):
         pts=[(float(x),float(y),float(p['z'])) for x,y in p['points']];top=float(p['z'])+float(p.get('thickness',p.get('height',0.0)))
         return PreviewPayload('polygon_prism' if kind=='floor' else 'room_volume',_bounds(pts+[(x,y,top) for x,y,_ in pts]))
