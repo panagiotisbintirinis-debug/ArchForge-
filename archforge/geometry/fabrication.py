@@ -26,6 +26,44 @@ class FabricationReport:
         return not any(f.severity == 'error' for f in self.findings)
 
 
+def _physical_triangle_key(vertices, tri):
+    """Orientation/index independent exact triangle key in physical coordinates."""
+    return tuple(sorted(tuple(float(c) for c in vertices[i]) for i in tri))
+
+
+def _interbody_duplicate_face_findings(bodies):
+    """Reject exact coincident faces owned by different selected mesh bodies.
+
+    This is intentionally not a general collision/intersection solver. It closes the
+    exact-duplicate-shell false-positive class while broader spatial intersection proof
+    remains a separate fabrication requirement.
+    """
+    seen={};reported=set();findings=[]
+    for body in bodies:
+        payload=body.payload
+        vertices=getattr(payload,'vertices',None);triangles=getattr(payload,'triangles',None)
+        if vertices is None or triangles is None:
+            continue
+        for tri in triangles:
+            key=_physical_triangle_key(vertices,tri)
+            owner=seen.get(key)
+            if owner is None:
+                seen[key]=body.entity_id
+                continue
+            if owner==body.entity_id:
+                continue
+            pair=tuple(sorted((owner,body.entity_id)))
+            if pair in reported:
+                continue
+            reported.add(pair)
+            findings.append(FabricationFinding(
+                'error','interbody_duplicate_face',
+                f'exact coincident face is present in both {pair[0]} and {pair[1]}',
+                body.entity_id,
+            ))
+    return findings
+
+
 def assess_fabrication(evaluation: GeometryEvaluation, entity_ids=None) -> FabricationReport:
     """Refuse fabrication unless geometry carries explicit proof required for STL.
 
@@ -54,6 +92,7 @@ def assess_fabrication(evaluation: GeometryEvaluation, entity_ids=None) -> Fabri
             findings.append(FabricationFinding('error','not_proven_watertight','watertightness has not been proven',body.entity_id))
         if body.manifold is not True:
             findings.append(FabricationFinding('error','not_proven_manifold','manifoldness has not been proven',body.entity_id))
+    findings.extend(_interbody_duplicate_face_findings(bodies))
     return FabricationReport(tuple(findings))
 
 
