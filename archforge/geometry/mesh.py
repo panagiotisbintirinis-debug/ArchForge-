@@ -38,7 +38,6 @@ def _inside_triangle(p, a, b, c):
 
 
 def _triangulate(points):
-    """Ear-clip a simple 2D polygon without introducing a heavy geometry dependency."""
     pts = [(float(x), float(y)) for x, y in points]
     if len(pts) < 3:
         raise ValueError('polygon needs at least three points')
@@ -85,13 +84,17 @@ def _wall_mesh(p) -> MeshPayload:
          (x2 - nx, y2 - ny, z), (x1 - nx, y1 - ny, z),
          (x1 + nx, y1 + ny, z + h), (x2 + nx, y2 + ny, z + h),
          (x2 - nx, y2 - ny, z + h), (x1 - nx, y1 - ny, z + h))
-    quads = ((0, 1, 5, 4, 'exterior'), (3, 7, 6, 2, 'interior'),
-             (4, 5, 6, 7, 'top'), (0, 4, 7, 3, 'start'),
-             (1, 2, 6, 5, 'end'), (3, 2, 1, 0, 'bottom'))
+    # Exterior is +normal of the wall centreline; interior is -normal. Winding is
+    # deliberately outward so Pull means outward and Push means inward.
+    faces = (((0,5,1),(0,4,5),'exterior'),
+             ((3,2,6),(3,6,7),'interior'),
+             ((4,5,6),(4,6,7),'top'),
+             ((0,3,7),(0,7,4),'start'),
+             ((1,5,6),(1,6,2),'end'),
+             ((3,0,1),(3,1,2),'bottom'))
     tris, roles = [], []
-    for a, b, c, d, role in quads:
-        tris.extend(((a, b, c), (a, c, d)))
-        roles.extend((role, role))
+    for a, b, role in faces:
+        tris.extend((a,b)); roles.extend((role,role))
     return MeshPayload(v, tuple(tris), tuple(roles))
 
 
@@ -136,7 +139,6 @@ def _polygon_prism(points, z, thickness) -> MeshPayload:
 
 
 def _pod_mesh(p, segments=32, rings=12) -> MeshPayload:
-    """Upper ellipsoid only: floor level is a hard geometric boundary."""
     cx, cy, z = map(float, (p['cx'], p['cy'], p['floor_level']))
     rx, ry, rz = float(p['diameter_x']) / 2.0, float(p['diameter_y']) / 2.0, float(p['height'])
     verts = []
@@ -159,38 +161,30 @@ def _pod_mesh(p, segments=32, rings=12) -> MeshPayload:
 
 def _payload(doc, node):
     kind, p = node.semantic_kind, node.params
-    if kind == 'wall':
-        return _wall_mesh(p)
-    if kind in ('box', 'mechanical_part'):
-        return _box_mesh(p, node.transform)
-    if kind == 'pod':
-        return _pod_mesh(p)
-    if kind == 'floor':
-        return _polygon_prism(p['points'], p['z'], p['thickness'])
+    if kind == 'wall': return _wall_mesh(p)
+    if kind in ('box', 'mechanical_part'): return _box_mesh(p, node.transform)
+    if kind == 'pod': return _pod_mesh(p)
+    if kind == 'floor': return _polygon_prism(p['points'], p['z'], p['thickness'])
     if kind == 'room_floor':
         from archforge.architecture.rooms import room_floor_geometry
         g = room_floor_geometry(doc, doc.get(node.entity_id))
-        if g is None:
-            raise ValueError('room floor has no currently closed room')
+        if g is None: raise ValueError('room floor has no currently closed room')
         return _polygon_prism(g['points'], g['z'], g['thickness'])
     raise ValueError(f'tessellation not implemented for {kind}')
 
 
 class TessellatedPreviewBackend(GeometryBackend):
-    """Real triangle geometry for the 3D viewport; never fabrication evidence."""
     name = 'tessellated-preview'
 
     def evaluate_plan(self, doc, plan) -> GeometryEvaluation:
         contract = ContractBackend().evaluate_plan(doc, plan)
-        issues = list(contract.issues)
-        bodies: List[GeometryBody] = []
+        issues = list(contract.issues); bodies: List[GeometryBody] = []
         for node in plan.geometry_nodes():
             base = contract.body(node.entity_id)
             try:
                 mesh = _payload(doc, node)
-                bodies.append(GeometryBody(node.entity_id, node.semantic_kind, base.surface_keys,
-                                           base.modifier_ids, mesh, quality='preview-mesh',
-                                           modifiers_applied=False))
+                bodies.append(GeometryBody(node.entity_id,node.semantic_kind,base.surface_keys,
+                                           base.modifier_ids,mesh,quality='preview-mesh',modifiers_applied=False))
             except Exception as exc:
-                issues.append(GeometryIssue('warning', 'tessellation_unavailable', str(exc), node.entity_id))
-        return GeometryEvaluation(self.name, tuple(bodies), tuple(issues))
+                issues.append(GeometryIssue('warning','tessellation_unavailable',str(exc),node.entity_id))
+        return GeometryEvaluation(self.name,tuple(bodies),tuple(issues))
