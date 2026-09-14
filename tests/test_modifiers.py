@@ -34,7 +34,8 @@ def test_modifier_persistence_roundtrip():
     m=SurfaceModifier(SurfaceRef(w.id,'exterior',{'mask':'brush-7'}),'pull',{'amount':.4},order=3)
     d.add_surface_modifier(m)
     loaded=Document.from_dict(d.to_dict())
-    assert loaded.to_dict()['format']==6
+    # Surface modifiers require format 6 or newer; later project features may advance it.
+    assert loaded.to_dict()['format']>=6
     restored=loaded.surface_modifiers[m.id]
     assert restored.target.owner_id==w.id
     assert restored.target.subregion['mask']=='brush-7'
