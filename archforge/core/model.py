@@ -83,6 +83,9 @@ class Document:
         self.materials={}
         self.constructions={}
         self.room_data: Dict[str,Dict[str,Any]]={}
+        # Non-destructive sculpture stack. Values are SurfaceModifier instances and
+        # target semantic surface roles instead of transient mesh face indices.
+        self.surface_modifiers: Dict[str,Any]={}
     def add(self,e:Entity)->str:
         if e.id in self.entities: raise ValueError('duplicate id')
         e.params=validate_params(e.kind,e.params)
@@ -131,6 +134,15 @@ class Document:
         from archforge.architecture.topology import room_faces
         if z is None:z=self.work_plane.origin[2]
         return room_faces(self,tolerance=tolerance,z=z)
+    def add_surface_modifier(self,modifier)->str:
+        from .modifiers import add_modifier
+        return add_modifier(self,modifier)
+    def update_surface_modifier(self,modifier_id:str,**changes):
+        from .modifiers import update_modifier
+        update_modifier(self,modifier_id,**changes)
+    def remove_surface_modifier(self,modifier_id:str):
+        from .modifiers import remove_modifier
+        return remove_modifier(self,modifier_id)
     def mark_dirty(self,eid:str):
         stack=[eid]; seen=set()
         while stack:
@@ -164,6 +176,9 @@ class Document:
             self.selection=[x for x in self.selection if x!=i]
             self.dirty.add(i)
         for kids in self.children.values(): kids[:]=[x for x in kids if x not in ids]
+        # Surface modifiers cannot outlive the semantic object/surface they target.
+        for mid,m in list(self.surface_modifiers.items()):
+            if m.target.owner_id in ids:self.surface_modifiers.pop(mid,None)
         return snap
     def select(self,ids:List[str],add=False):
         valid=[i for i in ids if i in self.entities]
@@ -172,10 +187,12 @@ class Document:
                 if i not in self.selection:self.selection.append(i)
         else:self.selection=valid
     def to_dict(self):
-        return {'format':5,'entities':[asdict(e) for e in self.entities.values()],
+        from .modifiers import modifier_to_dict
+        return {'format':6,'entities':[asdict(e) for e in self.entities.values()],
                 'dependencies':{k:sorted(v) for k,v in self.dependencies.items()},
                 'levels':self.levels,'work_plane':asdict(self.work_plane),'materials':self.materials,
-                'constructions':self.constructions,'room_data':copy.deepcopy(self.room_data)}
+                'constructions':self.constructions,'room_data':copy.deepcopy(self.room_data),
+                'surface_modifiers':[modifier_to_dict(m) for m in self.surface_modifiers.values()]}
     @classmethod
     def from_dict(cls,d):
         doc=cls(); doc.levels=d.get('levels',{'Ground':0.0}); wp=d.get('work_plane')
@@ -192,6 +209,9 @@ class Document:
             for dependent in dependents:
                 if source in doc.entities and dependent in doc.entities and dependent not in doc.dependencies.get(source,set()):
                     doc.add_dependency(source,dependent)
+        from .modifiers import modifier_from_dict
+        for raw in d.get('surface_modifiers',[]):
+            mod=modifier_from_dict(raw);doc.add_surface_modifier(mod)
         doc.dirty.clear(); return doc
     def save(self,path):
         with open(path,'w',encoding='utf8') as f: json.dump(self.to_dict(),f,indent=2)
