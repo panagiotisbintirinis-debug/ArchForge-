@@ -24,15 +24,7 @@ def _two_storey_walls():
 
     # Ground floor room at z=0 (4 walls)
     for a, b in [((0, 0), (6, 0)), ((6, 0), (6, 5)), ((6, 5), (0, 5)), ((0, 5), (0, 0))]:
-        doc.add(Entity('wall', {'x1': a[0], 'y1': a[1], 'x2': b[0], 'y2': a[1], 'z': 0.0, 'height': 3.0, 'thickness': 0.2}))
-
-    # Correct the two vertical edges after constructing them explicitly above.
-    ground = [e for e in doc.entities.values() if e.kind == 'wall' and e.params['z'] == 0.0]
-    ground[1].params['y2'] = 5.0
-    ground[2].params['y1'] = 5.0
-    ground[2].params['y2'] = 5.0
-    ground[3].params['y1'] = 5.0
-    ground[3].params['y2'] = 0.0
+        doc.add(Entity('wall', {'x1': a[0], 'y1': a[1], 'x2': b[0], 'y2': b[1], 'z': 0.0, 'height': 3.0, 'thickness': 0.2}))
 
     # First floor room at z=3.0 directly above (4 walls)
     for a, b in [((0, 0), (6, 0)), ((6, 0), (6, 5)), ((6, 5), (0, 5)), ((0, 5), (0, 0))]:
