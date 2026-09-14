@@ -66,3 +66,29 @@ def infer_architecture(doc, defaults=ArchitectureDefaults(), z=None):
                 if changes:doc.update(e.id,changes)
             _sync_dependencies(doc,e.id,face.wall_ids)
     return IntentResult(tuple(face.signature for face,_ in bound_faces),tuple(created))
+
+
+def infer_building_architecture(doc, defaults=ArchitectureDefaults(), levels=None) -> IntentResult:
+    """Infer editable architecture across multiple building storeys.
+
+    Discovers all distinct vertical wall planes or applies the requested storey levels,
+    materializing room elements per level with persistent room identity.
+    """
+    if levels is not None:
+        target_levels = sorted({float(lvl) for lvl in levels})
+    else:
+        wall_levels = {float(e.params['z']) for e in doc.entities.values() if e.kind == 'wall' and e.visible}
+        if wall_levels:
+            target_levels = sorted(wall_levels)
+        else:
+            target_levels = [float(doc.work_plane.origin[2])]
+
+    all_signatures = []
+    all_created = []
+    for z in target_levels:
+        res = infer_architecture(doc, defaults=defaults, z=z)
+        all_signatures.extend(res.room_signatures)
+        all_created.extend(res.created_ids)
+
+    return IntentResult(tuple(all_signatures), tuple(all_created))
+

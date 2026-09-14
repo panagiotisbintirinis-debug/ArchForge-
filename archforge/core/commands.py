@@ -1,8 +1,8 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import copy
-from .model import Document, Entity
+from .model import Document, Entity, WorkPlane
 
 class Command:
     def do(self,doc:Document): raise NotImplementedError
@@ -117,6 +117,118 @@ class CreateRoomFloors(Command):
     def undo(self,doc):
         for e in self.entities.values():
             if e.id in doc.entities:doc.remove(e.id)
+
+@dataclass
+class SetWorkPlane(Command):
+    work_plane: WorkPlane
+    before: Optional[WorkPlane] = None
+    def do(self, doc: Document):
+        if self.before is None:
+            self.before = copy.deepcopy(doc.work_plane)
+        doc.work_plane = copy.deepcopy(self.work_plane)
+    def undo(self, doc: Document):
+        if self.before is not None:
+            doc.work_plane = copy.deepcopy(self.before)
+
+@dataclass
+class SetLevel(Command):
+    name: str
+    elevation: float
+    before: Optional[float] = None
+    had_before: bool = False
+    def do(self, doc: Document):
+        if not self.had_before and self.name in doc.levels:
+            self.before = doc.levels[self.name]
+            self.had_before = True
+        doc.levels[self.name] = float(self.elevation)
+    def undo(self, doc: Document):
+        if self.had_before:
+            doc.levels[self.name] = self.before
+        else:
+            doc.levels.pop(self.name, None)
+
+@dataclass
+class RemoveLevel(Command):
+    name: str
+    before: Optional[float] = None
+    def do(self, doc: Document):
+        if self.name not in doc.levels:
+            raise KeyError(f"level '{self.name}' does not exist")
+        self.before = doc.levels.pop(self.name)
+    def undo(self, doc: Document):
+        if self.before is not None:
+            doc.levels[self.name] = self.before
+
+@dataclass
+class SetMaterial(Command):
+    material_id: str
+    properties: Dict[str, Any]
+    before: Optional[Dict[str, Any]] = None
+    had_before: bool = False
+    def do(self, doc: Document):
+        if not self.had_before and self.material_id in doc.materials:
+            self.before = copy.deepcopy(doc.materials[self.material_id])
+            self.had_before = True
+        doc.materials[self.material_id] = copy.deepcopy(self.properties)
+    def undo(self, doc: Document):
+        if self.had_before:
+            doc.materials[self.material_id] = copy.deepcopy(self.before)
+        else:
+            doc.materials.pop(self.material_id, None)
+
+@dataclass
+class SetConstruction(Command):
+    construction_id: str
+    properties: Dict[str, Any]
+    before: Optional[Dict[str, Any]] = None
+    had_before: bool = False
+    def do(self, doc: Document):
+        if not self.had_before and self.construction_id in doc.constructions:
+            self.before = copy.deepcopy(doc.constructions[self.construction_id])
+            self.had_before = True
+        doc.constructions[self.construction_id] = copy.deepcopy(self.properties)
+    def undo(self, doc: Document):
+        if self.had_before:
+            doc.constructions[self.construction_id] = copy.deepcopy(self.before)
+        else:
+            doc.constructions.pop(self.construction_id, None)
+
+@dataclass
+class AssignConstruction(Command):
+    eid: str
+    construction_id: Optional[str] = None
+    material_id: Optional[str] = None
+    before_construction: Optional[str] = None
+    before_material: Optional[str] = None
+    had_before: bool = False
+    def do(self, doc: Document):
+        e = doc.get(self.eid)
+        if not self.had_before:
+            self.before_construction = e.params.get('construction_id')
+            self.before_material = e.params.get('material_id')
+            self.had_before = True
+        changes = {}
+        if self.construction_id is not None:
+            changes['construction_id'] = self.construction_id
+        if self.material_id is not None:
+            changes['material_id'] = self.material_id
+        doc.update(self.eid, changes)
+    def undo(self, doc: Document):
+        changes = {}
+        if self.construction_id is not None:
+            if self.before_construction is not None:
+                changes['construction_id'] = self.before_construction
+            else:
+                doc.get(self.eid).params.pop('construction_id', None)
+        if self.material_id is not None:
+            if self.before_material is not None:
+                changes['material_id'] = self.before_material
+            else:
+                doc.get(self.eid).params.pop('material_id', None)
+        if changes:
+            doc.update(self.eid, changes)
+        else:
+            doc.mark_dirty(self.eid)
 
 class CommandStack:
     def __init__(self,doc):self.doc=doc;self.done=[];self.undone=[]
