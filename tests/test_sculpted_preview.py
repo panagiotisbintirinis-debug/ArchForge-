@@ -21,13 +21,24 @@ def test_pull_moves_only_evaluated_mesh_not_semantic_wall():
     assert sculpt.payload.vertices[0][1] > base.vertices[0][1]
 
 
+def test_small_brush_deforms_local_region_not_whole_wall():
+    d,w=_wall_doc();hit=SurfaceHit(w.id,'exterior',(2,.1,1.5),(0,1,0))
+    mod=sculpt_modifier_from_hit(d,hit,BrushSpec(.65,1.0,'smooth'),'pull',.35);d.add_surface_modifier(mod)
+    base=TessellatedPreviewBackend().evaluate(d).body(w.id).payload
+    sculpt=SculptedPreviewBackend().evaluate(d).body(w.id).payload
+    exterior={i for ti,t in enumerate(base.triangles) if base.triangle_surfaces[ti]=='exterior' for i in t}
+    moved=[i for i in exterior if sculpt.vertices[i]!=base.vertices[i]]
+    unchanged=[i for i in exterior if sculpt.vertices[i]==base.vertices[i]]
+    assert moved and unchanged
+    assert max(abs(base.vertices[i][0]-2) for i in moved)<1.0
+
+
 def test_push_moves_opposite_surface_normal():
     d,w=_wall_doc()
     hit=SurfaceHit(w.id,'exterior',(0,.1,0),(0,1,0))
     mod=sculpt_modifier_from_hit(d,hit,BrushSpec(2.0,1.0,'constant'),'push',.25);d.add_surface_modifier(mod)
     base=TessellatedPreviewBackend().evaluate(d).body(w.id).payload
     sculpt=SculptedPreviewBackend().evaluate(d).body(w.id).payload
-    # exterior is y=+thickness/2 for this wall; push moves inward (-y)
     assert sculpt.vertices[0][1] < base.vertices[0][1]
 
 
