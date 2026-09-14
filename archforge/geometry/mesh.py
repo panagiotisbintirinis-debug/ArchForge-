@@ -48,9 +48,12 @@ def _polygon_prism(points,z,thickness):
  return MeshPayload(verts,tuple(tris),tuple(roles))
 def _pod_mesh(p,segments=32,rings=12):
  cx,cy,z=map(float,(p['cx'],p['cy'],p['floor_level']));rx,ry,rz=float(p['diameter_x'])/2,float(p['diameter_y'])/2,float(p['height']);v=[]
+ angle=math.radians(float(p.get('rotation',0.0)));cr,sr=math.cos(angle),math.sin(angle)
  for j in range(rings+1):
   phi=math.pi/2*j/rings;rr=math.cos(phi);zz=z+rz*math.sin(phi)
-  for i in range(segments):a=2*math.pi*i/segments;v.append((cx+rx*rr*math.cos(a),cy+ry*rr*math.sin(a),zz))
+  for i in range(segments):
+   a=2*math.pi*i/segments;lx=rx*rr*math.cos(a);ly=ry*rr*math.sin(a)
+   v.append((cx+cr*lx-sr*ly,cy+sr*lx+cr*ly,zz))
  tris=[];roles=[]
  for j in range(rings):
   for i in range(segments):n=(i+1)%segments;a=j*segments+i;b=j*segments+n;c=(j+1)*segments+n;d=(j+1)*segments+i;tris.extend(((a,b,c),(a,c,d)));roles.extend(('pod_shell','pod_shell'))
