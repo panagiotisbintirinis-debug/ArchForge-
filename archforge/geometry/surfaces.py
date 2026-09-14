@@ -13,6 +13,7 @@ _KIND_ROLES:Dict[str,Tuple[Tuple[str,bool,bool,str],...]]={
  'mechanical_part':tuple((r,True,True,f'mechanical part {r} face') for r in('top','bottom','left','right','front','back')),
  'pod':(('pod_shell',True,True,'curved pod shell'),('junction',True,True,'legacy generated flat pod junction'),('floor',True,True,'pod floor')),
  'organic_junction':(('junction',False,False,'derived flat organic junction surface'),),
+ 'organic_opening_patch':(('opening_patch',False,False,'derived flat host surface for a conventional pod opening'),),
  'floor':_slab('floor'),'room_floor':_slab('derived room floor'),'room_ceiling':_slab('derived room ceiling'),'room_foundation':_slab('derived foundation'),'room_roof':_slab('derived roof'),
  'room':(('ceiling',True,False,'generated room ceiling'),('floor_boundary',False,False,'room floor boundary'))}
 def surface_catalog(doc,owner_id):

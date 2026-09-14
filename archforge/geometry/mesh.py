@@ -62,7 +62,6 @@ def _compact_mesh(vertices,triangles,roles):
  used=sorted({i for tri in triangles for i in tri});remap={old:new for new,old in enumerate(used)}
  return MeshPayload(tuple(vertices[i] for i in used),tuple(tuple(remap[i] for i in tri) for tri in triangles),tuple(roles))
 def _clip_mesh_halfspace(mesh,plane,keep_sign,tolerance=1e-9):
- """Clip a semantic preview mesh against one vertical half-space, sharing cut-edge vertices."""
  px,py=map(float,plane['point']);nx,ny=map(float,plane['normal']);vertices=list(mesh.vertices);out_tris=[];out_roles=[];edge_cache={}
  def distance(i):
   x,y,_=vertices[i];return (x-px)*nx+(y-py)*ny
@@ -133,12 +132,22 @@ def _organic_junction_mesh(doc,node):
  local=[((x-px)*tx+(y-py)*ty,z) for x,y,z in points]
  tris=_triangulate(local)
  return MeshPayload(tuple(points),tuple(tris),tuple('junction' for _ in tris))
+def _organic_opening_patch_mesh(doc,node):
+ from archforge.architecture.openings import pod_opening_patch_geometry
+ if node.params.get('status')!='active':raise ValueError('organic opening patch is dormant')
+ g=pod_opening_patch_geometry(doc,node.params.get('opening_id'))
+ if g is None:raise ValueError('organic opening patch has no current host geometry')
+ points=tuple(g['points'])
+ # The patch is rectangular and already ordered around its vertical tangent plane.
+ tris=((0,1,2),(0,2,3))
+ return MeshPayload(points,tris,('opening_patch','opening_patch'))
 def _payload(doc,node):
  k,p=node.semantic_kind,node.params
  if k=='wall':return _wall_mesh(p)
  if k in('box','mechanical_part'):return _box_mesh(p,node.transform)
  if k=='pod':return _pod_mesh_for_node(doc,node)
  if k=='organic_junction':return _organic_junction_mesh(doc,node)
+ if k=='organic_opening_patch':return _organic_opening_patch_mesh(doc,node)
  if k=='floor':return _polygon_prism(p['points'],p['z'],p['thickness'])
  if k in('room_floor','room_ceiling','room_foundation','room_roof'):return _room_slab(doc,node)
  raise ValueError(f'tessellation not implemented for {k}')

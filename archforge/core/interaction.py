@@ -113,66 +113,85 @@ class VerticalStretchTransaction:
     def cancel(self):self.preview=self.before.copy()
 
 class OpeningPlaceTransaction:
-    """Attach a door/window to the nearest wall while previewing its wall-relative offset."""
-    def __init__(self,doc,stack,kind,x,y,tolerance=0.35,width=None,height=None,sill=None):
+    """Attach a conventional door/window to the nearest wall or organic pod shell."""
+    def __init__(self,doc,stack,kind,x,y,tolerance=0.35,width=None,height=None,sill=None,flat_margin=0.25):
         if kind not in ('door','window'):raise ValueError('opening kind must be door or window')
-        self.doc,self.stack,self.kind=doc,stack,kind;self.tolerance=float(tolerance);self.cancelled=False;self.width=float(width if width is not None else (.9 if kind=='door' else 1.2));self.height=float(height if height is not None else (2.1 if kind=='door' else 1.2));self.sill=float(sill if sill is not None else (0.0 if kind=='door' else .9));self.host_id=None;self.preview={};self.update(x,y)
+        self.doc,self.stack,self.kind=doc,stack,kind;self.tolerance=float(tolerance);self.cancelled=False;self.width=float(width if width is not None else (.9 if kind=='door' else 1.2));self.height=float(height if height is not None else (2.1 if kind=='door' else 1.2));self.sill=float(sill if sill is not None else (0.0 if kind=='door' else .9));self.flat_margin=float(flat_margin);self.host_id=None;self.host_kind=None;self.preview={};self.update(x,y)
     def update(self,x,y):
-        from archforge.architecture.openings import nearest_wall_projection,validate_opening
-        hit=nearest_wall_projection(self.doc,x,y,self.tolerance)
-        if hit is None:self.host_id=None;self.preview={};return HUD({'valid':0.0})
-        p={'offset':hit['offset'],'width':self.width,'height':self.height,'sill':self.sill}
-        try:validate_opening(self.doc.get(hit['wall_id']).params,p,self.kind);valid=1.0
+        from archforge.architecture.openings import nearest_opening_host,validate_opening,validate_pod_opening
+        hit=nearest_opening_host(self.doc,x,y,self.tolerance)
+        if hit is None:self.host_id=None;self.host_kind=None;self.preview={};return HUD({'valid':0.0})
+        host=self.doc.get(hit['host_id']);self.host_id=hit['host_id'];self.host_kind=hit['host_kind']
+        if host.kind=='wall':
+            p={'offset':hit['offset'],'width':self.width,'height':self.height,'sill':self.sill}
+            try:validate_opening(host.params,p,self.kind);valid=1.0
+            except ValueError:valid=0.0
+            self.preview=p;return HUD({'offset':p['offset'],'width':p['width'],'height':p['height'],'sill':p['sill'],'distance':hit['distance'],'valid':valid})
+        p={'surface_u':hit['surface_u'],'width':self.width,'height':self.height,'sill':self.sill,'flat_margin':self.flat_margin}
+        try:validate_pod_opening(host.params,p,self.kind);valid=1.0
         except ValueError:valid=0.0
-        self.host_id=hit['wall_id'];self.preview=p;return HUD({'offset':p['offset'],'width':p['width'],'height':p['height'],'sill':p['sill'],'distance':hit['distance'],'valid':valid})
+        self.preview=p;return HUD({'surface_u':p['surface_u'],'width':p['width'],'height':p['height'],'sill':p['sill'],'distance':hit['distance'],'valid':valid})
     def preview_segment(self):
         if not self.host_id or not self.preview:return None
-        from archforge.architecture.openings import plan_segment
-        return plan_segment(self.doc.get(self.host_id).params,self.preview)
+        from archforge.architecture.openings import plan_segment,pod_opening_plan_segment
+        host=self.doc.get(self.host_id)
+        return plan_segment(host.params,self.preview) if host.kind=='wall' else pod_opening_plan_segment(host.params,{**self.preview,'_kind':self.kind})
     def commit(self):
         if self.cancelled:raise RuntimeError('transaction cancelled')
-        if not self.host_id or not self.preview:raise ValueError('opening must be placed on a wall')
-        from archforge.architecture.openings import validate_opening
-        validate_opening(self.doc.get(self.host_id).params,self.preview,self.kind);e=Entity(self.kind,dict(self.preview),name=self.kind.title(),parent_id=self.host_id);self.stack.execute(AddEntity(e));return e.id
+        if not self.host_id or not self.preview:raise ValueError('opening must be placed on a wall or pod')
+        host=self.doc.get(self.host_id)
+        from archforge.architecture.openings import validate_opening,validate_pod_opening
+        if host.kind=='wall':validate_opening(host.params,self.preview,self.kind)
+        elif host.kind=='pod':validate_pod_opening(host.params,self.preview,self.kind)
+        else:raise ValueError('opening host must be a wall or pod')
+        e=Entity(self.kind,dict(self.preview),name=self.kind.title(),parent_id=self.host_id)
+        if host.kind=='pod':
+            from .opening_commands import AddOpeningEntity
+            self.stack.execute(AddOpeningEntity(e))
+        else:self.stack.execute(AddEntity(e))
+        return e.id
     def cancel(self):self.cancelled=True
 
 class OpeningEditTransaction:
-    """Directly move or stretch an existing wall-attached opening in plan.
-
-    The opening remains wall-relative: movement projects the pointer onto the host wall,
-    and jamb stretches preserve the opposite jamb instead of scaling around the center.
-    """
+    """Move/stretch an opening in its host's semantic frame."""
     def __init__(self,doc,stack,eid,handle='move'):
         e=doc.get(eid)
         if e.kind not in ('door','window'):raise ValueError('opening edit requires door/window')
-        if not e.parent_id or e.parent_id not in doc.entities or doc.get(e.parent_id).kind!='wall':raise ValueError('opening has no valid host wall')
+        if not e.parent_id or e.parent_id not in doc.entities or doc.get(e.parent_id).kind not in ('wall','pod'):raise ValueError('opening has no valid wall/pod host')
         if handle not in ('move','left','right'):raise ValueError('opening handle must be move, left or right')
         self.doc,self.stack,self.eid,self.handle=doc,stack,eid,handle
         self.kind=e.kind;self.host_id=e.parent_id;self.before=e.params.copy();self.preview=e.params.copy();self.cancelled=False
     def update(self,x,y):
+        host=self.doc.get(self.host_id);p=self.before.copy()
+        if host.kind=='pod':
+            from archforge.architecture.openings import project_to_pod,validate_pod_opening
+            u,px,py,distance=project_to_pod(host.params,x,y)
+            if self.handle=='move':p['surface_u']=u
+            else:
+                from archforge.architecture.openings import pod_opening_plan_segment
+                a,b=pod_opening_plan_segment(host.params,{**self.before,'_kind':self.kind});fixed=b if self.handle=='left' else a
+                width=hypot(float(x)-fixed[0],float(y)-fixed[1])
+                if width<=1e-9:raise ValueError('opening width must remain positive')
+                p['width']=width
+                mu,_,_,_=project_to_pod(host.params,(float(x)+fixed[0])/2.0,(float(y)+fixed[1])/2.0);p['surface_u']=mu
+            validate_pod_opening(host.params,p,self.kind);self.preview=p
+            return HUD({'surface_u':p['surface_u'],'width':p['width'],'height':p['height'],'sill':p['sill'],'distance':distance,'x':px,'y':py,'valid':1.0})
         from archforge.architecture.openings import project_to_wall,validate_opening
-        wall=self.doc.get(self.host_id).params
-        projected,px,py,distance=project_to_wall(wall,x,y)
-        p=self.before.copy()
-        if self.handle=='move':
-            p['offset']=projected
+        wall=host.params;projected,px,py,distance=project_to_wall(wall,x,y)
+        if self.handle=='move':p['offset']=projected
         else:
-            left=self.before['offset']-self.before['width']/2
-            right=self.before['offset']+self.before['width']/2
+            left=self.before['offset']-self.before['width']/2;right=self.before['offset']+self.before['width']/2
             if self.handle=='left':left=projected
             else:right=projected
             if right-left<=1e-9:raise ValueError('opening width must remain positive')
-            p['offset']=(left+right)/2
-            p['width']=right-left
-        validate_opening(wall,p,self.kind)
-        self.preview=p
+            p['offset']=(left+right)/2;p['width']=right-left
+        validate_opening(wall,p,self.kind);self.preview=p
         return HUD({'offset':p['offset'],'width':p['width'],'height':p['height'],'sill':p['sill'],'distance':distance,'x':px,'y':py,'valid':1.0})
     def preview_segment(self):
-        from archforge.architecture.openings import plan_segment
-        return plan_segment(self.doc.get(self.host_id).params,self.preview)
+        from archforge.architecture.openings import plan_segment,pod_opening_plan_segment
+        host=self.doc.get(self.host_id)
+        return plan_segment(host.params,self.preview) if host.kind=='wall' else pod_opening_plan_segment(host.params,{**self.preview,'_kind':self.kind})
     def commit(self):
         if self.cancelled:raise RuntimeError('transaction cancelled')
-        self.stack.execute(UpdateEntity(self.eid,self.preview))
-        return self.eid
-    def cancel(self):
-        self.cancelled=True;self.preview=self.before.copy()
+        self.stack.execute(UpdateEntity(self.eid,self.preview));return self.eid
+    def cancel(self):self.cancelled=True;self.preview=self.before.copy()
