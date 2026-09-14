@@ -35,6 +35,19 @@ def test_missing_selected_body_is_blocker():
     assert report.findings[0].code=='missing_body'
 
 
+def test_empty_evaluation_is_not_fabrication_ready():
+    report=assess_fabrication(GeometryEvaluation('test',()))
+    assert not report.ready
+    assert any(f.code=='empty_fabrication_scope' for f in report.findings)
+
+
+def test_explicit_empty_selection_is_not_fabrication_ready():
+    body=GeometryBody('part-1','mechanical_part',('part-1:top',),(),payload=object(),quality='fabrication_mesh',modifiers_applied=True,watertight=True,manifold=True)
+    report=assess_fabrication(GeometryEvaluation('test',(body,)),[])
+    assert not report.ready
+    assert any(f.code=='empty_fabrication_scope' for f in report.findings)
+
+
 def test_require_ready_raises_with_actionable_reason():
     body=GeometryBody('x','box',(),quality='preview')
     with pytest.raises(ValueError,match='fabrication gate failed'):
