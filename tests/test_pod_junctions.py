@@ -52,6 +52,30 @@ def test_disjoint_pods_have_no_junctions():
     assert all_pod_junctions(doc) == {}
 
 
+def test_xy_overlap_without_vertical_overlap_has_no_junction():
+    doc = Document()
+    p1 = _pod(cx=0, cy=0, floor_level=0, height=3)
+    p2 = _pod(cx=3, cy=0, floor_level=4, height=2)
+    doc.add(p1)
+    doc.add(p2)
+
+    assert find_pod_junctions(doc, p1.id) == []
+    assert all_pod_junctions(doc) == {}
+
+
+def test_junction_vertical_extent_is_shared_height_interval():
+    doc = Document()
+    p1 = _pod(cx=0, cy=0, floor_level=0, height=3)
+    p2 = _pod(cx=3, cy=0, floor_level=2, height=4)
+    doc.add(p1)
+    doc.add(p2)
+
+    juncs = find_pod_junctions(doc, p1.id)
+    assert len(juncs) == 1
+    assert juncs[0]['plane']['z0'] == 2
+    assert juncs[0]['plane']['z1'] == 3
+
+
 def test_all_pod_junctions_multi_cluster():
     doc = Document()
     # 3 pods in a chain: A overlaps B, B overlaps C, but A and C are disjoint
