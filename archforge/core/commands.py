@@ -25,11 +25,7 @@ class UpdateEntity(Command):
 
 @dataclass
 class UpdateEntities(Command):
-    """Apply several semantic parameter updates as one undo/redo step.
-
-    If validation of any member fails, already-applied members are restored so callers
-    never observe a partially moved wall junction.
-    """
+    """Apply several semantic parameter updates as one undo/redo step."""
     changes:Dict[str,Dict[str,Any]]
     before:Dict[str,Dict[str,Any]]|None=None
     before_revisions:Dict[str,int]|None=None
@@ -39,8 +35,7 @@ class UpdateEntities(Command):
             self.before_revisions={eid:doc.get(eid).revision for eid in self.changes}
         touched=[]
         try:
-            for eid,delta in self.changes.items():
-                doc.update(eid,delta);touched.append(eid)
+            for eid,delta in self.changes.items():doc.update(eid,delta);touched.append(eid)
         except Exception:
             for eid in touched:
                 e=doc.get(eid);e.params=copy.deepcopy(self.before[eid]);e.revision=self.before_revisions[eid];doc.mark_dirty(eid)
@@ -64,6 +59,35 @@ class MoveEntities(Command):
     def undo(self,doc):
         for i,p in self.before.items():
             e=doc.get(i);e.params=copy.deepcopy(p);e.revision+=1;doc.mark_dirty(i)
+
+class CreateRoomFloors(Command):
+    """Create one topology-linked floor per active room as a single undo step."""
+    def __init__(self,signatures:List[str],thickness:float=.15,offset_z:float=0.0):
+        self.signatures=list(dict.fromkeys(signatures));self.thickness=float(thickness);self.offset_z=float(offset_z);self.entities:Dict[str,Entity]={}
+    def do(self,doc):
+        from archforge.architecture.rooms import find_room_face
+        existing={e.params.get('room_signature') for e in doc.entities.values() if e.kind=='room_floor'}
+        created=[]
+        try:
+            for sig in self.signatures:
+                if sig in existing:continue
+                found=find_room_face(doc,sig)
+                if found is None:raise ValueError('room signature is not currently active')
+                face,_=found
+                e=self.entities.get(sig)
+                if e is None:
+                    e=Entity('room_floor',{'room_signature':sig,'thickness':self.thickness,'offset_z':self.offset_z},name='Auto Floor')
+                    self.entities[sig]=e
+                doc.add(e.clone());created.append(e.id)
+                for wid in face.wall_ids:
+                    if wid in doc.entities and e.id not in doc.dependencies.get(wid,set()):doc.add_dependency(wid,e.id)
+        except Exception:
+            for eid in reversed(created):
+                if eid in doc.entities:doc.remove(eid)
+            raise
+    def undo(self,doc):
+        for e in self.entities.values():
+            if e.id in doc.entities:doc.remove(e.id)
 
 class CommandStack:
     def __init__(self,doc):self.doc=doc;self.done=[];self.undone=[]
