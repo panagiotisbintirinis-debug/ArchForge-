@@ -26,7 +26,6 @@ def _falloff(distance: float, radius: float, kind: str) -> float:
     if kind=='constant': return 1.0
     if kind=='linear': return x
     if kind=='sharp': return x*x
-    # smoothstep from edge(0) to center(1)
     return x*x*(3.0-2.0*x)
 
 
@@ -40,14 +39,26 @@ def _surface_vertex_normals(mesh: MeshPayload, role: str) -> Dict[int,Vec3]:
     return {vi:_normal(v) for vi,v in accum.items()}
 
 
-def apply_brush_modifier(mesh: MeshPayload, raw: dict) -> MeshPayload:
-    """Apply one non-destructive preview modifier to vertices of its semantic surface.
+def _surface_neighbors(mesh: MeshPayload, role: str) -> Dict[int,set]:
+    out: Dict[int,set]={}
+    for idx,tri in enumerate(mesh.triangles):
+        if mesh.triangle_surfaces[idx]!=role: continue
+        for a in tri:
+            out.setdefault(a,set()).update(b for b in tri if b!=a)
+    return out
 
-    This is deliberately a preview evaluator. It demonstrates the complete semantic
-    sculpt chain but is not a CAD boolean or fabrication-quality remesher.
+
+def apply_brush_modifier(mesh: MeshPayload, raw: dict) -> MeshPayload:
+    """Apply one non-destructive viewport sculpt modifier on a semantic surface.
+
+    Pull/push/inflate/recess displace along evaluated semantic-surface normals.
+    Smooth relaxes only the selected semantic patch. Crease concentrates normal
+    displacement toward the brush centre. This remains preview geometry, not a
+    fabrication-quality remesher or boolean evaluator.
     """
     op=str(raw.get('operation',''))
-    if op not in ('pull','push'):
+    supported=('pull','push','inflate','recess','smooth','crease')
+    if op not in supported:
         raise ValueError(f'preview mesh sculpt does not yet support {op}')
     target=raw.get('target') or {}; role=str(target.get('surface_role',''))
     region=target.get('subregion') or {}
@@ -55,19 +66,32 @@ def apply_brush_modifier(mesh: MeshPayload, raw: dict) -> MeshPayload:
     if len(center)!=3: raise ValueError('sculpt modifier requires world_center')
     radius=float(region.get('radius',0.0)); strength=float(region.get('strength',1.0)); falloff=str(region.get('falloff','smooth'))
     amount=float((raw.get('params') or {}).get('amount',0.0))
-    if radius<=0 or amount<0: raise ValueError('invalid sculpt radius or amount')
-    sign=1.0 if op=='pull' else -1.0
+    if radius<=0 or amount<0 or not 0<=strength<=1: raise ValueError('invalid sculpt radius, strength, or amount')
     normals=_surface_vertex_normals(mesh,role)
     if not normals: raise ValueError(f'mesh exposes no triangles for semantic surface {role!r}')
     verts=list(mesh.vertices)
+
+    if op=='smooth':
+        neighbors=_surface_neighbors(mesh,role); source=tuple(verts)
+        for vi in normals:
+            distance=_length(_sub(source[vi],center)); w=_falloff(distance,radius,falloff)*strength
+            ns=neighbors.get(vi,set())
+            if w>0 and ns:
+                avg=tuple(sum(source[j][k] for j in ns)/len(ns) for k in range(3))
+                alpha=min(1.0,amount*w)
+                verts[vi]=_add(source[vi],_scale(_sub(avg,source[vi]),alpha))
+        return MeshPayload(tuple(verts),mesh.triangles,mesh.triangle_surfaces)
+
+    sign=-1.0 if op in ('push','recess') else 1.0
     for vi,n in normals.items():
-        distance=_length(_sub(verts[vi],center));w=_falloff(distance,radius,falloff)*strength
+        distance=_length(_sub(verts[vi],center)); w=_falloff(distance,radius,falloff)*strength
+        if op=='crease': w=w*w
         if w>0: verts[vi]=_add(verts[vi],_scale(n,sign*amount*w))
     return MeshPayload(tuple(verts),mesh.triangles,mesh.triangle_surfaces)
 
 
 class SculptedPreviewBackend(GeometryBackend):
-    """Tessellated viewport backend with ordered pull/push modifiers evaluated."""
+    """Tessellated viewport backend with ordered supported sculpt modifiers evaluated."""
     name='sculpted-preview'
 
     def evaluate_plan(self,doc,plan)->GeometryEvaluation:
