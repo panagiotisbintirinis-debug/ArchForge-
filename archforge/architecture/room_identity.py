@@ -11,10 +11,45 @@ def _point_close(a,b,tolerance):
     return math.hypot(float(a[0])-float(b[0]),float(a[1])-float(b[1]))<=tolerance
 
 
+def _redundant_collinear_vertex(a,b,c,tolerance):
+    """Return True when b only subdivides the straight boundary segment a-c."""
+    ax,ay=map(float,a);bx,by=map(float,b);cx,cy=map(float,c)
+    acx,acy=cx-ax,cy-ay
+    length2=acx*acx+acy*acy
+    if length2<=tolerance*tolerance:
+        return _point_close(a,b,tolerance) or _point_close(b,c,tolerance)
+    t=((bx-ax)*acx+(by-ay)*acy)/length2
+    if t < -tolerance or t > 1.0+tolerance:
+        return False
+    px,py=ax+t*acx,ay+t*acy
+    return math.hypot(bx-px,by-py)<=tolerance
+
+
+def _simplify_polygon(polygon,tolerance):
+    """Remove duplicate/collinear subdivision vertices without changing polygon shape."""
+    pts=[tuple(map(float,p)) for p in polygon]
+    if len(pts)>1 and _point_close(pts[0],pts[-1],tolerance):
+        pts.pop()
+    changed=True
+    while changed and len(pts)>3:
+        changed=False
+        keep=[];n=len(pts)
+        for i,p in enumerate(pts):
+            prev=pts[(i-1)%n];nxt=pts[(i+1)%n]
+            if _point_close(prev,p,tolerance) or _redundant_collinear_vertex(prev,p,nxt,tolerance):
+                changed=True
+                continue
+            keep.append(p)
+        if len(keep)<3:
+            break
+        pts=keep
+    return pts
+
+
 def _polygon_matches(a,b,tolerance: float = 1e-5):
-    """Compare polygon cycles geometrically, independent of start vertex and direction."""
+    """Compare physical polygon cycles independent of start/direction and collinear splits."""
     if tolerance<=0:raise ValueError('tolerance must be > 0')
-    aa=[tuple(map(float,p)) for p in a];bb=[tuple(map(float,p)) for p in b]
+    aa=_simplify_polygon(a,tolerance);bb=_simplify_polygon(b,tolerance)
     if len(aa)!=len(bb) or not aa:return False
     n=len(aa)
     for start in range(n):
@@ -26,9 +61,10 @@ def _polygon_matches(a,b,tolerance: float = 1e-5):
 def reconcile_room_bindings(doc, z=None, tolerance: float = 1e-5) -> Tuple[Tuple[RoomFace,str],...]:
     """Bind transient topology faces to persistent semantic room IDs conservatively.
 
-    Exact topology signature is the primary match. If boundary objects were recreated,
-    an equivalent polygon within geometric tolerance may heal the binding. Split/merge
-    inheritance is intentionally not guessed: unmatched predecessor rooms become
+    Exact topology signature is the primary match. If boundary objects were recreated
+    or a straight boundary was subdivided into collinear wall segments, an equivalent
+    physical polygon within geometric tolerance may heal the binding. Genuine split/
+    merge inheritance is intentionally not guessed: unmatched predecessor rooms become
     ``unclosed`` and new faces receive new IDs until an explicit policy is implemented.
     """
     if z is None:
