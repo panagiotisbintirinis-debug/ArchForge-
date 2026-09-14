@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from hashlib import sha1
 from math import atan2, hypot
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -18,6 +19,18 @@ class WallEdge:
 class WallGraph:
     nodes: List[Point]
     edges: List[WallEdge]
+
+
+@dataclass(frozen=True)
+class RoomFace:
+    """A bounded face derived from semantic wall topology.
+
+    ``signature`` is based on the ordered semantic wall IDs around the face, not on
+    coordinates. Moving a connected wall junction therefore preserves room identity.
+    """
+    polygon: Tuple[Point, ...]
+    wall_ids: Tuple[str, ...]
+    signature: str
 
 
 def _dist(a: Point, b: Point) -> float:
@@ -76,7 +89,6 @@ def build_wall_graph(doc, tolerance: float = 1e-6, z: Optional[float] = None) ->
             continue
         segments.append({'id':eid,'a':a,'b':b,'z':wz,'cuts':[0.0,1.0]})
 
-    # Split topological edges wherever same-level wall centerlines intersect.
     for i in range(len(segments)):
         for j in range(i+1,len(segments)):
             si,sj=segments[i],segments[j]
@@ -100,8 +112,7 @@ def build_wall_graph(doc, tolerance: float = 1e-6, z: Optional[float] = None) ->
 
     for s in segments:
         a,b=s['a'],s['b'];dx=b[0]-a[0];dy=b[1]-a[1]
-        cuts=sorted(s['cuts'])
-        unique=[]
+        cuts=sorted(s['cuts']);unique=[]
         for t in cuts:
             if not unique or abs(t-unique[-1])>1e-12:
                 unique.append(t)
@@ -161,22 +172,56 @@ def _halfedge_faces(graph: WallGraph) -> List[List[int]]:
     return faces
 
 
-def closed_room_polygons(doc, tolerance: float = 1e-6, z: Optional[float] = None, min_area: float = 1e-6) -> List[List[Point]]:
-    """Return bounded closed faces formed by connected/intersecting walls.
+def _canonical_cycle(values: Sequence[str]) -> Tuple[str,...]:
+    vals=list(values)
+    if not vals:return ()
+    # Consecutive graph segments from one semantic wall should count as one boundary wall.
+    compact=[]
+    for v in vals:
+        if not compact or compact[-1]!=v:compact.append(v)
+    if len(compact)>1 and compact[0]==compact[-1]:compact.pop()
+    if not compact:return ()
+    forward=[tuple(compact[i:]+compact[:i]) for i in range(len(compact))]
+    rev=list(reversed(compact));backward=[tuple(rev[i:]+rev[:i]) for i in range(len(rev))]
+    return min(forward+backward)
 
-    The result is derived topology, not persistent room entities. Polygons are returned
-    counter-clockwise and recompute immediately when their wall boundaries change.
-    """
-    graph=build_wall_graph(doc,tolerance=tolerance,z=z);raw=_halfedge_faces(graph)
+
+def _edge_wall_map(graph: WallGraph) -> Dict[Tuple[int,int],str]:
+    out={}
+    for e in graph.edges:
+        key=(min(e.a,e.b),max(e.a,e.b))
+        # Collinear duplicate/overlapping walls are intentionally not resolved yet;
+        # deterministic ID choice keeps the topology reproducible until that subsystem lands.
+        if key not in out or e.wall_id<out[key]:out[key]=e.wall_id
+    return out
+
+
+def room_faces(doc, tolerance: float = 1e-6, z: Optional[float] = None, min_area: float = 1e-6) -> List[RoomFace]:
+    """Return bounded room faces with stable semantic boundary signatures."""
+    graph=build_wall_graph(doc,tolerance=tolerance,z=z);raw=_halfedge_faces(graph);edge_wall=_edge_wall_map(graph)
     rooms=[];seen=set()
     for face in raw:
         poly=[graph.nodes[i] for i in face];area=_signed_area(poly)
         if area<=min_area:continue
-        ids=list(face);rotations=[tuple(ids[i:]+ids[:i]) for i in range(len(ids))];key=min(rotations)
-        if key in seen:continue
-        seen.add(key);rooms.append(poly)
-    rooms.sort(key=lambda p:(round(polygon_area(p),12),tuple(p)))
+        walls=[];valid=True
+        for i,u in enumerate(face):
+            v=face[(i+1)%len(face)];wid=edge_wall.get((min(u,v),max(u,v)))
+            if wid is None:valid=False;break
+            walls.append(wid)
+        if not valid:continue
+        canonical=_canonical_cycle(walls)
+        if not canonical:continue
+        signature='room-'+sha1('|'.join(canonical).encode('utf8')).hexdigest()[:16]
+        if signature in seen:continue
+        seen.add(signature)
+        rooms.append(RoomFace(tuple(poly),canonical,signature))
+    rooms.sort(key=lambda r:(round(polygon_area(r.polygon),12),r.signature))
     return rooms
+
+
+def closed_room_polygons(doc, tolerance: float = 1e-6, z: Optional[float] = None, min_area: float = 1e-6) -> List[List[Point]]:
+    """Compatibility view of ``room_faces`` returning polygons only."""
+    return [list(face.polygon) for face in room_faces(doc,tolerance=tolerance,z=z,min_area=min_area)]
 
 
 def room_metrics(poly: Sequence[Point]) -> Dict[str, object]:
