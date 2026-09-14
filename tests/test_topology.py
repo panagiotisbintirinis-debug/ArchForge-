@@ -59,3 +59,22 @@ def test_hidden_wall_does_not_close_room():
     d=Document();rectangle(d)
     last=list(d.entities.values())[-1];last.visible=False
     assert closed_room_polygons(d)==[]
+
+
+def test_plan_frame_contains_non_selectable_derived_room():
+    from archforge.core.plan_scene import build_plan_frame
+    d=Document();rectangle(d)
+    frame=build_plan_frame(d)
+    derived=[p for p in frame.primitives if p.role=='derived-room']
+    assert len(derived)==1 and derived[0].entity_id==''
+    meta=dict(derived[0].meta)
+    assert abs(meta['area']-12)<1e-9 and abs(meta['perimeter']-14)<1e-9
+
+
+def test_derived_room_disappears_when_boundary_is_broken():
+    from archforge.core.plan_scene import build_plan_frame
+    d=Document();rectangle(d)
+    assert any(p.role=='derived-room' for p in build_plan_frame(d).primitives)
+    eid=list(d.entities)[-1]
+    d.update(eid,{'x2':1.0,'y2':0.5})
+    assert not any(p.role=='derived-room' for p in build_plan_frame(d).primitives)
