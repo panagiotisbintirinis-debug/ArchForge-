@@ -34,7 +34,7 @@ def _wall_mesh(p):
  from .wall_detail import detailed_wall_geometry
  v,t,r=detailed_wall_geometry(p,target_step=.5);return MeshPayload(v,t,r)
 def _box_mesh(p,transform=None):
- w,d,h=map(float,(p['width'],p['depth'],p['height']));local=[(0,0,0),(w,0,0),(w,d,0),(0,d,0),(0,0,h),(w,0,h),(w,d,h),(0,d,h)]
+ w,d,h=map(float,(p['width'],p['depth'],p['height']));local=[(0,0,0),(w,0,0),(w,d,0),(0,d,0),(0,0,h),(w,0,h),(w,d,h),(0,0,h),(w,0,h),(w,d,h),(0,d,h)]
  if transform is not None:v=[tuple(sum(transform[r][c]*q[c] for c in range(3))+transform[r][3] for r in range(3)) for q in local]
  else:
   a=math.radians(float(p.get('rotation',0)));c,s=math.cos(a),math.sin(a);ox,oy,oz=map(float,(p['x'],p['y'],p['z']));v=[(ox+c*x-s*y,oy+s*x+c*y,oz+z) for x,y,z in local]
@@ -56,10 +56,10 @@ def _pod_mesh(p,segments=32,rings=12):
   for i in range(segments):n=(i+1)%segments;a=j*segments+i;b=j*segments+n;c=(j+1)*segments+n;d=(j+1)*segments+i;tris.extend(((a,b,c),(a,c,d)));roles.extend(('pod_shell','pod_shell'))
  return MeshPayload(tuple(v),tuple(tris),tuple(roles))
 def _room_slab(doc,node):
- from archforge.architecture.rooms import find_room_face
- found=find_room_face(doc,node.params['room_signature'])
- if found is None:raise ValueError('derived room element has no currently closed room')
- face,z=found;p=node.params;return _polygon_prism(face.polygon,float(z)+float(p['offset_z']),p['thickness'])
+ from archforge.architecture.rooms import room_slab_geometry
+ g=room_slab_geometry(doc,doc.get(node.entity_id))
+ if g is None:raise ValueError('derived room element has no currently closed room')
+ return _polygon_prism(g['points'],g['z'],g['thickness'])
 def _payload(doc,node):
  k,p=node.semantic_kind,node.params
  if k=='wall':return _wall_mesh(p)
