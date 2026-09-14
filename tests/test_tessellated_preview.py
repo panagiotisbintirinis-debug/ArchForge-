@@ -3,13 +3,23 @@ from archforge.core.model import Document,Entity
 from archforge.geometry.mesh import TessellatedPreviewBackend
 
 
-def test_wall_mesh_retains_semantic_surface_per_triangle():
+def test_wall_mesh_retains_semantic_surface_per_triangle_and_has_local_resolution():
     d=Document();w=Entity('wall',{'x1':0,'y1':0,'x2':4,'y2':0,'z':0,'height':3,'thickness':.2});d.add(w)
     b=TessellatedPreviewBackend().evaluate(d).body(w.id);m=b.payload
-    assert len(m.vertices)==8 and len(m.triangles)==12
+    assert len(m.vertices)>8 and len(m.triangles)>12
     assert len(m.triangles)==len(m.triangle_surfaces)
     assert {'exterior','interior','top','start','end','bottom'}==set(m.triangle_surfaces)
     assert b.quality=='preview-mesh' and b.watertight is None
+
+
+def test_wall_surface_spacing_is_fine_enough_for_local_brush():
+    d=Document();w=Entity('wall',{'x1':0,'y1':0,'x2':5,'y2':0,'z':0,'height':3,'thickness':.2});d.add(w)
+    m=TessellatedPreviewBackend().evaluate(d).body(w.id).payload
+    exterior_vertices={i for ti,t in enumerate(m.triangles) if m.triangle_surfaces[ti]=='exterior' for i in t}
+    xs=sorted({round(m.vertices[i][0],6) for i in exterior_vertices})
+    zs=sorted({round(m.vertices[i][2],6) for i in exterior_vertices})
+    assert max(b-a for a,b in zip(xs,xs[1:]))<=.500001
+    assert max(b-a for a,b in zip(zs,zs[1:]))<=.500001
 
 
 def test_pod_has_no_geometry_below_floor():
