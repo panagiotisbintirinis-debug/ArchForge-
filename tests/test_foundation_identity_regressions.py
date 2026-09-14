@@ -1,4 +1,5 @@
 from archforge.architecture.intent import infer_architecture
+from archforge.architecture.room_identity import room_id_for_signature
 from archforge.architecture.topology import room_faces
 from archforge.core.commands import MoveEntities
 from archforge.core.model import Document, Entity
@@ -23,11 +24,13 @@ def _closed_house():
 
 
 def test_room_identity_survives_identical_boundary_wall_redraw():
-    """Replacing one wall with identical geometry must not create a new semantic room."""
+    """Topology may change IDs; the semantic room identity must survive equivalent redraw."""
     doc, walls = _closed_house()
-    before = room_faces(doc)
+    before = doc.active_room_faces()
     assert len(before) == 1
     old_signature = before[0].signature
+    old_room_id = room_id_for_signature(doc, old_signature)
+    assert old_room_id is not None
     doc.set_room_metadata(old_signature, name='Living Room', use='living')
     infer_architecture(doc)
     old_derived_ids = {
@@ -39,13 +42,14 @@ def test_room_identity_survives_identical_boundary_wall_redraw():
     replacement = Entity('wall', dict(old.params))
     doc.add(replacement)
 
-    after = room_faces(doc)
+    after = doc.active_room_faces()
     assert len(after) == 1
     new_signature = after[0].signature
+    new_room_id = room_id_for_signature(doc, new_signature)
 
-    # Foundation contract: semantic room identity and its user metadata survive
-    # replacing a boundary object that describes the same physical boundary.
-    assert new_signature == old_signature
+    # The topology fingerprint is allowed to change when a boundary entity UUID changes.
+    assert new_signature != old_signature
+    assert new_room_id == old_room_id
     assert doc.room_metadata(new_signature) == {'name': 'Living Room', 'use': 'living'}
 
     infer_architecture(doc)
@@ -53,6 +57,7 @@ def test_room_identity_survives_identical_boundary_wall_redraw():
         e.id for e in doc.entities.values() if e.kind.startswith('room_')
     }
     assert new_derived_ids == old_derived_ids
+    assert all(e.params.get('room_id') == old_room_id for e in doc.entities.values() if e.kind.startswith('room_'))
 
 
 def _wall_sculpt_profile(doc, wall_id):
