@@ -21,7 +21,7 @@ class UpdateEntity(Command):
         if self.before is None:self.before=copy.deepcopy(doc.get(self.eid).params)
         doc.update(self.eid,self.changes)
     def undo(self,doc):
-        e=doc.get(self.eid); e.params=copy.deepcopy(self.before);e.revision+=1;doc.mark_dirty(self.eid)
+        if self.before is not None:doc.update(self.eid,copy.deepcopy(self.before))
 
 @dataclass
 class UpdateEntities(Command):
@@ -29,20 +29,21 @@ class UpdateEntities(Command):
     changes:Dict[str,Dict[str,Any]]
     before:Dict[str,Dict[str,Any]]|None=None
     before_revisions:Dict[str,int]|None=None
+    before_state:Optional[Dict[str,Any]]=None
+    before_selection:Optional[List[str]]=None
     def do(self,doc):
         if self.before is None:
             self.before={eid:copy.deepcopy(doc.get(eid).params) for eid in self.changes}
             self.before_revisions={eid:doc.get(eid).revision for eid in self.changes}
-        touched=[]
+            self.before_state=copy.deepcopy(doc.to_dict())
+            self.before_selection=list(doc.selection)
         try:
-            for eid,delta in self.changes.items():doc.update(eid,delta);touched.append(eid)
+            for eid,delta in self.changes.items():doc.update(eid,delta)
         except Exception:
-            for eid in touched:
-                e=doc.get(eid);e.params=copy.deepcopy(self.before[eid]);e.revision=self.before_revisions[eid];doc.mark_dirty(eid)
+            if self.before_state is not None:_restore_document_state(doc,self.before_state,self.before_selection or [])
             raise
     def undo(self,doc):
-        for eid,p in self.before.items():
-            e=doc.get(eid);e.params=copy.deepcopy(p);e.revision+=1;doc.mark_dirty(eid)
+        if self.before_state is not None:_restore_document_state(doc,self.before_state,self.before_selection or [])
 
 
 def _legacy_world_modifier(mod):
@@ -79,8 +80,7 @@ class MoveEntities(Command):
             m.target.subregion['world_center']=[c[0]+self.dx,c[1]+self.dy,c[2]+self.dz]
             doc.mark_dirty(m.target.owner_id)
     def undo(self,doc):
-        for i,p in self.before.items():
-            e=doc.get(i);e.params=copy.deepcopy(p);e.revision+=1;doc.mark_dirty(i)
+        for i,p in self.before.items():doc.update(i,copy.deepcopy(p))
         if self.before_modifiers:
             for mid,m in self.before_modifiers.items():
                 doc.surface_modifiers[mid]=copy.deepcopy(m);doc.mark_dirty(m.target.owner_id)
