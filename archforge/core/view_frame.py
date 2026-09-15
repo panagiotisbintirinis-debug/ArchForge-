@@ -66,16 +66,49 @@ def entity_view_primitives(doc: Document, eid: str, axis: str, override_params: 
         vals=[q[0] for q in pts] if axis=='XZ' else [q[1] for q in pts];lo,hi=_extent(vals);z0=p['z'];z1=z0+p['height']
         return [ViewPrimitive('polygon',((lo,z0),(hi,z0),(hi,z1),(lo,z1)),entity_id=eid,meta=(('semantic','room'),))]
     if e.kind=='pod':
-        if axis=='XY':return [ViewPrimitive('ellipse',((p['cx'],p['cy']),),p['diameter_x']/2,p['diameter_y']/2,eid)]
+        if axis=='XY':
+            from archforge.core.plan_scene import _pod_plan_polygon
+            clipped=_pod_plan_polygon(doc,e)
+            if clipped is not None:
+                return [ViewPrimitive('polygon',clipped,entity_id=eid,role='pod-junction-clipped',meta=(('semantic','pod'),('junction_clipped',True)))]
+            return [ViewPrimitive('ellipse',((p['cx'],p['cy']),),p['diameter_x']/2,p['diameter_y']/2,eid)]
         center=p['cx'] if axis=='XZ' else p['cy'];radius=(p['diameter_x']/2) if axis=='XZ' else (p['diameter_y']/2);z0=p['floor_level'];z1=z0+p['height']
         return [ViewPrimitive('upper_ellipse',((center,z0),),radius,p['height'],eid,meta=(('top',z1),))]
+    if e.kind=='organic_junction':
+        if p.get('status')!='active':return []
+        a_id,b_id=p.get('component_a'),p.get('component_b')
+        if a_id not in doc.entities or b_id not in doc.entities:return []
+        a,b=doc.get(a_id),doc.get(b_id)
+        if a.kind!='pod' or b.kind!='pod':return []
+        if axis=='XY':
+            from archforge.core.plan_scene import _junction_plan_segment
+            seg=_junction_plan_segment(doc,e)
+            if seg is None:return []
+            return [ViewPrimitive('line',seg,entity_id=eid,role='organic-junction',meta=(('semantic','organic_junction'),('component_a',a_id),('component_b',b_id)))]
+        from archforge.organic.biospectre import junction_section_polygon
+        section=junction_section_polygon(a.params,b.params)
+        if section is None:return []
+        pts=tuple((pt[0] if axis=='XZ' else pt[1],pt[2]) for pt in section)
+        return [ViewPrimitive('polygon',pts,entity_id=eid,role='organic-junction',meta=(('semantic','organic_junction'),('component_a',a_id),('component_b',b_id)))]
     if e.kind in ('door','window'):
         if not e.parent_id or e.parent_id not in doc.entities:return []
-        host=doc.get(e.parent_id).params
-        from archforge.architecture.openings import plan_segment,elevation_rect
-        if axis=='XY':
-            a,b=plan_segment(host,p);return [ViewPrimitive('line',(a,b),entity_id=eid,role='opening',meta=(('semantic',e.kind),('host',e.parent_id)))]
-        rect=elevation_rect(host,p,axis);return [ViewPrimitive('polygon',tuple(rect),entity_id=eid,role='opening',meta=(('semantic',e.kind),('host',e.parent_id)))]
+        host=doc.get(e.parent_id)
+        if host.kind=='wall':
+            from archforge.architecture.openings import plan_segment,elevation_rect
+            if axis=='XY':
+                a,b=plan_segment(host.params,p);return [ViewPrimitive('line',(a,b),entity_id=eid,role='opening',meta=(('semantic',e.kind),('host',e.parent_id)))]
+            rect=elevation_rect(host.params,p,axis);return [ViewPrimitive('polygon',tuple(rect),entity_id=eid,role='opening',meta=(('semantic',e.kind),('host',e.parent_id)))]
+        if host.kind=='pod':
+            from archforge.architecture.openings import pod_opening_plan_segment,pod_opening_junction_conflict
+            if pod_opening_junction_conflict(doc,eid) is not None:return []
+            a,b=pod_opening_plan_segment(host.params,{**p,'_kind':e.kind})
+            if axis=='XY':
+                return [ViewPrimitive('line',(a,b),entity_id=eid,role='opening',meta=(('semantic',e.kind),('host',e.parent_id)))]
+            floor=float(host.params['floor_level']);sill=float(p.get('sill',0.0));height=float(p['height'])
+            z0=floor+sill;z1=z0+height
+            c0=a[0] if axis=='XZ' else a[1];c1=b[0] if axis=='XZ' else b[1]
+            lo,hi=min(c0,c1),max(c0,c1)
+            return [ViewPrimitive('polygon',((lo,z0),(hi,z0),(hi,z1),(lo,z1)),entity_id=eid,role='opening',meta=(('semantic',e.kind),('host',e.parent_id)))]
     return []
 
 

@@ -88,9 +88,11 @@ def _junction_plan_segment(doc,e):
 def _opening_segment(doc,e):
     if not e.parent_id or e.parent_id not in doc.entities:return None
     host=doc.get(e.parent_id)
-    from archforge.architecture.openings import plan_segment,pod_opening_plan_segment
+    from archforge.architecture.openings import plan_segment,pod_opening_plan_segment,pod_opening_junction_conflict
     if host.kind=='wall':return plan_segment(host.params,e.params)
-    if host.kind=='pod':return pod_opening_plan_segment(host.params,{**e.params,'_kind':e.kind})
+    if host.kind=='pod':
+        if pod_opening_junction_conflict(doc,e.id) is not None:return None
+        return pod_opening_plan_segment(host.params,{**e.params,'_kind':e.kind})
     return None
 def entity_primitive(doc,eid):
     e=doc.get(eid);p=e.params
