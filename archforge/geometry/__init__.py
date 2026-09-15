@@ -9,6 +9,12 @@ from .sculpt_transaction import SculptTransaction, begin_sculpt_from_ray
 from .picking import MeshRayHit, raycast_mesh, raycast_evaluation, surface_hit_from_raycast
 from .fabrication import FabricationFinding, FabricationReport, assess_fabrication, require_fabrication_ready
 from .selection import SurfaceHit, BrushSpec, sculpt_modifier_from_hit
+from .solid_validation import (
+    IncompleteSolidValidityError,
+    SolidValidityReport,
+    require_mesh_exact_solid_validity,
+    require_valid_ocp_brep,
+)
 
 __all__=[
  'EvaluationNode','EvaluationPlan','build_evaluation_plan','fabrication_candidates',
@@ -19,4 +25,5 @@ __all__=[
  'MeshRayHit','raycast_mesh','raycast_evaluation','surface_hit_from_raycast',
  'FabricationFinding','FabricationReport','assess_fabrication','require_fabrication_ready',
  'SurfaceHit','BrushSpec','sculpt_modifier_from_hit',
+ 'IncompleteSolidValidityError','SolidValidityReport','require_mesh_exact_solid_validity','require_valid_ocp_brep',
 ]

@@ -1,11 +1,10 @@
 import pytest
 
 from archforge.core.model import Document, Entity
-from archforge.core.modifiers import SurfaceModifier, SurfaceRef
 from archforge.geometry.backend import GeometryBody, GeometryEvaluation
 from archforge.geometry.fabrication import assess_fabrication, require_fabrication_ready
+from archforge.geometry.mesh import TessellatedPreviewBackend
 from archforge.geometry.preview import PreviewBackend
-from archforge.geometry.validated_mesh import ValidatedMeshBackend
 
 
 def test_preview_geometry_is_never_mislabeled_printable():
@@ -35,9 +34,16 @@ def test_exactly_coincident_selected_bodies_are_not_collectively_fabrication_rea
     a=Entity('box',{'x':0,'y':0,'z':0,'width':1,'depth':1,'height':1,'rotation':0})
     b=Entity('box',{'x':0,'y':0,'z':0,'width':1,'depth':1,'height':1,'rotation':0})
     doc.add(a);doc.add(b)
-    evaluation=ValidatedMeshBackend().evaluate(doc)
-    assert evaluation.body(a.id).quality=='fabrication_mesh'
-    assert evaluation.body(b.id).quality=='fabrication_mesh'
+
+    preview=TessellatedPreviewBackend().evaluate(doc)
+    promoted=[]
+    for body in preview.bodies:
+        promoted.append(GeometryBody(
+            body.entity_id,body.semantic_kind,body.surface_keys,(),body.payload,
+            'fabrication_mesh',True,True,True,
+        ))
+    evaluation=GeometryEvaluation('synthetic-solid-proof',tuple(promoted))
+
     report=assess_fabrication(evaluation,[a.id,b.id])
     assert not report.ready
     assert any(f.code=='interbody_duplicate_face' for f in report.findings)

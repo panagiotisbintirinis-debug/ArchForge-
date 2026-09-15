@@ -13,7 +13,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install test dependencies
-        run: python -m pip install pytest
+        run: python -m pip install pytest "cadquery-ocp>=8.0.1,<8.1"
       - name: Run headless core tests
         env:
           PYTHONPATH: .
