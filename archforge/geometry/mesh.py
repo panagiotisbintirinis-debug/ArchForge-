@@ -94,7 +94,17 @@ def _clip_mesh_scalar(mesh,scalar,keep_positive=True,tolerance=1e-9):
  return _compact_mesh(vertices,out_tris,out_roles)
 def _clip_mesh_halfspace(mesh,plane,keep_sign,tolerance=1e-9):
  px,py=map(float,plane['point']);nx,ny=map(float,plane['normal'])
- return _clip_mesh_scalar(mesh,lambda v:(v[0]-px)*nx+(v[1]-py)*ny,keep_positive=keep_sign>0,tolerance=tolerance)
+ def plane_clip(source):
+  return _clip_mesh_scalar(source,lambda v:(v[0]-px)*nx+(v[1]-py)*ny,keep_positive=keep_sign>0,tolerance=tolerance)
+ if 'z0' not in plane or 'z1' not in plane:return plane_clip(mesh)
+ z0,z1=float(plane['z0']),float(plane['z1'])
+ if z1<=z0:return mesh
+ below=_clip_mesh_scalar(mesh,lambda v:z0-v[2],True,tolerance)
+ above=_clip_mesh_scalar(mesh,lambda v:v[2]-z1,True,tolerance)
+ middle=_clip_mesh_scalar(mesh,lambda v:v[2]-z0,True,tolerance)
+ middle=_clip_mesh_scalar(middle,lambda v:z1-v[2],True,tolerance)
+ middle=plane_clip(middle)
+ return _combine_meshes((below,middle,above),tolerance)
 def _combine_meshes(meshes,tolerance=1e-9):
  vertices=[];triangles=[];roles=[];index={}
  scale=1.0/max(tolerance,1e-12)
