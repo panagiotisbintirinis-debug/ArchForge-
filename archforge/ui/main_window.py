@@ -7,19 +7,30 @@ from archforge.core.model import Document
 from archforge.core.commands import CommandStack,UpdateEntity,CreateRoomFloors
 from .plan_view import PlanView
 from .ortho_view import OrthoView
+from .viewport_3d import Viewport3D
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__();self.setWindowTitle('ArchForge Development');self.resize(1400,900);self.doc=Document();self.stack=CommandStack(self.doc);self.current_path=None
-        self.tabs=QTabWidget();self.plan_view=PlanView(self.doc,self.stack);self.front_view=OrthoView(self.doc,self.stack,'XZ');self.side_view=OrthoView(self.doc,self.stack,'YZ');self.tabs.addTab(self.plan_view,'XY PLAN');self.tabs.addTab(self.front_view,'XZ FRONT');self.tabs.addTab(self.side_view,'YZ SIDE');self.setCentralWidget(self.tabs);self.view=self.plan_view;self.setStatusBar(QStatusBar())
-        for v in (self.plan_view,self.front_view,self.side_view):v.statusChanged.connect(self.statusBar().showMessage);v.selectionChangedByView.connect(self._selection_from_view)
-        self.tabs.currentChanged.connect(lambda _i:self._redraw_views());self._build_toolbar();self._build_inspector();self.refresh_inspector()
+        self.tabs=QTabWidget();self.plan_view=PlanView(self.doc,self.stack);self.front_view=OrthoView(self.doc,self.stack,'XZ');self.side_view=OrthoView(self.doc,self.stack,'YZ')
+        self.view_3d=Viewport3D(self.doc,self.stack)
+        self.tabs.addTab(self.plan_view,'XY PLAN');self.tabs.addTab(self.front_view,'XZ FRONT');self.tabs.addTab(self.side_view,'YZ SIDE');self.tabs.addTab(self.view_3d,'3D PERSPECTIVE');self.setCentralWidget(self.tabs);self.view=self.plan_view;self.setStatusBar(QStatusBar())
+        for v in (self.plan_view,self.front_view,self.side_view,self.view_3d):v.statusChanged.connect(self.statusBar().showMessage);v.selectionChangedByView.connect(self._selection_from_view)
+        self.tabs.currentChanged.connect(self._on_tab_changed);self._build_toolbar();self._build_inspector();self.refresh_inspector()
+    def _on_tab_changed(self, idx):
+        widgets=[self.plan_view,self.front_view,self.side_view,self.view_3d]
+        if 0<=idx<len(widgets):self.view=widgets[idx]
+        self._redraw_views()
+    def _set_active_tool(self, tool):
+        if hasattr(self.view, 'set_tool'):
+            self.view.set_tool(tool)
     def _build_toolbar(self):
         tb=QToolBar('Tools');tb.setMovable(False);self.addToolBar(tb)
         for text,tool,key in [('Select','select','S'),('Wall','wall','W'),('Door','door','D'),('Window','window','N'),('Move','move','G'),('Stretch','stretch','T'),('Rotate','rotate','R')]:
-            a=QAction(text,self);a.setShortcut(QKeySequence(key));a.triggered.connect(lambda checked=False,t=tool:self.view.set_tool(t));tb.addAction(a)
+            a=QAction(text,self);a.setShortcut(QKeySequence(key));a.triggered.connect(lambda checked=False,t=tool:self._set_active_tool(t));tb.addAction(a)
+        sc=QAction('Sculpt 3D',self);sc.setShortcut(QKeySequence('C'));sc.triggered.connect(lambda:self.view_3d.set_tool('sculpt'));tb.addAction(sc)
         tb.addSeparator();af=QAction('Auto Floors',self);af.triggered.connect(self._create_auto_floors);tb.addAction(af)
-        tb.addSeparator();au=QAction('Undo',self);au.setShortcut(QKeySequence.StandardKey.Undo);au.triggered.connect(self._undo);tb.addAction(au);ar=QAction('Redo',self);ar.setShortcut(QKeySequence.StandardKey.Redo);ar.triggered.connect(self._redo);tb.addAction(ar);tb.addSeparator();sv=QAction('Save',self);sv.setShortcut(QKeySequence.StandardKey.Save);sv.triggered.connect(self.save);tb.addAction(sv);op=QAction('Open',self);op.setShortcut(QKeySequence.StandardKey.Open);op.triggered.connect(self.open);tb.addAction(op)
+        tb.addSeparator();au=QAction('Undo',self);au.setShortcut(QKeySequence.StandardKey.Undo);au.triggered.connect(self._undo);tb.addAction(au);ar=QAction('Redo',self);ar.setShortcut(QKeySequence.StandardKey.Redo);ar.triggered.connect(self._redo);tb.addAction(ar);tb.addSeparator();sv=QAction('Save',self);sv.setShortcut(QKeySequence.StandardKey.Save);sv.triggered.connect(self.save);tb.addAction(sv);op=QAction('Open',self);op.setShortcut(QKeySequence.StandardKey.Open);op.triggered.connect(self.open);tb.addAction(op);stl_act=QAction('Export STL',self);stl_act.triggered.connect(self.export_stl);tb.addAction(stl_act)
     def _build_inspector(self):
         self.dock=QDockWidget('Inspector',self);self.dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea|Qt.DockWidgetArea.RightDockWidgetArea);self.inspector=QWidget();self.form=QFormLayout(self.inspector);self.dock.setWidget(self.inspector);self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea,self.dock)
     def _clear_form(self):
@@ -50,7 +61,7 @@ class MainWindow(QMainWindow):
         except Exception as exc:QMessageBox.warning(self,'Auto Floors',str(exc))
     def _selection_from_view(self):self._redraw_views();self.refresh_inspector()
     def _redraw_views(self):
-        for v in (self.plan_view,self.front_view,self.side_view):v.redraw()
+        for v in (self.plan_view,self.front_view,self.side_view,self.view_3d):v.redraw()
     def _undo(self):self.stack.undo();self._redraw_views();self.refresh_inspector()
     def _redo(self):self.stack.redo();self._redraw_views();self.refresh_inspector()
     def save(self):
@@ -63,5 +74,15 @@ class MainWindow(QMainWindow):
         path,_=QFileDialog.getOpenFileName(self,'Open ArchForge Project','','ArchForge Project (*.archforge)')
         if not path:return
         try:
-            self.doc=Document.load(path);self.stack=CommandStack(self.doc);self.plan_view.rebind(self.doc,self.stack);self.front_view.rebind(self.doc,self.stack);self.side_view.rebind(self.doc,self.stack);self.current_path=path;self._redraw_views();self.refresh_inspector()
+            self.doc=Document.load(path);self.stack=CommandStack(self.doc);self.plan_view.rebind(self.doc,self.stack);self.front_view.rebind(self.doc,self.stack);self.side_view.rebind(self.doc,self.stack);self.view_3d.rebind(self.doc,self.stack);self.current_path=path;self._redraw_views();self.refresh_inspector()
         except Exception as exc:QMessageBox.critical(self,'Open failed',str(exc))
+    def export_stl(self):
+        from archforge.geometry.fabrication import export_document_stl
+        path,_=QFileDialog.getSaveFileName(self,'Export STL for Fabrication / 3D Printing','','Stereolithography (*.stl)')
+        if not path:return
+        if not path.lower().endswith('.stl'):path+='.stl'
+        try:
+            scope=list(self.doc.selection) if self.doc.selection else None
+            count=export_document_stl(self.doc,path,entity_ids=scope,binary=True)
+            self.statusBar().showMessage(f'Exported {count} triangles to {os.path.basename(path)}',4000)
+        except Exception as exc:QMessageBox.warning(self,'Fabrication Gate Failed',f'Cannot export STL: {exc}')

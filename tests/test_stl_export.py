@@ -122,3 +122,22 @@ def test_stl_export_ascii_file(tmp_path):
     content = out_file.read_text(encoding='utf-8')
     assert "solid part_mesh" in content
     assert "endsolid part_mesh" in content
+
+
+def test_stl_export_architectural_wall(tmp_path):
+    doc = Document()
+    w = Entity('wall', {'x1': 0, 'y1': 0, 'z': 0, 'x2': 4.0, 'y2': 0, 'height': 3.0, 'thickness': 0.2})
+    doc.add(w)
+
+    evaluation = ValidatedMeshBackend().evaluate(doc)
+    body = evaluation.body(w.id)
+    assert body.watertight is True
+    assert body.manifold is True
+    assert body.quality == 'fabrication_mesh'
+
+    out_file = tmp_path / "wall.stl"
+    count = export_document_stl(doc, out_file, entity_ids=[w.id], binary=True)
+    assert count > 0
+    assert out_file.exists()
+
+

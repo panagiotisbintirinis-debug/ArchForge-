@@ -35,8 +35,8 @@ def _plain_wall_geometry(p,target_step:float):
             add(ext[j][i],ext[j][i+1],ext[j+1][i+1],ext[j+1][i],'exterior',True)
             add(inn[j][i],inn[j][i+1],inn[j+1][i+1],inn[j+1][i],'interior',False)
     for i in range(nu):
-        add(ext[nv][i],ext[nv][i+1],inn[nv][i+1],inn[nv][i],'top',False)
-        add(inn[0][i],inn[0][i+1],ext[0][i+1],ext[0][i],'bottom',False)
+        add(ext[nv][i],ext[nv][i+1],inn[nv][i+1],inn[nv][i],'top',True)
+        add(inn[0][i],inn[0][i+1],ext[0][i+1],ext[0][i],'bottom',True)
     for j in range(nv):
         add(ext[j][0],inn[j][0],inn[j+1][0],ext[j+1][0],'start',False)
         add(inn[j][nu],ext[j][nu],ext[j+1][nu],inn[j+1][nu],'end',False)
