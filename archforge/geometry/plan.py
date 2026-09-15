@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
 import copy
 
 from archforge.core.modifiers import ordered_modifiers, modifier_to_dict
@@ -62,12 +62,7 @@ def _mechanical_transforms(doc,joint_values:Mapping[str,float])->Dict[str,Matrix
 
 
 def _modifier_for_evaluation(doc,modifier):
-    """Return backend-neutral modifier intent with derived caches refreshed.
-
-    Mechanism cavity envelopes are not persistent geometry truth: they are derived from
-    the mount, mechanism dimensions and joint limits. Refresh them for every evaluation
-    so stale serialized envelope coordinates cannot drive geometry after edits.
-    """
+    """Return backend-neutral modifier intent with derived caches refreshed."""
     if modifier.operation=='cut' and modifier.params.get('mode')=='mechanism_clearance':
         mount_id=modifier.params.get('mount_id') or modifier.target.subregion.get('mount_id')
         if mount_id in doc.entities and doc.get(mount_id).kind=='mechanical_mount':
@@ -86,15 +81,11 @@ def _modifier_for_evaluation(doc,modifier):
 
 
 def _opening_intents_for_host(doc,host_id:str)->List[Dict[str,Any]]:
-    """Return deterministic backend-neutral child opening intent for one host entity.
-
-    Door/window entities remain semantic relationship objects.  Geometry backends consume
-    their copied intent through the host node instead of treating the opening as a solid.
-    """
+    """Return deterministic child opening intent using the Document host index."""
     out=[]
-    for oid in sorted(doc.entities):
+    for oid in sorted(doc.opening_ids_for_host(host_id)):
         opening=doc.get(oid)
-        if opening.parent_id!=host_id or opening.kind not in ('door','window'):
+        if opening.kind not in ('door','window') or opening.parent_id!=host_id:
             continue
         intent=copy.deepcopy(opening.params)
         intent['id']=opening.id
@@ -103,24 +94,25 @@ def _opening_intents_for_host(doc,host_id:str)->List[Dict[str,Any]]:
     return out
 
 
-def build_evaluation_plan(doc,joint_values:Optional[Mapping[str,float]]=None)->EvaluationPlan:
-    """Compile semantic document state into deterministic backend-neutral geometry intent.
+def build_evaluation_plan(
+    doc,
+    joint_values:Optional[Mapping[str,float]]=None,
+    entity_ids:Optional[Iterable[str]]=None,
+)->EvaluationPlan:
+    """Compile deterministic geometry intent, optionally for an incremental entity subset.
 
-    Order of responsibility is explicit:
-      1. semantic entity parameters remain untouched,
-      2. kinematic transforms are evaluated separately for rigid mechanical parts,
-      3. ordered surface modifiers are attached to their semantic owners and derived
-         modifier caches are refreshed from their semantic sources,
-      4. relationship-only entities remain metadata nodes while host geometry receives
-         copied opening intent for backend evaluation.
-
-    The plan is an intermediate representation, not tessellation or boolean geometry.
-    A mesh/OCC backend can consume it without changing the architectural source model.
+    ``entity_ids`` is an evaluation filter only. Semantic dependencies remain resolved from
+    the live document, so a dirty host can be rebuilt without deep-copying every unrelated
+    entity in the model.
     """
     values={str(k):float(v) for k,v in (joint_values or {}).items()}
-    mech=_mechanical_transforms(doc,values)
+    selected=None if entity_ids is None else {str(eid) for eid in entity_ids if str(eid) in doc.entities}
+    ids=sorted(doc.entities) if selected is None else sorted(selected)
+
+    needs_mechanical=selected is None or any(doc.get(eid).kind=='mechanical_part' for eid in ids)
+    mech=_mechanical_transforms(doc,values) if needs_mechanical else {}
     nodes:List[EvaluationNode]=[]
-    for eid in sorted(doc.entities):
+    for eid in ids:
         e=doc.get(eid)
         mods=tuple(_modifier_for_evaluation(doc,m) for m in ordered_modifiers(doc,eid))
         transform=mech.get(eid)
@@ -143,10 +135,4 @@ def build_evaluation_plan(doc,joint_values:Optional[Mapping[str,float]]=None)->E
 
 
 def fabrication_candidates(plan:EvaluationPlan)->Tuple[EvaluationNode,...]:
-    """Return entities eligible to enter a future fabrication geometry pipeline.
-
-    Eligibility is intentionally weaker than 'printable'. Watertightness, minimum wall
-    thickness, manifold validation and final STL export belong to the evaluated geometry
-    backend and must pass before an object can be called 3D-printable.
-    """
     return tuple(n for n in plan.nodes if n.role=='geometry' and n.semantic_kind in FABRICATION_KINDS)

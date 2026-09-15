@@ -29,9 +29,6 @@ class SurfaceRef:
             raise ValueError('surface_role must be a non-empty string')
         if not isinstance(self.subregion, dict):
             raise ValueError('surface subregion must be a dictionary')
-        # Central catalog prevents silently attaching a modifier to a role that a future
-        # tessellation happens not to expose. This is the contract between semantics and
-        # every geometry backend.
         from archforge.geometry.surfaces import validate_surface_role
         validate_surface_role(doc, self.owner_id, self.surface_role, require_deformable=True)
 
@@ -53,7 +50,7 @@ class SurfaceModifier:
             raise ValueError(f'unsupported sculpt operation: {self.operation}')
         if not isinstance(self.params, dict):
             raise ValueError('modifier params must be a dictionary')
-        if self.operation in ('pull','push','inflate','recess'):
+        if self.operation in ('pull', 'push', 'inflate', 'recess'):
             amount = float(self.params.get('amount', 0.0))
             if amount < 0:
                 raise ValueError('modifier amount must be >= 0')
@@ -62,42 +59,68 @@ class SurfaceModifier:
 def modifier_from_dict(raw: Dict[str, Any]) -> SurfaceModifier:
     data = copy.deepcopy(raw)
     target = data.get('target')
-    if isinstance(target, dict): data['target'] = SurfaceRef(**target)
+    if isinstance(target, dict):
+        data['target'] = SurfaceRef(**target)
     return SurfaceModifier(**data)
 
 
-def modifier_to_dict(modifier: SurfaceModifier) -> Dict[str, Any]: return asdict(modifier)
+def modifier_to_dict(modifier: SurfaceModifier) -> Dict[str, Any]:
+    return asdict(modifier)
 
 
 def ordered_modifiers(doc, owner_id: Optional[str] = None) -> List[SurfaceModifier]:
-    mods = list(doc.surface_modifiers.values())
-    if owner_id is not None: mods = [m for m in mods if m.target.owner_id == owner_id]
+    if owner_id is None:
+        mods = list(doc.surface_modifiers.values())
+    else:
+        mods = [
+            doc.surface_modifiers[mid]
+            for mid in doc.modifier_ids_for_owner(owner_id)
+            if mid in doc.surface_modifiers
+        ]
     return sorted(mods, key=lambda m: (m.order, m.id))
 
 
 def add_modifier(doc, modifier: SurfaceModifier) -> str:
     modifier.validate(doc)
-    if modifier.id in doc.surface_modifiers: raise ValueError('duplicate modifier id')
-    doc.surface_modifiers[modifier.id] = copy.deepcopy(modifier)
-    doc.mark_dirty(modifier.target.owner_id)
-    return modifier.id
+    if modifier.id in doc.surface_modifiers:
+        raise ValueError('duplicate modifier id')
+    stored = copy.deepcopy(modifier)
+    doc.surface_modifiers[stored.id] = stored
+    doc._index_modifier(stored)
+    doc.mark_dirty(stored.target.owner_id)
+    return stored.id
 
 
 def update_modifier(doc, modifier_id: str, **changes) -> None:
-    if modifier_id not in doc.surface_modifiers: raise KeyError(modifier_id)
+    if modifier_id not in doc.surface_modifiers:
+        raise KeyError(modifier_id)
     before = doc.surface_modifiers[modifier_id]
     data = modifier_to_dict(before)
     if 'target' in changes and isinstance(changes['target'], SurfaceRef):
-        changes = dict(changes); changes['target'] = asdict(changes['target'])
+        changes = dict(changes)
+        changes['target'] = asdict(changes['target'])
     data.update(copy.deepcopy(changes))
-    after = modifier_from_dict(data); after.validate(doc)
+    after = modifier_from_dict(data)
+    after.validate(doc)
+
     old_owner = before.target.owner_id
+    new_owner = after.target.owner_id
+    if old_owner != new_owner:
+        doc._deindex_modifier(modifier_id, before)
     doc.surface_modifiers[modifier_id] = after
-    doc.mark_dirty(old_owner); doc.mark_dirty(after.target.owner_id)
+    if old_owner != new_owner:
+        doc._index_modifier(after)
+
+    doc.mark_dirty(old_owner)
+    if new_owner != old_owner:
+        doc.mark_dirty(new_owner)
 
 
 def remove_modifier(doc, modifier_id: str) -> SurfaceModifier:
-    if modifier_id not in doc.surface_modifiers: raise KeyError(modifier_id)
+    if modifier_id not in doc.surface_modifiers:
+        raise KeyError(modifier_id)
+    modifier = doc.surface_modifiers[modifier_id]
+    doc._deindex_modifier(modifier_id, modifier)
     modifier = doc.surface_modifiers.pop(modifier_id)
     doc.mark_dirty(modifier.target.owner_id)
     return modifier
