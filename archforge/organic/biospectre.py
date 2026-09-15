@@ -14,8 +14,10 @@ def _slice_scale(p,z):
 
 
 def profile_radius(p,z):
+    floor=float(p['floor_level'])
+    top=float(shell_top(p))
+    if z<floor or z>top: return None
     factor=_slice_scale(p,z)
-    if factor<=0.0 and not math.isclose(float(z),float(p['floor_level']),abs_tol=1e-12):return None
     # upper half ellipsoid only: floor is the equator/hard boundary
     return p['diameter_x']/2*factor,p['diameter_y']/2*factor
 
