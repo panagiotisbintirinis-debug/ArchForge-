@@ -49,6 +49,7 @@ SCHEMAS={
  'box':{'x':_finite,'y':_finite,'z':_finite,'width':_positive,'depth':_positive,'height':_positive,'rotation':_finite},
  'wall':{'x1':_finite,'y1':_finite,'z':_finite,'x2':_finite,'y2':_finite,'height':_positive,'thickness':_positive},
  'pod':{'cx':_finite,'cy':_finite,'floor_level':_finite,'diameter_x':_positive,'diameter_y':_positive,'height':_positive,'shell_thickness':_positive,'rotation':_finite},
+ 'arboreal_branch':{'core_id':_nonempty,'elevation_z':_finite,'azimuth_deg':_finite,'length':_positive,'slope_deg':_finite,'root_radius':_positive,'tip_radius':_positive,'mounted_pod_id':_nonempty},
  'floor':{'points':_polygon,'z':_finite,'thickness':_positive},'room':{'points':_polygon,'z':_finite,'height':_positive},'room_floor':_ROOM_SLAB,
  'room_ceiling':_ROOM_SLAB,'room_foundation':_ROOM_SLAB,'room_roof':{**_ROOM_SLAB,'roof_type':_nonempty},
  'door':_OPENING,'window':_OPENING,
@@ -83,6 +84,8 @@ class Document:
    elif host.kind=='pod':
     from archforge.architecture.openings import validate_pod_opening;validate_pod_opening(host.params,e.params,e.kind)
    else:raise ValueError('door/window host must be a wall or pod')
+  elif e.kind=='arboreal_branch':
+   from archforge.organic.arboreal import validate_arboreal_branch;validate_arboreal_branch(self,e)
   elif e.kind=='mechanical_joint':
    from archforge.kinematics.model import validate_joint;validate_joint(self,e)
   elif e.kind=='mechanical_mount':
@@ -90,7 +93,8 @@ class Document:
  def _register_links(self,e):
   if e.parent_id:self.children.setdefault(e.parent_id,[]).append(e.id)
   if e.parent_id and e.kind in ('door','window'):self.add_dependency(e.parent_id,e.id)
-  if e.kind=='mechanical_joint':self.add_dependency(e.params['parent_part'],e.id);self.add_dependency(e.params['child_part'],e.id)
+  if e.kind=='arboreal_branch':self.add_dependency(e.params['core_id'],e.id)
+  elif e.kind=='mechanical_joint':self.add_dependency(e.params['parent_part'],e.id);self.add_dependency(e.params['child_part'],e.id)
   elif e.kind=='mechanical_mount':self.add_dependency(e.params['host_id'],e.id);self.add_dependency(e.params['part_id'],e.id)
  def add(self,e):
   if e.id in self.entities:raise ValueError('duplicate id')
@@ -104,7 +108,7 @@ class Document:
   e=self.get(eid)
   if e.locked:raise PermissionError('entity is locked')
   p=e.params.copy();p.update(changes);p=validate_params(e.kind,p);candidate=e.clone();candidate.params=p
-  if e.kind in ('door','window','mechanical_joint','mechanical_mount'):self._validate_links(candidate)
+  if e.kind in ('door','window','arboreal_branch','mechanical_joint','mechanical_mount'):self._validate_links(candidate)
   elif e.kind=='wall':
    from archforge.architecture.openings import validate_opening
    for cid in self.children.get(eid,()):
@@ -117,7 +121,25 @@ class Document:
     if child and child.kind in ('door','window'):validate_pod_opening(p,child.params,child.kind)
   if e.kind=='mechanical_joint' and (p['parent_part']!=e.params['parent_part'] or p['child_part']!=e.params['child_part']):raise ValueError('joint part references require explicit relink')
   if e.kind=='mechanical_mount' and (p['host_id']!=e.params['host_id'] or p['part_id']!=e.params['part_id']):raise ValueError('mount references require explicit relink')
+  arboreal_snapshots={}
+  if e.kind in ('arboreal_branch','box'):
+   from archforge.organic.arboreal import arboreal_mounted_pod_ids
+   pod_ids=set(arboreal_mounted_pod_ids(self,eid))
+   if e.kind=='arboreal_branch' and p.get('mounted_pod_id') in self.entities:pod_ids.add(str(p['mounted_pod_id']))
+   for pid in pod_ids:
+    pod=self.entities.get(pid)
+    if pod is not None:arboreal_snapshots[pid]=(copy.deepcopy(pod.params),pod.revision)
+  old_params=copy.deepcopy(e.params);old_revision=e.revision
   e.params=p;e.revision+=1;self.mark_dirty(eid)
+  try:
+   if e.kind in ('arboreal_branch','box') and (arboreal_snapshots or e.kind=='arboreal_branch'):
+    from archforge.organic.arboreal import sync_arboreal_mounted_pods;sync_arboreal_mounted_pods(self,eid)
+  except Exception:
+   e.params=old_params;e.revision=old_revision;self.mark_dirty(eid)
+   for pid,(params,revision) in arboreal_snapshots.items():
+    if pid in self.entities:
+     self.entities[pid].params=params;self.entities[pid].revision=revision;self.mark_dirty(pid)
+   raise
  def set_room_metadata(self,signature,**changes):
   from archforge.architecture.room_identity import resolve_room_metadata_key
   key=resolve_room_metadata_key(self,signature);allowed={'name','use','floor_finish','ceiling_finish','notes'};data=copy.deepcopy(self.room_data.get(key,{}))
