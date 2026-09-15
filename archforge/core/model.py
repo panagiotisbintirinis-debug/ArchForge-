@@ -64,12 +64,22 @@ def validate_params(kind,params):
 class Document:
  def __init__(self):
   self.entities={};self.children={};self.dependencies={};self.selection=[];self.dirty=set();self.levels={'Ground':0.0};self.work_plane=WorkPlane();self.materials={};self.constructions={};self.room_data={};self.room_bindings={};self.surface_modifiers={}
+ def _validate_wall_opening_conflicts(self,e,tolerance=1e-9):
+  if not e.parent_id:return
+  p=e.params;u0=float(p['offset'])-float(p['width'])/2.0;u1=float(p['offset'])+float(p['width'])/2.0;z0=float(p.get('sill',0.0));z1=z0+float(p['height'])
+  for cid in self.children.get(e.parent_id,()):
+   if cid==e.id:continue
+   other=self.entities.get(cid)
+   if not other or other.kind not in ('door','window'):continue
+   q=other.params;v0=float(q['offset'])-float(q['width'])/2.0;v1=float(q['offset'])+float(q['width'])/2.0;w0=float(q.get('sill',0.0));w1=w0+float(q['height'])
+   horizontal=min(u1,v1)-max(u0,v0);vertical=min(z1,w1)-max(z0,w0)
+   if horizontal>tolerance and vertical>tolerance:raise ValueError('wall openings must not overlap')
  def _validate_links(self,e):
   if e.kind in ('door','window'):
    if not e.parent_id or e.parent_id not in self.entities:raise ValueError('door/window must be attached to an existing wall or pod')
    host=self.entities[e.parent_id]
    if host.kind=='wall':
-    from archforge.architecture.openings import validate_opening;validate_opening(host.params,e.params,e.kind)
+    from archforge.architecture.openings import validate_opening;validate_opening(host.params,e.params,e.kind);self._validate_wall_opening_conflicts(e)
    elif host.kind=='pod':
     from archforge.architecture.openings import validate_pod_opening;validate_pod_opening(host.params,e.params,e.kind)
    else:raise ValueError('door/window host must be a wall or pod')
