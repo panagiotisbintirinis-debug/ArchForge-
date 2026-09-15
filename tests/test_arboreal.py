@@ -4,7 +4,7 @@ from archforge.core.model import Document
 from archforge.geometry.mesh import TessellatedPreviewBackend
 from archforge.geometry.plan import build_evaluation_plan, fabrication_candidates
 from archforge.geometry.preview import PreviewBackend
-from archforge.organic.arboreal import ArborealCore, ArborealBranch, create_arboreal_tree
+from archforge.organic.arboreal import ArborealCore, ArborealBranch, arboreal_branch_geometry, create_arboreal_tree
 
 
 def test_arboreal_branch_tip_computation():
@@ -85,3 +85,34 @@ def test_fast_preview_supports_persistent_arboreal_branches_without_errors():
         body = evaluation.body(branch_id)
         assert body.semantic_kind == 'arboreal_branch'
         assert body.payload.primitive == 'arboreal_branch'
+
+
+def test_mounted_pod_follows_branch_tip_when_branch_geometry_changes():
+    doc = Document()
+    tree = create_arboreal_tree(doc)
+    item = tree['branches'][0]
+    branch_id = item['branch_id']
+    pod_id = item['mounted_pod_id']
+
+    doc.update(branch_id, {'azimuth_deg': 55.0, 'length': 7.25, 'slope_deg': 18.0, 'elevation_z': 4.4})
+    expected = arboreal_branch_geometry(doc, branch_id)['end']
+    pod = doc.get(pod_id)
+
+    assert pod.id == pod_id
+    assert (pod.params['cx'], pod.params['cy'], pod.params['floor_level']) == pytest.approx(expected)
+
+
+def test_mounted_pods_follow_when_arboreal_core_moves():
+    doc = Document()
+    tree = create_arboreal_tree(doc, cx=1.0, cy=-2.0)
+    core_id = tree['core_id']
+    pod_ids = tuple(tree['pod_ids'])
+
+    core = doc.get(core_id)
+    doc.update(core_id, {'x': core.params['x'] + 2.5, 'y': core.params['y'] - 1.25})
+
+    for item, pod_id in zip(tree['branches'], pod_ids):
+        expected = arboreal_branch_geometry(doc, item['branch_id'])['end']
+        pod = doc.get(pod_id)
+        assert pod.id == pod_id
+        assert (pod.params['cx'], pod.params['cy'], pod.params['floor_level']) == pytest.approx(expected)

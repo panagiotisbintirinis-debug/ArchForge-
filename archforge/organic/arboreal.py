@@ -72,6 +72,25 @@ class ArborealBranch:
         return (round(tip_x, 4), round(tip_y, 4), round(tip_z, 4))
 
 
+def validate_arboreal_branch(doc: Document, branch: Entity) -> None:
+    """Validate the stable core relationship without requiring a mounted pod to load first."""
+    if branch.kind != 'arboreal_branch':
+        raise ValueError('expected arboreal_branch')
+    core_id = str(branch.params.get('core_id', ''))
+    if not core_id or core_id not in doc.entities:
+        raise ValueError('arboreal branch core is missing')
+    core = doc.get(core_id)
+    if core.kind != 'box':
+        raise ValueError('arboreal branch core must be a box entity')
+    if branch.parent_id != core_id:
+        raise ValueError('arboreal branch parent must match core_id')
+    mounted = branch.params.get('mounted_pod_id')
+    if mounted and mounted in doc.entities:
+        pod = doc.get(str(mounted))
+        if pod.kind != 'pod' or pod.parent_id != branch.id:
+            raise ValueError('mounted arboreal pod must be a pod child of its branch')
+
+
 def arboreal_branch_geometry(doc: Document, branch_or_id) -> Dict[str, Any]:
     """Resolve live preview geometry for one persistent arboreal branch entity."""
     branch = doc.get(branch_or_id) if isinstance(branch_or_id, str) else branch_or_id
@@ -115,6 +134,55 @@ def arboreal_branch_geometry(doc: Document, branch_or_id) -> Dict[str, Any]:
         'core_id': core_id,
         'mounted_pod_id': p.get('mounted_pod_id'),
     }
+
+
+def arboreal_mounted_pod_ids(doc: Document, source_id: str) -> Tuple[str, ...]:
+    """Return currently resolvable pods whose position is derived from source geometry."""
+    if source_id not in doc.entities:
+        return ()
+    source = doc.get(source_id)
+    branch_ids = [source_id] if source.kind == 'arboreal_branch' else [
+        cid for cid in doc.children.get(source_id, ())
+        if cid in doc.entities and doc.get(cid).kind == 'arboreal_branch'
+    ] if source.kind == 'box' else []
+    out = []
+    for branch_id in branch_ids:
+        mounted = doc.get(branch_id).params.get('mounted_pod_id')
+        if mounted and mounted in doc.entities and doc.get(str(mounted)).kind == 'pod':
+            out.append(str(mounted))
+    return tuple(out)
+
+
+def sync_arboreal_mounted_pods(doc: Document, source_id: str) -> Tuple[str, ...]:
+    """Keep mounted pod transforms derived from live branch/core geometry.
+
+    This updates semantic placement only.  It does not imply structural verification.
+    """
+    if source_id not in doc.entities:
+        return ()
+    source = doc.get(source_id)
+    branch_ids = [source_id] if source.kind == 'arboreal_branch' else [
+        cid for cid in doc.children.get(source_id, ())
+        if cid in doc.entities and doc.get(cid).kind == 'arboreal_branch'
+    ] if source.kind == 'box' else []
+    updated = []
+    for branch_id in branch_ids:
+        branch = doc.get(branch_id)
+        mounted = branch.params.get('mounted_pod_id')
+        if not mounted or mounted not in doc.entities:
+            continue
+        pod = doc.get(str(mounted))
+        if pod.kind != 'pod' or pod.parent_id != branch_id:
+            continue
+        end = arboreal_branch_geometry(doc, branch_id)['end']
+        doc.update(str(mounted), {
+            'cx': end[0],
+            'cy': end[1],
+            'floor_level': end[2],
+            'rotation': float(branch.params['azimuth_deg']),
+        })
+        updated.append(str(mounted))
+    return tuple(updated)
 
 
 def create_arboreal_tree(
@@ -187,7 +255,6 @@ def create_arboreal_tree(
             },
         )
         branch_id = doc.add(branch_entity)
-        doc.add_dependency(core_id, branch_id)
         branch_geometry = arboreal_branch_geometry(doc, branch_id)
         tip_x, tip_y, tip_z = branch_geometry['end']
 
