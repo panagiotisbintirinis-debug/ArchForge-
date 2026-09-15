@@ -58,6 +58,23 @@ def _pod_mesh(p,segments=32,rings=12):
  for j in range(rings):
   for i in range(segments):n=(i+1)%segments;a=j*segments+i;b=j*segments+n;c=(j+1)*segments+n;d=(j+1)*segments+i;tris.extend(((a,b,c),(a,c,d)));roles.extend(('pod_shell','pod_shell'))
  return MeshPayload(tuple(v),tuple(tris),tuple(roles))
+def _arboreal_branch_mesh(doc,node,segments=20):
+ from archforge.organic.arboreal import arboreal_branch_geometry
+ g=arboreal_branch_geometry(doc,node.entity_id);a=tuple(float(v) for v in g['start']);b=tuple(float(v) for v in g['end']);r0=float(g['root_radius']);r1=float(g['tip_radius'])
+ axis=(b[0]-a[0],b[1]-a[1],b[2]-a[2]);length=math.sqrt(sum(v*v for v in axis))
+ if length<=1e-12:raise ValueError('arboreal branch has zero length')
+ u=tuple(v/length for v in axis);ref=(0.0,0.0,1.0) if abs(u[2])<0.9 else (0.0,1.0,0.0)
+ v=(u[1]*ref[2]-u[2]*ref[1],u[2]*ref[0]-u[0]*ref[2],u[0]*ref[1]-u[1]*ref[0]);vn=math.sqrt(sum(q*q for q in v));v=tuple(q/vn for q in v)
+ w=(u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]);n=max(8,int(segments));verts=[]
+ for center,radius in ((a,r0),(b,r1)):
+  for i in range(n):
+   t=2.0*math.pi*i/n;c,s=math.cos(t),math.sin(t);off=tuple(radius*(c*v[k]+s*w[k]) for k in range(3));verts.append(tuple(center[k]+off[k] for k in range(3)))
+ root_center=len(verts);verts.append(a);tip_center=len(verts);verts.append(b);tris=[];roles=[]
+ for i in range(n):
+  j=(i+1)%n;tris.extend(((i,j,n+j),(i,n+j,n+i)));roles.extend(('branch_shell','branch_shell'))
+  tris.append((root_center,j,i));roles.append('branch_root')
+  tris.append((tip_center,n+i,n+j));roles.append('branch_tip')
+ return MeshPayload(tuple(verts),tuple(tris),tuple(roles))
 def _compact_mesh(vertices,triangles,roles):
  used=sorted({i for tri in triangles for i in tri});remap={old:new for new,old in enumerate(used)}
  return MeshPayload(tuple(vertices[i] for i in used),tuple(tuple(remap[i] for i in tri) for tri in triangles),tuple(roles))
@@ -217,6 +234,7 @@ def _payload(doc,node):
  if k=='wall':return _wall_mesh(p)
  if k in('box','mechanical_part'):return _box_mesh(p,node.transform)
  if k=='pod':return _pod_mesh_for_node(doc,node)
+ if k=='arboreal_branch':return _arboreal_branch_mesh(doc,node)
  if k=='organic_junction':return _organic_junction_mesh(doc,node)
  if k=='organic_opening_patch':return _organic_opening_patch_mesh(doc,node)
  if k=='floor':return _polygon_prism(p['points'],p['z'],p['thickness'])
