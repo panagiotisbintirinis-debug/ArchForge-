@@ -32,6 +32,15 @@ def _extent(values):
     return min(values), max(values)
 
 
+def _pod_has_active_junction(doc: Document, pod_id: str) -> bool:
+    for entity in doc.entities.values():
+        if entity.kind != 'organic_junction' or entity.params.get('status') != 'active':
+            continue
+        if pod_id in (entity.params.get('component_a'), entity.params.get('component_b')):
+            return True
+    return False
+
+
 def entity_view_primitives(doc: Document, eid: str, axis: str, override_params: Optional[Dict[str, Any]] = None) -> List[ViewPrimitive]:
     if axis not in ('XY','XZ','YZ'): raise ValueError('axis must be XY, XZ or YZ')
     e=doc.get(eid)
@@ -73,6 +82,8 @@ def entity_view_primitives(doc: Document, eid: str, axis: str, override_params: 
                 return [ViewPrimitive('polygon',clipped,entity_id=eid,role='pod-junction-clipped',meta=(('semantic','pod'),('junction_clipped',True)))]
             return [ViewPrimitive('ellipse',((p['cx'],p['cy']),),p['diameter_x']/2,p['diameter_y']/2,eid)]
         center=p['cx'] if axis=='XZ' else p['cy'];radius=(p['diameter_x']/2) if axis=='XZ' else (p['diameter_y']/2);z0=p['floor_level'];z1=z0+p['height']
+        if _pod_has_active_junction(doc, eid):
+            return [ViewPrimitive('upper_ellipse',((center,z0),),radius,p['height'],eid,role='pod-junction-unclipped-unsupported',meta=(('top',z1),('semantic','pod'),('junction_projection','unsupported')))]
         return [ViewPrimitive('upper_ellipse',((center,z0),),radius,p['height'],eid,meta=(('top',z1),))]
     if e.kind=='organic_junction':
         if p.get('status')!='active':return []
