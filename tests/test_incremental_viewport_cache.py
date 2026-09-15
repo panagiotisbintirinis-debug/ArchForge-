@@ -70,7 +70,10 @@ def test_modifier_owner_index_tracks_add_retarget_and_remove_without_global_scan
     doc.surface_modifiers = _NoValuesDict(doc.surface_modifiers)
     assert [m.id for m in ordered_modifiers(doc, b.id)] == [mid]
 
-    doc.surface_modifiers = dict(doc.surface_modifiers)
+    # Restore the ordinary backing store directly; the wholesale-store setter is itself
+    # an index rebuild boundary and is allowed to scan once. The assertion above isolates
+    # the hot owner-query path that must remain O(1).
+    doc._surface_modifiers = dict(dict.items(doc.surface_modifiers))
     doc.remove_surface_modifier(mid)
     assert doc.modifier_ids_for_owner(b.id) == ()
 
