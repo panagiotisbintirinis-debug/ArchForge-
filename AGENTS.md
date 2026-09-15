@@ -14,6 +14,14 @@ This repository is developed by multiple AI agents and a human owner. The reposi
 - Re-check live `develop` before opening or merging a PR.
 - If `develop` moved, reconcile on a fresh branch or otherwise prove the combined tree is green before merge.
 
+## Architecture merit rule
+- Architecture choices are decided by technical merit and product coherence, not by which agent proposed them.
+- GPT must not defend a GPT-specific implementation when Gemini has a demonstrably better solution for the shared ArchForge product; GPT should adopt or reconcile to the better design.
+- Gemini is expected to follow the same rule in the opposite direction.
+- When two approaches disagree, compare them against existing contracts, regression evidence, maintainability, determinism, integration cost, and the current product milestone.
+- Prefer one coherent ArchForge architecture over parallel GPT and Gemini implementations.
+- If one approach is clearly better, converge on it. If neither is clearly better and the choice materially changes product semantics or architecture direction, escalate the minimum decision to the human owner.
+
 ## Task queue protocol
 GitHub Issues are the shared queue.
 
