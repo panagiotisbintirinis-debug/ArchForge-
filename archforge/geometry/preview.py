@@ -45,9 +45,10 @@ def _organic_junction_payload(doc,node)->Optional[PreviewPayload]:
     return PreviewPayload('organic_junction',_bounds(points))
 
 def _organic_opening_patch_payload(doc,node)->Optional[PreviewPayload]:
-    from archforge.architecture.openings import pod_opening_patch_geometry
+    from archforge.architecture.openings import pod_opening_patch_geometry,pod_opening_junction_conflict
     if node.params.get('status')!='active':return None
     opening_id=node.params.get('opening_id')
+    if pod_opening_junction_conflict(doc,opening_id) is not None:return None
     g=pod_opening_patch_geometry(doc,opening_id)
     if g is None:return None
     return PreviewPayload('organic_opening_patch',_bounds(g['points']))
@@ -96,7 +97,9 @@ class PreviewBackend(GeometryBackend):
                     elif node.semantic_kind=='organic_junction':
                         message='organic junction is dormant or has no current section'
                     elif node.semantic_kind=='organic_opening_patch':
-                        message='organic opening patch is dormant or has no valid host opening'
+                        from archforge.architecture.openings import pod_opening_junction_conflict
+                        junction_id=pod_opening_junction_conflict(doc,node.params.get('opening_id'))
+                        message=(f'organic opening patch conflicts with active junction {junction_id}' if junction_id else 'organic opening patch is dormant or has no valid host opening')
                     else:
                         message='derived geometry is currently unavailable'
                     issues.append(GeometryIssue('warning','preview_geometry_unavailable',message,node.entity_id))

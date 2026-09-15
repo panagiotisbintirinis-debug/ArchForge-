@@ -149,11 +149,13 @@ def _active_junction_planes_for_pod(doc,pod_id):
   out.append((plane,1.0 if signed>0 else -1.0))
  return out
 def _active_opening_patches_for_pod(doc,pod_id):
- from archforge.architecture.openings import pod_opening_patch_geometry
+ from archforge.architecture.openings import pod_opening_patch_geometry,pod_opening_junction_conflict
  out=[]
  for entity in doc.entities.values():
   if entity.kind!='organic_opening_patch' or entity.params.get('status')!='active' or entity.params.get('host_id')!=pod_id:continue
-  geom=pod_opening_patch_geometry(doc,entity.params.get('opening_id'))
+  opening_id=entity.params.get('opening_id')
+  if pod_opening_junction_conflict(doc,opening_id) is not None:continue
+  geom=pod_opening_patch_geometry(doc,opening_id)
   if geom is not None:out.append(geom)
  return out
 def _pod_mesh_for_node(doc,node):
@@ -181,9 +183,11 @@ def _organic_junction_mesh(doc,node):
  tris=_triangulate(local)
  return MeshPayload(tuple(points),tuple(tris),tuple('junction' for _ in tris))
 def _organic_opening_patch_mesh(doc,node):
- from archforge.architecture.openings import pod_opening_patch_geometry
+ from archforge.architecture.openings import pod_opening_patch_geometry,pod_opening_junction_conflict
  if node.params.get('status')!='active':raise ValueError('organic opening patch is dormant')
  opening_id=node.params.get('opening_id')
+ junction_id=pod_opening_junction_conflict(doc,opening_id)
+ if junction_id is not None:raise ValueError(f'organic opening patch conflicts with active junction {junction_id}')
  g=pod_opening_patch_geometry(doc,opening_id)
  if g is None:raise ValueError('organic opening patch has no current host geometry')
  if opening_id not in doc.entities:raise ValueError('organic opening patch opening is missing')

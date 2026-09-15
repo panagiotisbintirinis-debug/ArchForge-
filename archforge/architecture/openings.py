@@ -146,6 +146,42 @@ def pod_opening_patch_geometry(doc, opening_id):
     return {'opening_id':opening.id,'host_id':pod.id,'plane':plane,'points':points,'patch_width':patch_width,'patch_height':z1-z0,'z0':z0,'z1':z1}
 
 
+def pod_opening_junction_conflict(doc, opening_id, tolerance=1e-9):
+    """Return the active junction id whose cut removes any of a pod opening patch.
+
+    The opening and its semantic patch remain persistent. This function only answers
+    whether the current evaluated host shell can physically carry that patch. A later
+    separation of the pods therefore restores the same opening/patch identity.
+    """
+    geom=pod_opening_patch_geometry(doc,opening_id)
+    if geom is None:return None
+    host_id=geom['host_id']
+    if host_id not in doc.entities or doc.get(host_id).kind!='pod':return None
+    host=doc.get(host_id)
+    from archforge.organic.biospectre import junction_plane
+    for entity in doc.entities.values():
+        if entity.kind!='organic_junction' or entity.params.get('status')!='active':continue
+        a_id=entity.params.get('component_a');b_id=entity.params.get('component_b')
+        if host_id not in (a_id,b_id) or a_id not in doc.entities or b_id not in doc.entities:continue
+        a,b=doc.get(a_id),doc.get(b_id)
+        if a.kind!='pod' or b.kind!='pod':continue
+        plane=junction_plane(a.params,b.params)
+        if plane is None:continue
+        # A bounded junction removes host shell only where the vertical bands overlap.
+        if min(float(geom['z1']),float(plane['z1']))-max(float(geom['z0']),float(plane['z0']))<=tolerance:continue
+        px,py=map(float,plane['point']);nx,ny=map(float,plane['normal'])
+        cx,cy=float(host.params['cx']),float(host.params['cy'])
+        center_signed=(cx-px)*nx+(cy-py)*ny
+        if abs(center_signed)<=tolerance:continue
+        keep_sign=1.0 if center_signed>0 else -1.0
+        # Any footprint portion on the discarded side makes the flat patch ambiguous;
+        # suppress the whole derived patch rather than render a detached/partial panel.
+        for x,y,_ in geom['points']:
+            signed=((float(x)-px)*nx+(float(y)-py)*ny)*keep_sign
+            if signed < -tolerance:return entity.id
+    return None
+
+
 @dataclass(frozen=True)
 class OpeningPatchIntentResult:
     active_ids: tuple[str,...]
