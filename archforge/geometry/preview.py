@@ -53,6 +53,14 @@ def _organic_opening_patch_payload(doc,node)->Optional[PreviewPayload]:
     if g is None:return None
     return PreviewPayload('organic_opening_patch',_bounds(g['points']))
 
+def _arboreal_branch_payload(doc,node)->PreviewPayload:
+    from archforge.organic.arboreal import arboreal_branch_geometry
+    g=arboreal_branch_geometry(doc,node.entity_id)
+    a=tuple(float(v) for v in g['start']);b=tuple(float(v) for v in g['end'])
+    radius=max(float(g['root_radius']),float(g['tip_radius']))
+    lo=tuple(min(a[i],b[i])-radius for i in range(3));hi=tuple(max(a[i],b[i])+radius for i in range(3))
+    return PreviewPayload('arboreal_branch',(lo,hi))
+
 def _payload(doc,node)->Optional[PreviewPayload]:
     p=node.params;kind=node.semantic_kind
     if kind in ('box','mechanical_part'):
@@ -73,6 +81,7 @@ def _payload(doc,node)->Optional[PreviewPayload]:
         angle=math.radians(float(p.get('rotation',0.0)));c,s=math.cos(angle),math.sin(angle)
         ex=math.sqrt((rx*c)**2+(ry*s)**2);ey=math.sqrt((rx*s)**2+(ry*c)**2)
         return PreviewPayload('upper_ellipsoid',((cx-ex,cy-ey,z),(cx+ex,cy+ey,z+float(p['height']))))
+    if kind=='arboreal_branch':return _arboreal_branch_payload(doc,node)
     if kind=='organic_junction':return _organic_junction_payload(doc,node)
     if kind=='organic_opening_patch':return _organic_opening_patch_payload(doc,node)
     if kind in ('floor','room'):
