@@ -4,6 +4,7 @@ from archforge.core.model import Document
 from archforge.geometry.mesh import TessellatedPreviewBackend
 from archforge.geometry.plan import build_evaluation_plan, fabrication_candidates
 from archforge.geometry.preview import PreviewBackend
+from archforge.geometry.surfaces import surface_catalog, surface_roles
 from archforge.organic.arboreal import ArborealCore, ArborealBranch, arboreal_branch_geometry, create_arboreal_tree
 
 
@@ -116,3 +117,21 @@ def test_mounted_pods_follow_when_arboreal_core_moves():
         pod = doc.get(pod_id)
         assert pod.id == pod_id
         assert (pod.params['cx'], pod.params['cy'], pod.params['floor_level']) == pytest.approx(expected)
+
+
+def test_arboreal_mesh_roles_are_registered_nonfabrication_surfaces():
+    doc = Document()
+    tree = create_arboreal_tree(doc)
+    branch_id = tree['branches'][0]['branch_id']
+
+    evaluation = TessellatedPreviewBackend().evaluate(doc)
+    body = evaluation.body(branch_id)
+    payload_roles = set(body.payload.triangle_surfaces)
+    registered_roles = set(surface_roles(doc, branch_id))
+
+    assert {'branch_shell', 'branch_root', 'branch_tip'} <= payload_roles
+    assert payload_roles <= registered_roles
+    descriptors = surface_catalog(doc, branch_id)
+    assert descriptors
+    assert all(not surface.fabrication_surface for surface in descriptors)
+    assert set(body.surface_keys) == {surface.key for surface in descriptors}
