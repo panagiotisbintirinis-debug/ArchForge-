@@ -109,6 +109,14 @@ def entity_view_primitives(doc: Document, eid: str, axis: str, override_params: 
             c0=a[0] if axis=='XZ' else a[1];c1=b[0] if axis=='XZ' else b[1]
             lo,hi=min(c0,c1),max(c0,c1)
             return [ViewPrimitive('polygon',((lo,z0),(hi,z0),(hi,z1),(lo,z1)),entity_id=eid,role='opening',meta=(('semantic',e.kind),('host',e.parent_id)))]
+    if e.kind=='arboreal_branch':
+        from archforge.organic.arboreal import arboreal_branch_geometry
+        geom=arboreal_branch_geometry(doc,eid)
+        s,t=geom['start'],geom['end']
+        if axis=='XY':pts=((s[0],s[1]),(t[0],t[1]))
+        elif axis=='XZ':pts=((s[0],s[2]),(t[0],t[2]))
+        else:pts=((s[1],s[2]),(t[1],t[2]))
+        return [ViewPrimitive('line',pts,entity_id=eid,role='arboreal-branch',meta=(('semantic','arboreal_branch'),('engineering_verified',False)))]
     return []
 
 

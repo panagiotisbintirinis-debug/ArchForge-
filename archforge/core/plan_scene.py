@@ -117,6 +117,11 @@ def entity_primitive(doc,eid):
         seg=_opening_segment(doc,e)
         if seg is None:return None
         a,b=seg;return Primitive2D('line',(a,b),entity_id=eid,role='opening',meta=(('semantic',e.kind),('host',e.parent_id)))
+    if e.kind=='arboreal_branch':
+        from archforge.organic.arboreal import arboreal_branch_geometry
+        geom=arboreal_branch_geometry(doc,eid)
+        s,t=geom['start'],geom['end']
+        return Primitive2D('line',((s[0],s[1]),(t[0],t[1])),entity_id=eid,role='arboreal-branch',meta=(('semantic','arboreal_branch'),('core_id',p.get('core_id')),('mounted_pod_id',p.get('mounted_pod_id')),('engineering_verified',False)))
 def selection_handles(doc):
     out=[]
     for eid in doc.selection:
@@ -126,6 +131,11 @@ def selection_handles(doc):
         if e.kind=='wall':out.extend([Handle2D(p['x1'],p['y1'],eid,'endpoint1'),Handle2D(p['x2'],p['y2'],eid,'endpoint2')])
         elif e.kind=='box':out.extend(_box_handles(eid,p))
         elif e.kind=='pod':out.extend(_pod_handles(eid,p))
+        elif e.kind=='arboreal_branch':
+            from archforge.organic.arboreal import arboreal_branch_geometry
+            geom=arboreal_branch_geometry(doc,eid)
+            s,t=geom['start'],geom['end']
+            out.extend([Handle2D(s[0],s[1],eid,'root','move'),Handle2D(t[0],t[1],eid,'tip','stretch')])
         elif e.kind in ('door','window') and e.parent_id in doc.entities:
             seg=_opening_segment(doc,e)
             if seg is None:continue

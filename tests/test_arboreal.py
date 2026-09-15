@@ -116,3 +116,31 @@ def test_mounted_pods_follow_when_arboreal_core_moves():
         pod = doc.get(pod_id)
         assert pod.id == pod_id
         assert (pod.params['cx'], pod.params['cy'], pod.params['floor_level']) == pytest.approx(expected)
+
+
+def test_arboreal_branch_projects_in_plan_and_ortho_views():
+    from archforge.core.plan_scene import build_plan_frame
+    from archforge.core.view_frame import build_view_frame
+
+    doc = Document()
+    tree = create_arboreal_tree(doc, cx=0.0, cy=0.0)
+    branch_id = tree['branches'][0]['branch_id']
+    doc.selection = [branch_id]
+
+    plan = build_plan_frame(doc)
+    branch_prims = [p for p in plan.primitives if p.entity_id == branch_id]
+    assert len(branch_prims) == 1
+    assert branch_prims[0].role == 'arboreal-branch'
+    assert dict(branch_prims[0].meta).get('engineering_verified') is False
+
+    # Selection handles in 2D plan
+    handles = [h for h in plan.handles if h.entity_id == branch_id]
+    assert len(handles) == 2
+
+    # Orthographic view frame
+    for axis in ('XY', 'XZ', 'YZ'):
+        view = build_view_frame(doc, axis)
+        v_prims = [p for p in view.primitives if p.entity_id == branch_id]
+        assert len(v_prims) == 1
+        assert v_prims[0].role == 'arboreal-branch'
+
