@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 import copy
 from .model import Document, Entity, WorkPlane
 
@@ -84,6 +84,55 @@ class MoveEntities(Command):
         if self.before_modifiers:
             for mid,m in self.before_modifiers.items():
                 doc.surface_modifiers[mid]=copy.deepcopy(m);doc.mark_dirty(m.target.owner_id)
+
+
+@dataclass
+class RotateEntities(Command):
+    """Rotate supported semantic entities around their centroid or an explicit pivot."""
+    ids: List[str]
+    angle: float
+    pivot: Optional[Tuple[float, float]] = None
+    before: Dict[str, Dict[str, Any]] | None = None
+
+    def do(self, doc: Document):
+        if self.before is None:
+            self.before = {i: copy.deepcopy(doc.get(i).params) for i in self.ids}
+        import math
+        r = math.radians(self.angle)
+        c, s = math.cos(r), math.sin(r)
+        for i in self.ids:
+            e = doc.get(i)
+            p = e.params
+            if e.kind == 'pod':
+                px, py = self.pivot if self.pivot is not None else (p['cx'], p['cy'])
+                if self.pivot is not None:
+                    dx, dy = p['cx'] - px, p['cy'] - py
+                    ncx, ncy = px + dx * c - dy * s, py + dx * s + dy * c
+                    doc.update(i, {'cx': ncx, 'cy': ncy, 'rotation': (p.get('rotation', 0.0) + self.angle) % 360.0})
+                else:
+                    doc.update(i, {'rotation': (p.get('rotation', 0.0) + self.angle) % 360.0})
+            elif e.kind == 'box':
+                px, py = self.pivot if self.pivot is not None else (p['x'], p['y'])
+                if self.pivot is not None:
+                    dx, dy = p['x'] - px, p['y'] - py
+                    nx, ny = px + dx * c - dy * s, py + dx * s + dy * c
+                    doc.update(i, {'x': nx, 'y': ny, 'rotation': (p.get('rotation', 0.0) + self.angle) % 360.0})
+                else:
+                    doc.update(i, {'rotation': (p.get('rotation', 0.0) + self.angle) % 360.0})
+            elif e.kind == 'wall':
+                px, py = self.pivot if self.pivot is not None else ((p['x1'] + p['x2']) / 2, (p['y1'] + p['y2']) / 2)
+                def rot(x, y):
+                    dx, dy = x - px, y - py
+                    return px + dx * c - dy * s, py + dx * s + dy * c
+                nx1, ny1 = rot(p['x1'], p['y1'])
+                nx2, ny2 = rot(p['x2'], p['y2'])
+                doc.update(i, {'x1': nx1, 'y1': ny1, 'x2': nx2, 'y2': ny2})
+
+    def undo(self, doc: Document):
+        if self.before is not None:
+            for i, p in self.before.items():
+                doc.update(i, copy.deepcopy(p))
+
 
 
 def _restore_document_state(doc:Document,state:Dict[str,Any],selection:List[str]):
@@ -270,6 +319,12 @@ class AssignConstruction(Command):
 
 class CommandStack:
     def __init__(self,doc):self.doc=doc;self.done=[];self.undone=[]
+    @property
+    def can_undo(self) -> bool:
+        return bool(self.done)
+    @property
+    def can_redo(self) -> bool:
+        return bool(self.undone)
     def execute(self,c):c.do(self.doc);self.done.append(c);self.undone.clear()
     def undo(self):
         if not self.done:return
