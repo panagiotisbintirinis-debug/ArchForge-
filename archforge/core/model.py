@@ -199,6 +199,9 @@ class Document:
    for s in self.dependencies.values():s.discard(i)
    self.selection=[x for x in self.selection if x!=i];self.dirty.add(i)
   for kids in self.children.values():kids[:]=[x for x in kids if x not in ids]
+  for branch in self.entities.values():
+   if branch.kind=='arboreal_branch' and branch.params.get('mounted_pod_id') in ids:
+    branch.params.pop('mounted_pod_id',None);branch.revision+=1;self.mark_dirty(branch.id)
   for mid,m in list(self.surface_modifiers.items()):
    if m.target.owner_id in ids:self.surface_modifiers.pop(mid,None)
   return snap
