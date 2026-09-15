@@ -5,11 +5,18 @@ import math
 def shell_top(p): return p['floor_level']+p['height']
 
 
+def _slice_scale(p,z):
+    """Upper-half ellipsoid XY scale at world elevation z, or 0 outside the pod."""
+    floor=float(p['floor_level']);height=float(p['height']);z=float(z)
+    if height<=0 or z<floor or z>floor+height:return 0.0
+    t=(z-floor)/height
+    return math.sqrt(max(0.0,1.0-t*t))
+
+
 def profile_radius(p,z):
-    if z < p['floor_level'] or z > shell_top(p): return None
+    factor=_slice_scale(p,z)
+    if factor<=0.0 and not math.isclose(float(z),float(p['floor_level']),abs_tol=1e-12):return None
     # upper half ellipsoid only: floor is the equator/hard boundary
-    t=(z-p['floor_level'])/p['height']
-    factor=math.sqrt(max(0.0,1.0-t*t))
     return p['diameter_x']/2*factor,p['diameter_y']/2*factor
 
 
@@ -22,13 +29,17 @@ def _radial_extent(p,nx,ny):
     return 1.0/math.sqrt((lx/rx)**2+(ly/ry)**2)
 
 
-def overlap(a,b):
-    """Return whether the two rotated pod footprints physically overlap in XY.
+def _slice_radial_extent(p,nx,ny,z):
+    """World-space radial reach of the actual horizontal pod slice at elevation z."""
+    return _radial_extent(p,nx,ny)*_slice_scale(p,z)
 
-    The center-to-center line is sufficient for centered convex ellipses: each ellipse
-    contains the radial segment from its center to its boundary along that line, so the
-    footprints intersect iff the center distance is less than the two radial reaches.
-    Vertical shell overlap is checked separately by ``junction_plane``.
+
+def overlap(a,b):
+    """Return whether the two rotated pod base footprints physically overlap in XY.
+
+    This is intentionally a footprint query. A real 3D organic junction additionally
+    requires overlap of the live upper-ellipsoid slices and is decided by
+    ``junction_plane``.
     """
     dx=float(b['cx'])-float(a['cx']);dy=float(b['cy'])-float(a['cy']);distance=math.hypot(dx,dy)
     if distance<=1e-12:return True
@@ -37,17 +48,22 @@ def overlap(a,b):
 
 
 def junction_plane(a,b):
-    if not overlap(a,b): return None
+    """Return a stable flat separator only when the pod volumes truly overlap in 3D.
+
+    Upper-half ellipsoid slices monotonically narrow above each pod's floor, so the
+    largest possible overlap in the shared vertical interval occurs at its lowest
+    elevation ``z0``. Testing the actual rotated radial reaches there is therefore enough
+    to reject base-footprint false positives. The same live slice reaches also weight the
+    separator position, keeping it inside both staggered pod slices.
+    """
     z0=max(float(a['floor_level']),float(b['floor_level']))
     z1=min(float(shell_top(a)),float(shell_top(b)))
     if z1<=z0:return None
-    # Weighted perpendicular semantic separator. The weights use each pod's actual
-    # rotated radial reach along the center line, so rotating an elliptical pod changes
-    # its junction location/eligibility without changing the underlying semantic IDs.
     nx=float(b['cx'])-float(a['cx']);ny=float(b['cy'])-float(a['cy']);L=math.hypot(nx,ny)
     if L<=1e-12:return None
     nx/=L;ny/=L
-    ra=_radial_extent(a,nx,ny);rb=_radial_extent(b,-nx,-ny)
+    ra=_slice_radial_extent(a,nx,ny,z0);rb=_slice_radial_extent(b,-nx,-ny,z0)
+    if ra<=1e-12 or rb<=1e-12 or L>=ra+rb-1e-10:return None
     t=ra/(ra+rb)
     px=float(a['cx'])+(float(b['cx'])-float(a['cx']))*t
     py=float(a['cy'])+(float(b['cy'])-float(a['cy']))*t
