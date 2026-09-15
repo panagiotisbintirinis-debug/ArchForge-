@@ -12,6 +12,7 @@ _KIND_ROLES:Dict[str,Tuple[Tuple[str,bool,bool,str],...]]={
  'box':tuple((r,True,True,f'box {r} face') for r in('top','bottom','left','right','front','back')),
  'mechanical_part':tuple((r,True,True,f'mechanical part {r} face') for r in('top','bottom','left','right','front','back')),
  'pod':(('pod_shell',True,True,'curved pod shell'),('junction',True,True,'legacy generated flat pod junction'),('floor',True,True,'pod floor')),
+ 'arboreal_branch':(('branch_shell',False,False,'preview-only arboreal branch shell'),('branch_root',False,False,'preview-only arboreal branch root cap'),('branch_tip',False,False,'preview-only arboreal branch tip cap')),
  'organic_junction':(('junction',False,False,'derived flat organic junction surface'),),
  'organic_opening_patch':(('opening_patch',False,False,'derived flat host surface for a conventional pod opening'),),
  'floor':_slab('floor'),'room_floor':_slab('derived room floor'),'room_ceiling':_slab('derived room ceiling'),'room_foundation':_slab('derived foundation'),'room_roof':_slab('derived roof'),
