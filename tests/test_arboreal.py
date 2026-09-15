@@ -3,6 +3,7 @@ import pytest
 from archforge.core.model import Document
 from archforge.geometry.mesh import TessellatedPreviewBackend
 from archforge.geometry.plan import build_evaluation_plan, fabrication_candidates
+from archforge.geometry.preview import PreviewBackend
 from archforge.organic.arboreal import ArborealCore, ArborealBranch, create_arboreal_tree
 
 
@@ -70,3 +71,17 @@ def test_arboreal_branch_preview_is_not_fabrication_evidence():
     candidate_ids = {node.entity_id for node in fabrication_candidates(plan)}
     assert branch_ids
     assert branch_ids.isdisjoint(candidate_ids)
+
+
+def test_fast_preview_supports_persistent_arboreal_branches_without_errors():
+    doc = Document()
+    tree = create_arboreal_tree(doc, cx=0.5, cy=1.5)
+    branch_ids = {item['branch_id'] for item in tree['branches']}
+
+    evaluation = PreviewBackend().evaluate(doc)
+    assert evaluation.ok
+    assert not [issue for issue in evaluation.issues if issue.entity_id in branch_ids and issue.severity == 'error']
+    for branch_id in branch_ids:
+        body = evaluation.body(branch_id)
+        assert body.semantic_kind == 'arboreal_branch'
+        assert body.payload.primitive == 'arboreal_branch'
