@@ -1,0 +1,187 @@
+name: LangGraph ArchForge Cycle
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/langgraph-archforge.yml"
+  workflow_dispatch:
+    inputs:
+      request:
+        description: "Natural-language ArchForge design request for one bounded GPT -> Gemini -> ArchForge cycle"
+        required: true
+        type: string
+      project_path:
+        description: "Optional .archforge project path inside the checked-out develop tree. The updated file is returned as an artifact, never pushed automatically."
+        required: false
+        default: ""
+        type: string
+      gpt_model:
+        description: "Optional OpenAI model override. Otherwise ARCHFORGE_GPT_MODEL repository variable is used."
+        required: false
+        default: ""
+        type: string
+      gemini_model:
+        description: "Optional Gemini model override. Otherwise ARCHFORGE_GEMINI_MODEL repository variable is used."
+        required: false
+        default: ""
+        type: string
+      max_review_rounds:
+        description: "Maximum Gemini revise cycles before fail-closed termination"
+        required: true
+        default: "2"
+        type: choice
+        options:
+          - "1"
+          - "2"
+          - "3"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: archforge-langgraph-cycle-${{ github.event_name }}
+  cancel-in-progress: false
+
+jobs:
+  validate-workflow-contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out live develop contract
+        uses: actions/checkout@v5
+        with:
+          ref: develop
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Verify merged orchestration entrypoints compile
+        run: |
+          test -f requirements-agents.txt
+          test -f scripts/run_langgraph_design.py
+          test -f archforge/orchestration/langgraph_flow.py
+          test -f archforge/orchestration/providers.py
+          python -m py_compile             scripts/run_langgraph_design.py             archforge/orchestration/langgraph_flow.py             archforge/orchestration/providers.py
+
+  run-cycle:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      CONFIGURED_GPT_MODEL: ${{ vars.ARCHFORGE_GPT_MODEL }}
+      CONFIGURED_GEMINI_MODEL: ${{ vars.ARCHFORGE_GEMINI_MODEL }}
+
+    steps:
+      - name: Check out live develop
+        uses: actions/checkout@v5
+        with:
+          ref: develop
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Preflight credentials and model configuration
+        id: preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          GPT_MODEL="${{ inputs.gpt_model }}"
+          GEMINI_MODEL="${{ inputs.gemini_model }}"
+
+          if [ -z "$GPT_MODEL" ]; then
+            GPT_MODEL="$CONFIGURED_GPT_MODEL"
+          fi
+          if [ -z "$GEMINI_MODEL" ]; then
+            GEMINI_MODEL="$CONFIGURED_GEMINI_MODEL"
+          fi
+
+          missing=0
+          if [ -z "${OPENAI_API_KEY:-}" ]; then
+            echo "::notice::OPENAI_API_KEY is not configured in GitHub Actions Secrets."
+            missing=1
+          fi
+          if [ -z "${GEMINI_API_KEY:-}" ]; then
+            echo "::notice::GEMINI_API_KEY is not configured in GitHub Actions Secrets."
+            missing=1
+          fi
+          if [ -z "$GPT_MODEL" ]; then
+            echo "::notice::Set repository variable ARCHFORGE_GPT_MODEL or provide the gpt_model dispatch input."
+            missing=1
+          fi
+          if [ -z "$GEMINI_MODEL" ]; then
+            echo "::notice::Set repository variable ARCHFORGE_GEMINI_MODEL or provide the gemini_model dispatch input."
+            missing=1
+          fi
+
+          if [ "$missing" -ne 0 ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "ARCHFORGE_GPT_MODEL=$GPT_MODEL" >> "$GITHUB_ENV"
+          echo "ARCHFORGE_GEMINI_MODEL=$GEMINI_MODEL" >> "$GITHUB_ENV"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Install ArchForge and orchestration dependencies
+        if: steps.preflight.outputs.ready == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt -r requirements-agents.txt
+
+      - name: Run one bounded GPT -> Gemini -> ArchForge cycle
+        if: steps.preflight.outputs.ready == 'true'
+        id: cycle
+        shell: bash
+        env:
+          PYTHONPATH: .
+          REQUEST: ${{ inputs.request }}
+          PROJECT_PATH: ${{ inputs.project_path }}
+          MAX_REVIEW_ROUNDS: ${{ inputs.max_review_rounds }}
+        run: |
+          set -uo pipefail
+
+          args=(scripts/run_langgraph_design.py "$REQUEST" --max-review-rounds "$MAX_REVIEW_ROUNDS")
+
+          if [ -n "$PROJECT_PATH" ]; then
+            mkdir -p "$(dirname "$PROJECT_PATH")"
+            args+=(--project "$PROJECT_PATH")
+          fi
+
+          set +e
+          python "${args[@]}" | tee orchestration-result.json
+          exit_code=${PIPESTATUS[0]}
+          set -e
+
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+
+      - name: Upload orchestration evidence
+        if: always() && steps.preflight.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: langgraph-archforge-cycle
+          path: |
+            orchestration-result.json
+            ${{ inputs.project_path }}
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Report missing runtime configuration
+        if: steps.preflight.outputs.ready != 'true'
+        run: |
+          echo "LangGraph runtime was not executed because required credentials/model configuration are missing."
+          echo "No secret values were printed or exposed."
+
+      - name: Enforce fail-closed orchestration result
+        if: steps.preflight.outputs.ready == 'true' && steps.cycle.outputs.exit_code != '0'
+        run: |
+          echo "::error::The bounded ArchForge orchestration cycle did not reach status=executed."
+          exit 1
