@@ -1,7 +1,11 @@
 import pytest
 
-from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox
-from OCP.TopoDS import TopoDS_Shape
+try:
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox
+    from OCP.TopoDS import TopoDS_Shape
+    HAVE_OCP = True
+except ImportError:
+    HAVE_OCP = False
 
 from archforge.geometry.mesh import MeshPayload
 from archforge.geometry.mesh_validation import validate_mesh
@@ -45,6 +49,8 @@ def test_edge_manifold_mesh_can_still_hide_geometric_self_intersection():
 
 
 def test_recursive_brepcheck_accepts_valid_native_box():
+    if not HAVE_OCP:
+        pytest.skip("cadquery-ocp (OCP) is not installed in this environment")
     shape = BRepPrimAPI_MakeBox(1.0, 2.0, 3.0).Shape()
     report = require_valid_ocp_brep(shape, entity_id='native-box')
     assert report.engine == 'OpenCascade BRepCheck_Analyzer'
@@ -52,5 +58,9 @@ def test_recursive_brepcheck_accepts_valid_native_box():
 
 
 def test_null_native_shape_is_rejected_explicitly():
-    with pytest.raises(IncompleteSolidValidityError, match='null or unavailable'):
-        require_valid_ocp_brep(TopoDS_Shape(), entity_id='null-shape')
+    if not HAVE_OCP:
+        with pytest.raises(IncompleteSolidValidityError, match='OpenCascade/OCP solid validation is unavailable'):
+            require_valid_ocp_brep(None, entity_id='null-shape')
+    else:
+        with pytest.raises(IncompleteSolidValidityError, match='null or unavailable'):
+            require_valid_ocp_brep(TopoDS_Shape(), entity_id='null-shape')
