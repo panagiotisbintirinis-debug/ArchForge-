@@ -1,0 +1,5 @@
+# Optional multi-agent orchestration dependencies.
+# Keep these out of the core desktop runtime requirements.
+langgraph==1.2.11
+langchain-openai==1.6.2
+langchain-google-genai==4.4.0
