@@ -2,6 +2,10 @@
 
 import json
 
+import pytest
+
+pytest.importorskip("langgraph")
+
 from archforge.orchestration.langgraph_flow import LangGraphArchForgeOrchestrator
 
 
