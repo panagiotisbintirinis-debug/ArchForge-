@@ -62,12 +62,12 @@ def _clip_polygon_axis(points, limit, keep_positive, tolerance=1e-9):
 
 
 def _pod_supported_orthographic_polygon(doc: Document, pod_id: str, axis: str, p):
-    """Return a deterministic elevation polygon for supported axis-aligned junctions.
+    """Return a deterministic elevation polygon for proven axis-aligned cases.
 
-    The separator comes from the authoritative organic junction plane. A plane normal
-    parallel to the view axis clips the visible elevation coordinate; a normal parallel
-    to the depth axis leaves the silhouette unchanged. Oblique planes remain explicitly
-    unsupported rather than being approximated as if exact.
+    Junction separators come from authoritative organic-junction geometry.  The current
+    elevation silhouette is exact for circular pods and for axis-aligned elliptical pods.
+    A rotated non-circular ellipse has a different projected radius, so keep that case
+    explicitly unsupported until its projection is derived rather than approximating it.
     """
     from archforge.organic.biospectre import junction_plane, junction_section_polygon
     active=[]
@@ -81,7 +81,19 @@ def _pod_supported_orthographic_polygon(doc: Document, pod_id: str, axis: str, p
         if plane is None or junction_section_polygon(a.params,b.params) is None:continue
         active.append(plane)
     if not active:return None
-    center=float(p['cx'] if axis=='XZ' else p['cy']);radius=float(p['diameter_x'] if axis=='XZ' else p['diameter_y'])/2.0
+
+    dx=float(p['diameter_x']);dy=float(p['diameter_y'])
+    rotation=float(p.get('rotation',0.0)) % 180.0
+    axis_aligned=abs(rotation)<=1e-9 or abs(rotation-90.0)<=1e-9
+    if abs(dx-dy)>1e-9 and not axis_aligned:
+        return False
+
+    if axis=='XZ':
+        center=float(p['cx'])
+        radius=(dx if abs(rotation)<=1e-9 or abs(dx-dy)<=1e-9 else dy)/2.0
+    else:
+        center=float(p['cy'])
+        radius=(dy if abs(rotation)<=1e-9 or abs(dx-dy)<=1e-9 else dx)/2.0
     z0=float(p['floor_level']);height=float(p['height'])
     points=[(center+radius*cos(pi*i/48.0),z0+height*sin(pi*i/48.0)) for i in range(49)]
     points.append((center,z0))
