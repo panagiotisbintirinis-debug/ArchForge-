@@ -62,12 +62,12 @@ def _clip_polygon_axis(points, limit, keep_positive, tolerance=1e-9):
 
 
 def _pod_supported_orthographic_polygon(doc: Document, pod_id: str, axis: str, p):
-    """Return a deterministic elevation polygon for proven axis-aligned cases.
+    """Return a deterministic elevation polygon for proven circular-pod cases.
 
-    Junction separators come from authoritative organic-junction geometry.  The current
-    elevation silhouette is exact for circular pods and for axis-aligned elliptical pods.
-    A rotated non-circular ellipse has a different projected radius, so keep that case
-    explicitly unsupported until its projection is derived rather than approximating it.
+    Junction separators come from authoritative organic-junction geometry. Circular pods
+    have rotation-invariant orthographic silhouettes. Non-circular pod projections remain
+    explicitly unsupported here until the full ellipse/junction projection is covered by
+    the milestone contract rather than inferred from a simplified radius.
     """
     from archforge.organic.biospectre import junction_plane, junction_section_polygon
     active=[]
@@ -83,17 +83,11 @@ def _pod_supported_orthographic_polygon(doc: Document, pod_id: str, axis: str, p
     if not active:return None
 
     dx=float(p['diameter_x']);dy=float(p['diameter_y'])
-    rotation=float(p.get('rotation',0.0)) % 180.0
-    axis_aligned=abs(rotation)<=1e-9 or abs(rotation-90.0)<=1e-9
-    if abs(dx-dy)>1e-9 and not axis_aligned:
+    if abs(dx-dy)>1e-9:
         return False
 
-    if axis=='XZ':
-        center=float(p['cx'])
-        radius=(dx if abs(rotation)<=1e-9 or abs(dx-dy)<=1e-9 else dy)/2.0
-    else:
-        center=float(p['cy'])
-        radius=(dy if abs(rotation)<=1e-9 or abs(dx-dy)<=1e-9 else dx)/2.0
+    center=float(p['cx']) if axis=='XZ' else float(p['cy'])
+    radius=dx/2.0
     z0=float(p['floor_level']);height=float(p['height'])
     points=[(center+radius*cos(pi*i/48.0),z0+height*sin(pi*i/48.0)) for i in range(49)]
     points.append((center,z0))
