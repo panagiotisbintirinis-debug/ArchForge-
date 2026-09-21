@@ -433,7 +433,8 @@ def test_pod_designer_v01_30_edits_parametric_stress_scenario(tmp_path):
 
     # Orthographic view frame
     xz_view = build_view_frame(doc, axis='XZ')
-    assert any(p.kind == 'upper_ellipse' and p.entity_id in (pod_a.id, pod_b.id) for p in xz_view.primitives)
+    assert any(p.role == 'pod-junction-clipped' and p.entity_id == pod_a.id and dict(p.meta).get('junction_projection') == 'supported-rotated-ellipse' for p in xz_view.primitives)
+    assert any(p.role == 'pod-junction-clipped' and p.entity_id == pod_b.id and dict(p.meta).get('junction_projection') == 'supported-axis-aligned' for p in xz_view.primitives)
     assert any(p.role == 'arboreal-branch' for p in xz_view.primitives)
 
     # 3D Tessellated Preview Evaluation

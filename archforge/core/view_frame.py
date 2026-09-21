@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
-from math import radians, cos, sin, pi
+from math import radians, cos, sin, pi, sqrt
 from typing import List, Tuple, Optional, Dict, Any
 
 from .model import Document
@@ -62,12 +62,12 @@ def _clip_polygon_axis(points, limit, keep_positive, tolerance=1e-9):
 
 
 def _pod_supported_orthographic_polygon(doc: Document, pod_id: str, axis: str, p):
-    """Return a deterministic elevation polygon for proven circular-pod cases.
+    """Return deterministic elevation geometry for proven projection cases.
 
-    Junction separators come from authoritative organic-junction geometry. Circular pods
-    have rotation-invariant orthographic silhouettes. Non-circular pod projections remain
-    explicitly unsupported here until the full ellipse/junction projection is covered by
-    the milestone contract rather than inferred from a simplified radius.
+    Circular pods retain the issue-66 axis-aligned contract. Issue 68 additionally
+    proves rotated non-circular ellipses via their exact world-axis support function.
+    Axis-aligned non-circular ellipses and oblique projected separators remain explicit
+    unsupported boundaries until independently covered by a regression contract.
     """
     from archforge.organic.biospectre import junction_plane, junction_section_polygon
     active=[]
@@ -83,11 +83,19 @@ def _pod_supported_orthographic_polygon(doc: Document, pod_id: str, axis: str, p
     if not active:return None
 
     dx=float(p['diameter_x']);dy=float(p['diameter_y'])
-    if abs(dx-dy)>1e-9:
+    rotation=float(p.get('rotation',0.0))
+    non_circular=abs(dx-dy)>1e-9
+    rotated=abs(rotation)%90.0>1e-9
+    if non_circular and not rotated:
         return False
-
-    center=float(p['cx']) if axis=='XZ' else float(p['cy'])
-    radius=dx/2.0
+    theta=radians(rotation)
+    semi_x=dx/2.0;semi_y=dy/2.0
+    if axis=='XZ':
+        center=float(p['cx'])
+        radius=sqrt((semi_x*cos(theta))**2+(semi_y*sin(theta))**2)
+    else:
+        center=float(p['cy'])
+        radius=sqrt((semi_x*sin(theta))**2+(semi_y*cos(theta))**2)
     z0=float(p['floor_level']);height=float(p['height'])
     points=[(center+radius*cos(pi*i/48.0),z0+height*sin(pi*i/48.0)) for i in range(49)]
     points.append((center,z0))
@@ -153,7 +161,10 @@ def entity_view_primitives(doc: Document, eid: str, axis: str, override_params: 
         if _pod_has_active_junction(doc, eid):
             clipped=_pod_supported_orthographic_polygon(doc,eid,axis,p)
             if clipped:
-                return [ViewPrimitive('polygon',clipped,entity_id=eid,role='pod-junction-clipped',meta=(('top',z1),('semantic','pod'),('junction_projection','supported-axis-aligned')))]
+                non_circular=abs(float(p['diameter_x'])-float(p['diameter_y']))>1e-9
+                rotated=abs(float(p.get('rotation',0.0)))%90.0>1e-9
+                projection='supported-rotated-ellipse' if non_circular and rotated else 'supported-axis-aligned'
+                return [ViewPrimitive('polygon',clipped,entity_id=eid,role='pod-junction-clipped',meta=(('top',z1),('semantic','pod'),('junction_projection',projection)))]
             return [ViewPrimitive('upper_ellipse',((center,z0),),radius,p['height'],eid,role='pod-junction-unclipped-unsupported',meta=(('top',z1),('semantic','pod'),('junction_projection','unsupported')))]
         return [ViewPrimitive('upper_ellipse',((center,z0),),radius,p['height'],eid,meta=(('top',z1),))]
     if e.kind=='organic_junction':
