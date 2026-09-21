@@ -55,3 +55,64 @@ def test_unsupported_quantity_is_explicit_and_never_invents_a_number():
 def test_unknown_entity_id_is_rejected():
     with pytest.raises(KeyError):
         measure_entity(Document(), 'missing')
+
+def test_joined_pod_net_floor_footprint_area_computes_clipped_polygon_area():
+    from archforge.organic.biospectre import junction_key_for_pods
+    doc = Document()
+    a = Entity(
+        kind="pod",
+        params={
+            "cx": 0.0,
+            "cy": 0.0,
+            "floor_level": 0.0,
+            "diameter_x": 6.0,
+            "diameter_y": 6.0,
+            "height": 3.5,
+            "rotation": 0.0,
+        },
+        id="pod_a",
+    )
+    b = Entity(
+        kind="pod",
+        params={
+            "cx": 4.0,
+            "cy": 0.0,
+            "floor_level": 0.0,
+            "diameter_x": 6.0,
+            "diameter_y": 6.0,
+            "height": 3.5,
+            "rotation": 0.0,
+        },
+        id="pod_b",
+    )
+    doc.add(a)
+    doc.add(b)
+
+    # Before junction: net area matches gross area exactly
+    res_before = measure_entity(doc, a.id)
+    assert res_before["gross_floor_footprint_area"].value == pytest.approx(3.141592653589793 * 9.0)
+    assert res_before["net_floor_footprint_area"].value == pytest.approx(3.141592653589793 * 9.0)
+    assert res_before["net_floor_footprint_area"].method == "analytic_ellipse_unclipped"
+
+    # Add active junction
+    j = Entity(
+        "organic_junction",
+        {
+            "component_a": a.id,
+            "component_b": b.id,
+            "junction_key": junction_key_for_pods(a.id, b.id),
+            "status": "active",
+        },
+        id="j_a_b",
+    )
+    doc.add(j)
+
+    res_after = measure_entity(doc, a.id)
+    gross = res_after["gross_floor_footprint_area"].value
+    net = res_after["net_floor_footprint_area"].value
+    assert gross == pytest.approx(3.141592653589793 * 9.0)
+    # Clipped area must be strictly less than gross area due to junction cut
+    assert 0 < net < gross
+    assert res_after["net_floor_footprint_area"].status is MeasurementStatus.EXACT
+    assert res_after["net_floor_footprint_area"].unit == "m^2"
+    assert res_after["net_floor_footprint_area"].method == "planar_polygon_surveyor_formula_from_junction_clipped_plan"
