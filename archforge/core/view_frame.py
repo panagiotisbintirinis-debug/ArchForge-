@@ -85,7 +85,7 @@ def _pod_supported_orthographic_polygon(doc: Document, pod_id: str, axis: str, p
     dx=float(p['diameter_x']);dy=float(p['diameter_y'])
     rotation=float(p.get('rotation',0.0))
     non_circular=abs(dx-dy)>1e-9
-    rotated=abs(rotation)%180.0>1e-9
+    rotated=abs(rotation)%90.0>1e-9
     if non_circular and not rotated:
         return False
     theta=radians(rotation)
@@ -162,7 +162,7 @@ def entity_view_primitives(doc: Document, eid: str, axis: str, override_params: 
             clipped=_pod_supported_orthographic_polygon(doc,eid,axis,p)
             if clipped:
                 non_circular=abs(float(p['diameter_x'])-float(p['diameter_y']))>1e-9
-                rotated=abs(float(p.get('rotation',0.0)))%180.0>1e-9
+                rotated=abs(float(p.get('rotation',0.0)))%90.0>1e-9
                 projection='supported-rotated-ellipse' if non_circular and rotated else 'supported-axis-aligned'
                 return [ViewPrimitive('polygon',clipped,entity_id=eid,role='pod-junction-clipped',meta=(('top',z1),('semantic','pod'),('junction_projection',projection)))]
             return [ViewPrimitive('upper_ellipse',((center,z0),),radius,p['height'],eid,role='pod-junction-unclipped-unsupported',meta=(('top',z1),('semantic','pod'),('junction_projection','unsupported')))]
@@ -178,55 +178,5 @@ def entity_view_primitives(doc: Document, eid: str, axis: str, override_params: 
             seg=_junction_plan_segment(doc,e)
             if seg is None:return []
             return [ViewPrimitive('line',seg,entity_id=eid,role='organic-junction',meta=(('semantic','organic_junction'),('component_a',a_id),('component_b',b_id)))]
-        from archforge.organic.biospectre import junction_section_polygon
-        section=junction_section_polygon(a.params,b.params)
-        if section is None:return []
-        pts=tuple((pt[0] if axis=='XZ' else pt[1],pt[2]) for pt in section)
-        return [ViewPrimitive('polygon',pts,entity_id=eid,role='organic-junction',meta=(('semantic','organic_junction'),('component_a',a_id),('component_b',b_id)))]
-    if e.kind in ('door','window'):
-        if not e.parent_id or e.parent_id not in doc.entities:return []
-        host=doc.get(e.parent_id)
-        if host.kind=='wall':
-            from archforge.architecture.openings import plan_segment,elevation_rect
-            if axis=='XY':
-                a,b=plan_segment(host.params,p);return [ViewPrimitive('line',(a,b),entity_id=eid,role='opening',meta=(('semantic',e.kind),('host',e.parent_id)))]
-            rect=elevation_rect(host.params,p,axis);return [ViewPrimitive('polygon',tuple(rect),entity_id=eid,role='opening',meta=(('semantic',e.kind),('host',e.parent_id)))]
-        if host.kind=='pod':
-            from archforge.architecture.openings import pod_opening_plan_segment,pod_opening_junction_conflict
-            if pod_opening_junction_conflict(doc,eid) is not None:return []
-            a,b=pod_opening_plan_segment(host.params,{**p,'_kind':e.kind})
-            if axis=='XY':
-                return [ViewPrimitive('line',(a,b),entity_id=eid,role='opening',meta=(('semantic',e.kind),('host',e.parent_id)))]
-            floor=float(host.params['floor_level']);sill=float(p.get('sill',0.0));height=float(p['height'])
-            z0=floor+sill;z1=z0+height
-            c0=a[0] if axis=='XZ' else a[1];c1=b[0] if axis=='XZ' else b[1]
-            lo,hi=min(c0,c1),max(c0,c1)
-            return [ViewPrimitive('polygon',((lo,z0),(hi,z0),(hi,z1),(lo,z1)),entity_id=eid,role='opening',meta=(('semantic',e.kind),('host',e.parent_id)))]
-    if e.kind=='arboreal_branch':
-        from archforge.organic.arboreal import arboreal_branch_geometry
-        geom=arboreal_branch_geometry(doc,eid)
-        s,t=geom['start'],geom['end']
-        if axis=='XY':pts=((s[0],s[1]),(t[0],t[1]))
-        elif axis=='XZ':pts=((s[0],s[2]),(t[0],t[2]))
-        else:pts=((s[1],s[2]),(t[1],t[2]))
-        return [ViewPrimitive('line',pts,entity_id=eid,role='arboreal-branch',meta=(('semantic','arboreal_branch'),('engineering_verified',False)))]
+        return []
     return []
-
-
-def build_view_frame(doc: Document, axis: str, overrides: Optional[Dict[str, Dict[str, Any]]] = None) -> ViewFrame:
-    if axis not in ('XY','XZ','YZ'):raise ValueError('axis must be XY, XZ or YZ')
-    f=ViewFrame(axis);overrides=overrides or {}
-    for eid in doc.entities:f.primitives.extend(entity_view_primitives(doc,eid,axis,overrides.get(eid)))
-    return f
-
-
-def elevation_top_handle(doc: Document, eid: str, axis: str, override_params: Optional[Dict[str, Any]] = None) -> Optional[Point2]:
-    if axis not in ('XZ','YZ'):raise ValueError('elevation handle requires XZ or YZ')
-    e=doc.get(eid);p=override_params if override_params is not None else e.params
-    if e.kind=='wall':
-        a0=p['x1'] if axis=='XZ' else p['y1'];a1=p['x2'] if axis=='XZ' else p['y2'];return ((a0+a1)/2.0,p['z']+p['height'])
-    if e.kind=='box':
-        corners=_box_xy_corners(p);vals=[q[0] for q in corners] if axis=='XZ' else [q[1] for q in corners];return ((min(vals)+max(vals))/2.0,p['z']+p['height'])
-    if e.kind=='pod':
-        center=p['cx'] if axis=='XZ' else p['cy'];return (center,p['floor_level']+p['height'])
-    return None
