@@ -20,8 +20,8 @@ def _pod(pod_id, cx, cy, diameter_x, diameter_y, rotation):
     )
 
 
-def test_rotated_elliptical_pod_junction_projection_remains_explicitly_unsupported():
-    """Do not label an unimplemented rotated-ellipse elevation as exact clipping."""
+def test_rotated_elliptical_pod_junction_projection_is_exactly_supported():
+    """A rotated ellipse uses its exact world-axis support radius before junction clipping."""
     doc = Document()
     a = _pod("pod-a", 0.0, 0.0, 8.0, 6.0, 45.0)
     b = _pod("pod-b", 6.0, 0.0, 8.0, 8.0, 0.0)
@@ -43,5 +43,9 @@ def test_rotated_elliptical_pod_junction_projection_remains_explicitly_unsupport
     frame = build_view_frame(doc, "XZ")
     projected = next(p for p in frame.primitives if p.entity_id == "pod-a")
 
-    assert projected.role == "pod-junction-unclipped-unsupported"
-    assert dict(projected.meta).get("junction_projection") == "unsupported"
+    assert projected.role == "pod-junction-clipped"
+    assert dict(projected.meta).get("junction_projection") == "supported-rotated-ellipse"
+    # Rotation changes the X support radius from 4.0 to sqrt((4 cos45)^2 + (3 sin45)^2).
+    expected_radius = (12.5) ** 0.5
+    xs = [point[0] for point in projected.points]
+    assert abs(min(xs) + expected_radius) < 1e-9
