@@ -62,12 +62,12 @@ def _clip_polygon_axis(points, limit, keep_positive, tolerance=1e-9):
 
 
 def _pod_supported_orthographic_polygon(doc: Document, pod_id: str, axis: str, p):
-    """Return deterministic elevation geometry when the junction projects axis-aligned.
+    """Return deterministic elevation geometry for proven projection cases.
 
-    The horizontal silhouette is the exact support function of the pod's rotated plan
-    ellipse along the requested world axis. Junction separators still come from the
-    authoritative organic-junction geometry. Oblique projected separators remain
-    explicitly unsupported rather than being approximated here.
+    Circular pods retain the issue-66 axis-aligned contract. Issue 68 additionally
+    proves rotated non-circular ellipses via their exact world-axis support function.
+    Axis-aligned non-circular ellipses and oblique projected separators remain explicit
+    unsupported boundaries until independently covered by a regression contract.
     """
     from archforge.organic.biospectre import junction_plane, junction_section_polygon
     active=[]
@@ -83,7 +83,12 @@ def _pod_supported_orthographic_polygon(doc: Document, pod_id: str, axis: str, p
     if not active:return None
 
     dx=float(p['diameter_x']);dy=float(p['diameter_y'])
-    theta=radians(float(p.get('rotation',0.0)))
+    rotation=float(p.get('rotation',0.0))
+    non_circular=abs(dx-dy)>1e-9
+    rotated=abs(rotation)%180.0>1e-9
+    if non_circular and not rotated:
+        return False
+    theta=radians(rotation)
     semi_x=dx/2.0;semi_y=dy/2.0
     if axis=='XZ':
         center=float(p['cx'])
