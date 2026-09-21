@@ -85,7 +85,7 @@ def _pod_supported_orthographic_polygon(doc: Document, pod_id: str, axis: str, p
     dx=float(p['diameter_x']);dy=float(p['diameter_y'])
     rotation=float(p.get('rotation',0.0))
     non_circular=abs(dx-dy)>1e-9
-    rotated=abs(rotation)%180.0>1e-9
+    rotated=abs(rotation)%90.0>1e-9
     if non_circular and not rotated:
         return False
     theta=radians(rotation)
@@ -162,7 +162,7 @@ def entity_view_primitives(doc: Document, eid: str, axis: str, override_params: 
             clipped=_pod_supported_orthographic_polygon(doc,eid,axis,p)
             if clipped:
                 non_circular=abs(float(p['diameter_x'])-float(p['diameter_y']))>1e-9
-                rotated=abs(float(p.get('rotation',0.0)))%180.0>1e-9
+                rotated=abs(float(p.get('rotation',0.0)))%90.0>1e-9
                 projection='supported-rotated-ellipse' if non_circular and rotated else 'supported-axis-aligned'
                 return [ViewPrimitive('polygon',clipped,entity_id=eid,role='pod-junction-clipped',meta=(('top',z1),('semantic','pod'),('junction_projection',projection)))]
             return [ViewPrimitive('upper_ellipse',((center,z0),),radius,p['height'],eid,role='pod-junction-unclipped-unsupported',meta=(('top',z1),('semantic','pod'),('junction_projection','unsupported')))]
