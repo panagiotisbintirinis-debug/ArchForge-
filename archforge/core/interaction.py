@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from math import hypot,atan2,degrees
 from typing import Optional,Tuple,Dict,Any,Sequence
 from .model import Document,Entity
-from .commands import CommandStack,AddEntity,UpdateEntity,MoveEntities,RotateEntities
+from .commands import CommandStack,AddEntity,UpdateEntity,MoveEntities
 from .snapping import best_snap
 
 @dataclass
@@ -121,7 +121,7 @@ class BoxStretchTransaction:
 
 class RotateTransaction:
     def __init__(self,doc,stack,eid,pivot=None,angle_increment=15.0):
-        self.doc,self.stack,self.eid=doc,stack,eid;self.before=doc.get(eid).params.copy();self.preview=self.before.copy();self.angle_increment=float(angle_increment) if angle_increment else None;self.angle=0.0;e=doc.get(eid);p=e.params
+        self.doc,self.stack,self.eid=doc,stack,eid;self.before=doc.get(eid).params.copy();self.preview=self.before.copy();self.angle_increment=float(angle_increment) if angle_increment else None;e=doc.get(eid);p=e.params
         if pivot is not None:self.pivot=pivot
         elif e.kind=='box':self.pivot=(p['x'],p['y'])
         elif e.kind=='pod':self.pivot=(p['cx'],p['cy'])
@@ -130,17 +130,16 @@ class RotateTransaction:
     def update_angle(self,angle_deg,snap=True):
         a=float(angle_deg)
         if snap and self.angle_increment:a=round(a/self.angle_increment)*self.angle_increment
-        self.angle=a
         from math import radians,cos,sin
         r=radians(a);c,s=cos(r),sin(r);px,py=self.pivot;p=self.before.copy();e=self.doc.get(self.eid)
-        if e.kind=='box':p['rotation']=(p.get('rotation',0.0)+a)%360.0
+        if e.kind=='box':p['rotation']=p.get('rotation',0.0)+a
         elif e.kind=='wall':
             def rot(x,y):dx,dy=x-px,y-py;return px+dx*c-dy*s,py+dx*s+dy*c
             p['x1'],p['y1']=rot(p['x1'],p['y1']);p['x2'],p['y2']=rot(p['x2'],p['y2'])
-        elif e.kind=='pod':p['rotation']=(p.get('rotation',0.0)+a)%360.0
+        elif e.kind=='pod':p['rotation']=p.get('rotation',0.0)+a
         self.preview=p;return HUD({'angle_deg':a,'pivot_x':px,'pivot_y':py})
     def update_pointer(self,x,y,start_angle_deg=0.0,snap=True):return self.update_angle(degrees(atan2(y-self.pivot[1],x-self.pivot[0]))-float(start_angle_deg),snap)
-    def commit(self):self.stack.execute(RotateEntities([self.eid],self.angle,pivot=self.pivot))
+    def commit(self):self.stack.execute(UpdateEntity(self.eid,self.preview))
     def cancel(self):self.preview=self.before.copy()
 
 class WallEndpointStretchTransaction:
@@ -214,28 +213,56 @@ class OpeningPlaceTransaction:
         host=self.doc.get(self.host_id)
         from archforge.architecture.openings import validate_opening,validate_pod_opening
         if host.kind=='wall':validate_opening(host.params,self.preview,self.kind)
-        else:validate_pod_opening(host.params,self.preview,self.kind)
-        p={**self.preview,'host_id':self.host_id,'host_kind':host.kind};e=Entity(self.kind,p,name=self.kind.title());self.stack.execute(AddEntity(e));return e.id
+        elif host.kind=='pod':validate_pod_opening(host.params,self.preview,self.kind)
+        else:raise ValueError('opening host must be a wall or pod')
+        e=Entity(self.kind,dict(self.preview),name=self.kind.title(),parent_id=self.host_id)
+        if host.kind=='pod':
+            from .opening_commands import AddOpeningEntity
+            self.stack.execute(AddOpeningEntity(e))
+        else:self.stack.execute(AddEntity(e))
+        return e.id
     def cancel(self):self.cancelled=True
 
 class OpeningEditTransaction:
-    def __init__(self,doc,stack,eid,handle):
-        self.doc,self.stack,self.eid,self.handle=doc,stack,eid,handle;self.before=doc.get(eid).params.copy();self.preview=self.before.copy();self.kind=doc.get(eid).kind
+    """Move/stretch an opening in its host's semantic frame."""
+    def __init__(self,doc,stack,eid,handle='move'):
+        e=doc.get(eid)
+        if e.kind not in ('door','window'):raise ValueError('opening edit requires door/window')
+        if not e.parent_id or e.parent_id not in doc.entities or doc.get(e.parent_id).kind not in ('wall','pod'):raise ValueError('opening has no valid wall/pod host')
+        if handle not in ('move','left','right'):raise ValueError('opening handle must be move, left or right')
+        self.doc,self.stack,self.eid,self.handle=doc,stack,eid,handle
+        self.kind=e.kind;self.host_id=e.parent_id;self.before=e.params.copy();self.preview=e.params.copy();self.cancelled=False
     def update(self,x,y):
-        from archforge.architecture.openings import nearest_opening_host,validate_opening,validate_pod_opening
-        p=self.before.copy();host=self.doc.get(p['host_id'])
-        if host.kind=='wall':
-            hit=nearest_opening_host(self.doc,x,y,10**9)
-            if hit and hit['host_id']==host.id:p['offset']=hit['offset']
-            validate_opening(host.params,p,self.kind)
+        host=self.doc.get(self.host_id);p=self.before.copy()
+        if host.kind=='pod':
+            from archforge.architecture.openings import project_to_pod,validate_pod_opening
+            u,px,py,distance=project_to_pod(host.params,x,y)
+            if self.handle=='move':p['surface_u']=u
+            else:
+                from archforge.architecture.openings import pod_opening_plan_segment
+                a,b=pod_opening_plan_segment(host.params,{**self.before,'_kind':self.kind});fixed=b if self.handle=='left' else a
+                width=hypot(float(x)-fixed[0],float(y)-fixed[1])
+                if width<=1e-9:raise ValueError('opening width must remain positive')
+                p['width']=width
+                mu,_,_,_=project_to_pod(host.params,(float(x)+fixed[0])/2.0,(float(y)+fixed[1])/2.0);p['surface_u']=mu
+            validate_pod_opening(host.params,p,self.kind);self.preview=p
+            return HUD({'surface_u':p['surface_u'],'width':p['width'],'height':p['height'],'sill':p['sill'],'distance':distance,'x':px,'y':py,'valid':1.0})
+        from archforge.architecture.openings import project_to_wall,validate_opening
+        wall=host.params;projected,px,py,distance=project_to_wall(wall,x,y)
+        if self.handle=='move':p['offset']=projected
         else:
-            hit=nearest_opening_host(self.doc,x,y,10**9)
-            if hit and hit['host_id']==host.id:p['surface_u']=hit['surface_u']
-            validate_pod_opening(host.params,p,self.kind)
-        self.preview=p;return HUD({'valid':1.0})
+            left=self.before['offset']-self.before['width']/2;right=self.before['offset']+self.before['width']/2
+            if self.handle=='left':left=projected
+            else:right=projected
+            if right-left<=1e-9:raise ValueError('opening width must remain positive')
+            p['offset']=(left+right)/2;p['width']=right-left
+        validate_opening(wall,p,self.kind);self.preview=p
+        return HUD({'offset':p['offset'],'width':p['width'],'height':p['height'],'sill':p['sill'],'distance':distance,'x':px,'y':py,'valid':1.0})
     def preview_segment(self):
         from archforge.architecture.openings import plan_segment,pod_opening_plan_segment
-        host=self.doc.get(self.preview['host_id'])
+        host=self.doc.get(self.host_id)
         return plan_segment(host.params,self.preview) if host.kind=='wall' else pod_opening_plan_segment(host.params,{**self.preview,'_kind':self.kind})
-    def commit(self):self.stack.execute(UpdateEntity(self.eid,self.preview))
-    def cancel(self):self.preview=self.before.copy()
+    def commit(self):
+        if self.cancelled:raise RuntimeError('transaction cancelled')
+        self.stack.execute(UpdateEntity(self.eid,self.preview));return self.eid
+    def cancel(self):self.cancelled=True;self.preview=self.before.copy()
