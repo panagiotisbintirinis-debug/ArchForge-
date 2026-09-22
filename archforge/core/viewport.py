@@ -3,8 +3,8 @@ from dataclasses import dataclass, field
 from typing import Dict, Any, Optional, Tuple, List
 import copy
 from .model import Document
-from .commands import CommandStack, MoveEntities
-from .interaction import WallDrawTransaction,WallEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction,OpeningPlaceTransaction,OpeningEditTransaction
+from .commands import CommandStack
+from .interaction import MoveTransaction,WallDrawTransaction,WallEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction,OpeningPlaceTransaction,OpeningEditTransaction
 from .wall_junction import ConnectedWallEndpointStretchTransaction
 from .snapping import best_snap
 
@@ -32,7 +32,7 @@ class IncrementalViewportAdapter:
 
 class PointerController:
     def __init__(self,doc,stack):
-        self.doc=doc;self.stack=stack;self.tool='select';self.active=None;self.active_entity=None;self.active_handle=None;self.preview=PreviewState();self.grid=.1;self.snap_tolerance=.15;self.angle_increment=15.;self._move_start=None;self._move_before=None
+        self.doc=doc;self.stack=stack;self.tool='select';self.active=None;self.active_entity=None;self.active_handle=None;self.preview=PreviewState();self.grid=.1;self.snap_tolerance=.15;self.angle_increment=15.
     def set_tool(self,tool):
         if self.active is not None:self.cancel()
         self.tool=tool;self.preview=PreviewState()
@@ -59,7 +59,7 @@ class PointerController:
             if len(ids)==1 and self.doc.get(ids[0]).kind in ('door','window'):
                 self.active=OpeningEditTransaction(self.doc,self.stack,ids[0],'move')
                 hud=self.active.update(x,y);seg=self.active.preview_segment();geom={'opening_kind':self.active.kind,'host_id':self.active.host_id,'params':copy.deepcopy(self.active.preview),'x1':seg[0][0],'y1':seg[0][1],'x2':seg[1][0],'y2':seg[1][1]};self.preview=PreviewState('opening-edit',geom,hud.values,None,ids[0]);return self.preview
-            self._move_start=(x,y);self._move_before={eid:copy.deepcopy(self.doc.get(eid).params) for eid in ids};self.active='move';self.preview=PreviewState('move',{'entities':copy.deepcopy(self._move_before)},{'dx':0.,'dy':0.},None);return self.preview
+            self.active=MoveTransaction(self.doc,self.stack,ids,origin=(x,y,self.doc.work_plane.origin[2]),grid=self.grid,snap_tol=self.snap_tolerance);self.preview=PreviewState('move',{'entities':copy.deepcopy(self.active.preview)},{'dx':0.,'dy':0.,'distance':0.},None);return self.preview
         if self.tool=='stretch':
             if not self.active_entity or self.active_entity not in self.doc.entities:return self.preview
             e=self.doc.get(self.active_entity)
@@ -91,15 +91,9 @@ class PointerController:
         elif isinstance(self.active,OpeningEditTransaction):
             hud=self.active.update(x,y);seg=self.active.preview_segment();geom={'opening_kind':self.active.kind,'host_id':self.active.host_id,'params':copy.deepcopy(self.active.preview),'x1':seg[0][0],'y1':seg[0][1],'x2':seg[1][0],'y2':seg[1][1]}
             self.preview=PreviewState('opening-edit',geom,hud.values,None,self.active.eid)
-        elif self.active=='move' and self._move_start is not None:
-            dx=x-self._move_start[0];dy=y-self._move_start[1];previews={}
-            for eid,p0 in self._move_before.items():
-                e=self.doc.get(eid);p=copy.deepcopy(p0)
-                if e.kind=='box':p.update(x=p0['x']+dx,y=p0['y']+dy)
-                elif e.kind=='wall':p.update(x1=p0['x1']+dx,x2=p0['x2']+dx,y1=p0['y1']+dy,y2=p0['y2']+dy)
-                elif e.kind=='pod':p.update(cx=p0['cx']+dx,cy=p0['cy']+dy)
-                previews[eid]=p
-            self.preview=PreviewState('move',{'entities':previews},{'dx':dx,'dy':dy,'distance':(dx*dx+dy*dy)**.5},None)
+        elif isinstance(self.active,MoveTransaction):
+            hud=self.active.update_pointer(x,y,snap=False);values=dict(hud.values);values['distance']=(self.active.dx*self.active.dx+self.active.dy*self.active.dy)**.5
+            self.preview=PreviewState('move',{'entities':copy.deepcopy(self.active.preview)},values,None)
         return self.preview
     def pointer_up(self,ev,exact=None):
         if self.active is None:return self.preview
@@ -107,10 +101,9 @@ class PointerController:
         if isinstance(self.active,WallDrawTransaction):committed_id=self.active.commit((exact or {}).get('length'))
         elif isinstance(self.active,(ConnectedWallEndpointStretchTransaction,WallEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction,OpeningEditTransaction)):self.active.commit();committed_id=getattr(self.active,'eid',None)
         elif isinstance(self.active,OpeningPlaceTransaction):committed_id=self.active.commit()
-        elif self.active=='move':
-            dx=self.preview.hud.get('dx',0.);dy=self.preview.hud.get('dy',0.)
-            if abs(dx)>1e-12 or abs(dy)>1e-12:self.stack.execute(MoveEntities(list(self.doc.selection),dx,dy,0.))
-        result=self.preview;result.entity_id=committed_id;self.active=None;self._move_start=None;self._move_before=None;return result
+        elif isinstance(self.active,MoveTransaction):
+            if abs(self.active.dx)>1e-12 or abs(self.active.dy)>1e-12 or abs(self.active.dz)>1e-12:self.active.commit()
+        result=self.preview;result.entity_id=committed_id;self.active=None;return result
     def cancel(self):
         if hasattr(self.active,'cancel'):self.active.cancel()
-        self.active=None;self._move_start=None;self._move_before=None;self.preview=PreviewState()
+        self.active=None;self.preview=PreviewState()
