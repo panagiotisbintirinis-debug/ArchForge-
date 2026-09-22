@@ -1,7 +1,7 @@
 import pytest
 import copy
 from archforge.core.model import Document, Entity
-from archforge.core.commands import CommandStack
+from archforge.core.commands import CommandStack, RotateEntities
 from archforge.core.interaction import (
     MoveTransaction,
     RotateTransaction,
@@ -130,6 +130,37 @@ def test_rotate_operation_manual_transaction_vs_ai_command_equivalence():
     assert res.success is True
 
     assert doc_manual.to_dict() == doc_ai.to_dict()
+    stack_manual.undo()
+    stack_ai.undo()
+    assert doc_manual.to_dict() == doc_ai.to_dict()
+    stack_manual.redo()
+    stack_ai.redo()
+    assert doc_manual.to_dict() == doc_ai.to_dict()
+
+
+def test_pointer_controller_rotate_uses_shared_command_and_matches_ai_state():
+    """The real pointer rotate path must commit RotateEntities and converge with public AI rotate."""
+    doc_manual = create_baseline_document()
+    stack_manual = CommandStack(doc_manual)
+    controller = PointerController(doc_manual, stack_manual)
+    controller.set_target("box_main")
+    controller.set_tool("rotate")
+
+    controller.pointer_down(PointerEvent(3.0, 2.0))
+    assert isinstance(controller.active, RotateTransaction)
+    preview = controller.pointer_move(PointerEvent(2.0, 3.0, shift=True))
+    assert preview.hud["angle_deg"] == pytest.approx(90.0)
+    controller.pointer_up(PointerEvent(2.0, 3.0, shift=True))
+
+    assert isinstance(stack_manual.undo_stack[-1], RotateEntities)
+
+    doc_ai = create_baseline_document()
+    stack_ai = CommandStack(doc_ai)
+    ai_client = ArchForgeAIClient(doc_ai, stack_ai)
+    res = ai_client.rotate_entities(["box_main"], angle_deg=90.0)
+    assert res.success is True
+    assert doc_manual.to_dict() == doc_ai.to_dict()
+
     stack_manual.undo()
     stack_ai.undo()
     assert doc_manual.to_dict() == doc_ai.to_dict()
