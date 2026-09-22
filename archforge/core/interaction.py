@@ -1,14 +1,85 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from math import hypot,atan2,degrees
-from typing import Optional,Tuple,Dict,Any
+from typing import Optional,Tuple,Dict,Any,Sequence
 from .model import Document,Entity
-from .commands import CommandStack,AddEntity,UpdateEntity
+from .commands import CommandStack,AddEntity,UpdateEntity,MoveEntities
 from .snapping import best_snap
 
 @dataclass
 class HUD:
     values: Dict[str,float]
+
+class MoveTransaction:
+    """Translate one or more entities via pointer/gizmo interaction."""
+    def __init__(self, doc: Document, stack: CommandStack, entity_ids: Sequence[str], origin: Optional[Tuple[float, float, float]] = None, grid: float = 0.1, snap_tol: float = 0.15):
+        self.doc, self.stack = doc, stack
+        self.ids = [str(eid) for eid in entity_ids]
+        missing = [eid for eid in self.ids if eid not in doc.entities]
+        if missing:
+            raise KeyError(f"Entities not found: {missing}")
+        self.origin = origin if origin is not None else (0.0, 0.0, 0.0)
+        self.grid = grid
+        self.snap_tol = snap_tol
+        self.dx = 0.0
+        self.dy = 0.0
+        self.dz = 0.0
+        self.cancelled = False
+        self.before = {eid: doc.get(eid).params.copy() for eid in self.ids}
+        self.preview = {eid: doc.get(eid).params.copy() for eid in self.ids}
+
+    def update_delta(self, dx: float, dy: float, dz: float = 0.0) -> HUD:
+        self.dx = float(dx)
+        self.dy = float(dy)
+        self.dz = float(dz)
+        self._compute_preview()
+        return HUD({'dx': self.dx, 'dy': self.dy, 'dz': self.dz})
+
+    def update_pointer(self, x: float, y: float, z: Optional[float] = None, snap: bool = True) -> HUD:
+        px, py = x, y
+        if snap:
+            sp = best_snap(self.doc, x, y, self.snap_tol, self.grid)
+            if sp:
+                px, py = sp.x, sp.y
+        self.dx = px - self.origin[0]
+        self.dy = py - self.origin[1]
+        self.dz = (z - self.origin[2]) if z is not None else 0.0
+        self._compute_preview()
+        return HUD({'dx': self.dx, 'dy': self.dy, 'dz': self.dz, 'x': px, 'y': py})
+
+    def _compute_preview(self):
+        self.preview = {}
+        for eid in self.ids:
+            p = self.before[eid].copy()
+            e = self.doc.get(eid)
+            if e.kind in ('box', 'mechanical_part'):
+                p['x'] = p['x'] + self.dx
+                p['y'] = p['y'] + self.dy
+                p['z'] = p['z'] + self.dz
+            elif e.kind == 'wall':
+                p['x1'] = p['x1'] + self.dx
+                p['x2'] = p['x2'] + self.dx
+                p['y1'] = p['y1'] + self.dy
+                p['y2'] = p['y2'] + self.dy
+                p['z'] = p['z'] + self.dz
+            elif e.kind == 'pod':
+                p['cx'] = p['cx'] + self.dx
+                p['cy'] = p['cy'] + self.dy
+                p['floor_level'] = p['floor_level'] + self.dz
+            elif e.kind in ('floor', 'room'):
+                p['points'] = [(qx + self.dx, qy + self.dy) for qx, qy in p['points']]
+                p['z'] = p['z'] + self.dz
+            self.preview[eid] = p
+
+    def commit(self):
+        if self.cancelled:
+            raise RuntimeError('transaction cancelled')
+        self.stack.execute(MoveEntities(self.ids, dx=self.dx, dy=self.dy, dz=self.dz))
+
+    def cancel(self):
+        self.cancelled = True
+        self.preview = {eid: self.before[eid].copy() for eid in self.ids}
+
 
 class WallDrawTransaction:
     def __init__(self,doc:Document,stack:CommandStack,start:Tuple[float,float],z=0.0,height=2.7,thickness=0.15,grid=0.1,snap_tol=0.15):
