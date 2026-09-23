@@ -84,6 +84,10 @@ class MainWindow(QMainWindow):
         redo.triggered.connect(self._redo)
         toolbar.addAction(redo)
         toolbar.addSeparator()
+        new_action = QAction('New', self)
+        new_action.setShortcut(QKeySequence.StandardKey.New)
+        new_action.triggered.connect(self.new_project)
+        toolbar.addAction(new_action)
         save = QAction('Save', self)
         save.setShortcut(QKeySequence.StandardKey.Save)
         save.triggered.connect(self.save)
@@ -188,6 +192,19 @@ class MainWindow(QMainWindow):
         self._redraw_views()
         self.refresh_inspector()
 
+    def _replace_project(self, doc, path=None):
+        self.doc = doc
+        self.stack = CommandStack(self.doc)
+        for view in (self.plan_view, self.front_view, self.side_view, self.view_3d):
+            view.rebind(self.doc, self.stack)
+        self.current_path = path
+        self._redraw_views(all_views=True)
+        self.refresh_inspector()
+
+    def new_project(self):
+        self._replace_project(Document())
+        self.statusBar().showMessage('New project', 3000)
+
     def save(self):
         path = self.current_path
         if not path:
@@ -204,15 +221,7 @@ class MainWindow(QMainWindow):
         if not path:
             return
         try:
-            self.doc = Document.load(path)
-            self.stack = CommandStack(self.doc)
-            self.plan_view.rebind(self.doc, self.stack)
-            self.front_view.rebind(self.doc, self.stack)
-            self.side_view.rebind(self.doc, self.stack)
-            self.view_3d.rebind(self.doc, self.stack)
-            self.current_path = path
-            self._redraw_views()
-            self.refresh_inspector()
+            self._replace_project(Document.load(path), path)
         except Exception as exc:
             QMessageBox.critical(self, 'Open failed', str(exc))
 
