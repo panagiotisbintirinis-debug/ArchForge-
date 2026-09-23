@@ -59,9 +59,9 @@ def _pod_mesh(p,segments=32,rings=12):
   for i in range(segments):n=(i+1)%segments;a=j*segments+i;b=j*segments+n;c=(j+1)*segments+n;d=(j+1)*segments+i;tris.extend(((a,b,c),(a,c,d)));roles.extend(('pod_shell','pod_shell'))
  return MeshPayload(tuple(v),tuple(tris),tuple(roles))
 
-def _conduit_mesh(p, segments=12):
- path=[tuple(map(float,point)) for point in p['path_vertices']]
- radius=float(p['diameter'])/2.0
+def generate_conduit_topology(path_vertices, diameter, segments=12):
+ path=[tuple(map(float,point)) for point in path_vertices]
+ radius=float(diameter)/2.0
  n=max(8,int(segments))
  rings=[]
  for i,center in enumerate(path):
@@ -82,25 +82,20 @@ def _conduit_mesh(p, segments=12):
   w=(u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0])
   ring=[]
   for j in range(n):
-   angle=2.0*math.pi*j/n;c,s=math.cos(angle),math.sin(angle)
-   ring.append(tuple(center[k]+radius*(c*v[k]+s*w[k]) for k in range(3)))
+   angle=2.0*math.pi*j/n;c,sn=math.cos(angle),math.sin(angle)
+   ring.append(tuple(center[k]+radius*(c*v[k]+sn*w[k]) for k in range(3)))
   rings.append(ring)
- verts=[point for ring in rings for point in ring]
- start_center=len(verts);verts.append(path[0])
- end_center=len(verts);verts.append(path[-1])
- tris=[];roles=[]
+ vertices=[point for ring in rings for point in ring]
+ faces=[]
  for ring_index in range(len(rings)-1):
   a0=ring_index*n;b0=(ring_index+1)*n
   for j in range(n):
    q=(j+1)%n
-   tris.extend(((a0+j,a0+q,b0+q),(a0+j,b0+q,b0+j)))
-   roles.extend(('conduit_shell','conduit_shell'))
- for j in range(n):
-  q=(j+1)%n
-  tris.append((start_center,q,j));roles.append('conduit_start')
-  base=(len(rings)-1)*n
-  tris.append((end_center,base+j,base+q));roles.append('conduit_end')
- return MeshPayload(tuple(verts),tuple(tris),tuple(roles))
+   faces.append((a0+j,a0+q,b0+q,b0+j))
+ faces.append(tuple(reversed(range(n))))
+ base=(len(rings)-1)*n
+ faces.append(tuple(base+j for j in range(n)))
+ return tuple(vertices),tuple(faces)
 
 def _authoritative_mesh(p):
  vertices=[tuple(map(float,point)) for point in p['vertices']]
@@ -297,7 +292,6 @@ def _payload(doc,node):
  if k in('box','mechanical_part'):return _box_mesh(p,node.transform)
  if k=='pod':return _pod_mesh_for_node(doc,node)
  if k=='mesh':return _authoritative_mesh(p)
- if k=='conduit':return _conduit_mesh(p)
  if k=='arboreal_branch':return _arboreal_branch_mesh(doc,node)
  if k=='organic_junction':return _organic_junction_mesh(doc,node)
  if k=='organic_opening_patch':return _organic_opening_patch_mesh(doc,node)
