@@ -152,7 +152,7 @@ def test_pointer_controller_rotate_uses_shared_command_and_matches_ai_state():
     assert preview.hud["angle_deg"] == pytest.approx(90.0)
     controller.pointer_up(PointerEvent(2.0, 3.0, shift=True))
 
-    assert isinstance(stack_manual.undo_stack[-1], RotateEntities)
+    assert isinstance(stack_manual.done[-1], RotateEntities)
 
     doc_ai = create_baseline_document()
     stack_ai = CommandStack(doc_ai)
