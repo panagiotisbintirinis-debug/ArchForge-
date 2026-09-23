@@ -32,6 +32,16 @@ class IncrementalEvaluationCache:
         self._initialized = False
         self._joint_key = ()
 
+
+    def invalidate(self, entity_ids=None) -> None:
+        """Invalidate cached observations without touching authoritative Document state."""
+        if entity_ids is None:
+            self._seen_generation.clear()
+            self._initialized = False
+            return
+        for entity_id in entity_ids:
+            self._seen_generation.pop(str(entity_id), None)
+
     def _evaluation(self) -> GeometryEvaluation:
         bodies = tuple(self._bodies[eid] for eid in sorted(self._bodies))
         issues = list(self._global_issues)
