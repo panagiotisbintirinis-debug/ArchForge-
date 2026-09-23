@@ -65,7 +65,9 @@ class OrthoView(QGraphicsView):
         self._scene.clear();self._entity_items.clear();self._handle_items.clear();self._draw_grid();frame=build_view_frame(self.doc,self.axis,self._preview_overrides);selected=set(self.doc.selection)
         for p in frame.primitives:self._draw_primitive(p,p.entity_id in selected)
         for eid in self.doc.selection:
-            if eid not in self.doc.entities or self.doc.get(eid).locked:continue
+            if eid not in self.doc.entities:continue
+            entity=self.doc.get(eid)
+            if entity.locked or not self.doc.entity_is_visible(entity):continue
             e=self.doc.get(eid);override=self._preview_overrides.get(eid)
             if e.kind in ('door','window'):
                 for handle,x,z in opening_elevation_handles(self.doc,eid,self.axis,override):self._draw_handle(eid,x,z,handle)
