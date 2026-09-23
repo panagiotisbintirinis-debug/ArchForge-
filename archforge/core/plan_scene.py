@@ -94,11 +94,37 @@ def _opening_segment(doc,e):
         if pod_opening_junction_conflict(doc,e.id) is not None:return None
         return pod_opening_plan_segment(host.params,{**e.params,'_kind':e.kind})
     return None
+def _mesh_world_vertices(p):
+    m=[float(v) for v in p['matrix']]
+    out=[]
+    for x,y,z in p['vertices']:
+        out.append((
+            m[0]*x+m[1]*y+m[2]*z+m[3],
+            m[4]*x+m[5]*y+m[6]*z+m[7],
+            m[8]*x+m[9]*y+m[10]*z+m[11],
+        ))
+    return out
+
+def _convex_hull_xy(points):
+    pts=sorted(set((float(x),float(y)) for x,y,*_ in points))
+    if len(pts)<=2:return tuple(pts)
+    def cross(o,a,b):return (a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0])
+    lower=[]
+    for p in pts:
+        while len(lower)>=2 and cross(lower[-2],lower[-1],p)<=0:lower.pop()
+        lower.append(p)
+    upper=[]
+    for p in reversed(pts):
+        while len(upper)>=2 and cross(upper[-2],upper[-1],p)<=0:upper.pop()
+        upper.append(p)
+    return tuple(lower[:-1]+upper[:-1])
+
 def entity_primitive(doc,eid):
     e=doc.get(eid);p=e.params
     if not e.visible:return None
     if e.kind=='wall':return Primitive2D('line',((p['x1'],p['y1']),(p['x2'],p['y2'])),entity_id=eid,meta=(('thickness',p['thickness']),))
     if e.kind=='box':return Primitive2D('polygon',tuple(_box_corners(p)),entity_id=eid)
+    if e.kind=='mesh':return Primitive2D('polygon',_convex_hull_xy(_mesh_world_vertices(p)),entity_id=eid,meta=(('semantic','mesh'),))
     if e.kind=='pod':
         clipped=_pod_plan_polygon(doc,e)
         if clipped is not None:return Primitive2D('polygon',clipped,entity_id=eid,role='pod-junction-clipped',meta=(('semantic','pod'),('junction_clipped',True)))
