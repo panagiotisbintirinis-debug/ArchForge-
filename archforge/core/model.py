@@ -433,6 +433,10 @@ class Document:
     def add(self, entity):
         if entity.id in self.entities:
             raise ValueError('duplicate id')
+        layer_id = int(entity.layer_id)
+        if layer_id <= 0 or layer_id & ~LAYER_ALL or (layer_id & (layer_id - 1)):
+            raise ValueError('entity layer_id must be one known single-bit layer')
+        entity.layer_id = layer_id
         entity.params = validate_params(entity.kind, entity.params)
         self._validate_links(entity)
         self.entities[entity.id] = entity
