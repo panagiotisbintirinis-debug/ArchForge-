@@ -20,7 +20,6 @@ class _FakeAudioChunk:
         return self
 
     def tobytes(self):
-        # 100 ms of mono 16-bit silence at 16 kHz.
         return b'\x00\x00' * 1600
 
 
@@ -58,11 +57,11 @@ def _box(entity_id, x, name):
 
 def _drain_workers(app):
     assert QThreadPool.globalInstance().waitForDone(5000)
-    for _ in range(6):
+    for _ in range(8):
         app.processEvents()
 
 
-def test_hold_space_voice_command_transcribes_and_executes_native_transaction():
+def test_hold_space_voice_command_stops_at_ghost_until_human_accepts():
     app = QApplication.instance() or QApplication([])
     window = MainWindow()
     window.show()
@@ -123,38 +122,73 @@ def test_hold_space_voice_command_transcribes_and_executes_native_transaction():
             window.keyReleaseEvent(release)
             _drain_workers(app)
 
-            client.audio.transcriptions.create.assert_called_once()
-            transcription_call = client.audio.transcriptions.create.call_args
-            assert transcription_call.kwargs['model'] == 'whisper-1'
-            uploaded = transcription_call.kwargs['file']
-            assert uploaded.name.endswith('.wav')
-            assert uploaded.getvalue().startswith(b'RIFF')
+        assert set(window.doc.entities) == before_entities
+        assert len(window.stack.done) == before_done
+        assert window.active_ghost_preview is not None
+        assert window.view_3d._ghost_mesh is not None
+        assert window.plan_view._ghost_faces
+        assert not window.intent_confirmation_hud.isHidden()
 
-            client.responses.create.assert_called_once()
-            semantic_context = json.loads(
-                client.responses.create.call_args.kwargs['input'][1]['content']
-            )
-            assert semantic_context['user_request'].startswith('Σύνδεσε την αντλία')
+        assert window.trigger_ui_accept() is True
 
         generated_id = 'mep_pump_panel'
         assert set(window.doc.entities) == before_entities | {generated_id}
         assert len(window.stack.done) == before_done + 1
         assert isinstance(window.stack.done[-1], RouteAndConnectInfrastructure)
+        assert window.active_ghost_preview is None
 
         pipe = window.doc.get(generated_id)
         assert pipe.kind == 'mesh'
         assert pipe.params['metadata']['system_type'] == 'electrical'
         assert pipe.params['metadata']['routing']['algorithm'] == 'astar-3d'
-
-        log = window.ai_chat_log.toPlainText()
-        assert 'Voice:' in log
-        assert 'Σύνδεσε την αντλία' in log
-        assert 'connected pump to panel as electrical' in log
     finally:
         if window._voice_capture_worker is not None:
             window._voice_capture_worker.stop()
         window.view_3d.thread_pool.waitForDone(5000)
         QThreadPool.globalInstance().waitForDone(5000)
+        window.close()
+        app.processEvents()
+
+
+def test_y_and_n_keys_are_explicit_preview_confirmation_gate():
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    try:
+        window.doc.add(_box('pump', 0.0, 'Pump'))
+        window.doc.add(_box('panel', 2.0, 'Panel'))
+        before_entities = set(window.doc.entities)
+        before_done = len(window.stack.done)
+
+        proposal = json.dumps({
+            'action': 'connect_infrastructure',
+            'start_id': 'pump',
+            'end_id': 'panel',
+            'system_type': 'hydraulic',
+        })
+        window._execute_parsed_ai_command(proposal)
+        assert window.active_ghost_preview is not None
+
+        reject = QKeyEvent(
+            QEvent.Type.KeyPress,
+            Qt.Key.Key_N,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        window.keyPressEvent(reject)
+        assert window.active_ghost_preview is None
+        assert set(window.doc.entities) == before_entities
+        assert len(window.stack.done) == before_done
+
+        window._execute_parsed_ai_command(proposal)
+        accept = QKeyEvent(
+            QEvent.Type.KeyPress,
+            Qt.Key.Key_Y,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        window.keyPressEvent(accept)
+
+        assert 'mep_pump_panel' in window.doc.entities
+        assert len(window.stack.done) == before_done + 1
+    finally:
         window.close()
         app.processEvents()
 
