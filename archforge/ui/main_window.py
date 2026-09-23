@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import os
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence
@@ -23,6 +24,7 @@ class MainWindow(QMainWindow):
         self.doc = Document()
         self.stack = CommandStack(self.doc)
         self.current_path = None
+        self._clean_state = copy.deepcopy(self.doc.to_dict())
         self.tabs = QTabWidget()
         self.plan_view = PlanView(self.doc, self.stack)
         self.front_view = OrthoView(self.doc, self.stack, 'XZ')
@@ -192,38 +194,81 @@ class MainWindow(QMainWindow):
         self._redraw_views()
         self.refresh_inspector()
 
+    def _authoritative_state(self):
+        return self.doc.to_dict()
+
+    def _is_dirty(self):
+        return self._authoritative_state() != self._clean_state
+
+    def _mark_clean(self):
+        self._clean_state = copy.deepcopy(self._authoritative_state())
+
+    def _confirm_destructive_action(self):
+        if not self._is_dirty():
+            return True
+        choice = QMessageBox.warning(
+            self,
+            'Unsaved changes',
+            'The current project has unsaved changes. Save them before continuing?',
+            QMessageBox.StandardButton.Save
+            | QMessageBox.StandardButton.Discard
+            | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Save,
+        )
+        if choice == QMessageBox.StandardButton.Cancel:
+            return False
+        if choice == QMessageBox.StandardButton.Save:
+            return self.save()
+        return choice == QMessageBox.StandardButton.Discard
+
     def _replace_project(self, doc, path=None):
         self.doc = doc
         self.stack = CommandStack(self.doc)
         for view in (self.plan_view, self.front_view, self.side_view, self.view_3d):
             view.rebind(self.doc, self.stack)
         self.current_path = path
+        self._mark_clean()
         self._redraw_views(all_views=True)
         self.refresh_inspector()
 
     def new_project(self):
+        if not self._confirm_destructive_action():
+            return False
         self._replace_project(Document())
         self.statusBar().showMessage('New project', 3000)
+        return True
 
     def save(self):
         path = self.current_path
         if not path:
             path, _ = QFileDialog.getSaveFileName(self, 'Save ArchForge Project', '', 'ArchForge Project (*.archforge)')
-        if path:
-            if not path.lower().endswith('.archforge'):
-                path += '.archforge'
+        if not path:
+            return False
+        if not path.lower().endswith('.archforge'):
+            path += '.archforge'
+        try:
             self.doc.save(path)
-            self.current_path = path
-            self.statusBar().showMessage(f'Saved {os.path.basename(path)}', 3000)
+        except Exception as exc:
+            QMessageBox.critical(self, 'Save failed', str(exc))
+            return False
+        self.current_path = path
+        self._mark_clean()
+        self.statusBar().showMessage(f'Saved {os.path.basename(path)}', 3000)
+        return True
 
     def open(self):
         path, _ = QFileDialog.getOpenFileName(self, 'Open ArchForge Project', '', 'ArchForge Project (*.archforge)')
         if not path:
-            return
+            return False
+        if not self._confirm_destructive_action():
+            return False
         try:
-            self._replace_project(Document.load(path), path)
+            doc = Document.load(path)
         except Exception as exc:
             QMessageBox.critical(self, 'Open failed', str(exc))
+            return False
+        self._replace_project(doc, path)
+        return True
 
     def export_stl(self):
         from archforge.geometry.fabrication import export_document_stl
