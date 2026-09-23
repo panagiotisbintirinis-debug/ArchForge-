@@ -10,7 +10,7 @@ from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QDockWidget, QWidget, QFormLayout, QDoubleSpinBox,
     QLabel, QTabWidget, QStatusBar, QFileDialog, QMessageBox, QSplitter,
-    QVBoxLayout, QTextEdit, QLineEdit, QPushButton, QCheckBox, QAbstractSpinBox,
+    QVBoxLayout, QHBoxLayout, QTextEdit, QLineEdit, QPushButton, QCheckBox, QAbstractSpinBox,
 )
 
 from archforge.core.model import (
@@ -239,6 +239,50 @@ class OpenAIVoiceCommandWorker(QRunnable):
             self.signals.finished.emit()
 
 
+class IntentConfirmationHUD(QWidget):
+    """Human approval gate for transient AI geometry proposals."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(390, 96)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setStyleSheet(
+            'QWidget {'
+            'background: rgba(16, 22, 30, 225);'
+            'color: white;'
+            'border: 1px solid rgba(0,235,255,150);'
+            'border-radius: 12px;'
+            '}'
+            'QPushButton {'
+            'background: rgba(36,48,62,230);'
+            'color: white;'
+            'padding: 6px 14px;'
+            'border-radius: 7px;'
+            '}'
+        )
+        layout = QVBoxLayout(self)
+        self.message = QLabel('AI proposal ready — Accept [Y] / Reject [N]')
+        self.message.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.message)
+        buttons = QHBoxLayout()
+        self.accept_button = QPushButton('Accept [Y]')
+        self.reject_button = QPushButton('Reject [N]')
+        buttons.addWidget(self.accept_button)
+        buttons.addWidget(self.reject_button)
+        layout.addLayout(buttons)
+        self.hide()
+
+    def show_centered(self):
+        parent = self.parentWidget()
+        if parent is not None:
+            self.move(
+                max(0, (parent.width() - self.width()) // 2),
+                max(0, (parent.height() - self.height()) // 2),
+            )
+        self.show()
+        self.raise_()
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -250,6 +294,9 @@ class MainWindow(QMainWindow):
         self._ai_workers = set()
         self._voice_workers = set()
         self._voice_capture_worker = None
+        self.active_ghost_preview = None
+        self._active_ghost_command = None
+        self._ghost_selection_snapshot = None
         self.tabs = QTabWidget()
         self.plan_view = PlanView(self.doc, self.stack)
         self.front_view = OrthoView(self.doc, self.stack, 'XZ')
@@ -268,6 +315,9 @@ class MainWindow(QMainWindow):
         self.main_splitter.setSizes([1080, 320])
         self.setCentralWidget(self.main_splitter)
         self.voice_hud = VoiceWaveformHUD(self)
+        self.intent_confirmation_hud = IntentConfirmationHUD(self)
+        self.intent_confirmation_hud.accept_button.clicked.connect(self.trigger_ui_accept)
+        self.intent_confirmation_hud.reject_button.clicked.connect(self.trigger_ui_reject)
         self.view = self.plan_view
         self.setStatusBar(QStatusBar())
         for view in (self.plan_view, self.front_view, self.side_view, self.view_3d):
@@ -464,6 +514,15 @@ class MainWindow(QMainWindow):
         )
 
     def keyPressEvent(self, event):
+        if self.active_ghost_preview is not None and not event.isAutoRepeat():
+            if event.key() == Qt.Key.Key_Y:
+                self.trigger_ui_accept()
+                event.accept()
+                return
+            if event.key() == Qt.Key.Key_N:
+                self.trigger_ui_reject()
+                event.accept()
+                return
         if (
             event.key() == Qt.Key.Key_Space
             and not event.isAutoRepeat()
@@ -488,6 +547,38 @@ class MainWindow(QMainWindow):
     def _handle_ai_worker_error(self, message):
         self.ai_chat_log.append(f'<b>ArchForge:</b> AI request failed: {message}')
         self.statusBar().showMessage(f'AI request failed: {message}', 5000)
+
+    def _set_preview_interaction_locked(self, locked):
+        self.plan_view.set_interaction_locked(locked)
+        self.front_view.set_interaction_locked(locked)
+        self.side_view.set_interaction_locked(locked)
+        self.view_3d.set_interaction_locked(locked)
+
+    def _show_ghost_preview(self, path_vertices, diameter):
+        self.plan_view.set_ghost_preview(path_vertices, diameter)
+        self.view_3d.set_ghost_preview(path_vertices, diameter)
+        self._set_preview_interaction_locked(True)
+        self.intent_confirmation_hud.show_centered()
+        self.setFocus()
+
+    def _clear_active_ghost_preview(self, *, restore_selection=True):
+        self.plan_view.clear_ghost_preview()
+        self.view_3d.clear_ghost_preview()
+        self.front_view.set_interaction_locked(False)
+        self.side_view.set_interaction_locked(False)
+        self.intent_confirmation_hud.hide()
+        self.active_ghost_preview = None
+        self._active_ghost_command = None
+        if restore_selection and self._ghost_selection_snapshot is not None:
+            self.doc.select([
+                eid for eid in self._ghost_selection_snapshot
+                if eid in self.doc.entities
+            ])
+        self._ghost_selection_snapshot = None
+        self.plan_view.redraw()
+        self.front_view.redraw()
+        self.side_view.redraw()
+        self.view_3d.refresh_selection()
 
     def _execute_parsed_ai_command(self, json_string):
         try:
@@ -517,29 +608,88 @@ class MainWindow(QMainWindow):
                     'unknown entity id(s): ' + ', '.join(missing)
                 )
 
-            from archforge.core.router import nominal_diameter_for_system
+            from archforge.core.router import (
+                MEPPathRouter,
+                nominal_diameter_for_system,
+            )
 
             diameter = nominal_diameter_for_system(system_type)
-            command = RouteAndConnectInfrastructure(
-                start_id,
-                end_id,
-                diameter,
-                system_type,
+            router = MEPPathRouter(
+                self.doc,
+                grid_resolution=0.05,
+                clearance=max(0.0, diameter / 2.0),
+                ignore_entity_ids={start_id, end_id},
             )
-            self.stack.execute(command)
+            start = router.entity_anchor(start_id)
+            end = router.entity_anchor(end_id)
+            path_vertices = router.compute_route(start, end)
+
+            if self.active_ghost_preview is not None:
+                self._clear_active_ghost_preview(restore_selection=True)
+
+            self._ghost_selection_snapshot = list(self.doc.selection)
+            self.active_ghost_preview = [
+                tuple(float(value) for value in point)
+                for point in path_vertices
+            ]
+            self._active_ghost_command = {
+                'start_id': start_id,
+                'end_id': end_id,
+                'diameter': diameter,
+                'system_type': system_type,
+                'grid_resolution': 0.05,
+            }
+            self._show_ghost_preview(self.active_ghost_preview, diameter)
             self.ai_chat_log.append(
-                f'<b>ArchForge:</b> connected {start_id} to {end_id} '
-                f'as {system_type} Ø{diameter * 1000:.0f} mm '
-                f'[{command.generated_id}]'
+                f'<b>ArchForge:</b> proposal ready for {system_type} '
+                f'{start_id} → {end_id}; Accept [Y] / Reject [N]'
             )
             self.statusBar().showMessage(
-                f'Created routed {system_type} connection {command.generated_id}',
-                4000,
+                'AI proposal ready — press Y to accept or N to reject'
             )
-            self.refresh_inspector()
         except Exception as exc:
-            self.ai_chat_log.append(f'<b>ArchForge:</b> command failed: {exc}')
-            self.statusBar().showMessage(f'AI command failed: {exc}', 5000)
+            self.ai_chat_log.append(f'<b>ArchForge:</b> proposal failed: {exc}')
+            self.statusBar().showMessage(f'AI proposal failed: {exc}', 5000)
+
+    def trigger_ui_accept(self):
+        if self.active_ghost_preview is None or self._active_ghost_command is None:
+            return False
+
+        proposal = dict(self._active_ghost_command)
+        cached_route = [
+            tuple(float(value) for value in point)
+            for point in self.active_ghost_preview
+        ]
+        command = RouteAndConnectInfrastructure(
+            proposal['start_id'],
+            proposal['end_id'],
+            proposal['diameter'],
+            proposal['system_type'],
+            grid_resolution=proposal['grid_resolution'],
+        )
+        command.route = cached_route
+        self._clear_active_ghost_preview(restore_selection=True)
+        self.stack.execute(command)
+        self.ai_chat_log.append(
+            f'<b>ArchForge:</b> accepted and committed '
+            f'{command.generated_id}'
+        )
+        self.statusBar().showMessage(
+            f'Committed AI proposal {command.generated_id}',
+            4000,
+        )
+        self.refresh_inspector()
+        return True
+
+    def trigger_ui_reject(self):
+        if self.active_ghost_preview is None:
+            return False
+        self._clear_active_ghost_preview(restore_selection=True)
+        self.ai_chat_log.append(
+            '<b>ArchForge:</b> proposal rejected; document unchanged'
+        )
+        self.statusBar().showMessage('AI proposal rejected', 3000)
+        return True
 
     def _set_structural_only(self, checked):
         self.doc.set_visible_layers_mask(
