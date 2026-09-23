@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import json
 import os
-import re
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QObject, QRunnable, QThreadPool, Signal, Slot
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QDockWidget, QWidget, QFormLayout, QDoubleSpinBox,
@@ -19,6 +19,97 @@ from .ortho_view import OrthoView
 from .viewport_3d import Viewport3D
 
 
+SYSTEM_PROMPT = """You are the central semantic orchestration agent of ArchForge CAD.
+Analyze the user's natural language design request and map it strictly to a structured JSON object.
+Use exact entity IDs from the supplied ArchForge document entity catalog.
+Do not output markdown code blocks or explanations. Output ONLY raw valid JSON matching this scheme:
+{
+  "action": "connect_infrastructure",
+  "start_id": "string_id",
+  "end_id": "string_id",
+  "system_type": "hydraulic" | "electrical" | "hvac"
+}
+"""
+
+
+OPENAI_COMMAND_SCHEMA = {
+    'type': 'object',
+    'properties': {
+        'action': {
+            'type': 'string',
+            'enum': ['connect_infrastructure'],
+        },
+        'start_id': {'type': 'string'},
+        'end_id': {'type': 'string'},
+        'system_type': {
+            'type': 'string',
+            'enum': ['hydraulic', 'electrical', 'hvac'],
+        },
+    },
+    'required': ['action', 'start_id', 'end_id', 'system_type'],
+    'additionalProperties': False,
+}
+
+
+class OpenAICommandSignals(QObject):
+    result = Signal(str)
+    error = Signal(str)
+    finished = Signal()
+
+
+class OpenAICommandWorker(QRunnable):
+    """Run one natural-language command classification without blocking the Qt UI thread."""
+
+    def __init__(self, user_text, entity_catalog):
+        super().__init__()
+        self.user_text = str(user_text)
+        self.entity_catalog = list(entity_catalog)
+        self.signals = OpenAICommandSignals()
+
+    @Slot()
+    def run(self):
+        try:
+            api_key = os.environ.get('OPENAI_API_KEY')
+            if not api_key:
+                raise RuntimeError('OPENAI_API_KEY is not configured')
+
+            from openai import OpenAI
+
+            client = OpenAI(api_key=api_key)
+            model = os.environ.get('OPENAI_MODEL', 'gpt-5.6-luna')
+            context = json.dumps(
+                {
+                    'user_request': self.user_text,
+                    'available_entities': self.entity_catalog,
+                },
+                ensure_ascii=False,
+            )
+            response = client.responses.create(
+                model=model,
+                input=[
+                    {'role': 'system', 'content': SYSTEM_PROMPT},
+                    {'role': 'user', 'content': context},
+                ],
+                text={
+                    'format': {
+                        'type': 'json_schema',
+                        'name': 'archforge_command',
+                        'strict': True,
+                        'schema': OPENAI_COMMAND_SCHEMA,
+                    }
+                },
+            )
+            raw = str(response.output_text).strip()
+            parsed = json.loads(raw)
+            if not isinstance(parsed, dict):
+                raise ValueError('OpenAI command response must be a JSON object')
+            self.signals.result.emit(json.dumps(parsed, separators=(',', ':')))
+        except Exception as exc:
+            self.signals.error.emit(str(exc))
+        finally:
+            self.signals.finished.emit()
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -27,6 +118,7 @@ class MainWindow(QMainWindow):
         self.doc = Document()
         self.stack = CommandStack(self.doc)
         self.current_path = None
+        self._ai_workers = set()
         self.tabs = QTabWidget()
         self.plan_view = PlanView(self.doc, self.stack)
         self.front_view = OrthoView(self.doc, self.stack, 'XZ')
@@ -142,34 +234,68 @@ class MainWindow(QMainWindow):
 
         self.main_splitter.addWidget(self.sidebar_widget)
 
+    def _entity_catalog_for_ai(self):
+        return [
+            {
+                'id': entity.id,
+                'kind': entity.kind,
+                'name': entity.name or '',
+            }
+            for entity in self.doc.entities.values()
+        ]
+
     def _handle_ai_ui_command(self):
-        raw = self.ai_input_line.text().strip()
-        if not raw:
+        user_text = self.ai_input_line.text().strip()
+        if not user_text:
             return
 
-        self.ai_chat_log.append(f'Human: {raw}')
-        match = re.fullmatch(
-            r'connect\s+([^\s]+)\s+to\s+([^\s]+)\s+(hydraulic|electrical|hvac)',
-            raw,
-            flags=re.IGNORECASE,
+        self.ai_input_line.clear()
+        self.ai_chat_log.append(f'<b>Human:</b> {user_text}')
+
+        worker = OpenAICommandWorker(
+            user_text,
+            self._entity_catalog_for_ai(),
         )
-        if match is None:
-            self.ai_chat_log.append(
-                'ArchForge: command rejected; expected '
-                'connect <start_id> to <end_id> <hydraulic|electrical|hvac>'
-            )
-            return
+        self._ai_workers.add(worker)
+        worker.signals.result.connect(self._execute_parsed_ai_command)
+        worker.signals.error.connect(self._handle_ai_worker_error)
+        worker.signals.finished.connect(
+            lambda active=worker: self._ai_workers.discard(active)
+        )
+        QThreadPool.globalInstance().start(worker)
 
-        start_id, end_id, system_type = match.groups()
-        system_type = system_type.lower()
-        missing = [eid for eid in (start_id, end_id) if eid not in self.doc.entities]
-        if missing:
-            self.ai_chat_log.append(
-                'ArchForge: unknown entity id(s): ' + ', '.join(missing)
-            )
-            return
+    def _handle_ai_worker_error(self, message):
+        self.ai_chat_log.append(f'<b>ArchForge:</b> AI request failed: {message}')
+        self.statusBar().showMessage(f'AI request failed: {message}', 5000)
 
+    def _execute_parsed_ai_command(self, json_string):
         try:
+            payload = json.loads(str(json_string))
+            if not isinstance(payload, dict):
+                raise ValueError('AI payload must be a JSON object')
+            if payload.get('action') != 'connect_infrastructure':
+                raise ValueError('unsupported AI action')
+
+            start_id = payload.get('start_id')
+            end_id = payload.get('end_id')
+            system_type = payload.get('system_type')
+            if not isinstance(start_id, str) or not start_id:
+                raise ValueError('AI payload requires start_id')
+            if not isinstance(end_id, str) or not end_id:
+                raise ValueError('AI payload requires end_id')
+            if system_type not in ('hydraulic', 'electrical', 'hvac'):
+                raise ValueError('AI payload contains invalid system_type')
+
+            missing = [
+                entity_id
+                for entity_id in (start_id, end_id)
+                if entity_id not in self.doc.entities
+            ]
+            if missing:
+                raise ValueError(
+                    'unknown entity id(s): ' + ', '.join(missing)
+                )
+
             from archforge.core.router import nominal_diameter_for_system
 
             diameter = nominal_diameter_for_system(system_type)
@@ -180,9 +306,8 @@ class MainWindow(QMainWindow):
                 system_type,
             )
             self.stack.execute(command)
-            self.ai_input_line.clear()
             self.ai_chat_log.append(
-                f'ArchForge: connected {start_id} to {end_id} '
+                f'<b>ArchForge:</b> connected {start_id} to {end_id} '
                 f'as {system_type} Ø{diameter * 1000:.0f} mm '
                 f'[{command.generated_id}]'
             )
@@ -192,7 +317,7 @@ class MainWindow(QMainWindow):
             )
             self.refresh_inspector()
         except Exception as exc:
-            self.ai_chat_log.append(f'ArchForge: command failed: {exc}')
+            self.ai_chat_log.append(f'<b>ArchForge:</b> command failed: {exc}')
             self.statusBar().showMessage(f'AI command failed: {exc}', 5000)
 
     def _set_structural_only(self, checked):
