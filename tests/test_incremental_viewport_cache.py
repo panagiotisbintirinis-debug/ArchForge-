@@ -131,11 +131,26 @@ def test_viewport_drag_path_has_no_scene_clear_or_tessellation_evaluation():
     assert 'redraw(force_full=True)' in release_body
 
 
-def test_main_window_redraw_defaults_to_current_view_not_all_four_views():
+def test_main_window_redraw_is_reactive_and_undo_redo_do_not_force_views():
     source = Path('archforge/ui/main_window.py').read_text(encoding='utf-8')
-    marker = '    def _redraw_views(self, *, all_views=False):'
-    assert marker in source
-    start = source.index(marker)
-    end = source.index('    def _undo', start)
-    body = source[start:end]
-    assert 'targets=(self.plan_view,self.front_view,self.side_view,self.view_3d) if all_views else (self.view,)' in body
+    assert 'self.stack.subscribe(self._redraw_views)' in source
+
+    undo_start = source.index('    def _undo')
+    redo_start = source.index('    def _redo', undo_start)
+    save_start = source.index('    def save', redo_start)
+    assert 'self._redraw_views()' not in source[undo_start:redo_start]
+    assert 'self._redraw_views()' not in source[redo_start:save_start]
+
+
+def test_viewport_3d_uses_targeted_reactive_cache_and_no_global_sync_loop():
+    source = Path('archforge/ui/viewport_3d.py').read_text(encoding='utf-8')
+    assert 'self.stack.subscribe(self.on_document_modified)' in source
+    assert 'self._gpu_buffer_cache' in source
+    assert 'QThreadPool' in source
+    assert 'GeometryTessellationWorker' in source
+    assert 'np.ascontiguousarray' in source
+    assert 'self._scene.clear()' not in source
+
+    redraw_start = source.index('    def redraw(self, force_full=False):')
+    redraw_body = source[redraw_start:]
+    assert '_evaluation_cache.sync(self.doc)' not in redraw_body
