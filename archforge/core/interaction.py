@@ -150,7 +150,7 @@ class WallEndpointStretchTransaction:
     def update(self,x,y):
         sp=best_snap(self.doc,x,y,self.snap_tol,self.grid,{self.eid});x,y=(sp.x,sp.y) if sp else (x,y);p=self.before.copy();p[f'x{self.endpoint}']=x;p[f'y{self.endpoint}']=y;L=hypot(p['x2']-p['x1'],p['y2']-p['y1'])
         if L<=1e-9:raise ValueError('zero-length wall')
-        self.preview=p;return HUD({'length':L,'angle_deg':degrees(atan2(p['y2']-p['x1'],p['x2']-p['x1'])),'x':x,'y':y,'z':p['z']})
+        self.preview=p;return HUD({'length':L,'angle_deg':degrees(atan2(p['y2']-p['y1'],p['x2']-p['x1'])),'x':x,'y':y,'z':p['z']})
     def commit(self):self.stack.execute(UpdateEntity(self.eid,self.preview))
     def cancel(self):self.preview=self.before.copy()
 
