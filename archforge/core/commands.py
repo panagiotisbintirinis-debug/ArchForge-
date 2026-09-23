@@ -2,7 +2,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Any, List, Optional, Tuple
 import copy
-from .model import Document, Entity, WorkPlane
+from .model import (
+    Document, Entity, WorkPlane, validate_params,
+    LAYER_HYDRAULIC, LAYER_ELECTRICAL, LAYER_HVAC, LAYER_STRUCTURAL,
+)
 
 class Command:
     def do(self,doc:Document): raise NotImplementedError
@@ -331,6 +334,170 @@ class AssignConstruction(Command):
         else:
             doc.mark_dirty(self.eid)
 
+def _identity_matrix16():
+    return [
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1.0,
+    ]
+
+
+def _rectangular_prism_vertices(cx, cy, z0, width, depth, height):
+    hx = float(width) / 2.0
+    hy = float(depth) / 2.0
+    z1 = float(z0) + float(height)
+    return [
+        [float(cx) - hx, float(cy) - hy, float(z0)],
+        [float(cx) + hx, float(cy) - hy, float(z0)],
+        [float(cx) + hx, float(cy) + hy, float(z0)],
+        [float(cx) - hx, float(cy) + hy, float(z0)],
+        [float(cx) - hx, float(cy) - hy, z1],
+        [float(cx) + hx, float(cy) - hy, z1],
+        [float(cx) + hx, float(cy) + hy, z1],
+        [float(cx) - hx, float(cy) + hy, z1],
+    ]
+
+
+def _box_faces():
+    return [
+        [0, 3, 2, 1],
+        [4, 5, 6, 7],
+        [0, 1, 5, 4],
+        [1, 2, 6, 5],
+        [2, 3, 7, 6],
+        [3, 0, 4, 7],
+    ]
+
+
+def _bake_column(spec):
+    p = validate_params('column', spec)
+    return (
+        _rectangular_prism_vertices(
+            p['cx'], p['cy'], p['base_z'],
+            p['width'], p['depth'], p['height'],
+        ),
+        _box_faces(),
+    )
+
+
+def _bake_footing(spec):
+    p = validate_params('footing', spec)
+    return (
+        _rectangular_prism_vertices(
+            p['cx'], p['cy'], p['base_z'],
+            p['width'], p['depth'], p['thickness'],
+        ),
+        _box_faces(),
+    )
+
+
+def _bake_beam(spec):
+    p = validate_params('beam', spec)
+    x1, y1 = float(p['x1']), float(p['y1'])
+    x2, y2 = float(p['x2']), float(p['y2'])
+    dx, dy = x2 - x1, y2 - y1
+    length = (dx * dx + dy * dy) ** 0.5
+    if length <= 1e-12:
+        raise ValueError('beam endpoints must not coincide')
+    nx = -dy / length * float(p['thickness']) / 2.0
+    ny = dx / length * float(p['thickness']) / 2.0
+    z0 = float(p['z'])
+    z1 = z0 + float(p['depth'])
+    vertices = [
+        [x1 + nx, y1 + ny, z0],
+        [x2 + nx, y2 + ny, z0],
+        [x2 - nx, y2 - ny, z0],
+        [x1 - nx, y1 - ny, z0],
+        [x1 + nx, y1 + ny, z1],
+        [x2 + nx, y2 + ny, z1],
+        [x2 - nx, y2 - ny, z1],
+        [x1 - nx, y1 - ny, z1],
+    ]
+    return vertices, _box_faces()
+
+
+def _bake_slab(spec):
+    from archforge.geometry.mesh import _triangulate
+
+    p = validate_params('slab', spec)
+    contour = [tuple(map(float, point)) for point in p['contour_vertices']]
+    triangles = list(_triangulate(contour))
+    n = len(contour)
+    z0 = float(p['z'])
+    z1 = z0 + float(p['thickness'])
+    vertices = [[x, y, z0] for x, y in contour] + [[x, y, z1] for x, y in contour]
+    faces = []
+    for a, b, c in triangles:
+        faces.append([c, b, a])
+        faces.append([a + n, b + n, c + n])
+    for i in range(n):
+        j = (i + 1) % n
+        faces.append([i, j, j + n, i + n])
+    return vertices, faces
+
+
+class ApplyStructuralFrame(Command):
+    """Bake structural design inputs into authoritative, directly editable mesh entities."""
+    def __init__(self, *, columns=None, beams=None, slabs=None, footings=None):
+        groups = (
+            ('column', list(columns or []), _bake_column),
+            ('beam', list(beams or []), _bake_beam),
+            ('slab', list(slabs or []), _bake_slab),
+            ('footing', list(footings or []), _bake_footing),
+        )
+        self._items = []
+        used_ids = set()
+        for kind, specs, baker in groups:
+            for index, raw in enumerate(specs):
+                spec = copy.deepcopy(raw)
+                requested_id = spec.pop('id', None)
+                name = str(spec.pop('name', '') or f'structural_{kind}_{index + 1}')
+                entity_id = str(requested_id or f'structural_{kind}_{index + 1}')
+                if entity_id in used_ids:
+                    raise ValueError(f'duplicate structural entity id {entity_id}')
+                used_ids.add(entity_id)
+                self._items.append((kind, entity_id, name, spec, baker))
+        if not self._items:
+            raise ValueError('structural frame requires at least one component')
+        self.ids = [item[1] for item in self._items]
+
+    def do(self, doc):
+        created = []
+        try:
+            for kind, entity_id, name, spec, baker in self._items:
+                vertices, faces = baker(spec)
+                mesh = Entity(
+                    kind='mesh',
+                    params={
+                        'vertices': copy.deepcopy(vertices),
+                        'faces': copy.deepcopy(faces),
+                        'matrix': _identity_matrix16(),
+                        'metadata': {
+                            'semantic_type': f'structural_{kind}',
+                            'structural_kind': kind,
+                            'source_spec': copy.deepcopy(spec),
+                            'engineering_verified': False,
+                        },
+                    },
+                    name=name,
+                    id=entity_id,
+                    layer_id=LAYER_STRUCTURAL,
+                )
+                doc.add(mesh)
+                created.append(entity_id)
+        except Exception:
+            for entity_id in reversed(created):
+                if entity_id in doc.entities:
+                    doc.remove(entity_id)
+            raise
+
+    def undo(self, doc):
+        for entity_id in reversed(self.ids):
+            if entity_id in doc.entities:
+                doc.remove(entity_id)
+
+
 class RouteAndConnectInfrastructure(Command):
     """Route between semantic endpoint anchors, then commit one authoritative mesh."""
     def __init__(
@@ -435,11 +602,17 @@ class ConnectInfrastructure(Command):
                 'sweep_segments': segments,
             },
         }
+        layer_id = {
+            'hydraulic': LAYER_HYDRAULIC,
+            'electrical': LAYER_ELECTRICAL,
+            'hvac': LAYER_HVAC,
+        }[spec['system_type']]
         mesh_entity = Entity(
             kind='mesh',
             params=mesh_params,
             name=f"{spec['system_type']}_line",
             id=self.generated_id,
+            layer_id=layer_id,
         )
         doc.add(mesh_entity)
         for source_id in (self.start_id, self.end_id):
