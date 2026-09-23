@@ -7,10 +7,12 @@ from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QDockWidget, QWidget, QFormLayout, QDoubleSpinBox,
     QLabel, QTabWidget, QStatusBar, QFileDialog, QMessageBox, QSplitter,
-    QVBoxLayout, QTextEdit, QLineEdit, QPushButton,
+    QVBoxLayout, QTextEdit, QLineEdit, QPushButton, QCheckBox,
 )
 
-from archforge.core.model import Document
+from archforge.core.model import (
+    Document, LAYER_ALL, LAYER_STRUCTURAL,
+)
 from archforge.core.commands import CommandStack, UpdateEntity, CreateRoomFloors, RouteAndConnectInfrastructure
 from .plan_view import PlanView
 from .ortho_view import OrthoView
@@ -83,6 +85,10 @@ class MainWindow(QMainWindow):
         auto_floors = QAction('Auto Floors', self)
         auto_floors.triggered.connect(self._create_auto_floors)
         toolbar.addAction(auto_floors)
+        toolbar.addSeparator()
+        self.structural_only_checkbox = QCheckBox('Show Structural Frame Only')
+        self.structural_only_checkbox.toggled.connect(self._set_structural_only)
+        toolbar.addWidget(self.structural_only_checkbox)
         toolbar.addSeparator()
         undo = QAction('Undo', self)
         undo.setShortcut(QKeySequence.StandardKey.Undo)
@@ -189,6 +195,24 @@ class MainWindow(QMainWindow):
             self.ai_chat_log.append(f'ArchForge: command failed: {exc}')
             self.statusBar().showMessage(f'AI command failed: {exc}', 5000)
 
+    def _set_structural_only(self, checked):
+        self.doc.set_visible_layers_mask(
+            LAYER_STRUCTURAL if bool(checked) else LAYER_ALL
+        )
+        self.doc.selection = [
+            eid for eid in self.doc.selection
+            if eid in self.doc.entities and self.doc.entity_is_visible(self.doc.entities[eid])
+        ]
+        self.plan_view.redraw()
+        self.front_view.redraw()
+        self.side_view.redraw()
+        self.view_3d.on_document_modified(None)
+        self.refresh_inspector()
+        self.statusBar().showMessage(
+            'Structural frame isolated' if checked else 'All system layers visible',
+            3000,
+        )
+
     def _clear_form(self):
         while self.form.rowCount():
             self.form.removeRow(0)
@@ -292,6 +316,11 @@ class MainWindow(QMainWindow):
             self.view_3d.rebind(self.doc, self.stack)
             self.stack.subscribe(self._redraw_views)
             self.current_path = path
+            self.structural_only_checkbox.blockSignals(True)
+            self.structural_only_checkbox.setChecked(
+                self.doc.visible_layers_mask == LAYER_STRUCTURAL
+            )
+            self.structural_only_checkbox.blockSignals(False)
             self.refresh_inspector()
         except Exception as exc:
             QMessageBox.critical(self, 'Open failed', str(exc))
