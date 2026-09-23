@@ -41,6 +41,7 @@ class MainWindow(QMainWindow):
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self._build_toolbar()
         self._build_inspector()
+        self.stack.subscribe(self._redraw_views)
         self.refresh_inspector()
 
     def _on_tab_changed(self, idx):
@@ -137,7 +138,6 @@ class MainWindow(QMainWindow):
     def _commit_property(self, eid, key, value):
         try:
             self.stack.execute(UpdateEntity(eid, {key: value}))
-            self._redraw_views()
         except Exception as exc:
             QMessageBox.warning(self, 'Invalid value', str(exc))
             self.refresh_inspector()
@@ -158,7 +158,6 @@ class MainWindow(QMainWindow):
             return
         try:
             self.stack.execute(CreateRoomFloors(signatures))
-            self._redraw_views()
             self.refresh_inspector()
             self.statusBar().showMessage(f'Created {len(signatures)} automatic floor(s)', 4000)
         except Exception as exc:
@@ -170,9 +169,8 @@ class MainWindow(QMainWindow):
             self.view_3d.refresh_selection()
         self.refresh_inspector()
 
-    def _redraw_views(self, *, all_views=False):
-        targets=(self.plan_view,self.front_view,self.side_view,self.view_3d) if all_views else (self.view,)
-        for view in targets:
+    def _redraw_views(self, modified_ids=None):
+        for view in (self.plan_view, self.front_view, self.side_view, self.view_3d):
             if view is self.view_3d:
                 view.redraw(force_full=True)
             else:
@@ -180,12 +178,10 @@ class MainWindow(QMainWindow):
 
     def _undo(self):
         self.stack.undo()
-        self._redraw_views()
         self.refresh_inspector()
 
     def _redo(self):
         self.stack.redo()
-        self._redraw_views()
         self.refresh_inspector()
 
     def save(self):
@@ -210,8 +206,8 @@ class MainWindow(QMainWindow):
             self.front_view.rebind(self.doc, self.stack)
             self.side_view.rebind(self.doc, self.stack)
             self.view_3d.rebind(self.doc, self.stack)
+            self.stack.subscribe(self._redraw_views)
             self.current_path = path
-            self._redraw_views()
             self.refresh_inspector()
         except Exception as exc:
             QMessageBox.critical(self, 'Open failed', str(exc))
