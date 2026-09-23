@@ -332,6 +332,52 @@ class AssignConstruction(Command):
             doc.mark_dirty(self.eid)
 
 @dataclass
+class MoveVertices(Command):
+    """Move one authoritative mesh vertex as a reversible model mutation."""
+    eid: str
+    vertex_index: int
+    dx: float
+    dy: float
+    dz: float = 0.0
+    before: Optional[List[float]] = None
+
+    @property
+    def ids(self):
+        return (self.eid,)
+
+    def do(self, doc: Document):
+        entity = doc.get(self.eid)
+        if entity.kind != 'mesh':
+            raise ValueError('MoveVertices requires a mesh entity')
+        vertices = copy.deepcopy(entity.params['vertices'])
+        index = int(self.vertex_index)
+        if index < 0 or index >= len(vertices):
+            raise IndexError('mesh vertex index out of range')
+        if self.before is None:
+            self.before = list(vertices[index])
+        vertex = vertices[index]
+        vertices[index] = [
+            float(vertex[0]) + float(self.dx),
+            float(vertex[1]) + float(self.dy),
+            float(vertex[2]) + float(self.dz),
+        ]
+        doc.update(self.eid, {'vertices': vertices})
+
+    def undo(self, doc: Document):
+        if self.before is None:
+            return
+        entity = doc.get(self.eid)
+        if entity.kind != 'mesh':
+            raise ValueError('MoveVertices requires a mesh entity')
+        vertices = copy.deepcopy(entity.params['vertices'])
+        index = int(self.vertex_index)
+        if index < 0 or index >= len(vertices):
+            raise IndexError('mesh vertex index out of range')
+        vertices[index] = list(self.before)
+        doc.update(self.eid, {'vertices': vertices})
+
+
+@dataclass
 class FreezeToMesh(Command):
     """Replace a standalone parametric pod with authoritative editable mesh data."""
     eid: str
