@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import io
 import json
 import os
+import threading
+import wave
 from PySide6.QtCore import Qt, QObject, QRunnable, QThreadPool, Signal, Slot
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QDockWidget, QWidget, QFormLayout, QDoubleSpinBox,
     QLabel, QTabWidget, QStatusBar, QFileDialog, QMessageBox, QSplitter,
-    QVBoxLayout, QTextEdit, QLineEdit, QPushButton, QCheckBox,
+    QVBoxLayout, QTextEdit, QLineEdit, QPushButton, QCheckBox, QAbstractSpinBox,
 )
 
 from archforge.core.model import (
@@ -110,6 +113,132 @@ class OpenAICommandWorker(QRunnable):
             self.signals.finished.emit()
 
 
+class VoiceWaveformHUD(QLabel):
+    """Small non-interactive recording overlay centered over the CAD workspace."""
+
+    def __init__(self, parent=None):
+        super().__init__('●  Recording voice command…', parent)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setFixedSize(250, 58)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.setStyleSheet(
+            'QLabel {'
+            'background: rgba(20, 24, 30, 210);'
+            'color: white;'
+            'border: 1px solid rgba(255,255,255,80);'
+            'border-radius: 12px;'
+            'font-size: 14px;'
+            'font-weight: 600;'
+            'padding: 8px;'
+            '}'
+        )
+        self.hide()
+
+    def show_centered(self):
+        parent = self.parentWidget()
+        if parent is not None:
+            self.move(
+                max(0, (parent.width() - self.width()) // 2),
+                max(0, (parent.height() - self.height()) // 2),
+            )
+        self.show()
+        self.raise_()
+
+
+class VoiceCaptureSignals(QObject):
+    audio_ready = Signal(bytes)
+    error = Signal(str)
+    finished = Signal()
+
+
+class VoiceCaptureWorker(QRunnable):
+    """Open the microphone and collect PCM in a worker thread until stop() is called."""
+
+    def __init__(self, sample_rate=16000, channels=1):
+        super().__init__()
+        self.sample_rate = int(sample_rate)
+        self.channels = int(channels)
+        self.signals = VoiceCaptureSignals()
+        self._stop_event = threading.Event()
+
+    def stop(self):
+        self._stop_event.set()
+
+    @Slot()
+    def run(self):
+        chunks = []
+        try:
+            import sounddevice as sd
+
+            def callback(indata, frames, time_info, status):
+                del frames, time_info, status
+                chunks.append(indata.copy().tobytes())
+
+            with sd.InputStream(
+                samplerate=self.sample_rate,
+                channels=self.channels,
+                dtype='int16',
+                callback=callback,
+            ):
+                self._stop_event.wait()
+
+            pcm = b''.join(chunks)
+            if not pcm:
+                raise RuntimeError('voice recording contained no audio samples')
+
+            output = io.BytesIO()
+            with wave.open(output, 'wb') as wav:
+                wav.setnchannels(self.channels)
+                wav.setsampwidth(2)
+                wav.setframerate(self.sample_rate)
+                wav.writeframes(pcm)
+            self.signals.audio_ready.emit(output.getvalue())
+        except Exception as exc:
+            self.signals.error.emit(str(exc))
+        finally:
+            self.signals.finished.emit()
+
+
+class OpenAIVoiceCommandSignals(QObject):
+    transcript = Signal(str)
+    error = Signal(str)
+    finished = Signal()
+
+
+class OpenAIVoiceCommandWorker(QRunnable):
+    """Transcribe one in-memory WAV buffer through the OpenAI audio API."""
+
+    def __init__(self, audio_bytes):
+        super().__init__()
+        self.audio_bytes = bytes(audio_bytes)
+        self.signals = OpenAIVoiceCommandSignals()
+
+    @Slot()
+    def run(self):
+        try:
+            api_key = os.environ.get('OPENAI_API_KEY')
+            if not api_key:
+                raise RuntimeError('OPENAI_API_KEY is not configured')
+
+            from openai import OpenAI
+
+            client = OpenAI(api_key=api_key)
+            audio_file = io.BytesIO(self.audio_bytes)
+            audio_file.name = 'archforge-voice-command.wav'
+            transcription = client.audio.transcriptions.create(
+                model=os.environ.get('OPENAI_TRANSCRIPTION_MODEL', 'whisper-1'),
+                file=audio_file,
+            )
+            transcript = str(transcription.text).strip()
+            if not transcript:
+                raise ValueError('OpenAI transcription returned empty text')
+            self.signals.transcript.emit(transcript)
+        except Exception as exc:
+            self.signals.error.emit(str(exc))
+        finally:
+            self.signals.finished.emit()
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -119,6 +248,8 @@ class MainWindow(QMainWindow):
         self.stack = CommandStack(self.doc)
         self.current_path = None
         self._ai_workers = set()
+        self._voice_workers = set()
+        self._voice_capture_worker = None
         self.tabs = QTabWidget()
         self.plan_view = PlanView(self.doc, self.stack)
         self.front_view = OrthoView(self.doc, self.stack, 'XZ')
@@ -136,6 +267,7 @@ class MainWindow(QMainWindow):
         self.main_splitter.setStretchFactor(1, 0)
         self.main_splitter.setSizes([1080, 320])
         self.setCentralWidget(self.main_splitter)
+        self.voice_hud = VoiceWaveformHUD(self)
         self.view = self.plan_view
         self.setStatusBar(QStatusBar())
         for view in (self.plan_view, self.front_view, self.side_view, self.view_3d):
@@ -244,14 +376,7 @@ class MainWindow(QMainWindow):
             for entity in self.doc.entities.values()
         ]
 
-    def _handle_ai_ui_command(self):
-        user_text = self.ai_input_line.text().strip()
-        if not user_text:
-            return
-
-        self.ai_input_line.clear()
-        self.ai_chat_log.append(f'<b>Human:</b> {user_text}')
-
+    def _start_ai_command_worker(self, user_text):
         worker = OpenAICommandWorker(
             user_text,
             self._entity_catalog_for_ai(),
@@ -263,6 +388,102 @@ class MainWindow(QMainWindow):
             lambda active=worker: self._ai_workers.discard(active)
         )
         QThreadPool.globalInstance().start(worker)
+
+    def _handle_ai_ui_command(self):
+        user_text = self.ai_input_line.text().strip()
+        if not user_text:
+            return
+
+        self.ai_input_line.clear()
+        self.ai_chat_log.append(f'<b>Human:</b> {user_text}')
+        self._start_ai_command_worker(user_text)
+
+    def _text_entry_has_focus(self):
+        focus = self.focusWidget()
+        return isinstance(
+            focus,
+            (QLineEdit, QTextEdit, QAbstractSpinBox),
+        )
+
+    def _start_voice_capture(self):
+        if self._voice_capture_worker is not None:
+            return
+
+        worker = VoiceCaptureWorker()
+        self._voice_capture_worker = worker
+        self._voice_workers.add(worker)
+        worker.signals.audio_ready.connect(self._dispatch_voice_audio)
+        worker.signals.error.connect(self._handle_voice_worker_error)
+        worker.signals.finished.connect(
+            lambda active=worker: self._voice_capture_finished(active)
+        )
+        self.voice_hud.show_centered()
+        self.statusBar().showMessage('Recording voice command…')
+        QThreadPool.globalInstance().start(worker)
+
+    def _stop_voice_capture(self):
+        worker = self._voice_capture_worker
+        if worker is None:
+            return
+        self.voice_hud.hide()
+        self.statusBar().showMessage('Transcribing voice command…')
+        worker.stop()
+
+    def _voice_capture_finished(self, worker):
+        self._voice_workers.discard(worker)
+        if self._voice_capture_worker is worker:
+            self._voice_capture_worker = None
+        self.voice_hud.hide()
+
+    def _dispatch_voice_audio(self, audio_bytes):
+        worker = OpenAIVoiceCommandWorker(audio_bytes)
+        self._voice_workers.add(worker)
+        worker.signals.transcript.connect(self._handle_voice_transcript)
+        worker.signals.error.connect(self._handle_voice_worker_error)
+        worker.signals.finished.connect(
+            lambda active=worker: self._voice_workers.discard(active)
+        )
+        QThreadPool.globalInstance().start(worker)
+
+    def _handle_voice_transcript(self, transcript):
+        text = str(transcript).strip()
+        if not text:
+            return
+        self.ai_chat_log.append(f'<b>Voice:</b> {text}')
+        self.statusBar().showMessage('Interpreting voice command…')
+        self._start_ai_command_worker(text)
+
+    def _handle_voice_worker_error(self, message):
+        self.voice_hud.hide()
+        self.ai_chat_log.append(
+            f'<b>ArchForge:</b> voice command failed: {message}'
+        )
+        self.statusBar().showMessage(
+            f'Voice command failed: {message}',
+            5000,
+        )
+
+    def keyPressEvent(self, event):
+        if (
+            event.key() == Qt.Key.Key_Space
+            and not event.isAutoRepeat()
+            and not self._text_entry_has_focus()
+        ):
+            self._start_voice_capture()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def keyReleaseEvent(self, event):
+        if (
+            event.key() == Qt.Key.Key_Space
+            and not event.isAutoRepeat()
+            and self._voice_capture_worker is not None
+        ):
+            self._stop_voice_capture()
+            event.accept()
+            return
+        super().keyReleaseEvent(event)
 
     def _handle_ai_worker_error(self, message):
         self.ai_chat_log.append(f'<b>ArchForge:</b> AI request failed: {message}')
