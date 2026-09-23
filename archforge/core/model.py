@@ -56,6 +56,38 @@ def _polygon(v):
     return validate_polygon(v)
 
 
+
+def _mesh_vertices(v):
+    if not isinstance(v, list) or not v:
+        raise ValueError('mesh vertices must be a non-empty list')
+    out = []
+    for point in v:
+        if not isinstance(point, (list, tuple)) or len(point) != 3:
+            raise ValueError('each mesh vertex must be a 3-vector')
+        out.append([_finite(x) for x in point])
+    return out
+
+
+def _mesh_faces(v):
+    if not isinstance(v, list) or not v:
+        raise ValueError('mesh faces must be a non-empty list')
+    out = []
+    for face in v:
+        if not isinstance(face, (list, tuple)) or len(face) < 3:
+            raise ValueError('each mesh face must contain at least three vertex indices')
+        indices = [int(i) for i in face]
+        if any(i < 0 for i in indices):
+            raise ValueError('mesh face indices must be non-negative')
+        out.append(indices)
+    return out
+
+
+def _matrix16(v):
+    if not isinstance(v, (list, tuple)) or len(v) != 16:
+        raise ValueError('mesh matrix must contain 16 values')
+    return [_finite(x) for x in v]
+
+
 @dataclass
 class WorkPlane:
     name: str = 'XY'
@@ -100,6 +132,7 @@ SCHEMAS = {
     'box': {'x': _finite, 'y': _finite, 'z': _finite, 'width': _positive, 'depth': _positive, 'height': _positive, 'rotation': _finite},
     'wall': {'x1': _finite, 'y1': _finite, 'z': _finite, 'x2': _finite, 'y2': _finite, 'height': _positive, 'thickness': _positive},
     'pod': {'cx': _finite, 'cy': _finite, 'floor_level': _finite, 'diameter_x': _positive, 'diameter_y': _positive, 'height': _positive, 'shell_thickness': _positive, 'rotation': _finite},
+    'mesh': {'vertices': _mesh_vertices, 'faces': _mesh_faces, 'matrix': _matrix16},
     'arboreal_branch': {'core_id': _nonempty, 'elevation_z': _finite, 'azimuth_deg': _finite, 'length': _positive, 'slope_deg': _finite, 'root_radius': _positive, 'tip_radius': _positive, 'mounted_pod_id': _nonempty},
     'floor': {'points': _polygon, 'z': _finite, 'thickness': _positive},
     'room': {'points': _polygon, 'z': _finite, 'height': _positive},
@@ -121,6 +154,14 @@ def validate_params(kind, params):
     for key, fn in SCHEMAS.get(kind, {}).items():
         if key in out:
             out[key] = fn(out[key])
+    if kind == 'mesh':
+        required = {'vertices', 'faces', 'matrix'}
+        missing = required - set(out)
+        if missing:
+            raise ValueError('mesh is missing required fields: ' + ', '.join(sorted(missing)))
+        n = len(out['vertices'])
+        if any(index >= n for face in out['faces'] for index in face):
+            raise ValueError('mesh face references a missing vertex')
     return out
 
 
