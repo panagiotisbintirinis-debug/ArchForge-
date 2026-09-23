@@ -91,6 +91,12 @@ def _payload(doc,node)->Optional[PreviewPayload]:
                 m[8]*x+m[9]*y+m[10]*z+m[11],
             ))
         return PreviewPayload('mesh',_bounds(pts))
+    if kind=='conduit':
+        radius=float(p['diameter'])/2.0
+        pts=[tuple(map(float,point)) for point in p['path_vertices']]
+        lo=tuple(min(point[i] for point in pts)-radius for i in range(3))
+        hi=tuple(max(point[i] for point in pts)+radius for i in range(3))
+        return PreviewPayload('conduit',(lo,hi))
     if kind=='arboreal_branch':return _arboreal_branch_payload(doc,node)
     if kind=='organic_junction':return _organic_junction_payload(doc,node)
     if kind=='organic_opening_patch':return _organic_opening_patch_payload(doc,node)
