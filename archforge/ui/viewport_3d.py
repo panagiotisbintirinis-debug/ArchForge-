@@ -219,6 +219,9 @@ class Viewport3D(QGraphicsView):
         self._vertex_tx: Optional[VertexMoveTransaction] = None
         self._vertex_drag_origin: Optional[QPointF] = None
         self._vertex_drag_depth: Optional[float] = None
+        self._ghost_mesh: Optional[MeshPayload] = None
+        self._ghost_items: List[QGraphicsPolygonItem] = []
+        self._interaction_locked = False
         self._styles = {
             'selected': (QPen(QColor(40, 110, 200), 1), QBrush(QColor(110, 180, 245, 210))),
             'wall': (QPen(QColor(140, 150, 160), 1), QBrush(QColor(230, 235, 240, 230))),
@@ -253,12 +256,87 @@ class Viewport3D(QGraphicsView):
         self._vertex_tx = None
         self._vertex_drag_origin = None
         self._vertex_drag_depth = None
+        self._clear_ghost_preview_items()
+        self._ghost_mesh = None
+        self._interaction_locked = False
         self._last_selection.clear()
         self.on_document_modified(None)
 
     def set_tool(self, tool: str):
         self.active_tool = tool
         self.statusChanged.emit(f"3D Viewport Tool: {tool}")
+
+    def set_interaction_locked(self, locked: bool):
+        self._interaction_locked = bool(locked)
+
+    def _clear_ghost_preview_items(self):
+        for item in self._ghost_items:
+            self._scene.removeItem(item)
+        self._ghost_items.clear()
+
+    def set_ghost_preview(self, path_vertices, diameter):
+        from archforge.geometry.mesh import generate_conduit_topology
+
+        vertices, faces = generate_conduit_topology(path_vertices, diameter)
+        triangles = []
+        for face in faces:
+            if len(face) < 3:
+                continue
+            root = int(face[0])
+            for index in range(1, len(face) - 1):
+                triangles.append((root, int(face[index]), int(face[index + 1])))
+        self._ghost_mesh = MeshPayload(
+            tuple(tuple(float(value) for value in vertex) for vertex in vertices),
+            tuple(triangles),
+            tuple('ghost_surface' for _ in triangles),
+        )
+        self._interaction_locked = True
+        self._render_ghost_preview()
+
+    def clear_ghost_preview(self):
+        self._clear_ghost_preview_items()
+        self._ghost_mesh = None
+        self._interaction_locked = False
+        self.update()
+
+    def _render_ghost_preview(self):
+        mesh = self._ghost_mesh
+        if mesh is None:
+            self._clear_ghost_preview_items()
+            return
+
+        w = max(100, self.width())
+        h = max(100, self.height())
+        while len(self._ghost_items) < len(mesh.triangles):
+            item = QGraphicsPolygonItem()
+            item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+            self._scene.addItem(item)
+            self._ghost_items.append(item)
+
+        pen = QPen(QColor(0, 235, 255, 230), 1)
+        pen.setStyle(Qt.PenStyle.DotLine)
+        brush = QBrush(QColor(0, 235, 255, 46))
+
+        for index, item in enumerate(self._ghost_items):
+            if index >= len(mesh.triangles):
+                item.hide()
+                continue
+            tri = mesh.triangles[index]
+            p0 = self.camera.project(mesh.vertices[tri[0]], w, h)
+            p1 = self.camera.project(mesh.vertices[tri[1]], w, h)
+            p2 = self.camera.project(mesh.vertices[tri[2]], w, h)
+            if not (p0 and p1 and p2):
+                item.hide()
+                continue
+            item.setPolygon(QPolygonF([
+                QPointF(p0[0], p0[1]),
+                QPointF(p1[0], p1[1]),
+                QPointF(p2[0], p2[1]),
+            ]))
+            item.setPen(pen)
+            item.setBrush(brush)
+            item.setZValue(1500 - ((p0[2] + p1[2] + p2[2]) / 3.0))
+            item.show()
 
     def on_document_modified(self, modified_ids):
         if modified_ids is None:
@@ -581,6 +659,7 @@ class Viewport3D(QGraphicsView):
                     item.show()
                 else:
                     item.hide()
+        self._render_ghost_preview()
 
     def _begin_interaction(self) -> None:
         self._interaction_active = True
@@ -625,6 +704,9 @@ class Viewport3D(QGraphicsView):
             else:
                 self._is_orbiting = True
             self._begin_interaction()
+            return
+
+        if self._interaction_locked and event.button() == Qt.MouseButton.LeftButton:
             return
 
         if event.button() == Qt.MouseButton.LeftButton:
@@ -798,6 +880,8 @@ class Viewport3D(QGraphicsView):
                 and self.doc.entity_is_visible(self.doc.entities[entity_id])
             ):
                 self._render_cached_entity(entity_id, mesh)
+
+        self._render_ghost_preview()
 
         for entity_id in list(self._render_cache):
             entity = self.doc.entities.get(entity_id)
