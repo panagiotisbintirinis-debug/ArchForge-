@@ -12,6 +12,8 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
+      - name: Verify human runtime linkage
+        run: python tmp/verify_and_kill.py
       - name: Install test dependencies
         run: python -m pip install pytest -r requirements.txt
       - name: Run headless core tests
@@ -28,6 +30,8 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
+      - name: Verify human runtime linkage
+        run: python tmp/verify_and_kill.py
       - name: Install agent test dependencies
         run: python -m pip install pytest -r requirements-agents.txt
       - name: Run LangGraph orchestration tests
