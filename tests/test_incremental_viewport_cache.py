@@ -124,7 +124,9 @@ def test_viewport_drag_path_has_no_scene_clear_or_tessellation_evaluation():
     move_body = source[move_start:release_start]
     assert 'TessellatedPreviewBackend' not in move_body
     assert '.evaluate(' not in move_body
-    assert '_update_interaction_proxies' in move_body
+    assert '_update_interaction_proxies' not in move_body
+    assert '_update_camera_projection_matrices' in move_body
+    assert 'redraw(force_full=True)' in move_body
 
     release_end = source.index('    def keyPressEvent', release_start)
     release_body = source[release_start:release_end]
@@ -142,6 +144,24 @@ def test_main_window_redraw_is_reactive_and_undo_redo_do_not_force_views():
     save_start = source.index('    def save', redo_start)
     assert 'self._redraw_views()' not in source[undo_start:redo_start]
     assert 'self._redraw_views()' not in source[redo_start:save_start]
+
+
+def test_viewport_3d_contains_no_bounding_box_substitution_pipeline():
+    source = Path('archforge/ui/viewport_3d.py').read_text(encoding='utf-8')
+    forbidden = (
+        '_begin_interaction',
+        '_end_interaction',
+        '_finish_deferred_view_change',
+        '_update_interaction_proxies',
+        'proxy_items',
+        'ensure_proxy_items',
+        'hide_proxy',
+        '_bbox_corners',
+        'bounding_box_proxy',
+        'proxy_geometry',
+    )
+    for token in forbidden:
+        assert token not in source
 
 
 def test_viewport_3d_uses_targeted_reactive_cache_and_no_global_sync_loop():
