@@ -395,11 +395,11 @@ class CommandStack:
             self._listeners.remove(callback)
 
     def _notify(self, modified_ids):
-        for callback in tuple(self._listeners):
+        for callback in self._listeners:
             try:
                 callback(modified_ids)
-            except Exception as exc:
-                print(f"[CommandStack Warning] Listener failed: {exc}")
+            except Exception as e:
+                print(f"[CommandStack Event Bus Warning] Listener failed: {e}")
 
     @property
     def can_undo(self) -> bool:
@@ -413,20 +413,18 @@ class CommandStack:
         c.do(self.doc)
         self.done.append(c)
         self.undone.clear()
-        self._notify(_command_modified_ids(c))
+        self._notify(getattr(c, 'ids', None))
 
     def undo(self):
-        if not self.done:
-            return
+        if not self.done: return
         c = self.done.pop()
         c.undo(self.doc)
         self.undone.append(c)
-        self._notify(_command_modified_ids(c))
+        self._notify(getattr(c, 'ids', None))
 
     def redo(self):
-        if not self.undone:
-            return
+        if not self.undone: return
         c = self.undone.pop()
         c.do(self.doc)
         self.done.append(c)
-        self._notify(_command_modified_ids(c))
+        self._notify(getattr(c, 'ids', None))
