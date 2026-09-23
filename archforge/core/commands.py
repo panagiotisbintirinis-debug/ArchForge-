@@ -332,7 +332,7 @@ class AssignConstruction(Command):
             doc.mark_dirty(self.eid)
 
 class ConnectInfrastructure(Command):
-    """Create one authoritative MEP conduit between semantic endpoints."""
+    """Generate an MEP route once, then commit it as authoritative editable mesh topology."""
     def __init__(self, start_entity_id, end_entity_id, diameter, system_type, path_vertices):
         self.start_id = str(start_entity_id)
         self.end_id = str(end_entity_id)
@@ -343,20 +343,51 @@ class ConnectInfrastructure(Command):
         self.ids = [self.generated_id]
 
     def do(self, doc):
-        conduit_params = {
-            'start_node': self.start_id,
-            'end_node': self.end_id,
-            'diameter': self.diameter,
-            'path_vertices': copy.deepcopy(self.path),
-            'system_type': self.system_type,
+        from archforge.core.model import validate_conduit_spec
+        from archforge.geometry.mesh import generate_conduit_topology
+
+        spec = validate_conduit_spec(
+            self.start_id,
+            self.end_id,
+            self.diameter,
+            self.system_type,
+            self.path,
+        )
+        segments = 12
+        vertices, faces = generate_conduit_topology(
+            spec['path_vertices'],
+            spec['diameter'],
+            segments=segments,
+        )
+        mesh_params = {
+            'vertices': [list(vertex) for vertex in vertices],
+            'faces': [list(face) for face in faces],
+            'matrix': [
+                1.0, 0.0, 0.0, 0.0,
+                0.0, 1.0, 0.0, 0.0,
+                0.0, 0.0, 1.0, 0.0,
+                0.0, 0.0, 0.0, 1.0,
+            ],
+            'metadata': {
+                'semantic_type': 'conduit',
+                'system_type': spec['system_type'],
+                'diameter': spec['diameter'],
+                'start_node': spec['start_node'],
+                'end_node': spec['end_node'],
+                'source_path_vertices': copy.deepcopy(spec['path_vertices']),
+                'sweep_segments': segments,
+            },
         }
-        conduit_entity = Entity(
-            kind='conduit',
-            params=conduit_params,
-            name=f"{self.system_type}_line",
+        mesh_entity = Entity(
+            kind='mesh',
+            params=mesh_params,
+            name=f"{spec['system_type']}_line",
             id=self.generated_id,
         )
-        doc.add(conduit_entity)
+        doc.add(mesh_entity)
+        for source_id in (self.start_id, self.end_id):
+            if source_id in doc.entities:
+                doc.add_dependency(source_id, self.generated_id)
 
     def undo(self, doc):
         if self.generated_id in doc.entities:
