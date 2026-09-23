@@ -9,6 +9,19 @@ import uuid
 
 Vec3 = Tuple[float, float, float]
 
+LAYER_ARCHITECTURE = 1 << 0
+LAYER_HYDRAULIC = 1 << 1
+LAYER_ELECTRICAL = 1 << 2
+LAYER_HVAC = 1 << 3
+LAYER_STRUCTURAL = 1 << 4
+LAYER_ALL = (
+    LAYER_ARCHITECTURE
+    | LAYER_HYDRAULIC
+    | LAYER_ELECTRICAL
+    | LAYER_HVAC
+    | LAYER_STRUCTURAL
+)
+
 
 def _finite(v):
     v = float(v)
@@ -54,6 +67,12 @@ def _room_signature(v):
 def _polygon(v):
     from archforge.architecture.floors import validate_polygon
     return validate_polygon(v)
+
+
+def _structural_contour(v):
+    if not isinstance(v, list):
+        raise ValueError('structural contour_vertices must be a list')
+    return [list(point) for point in _polygon(v)]
 
 
 
@@ -166,6 +185,7 @@ class Entity:
     locked: bool = False
     visible: bool = True
     revision: int = 0
+    layer_id: int = LAYER_ARCHITECTURE
 
     def clone(self):
         return copy.deepcopy(self)
@@ -189,6 +209,10 @@ SCHEMAS = {
     'window': _OPENING,
     'organic_opening_patch': {'opening_id': _nonempty, 'host_id': _nonempty, 'status': _nonempty},
     'mechanical_part': {'x': _finite, 'y': _finite, 'z': _finite, 'width': _positive, 'depth': _positive, 'height': _positive, 'rotation': _finite},
+    'column': {'cx': _finite, 'cy': _finite, 'base_z': _finite, 'width': _positive, 'depth': _positive, 'height': _positive},
+    'beam': {'x1': _finite, 'y1': _finite, 'x2': _finite, 'y2': _finite, 'z': _finite, 'depth': _positive, 'thickness': _positive},
+    'slab': {'contour_vertices': _structural_contour, 'thickness': _positive, 'z': _finite},
+    'footing': {'cx': _finite, 'cy': _finite, 'base_z': _finite, 'width': _positive, 'depth': _positive, 'thickness': _positive},
     'mechanical_joint': {'joint_type': _nonempty, 'parent_part': _nonempty, 'child_part': _nonempty, 'anchor': _vec3, 'axis': _vec3, 'min_value': _finite, 'max_value': _finite, 'value': _finite},
     'mechanical_mount': {'host_id': _nonempty, 'part_id': _nonempty, 'surface_role': _nonempty, 'clearance': _nonnegative, 'embed_depth': _nonnegative},
 }
@@ -268,6 +292,7 @@ class Document:
         self.room_data = {}
         self.room_bindings = {}
         self.surface_modifiers = {}
+        self.visible_layers_mask = LAYER_ALL
         self._change_serial = 0
         self._dirty_generation: Dict[str, int] = {}
 
@@ -510,6 +535,16 @@ class Document:
         key = resolve_room_metadata_key(self, signature)
         return copy.deepcopy(self.room_data.get(key, self.room_data.get(signature, {})))
 
+    def entity_is_visible(self, entity_or_id) -> bool:
+        entity = self.get(entity_or_id) if isinstance(entity_or_id, str) else entity_or_id
+        return bool(entity.visible and (int(entity.layer_id) & int(self.visible_layers_mask)))
+
+    def set_visible_layers_mask(self, mask: int) -> None:
+        mask = int(mask)
+        if mask < 0:
+            raise ValueError('visible layer mask must be non-negative')
+        self.visible_layers_mask = mask
+
     def active_room_faces(self, z=None, tolerance=1e-5):
         from archforge.architecture.room_identity import reconcile_room_bindings
         level = self.work_plane.origin[2] if z is None else z
@@ -640,6 +675,7 @@ class Document:
             'constructions': self.constructions,
             'room_data': copy.deepcopy(self.room_data),
             'room_bindings': copy.deepcopy(self.room_bindings),
+            'visible_layers_mask': int(self.visible_layers_mask),
             'surface_modifiers': [modifier_to_dict(m) for m in self.surface_modifiers.values()],
         }
 
@@ -659,6 +695,7 @@ class Document:
         doc.constructions = data.get('constructions', {})
         doc.room_data = copy.deepcopy(data.get('room_data', {}))
         doc.room_bindings = copy.deepcopy(data.get('room_bindings', {}))
+        doc.visible_layers_mask = int(data.get('visible_layers_mask', LAYER_ALL))
         deferred = []
         for raw in data.get('entities', []):
             if raw.get('kind') in ('door', 'window', 'organic_opening_patch', 'mechanical_joint', 'mechanical_mount'):
