@@ -1,6 +1,6 @@
 import os,tempfile,math
 from archforge.core.model import Document,Entity,WorkPlane
-from archforge.core.commands import CommandStack,AddEntity,UpdateEntity,MoveEntities
+from archforge.core.commands import CommandStack,AddEntity,UpdateEntity,MoveEntities,MoveVertices
 from archforge.core.snapping import points_for,best_snap
 from archforge.core.interaction import WallDrawTransaction,BoxStretchTransaction
 from archforge.organic.biospectre import profile_radius,junction_plane,overlap
@@ -8,6 +8,13 @@ from archforge.organic.biospectre import profile_radius,junction_plane,overlap
 def box(x=0,y=0): return Entity('box',{'x':x,'y':y,'z':0,'width':4,'depth':2,'height':3,'rotation':0})
 def wall(): return Entity('wall',{'x1':0,'y1':0,'x2':4,'y2':0,'z':0,'height':2.7,'thickness':.15})
 def pod(cx=0): return Entity('pod',{'cx':cx,'cy':0,'floor_level':1,'diameter_x':4,'diameter_y':4,'height':2,'shell_thickness':.1})
+
+def mesh():
+    return Entity('mesh',{
+        'vertices': [[0,0,0],[2,0,0],[0,2,0]],
+        'faces': [[0,1,2]],
+        'matrix': [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],
+    })
 
 def test_add_and_validate():
     d=Document();e=box();d.add(e);assert d.get(e.id).params['width']==4
@@ -27,6 +34,36 @@ def test_dependency_cycle_rejected():
 
 def test_commands_undo_redo():
     d=Document();s=CommandStack(d);e=box();s.execute(AddEntity(e));s.execute(UpdateEntity(e.id,{'width':8}));assert d.get(e.id).params['width']==8;s.undo();assert d.get(e.id).params['width']==4;s.redo();assert d.get(e.id).params['width']==8
+
+
+def test_move_vertices_command_is_reversible_and_notifies_target():
+    d=Document();e=mesh();d.add(e);stack=CommandStack(d);events=[];stack.subscribe(events.append)
+    stack.execute(MoveVertices(e.id,1,1.5,-.5,.25))
+    assert d.get(e.id).params['vertices'][1]==[3.5,-.5,.25]
+    assert events[-1]==(e.id,)
+    stack.undo();assert d.get(e.id).params['vertices'][1]==[2.0,0.0,0.0]
+    stack.redo();assert d.get(e.id).params['vertices'][1]==[3.5,-.5,.25]
+
+
+def test_vertex_move_transaction_preview_is_non_destructive_until_commit():
+    from archforge.core.interaction import VertexMoveTransaction
+    d=Document();e=mesh();d.add(e);stack=CommandStack(d)
+    tx=VertexMoveTransaction(stack,e.id,2)
+    assert tx.update_drag(.5,1.0,2.0)==(.5,3.0,2.0)
+    assert d.get(e.id).params['vertices'][2]==[0.0,2.0,0.0]
+    assert tx.preview_vertices()[2]==[.5,3.0,2.0]
+    tx.commit()
+    assert d.get(e.id).params['vertices'][2]==[.5,3.0,2.0]
+    stack.undo();assert d.get(e.id).params['vertices'][2]==[0.0,2.0,0.0]
+
+
+def test_plan_scene_selected_mesh_exposes_indexed_vertex_handles():
+    from archforge.core.plan_scene import build_plan_frame
+    d=Document();e=mesh();d.add(e);d.select([e.id])
+    handles=build_plan_frame(d).handles
+    assert [(h.entity_id,h.handle) for h in handles]==[
+        (e.id,'vertex:0'),(e.id,'vertex:1'),(e.id,'vertex:2')
+    ]
 
 def test_multi_move_one_command():
     d=Document();a=box();b=box(5);d.add(a);d.add(b);s=CommandStack(d);s.execute(MoveEntities([a.id,b.id],2,3));assert d.get(a.id).params['x']==2 and d.get(b.id).params['x']==7;s.undo();assert d.get(a.id).params['x']==0 and d.get(b.id).params['x']==5
