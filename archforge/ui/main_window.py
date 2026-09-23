@@ -5,18 +5,24 @@ import json
 import os
 import threading
 import wave
-from PySide6.QtCore import Qt, QObject, QRunnable, QThreadPool, Signal, Slot
+import uuid
+from PySide6.QtCore import Qt, QObject, QRunnable, QThreadPool, Signal, Slot, QMimeData
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QDockWidget, QWidget, QFormLayout, QDoubleSpinBox,
     QLabel, QTabWidget, QStatusBar, QFileDialog, QMessageBox, QSplitter,
     QVBoxLayout, QHBoxLayout, QTextEdit, QLineEdit, QPushButton, QCheckBox, QAbstractSpinBox,
+    QTreeWidget, QTreeWidgetItem, QAbstractItemView,
 )
 
 from archforge.core.model import (
-    Document, LAYER_ALL, LAYER_STRUCTURAL,
+    Document, Entity, LAYER_ALL, LAYER_STRUCTURAL,
+    LAYER_HYDRAULIC, LAYER_ELECTRICAL, LAYER_HVAC,
 )
-from archforge.core.commands import CommandStack, UpdateEntity, CreateRoomFloors, RouteAndConnectInfrastructure
+from archforge.core.commands import (
+    CommandStack, AddEntity, UpdateEntity, CreateRoomFloors,
+    RouteAndConnectInfrastructure, ApplyStructuralFrame,
+)
 from .plan_view import PlanView
 from .ortho_view import OrthoView
 from .viewport_3d import Viewport3D
@@ -283,6 +289,28 @@ class IntentConfirmationHUD(QWidget):
         self.raise_()
 
 
+class CatalogTree(QTreeWidget):
+    """Hierarchical CAD catalog whose leaf items drag semantic creation keys."""
+
+    MIME_TYPE = 'application/x-archforge-catalog-item'
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setHeaderHidden(True)
+        self.setDragEnabled(True)
+        self.setDragDropMode(QAbstractItemView.DragDropMode.DragOnly)
+        self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+
+    def mimeData(self, items):
+        mime = QMimeData()
+        for item in items:
+            key = item.data(0, Qt.ItemDataRole.UserRole)
+            if key:
+                mime.setData(self.MIME_TYPE, str(key).encode('utf-8'))
+                break
+        return mime
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -299,6 +327,7 @@ class MainWindow(QMainWindow):
         self._ghost_selection_snapshot = None
         self.tabs = QTabWidget()
         self.plan_view = PlanView(self.doc, self.stack)
+        self.plan_view.catalogItemDropped.connect(self._create_catalog_component)
         self.front_view = OrthoView(self.doc, self.stack, 'XZ')
         self.side_view = OrthoView(self.doc, self.stack, 'YZ')
         self.view_3d = Viewport3D(self.doc, self.stack)
@@ -386,12 +415,182 @@ class MainWindow(QMainWindow):
         toolbar.addAction(stl_action)
 
     def _build_inspector(self):
-        self.dock = QDockWidget('Inspector', self)
-        self.dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
+        self.dock = QDockWidget('Properties & Library', self)
+        self.dock.setAllowedAreas(
+            Qt.DockWidgetArea.LeftDockWidgetArea
+            | Qt.DockWidgetArea.RightDockWidgetArea
+        )
+        self.inspector_tabs = QTabWidget()
+
         self.inspector = QWidget()
         self.form = QFormLayout(self.inspector)
-        self.dock.setWidget(self.inspector)
+        self.inspector_tabs.addTab(self.inspector, 'Inspector')
+
+        self.library_browser = CatalogTree()
+        self._populate_library_browser()
+        self.inspector_tabs.addTab(self.library_browser, 'Library Browser')
+
+        self.dock.setWidget(self.inspector_tabs)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dock)
+
+    def _populate_library_browser(self):
+        catalogs = (
+            (
+                'Core Catalogs (Pods, Walls, Framing)',
+                (
+                    ('Pod — 3.0 m', 'core:pod'),
+                    ('Wall — 2.0 m', 'core:wall'),
+                    ('Concrete Column — 300 × 300 mm', 'core:column'),
+                ),
+            ),
+            (
+                'Manufacturer Catalogs (MEP Profiles)',
+                (
+                    ('Hydraulic Service Node — DN25', 'mep:hydraulic'),
+                    ('Electrical Service Node — 20 mm', 'mep:electrical'),
+                    ('HVAC Service Node — 100 mm', 'mep:hvac'),
+                ),
+            ),
+            (
+                'User Catalog',
+                (
+                    ('Generic User Box — 1.0 m', 'user:box'),
+                ),
+            ),
+        )
+        self.library_browser.clear()
+        for category_name, entries in catalogs:
+            category = QTreeWidgetItem([category_name])
+            category.setFlags(
+                category.flags() & ~Qt.ItemFlag.ItemIsDragEnabled
+            )
+            self.library_browser.addTopLevelItem(category)
+            for label, key in entries:
+                item = QTreeWidgetItem([label])
+                item.setData(0, Qt.ItemDataRole.UserRole, key)
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsDragEnabled)
+                category.addChild(item)
+            category.setExpanded(True)
+
+    def _create_catalog_component(self, catalog_key, x, y):
+        key = str(catalog_key)
+        x = float(x)
+        y = float(y)
+        selected_ids = []
+
+        if key == 'core:wall':
+            entity = Entity(
+                'wall',
+                {
+                    'x1': x - 1.0,
+                    'y1': y,
+                    'z': 0.0,
+                    'x2': x + 1.0,
+                    'y2': y,
+                    'height': 2.70,
+                    'thickness': 0.20,
+                },
+                name='Catalog Wall',
+            )
+            command = AddEntity(entity)
+            selected_ids = [entity.id]
+        elif key == 'core:pod':
+            entity = Entity(
+                'pod',
+                {
+                    'cx': x,
+                    'cy': y,
+                    'floor_level': 0.0,
+                    'diameter_x': 3.0,
+                    'diameter_y': 3.0,
+                    'height': 2.70,
+                    'shell_thickness': 0.15,
+                    'rotation': 0.0,
+                },
+                name='Catalog Pod',
+            )
+            command = AddEntity(entity)
+            selected_ids = [entity.id]
+        elif key == 'core:column':
+            entity_id = f'structural_column_{uuid.uuid4().hex[:12]}'
+            command = ApplyStructuralFrame(
+                columns=[{
+                    'id': entity_id,
+                    'name': 'Catalog Concrete Column',
+                    'cx': x,
+                    'cy': y,
+                    'base_z': 0.0,
+                    'width': 0.30,
+                    'depth': 0.30,
+                    'height': 3.0,
+                }]
+            )
+            selected_ids = [entity_id]
+        elif key in ('mep:hydraulic', 'mep:electrical', 'mep:hvac'):
+            system_type = key.split(':', 1)[1]
+            layer_id = {
+                'hydraulic': LAYER_HYDRAULIC,
+                'electrical': LAYER_ELECTRICAL,
+                'hvac': LAYER_HVAC,
+            }[system_type]
+            size = {
+                'hydraulic': 0.25,
+                'electrical': 0.20,
+                'hvac': 0.40,
+            }[system_type]
+            entity = Entity(
+                'mechanical_part',
+                {
+                    'x': x,
+                    'y': y,
+                    'z': 0.0,
+                    'width': size,
+                    'depth': size,
+                    'height': size,
+                    'rotation': 0.0,
+                },
+                name=f'{system_type.title()} Catalog Service Node',
+                layer_id=layer_id,
+            )
+            command = AddEntity(entity)
+            selected_ids = [entity.id]
+        elif key == 'user:box':
+            entity = Entity(
+                'box',
+                {
+                    'x': x,
+                    'y': y,
+                    'z': 0.0,
+                    'width': 1.0,
+                    'depth': 1.0,
+                    'height': 1.0,
+                    'rotation': 0.0,
+                },
+                name='User Catalog Box',
+            )
+            command = AddEntity(entity)
+            selected_ids = [entity.id]
+        else:
+            self.statusBar().showMessage(
+                f'Unknown catalog item: {key}',
+                4000,
+            )
+            return False
+
+        try:
+            self.stack.execute(command)
+            self.doc.select(selected_ids)
+            self.plan_view.redraw()
+            self.view_3d.refresh_selection()
+            self.refresh_inspector()
+            self.statusBar().showMessage(
+                f'Placed {key} at X {x:.3f}, Y {y:.3f}',
+                3000,
+            )
+            return True
+        except Exception as exc:
+            QMessageBox.warning(self, 'Catalog placement failed', str(exc))
+            return False
 
     def _init_ai_sidebar(self):
         self.sidebar_widget = QWidget()
