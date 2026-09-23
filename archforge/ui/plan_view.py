@@ -22,10 +22,16 @@ class PlanView(QGraphicsView):
         self.setRenderHint(QPainter.RenderHint.Antialiasing,True);self.setDragMode(QGraphicsView.DragMode.NoDrag);self.setMouseTracking(True);self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse);self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter);self.setBackgroundBrush(QColor(248,248,248))
         self._mouse_down=False;self._handle_items={};self._entity_items={};self._active_handle=None;self._hud_item=None
         self._vertex_tx=None;self._vertex_drag_origin=None
+        self._ghost_path=();self._ghost_diameter=0.0;self._interaction_locked=False
         self.scale(55.0,-55.0);self.redraw()
     def rebind(self,doc,stack):
         self.doc=doc;self.stack=stack;self.controller=PointerController(doc,stack)
-        self._vertex_tx=None;self._vertex_drag_origin=None;self.redraw()
+        self._vertex_tx=None;self._vertex_drag_origin=None;self._ghost_path=();self._ghost_diameter=0.0;self._interaction_locked=False;self.redraw()
+    def set_interaction_locked(self,locked):self._interaction_locked=bool(locked)
+    def set_ghost_preview(self,path_vertices,diameter):
+        self._ghost_path=tuple(tuple(float(v) for v in point) for point in path_vertices);self._ghost_diameter=float(diameter);self._interaction_locked=True;self.redraw()
+    def clear_ghost_preview(self):
+        self._ghost_path=();self._ghost_diameter=0.0;self._interaction_locked=False;self.redraw()
     def set_tool(self,tool):self.controller.set_tool(tool);self._active_handle=None;self.statusChanged.emit(f'Tool: {tool}');self.redraw()
     def _scene_to_plane(self,pos):p=self.mapToScene(pos);return PointerEvent(p.x(),p.y())
 
@@ -41,6 +47,7 @@ class PlanView(QGraphicsView):
         return tuple(_mesh_world_vertices(params))
     def wheelEvent(self,event):self.scale(1.15 if event.angleDelta().y()>0 else 1/1.15,1.15 if event.angleDelta().y()>0 else 1/1.15)
     def mousePressEvent(self,event):
+        if self._interaction_locked and event.button()==Qt.MouseButton.LeftButton:return
         if event.button()!=Qt.MouseButton.LeftButton:super().mousePressEvent(event);return
         self._mouse_down=True;hit=self.itemAt(event.position().toPoint())
         if hit in self._handle_items:
@@ -109,6 +116,7 @@ class PlanView(QGraphicsView):
             if hull:self._draw_primitive(Primitive2D('polygon',hull,entity_id=self._vertex_tx.eid,role='vertex-preview',meta=(('semantic','mesh'),)))
             for index,(x,y,_z) in enumerate(world):
                 self._draw_handle(Handle2D(x,y,self._vertex_tx.eid,f'vertex:{index}','vertex'))
+        if self._ghost_path:self._draw_ghost_preview()
         if frame.snap:self._draw_snap(frame.snap)
         if frame.hud:self._draw_hud(frame.hud)
         r=self.mapToScene(self.viewport().rect()).boundingRect();self._scene.setSceneRect(r.adjusted(-5,-5,5,5))
@@ -130,6 +138,16 @@ class PlanView(QGraphicsView):
         if item is not None:
             item.setZValue(-10 if room else (10 if opening else (20 if preview else 0)))
             if p.entity_id and not preview:self._entity_items[item]=p.entity_id
+    def _draw_ghost_preview(self):
+        from PySide6.QtGui import QPolygonF
+        from archforge.geometry.mesh import generate_conduit_topology
+        vertices,faces=generate_conduit_topology(self._ghost_path,self._ghost_diameter)
+        pen=QPen(QColor(0,220,255,220));pen.setWidthF(.028);pen.setStyle(Qt.PenStyle.DotLine)
+        brush=QBrush(QColor(0,220,255,42))
+        for face in faces:
+            pts=[QPointF(vertices[index][0],vertices[index][1]) for index in face]
+            item=self._scene.addPolygon(QPolygonF(pts),pen,brush);item.setZValue(35);item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+
     def _draw_handle(self,h):
         r=.09;it=self._scene.addEllipse(h.x-r,h.y-r,2*r,2*r,QPen(QColor(20,90,180),0),QBrush(QColor(255,255,255)));it.setZValue(50);self._handle_items[it]=h
     def _draw_snap(self,s):r=.08;self._scene.addEllipse(s['x']-r,s['y']-r,2*r,2*r,QPen(QColor(220,80,40),0)).setZValue(70)
