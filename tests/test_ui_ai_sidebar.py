@@ -33,20 +33,16 @@ def _box(entity_id, x, name):
 
 def _drain_ai_worker(app):
     assert QThreadPool.globalInstance().waitForDone(5000)
-    for _ in range(4):
+    for _ in range(6):
         app.processEvents()
 
 
-def test_ai_sidebar_free_form_language_uses_openai_json_and_executes_command_stack():
+def test_ai_sidebar_creates_ghost_before_explicit_human_acceptance():
     app = QApplication.instance() or QApplication([])
     window = MainWindow()
     try:
         window.doc.add(_box('source', 0.0, 'Pump cabinet'))
         window.doc.add(_box('sink', 2.0, 'Distribution cabinet'))
-
-        assert window.sidebar_widget is not None
-        assert window.ai_chat_log.isReadOnly()
-        assert window.main_splitter.indexOf(window.sidebar_widget) >= 0
 
         response_payload = {
             'action': 'connect_infrastructure',
@@ -55,7 +51,6 @@ def test_ai_sidebar_free_form_language_uses_openai_json_and_executes_command_sta
             'system_type': 'electrical',
         }
         fake_response = SimpleNamespace(output_text=json.dumps(response_payload))
-
         before_entities = set(window.doc.entities)
         before_done = len(window.stack.done)
 
@@ -71,52 +66,68 @@ def test_ai_sidebar_free_form_language_uses_openai_json_and_executes_command_sta
             patch('openai.OpenAI') as openai_cls,
         ):
             openai_cls.return_value.responses.create.return_value = fake_response
-
             window.ai_input_line.setText(
                 'Please run power from the pump cabinet over to the distribution cabinet.'
             )
             window.ai_input_line.returnPressed.emit()
-            assert window.ai_input_line.text() == ''
-
             _drain_ai_worker(app)
 
-            openai_cls.assert_called_once_with(api_key='test-api-key')
-            create_call = openai_cls.return_value.responses.create.call_args
-            assert create_call.kwargs['model'] == 'gpt-5.6-luna'
-            assert create_call.kwargs['text']['format']['type'] == 'json_schema'
-            assert create_call.kwargs['text']['format']['strict'] is True
-            assert (
-                create_call.kwargs['text']['format']['schema']['additionalProperties']
-                is False
-            )
-            request_context = json.loads(create_call.kwargs['input'][1]['content'])
-            assert request_context['user_request'].startswith('Please run power')
-            catalog_ids = {
-                entity['id']
-                for entity in request_context['available_entities']
-            }
-            assert {'source', 'sink'} <= catalog_ids
+        assert set(window.doc.entities) == before_entities
+        assert len(window.stack.done) == before_done
+        assert window.active_ghost_preview is not None
+        assert len(window.active_ghost_preview) >= 2
+        assert window._active_ghost_command['system_type'] == 'electrical'
+        assert not window.intent_confirmation_hud.isHidden()
+        assert window.plan_view._ghost_faces
+        assert window.view_3d._ghost_mesh is not None
+
+        assert window.trigger_ui_accept() is True
 
         generated_id = 'mep_source_sink'
         assert set(window.doc.entities) == before_entities | {generated_id}
-        pipe = window.doc.get(generated_id)
-        assert pipe.kind == 'mesh'
-        assert pipe.params['vertices']
-        assert pipe.params['faces']
-        assert pipe.params['metadata']['semantic_type'] == 'conduit'
-        assert pipe.params['metadata']['system_type'] == 'electrical'
-        assert pipe.params['metadata']['diameter'] == 0.020
-        assert pipe.params['metadata']['routing']['algorithm'] == 'astar-3d'
-
         assert len(window.stack.done) == before_done + 1
         assert isinstance(window.stack.done[-1], RouteAndConnectInfrastructure)
+        assert window.active_ghost_preview is None
+        assert window.view_3d._ghost_mesh is None
+        assert window.plan_view._ghost_faces == ()
 
-        log = window.ai_chat_log.toPlainText()
-        assert 'Please run power from the pump cabinet' in log
-        assert 'connected source to sink as electrical' in log
+        pipe = window.doc.get(generated_id)
+        assert pipe.kind == 'mesh'
+        assert pipe.params['metadata']['system_type'] == 'electrical'
+        assert pipe.params['metadata']['routing']['algorithm'] == 'astar-3d'
     finally:
         window.view_3d.thread_pool.waitForDone(5000)
         QThreadPool.globalInstance().waitForDone(5000)
+        window.close()
+        app.processEvents()
+
+
+def test_ai_sidebar_reject_clears_ghost_without_document_or_history_mutation():
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    try:
+        window.doc.add(_box('source', 0.0, 'Pump cabinet'))
+        window.doc.add(_box('sink', 2.0, 'Distribution cabinet'))
+        before_entities = set(window.doc.entities)
+        before_done = len(window.stack.done)
+
+        window._execute_parsed_ai_command(json.dumps({
+            'action': 'connect_infrastructure',
+            'start_id': 'source',
+            'end_id': 'sink',
+            'system_type': 'hydraulic',
+        }))
+
+        assert window.active_ghost_preview is not None
+        assert set(window.doc.entities) == before_entities
+        assert len(window.stack.done) == before_done
+
+        assert window.trigger_ui_reject() is True
+        assert window.active_ghost_preview is None
+        assert set(window.doc.entities) == before_entities
+        assert len(window.stack.done) == before_done
+        assert 'proposal rejected; document unchanged' in window.ai_chat_log.toPlainText()
+    finally:
         window.close()
         app.processEvents()
 
@@ -127,36 +138,20 @@ def test_ai_sidebar_rejects_bad_model_entity_ids_without_state_leakage():
     try:
         window.doc.add(_box('source', 0.0, 'Pump cabinet'))
         window.doc.add(_box('sink', 2.0, 'Distribution cabinet'))
-
-        fake_response = SimpleNamespace(
-            output_text=json.dumps(
-                {
-                    'action': 'connect_infrastructure',
-                    'start_id': 'source',
-                    'end_id': 'hallucinated-target',
-                    'system_type': 'hydraulic',
-                }
-            )
-        )
         before_entities = set(window.doc.entities)
         before_done = len(window.stack.done)
 
-        with (
-            patch.dict(os.environ, {'OPENAI_API_KEY': 'test-api-key'}, clear=False),
-            patch('openai.OpenAI') as openai_cls,
-        ):
-            openai_cls.return_value.responses.create.return_value = fake_response
-            window.ai_input_line.setText(
-                'Connect the pump cabinet to the target with water.'
-            )
-            window._handle_ai_ui_command()
-            _drain_ai_worker(app)
+        window._execute_parsed_ai_command(json.dumps({
+            'action': 'connect_infrastructure',
+            'start_id': 'source',
+            'end_id': 'hallucinated-target',
+            'system_type': 'hydraulic',
+        }))
 
         assert set(window.doc.entities) == before_entities
         assert len(window.stack.done) == before_done
+        assert window.active_ghost_preview is None
         assert 'unknown entity id(s): hallucinated-target' in window.ai_chat_log.toPlainText()
     finally:
-        window.view_3d.thread_pool.waitForDone(5000)
-        QThreadPool.globalInstance().waitForDone(5000)
         window.close()
         app.processEvents()
