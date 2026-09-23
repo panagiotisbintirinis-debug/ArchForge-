@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import math
+import numpy as np
 from typing import Dict, Optional, Tuple, List
 
-from PySide6.QtCore import Qt, QPointF, QTimer, Signal
+from PySide6.QtCore import Qt, QPointF, QTimer, Signal, QObject, QRunnable, QThreadPool, Slot
 from PySide6.QtGui import QPen, QBrush, QColor, QPainter, QPolygonF
 from PySide6.QtWidgets import (
     QGraphicsLineItem,
@@ -11,11 +12,12 @@ from PySide6.QtWidgets import (
     QGraphicsScene,
     QGraphicsView,
 )
+from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
 from archforge.core.model import Document
 from archforge.core.commands import CommandStack
-from archforge.geometry.incremental import IncrementalEvaluationCache
 from archforge.geometry.mesh import TessellatedPreviewBackend, MeshPayload
+from archforge.geometry.plan import build_evaluation_plan
 from archforge.geometry.picking import raycast_mesh, MeshRayHit
 from archforge.geometry.selection import BrushSpec, SurfaceHit
 from archforge.geometry.sculpt_transaction import SculptTransaction
@@ -154,6 +156,35 @@ class EntityRenderProxy:
         self.proxy_items.clear()
 
 
+class GeometryTessellationSignals(QObject):
+    finished = Signal(str, object, int)
+    failed = Signal(str, str, int)
+
+
+class GeometryTessellationWorker(QRunnable):
+    """Evaluate one parametric entity away from the GUI thread."""
+
+    def __init__(self, doc_snapshot: Document, entity_id: str, generation: int):
+        super().__init__()
+        self.doc_snapshot = doc_snapshot
+        self.entity_id = entity_id
+        self.generation = generation
+        self.signals = GeometryTessellationSignals()
+
+    @Slot()
+    def run(self):
+        try:
+            plan = build_evaluation_plan(self.doc_snapshot, entity_ids=[self.entity_id])
+            evaluation = TessellatedPreviewBackend().evaluate_plan(self.doc_snapshot, plan)
+            try:
+                payload = evaluation.body(self.entity_id).payload
+            except KeyError:
+                payload = None
+            self.signals.finished.emit(self.entity_id, payload, self.generation)
+        except Exception as exc:
+            self.signals.failed.emit(self.entity_id, str(exc), self.generation)
+
+
 class Viewport3D(QGraphicsView):
     """Persistent-item 3D viewport with deferred heavy geometry evaluation."""
 
@@ -176,8 +207,10 @@ class Viewport3D(QGraphicsView):
         self._is_orbiting = False
         self._interaction_active = False
         self._render_cache: Dict[str, EntityRenderProxy] = {}
-        self._evaluation_cache = IncrementalEvaluationCache(TessellatedPreviewBackend())
-        self._evaluation = None
+        self._gpu_buffer_cache: Dict[str, Dict[str, np.ndarray]] = {}
+        self._mesh_payload_cache: Dict[str, MeshPayload] = {}
+        self._job_generation: Dict[str, int] = {}
+        self.thread_pool = QThreadPool.globalInstance()
         self._grid_items: List[QGraphicsLineItem] = []
         self._last_selection = set()
         self._styles = {
@@ -190,6 +223,7 @@ class Viewport3D(QGraphicsView):
         self._view_settle_timer.setSingleShot(True)
         self._view_settle_timer.timeout.connect(self._finish_deferred_view_change)
 
+        self.setViewport(QOpenGLWidget())
         self.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         self.setMouseTracking(True)
         self.setBackgroundBrush(QColor(238, 240, 243))
@@ -203,10 +237,12 @@ class Viewport3D(QGraphicsView):
         self.stack.subscribe(self.on_document_modified)
         self._sculpt_tx = None
         self._interaction_active = False
-        self._evaluation_cache.clear()
         for proxy in self._render_cache.values():
             proxy.remove()
         self._render_cache.clear()
+        self._gpu_buffer_cache.clear()
+        self._mesh_payload_cache.clear()
+        self._job_generation.clear()
         self._last_selection.clear()
         self.on_document_modified(None)
 
@@ -215,9 +251,157 @@ class Viewport3D(QGraphicsView):
         self.statusChanged.emit(f"3D Viewport Tool: {tool}")
 
     def on_document_modified(self, modified_ids):
-        # Reactively invalidate only what changed or force clean repaint
-        self._evaluation_cache.invalidate(modified_ids)
+        if modified_ids is None:
+            # Global fallback is reserved for full document load/rebind or commands
+            # that cannot identify their affected entities.
+            for proxy in self._render_cache.values():
+                proxy.remove()
+            self._render_cache.clear()
+            self._gpu_buffer_cache.clear()
+            self._mesh_payload_cache.clear()
+            target_ids = tuple(self.doc.entities)
+        else:
+            target_ids = tuple(str(eid) for eid in modified_ids)
+            for eid in target_ids:
+                self._gpu_buffer_cache.pop(eid, None)
+                self._mesh_payload_cache.pop(eid, None)
+                proxy = self._render_cache.get(eid)
+                if proxy is not None:
+                    proxy.hide_mesh()
+
+        for eid in target_ids:
+            entity = self.doc.entities.get(eid)
+            if entity is None:
+                proxy = self._render_cache.pop(eid, None)
+                if proxy is not None:
+                    proxy.remove()
+                continue
+            self.queue_geometry_generation(entity)
+
         self.update()
+
+    def queue_geometry_generation(self, entity):
+        """Generate only one entity, using direct topology for meshes and workers otherwise."""
+        generation = self.doc.dirty_generation(entity.id)
+        self._job_generation[entity.id] = generation
+
+        if entity.kind == 'mesh':
+            self._render_raw_mesh_topology(
+                entity.id,
+                entity.params['vertices'],
+                entity.params['faces'],
+                entity.params.get('matrix', [
+                    1.0, 0.0, 0.0, 0.0,
+                    0.0, 1.0, 0.0, 0.0,
+                    0.0, 0.0, 1.0, 0.0,
+                    0.0, 0.0, 0.0, 1.0,
+                ]),
+                generation,
+            )
+            return
+
+        # The worker receives a detached semantic snapshot so it never races the live model.
+        snapshot = Document.from_dict(self.doc.to_dict())
+        worker = GeometryTessellationWorker(snapshot, entity.id, generation)
+        worker.signals.finished.connect(self._on_geometry_ready)
+        worker.signals.failed.connect(self._on_geometry_failed)
+        self.thread_pool.start(worker)
+
+    def _on_geometry_ready(self, entity_id: str, payload, generation: int):
+        if self._job_generation.get(entity_id) != generation:
+            return
+        if entity_id not in self.doc.entities:
+            return
+        if not isinstance(payload, MeshPayload):
+            proxy = self._render_cache.pop(entity_id, None)
+            if proxy is not None:
+                proxy.remove()
+            self._gpu_buffer_cache.pop(entity_id, None)
+            self._mesh_payload_cache.pop(entity_id, None)
+            return
+        self._upload_to_gpu_buffers(entity_id, payload)
+        self.update()
+
+    def _on_geometry_failed(self, entity_id: str, message: str, generation: int):
+        if self._job_generation.get(entity_id) == generation:
+            self.statusChanged.emit(f"Geometry generation failed for {entity_id}: {message}")
+
+    def _render_raw_mesh_topology(self, entity_id, vertices, faces, matrix, generation=None):
+        """Convert authoritative free-form topology directly into contiguous numeric buffers."""
+        vertex_array = np.ascontiguousarray(vertices, dtype=np.float32)
+        matrix_array = np.ascontiguousarray(matrix, dtype=np.float32).reshape(4, 4)
+
+        ones = np.ones((vertex_array.shape[0], 1), dtype=np.float32)
+        homogeneous = np.concatenate((vertex_array, ones), axis=1)
+        transformed = np.ascontiguousarray((homogeneous @ matrix_array.T)[:, :3], dtype=np.float32)
+
+        triangles = []
+        for face in faces:
+            if len(face) < 3:
+                continue
+            root = int(face[0])
+            for index in range(1, len(face) - 1):
+                triangles.append((root, int(face[index]), int(face[index + 1])))
+        index_array = np.ascontiguousarray(triangles, dtype=np.uint32)
+
+        payload = MeshPayload(
+            tuple(tuple(float(value) for value in row) for row in transformed),
+            tuple(tuple(int(value) for value in row) for row in index_array),
+            tuple('mesh_surface' for _ in range(len(index_array))),
+        )
+        self._upload_to_gpu_buffers(
+            entity_id,
+            payload,
+            vertex_data=transformed,
+            index_data=index_array,
+        )
+        if generation is not None:
+            self._job_generation[entity_id] = generation
+
+    def _upload_to_gpu_buffers(self, entity_id, payload, vertex_data=None, index_data=None):
+        """Cache contiguous VBO/IBO-ready arrays and update only the changed render proxy."""
+        if vertex_data is None:
+            vertex_data = np.ascontiguousarray(payload.vertices, dtype=np.float32)
+        if index_data is None:
+            index_data = np.ascontiguousarray(payload.triangles, dtype=np.uint32)
+
+        self._gpu_buffer_cache[entity_id] = {
+            'vertices': vertex_data,
+            'indices': index_data,
+        }
+        self._mesh_payload_cache[entity_id] = payload
+        self._render_cached_entity(entity_id, payload)
+
+    def _render_cached_entity(self, entity_id: str, mesh: MeshPayload):
+        if entity_id not in self.doc.entities:
+            return
+        w = max(100, self.width())
+        h = max(100, self.height())
+        kind = self.doc.get(entity_id).kind
+        proxy = self._proxy(entity_id)
+        proxy.kind = kind
+        proxy.bounds = self._bounds_from_mesh(mesh)
+        proxy.hide_proxy()
+        proxy.ensure_mesh_items(len(mesh.triangles))
+        pen, brush = self._style_for(entity_id, kind)
+
+        for item, tri in zip(proxy.mesh_items, mesh.triangles):
+            v0, v1, v2 = mesh.vertices[tri[0]], mesh.vertices[tri[1]], mesh.vertices[tri[2]]
+            p0 = self.camera.project(v0, w, h)
+            p1 = self.camera.project(v1, w, h)
+            p2 = self.camera.project(v2, w, h)
+            if not (p0 and p1 and p2):
+                item.hide()
+                continue
+            item.setPolygon(QPolygonF([
+                QPointF(p0[0], p0[1]),
+                QPointF(p1[0], p1[1]),
+                QPointF(p2[0], p2[1]),
+            ]))
+            item.setPen(pen)
+            item.setBrush(brush)
+            item.setZValue(-((p0[2] + p1[2] + p2[2]) / 3.0))
+            item.show()
 
     def _style_for(self, entity_id: str, kind: str):
         if entity_id in self.doc.selection:
@@ -350,14 +534,11 @@ class Viewport3D(QGraphicsView):
 
         if event.button() == Qt.MouseButton.LeftButton:
             ray_orig, ray_dir = self.camera.unproject_ray(pos.x(), pos.y(), self.width(), self.height())
-            eval_res = self._evaluation
             best_hit: Optional[Tuple[float, str, MeshRayHit]] = None
-            for body in eval_res.bodies:
-                if not isinstance(body.payload, MeshPayload):
-                    continue
-                hit = raycast_mesh(body.entity_id, body.payload, ray_orig, ray_dir)
+            for entity_id, payload in self._mesh_payload_cache.items():
+                hit = raycast_mesh(entity_id, payload, ray_orig, ray_dir)
                 if hit is not None and (best_hit is None or hit.distance < best_hit[0]):
-                    best_hit = (hit.distance, body.entity_id, hit)
+                    best_hit = (hit.distance, entity_id, hit)
 
             if best_hit is not None:
                 _, eid, mesh_hit = best_hit
@@ -461,41 +642,13 @@ class Viewport3D(QGraphicsView):
         h = max(100, self.height())
         self._scene.setSceneRect(0, 0, w, h)
         self._update_grid()
-        evaluation = self._evaluation
-        live_ids = set()
 
-        for body in evaluation.bodies:
-            mesh = body.payload
-            if not isinstance(mesh, MeshPayload):
-                continue
-            live_ids.add(body.entity_id)
-            proxy = self._proxy(body.entity_id)
-            proxy.kind = body.semantic_kind
-            proxy.bounds = self._bounds_from_mesh(mesh)
-            proxy.hide_proxy()
-            proxy.ensure_mesh_items(len(mesh.triangles))
-            pen, brush = self._style_for(body.entity_id, body.semantic_kind)
-
-            for item, tri in zip(proxy.mesh_items, mesh.triangles):
-                v0, v1, v2 = mesh.vertices[tri[0]], mesh.vertices[tri[1]], mesh.vertices[tri[2]]
-                p0 = self.camera.project(v0, w, h)
-                p1 = self.camera.project(v1, w, h)
-                p2 = self.camera.project(v2, w, h)
-                if not (p0 and p1 and p2):
-                    item.hide()
-                    continue
-                item.setPolygon(QPolygonF([
-                    QPointF(p0[0], p0[1]),
-                    QPointF(p1[0], p1[1]),
-                    QPointF(p2[0], p2[1]),
-                ]))
-                item.setPen(pen)
-                item.setBrush(brush)
-                item.setZValue(-((p0[2] + p1[2] + p2[2]) / 3.0))
-                item.show()
+        for entity_id, mesh in tuple(self._mesh_payload_cache.items()):
+            if entity_id in self.doc.entities:
+                self._render_cached_entity(entity_id, mesh)
 
         for entity_id in list(self._render_cache):
-            if entity_id not in live_ids:
+            if entity_id not in self.doc.entities:
                 self._render_cache.pop(entity_id).remove()
 
         self._last_selection = set(self.doc.selection)
