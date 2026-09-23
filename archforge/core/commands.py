@@ -331,6 +331,38 @@ class AssignConstruction(Command):
         else:
             doc.mark_dirty(self.eid)
 
+class ConnectInfrastructure(Command):
+    """Create one authoritative MEP conduit between semantic endpoints."""
+    def __init__(self, start_entity_id, end_entity_id, diameter, system_type, path_vertices):
+        self.start_id = str(start_entity_id)
+        self.end_id = str(end_entity_id)
+        self.diameter = float(diameter)
+        self.system_type = system_type
+        self.path = copy.deepcopy(path_vertices)
+        self.generated_id = f"mep_{self.start_id}_{self.end_id}"
+        self.ids = [self.generated_id]
+
+    def do(self, doc):
+        conduit_params = {
+            'start_node': self.start_id,
+            'end_node': self.end_id,
+            'diameter': self.diameter,
+            'path_vertices': copy.deepcopy(self.path),
+            'system_type': self.system_type,
+        }
+        conduit_entity = Entity(
+            kind='conduit',
+            params=conduit_params,
+            name=f"{self.system_type}_line",
+            id=self.generated_id,
+        )
+        doc.add(conduit_entity)
+
+    def undo(self, doc):
+        if self.generated_id in doc.entities:
+            doc.remove(self.generated_id)
+
+
 @dataclass
 class MoveVertices(Command):
     """Move one authoritative mesh vertex as a reversible model mutation."""
