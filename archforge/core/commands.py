@@ -331,6 +331,63 @@ class AssignConstruction(Command):
         else:
             doc.mark_dirty(self.eid)
 
+class RouteAndConnectInfrastructure(Command):
+    """Route between semantic endpoint anchors, then commit one authoritative mesh."""
+    def __init__(
+        self,
+        start_entity_id,
+        end_entity_id,
+        diameter,
+        system_type,
+        *,
+        grid_resolution=0.05,
+    ):
+        self.start_id = str(start_entity_id)
+        self.end_id = str(end_entity_id)
+        self.diameter = float(diameter)
+        self.system_type = system_type
+        self.grid_resolution = float(grid_resolution)
+        self.generated_id = f"mep_{self.start_id}_{self.end_id}"
+        self.ids = [self.generated_id]
+        self.route = None
+        self._connect_command = None
+
+    def do(self, doc):
+        from archforge.core.router import MEPPathRouter
+
+        if self.route is None:
+            router = MEPPathRouter(
+                doc,
+                grid_resolution=self.grid_resolution,
+                clearance=max(0.0, self.diameter / 2.0),
+                ignore_entity_ids={self.start_id, self.end_id},
+            )
+            start = router.entity_anchor(self.start_id)
+            end = router.entity_anchor(self.end_id)
+            self.route = router.compute_route(start, end)
+
+        self._connect_command = ConnectInfrastructure(
+            self.start_id,
+            self.end_id,
+            self.diameter,
+            self.system_type,
+            copy.deepcopy(self.route),
+        )
+        self._connect_command.do(doc)
+        entity = doc.get(self.generated_id)
+        metadata = copy.deepcopy(entity.params.get('metadata', {}))
+        metadata['routing'] = {
+            'algorithm': 'astar-3d',
+            'grid_resolution': self.grid_resolution,
+            'route_nodes': len(self.route),
+        }
+        doc.update(self.generated_id, {'metadata': metadata})
+
+    def undo(self, doc):
+        if self._connect_command is not None:
+            self._connect_command.undo(doc)
+
+
 class ConnectInfrastructure(Command):
     """Generate an MEP route once, then commit it as authoritative editable mesh topology."""
     def __init__(self, start_entity_id, end_entity_id, diameter, system_type, path_vertices):
