@@ -8,6 +8,20 @@ class Command:
     def do(self,doc:Document): raise NotImplementedError
     def undo(self,doc:Document): raise NotImplementedError
 
+
+
+def _command_modified_ids(command):
+    ids = getattr(command, 'ids', None)
+    if ids is not None:
+        return tuple(str(eid) for eid in ids)
+    eid = getattr(command, 'eid', None)
+    if eid is not None:
+        return (str(eid),)
+    entity = getattr(command, 'entity', None)
+    if entity is not None and getattr(entity, 'id', None) is not None:
+        return (str(entity.id),)
+    return None
+
 @dataclass
 class AddEntity(Command):
     entity: Entity
@@ -317,18 +331,113 @@ class AssignConstruction(Command):
         else:
             doc.mark_dirty(self.eid)
 
+@dataclass
+class FreezeToMesh(Command):
+    """Replace a standalone parametric pod with authoritative editable mesh data."""
+    eid: str
+    before: Optional[Entity] = None
+
+    @property
+    def ids(self):
+        return (self.eid,)
+
+    def _assert_freezable(self, doc: Document):
+        entity = doc.get(self.eid)
+        if entity.kind != 'pod':
+            raise ValueError('FreezeToMesh currently supports pod entities only')
+        if doc.children.get(self.eid):
+            raise ValueError('cannot freeze a pod that still hosts child entities/openings')
+        if doc.modifier_ids_for_owner(self.eid):
+            raise ValueError('cannot freeze a pod with active surface modifiers')
+        for other in doc.entities.values():
+            if other.kind == 'organic_junction' and self.eid in (
+                other.params.get('component_a'), other.params.get('component_b')
+            ):
+                raise ValueError('cannot freeze a pod participating in an organic junction')
+            if other.kind == 'arboreal_branch' and other.params.get('mounted_pod_id') == self.eid:
+                raise ValueError('cannot freeze a pod mounted to an arboreal branch')
+        return entity
+
+    def do(self, doc: Document):
+        from archforge.geometry.mesh import _pod_mesh
+        source = self._assert_freezable(doc)
+        if self.before is None:
+            self.before = source.clone()
+        payload = _pod_mesh(source.params)
+        params = {
+            'vertices': [list(v) for v in payload.vertices],
+            'faces': [list(face) for face in payload.triangles],
+            'matrix': [
+                1.0, 0.0, 0.0, 0.0,
+                0.0, 1.0, 0.0, 0.0,
+                0.0, 0.0, 1.0, 0.0,
+                0.0, 0.0, 0.0, 1.0,
+            ],
+        }
+        frozen = Entity(
+            'mesh', params, name=source.name, id=source.id,
+            parent_id=source.parent_id, locked=source.locked,
+            visible=source.visible, revision=source.revision + 1,
+        )
+        frozen.params = __import__('archforge.core.model', fromlist=['validate_params']).validate_params('mesh', frozen.params)
+        doc.entities[self.eid] = frozen
+        doc.mark_dirty(self.eid)
+
+    def undo(self, doc: Document):
+        if self.before is None:
+            return
+        doc.entities[self.eid] = self.before.clone()
+        doc.mark_dirty(self.eid)
+
+
 class CommandStack:
-    def __init__(self,doc):self.doc=doc;self.done=[];self.undone=[]
+    def __init__(self, doc):
+        self.doc = doc
+        self.done = []
+        self.undone = []
+        self._listeners = []
+
+    def subscribe(self, callback):
+        if callback not in self._listeners:
+            self._listeners.append(callback)
+
+    def unsubscribe(self, callback):
+        if callback in self._listeners:
+            self._listeners.remove(callback)
+
+    def _notify(self, modified_ids):
+        for callback in tuple(self._listeners):
+            try:
+                callback(modified_ids)
+            except Exception as exc:
+                print(f"[CommandStack Warning] Listener failed: {exc}")
+
     @property
     def can_undo(self) -> bool:
         return bool(self.done)
+
     @property
     def can_redo(self) -> bool:
         return bool(self.undone)
-    def execute(self,c):c.do(self.doc);self.done.append(c);self.undone.clear()
+
+    def execute(self, c):
+        c.do(self.doc)
+        self.done.append(c)
+        self.undone.clear()
+        self._notify(_command_modified_ids(c))
+
     def undo(self):
-        if not self.done:return
-        c=self.done.pop();c.undo(self.doc);self.undone.append(c)
+        if not self.done:
+            return
+        c = self.done.pop()
+        c.undo(self.doc)
+        self.undone.append(c)
+        self._notify(_command_modified_ids(c))
+
     def redo(self):
-        if not self.undone:return
-        c=self.undone.pop();c.do(self.doc);self.done.append(c)
+        if not self.undone:
+            return
+        c = self.undone.pop()
+        c.do(self.doc)
+        self.done.append(c)
+        self._notify(_command_modified_ids(c))
