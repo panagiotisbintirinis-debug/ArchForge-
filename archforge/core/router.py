@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from heapq import heappop, heappush
-from itertools import count, permutations
+from itertools import count
 from typing import Iterable, Optional, Sequence, Tuple
 
 Vec3 = Tuple[float, float, float]
@@ -285,39 +285,84 @@ class MEPPathRouter:
                 out.append(q)
         return out
 
-    def _orthogonal_connector(self, start: Vec3, end: Vec3) -> list[Vec3]:
-        """Find a deterministic collision-free Manhattan connector between two world points."""
-        if all(abs(start[i] - end[i]) <= 1e-12 for i in range(3)):
-            return [tuple(start)]
+    @staticmethod
+    def _project_point_to_axis(anchor: Vec3, target: Vec3, axis: int) -> Vec3:
+        """Project target onto one world-axis ray originating at anchor."""
+        projected = [float(v) for v in anchor]
+        projected[axis] = float(target[axis])
+        return tuple(projected)
 
-        for order in permutations((0, 1, 2)):
-            current = [float(v) for v in start]
-            candidate = [tuple(current)]
-            for axis in order:
-                if abs(current[axis] - end[axis]) <= 1e-12:
-                    continue
-                current[axis] = float(end[axis])
-                candidate.append(tuple(current))
-            candidate = self._dedupe_route(candidate)
-            if all(not self._has_continuous_collision(a, b) for a, b in zip(candidate, candidate[1:])):
-                return candidate
-        raise ValueError('no collision-free orthographic boundary connector exists')
+    def _projected_boundary_connector(self, anchor: Vec3, target: Vec3) -> list[Vec3]:
+        """Build a collision-free orthographic connector whose first segment is an explicit axis projection."""
+        anchor = tuple(float(v) for v in anchor)
+        target = tuple(float(v) for v in target)
+        if all(abs(anchor[i] - target[i]) <= 1e-12 for i in range(3)):
+            return [anchor]
+
+        deltas = [abs(target[i] - anchor[i]) for i in range(3)]
+        primary_axes = sorted(
+            (axis for axis in range(3) if deltas[axis] > 1e-12),
+            key=lambda axis: (-deltas[axis], axis),
+        )
+
+        for primary_axis in primary_axes:
+            projected = self._project_point_to_axis(anchor, target, primary_axis)
+            candidate = [anchor, projected]
+            if self._has_continuous_collision(anchor, projected):
+                continue
+
+            remaining_axes = sorted(
+                (
+                    axis
+                    for axis in range(3)
+                    if axis != primary_axis and abs(projected[axis] - target[axis]) > 1e-12
+                ),
+                key=lambda axis: (-abs(target[axis] - projected[axis]), axis),
+            )
+
+            current = list(projected)
+            valid = True
+            for axis in remaining_axes:
+                next_point = list(current)
+                next_point[axis] = float(target[axis])
+                next_point = tuple(next_point)
+                if self._has_continuous_collision(tuple(current), next_point):
+                    valid = False
+                    break
+                candidate.append(next_point)
+                current = list(next_point)
+
+            if valid and all(abs(candidate[-1][i] - target[i]) <= 1e-12 for i in range(3)):
+                return self._dedupe_route(candidate)
+
+        raise ValueError('no collision-free projected orthographic boundary connector exists')
 
     def _apply_orthographic_clamping(self, path_list, start_w, end_w) -> list[Vec3]:
-        """Attach exact anchors with axis-aligned knuckles instead of skewed boundary segments."""
+        """Project both exact anchors onto world axes and preserve orthographic geometry end-to-end."""
         path = self._dedupe_route(path_list)
         start = tuple(float(v) for v in start_w)
         end = tuple(float(v) for v in end_w)
         if not path:
-            return self._orthogonal_connector(start, end)
+            return self._projected_boundary_connector(start, end)
 
-        first = tuple(path[0])
-        last = tuple(path[-1])
-        prefix = self._orthogonal_connector(start, first)
-        suffix = self._orthogonal_connector(last, end)
+        first_grid_node = tuple(path[0])
+        last_grid_node = tuple(path[-1])
+
+        prefix = self._projected_boundary_connector(start, first_grid_node)
+        suffix_from_end = self._projected_boundary_connector(end, last_grid_node)
+        suffix = list(reversed(suffix_from_end))
 
         combined = prefix + path[1:-1] + suffix
         combined = self._dedupe_route(combined)
+
+        if len(combined) > 1:
+            start_delta = tuple(combined[1][i] - start[i] for i in range(3))
+            end_delta = tuple(end[i] - combined[-2][i] for i in range(3))
+            if sum(abs(v) > 1e-12 for v in start_delta) != 1:
+                raise ValueError('start boundary projection is not parallel to a world axis')
+            if sum(abs(v) > 1e-12 for v in end_delta) != 1:
+                raise ValueError('end boundary projection is not parallel to a world axis')
+
         for a, b in zip(combined, combined[1:]):
             changed_axes = sum(abs(a[i] - b[i]) > 1e-12 for i in range(3))
             if changed_axes != 1:
