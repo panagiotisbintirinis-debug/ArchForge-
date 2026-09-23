@@ -20,6 +20,12 @@ class PlanView(QGraphicsView):
     def rebind(self,doc,stack):self.doc=doc;self.stack=stack;self.controller=PointerController(doc,stack);self.redraw()
     def set_tool(self,tool):self.controller.set_tool(tool);self._active_handle=None;self.statusChanged.emit(f'Tool: {tool}');self.redraw()
     def _scene_to_plane(self,pos):p=self.mapToScene(pos);return PointerEvent(p.x(),p.y())
+    def _acquire_rotate_target(self,hit):
+        eid=self._entity_items.get(hit)
+        self.doc.select([eid] if eid else [])
+        self.controller.set_target(eid,None)
+        self.selectionChangedByView.emit()
+        return eid is not None
     def wheelEvent(self,event):self.scale(1.15 if event.angleDelta().y()>0 else 1/1.15,1.15 if event.angleDelta().y()>0 else 1/1.15)
     def mousePressEvent(self,event):
         if event.button()!=Qt.MouseButton.LeftButton:super().mousePressEvent(event);return
@@ -36,7 +42,9 @@ class PlanView(QGraphicsView):
             if eid:self.doc.select([eid],add=bool(event.modifiers()&Qt.KeyboardModifier.ControlModifier))
             elif not(event.modifiers()&Qt.KeyboardModifier.ControlModifier):self.doc.select([])
             self.selectionChangedByView.emit();self.redraw();return
-        elif self.controller.tool in ('stretch','rotate') and self.doc.selection:self.controller.set_target(self.doc.selection[-1],self._active_handle.handle if self._active_handle else None)
+        elif self.controller.tool=='rotate':
+            if not self._acquire_rotate_target(hit):self._mouse_down=False;self.redraw();return
+        elif self.controller.tool=='stretch' and self.doc.selection:self.controller.set_target(self.doc.selection[-1],self._active_handle.handle if self._active_handle else None)
         ev=self._scene_to_plane(event.position().toPoint());ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier);self.controller.pointer_down(ev);self.redraw()
     def mouseMoveEvent(self,event):
         if self._mouse_down and self.controller.active is not None:
