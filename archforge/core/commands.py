@@ -41,6 +41,41 @@ class UpdateEntity(Command):
         if self.before is not None:doc.update(self.eid,copy.deepcopy(self.before))
 
 @dataclass
+class MutateEntityProperty(Command):
+    """One explicit human numeric-property mutation routed through CommandStack."""
+    eid: str
+    property_key: str
+    value: Any
+    before_value: Any = None
+    had_before: bool = False
+
+    @property
+    def ids(self):
+        return (self.eid,)
+
+    def do(self, doc: Document):
+        entity = doc.get(self.eid)
+        if not self.had_before:
+            if self.property_key not in entity.params:
+                raise KeyError(
+                    f"{entity.kind} has no property {self.property_key!r}"
+                )
+            self.before_value = copy.deepcopy(entity.params[self.property_key])
+            self.had_before = True
+        doc.update(
+            self.eid,
+            {self.property_key: copy.deepcopy(self.value)},
+        )
+
+    def undo(self, doc: Document):
+        if self.had_before:
+            doc.update(
+                self.eid,
+                {self.property_key: copy.deepcopy(self.before_value)},
+            )
+
+
+@dataclass
 class UpdateEntities(Command):
     """Apply several semantic parameter updates as one undo/redo step."""
     changes:Dict[str,Dict[str,Any]]
