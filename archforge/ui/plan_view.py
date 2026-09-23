@@ -53,7 +53,7 @@ class PlanView(QGraphicsView):
                 ev=self._scene_to_plane(event.position().toPoint());ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
                 try:self.controller.pointer_up(ev)
                 except ValueError as exc:self.statusChanged.emit(str(exc));self.controller.cancel()
-                self._active_handle=None;self.redraw();return
+                self._active_handle=None;return
         super().mouseReleaseEvent(event)
     def keyPressEvent(self,event):
         if event.key()==Qt.Key.Key_Escape:self.controller.cancel();self._mouse_down=False;self.redraw();return
