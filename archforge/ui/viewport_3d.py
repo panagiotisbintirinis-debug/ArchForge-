@@ -281,17 +281,27 @@ class Viewport3D(QGraphicsView):
 
         for eid in target_ids:
             entity = self.doc.entities.get(eid)
-            if entity is None:
+            if entity is None or not self.doc.entity_is_visible(entity):
                 proxy = self._render_cache.pop(eid, None)
                 if proxy is not None:
                     proxy.remove()
+                self._gpu_buffer_cache.pop(eid, None)
+                self._mesh_payload_cache.pop(eid, None)
+                self._job_generation.pop(eid, None)
                 continue
             self.queue_geometry_generation(entity)
 
         self.update()
 
     def queue_geometry_generation(self, entity):
-        """Generate only one entity, using direct topology for meshes and workers otherwise."""
+        """Generate only one visible entity, using direct topology for meshes and workers otherwise."""
+        if not self.doc.entity_is_visible(entity):
+            proxy = self._render_cache.pop(entity.id, None)
+            if proxy is not None:
+                proxy.remove()
+            self._gpu_buffer_cache.pop(entity.id, None)
+            self._mesh_payload_cache.pop(entity.id, None)
+            return
         generation = self.doc.dirty_generation(entity.id)
         self._job_generation[entity.id] = generation
 
@@ -321,6 +331,8 @@ class Viewport3D(QGraphicsView):
         if self._job_generation.get(entity_id) != generation:
             return
         if entity_id not in self.doc.entities:
+            return
+        if not self.doc.entity_is_visible(self.doc.entities[entity_id]):
             return
         if not isinstance(payload, MeshPayload):
             proxy = self._render_cache.pop(entity_id, None)
@@ -384,6 +396,12 @@ class Viewport3D(QGraphicsView):
 
     def _render_cached_entity(self, entity_id: str, mesh: MeshPayload):
         if entity_id not in self.doc.entities:
+            return
+        if not self.doc.entity_is_visible(self.doc.entities[entity_id]):
+            proxy = self._render_cache.get(entity_id)
+            if proxy is not None:
+                proxy.remove()
+                self._render_cache.pop(entity_id, None)
             return
         w = max(100, self.width())
         h = max(100, self.height())
@@ -450,7 +468,12 @@ class Viewport3D(QGraphicsView):
             return
         entity_id = self.doc.selection[0]
         entity = self.doc.entities.get(entity_id)
-        if entity is None or entity.kind != 'mesh' or entity.locked:
+        if (
+            entity is None
+            or entity.kind != 'mesh'
+            or entity.locked
+            or not self.doc.entity_is_visible(entity)
+        ):
             return
         vertices = (
             self._vertex_tx.preview_vertices()
@@ -770,11 +793,15 @@ class Viewport3D(QGraphicsView):
         self._update_grid()
 
         for entity_id, mesh in tuple(self._mesh_payload_cache.items()):
-            if entity_id in self.doc.entities:
+            if (
+                entity_id in self.doc.entities
+                and self.doc.entity_is_visible(self.doc.entities[entity_id])
+            ):
                 self._render_cached_entity(entity_id, mesh)
 
         for entity_id in list(self._render_cache):
-            if entity_id not in self.doc.entities:
+            entity = self.doc.entities.get(entity_id)
+            if entity is None or not self.doc.entity_is_visible(entity):
                 self._render_cache.pop(entity_id).remove()
 
         self._last_selection = set(self.doc.selection)
