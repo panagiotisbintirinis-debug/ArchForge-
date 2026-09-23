@@ -81,6 +81,16 @@ def _payload(doc,node)->Optional[PreviewPayload]:
         angle=math.radians(float(p.get('rotation',0.0)));c,s=math.cos(angle),math.sin(angle)
         ex=math.sqrt((rx*c)**2+(ry*s)**2);ey=math.sqrt((rx*s)**2+(ry*c)**2)
         return PreviewPayload('upper_ellipsoid',((cx-ex,cy-ey,z),(cx+ex,cy+ey,z+float(p['height']))))
+    if kind=='mesh':
+        m=[float(v) for v in p['matrix']]
+        pts=[]
+        for x,y,z in p['vertices']:
+            pts.append((
+                m[0]*x+m[1]*y+m[2]*z+m[3],
+                m[4]*x+m[5]*y+m[6]*z+m[7],
+                m[8]*x+m[9]*y+m[10]*z+m[11],
+            ))
+        return PreviewPayload('mesh',_bounds(pts))
     if kind=='arboreal_branch':return _arboreal_branch_payload(doc,node)
     if kind=='organic_junction':return _organic_junction_payload(doc,node)
     if kind=='organic_opening_patch':return _organic_opening_patch_payload(doc,node)
