@@ -44,7 +44,7 @@ def _pod_has_active_junction(doc: Document, pod_id: str) -> bool:
 def entity_view_primitives(doc: Document, eid: str, axis: str, override_params: Optional[Dict[str, Any]] = None) -> List[ViewPrimitive]:
     if axis not in ('XY','XZ','YZ'): raise ValueError('axis must be XY, XZ or YZ')
     e=doc.get(eid)
-    if not e.visible:return []
+    if not doc.entity_is_visible(e):return []
     p=override_params if override_params is not None else e.params
     if e.kind=='wall':
         if axis=='XY':return [ViewPrimitive('line',((p['x1'],p['y1']),(p['x2'],p['y2'])),entity_id=eid,meta=(('thickness',p['thickness']),))]
