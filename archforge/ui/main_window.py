@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import os
+import re
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QDockWidget, QWidget, QFormLayout, QDoubleSpinBox,
-    QLabel, QTabWidget, QStatusBar, QFileDialog, QMessageBox,
+    QLabel, QTabWidget, QStatusBar, QFileDialog, QMessageBox, QSplitter,
+    QVBoxLayout, QTextEdit, QLineEdit, QPushButton,
 )
 
 from archforge.core.model import Document
-from archforge.core.commands import CommandStack, UpdateEntity, CreateRoomFloors
+from archforge.core.commands import CommandStack, UpdateEntity, CreateRoomFloors, RouteAndConnectInfrastructure
 from .plan_view import PlanView
 from .ortho_view import OrthoView
 from .viewport_3d import Viewport3D
@@ -32,7 +34,14 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.front_view, 'XZ FRONT')
         self.tabs.addTab(self.side_view, 'YZ SIDE')
         self.tabs.addTab(self.view_3d, '3D PERSPECTIVE')
-        self.setCentralWidget(self.tabs)
+
+        self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.main_splitter.addWidget(self.tabs)
+        self._init_ai_sidebar()
+        self.main_splitter.setStretchFactor(0, 1)
+        self.main_splitter.setStretchFactor(1, 0)
+        self.main_splitter.setSizes([1080, 320])
+        self.setCentralWidget(self.main_splitter)
         self.view = self.plan_view
         self.setStatusBar(QStatusBar())
         for view in (self.plan_view, self.front_view, self.side_view, self.view_3d):
@@ -103,6 +112,82 @@ class MainWindow(QMainWindow):
         self.form = QFormLayout(self.inspector)
         self.dock.setWidget(self.inspector)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dock)
+
+    def _init_ai_sidebar(self):
+        self.sidebar_widget = QWidget()
+        self.sidebar_widget.setMinimumWidth(280)
+        sidebar_layout = QVBoxLayout(self.sidebar_widget)
+
+        self.ai_chat_log = QTextEdit()
+        self.ai_chat_log.setReadOnly(True)
+        self.ai_chat_log.setPlaceholderText('ArchForge command history')
+        sidebar_layout.addWidget(self.ai_chat_log, 1)
+
+        self.ai_input_line = QLineEdit()
+        self.ai_input_line.setPlaceholderText(
+            'connect pod_1 to wall_2 hydraulic'
+        )
+        self.ai_input_line.returnPressed.connect(self._handle_ai_ui_command)
+        sidebar_layout.addWidget(self.ai_input_line)
+
+        self.ai_send_button = QPushButton('Run Command')
+        self.ai_send_button.clicked.connect(self._handle_ai_ui_command)
+        sidebar_layout.addWidget(self.ai_send_button)
+
+        self.main_splitter.addWidget(self.sidebar_widget)
+
+    def _handle_ai_ui_command(self):
+        raw = self.ai_input_line.text().strip()
+        if not raw:
+            return
+
+        self.ai_chat_log.append(f'Human: {raw}')
+        match = re.fullmatch(
+            r'connect\s+([^\s]+)\s+to\s+([^\s]+)\s+(hydraulic|electrical|hvac)',
+            raw,
+            flags=re.IGNORECASE,
+        )
+        if match is None:
+            self.ai_chat_log.append(
+                'ArchForge: command rejected; expected '
+                'connect <start_id> to <end_id> <hydraulic|electrical|hvac>'
+            )
+            return
+
+        start_id, end_id, system_type = match.groups()
+        system_type = system_type.lower()
+        missing = [eid for eid in (start_id, end_id) if eid not in self.doc.entities]
+        if missing:
+            self.ai_chat_log.append(
+                'ArchForge: unknown entity id(s): ' + ', '.join(missing)
+            )
+            return
+
+        try:
+            from archforge.core.router import nominal_diameter_for_system
+
+            diameter = nominal_diameter_for_system(system_type)
+            command = RouteAndConnectInfrastructure(
+                start_id,
+                end_id,
+                diameter,
+                system_type,
+            )
+            self.stack.execute(command)
+            self.ai_input_line.clear()
+            self.ai_chat_log.append(
+                f'ArchForge: connected {start_id} to {end_id} '
+                f'as {system_type} Ø{diameter * 1000:.0f} mm '
+                f'[{command.generated_id}]'
+            )
+            self.statusBar().showMessage(
+                f'Created routed {system_type} connection {command.generated_id}',
+                4000,
+            )
+            self.refresh_inspector()
+        except Exception as exc:
+            self.ai_chat_log.append(f'ArchForge: command failed: {exc}')
+            self.statusBar().showMessage(f'AI command failed: {exc}', 5000)
 
     def _clear_form(self):
         while self.form.rowCount():
