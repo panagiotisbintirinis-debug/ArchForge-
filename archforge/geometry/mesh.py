@@ -58,6 +58,25 @@ def _pod_mesh(p,segments=32,rings=12):
  for j in range(rings):
   for i in range(segments):n=(i+1)%segments;a=j*segments+i;b=j*segments+n;c=(j+1)*segments+n;d=(j+1)*segments+i;tris.extend(((a,b,c),(a,c,d)));roles.extend(('pod_shell','pod_shell'))
  return MeshPayload(tuple(v),tuple(tris),tuple(roles))
+
+def _authoritative_mesh(p):
+ vertices=[tuple(map(float,point)) for point in p['vertices']]
+ matrix=[float(v) for v in p['matrix']]
+ def transform(point):
+  x,y,z=point
+  return (
+   matrix[0]*x+matrix[1]*y+matrix[2]*z+matrix[3],
+   matrix[4]*x+matrix[5]*y+matrix[6]*z+matrix[7],
+   matrix[8]*x+matrix[9]*y+matrix[10]*z+matrix[11],
+  )
+ transformed=[transform(point) for point in vertices]
+ triangles=[];roles=[]
+ for face_index,face in enumerate(p['faces']):
+  if len(face)<3:continue
+  for i in range(1,len(face)-1):
+   triangles.append((int(face[0]),int(face[i]),int(face[i+1])))
+   roles.append(f'mesh_face:{face_index}')
+ return MeshPayload(tuple(transformed),tuple(triangles),tuple(roles))
 def _arboreal_branch_mesh(doc,node,segments=20):
  from archforge.organic.arboreal import arboreal_branch_geometry
  g=arboreal_branch_geometry(doc,node.entity_id);a=tuple(float(v) for v in g['start']);b=tuple(float(v) for v in g['end']);r0=float(g['root_radius']);r1=float(g['tip_radius'])
@@ -234,6 +253,7 @@ def _payload(doc,node):
  if k=='wall':return _wall_mesh(p)
  if k in('box','mechanical_part'):return _box_mesh(p,node.transform)
  if k=='pod':return _pod_mesh_for_node(doc,node)
+ if k=='mesh':return _authoritative_mesh(p)
  if k=='arboreal_branch':return _arboreal_branch_mesh(doc,node)
  if k=='organic_junction':return _organic_junction_mesh(doc,node)
  if k=='organic_opening_patch':return _organic_opening_patch_mesh(doc,node)
