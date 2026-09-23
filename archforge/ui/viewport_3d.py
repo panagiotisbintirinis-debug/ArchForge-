@@ -4,7 +4,7 @@ import math
 import numpy as np
 from typing import Dict, Optional, Tuple, List
 
-from PySide6.QtCore import Qt, QPointF, QTimer, Signal, QObject, QRunnable, QThreadPool, Slot
+from PySide6.QtCore import Qt, QPointF, Signal, QObject, QRunnable, QThreadPool, Slot
 from PySide6.QtGui import QPen, QBrush, QColor, QPainter, QPolygonF
 from PySide6.QtWidgets import (
     QGraphicsLineItem,
@@ -25,7 +25,6 @@ from archforge.geometry.selection import BrushSpec, SurfaceHit
 from archforge.geometry.sculpt_transaction import SculptTransaction
 
 Vec3 = Tuple[float, float, float]
-Bounds = Tuple[Vec3, Vec3]
 
 
 class OrbitCamera:
@@ -109,21 +108,14 @@ class OrbitCamera:
         return eye, (dx/dnorm, dy/dnorm, dz/dnorm)
 
 
-class EntityRenderProxy:
-    """Long-lived QGraphics items owned by one semantic entity."""
-
-    _BOX_EDGES = (
-        (0,1),(0,2),(0,4),(1,3),(1,5),(2,3),
-        (2,6),(3,7),(4,5),(4,6),(5,7),(6,7),
-    )
+class EntityRenderItems:
+    """Long-lived full-mesh QGraphics items owned by one semantic entity."""
 
     def __init__(self, scene: QGraphicsScene, entity_id: str):
         self.scene = scene
         self.entity_id = entity_id
         self.kind = ''
-        self.bounds: Optional[Bounds] = None
         self.mesh_items: List[QGraphicsPolygonItem] = []
-        self.proxy_items: List[QGraphicsLineItem] = []
 
     def ensure_mesh_items(self, count: int) -> None:
         while len(self.mesh_items) < count:
@@ -133,29 +125,10 @@ class EntityRenderProxy:
         for index, item in enumerate(self.mesh_items):
             item.setVisible(index < count)
 
-    def ensure_proxy_items(self) -> None:
-        while len(self.proxy_items) < len(self._BOX_EDGES):
-            item = QGraphicsLineItem()
-            item.setPen(QPen(QColor(80, 105, 135), 1))
-            item.setZValue(1000)
-            self.scene.addItem(item)
-            self.proxy_items.append(item)
-
-    def hide_mesh(self) -> None:
-        for item in self.mesh_items:
-            item.hide()
-
-    def hide_proxy(self) -> None:
-        for item in self.proxy_items:
-            item.hide()
-
     def remove(self) -> None:
         for item in self.mesh_items:
             self.scene.removeItem(item)
-        for item in self.proxy_items:
-            self.scene.removeItem(item)
         self.mesh_items.clear()
-        self.proxy_items.clear()
 
 
 class GeometryTessellationSignals(QObject):
@@ -207,8 +180,7 @@ class Viewport3D(QGraphicsView):
         self._last_mouse_pos: Optional[QPointF] = None
         self._is_panning = False
         self._is_orbiting = False
-        self._interaction_active = False
-        self._render_cache: Dict[str, EntityRenderProxy] = {}
+        self._render_cache: Dict[str, EntityRenderItems] = {}
         self._gpu_buffer_cache: Dict[str, Dict[str, np.ndarray]] = {}
         self._mesh_payload_cache: Dict[str, MeshPayload] = {}
         self._job_generation: Dict[str, int] = {}
@@ -228,13 +200,10 @@ class Viewport3D(QGraphicsView):
             'floor': (QPen(QColor(120, 140, 130), 1), QBrush(QColor(210, 220, 215, 220))),
             'default': (QPen(QColor(100, 110, 125), 1), QBrush(QColor(200, 205, 215, 200))),
         }
-        self._view_settle_timer = QTimer(self)
-        self._view_settle_timer.setSingleShot(True)
-        self._view_settle_timer.timeout.connect(self._finish_deferred_view_change)
-
         self.setViewport(QOpenGLWidget())
         self.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         self.setMouseTracking(True)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
         self.setBackgroundBrush(QColor(238, 240, 243))
         self.stack.subscribe(self.on_document_modified)
         self.on_document_modified(None)
@@ -245,7 +214,6 @@ class Viewport3D(QGraphicsView):
         self.stack = stack
         self.stack.subscribe(self.on_document_modified)
         self._sculpt_tx = None
-        self._interaction_active = False
         for proxy in self._render_cache.values():
             proxy.remove()
         self._render_cache.clear()
@@ -669,7 +637,6 @@ class Viewport3D(QGraphicsView):
     def _finish_deferred_view_change(self) -> None:
         if self._is_orbiting or self._is_panning or self._sculpt_tx is not None:
             return
-        self._interaction_active = False
         self.redraw(force_full=True)
 
     def refresh_selection(self) -> None:
@@ -694,7 +661,6 @@ class Viewport3D(QGraphicsView):
             min(math.pi / 2.0 - 0.05, float(self.camera.pitch)),
         )
         self.camera.yaw = math.remainder(float(self.camera.yaw), math.tau)
-        self._interaction_active = False
         self.redraw(force_full=True)
         self.viewport().update()
 
@@ -932,7 +898,6 @@ class Viewport3D(QGraphicsView):
             self._update_interaction_proxies()
             return
 
-        self._interaction_active = False
         w = max(100, self.width())
         h = max(100, self.height())
         self._scene.setSceneRect(0, 0, w, h)
