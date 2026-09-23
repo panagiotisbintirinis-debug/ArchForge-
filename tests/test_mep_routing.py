@@ -93,6 +93,10 @@ def test_route_and_connect_creates_authoritative_multisegment_mesh():
     assert metadata['routing']['route_nodes'] == len(route)
     assert events[-1] == [command.generated_id]
 
+    # The exact route baked into the authoritative mesh is orthographic at every segment.
+    for a, b in zip(route, route[1:]):
+        assert sum(abs(a[i] - b[i]) > 1e-9 for i in range(3)) == 1
+
     # The authoritative mesh was generated from more than one routed segment,
     # not a direct start/end fallback.
     assert len(route) > 2
@@ -117,6 +121,11 @@ def test_non_grid_boundary_anchors_are_clamped_to_strict_orthographic_segments()
     assert route[-1] == end
     assert len(route) > 2
 
+    start_vector = tuple(route[1][i] - start[i] for i in range(3))
+    end_vector = tuple(end[i] - route[-2][i] for i in range(3))
+    assert sum(abs(value) > 1e-9 for value in start_vector) == 1
+    assert sum(abs(value) > 1e-9 for value in end_vector) == 1
+
     directions = []
     for a, b in zip(route, route[1:]):
         delta = tuple(b[i] - a[i] for i in range(3))
@@ -124,10 +133,8 @@ def test_non_grid_boundary_anchors_are_clamped_to_strict_orthographic_segments()
         assert len(changed_axes) == 1
         directions.append(changed_axes[0])
 
-    # At every actual bend, one principal axis hands off to another exactly.
-    for previous_axis, next_axis in zip(directions, directions[1:]):
-        assert previous_axis in (0, 1, 2)
-        assert next_axis in (0, 1, 2)
+    # Every baked centerline segment is parallel to exactly one world axis.
+    assert set(directions) <= {0, 1, 2}
 
 
 def test_same_voxel_micro_partition_is_rejected_by_continuous_collision_guard():
