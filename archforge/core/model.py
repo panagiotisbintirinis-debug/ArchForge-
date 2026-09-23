@@ -88,6 +88,31 @@ def _matrix16(v):
     return [_finite(x) for x in v]
 
 
+def _conduit_diameter(v):
+    value = _finite(v)
+    if value < 0.005 or value > 0.5:
+        raise ValueError('conduit diameter must be between 0.005 m and 0.5 m')
+    return value
+
+
+def _conduit_node(v):
+    if not isinstance(v, str) or not v:
+        raise ValueError('conduit node must be a non-empty string')
+    return v
+
+
+def _conduit_path(v):
+    if not isinstance(v, list) or len(v) < 2:
+        raise ValueError('conduit path_vertices must contain at least two 3D points')
+    return [_vec3(point) for point in v]
+
+
+def _conduit_system_type(v):
+    if v not in ('hydraulic', 'electrical', 'hvac'):
+        raise ValueError('conduit system_type must be hydraulic, electrical, or hvac')
+    return v
+
+
 @dataclass
 class WorkPlane:
     name: str = 'XY'
@@ -133,6 +158,13 @@ SCHEMAS = {
     'wall': {'x1': _finite, 'y1': _finite, 'z': _finite, 'x2': _finite, 'y2': _finite, 'height': _positive, 'thickness': _positive},
     'pod': {'cx': _finite, 'cy': _finite, 'floor_level': _finite, 'diameter_x': _positive, 'diameter_y': _positive, 'height': _positive, 'shell_thickness': _positive, 'rotation': _finite},
     'mesh': {'vertices': _mesh_vertices, 'faces': _mesh_faces, 'matrix': _matrix16},
+    'conduit': {
+        'start_node': _conduit_node,
+        'end_node': _conduit_node,
+        'diameter': _conduit_diameter,
+        'path_vertices': _conduit_path,
+        'system_type': _conduit_system_type,
+    },
     'arboreal_branch': {'core_id': _nonempty, 'elevation_z': _finite, 'azimuth_deg': _finite, 'length': _positive, 'slope_deg': _finite, 'root_radius': _positive, 'tip_radius': _positive, 'mounted_pod_id': _nonempty},
     'floor': {'points': _polygon, 'z': _finite, 'thickness': _positive},
     'room': {'points': _polygon, 'z': _finite, 'height': _positive},
@@ -162,6 +194,11 @@ def validate_params(kind, params):
         n = len(out['vertices'])
         if any(index >= n for face in out['faces'] for index in face):
             raise ValueError('mesh face references a missing vertex')
+    if kind == 'conduit':
+        required = {'start_node', 'end_node', 'diameter', 'path_vertices', 'system_type'}
+        missing = required - set(out)
+        if missing:
+            raise ValueError('conduit is missing required fields: ' + ', '.join(sorted(missing)))
     return out
 
 
@@ -359,6 +396,11 @@ class Document:
         elif entity.kind == 'mechanical_mount':
             self.add_dependency(entity.params['host_id'], entity.id)
             self.add_dependency(entity.params['part_id'], entity.id)
+        elif entity.kind == 'conduit':
+            for key in ('start_node', 'end_node'):
+                source_id = entity.params[key]
+                if source_id in self.entities:
+                    self.add_dependency(source_id, entity.id)
 
     def add(self, entity):
         if entity.id in self.entities:
@@ -538,6 +580,8 @@ class Document:
                     refs = [entity.params.get('parent_part'), entity.params.get('child_part')]
                 elif entity.kind == 'mechanical_mount':
                     refs = [entity.params.get('host_id'), entity.params.get('part_id')]
+                elif entity.kind == 'conduit':
+                    refs = [entity.params.get('start_node'), entity.params.get('end_node')]
                 if any(ref in ids for ref in refs):
                     ids.append(rid)
                     changed = True
