@@ -56,6 +56,23 @@ def entity_view_primitives(doc: Document, eid: str, axis: str, override_params: 
         if axis=='XY':return [ViewPrimitive('polygon',tuple(_box_xy_corners(p)),entity_id=eid)]
         corners=_box_xy_corners(p);vals=[q[0] for q in corners] if axis=='XZ' else [q[1] for q in corners];lo,hi=_extent(vals);z0=p['z'];z1=z0+p['height']
         return [ViewPrimitive('polygon',((lo,z0),(hi,z0),(hi,z1),(lo,z1)),entity_id=eid)]
+    if e.kind=='mesh':
+        m=[float(v) for v in p['matrix']]
+        world=[(
+            m[0]*x+m[1]*y+m[2]*z+m[3],
+            m[4]*x+m[5]*y+m[6]*z+m[7],
+            m[8]*x+m[9]*y+m[10]*z+m[11],
+        ) for x,y,z in p['vertices']]
+        if not world:return []
+        if axis=='XY':
+            xs=[q[0] for q in world];ys=[q[1] for q in world]
+            lo_x,hi_x=_extent(xs);lo_y,hi_y=_extent(ys)
+            pts=((lo_x,lo_y),(hi_x,lo_y),(hi_x,hi_y),(lo_x,hi_y))
+        else:
+            vals=[q[0] for q in world] if axis=='XZ' else [q[1] for q in world]
+            zs=[q[2] for q in world];lo,hi=_extent(vals);z0,z1=_extent(zs)
+            pts=((lo,z0),(hi,z0),(hi,z1),(lo,z1))
+        return [ViewPrimitive('polygon',pts,entity_id=eid,meta=(('semantic','mesh'),))]
     if e.kind=='floor':
         pts=[tuple(q) for q in p['points']]
         if axis=='XY':return [ViewPrimitive('polygon',tuple(pts),entity_id=eid,meta=(('semantic','floor'),))]
