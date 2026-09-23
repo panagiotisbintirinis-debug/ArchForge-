@@ -104,7 +104,11 @@ def _conduit_node(v):
 def _conduit_path(v):
     if not isinstance(v, list) or len(v) < 2:
         raise ValueError('conduit path_vertices must contain at least two 3D points')
-    return [_vec3(point) for point in v]
+    out = [_vec3(point) for point in v]
+    for a, b in zip(out, out[1:]):
+        if math.dist(a, b) <= 1e-9:
+            raise ValueError('conduit path_vertices must not contain zero-length segments')
+    return out
 
 
 def _conduit_system_type(v):
