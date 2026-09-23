@@ -126,9 +126,11 @@ def test_viewport_drag_path_has_no_scene_clear_or_tessellation_evaluation():
     assert '.evaluate(' not in move_body
     assert '_update_interaction_proxies' in move_body
 
-    release_end = source.index('    def resizeEvent', release_start)
+    release_end = source.index('    def keyPressEvent', release_start)
     release_body = source[release_start:release_end]
-    assert 'redraw(force_full=True)' in release_body
+    assert '_update_camera_projection_matrices()' in release_body
+    assert 'Qt.MouseButton.RightButton' in release_body
+    assert 'Qt.MouseButton.MiddleButton' in release_body
 
 
 def test_main_window_redraw_is_reactive_and_undo_redo_do_not_force_views():
