@@ -121,7 +121,7 @@ def _convex_hull_xy(points):
 
 def entity_primitive(doc,eid):
     e=doc.get(eid);p=e.params
-    if not e.visible:return None
+    if not doc.entity_is_visible(e):return None
     if e.kind=='wall':return Primitive2D('line',((p['x1'],p['y1']),(p['x2'],p['y2'])),entity_id=eid,meta=(('thickness',p['thickness']),))
     if e.kind=='box':return Primitive2D('polygon',tuple(_box_corners(p)),entity_id=eid)
     if e.kind=='mesh':return Primitive2D('polygon',_convex_hull_xy(_mesh_world_vertices(p)),entity_id=eid,meta=(('semantic','mesh'),))
@@ -153,7 +153,7 @@ def selection_handles(doc):
     for eid in doc.selection:
         if eid not in doc.entities:continue
         e=doc.get(eid);p=e.params
-        if e.locked:continue
+        if e.locked or not doc.entity_is_visible(e):continue
         if e.kind=='wall':out.extend([Handle2D(p['x1'],p['y1'],eid,'endpoint1'),Handle2D(p['x2'],p['y2'],eid,'endpoint2')])
         elif e.kind=='box':out.extend(_box_handles(eid,p))
         elif e.kind=='pod':out.extend(_pod_handles(eid,p))
@@ -197,7 +197,9 @@ def build_plan_frame(doc,preview=None):
     f=PlanFrame()
     try:
         from archforge.architecture.topology import room_metrics
-        for index,face in enumerate(doc.active_room_faces(),start=1):
+        from archforge.core.model import LAYER_ARCHITECTURE
+        room_faces = doc.active_room_faces() if doc.visible_layers_mask & LAYER_ARCHITECTURE else []
+        for index,face in enumerate(room_faces,start=1):
             m=room_metrics(face.polygon);data=doc.room_metadata(face.signature)
             name=data.get('name') or f'Room {index}';use=data.get('use','')
             label=name+(f' — {use}' if use else '')+f'\n{m["area"]:.2f} m²'
