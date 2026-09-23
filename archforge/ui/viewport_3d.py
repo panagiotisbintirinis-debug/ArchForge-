@@ -9,6 +9,7 @@ from PySide6.QtGui import QPen, QBrush, QColor, QPainter, QPolygonF
 from PySide6.QtWidgets import (
     QGraphicsLineItem,
     QGraphicsPolygonItem,
+    QGraphicsEllipseItem,
     QGraphicsScene,
     QGraphicsView,
 )
@@ -16,6 +17,7 @@ from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
 from archforge.core.model import Document
 from archforge.core.commands import CommandStack
+from archforge.core.interaction import VertexMoveTransaction
 from archforge.geometry.mesh import TessellatedPreviewBackend, MeshPayload
 from archforge.geometry.plan import build_evaluation_plan
 from archforge.geometry.picking import raycast_mesh, MeshRayHit
@@ -213,6 +215,10 @@ class Viewport3D(QGraphicsView):
         self.thread_pool = QThreadPool.globalInstance()
         self._grid_items: List[QGraphicsLineItem] = []
         self._last_selection = set()
+        self._vertex_handle_items: Dict[QGraphicsEllipseItem, Tuple[str, int, float]] = {}
+        self._vertex_tx: Optional[VertexMoveTransaction] = None
+        self._vertex_drag_origin: Optional[QPointF] = None
+        self._vertex_drag_depth: Optional[float] = None
         self._styles = {
             'selected': (QPen(QColor(40, 110, 200), 1), QBrush(QColor(110, 180, 245, 210))),
             'wall': (QPen(QColor(140, 150, 160), 1), QBrush(QColor(230, 235, 240, 230))),
@@ -243,6 +249,10 @@ class Viewport3D(QGraphicsView):
         self._gpu_buffer_cache.clear()
         self._mesh_payload_cache.clear()
         self._job_generation.clear()
+        self._clear_vertex_handles()
+        self._vertex_tx = None
+        self._vertex_drag_origin = None
+        self._vertex_drag_depth = None
         self._last_selection.clear()
         self.on_document_modified(None)
 
@@ -403,6 +413,66 @@ class Viewport3D(QGraphicsView):
             item.setZValue(-((p0[2] + p1[2] + p2[2]) / 3.0))
             item.show()
 
+    def _mesh_world_vertices(self, entity, vertices=None):
+        source = entity.params['vertices'] if vertices is None else vertices
+        vertex_array = np.asarray(source, dtype=float)
+        matrix = np.asarray(entity.params['matrix'], dtype=float).reshape(4, 4)
+        ones = np.ones((vertex_array.shape[0], 1), dtype=float)
+        homogeneous = np.concatenate((vertex_array, ones), axis=1)
+        return (homogeneous @ matrix.T)[:, :3]
+
+    def _world_delta_to_mesh_local(self, entity, delta):
+        matrix = np.asarray(entity.params['matrix'], dtype=float).reshape(4, 4)
+        return tuple(float(v) for v in np.linalg.solve(matrix[:3, :3], np.asarray(delta, dtype=float)))
+
+    def _camera_drag_world_delta(self, dx, dy, depth):
+        forward = np.asarray(self.camera.forward_ray(), dtype=float)
+        right = np.cross(forward, np.asarray((0.0, 0.0, 1.0), dtype=float))
+        norm = np.linalg.norm(right)
+        if norm <= 1e-9:
+            right = np.asarray((1.0, 0.0, 0.0), dtype=float)
+        else:
+            right /= norm
+        up = np.cross(right, forward)
+        focal = (max(100, self.height()) / 2.0) / math.tan(1.0 / 2.0)
+        scale = float(depth) / focal
+        delta = right * (float(dx) * scale) + up * (-float(dy) * scale)
+        return tuple(float(v) for v in delta)
+
+    def _clear_vertex_handles(self):
+        for item in list(self._vertex_handle_items):
+            self._scene.removeItem(item)
+        self._vertex_handle_items.clear()
+
+    def _refresh_vertex_handles(self):
+        self._clear_vertex_handles()
+        if len(self.doc.selection) != 1:
+            return
+        entity_id = self.doc.selection[0]
+        entity = self.doc.entities.get(entity_id)
+        if entity is None or entity.kind != 'mesh' or entity.locked:
+            return
+        vertices = (
+            self._vertex_tx.preview_vertices()
+            if self._vertex_tx is not None and self._vertex_tx.eid == entity_id
+            else entity.params['vertices']
+        )
+        world = self._mesh_world_vertices(entity, vertices)
+        w = max(100, self.width())
+        h = max(100, self.height())
+        for index, point in enumerate(world):
+            projected = self.camera.project(tuple(float(v) for v in point), w, h)
+            if projected is None:
+                continue
+            x, y, depth = projected
+            radius = 5.0
+            item = QGraphicsEllipseItem(x-radius, y-radius, radius*2, radius*2)
+            item.setPen(QPen(QColor(25, 80, 175), 1))
+            item.setBrush(QBrush(QColor(245, 250, 255)))
+            item.setZValue(2000)
+            self._scene.addItem(item)
+            self._vertex_handle_items[item] = (entity_id, index, depth)
+
     def _style_for(self, entity_id: str, kind: str):
         if entity_id in self.doc.selection:
             return self._styles['selected']
@@ -491,6 +561,7 @@ class Viewport3D(QGraphicsView):
 
     def _begin_interaction(self) -> None:
         self._interaction_active = True
+        self._clear_vertex_handles()
         self._update_interaction_proxies()
 
     def _finish_deferred_view_change(self) -> None:
@@ -511,6 +582,7 @@ class Viewport3D(QGraphicsView):
                 item.setPen(pen)
                 item.setBrush(brush)
         self._last_selection = selected
+        self._refresh_vertex_handles()
 
     def wheelEvent(self, event):
         zoom_factor = 0.88 if event.angleDelta().y() > 0 else 1.14
@@ -533,6 +605,17 @@ class Viewport3D(QGraphicsView):
             return
 
         if event.button() == Qt.MouseButton.LeftButton:
+            hit_item = self.itemAt(event.position().toPoint())
+            if hit_item in self._vertex_handle_items:
+                eid, vertex_index, depth = self._vertex_handle_items[hit_item]
+                self.doc.select([eid])
+                self._vertex_tx = VertexMoveTransaction(self.stack, eid, vertex_index)
+                self._vertex_drag_origin = QPointF(pos)
+                self._vertex_drag_depth = float(depth)
+                self.selectionChangedByView.emit()
+                self.statusChanged.emit(f'Mesh vertex {vertex_index} selected')
+                return
+
             ray_orig, ray_dir = self.camera.unproject_ray(pos.x(), pos.y(), self.width(), self.height())
             best_hit: Optional[Tuple[float, str, MeshRayHit]] = None
             for entity_id, payload in self._mesh_payload_cache.items():
@@ -569,6 +652,25 @@ class Viewport3D(QGraphicsView):
 
     def mouseMoveEvent(self, event):
         pos = event.position()
+        if self._vertex_tx is not None and self._vertex_drag_origin is not None and self._vertex_drag_depth is not None:
+            dx = pos.x() - self._vertex_drag_origin.x()
+            dy = pos.y() - self._vertex_drag_origin.y()
+            world_delta = self._camera_drag_world_delta(dx, dy, self._vertex_drag_depth)
+            entity = self.doc.get(self._vertex_tx.eid)
+            local_delta = self._world_delta_to_mesh_local(entity, world_delta)
+            self._vertex_tx.update_drag(*local_delta)
+            self._render_raw_mesh_topology(
+                entity.id,
+                self._vertex_tx.preview_vertices(),
+                entity.params['faces'],
+                entity.params['matrix'],
+            )
+            q = self._vertex_tx.preview_position
+            self.statusChanged.emit(
+                f'Vertex {self._vertex_tx.v_index}: {q[0]:.3f}, {q[1]:.3f}, {q[2]:.3f}'
+            )
+            return
+
         if self._last_mouse_pos is not None:
             dx = pos.x() - self._last_mouse_pos.x()
             dy = pos.y() - self._last_mouse_pos.y()
@@ -603,6 +705,15 @@ class Viewport3D(QGraphicsView):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton and self._vertex_tx is not None:
+            tx = self._vertex_tx
+            self._vertex_tx = None
+            self._vertex_drag_origin = None
+            self._vertex_drag_depth = None
+            tx.commit()
+            self.statusChanged.emit(f'Moved mesh vertex {tx.v_index}')
+            return
+
         if event.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.MiddleButton):
             was_camera_drag = self._is_orbiting or self._is_panning
             self._is_orbiting = False
@@ -624,6 +735,21 @@ class Viewport3D(QGraphicsView):
                     self.redraw(force_full=True)
                 return
         super().mouseReleaseEvent(event)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape and self._vertex_tx is not None:
+            eid = self._vertex_tx.eid
+            self._vertex_tx.cancel()
+            self._vertex_tx = None
+            self._vertex_drag_origin = None
+            self._vertex_drag_depth = None
+            entity = self.doc.entities.get(eid)
+            if entity is not None:
+                self.queue_geometry_generation(entity)
+            self._refresh_vertex_handles()
+            self.statusChanged.emit('Vertex move cancelled')
+            return
+        super().keyPressEvent(event)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -652,3 +778,4 @@ class Viewport3D(QGraphicsView):
                 self._render_cache.pop(entity_id).remove()
 
         self._last_selection = set(self.doc.selection)
+        self._refresh_vertex_handles()
