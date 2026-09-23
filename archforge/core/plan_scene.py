@@ -157,6 +157,9 @@ def selection_handles(doc):
         if e.kind=='wall':out.extend([Handle2D(p['x1'],p['y1'],eid,'endpoint1'),Handle2D(p['x2'],p['y2'],eid,'endpoint2')])
         elif e.kind=='box':out.extend(_box_handles(eid,p))
         elif e.kind=='pod':out.extend(_pod_handles(eid,p))
+        elif e.kind=='mesh':
+            for index,(x,y,_z) in enumerate(_mesh_world_vertices(p)):
+                out.append(Handle2D(x,y,eid,f'vertex:{index}','vertex'))
         elif e.kind=='arboreal_branch':
             from archforge.organic.arboreal import arboreal_branch_geometry
             geom=arboreal_branch_geometry(doc,eid)
