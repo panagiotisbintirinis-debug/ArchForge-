@@ -1,5 +1,6 @@
 from __future__ import annotations
 import math
+import numpy as np
 from typing import Optional, Dict
 
 from PySide6.QtCore import Qt, QPointF, Signal
@@ -9,17 +10,35 @@ from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsTextItem
 from archforge.core.model import Document
 from archforge.core.commands import CommandStack
 from archforge.core.viewport import PointerController, PointerEvent
-from archforge.core.plan_scene import build_plan_frame, Primitive2D, Handle2D
+from archforge.core.interaction import VertexMoveTransaction
+from archforge.core.plan_scene import (
+    build_plan_frame, Primitive2D, Handle2D, _mesh_world_vertices, _convex_hull_xy,
+)
 
 class PlanView(QGraphicsView):
     selectionChangedByView=Signal();statusChanged=Signal(str)
     def __init__(self,doc:Document,stack:CommandStack,parent=None):
         self._scene=QGraphicsScene();super().__init__(self._scene,parent);self.doc=doc;self.stack=stack;self.controller=PointerController(doc,stack)
         self.setRenderHint(QPainter.RenderHint.Antialiasing,True);self.setDragMode(QGraphicsView.DragMode.NoDrag);self.setMouseTracking(True);self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse);self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter);self.setBackgroundBrush(QColor(248,248,248))
-        self._mouse_down=False;self._handle_items={};self._entity_items={};self._active_handle=None;self._hud_item=None;self.scale(55.0,-55.0);self.redraw()
-    def rebind(self,doc,stack):self.doc=doc;self.stack=stack;self.controller=PointerController(doc,stack);self.redraw()
+        self._mouse_down=False;self._handle_items={};self._entity_items={};self._active_handle=None;self._hud_item=None
+        self._vertex_tx=None;self._vertex_drag_origin=None
+        self.scale(55.0,-55.0);self.redraw()
+    def rebind(self,doc,stack):
+        self.doc=doc;self.stack=stack;self.controller=PointerController(doc,stack)
+        self._vertex_tx=None;self._vertex_drag_origin=None;self.redraw()
     def set_tool(self,tool):self.controller.set_tool(tool);self._active_handle=None;self.statusChanged.emit(f'Tool: {tool}');self.redraw()
     def _scene_to_plane(self,pos):p=self.mapToScene(pos);return PointerEvent(p.x(),p.y())
+
+    def _world_delta_to_mesh_local(self,eid,dx,dy,dz=0.0):
+        matrix=np.asarray(self.doc.get(eid).params['matrix'],dtype=float).reshape(4,4)
+        linear=matrix[:3,:3]
+        return tuple(float(v) for v in np.linalg.solve(linear,np.asarray((dx,dy,dz),dtype=float)))
+
+    def _vertex_preview_world_vertices(self):
+        if self._vertex_tx is None:return ()
+        entity=self.doc.get(self._vertex_tx.eid);params=dict(entity.params)
+        params['vertices']=self._vertex_tx.preview_vertices()
+        return tuple(_mesh_world_vertices(params))
     def wheelEvent(self,event):self.scale(1.15 if event.angleDelta().y()>0 else 1/1.15,1.15 if event.angleDelta().y()>0 else 1/1.15)
     def mousePressEvent(self,event):
         if event.button()!=Qt.MouseButton.LeftButton:super().mousePressEvent(event);return
@@ -27,6 +46,11 @@ class PlanView(QGraphicsView):
         if hit in self._handle_items:
             h=self._handle_items[hit];self._active_handle=h
             self.doc.select([h.entity_id]);self.selectionChangedByView.emit()
+            if h.handle.startswith('vertex:'):
+                self._vertex_tx=VertexMoveTransaction(self.stack,h.entity_id,int(h.handle.split(':',1)[1]))
+                p=self.mapToScene(event.position().toPoint());self._vertex_drag_origin=(p.x(),p.y())
+                self.statusChanged.emit(f'Mesh vertex {self._vertex_tx.v_index} selected')
+                self.redraw();return
             if h.handle=='move' or h.cursor=='move':
                 self.controller.set_tool('move');self.controller.set_target(h.entity_id,h.handle)
             else:
@@ -39,6 +63,13 @@ class PlanView(QGraphicsView):
         elif self.controller.tool in ('stretch','rotate') and self.doc.selection:self.controller.set_target(self.doc.selection[-1],self._active_handle.handle if self._active_handle else None)
         ev=self._scene_to_plane(event.position().toPoint());ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier);self.controller.pointer_down(ev);self.redraw()
     def mouseMoveEvent(self,event):
+        if self._mouse_down and self._vertex_tx is not None and self._vertex_drag_origin is not None:
+            p=self.mapToScene(event.position().toPoint());ox,oy=self._vertex_drag_origin
+            local=self._world_delta_to_mesh_local(self._vertex_tx.eid,p.x()-ox,p.y()-oy,0.0)
+            self._vertex_tx.update_drag(*local)
+            q=self._vertex_tx.preview_position
+            self.statusChanged.emit(f'Vertex {self._vertex_tx.v_index}: {q[0]:.3f}, {q[1]:.3f}, {q[2]:.3f}')
+            self.redraw();return
         if self._mouse_down and self.controller.active is not None:
             ev=self._scene_to_plane(event.position().toPoint());ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
             try:self.controller.pointer_move(ev);self.redraw()
@@ -49,6 +80,9 @@ class PlanView(QGraphicsView):
     def mouseReleaseEvent(self,event):
         if event.button()==Qt.MouseButton.LeftButton and self._mouse_down:
             self._mouse_down=False
+            if self._vertex_tx is not None:
+                tx=self._vertex_tx;self._vertex_tx=None;self._vertex_drag_origin=None;self._active_handle=None
+                tx.commit();return
             if self.controller.active is not None:
                 ev=self._scene_to_plane(event.position().toPoint());ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
                 try:self.controller.pointer_up(ev)
@@ -56,12 +90,25 @@ class PlanView(QGraphicsView):
                 self._active_handle=None;return
         super().mouseReleaseEvent(event)
     def keyPressEvent(self,event):
+        if event.key()==Qt.Key.Key_Escape and self._vertex_tx is not None:
+            self._vertex_tx.cancel();self._vertex_tx=None;self._vertex_drag_origin=None;self._active_handle=None;self._mouse_down=False;self.redraw();return
         if event.key()==Qt.Key.Key_Escape:self.controller.cancel();self._mouse_down=False;self.redraw();return
         super().keyPressEvent(event)
     def redraw(self):
         self._scene.clear();self._handle_items.clear();self._entity_items.clear();self._draw_grid();frame=build_plan_frame(self.doc,self.controller.preview)
-        for p in frame.primitives:self._draw_primitive(p)
-        for h in frame.handles:self._draw_handle(h)
+        preview_eid=self._vertex_tx.eid if self._vertex_tx is not None else None
+        for p in frame.primitives:
+            if preview_eid and p.entity_id==preview_eid and self.doc.get(preview_eid).kind=='mesh':continue
+            self._draw_primitive(p)
+        for h in frame.handles:
+            if preview_eid and h.entity_id==preview_eid and h.handle.startswith('vertex:'):continue
+            self._draw_handle(h)
+        if self._vertex_tx is not None:
+            world=self._vertex_preview_world_vertices()
+            hull=_convex_hull_xy(world)
+            if hull:self._draw_primitive(Primitive2D('polygon',hull,entity_id=self._vertex_tx.eid,role='vertex-preview',meta=(('semantic','mesh'),)))
+            for index,(x,y,_z) in enumerate(world):
+                self._draw_handle(Handle2D(x,y,self._vertex_tx.eid,f'vertex:{index}','vertex'))
         if frame.snap:self._draw_snap(frame.snap)
         if frame.hud:self._draw_hud(frame.hud)
         r=self.mapToScene(self.viewport().rect()).boundingRect();self._scene.setSceneRect(r.adjusted(-5,-5,5,5))
