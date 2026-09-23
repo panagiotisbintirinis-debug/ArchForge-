@@ -103,3 +103,56 @@ def test_route_and_connect_creates_authoritative_multisegment_mesh():
     stack.redo()
     assert doc.get(command.generated_id).kind == 'mesh'
     assert doc.get(command.generated_id).params['metadata']['source_path_vertices'] == route
+
+
+def test_non_grid_boundary_anchors_are_clamped_to_strict_orthographic_segments():
+    doc = Document()
+    router = MEPPathRouter(doc, grid_resolution=0.05)
+
+    start = (0.013, 0.017, 0.523)
+    end = (0.187, 0.083, 0.571)
+    route = router.compute_route(start, end)
+
+    assert route[0] == start
+    assert route[-1] == end
+    assert len(route) > 2
+
+    directions = []
+    for a, b in zip(route, route[1:]):
+        delta = tuple(b[i] - a[i] for i in range(3))
+        changed_axes = [i for i, value in enumerate(delta) if abs(value) > 1e-9]
+        assert len(changed_axes) == 1
+        directions.append(changed_axes[0])
+
+    # At every actual bend, one principal axis hands off to another exactly.
+    for previous_axis, next_axis in zip(directions, directions[1:]):
+        assert previous_axis in (0, 1, 2)
+        assert next_axis in (0, 1, 2)
+
+
+def test_same_voxel_micro_partition_is_rejected_by_continuous_collision_guard():
+    doc = Document()
+    doc.add(Entity(
+        'wall',
+        {
+            'x1': 0.0,
+            'y1': -0.02,
+            'z': 0.0,
+            'x2': 0.0,
+            'y2': 0.02,
+            'height': 1.0,
+            'thickness': 0.002,
+        },
+        id='micro-partition',
+    ))
+    router = MEPPathRouter(doc, grid_resolution=0.05)
+
+    start = (-0.024, 0.0, 0.5)
+    end = (0.024, 0.0, 0.5)
+
+    assert router._world_to_grid(start) == router._world_to_grid(end)
+    with pytest.raises(
+        ValueError,
+        match='sub-voxel obstruction',
+    ):
+        router.compute_route(start, end)
