@@ -48,7 +48,6 @@ class MainWindow(QMainWindow):
         widgets = [self.plan_view, self.front_view, self.side_view, self.view_3d]
         if 0 <= idx < len(widgets):
             self.view = widgets[idx]
-        self._redraw_views()
 
     def _set_active_tool(self, tool):
         if hasattr(self.view, 'set_tool'):
