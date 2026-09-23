@@ -214,8 +214,8 @@ class Viewport3D(QGraphicsView):
         self.stack = stack
         self.stack.subscribe(self.on_document_modified)
         self._sculpt_tx = None
-        for proxy in self._render_cache.values():
-            proxy.remove()
+        for items in self._render_cache.values():
+            items.remove()
         self._render_cache.clear()
         self._gpu_buffer_cache.clear()
         self._mesh_payload_cache.clear()
@@ -310,8 +310,8 @@ class Viewport3D(QGraphicsView):
         if modified_ids is None:
             # Global fallback is reserved for full document load/rebind or commands
             # that cannot identify their affected entities.
-            for proxy in self._render_cache.values():
-                proxy.remove()
+            for items in self._render_cache.values():
+                items.remove()
             self._render_cache.clear()
             self._gpu_buffer_cache.clear()
             self._mesh_payload_cache.clear()
@@ -321,16 +321,17 @@ class Viewport3D(QGraphicsView):
             for eid in target_ids:
                 self._gpu_buffer_cache.pop(eid, None)
                 self._mesh_payload_cache.pop(eid, None)
-                proxy = self._render_cache.get(eid)
-                if proxy is not None:
-                    proxy.hide_mesh()
+                items = self._render_cache.get(eid)
+                if items is not None:
+                    for item in items.mesh_items:
+                        item.hide()
 
         for eid in target_ids:
             entity = self.doc.entities.get(eid)
             if entity is None or not self.doc.entity_is_visible(entity):
-                proxy = self._render_cache.pop(eid, None)
-                if proxy is not None:
-                    proxy.remove()
+                items = self._render_cache.pop(eid, None)
+                if items is not None:
+                    items.remove()
                 self._gpu_buffer_cache.pop(eid, None)
                 self._mesh_payload_cache.pop(eid, None)
                 self._job_generation.pop(eid, None)
@@ -342,9 +343,9 @@ class Viewport3D(QGraphicsView):
     def queue_geometry_generation(self, entity):
         """Generate only one visible entity, using direct topology for meshes and workers otherwise."""
         if not self.doc.entity_is_visible(entity):
-            proxy = self._render_cache.pop(entity.id, None)
-            if proxy is not None:
-                proxy.remove()
+            items = self._render_cache.pop(entity.id, None)
+            if items is not None:
+                items.remove()
             self._gpu_buffer_cache.pop(entity.id, None)
             self._mesh_payload_cache.pop(entity.id, None)
             return
@@ -381,9 +382,9 @@ class Viewport3D(QGraphicsView):
         if not self.doc.entity_is_visible(self.doc.entities[entity_id]):
             return
         if not isinstance(payload, MeshPayload):
-            proxy = self._render_cache.pop(entity_id, None)
-            if proxy is not None:
-                proxy.remove()
+            items = self._render_cache.pop(entity_id, None)
+            if items is not None:
+                items.remove()
             self._gpu_buffer_cache.pop(entity_id, None)
             self._mesh_payload_cache.pop(entity_id, None)
             return
@@ -427,7 +428,7 @@ class Viewport3D(QGraphicsView):
             self._job_generation[entity_id] = generation
 
     def _upload_to_gpu_buffers(self, entity_id, payload, vertex_data=None, index_data=None):
-        """Cache contiguous VBO/IBO-ready arrays and update only the changed render proxy."""
+        """Cache contiguous VBO/IBO-ready arrays and update the changed full-mesh render items."""
         if vertex_data is None:
             vertex_data = np.ascontiguousarray(payload.vertices, dtype=np.float32)
         if index_data is None:
@@ -444,22 +445,20 @@ class Viewport3D(QGraphicsView):
         if entity_id not in self.doc.entities:
             return
         if not self.doc.entity_is_visible(self.doc.entities[entity_id]):
-            proxy = self._render_cache.get(entity_id)
-            if proxy is not None:
-                proxy.remove()
+            items = self._render_cache.get(entity_id)
+            if items is not None:
+                items.remove()
                 self._render_cache.pop(entity_id, None)
             return
         w = max(100, self.width())
         h = max(100, self.height())
         kind = self.doc.get(entity_id).kind
-        proxy = self._proxy(entity_id)
-        proxy.kind = kind
-        proxy.bounds = self._bounds_from_mesh(mesh)
-        proxy.hide_proxy()
-        proxy.ensure_mesh_items(len(mesh.triangles))
+        items = self._entity_render_items(entity_id)
+        items.kind = kind
+        items.ensure_mesh_items(len(mesh.triangles))
         pen, brush = self._style_for(entity_id, kind)
 
-        for item, tri in zip(proxy.mesh_items, mesh.triangles):
+        for item, tri in zip(items.mesh_items, mesh.triangles):
             v0, v1, v2 = mesh.vertices[tri[0]], mesh.vertices[tri[1]], mesh.vertices[tri[2]]
             p0 = self.camera.project(v0, w, h)
             p1 = self.camera.project(v1, w, h)
@@ -551,20 +550,12 @@ class Viewport3D(QGraphicsView):
             return self._styles['floor']
         return self._styles['default']
 
-    def _bounds_from_mesh(self, mesh: MeshPayload) -> Optional[Bounds]:
-        if not mesh.vertices:
-            return None
-        return (
-            tuple(min(p[i] for p in mesh.vertices) for i in range(3)),
-            tuple(max(p[i] for p in mesh.vertices) for i in range(3)),
-        )
-
-    def _proxy(self, entity_id: str) -> EntityRenderProxy:
-        proxy = self._render_cache.get(entity_id)
-        if proxy is None:
-            proxy = EntityRenderProxy(self._scene, entity_id)
-            self._render_cache[entity_id] = proxy
-        return proxy
+    def _entity_render_items(self, entity_id: str) -> EntityRenderItems:
+        items = self._render_cache.get(entity_id)
+        if items is None:
+            items = EntityRenderItems(self._scene, entity_id)
+            self._render_cache[entity_id] = items
+        return items
 
     def _ensure_grid(self) -> None:
         needed = (8 * 2 + 1) * 2
@@ -598,70 +589,55 @@ class Viewport3D(QGraphicsView):
                 else:
                     item.hide()
 
-    def _bbox_corners(self, bounds: Bounds):
-        lo, hi = bounds
-        return [
-            (x, y, z)
-            for x in (lo[0], hi[0])
-            for y in (lo[1], hi[1])
-            for z in (lo[2], hi[2])
-        ]
-
-    def _update_interaction_proxies(self) -> None:
-        w = max(100, self.width())
-        h = max(100, self.height())
-        self._scene.setSceneRect(0, 0, w, h)
-        self._update_grid()
-        for proxy in self._render_cache.values():
-            proxy.hide_mesh()
-            if proxy.bounds is None:
-                proxy.hide_proxy()
-                continue
-            proxy.ensure_proxy_items()
-            corners = self._bbox_corners(proxy.bounds)
-            projected = [self.camera.project(point, w, h) for point in corners]
-            for item, (a, b) in zip(proxy.proxy_items, proxy._BOX_EDGES):
-                p1, p2 = projected[a], projected[b]
-                if p1 and p2:
-                    item.setLine(p1[0], p1[1], p2[0], p2[1])
-                    item.show()
-                else:
-                    item.hide()
-        self._render_ghost_preview()
-
-    def _begin_interaction(self) -> None:
-        self._interaction_active = True
-        self._clear_vertex_handles()
-        self._update_interaction_proxies()
-
-    def _finish_deferred_view_change(self) -> None:
-        if self._is_orbiting or self._is_panning or self._sculpt_tx is not None:
-            return
-        self.redraw(force_full=True)
-
     def refresh_selection(self) -> None:
         selected = set(self.doc.selection)
         changed = selected ^ self._last_selection
         for entity_id in changed:
-            proxy = self._render_cache.get(entity_id)
-            if proxy is None:
+            items = self._render_cache.get(entity_id)
+            if items is None:
                 continue
-            pen, brush = self._style_for(entity_id, proxy.kind)
-            for item in proxy.mesh_items:
+            pen, brush = self._style_for(entity_id, items.kind)
+            for item in items.mesh_items:
                 item.setPen(pen)
                 item.setBrush(brush)
         self._last_selection = selected
         self._refresh_vertex_handles()
 
     def _update_camera_projection_matrices(self):
-        """Clamp camera state and immediately reproject cached geometry without touching the Document."""
+        """Clamp camera state and redraw full geometry with no substitute geometry path."""
         self.camera.distance = max(0.5, min(50.0, float(self.camera.distance)))
         self.camera.pitch = max(
             -math.pi / 2.0 + 0.05,
             min(math.pi / 2.0 - 0.05, float(self.camera.pitch)),
         )
         self.camera.yaw = math.remainder(float(self.camera.yaw), math.tau)
-        self.redraw(force_full=True)
+
+        self._scene.setSceneRect(
+            0,
+            0,
+            max(100, self.width()),
+            max(100, self.height()),
+        )
+        self._update_grid()
+
+        for entity_id, entity in tuple(self.doc.entities.items()):
+            if not self.doc.entity_is_visible(entity):
+                continue
+            if entity.kind == 'mesh':
+                self._render_raw_mesh_topology(
+                    entity_id,
+                    entity.params['vertices'],
+                    entity.params['faces'],
+                    entity.params['matrix'],
+                    self.doc.dirty_generation(entity_id),
+                )
+            else:
+                payload = self._mesh_payload_cache.get(entity_id)
+                if payload is not None:
+                    self._render_cached_entity(entity_id, payload)
+
+        self._render_ghost_preview()
+        self._refresh_vertex_handles()
         self.viewport().update()
 
     def _apply_zoom_steps(self, delta_steps):
@@ -822,7 +798,7 @@ class Viewport3D(QGraphicsView):
             amount = max(0.0, float(delta_y))
             self._sculpt_tx.update(amount=amount)
             self.statusChanged.emit(f"Sculpt Amount: {amount:.3f}")
-            self._update_interaction_proxies()
+            self.redraw(force_full=True)
             return
 
         super().mouseMoveEvent(event)
@@ -888,16 +864,9 @@ class Viewport3D(QGraphicsView):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        if not hasattr(self, '_view_settle_timer'):
-            return
-        self._begin_interaction()
-        self._view_settle_timer.start(120)
+        self.redraw(force_full=True)
 
     def redraw(self, force_full=False):
-        if self._interaction_active and not force_full:
-            self._update_interaction_proxies()
-            return
-
         w = max(100, self.width())
         h = max(100, self.height())
         self._scene.setSceneRect(0, 0, w, h)
