@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from heapq import heappop, heappush
-from itertools import count
+from itertools import count, permutations
 from typing import Iterable, Optional, Sequence, Tuple
 
 Vec3 = Tuple[float, float, float]
@@ -147,6 +147,186 @@ class MEPPathRouter:
                 self._voxelize_pod(entity.params)
 
     @staticmethod
+    def _segment_intersects_aabb(p1: Vec3, p2: Vec3, lo: Vec3, hi: Vec3) -> bool:
+        """Exact segment/slab intersection against an axis-aligned 3D box."""
+        t_min, t_max = 0.0, 1.0
+        for axis in range(3):
+            a = float(p1[axis])
+            b = float(p2[axis])
+            delta = b - a
+            if abs(delta) <= 1e-15:
+                if a < lo[axis] - 1e-12 or a > hi[axis] + 1e-12:
+                    return False
+                continue
+            t1 = (lo[axis] - a) / delta
+            t2 = (hi[axis] - a) / delta
+            if t1 > t2:
+                t1, t2 = t2, t1
+            t_min = max(t_min, t1)
+            t_max = min(t_max, t2)
+            if t_min > t_max + 1e-12:
+                return False
+        return True
+
+    def _segment_hits_wall(self, p1: Vec3, p2: Vec3, params) -> bool:
+        x1, y1 = float(params['x1']), float(params['y1'])
+        x2, y2 = float(params['x2']), float(params['y2'])
+        dx, dy = x2 - x1, y2 - y1
+        length = math.hypot(dx, dy)
+        if length <= 1e-12:
+            raise ValueError('wall obstacle has zero length')
+        ux, uy = dx / length, dy / length
+
+        def local(point):
+            px, py, pz = map(float, point)
+            qx, qy = px - x1, py - y1
+            return (
+                qx * ux + qy * uy,
+                -qx * uy + qy * ux,
+                pz,
+            )
+
+        radius = float(params['thickness']) / 2.0 + self.clearance
+        z0 = float(params['z']) - self.clearance
+        z1 = float(params['z']) + float(params['height']) + self.clearance
+        return self._segment_intersects_aabb(
+            local(p1),
+            local(p2),
+            (-self.clearance, -radius, z0),
+            (length + self.clearance, radius, z1),
+        )
+
+    def _segment_hits_box(self, p1: Vec3, p2: Vec3, params) -> bool:
+        cx, cy = float(params['x']), float(params['y'])
+        angle = math.radians(float(params.get('rotation', 0.0)))
+        c, sn = math.cos(angle), math.sin(angle)
+
+        def local(point):
+            px, py, pz = map(float, point)
+            dx, dy = px - cx, py - cy
+            return (c * dx + sn * dy, -sn * dx + c * dy, pz)
+
+        half_w = float(params['width']) / 2.0 + self.clearance
+        half_d = float(params['depth']) / 2.0 + self.clearance
+        z0 = float(params['z']) - self.clearance
+        z1 = float(params['z']) + float(params['height']) + self.clearance
+        return self._segment_intersects_aabb(
+            local(p1),
+            local(p2),
+            (-half_w, -half_d, z0),
+            (half_w, half_d, z1),
+        )
+
+    def _segment_hits_pod(self, p1: Vec3, p2: Vec3, params) -> bool:
+        cx, cy = float(params['cx']), float(params['cy'])
+        angle = math.radians(float(params.get('rotation', 0.0)))
+        c, sn = math.cos(angle), math.sin(angle)
+        rx = float(params['diameter_x']) / 2.0 + self.clearance
+        ry = float(params['diameter_y']) / 2.0 + self.clearance
+        z0 = float(params['floor_level']) - self.clearance
+        z1 = float(params['floor_level']) + float(params['height']) + self.clearance
+
+        def local(point):
+            px, py, pz = map(float, point)
+            dx, dy = px - cx, py - cy
+            return (c * dx + sn * dy, -sn * dx + c * dy, pz)
+
+        a = local(p1)
+        b = local(p2)
+        dz = b[2] - a[2]
+        if abs(dz) <= 1e-15:
+            if a[2] < z0 - 1e-12 or a[2] > z1 + 1e-12:
+                return False
+            t0, t1 = 0.0, 1.0
+        else:
+            tz0 = (z0 - a[2]) / dz
+            tz1 = (z1 - a[2]) / dz
+            if tz0 > tz1:
+                tz0, tz1 = tz1, tz0
+            t0, t1 = max(0.0, tz0), min(1.0, tz1)
+            if t0 > t1 + 1e-12:
+                return False
+
+        ax, ay = a[0] / rx, a[1] / ry
+        bx, by = b[0] / rx, b[1] / ry
+        vx, vy = bx - ax, by - ay
+        denom = vx * vx + vy * vy
+        if denom <= 1e-18:
+            t = t0
+        else:
+            t = max(t0, min(t1, -(ax * vx + ay * vy) / denom))
+        qx, qy = ax + t * vx, ay + t * vy
+        return qx * qx + qy * qy <= 1.0 + 1e-12
+
+    def _has_continuous_collision(self, p1, p2) -> bool:
+        """Test the exact world-space segment against raw structural obstacle geometry."""
+        a = tuple(float(v) for v in p1)
+        b = tuple(float(v) for v in p2)
+        for eid in sorted(self.doc.entities):
+            if eid in self.ignore_entity_ids:
+                continue
+            entity = self.doc.entities[eid]
+            if not entity.visible:
+                continue
+            if entity.kind == 'wall' and self._segment_hits_wall(a, b, entity.params):
+                return True
+            if entity.kind in ('box', 'mechanical_part') and self._segment_hits_box(a, b, entity.params):
+                return True
+            if entity.kind == 'pod' and self._segment_hits_pod(a, b, entity.params):
+                return True
+        return False
+
+    @staticmethod
+    def _dedupe_route(points: Sequence[Vec3]) -> list[Vec3]:
+        out = []
+        for point in points:
+            q = tuple(float(v) for v in point)
+            if not out or any(abs(q[i] - out[-1][i]) > 1e-12 for i in range(3)):
+                out.append(q)
+        return out
+
+    def _orthogonal_connector(self, start: Vec3, end: Vec3) -> list[Vec3]:
+        """Find a deterministic collision-free Manhattan connector between two world points."""
+        if all(abs(start[i] - end[i]) <= 1e-12 for i in range(3)):
+            return [tuple(start)]
+
+        for order in permutations((0, 1, 2)):
+            current = [float(v) for v in start]
+            candidate = [tuple(current)]
+            for axis in order:
+                if abs(current[axis] - end[axis]) <= 1e-12:
+                    continue
+                current[axis] = float(end[axis])
+                candidate.append(tuple(current))
+            candidate = self._dedupe_route(candidate)
+            if all(not self._has_continuous_collision(a, b) for a, b in zip(candidate, candidate[1:])):
+                return candidate
+        raise ValueError('no collision-free orthographic boundary connector exists')
+
+    def _apply_orthographic_clamping(self, path_list, start_w, end_w) -> list[Vec3]:
+        """Attach exact anchors with axis-aligned knuckles instead of skewed boundary segments."""
+        path = self._dedupe_route(path_list)
+        start = tuple(float(v) for v in start_w)
+        end = tuple(float(v) for v in end_w)
+        if not path:
+            return self._orthogonal_connector(start, end)
+
+        first = tuple(path[0])
+        last = tuple(path[-1])
+        prefix = self._orthogonal_connector(start, first)
+        suffix = self._orthogonal_connector(last, end)
+
+        combined = prefix + path[1:-1] + suffix
+        combined = self._dedupe_route(combined)
+        for a, b in zip(combined, combined[1:]):
+            changed_axes = sum(abs(a[i] - b[i]) > 1e-12 for i in range(3))
+            if changed_axes != 1:
+                raise ValueError('orthographic clamping produced a non-axis-aligned segment')
+            if self._has_continuous_collision(a, b):
+                raise ValueError('orthographic clamping intersects continuous obstacle geometry')
+        return combined
+
+    @staticmethod
     def _heuristic(a: Voxel, b: Voxel) -> float:
         # 0.95 is the lowest possible straight-continuation step cost.
         return 0.95 * math.sqrt(sum((a[i] - b[i]) ** 2 for i in range(3)))
@@ -194,13 +374,18 @@ class MEPPathRouter:
         return out
 
     def compute_route(self, start_xyz, end_xyz) -> list[Vec3]:
-        """Compute a collision-free deterministic 3D A* route on the configured voxel grid."""
+        """Compute a collision-free deterministic 3D A* route with exact orthographic anchors."""
         start_world = tuple(float(v) for v in start_xyz)
         end_world = tuple(float(v) for v in end_xyz)
         start = self._world_to_grid(start_world)
         goal = self._world_to_grid(end_world)
+
         if start == goal:
-            return [start_world, end_world] if start_world != end_world else [start_world]
+            if self._has_continuous_collision(start_world, end_world):
+                raise ValueError('no collision-free MEP route exists due to sub-voxel obstruction')
+            if start_world == end_world:
+                return [start_world]
+            return self._apply_orthographic_clamping([], start_world, end_world)
 
         # Connection anchors themselves are legal even if they touch a structural boundary.
         blocked = self.obstacles - {start, goal}
@@ -251,9 +436,7 @@ class MEPPathRouter:
         voxels = self._simplify_voxel_path(voxels)
 
         route = [self._grid_to_world(v) for v in voxels]
-        route[0] = start_world
-        route[-1] = end_world
-        return route
+        return self._apply_orthographic_clamping(route, start_world, end_world)
 
     def entity_anchor(self, entity_id: str) -> Vec3:
         """Resolve one deterministic physical connection anchor from authoritative entity state."""
