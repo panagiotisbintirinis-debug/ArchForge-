@@ -215,8 +215,8 @@ class Viewport3D(QGraphicsView):
         self.statusChanged.emit(f"3D Viewport Tool: {tool}")
 
     def on_document_modified(self, modified_ids):
+        # Reactively invalidate only what changed or force clean repaint
         self._evaluation_cache.invalidate(modified_ids)
-        self._evaluation = self._evaluation_cache.sync(self.doc)
         self.update()
 
     def _style_for(self, entity_id: str, kind: str):
