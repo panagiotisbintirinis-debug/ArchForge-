@@ -686,71 +686,118 @@ class Viewport3D(QGraphicsView):
         self._last_selection = selected
         self._refresh_vertex_handles()
 
+    def _update_camera_projection_matrices(self):
+        """Clamp camera state and immediately reproject cached geometry without touching the Document."""
+        self.camera.distance = max(0.5, min(50.0, float(self.camera.distance)))
+        self.camera.pitch = max(
+            -math.pi / 2.0 + 0.05,
+            min(math.pi / 2.0 - 0.05, float(self.camera.pitch)),
+        )
+        self.camera.yaw = math.remainder(float(self.camera.yaw), math.tau)
+        self._interaction_active = False
+        self.redraw(force_full=True)
+        self.viewport().update()
+
+    def _apply_zoom_steps(self, delta_steps):
+        delta = float(delta_steps)
+        if not math.isfinite(delta):
+            return
+        self.camera.distance = max(
+            0.5,
+            min(50.0, self.camera.distance - delta * 0.5),
+        )
+        self._update_camera_projection_matrices()
+
     def wheelEvent(self, event):
-        zoom_factor = 0.88 if event.angleDelta().y() > 0 else 1.14
-        self.camera.distance = max(0.5, min(200.0, self.camera.distance * zoom_factor))
-        self._begin_interaction()
-        self._view_settle_timer.start(120)
+        delta = event.angleDelta().y() / 120.0
+        self._apply_zoom_steps(delta)
+        event.accept()
+
+    def _execute_raycast_hit_detection(self, pos, modifiers=Qt.KeyboardModifier.NoModifier):
+        if self._interaction_locked:
+            return
+
+        hit_item = self.itemAt(pos.toPoint())
+        if hit_item in self._vertex_handle_items:
+            eid, vertex_index, depth = self._vertex_handle_items[hit_item]
+            self.doc.select([eid])
+            self._vertex_tx = VertexMoveTransaction(self.stack, eid, vertex_index)
+            self._vertex_drag_origin = QPointF(pos)
+            self._vertex_drag_depth = float(depth)
+            self.selectionChangedByView.emit()
+            self.statusChanged.emit(f'Mesh vertex {vertex_index} selected')
+            return
+
+        ray_orig, ray_dir = self.camera.unproject_ray(
+            pos.x(), pos.y(), self.width(), self.height()
+        )
+        best_hit: Optional[Tuple[float, str, MeshRayHit]] = None
+        for entity_id, payload in self._mesh_payload_cache.items():
+            hit = raycast_mesh(entity_id, payload, ray_orig, ray_dir)
+            if hit is not None and (best_hit is None or hit.distance < best_hit[0]):
+                best_hit = (hit.distance, entity_id, hit)
+
+        if best_hit is not None:
+            _, eid, mesh_hit = best_hit
+            if self.active_tool == 'sculpt':
+                try:
+                    surf_hit = SurfaceHit(
+                        eid,
+                        mesh_hit.surface_role,
+                        mesh_hit.world_point,
+                        mesh_hit.world_normal,
+                    )
+                    surf_hit.validate(self.doc)
+                    self._sculpt_tx = SculptTransaction(
+                        self.doc,
+                        self.stack,
+                        surf_hit,
+                        self.sculpt_brush,
+                        self.sculpt_op,
+                        0.0,
+                    )
+                    self._drag_start_pos = QPointF(pos)
+                    self.statusChanged.emit(
+                        f"Sculpting {eid} ({mesh_hit.surface_role})"
+                    )
+                except Exception as exc:
+                    self.statusChanged.emit(f"Cannot sculpt surface: {exc}")
+            else:
+                self.doc.select([
+                    eid
+                ], add=bool(modifiers & Qt.KeyboardModifier.ControlModifier))
+                self.selectionChangedByView.emit()
+                self.refresh_selection()
+        else:
+            if not (modifiers & Qt.KeyboardModifier.ControlModifier):
+                self.doc.select([])
+                self.selectionChangedByView.emit()
+                self.refresh_selection()
 
     def mousePressEvent(self, event):
+        button = event.button()
         pos = event.position()
-        self._last_mouse_pos = pos
-        if event.button() == Qt.MouseButton.MiddleButton or (
-            event.button() == Qt.MouseButton.LeftButton
-            and (event.modifiers() & Qt.KeyboardModifier.AltModifier)
-        ):
-            if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
-                self._is_panning = True
-            else:
-                self._is_orbiting = True
-            self._begin_interaction()
+
+        if button == Qt.MouseButton.LeftButton:
+            self._last_mouse_pos = None
+            self._execute_raycast_hit_detection(pos, event.modifiers())
+            event.accept()
             return
 
-        if self._interaction_locked and event.button() == Qt.MouseButton.LeftButton:
+        if button == Qt.MouseButton.RightButton:
+            self._last_mouse_pos = QPointF(pos)
+            self._is_orbiting = True
+            self._is_panning = False
+            self._clear_vertex_handles()
+            event.accept()
             return
 
-        if event.button() == Qt.MouseButton.LeftButton:
-            hit_item = self.itemAt(event.position().toPoint())
-            if hit_item in self._vertex_handle_items:
-                eid, vertex_index, depth = self._vertex_handle_items[hit_item]
-                self.doc.select([eid])
-                self._vertex_tx = VertexMoveTransaction(self.stack, eid, vertex_index)
-                self._vertex_drag_origin = QPointF(pos)
-                self._vertex_drag_depth = float(depth)
-                self.selectionChangedByView.emit()
-                self.statusChanged.emit(f'Mesh vertex {vertex_index} selected')
-                return
-
-            ray_orig, ray_dir = self.camera.unproject_ray(pos.x(), pos.y(), self.width(), self.height())
-            best_hit: Optional[Tuple[float, str, MeshRayHit]] = None
-            for entity_id, payload in self._mesh_payload_cache.items():
-                hit = raycast_mesh(entity_id, payload, ray_orig, ray_dir)
-                if hit is not None and (best_hit is None or hit.distance < best_hit[0]):
-                    best_hit = (hit.distance, entity_id, hit)
-
-            if best_hit is not None:
-                _, eid, mesh_hit = best_hit
-                if self.active_tool == 'sculpt':
-                    try:
-                        surf_hit = SurfaceHit(eid, mesh_hit.surface_role, mesh_hit.world_point, mesh_hit.world_normal)
-                        surf_hit.validate(self.doc)
-                        self._sculpt_tx = SculptTransaction(
-                            self.doc, self.stack, surf_hit, self.sculpt_brush, self.sculpt_op, 0.0
-                        )
-                        self._drag_start_pos = pos
-                        self._begin_interaction()
-                        self.statusChanged.emit(f"Sculpting {eid} ({mesh_hit.surface_role})")
-                    except Exception as exc:
-                        self.statusChanged.emit(f"Cannot sculpt surface: {exc}")
-                else:
-                    self.doc.select([eid], add=bool(event.modifiers() & Qt.KeyboardModifier.ControlModifier))
-                    self.selectionChangedByView.emit()
-                    self.refresh_selection()
-            else:
-                if not (event.modifiers() & Qt.KeyboardModifier.ControlModifier):
-                    self.doc.select([])
-                    self.selectionChangedByView.emit()
-                    self.refresh_selection()
+        if button == Qt.MouseButton.MiddleButton:
+            self._last_mouse_pos = QPointF(pos)
+            self._is_panning = True
+            self._is_orbiting = False
+            self._clear_vertex_handles()
+            event.accept()
             return
 
         super().mousePressEvent(event)
@@ -776,28 +823,33 @@ class Viewport3D(QGraphicsView):
             )
             return
 
-        if self._last_mouse_pos is not None:
+        if self._last_mouse_pos is not None and self._is_orbiting:
             dx = pos.x() - self._last_mouse_pos.x()
             dy = pos.y() - self._last_mouse_pos.y()
-            if self._is_orbiting:
-                self.camera.yaw += dx * 0.008
-                self.camera.pitch = max(
-                    -math.pi/2 + 0.05,
-                    min(math.pi/2 - 0.05, self.camera.pitch + dy * 0.008),
-                )
-                self._update_interaction_proxies()
-                self._last_mouse_pos = pos
-                return
-            if self._is_panning:
-                speed = self.camera.distance * 0.002
-                self.camera.target = (
-                    self.camera.target[0] - dx * speed * math.cos(self.camera.yaw),
-                    self.camera.target[1] - dx * speed * math.sin(self.camera.yaw),
-                    self.camera.target[2] + dy * speed,
-                )
-                self._update_interaction_proxies()
-                self._last_mouse_pos = pos
-                return
+            self.camera.yaw += float(dx) * 0.008
+            self.camera.pitch = max(
+                -math.pi / 2.0 + 0.05,
+                min(
+                    math.pi / 2.0 - 0.05,
+                    self.camera.pitch + float(dy) * 0.008,
+                ),
+            )
+            self._last_mouse_pos = QPointF(pos)
+            self._update_camera_projection_matrices()
+            return
+
+        if self._last_mouse_pos is not None and self._is_panning:
+            dx = pos.x() - self._last_mouse_pos.x()
+            dy = pos.y() - self._last_mouse_pos.y()
+            speed = self.camera.distance * 0.002
+            self.camera.target = (
+                self.camera.target[0] - dx * speed * math.cos(self.camera.yaw),
+                self.camera.target[1] - dx * speed * math.sin(self.camera.yaw),
+                self.camera.target[2] + dy * speed,
+            )
+            self._last_mouse_pos = QPointF(pos)
+            self._update_camera_projection_matrices()
+            return
 
         if self._sculpt_tx is not None and self._drag_start_pos is not None:
             delta_y = (self._drag_start_pos.y() - pos.y()) * 0.01
@@ -810,35 +862,47 @@ class Viewport3D(QGraphicsView):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton and self._vertex_tx is not None:
+        button = event.button()
+
+        if button == Qt.MouseButton.RightButton:
+            self._is_orbiting = False
+            self._last_mouse_pos = None
+            self._update_camera_projection_matrices()
+            event.accept()
+            return
+
+        if button == Qt.MouseButton.MiddleButton:
+            self._is_panning = False
+            self._last_mouse_pos = None
+            self._update_camera_projection_matrices()
+            event.accept()
+            return
+
+        if button == Qt.MouseButton.LeftButton and self._vertex_tx is not None:
             tx = self._vertex_tx
             self._vertex_tx = None
             self._vertex_drag_origin = None
             self._vertex_drag_depth = None
             tx.commit()
             self.statusChanged.emit(f'Moved mesh vertex {tx.v_index}')
+            event.accept()
             return
 
-        if event.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.MiddleButton):
-            was_camera_drag = self._is_orbiting or self._is_panning
-            self._is_orbiting = False
-            self._is_panning = False
-            had_sculpt = self._sculpt_tx is not None
-            if self._sculpt_tx is not None:
-                if self._sculpt_tx.amount > 0.001:
-                    try:
-                        self._sculpt_tx.commit()
-                        self.statusChanged.emit(f"Applied sculpt modifier ({self.sculpt_op})")
-                    except Exception as exc:
-                        self.statusChanged.emit(f"Sculpt commit error: {exc}")
-                self._sculpt_tx = None
-                self._drag_start_pos = None
-                self.selectionChangedByView.emit()
-            if was_camera_drag or had_sculpt:
-                self._interaction_active = False
-                if was_camera_drag:
-                    self.redraw(force_full=True)
-                return
+        if button == Qt.MouseButton.LeftButton and self._sculpt_tx is not None:
+            if self._sculpt_tx.amount > 0.001:
+                try:
+                    self._sculpt_tx.commit()
+                    self.statusChanged.emit(
+                        f"Applied sculpt modifier ({self.sculpt_op})"
+                    )
+                except Exception as exc:
+                    self.statusChanged.emit(f"Sculpt commit error: {exc}")
+            self._sculpt_tx = None
+            self._drag_start_pos = None
+            self.selectionChangedByView.emit()
+            event.accept()
+            return
+
         super().mouseReleaseEvent(event)
 
     def keyPressEvent(self, event):
