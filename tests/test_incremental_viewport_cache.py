@@ -154,3 +154,6 @@ def test_viewport_3d_uses_targeted_reactive_cache_and_no_global_sync_loop():
     redraw_start = source.index('    def redraw(self, force_full=False):')
     redraw_body = source[redraw_start:]
     assert '_evaluation_cache.sync(self.doc)' not in redraw_body
+    assert 'VertexMoveTransaction' in source
+    assert '_vertex_handle_items' in source
+    assert '_render_raw_mesh_topology' in source
