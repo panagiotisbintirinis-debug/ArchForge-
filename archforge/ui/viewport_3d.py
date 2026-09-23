@@ -177,6 +177,7 @@ class Viewport3D(QGraphicsView):
         self._interaction_active = False
         self._render_cache: Dict[str, EntityRenderProxy] = {}
         self._evaluation_cache = IncrementalEvaluationCache(TessellatedPreviewBackend())
+        self._evaluation = None
         self._grid_items: List[QGraphicsLineItem] = []
         self._last_selection = set()
         self._styles = {
@@ -192,11 +193,14 @@ class Viewport3D(QGraphicsView):
         self.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         self.setMouseTracking(True)
         self.setBackgroundBrush(QColor(238, 240, 243))
-        self.redraw(force_full=True)
+        self.stack.subscribe(self.on_document_modified)
+        self.on_document_modified(None)
 
     def rebind(self, doc: Document, stack: CommandStack):
+        self.stack.unsubscribe(self.on_document_modified)
         self.doc = doc
         self.stack = stack
+        self.stack.subscribe(self.on_document_modified)
         self._sculpt_tx = None
         self._interaction_active = False
         self._evaluation_cache.clear()
@@ -204,11 +208,16 @@ class Viewport3D(QGraphicsView):
             proxy.remove()
         self._render_cache.clear()
         self._last_selection.clear()
-        self.redraw(force_full=True)
+        self.on_document_modified(None)
 
     def set_tool(self, tool: str):
         self.active_tool = tool
         self.statusChanged.emit(f"3D Viewport Tool: {tool}")
+
+    def on_document_modified(self, modified_ids):
+        self._evaluation_cache.invalidate(modified_ids)
+        self._evaluation = self._evaluation_cache.sync(self.doc)
+        self.update()
 
     def _style_for(self, entity_id: str, kind: str):
         if entity_id in self.doc.selection:
@@ -341,7 +350,7 @@ class Viewport3D(QGraphicsView):
 
         if event.button() == Qt.MouseButton.LeftButton:
             ray_orig, ray_dir = self.camera.unproject_ray(pos.x(), pos.y(), self.width(), self.height())
-            eval_res = self._evaluation_cache.sync(self.doc)
+            eval_res = self._evaluation
             best_hit: Optional[Tuple[float, str, MeshRayHit]] = None
             for body in eval_res.bodies:
                 if not isinstance(body.payload, MeshPayload):
@@ -430,7 +439,8 @@ class Viewport3D(QGraphicsView):
                 self.selectionChangedByView.emit()
             if was_camera_drag or had_sculpt:
                 self._interaction_active = False
-                self.redraw(force_full=True)
+                if was_camera_drag:
+                    self.redraw(force_full=True)
                 return
         super().mouseReleaseEvent(event)
 
@@ -451,7 +461,7 @@ class Viewport3D(QGraphicsView):
         h = max(100, self.height())
         self._scene.setSceneRect(0, 0, w, h)
         self._update_grid()
-        evaluation = self._evaluation_cache.sync(self.doc)
+        evaluation = self._evaluation
         live_ids = set()
 
         for body in evaluation.bodies:
