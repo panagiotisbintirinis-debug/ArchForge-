@@ -56,7 +56,7 @@ class OrthoView(QGraphicsView):
             p=self.mapToScene(event.position().toPoint())
             try:self._update_drag(p.y());self._drag_tx.commit()
             except ValueError as exc:self.statusChanged.emit(str(exc));self._drag_tx.cancel()
-            self._drag_tx=None;self._drag_eid=None;self._preview_overrides.clear();self.selectionChangedByView.emit();self.redraw();return
+            self._drag_tx=None;self._drag_eid=None;self._preview_overrides.clear();self.selectionChangedByView.emit();return
         super().mouseReleaseEvent(event)
     def keyPressEvent(self,event):
         if event.key()==Qt.Key.Key_Escape and self._drag_tx is not None:self._drag_tx.cancel();self._drag_tx=None;self._drag_eid=None;self._preview_overrides.clear();self.redraw();return
