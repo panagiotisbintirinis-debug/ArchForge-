@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from math import hypot,atan2,degrees
 from typing import Optional,Tuple,Dict,Any,Sequence
 from .model import Document,Entity
-from .commands import CommandStack,AddEntity,UpdateEntity,MoveEntities
+from .commands import CommandStack,AddEntity,UpdateEntity,MoveEntities,RotateEntities
 from .snapping import best_snap
 
 @dataclass
@@ -121,7 +121,7 @@ class BoxStretchTransaction:
 
 class RotateTransaction:
     def __init__(self,doc,stack,eid,pivot=None,angle_increment=15.0):
-        self.doc,self.stack,self.eid=doc,stack,eid;self.before=doc.get(eid).params.copy();self.preview=self.before.copy();self.angle_increment=float(angle_increment) if angle_increment else None;e=doc.get(eid);p=e.params
+        self.doc,self.stack,self.eid=doc,stack,eid;self.before=doc.get(eid).params.copy();self.preview=self.before.copy();self.angle_increment=float(angle_increment) if angle_increment else None;self.angle=0.0;e=doc.get(eid);p=e.params
         if pivot is not None:self.pivot=pivot
         elif e.kind=='box':self.pivot=(p['x'],p['y'])
         elif e.kind=='pod':self.pivot=(p['cx'],p['cy'])
@@ -130,16 +130,17 @@ class RotateTransaction:
     def update_angle(self,angle_deg,snap=True):
         a=float(angle_deg)
         if snap and self.angle_increment:a=round(a/self.angle_increment)*self.angle_increment
+        self.angle=a
         from math import radians,cos,sin
         r=radians(a);c,s=cos(r),sin(r);px,py=self.pivot;p=self.before.copy();e=self.doc.get(self.eid)
-        if e.kind=='box':p['rotation']=p.get('rotation',0.0)+a
+        if e.kind=='box':p['rotation']=(p.get('rotation',0.0)+a)%360.0
         elif e.kind=='wall':
             def rot(x,y):dx,dy=x-px,y-py;return px+dx*c-dy*s,py+dx*s+dy*c
             p['x1'],p['y1']=rot(p['x1'],p['y1']);p['x2'],p['y2']=rot(p['x2'],p['y2'])
-        elif e.kind=='pod':p['rotation']=p.get('rotation',0.0)+a
+        elif e.kind=='pod':p['rotation']=(p.get('rotation',0.0)+a)%360.0
         self.preview=p;return HUD({'angle_deg':a,'pivot_x':px,'pivot_y':py})
     def update_pointer(self,x,y,start_angle_deg=0.0,snap=True):return self.update_angle(degrees(atan2(y-self.pivot[1],x-self.pivot[0]))-float(start_angle_deg),snap)
-    def commit(self):self.stack.execute(UpdateEntity(self.eid,self.preview))
+    def commit(self):self.stack.execute(RotateEntities([self.eid],self.angle,pivot=self.pivot))
     def cancel(self):self.preview=self.before.copy()
 
 class WallEndpointStretchTransaction:
@@ -149,7 +150,7 @@ class WallEndpointStretchTransaction:
     def update(self,x,y):
         sp=best_snap(self.doc,x,y,self.snap_tol,self.grid,{self.eid});x,y=(sp.x,sp.y) if sp else (x,y);p=self.before.copy();p[f'x{self.endpoint}']=x;p[f'y{self.endpoint}']=y;L=hypot(p['x2']-p['x1'],p['y2']-p['y1'])
         if L<=1e-9:raise ValueError('zero-length wall')
-        self.preview=p;return HUD({'length':L,'angle_deg':degrees(atan2(p['y2']-p['y1'],p['x2']-p['x1'])),'x':x,'y':y,'z':p['z']})
+        self.preview=p;return HUD({'length':L,'angle_deg':degrees(atan2(p['y2']-p['x1'],p['x2']-p['x1'])),'x':x,'y':y,'z':p['z']})
     def commit(self):self.stack.execute(UpdateEntity(self.eid,self.preview))
     def cancel(self):self.preview=self.before.copy()
 
