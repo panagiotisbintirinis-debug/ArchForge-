@@ -18,6 +18,7 @@ from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from archforge.core.model import Document
 from archforge.core.commands import CommandStack
 from archforge.core.interaction import VertexMoveTransaction
+from archforge.core.viewport import PointerController, PointerEvent
 from archforge.geometry.mesh import TessellatedPreviewBackend, MeshPayload
 from archforge.geometry.plan import build_evaluation_plan
 from archforge.geometry.picking import raycast_mesh, MeshRayHit
@@ -173,6 +174,9 @@ class Viewport3D(QGraphicsView):
         self.stack = stack
         self.camera = OrbitCamera()
         self.active_tool = 'orbit'
+        self.controller = PointerController(doc, stack)
+        self._wall_drawing = False
+        self._wall_preview_item: Optional[QGraphicsLineItem] = None
         self.sculpt_brush = BrushSpec(radius=1.0, strength=0.8, falloff='smooth')
         self.sculpt_op = 'pull'
         self._sculpt_tx: Optional[SculptTransaction] = None
@@ -212,6 +216,10 @@ class Viewport3D(QGraphicsView):
         self.stack.unsubscribe(self.on_document_modified)
         self.doc = doc
         self.stack = stack
+        self.controller = PointerController(doc, stack)
+        self.controller.set_tool('wall' if self.active_tool == 'wall' else 'select')
+        self._wall_drawing = False
+        self._clear_wall_preview()
         self.stack.subscribe(self.on_document_modified)
         self._sculpt_tx = None
         for items in self._render_cache.values():
@@ -231,8 +239,84 @@ class Viewport3D(QGraphicsView):
         self.on_document_modified(None)
 
     def set_tool(self, tool: str):
+        if self._wall_drawing:
+            self.controller.cancel()
+            self._wall_drawing = False
+            self._clear_wall_preview()
         self.active_tool = tool
-        self.statusChanged.emit(f"3D Viewport Tool: {tool}")
+        self.controller.set_tool('wall' if tool == 'wall' else 'select')
+        if tool == 'wall':
+            self.statusChanged.emit(
+                '3D Wall Tool: tracking active — drag on the work plane to create a wall'
+            )
+        else:
+            self.statusChanged.emit(f"3D Viewport Tool: {tool}")
+
+    def _clear_wall_preview(self):
+        if self._wall_preview_item is not None:
+            self._scene.removeItem(self._wall_preview_item)
+            self._wall_preview_item = None
+
+    def _screen_to_work_plane_event(self, pos):
+        eye, direction = self.camera.unproject_ray(
+            float(pos.x()),
+            float(pos.y()),
+            max(100, self.width()),
+            max(100, self.height()),
+        )
+        origin = tuple(float(v) for v in self.doc.work_plane.origin)
+        normal = tuple(float(v) for v in self.doc.work_plane.normal())
+        denom = sum(direction[i] * normal[i] for i in range(3))
+        if abs(denom) <= 1e-9:
+            return None
+        t = sum((origin[i] - eye[i]) * normal[i] for i in range(3)) / denom
+        if t <= 0.0:
+            return None
+        world = tuple(eye[i] + direction[i] * t for i in range(3))
+        a, b = self.doc.work_plane.project(world)
+        return PointerEvent(float(a), float(b))
+
+    def _update_wall_preview(self):
+        preview = self.controller.preview
+        geometry = preview.geometry if preview is not None else {}
+        if (
+            preview is None
+            or preview.kind != 'wall'
+            or not {'x1', 'y1', 'x2', 'y2'} <= set(geometry)
+        ):
+            self._clear_wall_preview()
+            return
+        p1_world = self.doc.work_plane.unproject(
+            float(geometry['x1']),
+            float(geometry['y1']),
+        )
+        p2_world = self.doc.work_plane.unproject(
+            float(geometry['x2']),
+            float(geometry['y2']),
+        )
+        p1 = self.camera.project(
+            p1_world,
+            max(100, self.width()),
+            max(100, self.height()),
+        )
+        p2 = self.camera.project(
+            p2_world,
+            max(100, self.width()),
+            max(100, self.height()),
+        )
+        if not (p1 and p2):
+            self._clear_wall_preview()
+            return
+        if self._wall_preview_item is None:
+            self._wall_preview_item = QGraphicsLineItem()
+            pen = QPen(QColor(20, 155, 230), 2)
+            pen.setStyle(Qt.PenStyle.DashLine)
+            self._wall_preview_item.setPen(pen)
+            self._wall_preview_item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+            self._wall_preview_item.setZValue(1800)
+            self._scene.addItem(self._wall_preview_item)
+        self._wall_preview_item.setLine(p1[0], p1[1], p2[0], p2[1])
+        self._wall_preview_item.show()
 
     def set_interaction_locked(self, locked: bool):
         self._interaction_locked = bool(locked)
@@ -722,6 +806,18 @@ class Viewport3D(QGraphicsView):
 
         if button == Qt.MouseButton.LeftButton:
             self._last_mouse_pos = None
+            if self.active_tool == 'wall' and not self._interaction_locked:
+                pointer_event = self._screen_to_work_plane_event(pos)
+                if pointer_event is None:
+                    self.statusChanged.emit('Wall start is outside the active work plane')
+                    event.accept()
+                    return
+                self.controller.pointer_down(pointer_event)
+                self._wall_drawing = True
+                self._update_wall_preview()
+                self.statusChanged.emit('Wall start set — move pointer and release to commit')
+                event.accept()
+                return
             self._execute_raycast_hit_detection(pos, event.modifiers())
             event.accept()
             return
@@ -746,6 +842,17 @@ class Viewport3D(QGraphicsView):
 
     def mouseMoveEvent(self, event):
         pos = event.position()
+        if self._wall_drawing and self.active_tool == 'wall':
+            pointer_event = self._screen_to_work_plane_event(pos)
+            if pointer_event is not None:
+                preview = self.controller.pointer_move(pointer_event)
+                self._update_wall_preview()
+                length = float(preview.hud.get('length', 0.0))
+                angle = float(preview.hud.get('angle_deg', 0.0))
+                self.statusChanged.emit(
+                    f'Wall preview: {length:.3f} m  {angle:.1f}°'
+                )
+            return
         if self._vertex_tx is not None and self._vertex_drag_origin is not None and self._vertex_drag_depth is not None:
             dx = pos.x() - self._vertex_drag_origin.x()
             dy = pos.y() - self._vertex_drag_origin.y()
@@ -820,6 +927,30 @@ class Viewport3D(QGraphicsView):
             event.accept()
             return
 
+        if button == Qt.MouseButton.LeftButton and self._wall_drawing:
+            pointer_event = self._screen_to_work_plane_event(event.position())
+            self._wall_drawing = False
+            if pointer_event is None:
+                self.controller.cancel()
+                self._clear_wall_preview()
+                self.statusChanged.emit('Wall creation cancelled: no work-plane intersection')
+                event.accept()
+                return
+            try:
+                result = self.controller.pointer_up(pointer_event)
+                created_id = result.entity_id
+                self._clear_wall_preview()
+                if created_id:
+                    self.doc.select([created_id])
+                    self.selectionChangedByView.emit()
+                    self.statusChanged.emit(f'Wall created: {created_id}')
+            except ValueError as exc:
+                self.controller.cancel()
+                self._clear_wall_preview()
+                self.statusChanged.emit(str(exc))
+            event.accept()
+            return
+
         if button == Qt.MouseButton.LeftButton and self._vertex_tx is not None:
             tx = self._vertex_tx
             self._vertex_tx = None
@@ -848,6 +979,13 @@ class Viewport3D(QGraphicsView):
         super().mouseReleaseEvent(event)
 
     def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape and self._wall_drawing:
+            self.controller.cancel()
+            self._wall_drawing = False
+            self._clear_wall_preview()
+            self.statusChanged.emit('Wall creation cancelled')
+            event.accept()
+            return
         if event.key() == Qt.Key.Key_Escape and self._vertex_tx is not None:
             eid = self._vertex_tx.eid
             self._vertex_tx.cancel()
@@ -880,6 +1018,8 @@ class Viewport3D(QGraphicsView):
                 self._render_cached_entity(entity_id, mesh)
 
         self._render_ghost_preview()
+        if self._wall_drawing:
+            self._update_wall_preview()
 
         for entity_id in list(self._render_cache):
             entity = self.doc.entities.get(entity_id)
