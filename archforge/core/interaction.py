@@ -3,8 +3,51 @@ from dataclasses import dataclass
 from math import hypot,atan2,degrees
 from typing import Optional,Tuple,Dict,Any
 from .model import Document,Entity
-from .commands import CommandStack,AddEntity,UpdateEntity
+from .commands import CommandStack,AddEntity,UpdateEntity,MoveVertices
 from .snapping import best_snap
+
+class VertexMoveTransaction:
+    """Non-destructive vertex drag preview that commits through the unified command stack."""
+    def __init__(self, stack, entity_id, vertex_index):
+        self.stack = stack
+        self.eid = entity_id
+        self.v_index = int(vertex_index)
+        entity = stack.doc.get(entity_id)
+        if entity.kind != 'mesh':
+            raise ValueError('vertex move requires a mesh entity')
+        vertices = entity.params['vertices']
+        if self.v_index < 0 or self.v_index >= len(vertices):
+            raise IndexError('mesh vertex index out of range')
+        self.initial_pos = tuple(float(v) for v in vertices[self.v_index])
+        self.current_delta = (0.0, 0.0, 0.0)
+        self.completed = False
+
+    def update_drag(self, dx, dy, dz=0.0):
+        if self.completed:
+            raise RuntimeError('transaction already completed')
+        self.current_delta = (float(dx), float(dy), float(dz))
+        return self.preview_position
+
+    @property
+    def preview_position(self):
+        return tuple(self.initial_pos[i] + self.current_delta[i] for i in range(3))
+
+    def preview_vertices(self):
+        vertices = [list(v) for v in self.stack.doc.get(self.eid).params['vertices']]
+        vertices[self.v_index] = list(self.preview_position)
+        return vertices
+
+    def commit(self):
+        if self.completed:
+            return
+        self.completed = True
+        dx, dy, dz = self.current_delta
+        self.stack.execute(MoveVertices(self.eid, self.v_index, dx, dy, dz))
+
+    def cancel(self):
+        self.completed = True
+        self.current_delta = (0.0, 0.0, 0.0)
+
 
 @dataclass
 class HUD:
