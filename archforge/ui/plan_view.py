@@ -22,16 +22,19 @@ class PlanView(QGraphicsView):
         self.setRenderHint(QPainter.RenderHint.Antialiasing,True);self.setDragMode(QGraphicsView.DragMode.NoDrag);self.setMouseTracking(True);self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse);self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter);self.setBackgroundBrush(QColor(248,248,248))
         self._mouse_down=False;self._handle_items={};self._entity_items={};self._active_handle=None;self._hud_item=None
         self._vertex_tx=None;self._vertex_drag_origin=None
-        self._ghost_path=();self._ghost_diameter=0.0;self._interaction_locked=False
+        self._ghost_path=();self._ghost_diameter=0.0;self._ghost_vertices=();self._ghost_faces=();self._interaction_locked=False
         self.scale(55.0,-55.0);self.redraw()
     def rebind(self,doc,stack):
         self.doc=doc;self.stack=stack;self.controller=PointerController(doc,stack)
-        self._vertex_tx=None;self._vertex_drag_origin=None;self._ghost_path=();self._ghost_diameter=0.0;self._interaction_locked=False;self.redraw()
+        self._vertex_tx=None;self._vertex_drag_origin=None;self._ghost_path=();self._ghost_diameter=0.0;self._ghost_vertices=();self._ghost_faces=();self._interaction_locked=False;self.redraw()
     def set_interaction_locked(self,locked):self._interaction_locked=bool(locked)
     def set_ghost_preview(self,path_vertices,diameter):
-        self._ghost_path=tuple(tuple(float(v) for v in point) for point in path_vertices);self._ghost_diameter=float(diameter);self._interaction_locked=True;self.redraw()
+        from archforge.geometry.mesh import generate_conduit_topology
+        self._ghost_path=tuple(tuple(float(v) for v in point) for point in path_vertices);self._ghost_diameter=float(diameter)
+        self._ghost_vertices,self._ghost_faces=generate_conduit_topology(self._ghost_path,self._ghost_diameter)
+        self._interaction_locked=True;self.redraw()
     def clear_ghost_preview(self):
-        self._ghost_path=();self._ghost_diameter=0.0;self._interaction_locked=False;self.redraw()
+        self._ghost_path=();self._ghost_diameter=0.0;self._ghost_vertices=();self._ghost_faces=();self._interaction_locked=False;self.redraw()
     def set_tool(self,tool):self.controller.set_tool(tool);self._active_handle=None;self.statusChanged.emit(f'Tool: {tool}');self.redraw()
     def _scene_to_plane(self,pos):p=self.mapToScene(pos);return PointerEvent(p.x(),p.y())
 
@@ -140,12 +143,10 @@ class PlanView(QGraphicsView):
             if p.entity_id and not preview:self._entity_items[item]=p.entity_id
     def _draw_ghost_preview(self):
         from PySide6.QtGui import QPolygonF
-        from archforge.geometry.mesh import generate_conduit_topology
-        vertices,faces=generate_conduit_topology(self._ghost_path,self._ghost_diameter)
         pen=QPen(QColor(0,220,255,220));pen.setWidthF(.028);pen.setStyle(Qt.PenStyle.DotLine)
         brush=QBrush(QColor(0,220,255,42))
-        for face in faces:
-            pts=[QPointF(vertices[index][0],vertices[index][1]) for index in face]
+        for face in self._ghost_faces:
+            pts=[QPointF(self._ghost_vertices[index][0],self._ghost_vertices[index][1]) for index in face]
             item=self._scene.addPolygon(QPolygonF(pts),pen,brush);item.setZValue(35);item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
 
     def _draw_handle(self,h):
