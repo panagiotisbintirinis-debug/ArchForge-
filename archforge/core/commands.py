@@ -345,17 +345,6 @@ class FreezeToMesh(Command):
         entity = doc.get(self.eid)
         if entity.kind != 'pod':
             raise ValueError('FreezeToMesh currently supports pod entities only')
-        if doc.children.get(self.eid):
-            raise ValueError('cannot freeze a pod that still hosts child entities/openings')
-        if doc.modifier_ids_for_owner(self.eid):
-            raise ValueError('cannot freeze a pod with active surface modifiers')
-        for other in doc.entities.values():
-            if other.kind == 'organic_junction' and self.eid in (
-                other.params.get('component_a'), other.params.get('component_b')
-            ):
-                raise ValueError('cannot freeze a pod participating in an organic junction')
-            if other.kind == 'arboreal_branch' and other.params.get('mounted_pod_id') == self.eid:
-                raise ValueError('cannot freeze a pod mounted to an arboreal branch')
         return entity
 
     def do(self, doc: Document):
