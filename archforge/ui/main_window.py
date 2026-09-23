@@ -20,7 +20,7 @@ from archforge.core.model import (
     LAYER_HYDRAULIC, LAYER_ELECTRICAL, LAYER_HVAC,
 )
 from archforge.core.commands import (
-    CommandStack, AddEntity, UpdateEntity, CreateRoomFloors,
+    CommandStack, AddEntity, UpdateEntity, MutateEntityProperty, CreateRoomFloors,
     RouteAndConnectInfrastructure, ApplyStructuralFrame,
 )
 from .plan_view import PlanView
@@ -364,6 +364,19 @@ class MainWindow(QMainWindow):
             self.view = widgets[idx]
 
     def _set_active_tool(self, tool):
+        if tool == 'wall':
+            self.plan_view.set_tool('wall')
+            self.view_3d.set_tool('wall')
+            self.statusBar().showMessage(
+                'Wall tool active — click-drag in XY Plan or 3D work plane',
+                4000,
+            )
+            return
+
+        if self.plan_view.controller.tool == 'wall':
+            self.plan_view.set_tool('select')
+        if self.view_3d.active_tool == 'wall':
+            self.view_3d.set_tool('orbit')
         if hasattr(self.view, 'set_tool'):
             self.view.set_tool(tool)
 
@@ -371,6 +384,7 @@ class MainWindow(QMainWindow):
         toolbar = QToolBar('Tools')
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
+        self.tool_actions = {}
         for text, tool, key in [
             ('Select', 'select', 'S'), ('Wall', 'wall', 'W'), ('Door', 'door', 'D'),
             ('Window', 'window', 'N'), ('Move', 'move', 'G'), ('Stretch', 'stretch', 'T'),
@@ -378,7 +392,10 @@ class MainWindow(QMainWindow):
         ]:
             action = QAction(text, self)
             action.setShortcut(QKeySequence(key))
-            action.triggered.connect(lambda checked=False, t=tool: self._set_active_tool(t))
+            action.triggered.connect(
+                lambda checked=False, t=tool: self._set_active_tool(t)
+            )
+            self.tool_actions[text] = action
             toolbar.addAction(action)
         sculpt = QAction('Sculpt 3D', self)
         sculpt.setShortcut(QKeySequence('C'))
@@ -931,8 +948,9 @@ class MainWindow(QMainWindow):
                 spin.setRange(-1e6, 1e6)
                 spin.setValue(float(value))
                 spin.setSingleStep(.1)
-                spin.editingFinished.connect(
-                    lambda property_key=key, widget=spin: self._commit_property(eid, property_key, widget.value())
+                spin.valueChanged.connect(
+                    lambda new_value, entity_id=eid, property_key=key:
+                        self._commit_property(entity_id, property_key, new_value)
                 )
                 self.form.addRow(key, spin)
             elif entity.kind == 'room_floor' and key == 'room_signature':
@@ -940,7 +958,9 @@ class MainWindow(QMainWindow):
 
     def _commit_property(self, eid, key, value):
         try:
-            self.stack.execute(UpdateEntity(eid, {key: value}))
+            self.stack.execute(
+                MutateEntityProperty(eid, key, value)
+            )
         except Exception as exc:
             QMessageBox.warning(self, 'Invalid value', str(exc))
             self.refresh_inspector()
