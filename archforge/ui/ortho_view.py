@@ -13,11 +13,13 @@ class OrthoView(QGraphicsView):
     selectionChangedByView=Signal();statusChanged=Signal(str)
     def __init__(self,doc,stack,axis,parent=None):
         if axis not in ('XZ','YZ'):raise ValueError('OrthoView supports XZ/YZ')
-        self._scene=QGraphicsScene();super().__init__(self._scene,parent);self.doc=doc;self.stack=stack;self.axis=axis;self._entity_items={};self._handle_items={};self._drag_tx=None;self._drag_eid=None;self._preview_overrides={}
+        self._scene=QGraphicsScene();super().__init__(self._scene,parent);self.doc=doc;self.stack=stack;self.axis=axis;self._entity_items={};self._handle_items={};self._drag_tx=None;self._drag_eid=None;self._preview_overrides={};self._interaction_locked=False
         self.setRenderHint(QPainter.RenderHint.Antialiasing,True);self.setMouseTracking(True);self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse);self.setBackgroundBrush(QColor(248,248,248));self.scale(55,-55);self.redraw()
-    def rebind(self,doc,stack):self.doc=doc;self.stack=stack;self._drag_tx=None;self._drag_eid=None;self._preview_overrides.clear();self.redraw()
+    def rebind(self,doc,stack):self.doc=doc;self.stack=stack;self._drag_tx=None;self._drag_eid=None;self._preview_overrides.clear();self._interaction_locked=False;self.redraw()
+    def set_interaction_locked(self,locked):self._interaction_locked=bool(locked)
     def wheelEvent(self,event):f=1.15 if event.angleDelta().y()>0 else 1/1.15;self.scale(f,f)
     def mousePressEvent(self,event):
+        if self._interaction_locked and event.button()==Qt.MouseButton.LeftButton:return
         if event.button()==Qt.MouseButton.LeftButton:
             hit=self.itemAt(event.position().toPoint())
             if hit in self._handle_items:
