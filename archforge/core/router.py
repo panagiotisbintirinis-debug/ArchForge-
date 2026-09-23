@@ -10,6 +10,29 @@ Voxel = Tuple[int, int, int]
 Direction = Tuple[int, int, int]
 
 
+MEP_NOMINAL_DIAMETERS: Tuple[float, ...] = (
+    0.016, 0.020, 0.025, 0.032, 0.040, 0.050,
+    0.063, 0.075, 0.100, 0.125, 0.150, 0.200,
+    0.250, 0.315, 0.400, 0.500,
+)
+
+MEP_SYSTEM_DEFAULT_DIAMETERS = {
+    'hydraulic': 0.025,
+    'electrical': 0.020,
+    'hvac': 0.100,
+}
+
+
+def nominal_diameter_for_system(system_type: str) -> float:
+    system = str(system_type).lower()
+    if system not in MEP_SYSTEM_DEFAULT_DIAMETERS:
+        raise ValueError(f'unsupported MEP system type {system_type!r}')
+    diameter = float(MEP_SYSTEM_DEFAULT_DIAMETERS[system])
+    if diameter not in MEP_NOMINAL_DIAMETERS:
+        raise ValueError(f'configured MEP diameter {diameter} is not nominal')
+    return diameter
+
+
 class MEPPathRouter:
     """Deterministic 3D A* router over structural obstacle voxels."""
 
