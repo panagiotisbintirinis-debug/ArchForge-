@@ -1,3 +1,4 @@
+import copy
 import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -42,9 +43,11 @@ def _dirty(window):
 def test_close_cancel_ignores_event_and_preserves_dirty_project(monkeypatch):
     window = _window()
     original_doc = window.doc
-    state = window.doc.to_dict()
+    # Document.to_dict() contains mutable nested containers, so take an
+    # independent snapshot before mutating the authoritative document.
+    state = copy.deepcopy(window.doc.to_dict())
     _dirty(window)
-    dirty_state = window.doc.to_dict()
+    dirty_state = copy.deepcopy(window.doc.to_dict())
     assert dirty_state != state
 
     monkeypatch.setattr(
@@ -64,7 +67,7 @@ def test_close_discard_accepts_without_replacing_or_mutating_document(monkeypatc
     window = _window()
     original_doc = window.doc
     _dirty(window)
-    dirty_state = window.doc.to_dict()
+    dirty_state = copy.deepcopy(window.doc.to_dict())
 
     monkeypatch.setattr(
         QMessageBox,
