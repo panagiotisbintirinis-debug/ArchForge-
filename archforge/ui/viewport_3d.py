@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from typing import Dict, Optional, Tuple, List
 
-from PySide6.QtCore import Qt, QPointF, Signal
+from PySide6.QtCore import Qt, QPointF, Signal, QEvent
 from PySide6.QtGui import QPen, QBrush, QColor, QPainter, QPolygonF
 from PySide6.QtWidgets import (
     QGraphicsLineItem,
@@ -158,7 +158,12 @@ class Viewport3D(QGraphicsView):
         }
         self.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         self.setMouseTracking(True)
+        self.setDragMode(QGraphicsView.DragMode.NoDrag)
+        self.setInteractive(False)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
+        self.viewport().setMouseTracking(True)
+        self.viewport().setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
+        self.viewport().installEventFilter(self)
         self.setBackgroundBrush(QColor(238, 240, 243))
         self.redraw(force_full=True)
 
@@ -258,21 +263,103 @@ class Viewport3D(QGraphicsView):
         self._redraw_camera_only()
         event.accept()
 
+    def _begin_orbit(self, pos):
+        self._last_mouse_pos = QPointF(pos)
+        self._is_orbiting = True
+        self._is_panning = False
+
+    def _begin_pan(self, pos):
+        self._last_mouse_pos = QPointF(pos)
+        self._is_panning = True
+        self._is_orbiting = False
+
+    def _orbit_to(self, pos):
+        if self._last_mouse_pos is None:
+            self._last_mouse_pos = QPointF(pos)
+            return
+        dx = float(pos.x() - self._last_mouse_pos.x())
+        dy = float(pos.y() - self._last_mouse_pos.y())
+        if abs(dx) <= 1e-12 and abs(dy) <= 1e-12:
+            return
+        self.camera.yaw += dx * 0.008
+        self.camera.pitch += dy * 0.008
+        self._last_mouse_pos = QPointF(pos)
+        self._redraw_camera_only()
+
+    def _pan_to(self, pos):
+        if self._last_mouse_pos is None:
+            self._last_mouse_pos = QPointF(pos)
+            return
+        dx = float(pos.x() - self._last_mouse_pos.x())
+        dy = float(pos.y() - self._last_mouse_pos.y())
+        if abs(dx) <= 1e-12 and abs(dy) <= 1e-12:
+            return
+        speed = self.camera.distance * 0.002
+        self.camera.target = (
+            self.camera.target[0] - dx * speed * math.cos(self.camera.yaw),
+            self.camera.target[1] - dx * speed * math.sin(self.camera.yaw),
+            self.camera.target[2] + dy * speed,
+        )
+        self._last_mouse_pos = QPointF(pos)
+        self._redraw_camera_only()
+
+    def eventFilter(self, watched, event):
+        """Capture viewport navigation before QGraphicsView/scene can consume it."""
+        if watched is self.viewport():
+            event_type = event.type()
+
+            if event_type == QEvent.Type.MouseButtonPress:
+                button = event.button()
+                if button == Qt.MouseButton.RightButton:
+                    self._begin_orbit(event.position())
+                    event.accept()
+                    return True
+                if button == Qt.MouseButton.MiddleButton:
+                    self._begin_pan(event.position())
+                    event.accept()
+                    return True
+
+            elif event_type == QEvent.Type.MouseMove:
+                buttons = event.buttons()
+                if buttons & Qt.MouseButton.RightButton:
+                    if not self._is_orbiting:
+                        self._begin_orbit(event.position())
+                    self._orbit_to(event.position())
+                    event.accept()
+                    return True
+                if buttons & Qt.MouseButton.MiddleButton:
+                    if not self._is_panning:
+                        self._begin_pan(event.position())
+                    self._pan_to(event.position())
+                    event.accept()
+                    return True
+
+            elif event_type == QEvent.Type.MouseButtonRelease:
+                button = event.button()
+                if button == Qt.MouseButton.RightButton:
+                    self._is_orbiting = False
+                    self._last_mouse_pos = None
+                    event.accept()
+                    return True
+                if button == Qt.MouseButton.MiddleButton:
+                    self._is_panning = False
+                    self._last_mouse_pos = None
+                    event.accept()
+                    return True
+
+        return super().eventFilter(watched, event)
+
     def mousePressEvent(self, event):
         pos = event.position()
         button = event.button()
 
         if button == Qt.MouseButton.RightButton:
-            self._last_mouse_pos = QPointF(pos)
-            self._is_orbiting = True
-            self._is_panning = False
+            self._begin_orbit(pos)
             event.accept()
             return
 
         if button == Qt.MouseButton.MiddleButton:
-            self._last_mouse_pos = QPointF(pos)
-            self._is_panning = True
-            self._is_orbiting = False
+            self._begin_pan(pos)
             event.accept()
             return
 
@@ -348,28 +435,12 @@ class Viewport3D(QGraphicsView):
 
     def mouseMoveEvent(self, event):
         pos = event.position()
-        if self._last_mouse_pos is not None and self._is_orbiting:
-            dx = pos.x() - self._last_mouse_pos.x()
-            dy = pos.y() - self._last_mouse_pos.y()
-            self.camera.yaw += float(dx) * 0.008
-            self.camera.pitch += float(dy) * 0.008
-            self._last_mouse_pos = QPointF(pos)
-            self._redraw_camera_only()
+        if self._is_orbiting:
+            self._orbit_to(pos)
             return
 
-        if self._last_mouse_pos is not None and self._is_panning:
-            dx = pos.x() - self._last_mouse_pos.x()
-            dy = pos.y() - self._last_mouse_pos.y()
-            speed = self.camera.distance * 0.002
-            self.camera.target = (
-                self.camera.target[0]
-                - dx * speed * math.cos(self.camera.yaw),
-                self.camera.target[1]
-                - dx * speed * math.sin(self.camera.yaw),
-                self.camera.target[2] + dy * speed,
-            )
-            self._last_mouse_pos = QPointF(pos)
-            self._redraw_camera_only()
+        if self._is_panning:
+            self._pan_to(pos)
             return
 
         if self._sculpt_tx is not None and self._drag_start_pos is not None:
