@@ -159,7 +159,6 @@ class Viewport3D(QGraphicsView):
         self.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         self.setMouseTracking(True)
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
-        self.setInteractive(False)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
         self.viewport().setMouseTracking(True)
         self.viewport().setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
