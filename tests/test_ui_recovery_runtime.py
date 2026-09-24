@@ -5,7 +5,8 @@ from pathlib import Path
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
-from PySide6.QtCore import QPointF, Qt
+from PySide6.QtCore import QEvent, QPointF, Qt
+from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QApplication
 
 from archforge.core.commands import CommandStack
@@ -147,6 +148,57 @@ def test_right_drag_orbits_and_wheel_zooms_without_document_mutation():
 
         assert doc.to_dict() == before
         assert stack.done == []
+    finally:
+        view.close()
+        app.processEvents()
+
+
+def test_real_viewport_event_filter_captures_right_drag_orbit():
+    app = QApplication.instance() or QApplication([])
+    doc = Document()
+    doc.add(_box())
+    stack = CommandStack(doc)
+    view = Viewport3D(doc, stack)
+    view.resize(800, 600)
+    view.show()
+    app.processEvents()
+    try:
+        before_yaw = view.camera.yaw
+        before_pitch = view.camera.pitch
+
+        press = QMouseEvent(
+            QEvent.Type.MouseButtonPress,
+            QPointF(100.0, 100.0),
+            Qt.MouseButton.RightButton,
+            Qt.MouseButton.RightButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        move = QMouseEvent(
+            QEvent.Type.MouseMove,
+            QPointF(160.0, 135.0),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.RightButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        release = QMouseEvent(
+            QEvent.Type.MouseButtonRelease,
+            QPointF(160.0, 135.0),
+            Qt.MouseButton.RightButton,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+
+        assert QApplication.sendEvent(view.viewport(), press)
+        assert view._is_orbiting
+
+        QApplication.sendEvent(view.viewport(), move)
+        app.processEvents()
+
+        assert view.camera.yaw != before_yaw
+        assert view.camera.pitch != before_pitch
+
+        assert QApplication.sendEvent(view.viewport(), release)
+        assert not view._is_orbiting
     finally:
         view.close()
         app.processEvents()
