@@ -9,8 +9,10 @@ from archforge.core.commands import SetLevel
 from archforge.ui.main_window import MainWindow
 
 
+_APP = QApplication.instance() or QApplication([])
+
+
 def _window():
-    QApplication.instance() or QApplication([])
     return MainWindow()
 
 
