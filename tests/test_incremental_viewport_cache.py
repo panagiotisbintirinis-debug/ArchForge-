@@ -124,11 +124,13 @@ def test_viewport_drag_path_has_no_scene_clear_or_tessellation_evaluation():
     move_body = source[move_start:release_start]
     assert 'TessellatedPreviewBackend' not in move_body
     assert '.evaluate(' not in move_body
-    assert '_update_interaction_proxies' in move_body
+    assert '_update_interaction_proxies' not in move_body
+    assert '_redraw_camera_only()' in move_body
+    assert 'redraw(force_full=True)' in move_body
 
     release_end = source.index('    def resizeEvent', release_start)
     release_body = source[release_start:release_end]
-    assert 'redraw(force_full=True)' in release_body
+    assert '_update_interaction_proxies' not in release_body
 
 
 def test_main_window_redraw_defaults_to_current_view_not_all_four_views():
