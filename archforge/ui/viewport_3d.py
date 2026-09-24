@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from typing import Dict, Optional, Tuple, List
 
-from PySide6.QtCore import Qt, QPointF, QTimer, Signal
+from PySide6.QtCore import Qt, QPointF, Signal
 from PySide6.QtGui import QPen, QBrush, QColor, QPainter, QPolygonF
 from PySide6.QtWidgets import (
     QGraphicsLineItem,
@@ -21,8 +21,6 @@ from archforge.geometry.selection import BrushSpec, SurfaceHit
 from archforge.geometry.sculpt_transaction import SculptTransaction
 
 Vec3 = Tuple[float, float, float]
-Bounds = Tuple[Vec3, Vec3]
-
 
 class OrbitCamera:
     def __init__(self, cx: float = 0.0, cy: float = 0.0, cz: float = 0.0,
@@ -105,21 +103,14 @@ class OrbitCamera:
         return eye, (dx/dnorm, dy/dnorm, dz/dnorm)
 
 
-class EntityRenderProxy:
-    """Long-lived QGraphics items owned by one semantic entity."""
-
-    _BOX_EDGES = (
-        (0,1),(0,2),(0,4),(1,3),(1,5),(2,3),
-        (2,6),(3,7),(4,5),(4,6),(5,7),(6,7),
-    )
+class EntityRenderItems:
+    """Persistent full-mesh graphics items for one authoritative entity."""
 
     def __init__(self, scene: QGraphicsScene, entity_id: str):
         self.scene = scene
         self.entity_id = entity_id
         self.kind = ''
-        self.bounds: Optional[Bounds] = None
         self.mesh_items: List[QGraphicsPolygonItem] = []
-        self.proxy_items: List[QGraphicsLineItem] = []
 
     def ensure_mesh_items(self, count: int) -> None:
         while len(self.mesh_items) < count:
@@ -129,29 +120,10 @@ class EntityRenderProxy:
         for index, item in enumerate(self.mesh_items):
             item.setVisible(index < count)
 
-    def ensure_proxy_items(self) -> None:
-        while len(self.proxy_items) < len(self._BOX_EDGES):
-            item = QGraphicsLineItem()
-            item.setPen(QPen(QColor(80, 105, 135), 1))
-            item.setZValue(1000)
-            self.scene.addItem(item)
-            self.proxy_items.append(item)
-
-    def hide_mesh(self) -> None:
-        for item in self.mesh_items:
-            item.hide()
-
-    def hide_proxy(self) -> None:
-        for item in self.proxy_items:
-            item.hide()
-
     def remove(self) -> None:
         for item in self.mesh_items:
             self.scene.removeItem(item)
-        for item in self.proxy_items:
-            self.scene.removeItem(item)
         self.mesh_items.clear()
-        self.proxy_items.clear()
 
 
 class Viewport3D(QGraphicsView):
@@ -174,8 +146,7 @@ class Viewport3D(QGraphicsView):
         self._last_mouse_pos: Optional[QPointF] = None
         self._is_panning = False
         self._is_orbiting = False
-        self._interaction_active = False
-        self._render_cache: Dict[str, EntityRenderProxy] = {}
+        self._render_cache: Dict[str, EntityRenderItems] = {}
         self._evaluation_cache = IncrementalEvaluationCache(TessellatedPreviewBackend())
         self._grid_items: List[QGraphicsLineItem] = []
         self._last_selection = set()
@@ -185,12 +156,9 @@ class Viewport3D(QGraphicsView):
             'floor': (QPen(QColor(120, 140, 130), 1), QBrush(QColor(210, 220, 215, 220))),
             'default': (QPen(QColor(100, 110, 125), 1), QBrush(QColor(200, 205, 215, 200))),
         }
-        self._view_settle_timer = QTimer(self)
-        self._view_settle_timer.setSingleShot(True)
-        self._view_settle_timer.timeout.connect(self._finish_deferred_view_change)
-
         self.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         self.setMouseTracking(True)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
         self.setBackgroundBrush(QColor(238, 240, 243))
         self.redraw(force_full=True)
 
@@ -198,10 +166,9 @@ class Viewport3D(QGraphicsView):
         self.doc = doc
         self.stack = stack
         self._sculpt_tx = None
-        self._interaction_active = False
         self._evaluation_cache.clear()
-        for proxy in self._render_cache.values():
-            proxy.remove()
+        for items in self._render_cache.values():
+            items.remove()
         self._render_cache.clear()
         self._last_selection.clear()
         self.redraw(force_full=True)
@@ -219,20 +186,12 @@ class Viewport3D(QGraphicsView):
             return self._styles['floor']
         return self._styles['default']
 
-    def _bounds_from_mesh(self, mesh: MeshPayload) -> Optional[Bounds]:
-        if not mesh.vertices:
-            return None
-        return (
-            tuple(min(p[i] for p in mesh.vertices) for i in range(3)),
-            tuple(max(p[i] for p in mesh.vertices) for i in range(3)),
-        )
-
-    def _proxy(self, entity_id: str) -> EntityRenderProxy:
-        proxy = self._render_cache.get(entity_id)
-        if proxy is None:
-            proxy = EntityRenderProxy(self._scene, entity_id)
-            self._render_cache[entity_id] = proxy
-        return proxy
+    def _entity_render_items(self, entity_id: str) -> EntityRenderItems:
+        items = self._render_cache.get(entity_id)
+        if items is None:
+            items = EntityRenderItems(self._scene, entity_id)
+            self._render_cache[entity_id] = items
+        return items
 
     def _ensure_grid(self) -> None:
         needed = (8 * 2 + 1) * 2
@@ -266,187 +225,207 @@ class Viewport3D(QGraphicsView):
                 else:
                     item.hide()
 
-    def _bbox_corners(self, bounds: Bounds):
-        lo, hi = bounds
-        return [
-            (x, y, z)
-            for x in (lo[0], hi[0])
-            for y in (lo[1], hi[1])
-            for z in (lo[2], hi[2])
-        ]
-
-    def _update_interaction_proxies(self) -> None:
-        w = max(100, self.width())
-        h = max(100, self.height())
-        self._scene.setSceneRect(0, 0, w, h)
-        self._update_grid()
-        for proxy in self._render_cache.values():
-            proxy.hide_mesh()
-            if proxy.bounds is None:
-                proxy.hide_proxy()
-                continue
-            proxy.ensure_proxy_items()
-            corners = self._bbox_corners(proxy.bounds)
-            projected = [self.camera.project(point, w, h) for point in corners]
-            for item, (a, b) in zip(proxy.proxy_items, proxy._BOX_EDGES):
-                p1, p2 = projected[a], projected[b]
-                if p1 and p2:
-                    item.setLine(p1[0], p1[1], p2[0], p2[1])
-                    item.show()
-                else:
-                    item.hide()
-
-    def _begin_interaction(self) -> None:
-        self._interaction_active = True
-        self._update_interaction_proxies()
-
-    def _finish_deferred_view_change(self) -> None:
-        if self._is_orbiting or self._is_panning or self._sculpt_tx is not None:
-            return
-        self._interaction_active = False
-        self.redraw(force_full=True)
-
     def refresh_selection(self) -> None:
         selected = set(self.doc.selection)
         changed = selected ^ self._last_selection
         for entity_id in changed:
-            proxy = self._render_cache.get(entity_id)
-            if proxy is None:
+            items = self._render_cache.get(entity_id)
+            if items is None:
                 continue
-            pen, brush = self._style_for(entity_id, proxy.kind)
-            for item in proxy.mesh_items:
+            pen, brush = self._style_for(entity_id, items.kind)
+            for item in items.mesh_items:
                 item.setPen(pen)
                 item.setBrush(brush)
         self._last_selection = selected
 
+    def _redraw_camera_only(self):
+        """Reproject full cached geometry without substituting temporary boxes."""
+        self.camera.distance = max(0.5, min(50.0, float(self.camera.distance)))
+        self.camera.pitch = max(
+            -math.pi / 2.0 + 0.05,
+            min(math.pi / 2.0 - 0.05, float(self.camera.pitch)),
+        )
+        self.camera.yaw = math.remainder(float(self.camera.yaw), math.tau)
+        self.redraw(force_full=True)
+        self.viewport().update()
+
     def wheelEvent(self, event):
-        zoom_factor = 0.88 if event.angleDelta().y() > 0 else 1.14
-        self.camera.distance = max(0.5, min(200.0, self.camera.distance * zoom_factor))
-        self._begin_interaction()
-        self._view_settle_timer.start(120)
+        delta = event.angleDelta().y() / 120.0
+        self.camera.distance = max(
+            0.5,
+            min(50.0, self.camera.distance - delta * 0.5),
+        )
+        self._redraw_camera_only()
+        event.accept()
 
     def mousePressEvent(self, event):
         pos = event.position()
-        self._last_mouse_pos = pos
-        if event.button() == Qt.MouseButton.MiddleButton or (
-            event.button() == Qt.MouseButton.LeftButton
-            and (event.modifiers() & Qt.KeyboardModifier.AltModifier)
-        ):
-            if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
-                self._is_panning = True
-            else:
-                self._is_orbiting = True
-            self._begin_interaction()
+        button = event.button()
+
+        if button == Qt.MouseButton.RightButton:
+            self._last_mouse_pos = QPointF(pos)
+            self._is_orbiting = True
+            self._is_panning = False
+            event.accept()
             return
 
-        if event.button() == Qt.MouseButton.LeftButton:
-            ray_orig, ray_dir = self.camera.unproject_ray(pos.x(), pos.y(), self.width(), self.height())
+        if button == Qt.MouseButton.MiddleButton:
+            self._last_mouse_pos = QPointF(pos)
+            self._is_panning = True
+            self._is_orbiting = False
+            event.accept()
+            return
+
+        if button == Qt.MouseButton.LeftButton:
+            self._last_mouse_pos = None
+            ray_orig, ray_dir = self.camera.unproject_ray(
+                pos.x(), pos.y(), self.width(), self.height()
+            )
             eval_res = self._evaluation_cache.sync(self.doc)
             best_hit: Optional[Tuple[float, str, MeshRayHit]] = None
             for body in eval_res.bodies:
                 if not isinstance(body.payload, MeshPayload):
                     continue
-                hit = raycast_mesh(body.entity_id, body.payload, ray_orig, ray_dir)
-                if hit is not None and (best_hit is None or hit.distance < best_hit[0]):
+                hit = raycast_mesh(
+                    body.entity_id,
+                    body.payload,
+                    ray_orig,
+                    ray_dir,
+                )
+                if hit is not None and (
+                    best_hit is None or hit.distance < best_hit[0]
+                ):
                     best_hit = (hit.distance, body.entity_id, hit)
 
             if best_hit is not None:
                 _, eid, mesh_hit = best_hit
                 if self.active_tool == 'sculpt':
                     try:
-                        surf_hit = SurfaceHit(eid, mesh_hit.surface_role, mesh_hit.world_point, mesh_hit.world_normal)
+                        surf_hit = SurfaceHit(
+                            eid,
+                            mesh_hit.surface_role,
+                            mesh_hit.world_point,
+                            mesh_hit.world_normal,
+                        )
                         surf_hit.validate(self.doc)
                         self._sculpt_tx = SculptTransaction(
-                            self.doc, self.stack, surf_hit, self.sculpt_brush, self.sculpt_op, 0.0
+                            self.doc,
+                            self.stack,
+                            surf_hit,
+                            self.sculpt_brush,
+                            self.sculpt_op,
+                            0.0,
                         )
-                        self._drag_start_pos = pos
-                        self._begin_interaction()
-                        self.statusChanged.emit(f"Sculpting {eid} ({mesh_hit.surface_role})")
+                        self._drag_start_pos = QPointF(pos)
+                        self.statusChanged.emit(
+                            f"Sculpting {eid} ({mesh_hit.surface_role})"
+                        )
                     except Exception as exc:
-                        self.statusChanged.emit(f"Cannot sculpt surface: {exc}")
+                        self.statusChanged.emit(
+                            f"Cannot sculpt surface: {exc}"
+                        )
                 else:
-                    self.doc.select([eid], add=bool(event.modifiers() & Qt.KeyboardModifier.ControlModifier))
+                    self.doc.select(
+                        [eid],
+                        add=bool(
+                            event.modifiers()
+                            & Qt.KeyboardModifier.ControlModifier
+                        ),
+                    )
                     self.selectionChangedByView.emit()
                     self.refresh_selection()
-            else:
-                if not (event.modifiers() & Qt.KeyboardModifier.ControlModifier):
-                    self.doc.select([])
-                    self.selectionChangedByView.emit()
-                    self.refresh_selection()
+            elif not (
+                event.modifiers()
+                & Qt.KeyboardModifier.ControlModifier
+            ):
+                self.doc.select([])
+                self.selectionChangedByView.emit()
+                self.refresh_selection()
+            event.accept()
             return
 
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
         pos = event.position()
-        if self._last_mouse_pos is not None:
+        if self._last_mouse_pos is not None and self._is_orbiting:
             dx = pos.x() - self._last_mouse_pos.x()
             dy = pos.y() - self._last_mouse_pos.y()
-            if self._is_orbiting:
-                self.camera.yaw += dx * 0.008
-                self.camera.pitch = max(
-                    -math.pi/2 + 0.05,
-                    min(math.pi/2 - 0.05, self.camera.pitch + dy * 0.008),
-                )
-                self._update_interaction_proxies()
-                self._last_mouse_pos = pos
-                return
-            if self._is_panning:
-                speed = self.camera.distance * 0.002
-                self.camera.target = (
-                    self.camera.target[0] - dx * speed * math.cos(self.camera.yaw),
-                    self.camera.target[1] - dx * speed * math.sin(self.camera.yaw),
-                    self.camera.target[2] + dy * speed,
-                )
-                self._update_interaction_proxies()
-                self._last_mouse_pos = pos
-                return
+            self.camera.yaw += float(dx) * 0.008
+            self.camera.pitch += float(dy) * 0.008
+            self._last_mouse_pos = QPointF(pos)
+            self._redraw_camera_only()
+            return
+
+        if self._last_mouse_pos is not None and self._is_panning:
+            dx = pos.x() - self._last_mouse_pos.x()
+            dy = pos.y() - self._last_mouse_pos.y()
+            speed = self.camera.distance * 0.002
+            self.camera.target = (
+                self.camera.target[0]
+                - dx * speed * math.cos(self.camera.yaw),
+                self.camera.target[1]
+                - dx * speed * math.sin(self.camera.yaw),
+                self.camera.target[2] + dy * speed,
+            )
+            self._last_mouse_pos = QPointF(pos)
+            self._redraw_camera_only()
+            return
 
         if self._sculpt_tx is not None and self._drag_start_pos is not None:
-            delta_y = (self._drag_start_pos.y() - pos.y()) * 0.01
+            delta_y = (
+                self._drag_start_pos.y() - pos.y()
+            ) * 0.01
             amount = max(0.0, float(delta_y))
             self._sculpt_tx.update(amount=amount)
-            self.statusChanged.emit(f"Sculpt Amount: {amount:.3f}")
-            self._update_interaction_proxies()
+            self.statusChanged.emit(
+                f"Sculpt Amount: {amount:.3f}"
+            )
+            self.redraw(force_full=True)
             return
 
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
-        if event.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.MiddleButton):
-            was_camera_drag = self._is_orbiting or self._is_panning
+        button = event.button()
+
+        if button == Qt.MouseButton.RightButton:
             self._is_orbiting = False
+            self._last_mouse_pos = None
+            event.accept()
+            return
+
+        if button == Qt.MouseButton.MiddleButton:
             self._is_panning = False
-            had_sculpt = self._sculpt_tx is not None
-            if self._sculpt_tx is not None:
-                if self._sculpt_tx.amount > 0.001:
-                    try:
-                        self._sculpt_tx.commit()
-                        self.statusChanged.emit(f"Applied sculpt modifier ({self.sculpt_op})")
-                    except Exception as exc:
-                        self.statusChanged.emit(f"Sculpt commit error: {exc}")
-                self._sculpt_tx = None
-                self._drag_start_pos = None
-                self.selectionChangedByView.emit()
-            if was_camera_drag or had_sculpt:
-                self._interaction_active = False
-                self.redraw(force_full=True)
-                return
+            self._last_mouse_pos = None
+            event.accept()
+            return
+
+        if button == Qt.MouseButton.LeftButton and self._sculpt_tx is not None:
+            if self._sculpt_tx.amount > 0.001:
+                try:
+                    self._sculpt_tx.commit()
+                    self.statusChanged.emit(
+                        f"Applied sculpt modifier ({self.sculpt_op})"
+                    )
+                except Exception as exc:
+                    self.statusChanged.emit(
+                        f"Sculpt commit error: {exc}"
+                    )
+            self._sculpt_tx = None
+            self._drag_start_pos = None
+            self.selectionChangedByView.emit()
+            self.redraw(force_full=True)
+            event.accept()
+            return
+
         super().mouseReleaseEvent(event)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        if not hasattr(self, '_view_settle_timer'):
-            return
-        self._begin_interaction()
-        self._view_settle_timer.start(120)
+        self.redraw(force_full=True)
 
     def redraw(self, force_full=False):
-        if self._interaction_active and not force_full:
-            self._update_interaction_proxies()
-            return
-
-        self._interaction_active = False
         w = max(100, self.width())
         h = max(100, self.height())
         self._scene.setSceneRect(0, 0, w, h)
@@ -459,14 +438,15 @@ class Viewport3D(QGraphicsView):
             if not isinstance(mesh, MeshPayload):
                 continue
             live_ids.add(body.entity_id)
-            proxy = self._proxy(body.entity_id)
-            proxy.kind = body.semantic_kind
-            proxy.bounds = self._bounds_from_mesh(mesh)
-            proxy.hide_proxy()
-            proxy.ensure_mesh_items(len(mesh.triangles))
-            pen, brush = self._style_for(body.entity_id, body.semantic_kind)
+            items = self._entity_render_items(body.entity_id)
+            items.kind = body.semantic_kind
+            items.ensure_mesh_items(len(mesh.triangles))
+            pen, brush = self._style_for(
+                body.entity_id,
+                body.semantic_kind,
+            )
 
-            for item, tri in zip(proxy.mesh_items, mesh.triangles):
+            for item, tri in zip(items.mesh_items, mesh.triangles):
                 v0, v1, v2 = mesh.vertices[tri[0]], mesh.vertices[tri[1]], mesh.vertices[tri[2]]
                 p0 = self.camera.project(v0, w, h)
                 p1 = self.camera.project(v1, w, h)
