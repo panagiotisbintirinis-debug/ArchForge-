@@ -32,9 +32,11 @@ def _window():
 
 
 def _dirty(window):
-    # The default document already has Mezzanine at 2.5 m. Use a distinct
-    # authoritative value so this helper always creates a serialized edit.
-    window.stack.execute(SetLevel("Mezzanine", 3.25))
+    # Derive the edit from the live document rather than assuming a pristine
+    # default level value. Other tests may legitimately leave shared defaults
+    # at a different elevation within the same pytest process.
+    current = window.doc.levels.get("Mezzanine", 0.0)
+    window.stack.execute(SetLevel("Mezzanine", current + 0.75))
 
 
 def test_close_cancel_ignores_event_and_preserves_dirty_project(monkeypatch):
