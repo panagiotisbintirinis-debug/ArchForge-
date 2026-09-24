@@ -32,7 +32,9 @@ def _window():
 
 
 def _dirty(window):
-    window.stack.execute(SetLevel("Mezzanine", 2.5))
+    # The default document already has Mezzanine at 2.5 m. Use a distinct
+    # authoritative value so this helper always creates a serialized edit.
+    window.stack.execute(SetLevel("Mezzanine", 3.25))
 
 
 def test_close_cancel_ignores_event_and_preserves_dirty_project(monkeypatch):
