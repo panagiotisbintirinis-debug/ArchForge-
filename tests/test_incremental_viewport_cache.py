@@ -125,8 +125,17 @@ def test_viewport_drag_path_has_no_scene_clear_or_tessellation_evaluation():
     assert 'TessellatedPreviewBackend' not in move_body
     assert '.evaluate(' not in move_body
     assert '_update_interaction_proxies' not in move_body
-    assert '_redraw_camera_only()' in move_body
+    assert '_orbit_to(pos)' in move_body
+    assert '_pan_to(pos)' in move_body
     assert 'redraw(force_full=True)' in move_body
+
+    orbit_start = source.index('    def _orbit_to')
+    pan_start = source.index('    def _pan_to', orbit_start)
+    orbit_body = source[orbit_start:pan_start]
+    event_filter_start = source.index('    def eventFilter', pan_start)
+    pan_body = source[pan_start:event_filter_start]
+    assert '_redraw_camera_only()' in orbit_body
+    assert '_redraw_camera_only()' in pan_body
 
     release_end = source.index('    def resizeEvent', release_start)
     release_body = source[release_start:release_end]
