@@ -152,10 +152,10 @@ class Viewport3D(QGraphicsView):
         self._last_selection = set()
         # Solid CAD surfaces: the tessellation remains internal geometry, but
         # triangle edges must never be exposed as visible wireframe seams.
-        selected_color = QColor(110, 180, 245, 255)
-        wall_color = QColor(230, 235, 240, 255)
-        floor_color = QColor(210, 220, 215, 255)
-        default_color = QColor(200, 205, 215, 255)
+        selected_color = QColor(72, 145, 225, 255)
+        wall_color = QColor(184, 195, 207, 255)
+        floor_color = QColor(166, 184, 171, 255)
+        default_color = QColor(176, 186, 201, 255)
         self._styles = {
             'selected': (QPen(selected_color, 0), QBrush(selected_color)),
             'wall': (QPen(wall_color, 0), QBrush(wall_color)),
@@ -169,7 +169,7 @@ class Viewport3D(QGraphicsView):
         self.viewport().setMouseTracking(True)
         self.viewport().setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
         self.viewport().installEventFilter(self)
-        self.setBackgroundBrush(QColor(238, 240, 243))
+        self.setBackgroundBrush(QColor(222, 226, 232))
         self.redraw(force_full=True)
 
     def rebind(self, doc: Document, stack: CommandStack):
@@ -205,7 +205,7 @@ class Viewport3D(QGraphicsView):
 
     def _ensure_grid(self) -> None:
         needed = (8 * 2 + 1) * 2
-        pen = QPen(QColor(215, 218, 222), 1)
+        pen = QPen(QColor(187, 193, 201), 1)
         while len(self._grid_items) < needed:
             item = QGraphicsLineItem()
             item.setPen(pen)
