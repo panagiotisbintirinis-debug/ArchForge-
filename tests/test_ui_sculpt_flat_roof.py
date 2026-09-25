@@ -76,6 +76,24 @@ def test_flat_roof_sits_on_common_wall_top_and_is_undoable():
     assert roof.id in doc.entities
 
 
+def test_flat_roof_footprint_reaches_outer_wall_faces():
+    doc, _walls = _closed_room(height=3.0)
+    stack = CommandStack(doc)
+    face = doc.active_room_faces()[0]
+    stack.execute(CreateRoomRoofs([face.signature], thickness=.20))
+    roof = next(e for e in doc.entities.values() if e.kind == 'room_roof')
+
+    geom = room_slab_geometry(doc, roof)
+    xs = [point[0] for point in geom['points']]
+    ys = [point[1] for point in geom['points']]
+
+    assert min(xs) == pytest.approx(-.10)
+    assert max(xs) == pytest.approx(4.10)
+    assert min(ys) == pytest.approx(-.10)
+    assert max(ys) == pytest.approx(3.10)
+    assert room_slab_geometry(doc, roof)['points'] == geom['points']
+
+
 def test_flat_roof_rejects_non_level_boundary_without_partial_creation():
     doc, walls = _closed_room(height=3.0)
     doc.update(walls[1].id, {'height': 3.5})
