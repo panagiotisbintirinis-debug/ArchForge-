@@ -12,6 +12,7 @@ from archforge.core.model import Document, Entity
 from archforge.core.plan_scene import build_plan_frame
 from archforge.geometry.mesh import TessellatedPreviewBackend
 from archforge.geometry.selection import BrushSpec, SurfaceHit
+from archforge.geometry.sculpt import SculptedPreviewBackend
 from archforge.geometry.sculpt_transaction import SculptTransaction
 from archforge.ui.main_window import MainWindow
 from archforge.ui.viewport_3d import Viewport3D
@@ -110,9 +111,9 @@ def test_sculpt_live_preview_changes_visible_viewport_before_commit():
             doc,
             stack,
             SurfaceHit(wall.id, 'exterior', (2.0, .1, 1.5), (0.0, 1.0, 0.0)),
-            BrushSpec(1.2, 1.0, 'smooth'),
+            BrushSpec(.35, 1.0, 'smooth'),
             'pull',
-            .40,
+            .30,
         )
         view._sculpt_tx = tx
         view.redraw(force_full=True)
@@ -135,17 +136,58 @@ def test_sculpt_live_preview_changes_visible_viewport_before_commit():
         app.processEvents()
 
 
+def test_sculpt_dense_preview_moves_only_local_wall_vertices():
+    doc = Document()
+    wall = Entity(
+        'wall',
+        {'x1':0,'y1':0,'x2':4,'y2':0,'z':0,'height':3,'thickness':.2},
+        id='local-wall',
+    )
+    doc.add(wall)
+    stack = CommandStack(doc)
+
+    dense_base = SculptedPreviewBackend(
+        dense_entity_ids={wall.id},
+        wall_target_step=.15,
+    ).evaluate(doc).body(wall.id).payload
+
+    tx = SculptTransaction(
+        doc,
+        stack,
+        SurfaceHit(wall.id, 'exterior', (2.0, .1, 1.5), (0.0, 1.0, 0.0)),
+        BrushSpec(.35, 1.0, 'smooth'),
+        'pull',
+        .30,
+    )
+    preview = tx.preview_mesh()
+
+    assert len(preview.vertices) == len(dense_base.vertices)
+    moved = []
+    unchanged = []
+    for before, after in zip(dense_base.vertices, preview.vertices):
+        delta = sum((after[i] - before[i]) ** 2 for i in range(3)) ** .5
+        distance = sum((before[i] - (2.0, .1, 1.5)[i]) ** 2 for i in range(3)) ** .5
+        if delta > 1e-9:
+            moved.append((distance, delta))
+        else:
+            unchanged.append(distance)
+
+    assert moved
+    assert unchanged
+    assert max(distance for distance, _delta in moved) < .35 + 1e-9
+    assert any(distance > 1.0 for distance in unchanged)
+
+
 def test_sculpt_toolbar_controls_real_viewport_brush_and_flat_roof_action():
     app = QApplication.instance() or QApplication([])
     window = MainWindow()
     try:
         window.sculpt_operation.setCurrentText('push')
-        window.sculpt_radius.setValue(1.75)
-        window.sculpt_strength.setValue(.55)
+        window.sculpt_radius.setValue(.40)
 
         assert window.view_3d.sculpt_op == 'push'
-        assert window.view_3d.sculpt_brush.radius == pytest.approx(1.75)
-        assert window.view_3d.sculpt_brush.strength == pytest.approx(.55)
+        assert window.view_3d.sculpt_brush.radius == pytest.approx(.40)
+        assert window.view_3d.sculpt_brush.strength == pytest.approx(1.0)
 
         walls = [
             Entity('wall', {'x1':0,'y1':0,'x2':4,'y2':0,'z':0,'height':3,'thickness':.2}),
