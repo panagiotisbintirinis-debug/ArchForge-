@@ -5,6 +5,7 @@ import math
 
 from .backend import GeometryBackend, GeometryBody, GeometryEvaluation, GeometryIssue
 from .mesh import MeshPayload, TessellatedPreviewBackend
+from .wall_detail import detailed_wall_geometry
 from .surface_frame import resolve_modifier_for_node
 
 Vec3 = Tuple[float, float, float]
@@ -86,15 +87,37 @@ def apply_brush_modifier(mesh: MeshPayload, raw: dict) -> MeshPayload:
 
 
 class SculptedPreviewBackend(GeometryBackend):
-    """Tessellated viewport backend with ordered supported sculpt modifiers evaluated."""
+    """Preview backend that densifies only walls that actually need sculpt detail."""
     name='sculpted-preview'
+
+    def __init__(self, *, dense_entity_ids=(), wall_target_step:float=.15):
+        self.dense_entity_ids={str(eid) for eid in dense_entity_ids}
+        self.wall_target_step=float(wall_target_step)
+        if not math.isfinite(self.wall_target_step) or self.wall_target_step<=0:
+            raise ValueError('wall_target_step must be finite and > 0')
+
+    def _sculpt_base_mesh(self,node,body):
+        needs_dense=(
+            node.semantic_kind=='wall'
+            and (
+                bool(node.modifiers)
+                or node.entity_id in self.dense_entity_ids
+            )
+        )
+        if not needs_dense:
+            return body.payload
+        vertices,triangles,roles=detailed_wall_geometry(
+            node.params,
+            target_step=self.wall_target_step,
+        )
+        return MeshPayload(vertices,triangles,roles)
 
     def evaluate_plan(self,doc,plan)->GeometryEvaluation:
         base=TessellatedPreviewBackend().evaluate_plan(doc,plan);issues=list(base.issues);bodies:List[GeometryBody]=[]
         for node in plan.geometry_nodes():
             try: body=base.body(node.entity_id)
             except KeyError: continue
-            mesh=body.payload;applied=[];failed=False
+            mesh=self._sculpt_base_mesh(node,body);applied=[];failed=False
             for raw in node.modifiers:
                 if not raw.get('enabled',True): continue
                 try:
