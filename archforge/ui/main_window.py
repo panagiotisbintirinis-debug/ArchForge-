@@ -84,26 +84,21 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(self.sculpt_operation)
 
         self.sculpt_radius = QDoubleSpinBox()
-        self.sculpt_radius.setRange(0.05, 20.0)
+        self.sculpt_radius.setRange(0.10, 5.0)
         self.sculpt_radius.setDecimals(2)
-        self.sculpt_radius.setSingleStep(0.10)
+        self.sculpt_radius.setSingleStep(0.05)
         self.sculpt_radius.setValue(self.view_3d.sculpt_brush.radius)
+        self.sculpt_radius.setToolTip(
+            'Local brush diameter control: smaller values deform a tighter area around the picked point.'
+        )
         self.sculpt_radius.valueChanged.connect(
-            lambda value: self.view_3d.configure_sculpt(radius=value)
+            lambda value: self.view_3d.configure_sculpt(
+                radius=value,
+                strength=1.0,
+            )
         )
-        toolbar.addWidget(QLabel(' Radius '))
+        toolbar.addWidget(QLabel(' Brush '))
         toolbar.addWidget(self.sculpt_radius)
-
-        self.sculpt_strength = QDoubleSpinBox()
-        self.sculpt_strength.setRange(0.0, 1.0)
-        self.sculpt_strength.setDecimals(2)
-        self.sculpt_strength.setSingleStep(0.05)
-        self.sculpt_strength.setValue(self.view_3d.sculpt_brush.strength)
-        self.sculpt_strength.valueChanged.connect(
-            lambda value: self.view_3d.configure_sculpt(strength=value)
-        )
-        toolbar.addWidget(QLabel(' Strength '))
-        toolbar.addWidget(self.sculpt_strength)
         toolbar.addSeparator()
         auto_floors = QAction('Auto Floors', self)
         auto_floors.triggered.connect(self._create_auto_floors)
