@@ -15,7 +15,8 @@ from PySide6.QtWidgets import (
 from archforge.core.model import Document
 from archforge.core.commands import CommandStack
 from archforge.geometry.incremental import IncrementalEvaluationCache
-from archforge.geometry.mesh import TessellatedPreviewBackend, MeshPayload
+from archforge.geometry.mesh import MeshPayload
+from archforge.geometry.sculpt import SculptedPreviewBackend
 from archforge.geometry.picking import raycast_mesh, MeshRayHit
 from archforge.geometry.selection import BrushSpec, SurfaceHit
 from archforge.geometry.sculpt_transaction import SculptTransaction
@@ -147,7 +148,7 @@ class Viewport3D(QGraphicsView):
         self._is_panning = False
         self._is_orbiting = False
         self._render_cache: Dict[str, EntityRenderItems] = {}
-        self._evaluation_cache = IncrementalEvaluationCache(TessellatedPreviewBackend())
+        self._evaluation_cache = IncrementalEvaluationCache(SculptedPreviewBackend())
         self._grid_items: List[QGraphicsLineItem] = []
         self._last_selection = set()
         # Solid CAD surfaces: the tessellation remains internal geometry, but
@@ -185,7 +186,31 @@ class Viewport3D(QGraphicsView):
 
     def set_tool(self, tool: str):
         self.active_tool = tool
-        self.statusChanged.emit(f"3D Viewport Tool: {tool}")
+        if tool == 'sculpt':
+            self.statusChanged.emit(
+                f'Sculpt: {self.sculpt_op} | radius {self.sculpt_brush.radius:.2f} m | '
+                f'strength {self.sculpt_brush.strength:.2f}'
+            )
+        else:
+            self.statusChanged.emit(f"3D Viewport Tool: {tool}")
+
+    def configure_sculpt(self, *, operation=None, radius=None, strength=None, falloff=None):
+        operation = self.sculpt_op if operation is None else str(operation)
+        if operation not in ('pull', 'push', 'inflate', 'recess', 'smooth', 'crease'):
+            raise ValueError(f'unsupported live sculpt operation: {operation}')
+        values = {
+            'radius': self.sculpt_brush.radius if radius is None else float(radius),
+            'strength': self.sculpt_brush.strength if strength is None else float(strength),
+            'falloff': self.sculpt_brush.falloff if falloff is None else str(falloff),
+        }
+        brush = BrushSpec(**values)
+        brush.validate()
+        self.sculpt_op = operation
+        self.sculpt_brush = brush
+        if self.active_tool == 'sculpt':
+            self.statusChanged.emit(
+                f'Sculpt: {self.sculpt_op} | radius {brush.radius:.2f} m | strength {brush.strength:.2f}'
+            )
 
     def _style_for(self, entity_id: str, kind: str):
         if entity_id in self.doc.selection:
@@ -511,6 +536,14 @@ class Viewport3D(QGraphicsView):
 
         for body in evaluation.bodies:
             mesh = body.payload
+            if (
+                self._sculpt_tx is not None
+                and body.entity_id == self._sculpt_tx.hit.owner_id
+            ):
+                try:
+                    mesh = self._sculpt_tx.preview_mesh()
+                except Exception as exc:
+                    self.statusChanged.emit(f'Sculpt preview error: {exc}')
             if not isinstance(mesh, MeshPayload):
                 continue
             live_ids.add(body.entity_id)
