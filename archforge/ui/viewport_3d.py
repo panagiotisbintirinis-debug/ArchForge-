@@ -150,11 +150,17 @@ class Viewport3D(QGraphicsView):
         self._evaluation_cache = IncrementalEvaluationCache(TessellatedPreviewBackend())
         self._grid_items: List[QGraphicsLineItem] = []
         self._last_selection = set()
+        # Solid CAD surfaces: the tessellation remains internal geometry, but
+        # triangle edges must never be exposed as visible wireframe seams.
+        selected_color = QColor(110, 180, 245, 255)
+        wall_color = QColor(230, 235, 240, 255)
+        floor_color = QColor(210, 220, 215, 255)
+        default_color = QColor(200, 205, 215, 255)
         self._styles = {
-            'selected': (QPen(QColor(40, 110, 200), 1), QBrush(QColor(110, 180, 245, 210))),
-            'wall': (QPen(QColor(140, 150, 160), 1), QBrush(QColor(230, 235, 240, 230))),
-            'floor': (QPen(QColor(120, 140, 130), 1), QBrush(QColor(210, 220, 215, 220))),
-            'default': (QPen(QColor(100, 110, 125), 1), QBrush(QColor(200, 205, 215, 200))),
+            'selected': (QPen(selected_color, 0), QBrush(selected_color)),
+            'wall': (QPen(wall_color, 0), QBrush(wall_color)),
+            'floor': (QPen(floor_color, 0), QBrush(floor_color)),
+            'default': (QPen(default_color, 0), QBrush(default_color)),
         }
         self.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         self.setMouseTracking(True)
