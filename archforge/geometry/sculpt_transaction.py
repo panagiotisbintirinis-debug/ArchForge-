@@ -4,7 +4,7 @@ from archforge.core.interaction import HUD
 from archforge.core.modifier_commands import AddSurfaceModifier
 from .selection import BrushSpec, SurfaceHit, sculpt_modifier_from_hit
 from .mesh import TessellatedPreviewBackend
-from .sculpt import apply_brush_modifier
+from .sculpt import SculptedPreviewBackend, apply_brush_modifier
 from .picking import raycast_evaluation
 
 LIVE_SCULPT_OPERATIONS=('pull','push','inflate','recess','smooth','crease')
@@ -42,7 +42,9 @@ class SculptTransaction:
 
     def preview_mesh(self):
         """Evaluate current drag state without altering Document or undo history."""
-        body=TessellatedPreviewBackend().evaluate(self.doc).body(self.hit.owner_id)
+        # Preview on top of already committed modifiers, while keeping
+        # the in-progress brush transient until commit.
+        body=SculptedPreviewBackend().evaluate(self.doc).body(self.hit.owner_id)
         raw={
             'operation':self.operation,
             'target':{'owner_id':self.hit.owner_id,'surface_role':self.hit.surface_role,
