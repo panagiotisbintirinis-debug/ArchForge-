@@ -29,7 +29,6 @@ def test_small_brush_deforms_local_region_not_whole_wall():
         dense_entity_ids={w.id},
         wall_target_step=.15,
     )
-    raw=d.surface_modifiers[mod.id].to_dict()
     d.remove_surface_modifier(mod.id)
     base=dense_base.evaluate(d).body(w.id).payload
     d.add_surface_modifier(mod)
