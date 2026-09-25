@@ -97,10 +97,14 @@ class SculptedPreviewBackend(GeometryBackend):
             raise ValueError('wall_target_step must be finite and > 0')
 
     def _sculpt_base_mesh(self,node,body):
+        enabled_modifiers=any(
+            bool(raw.get('enabled',True))
+            for raw in node.modifiers
+        )
         needs_dense=(
             node.semantic_kind=='wall'
             and (
-                bool(node.modifiers)
+                enabled_modifiers
                 or node.entity_id in self.dense_entity_ids
             )
         )
