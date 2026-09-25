@@ -6,6 +6,7 @@ from typing import Dict, Optional, Tuple, List
 from PySide6.QtCore import Qt, QPointF, Signal, QEvent
 from PySide6.QtGui import QPen, QBrush, QColor, QPainter, QPolygonF
 from PySide6.QtWidgets import (
+    QGraphicsEllipseItem,
     QGraphicsLineItem,
     QGraphicsPolygonItem,
     QGraphicsScene,
@@ -140,7 +141,7 @@ class Viewport3D(QGraphicsView):
         self.stack = stack
         self.camera = OrbitCamera()
         self.active_tool = 'orbit'
-        self.sculpt_brush = BrushSpec(radius=1.0, strength=0.8, falloff='smooth')
+        self.sculpt_brush = BrushSpec(radius=0.35, strength=1.0, falloff='smooth')
         self.sculpt_op = 'pull'
         self._sculpt_tx: Optional[SculptTransaction] = None
         self._drag_start_pos: Optional[QPointF] = None
@@ -151,6 +152,15 @@ class Viewport3D(QGraphicsView):
         self._evaluation_cache = IncrementalEvaluationCache(SculptedPreviewBackend())
         self._grid_items: List[QGraphicsLineItem] = []
         self._last_selection = set()
+        self._sculpt_cursor_item = QGraphicsEllipseItem()
+        cursor_pen = QPen(QColor(0, 210, 255), 2)
+        cursor_pen.setStyle(Qt.PenStyle.DashLine)
+        self._sculpt_cursor_item.setPen(cursor_pen)
+        self._sculpt_cursor_item.setBrush(QBrush(Qt.BrushStyle.NoBrush))
+        self._sculpt_cursor_item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self._sculpt_cursor_item.setZValue(2500)
+        self._scene.addItem(self._sculpt_cursor_item)
+        self._sculpt_cursor_item.hide()
         # Solid CAD surfaces: the tessellation remains internal geometry, but
         # triangle edges must never be exposed as visible wireframe seams.
         selected_color = QColor(72, 145, 225, 255)
@@ -188,10 +198,11 @@ class Viewport3D(QGraphicsView):
         self.active_tool = tool
         if tool == 'sculpt':
             self.statusChanged.emit(
-                f'Sculpt: {self.sculpt_op} | radius {self.sculpt_brush.radius:.2f} m | '
-                f'strength {self.sculpt_brush.strength:.2f}'
+                f'Sculpt {self.sculpt_op}: point at the surface, hold Left Mouse, and drag | '
+                f'brush {self.sculpt_brush.radius:.2f} m'
             )
         else:
+            self._sculpt_cursor_item.hide()
             self.statusChanged.emit(f"3D Viewport Tool: {tool}")
 
     def configure_sculpt(self, *, operation=None, radius=None, strength=None, falloff=None):
@@ -209,8 +220,60 @@ class Viewport3D(QGraphicsView):
         self.sculpt_brush = brush
         if self.active_tool == 'sculpt':
             self.statusChanged.emit(
-                f'Sculpt: {self.sculpt_op} | radius {brush.radius:.2f} m | strength {brush.strength:.2f}'
+                f'Sculpt {self.sculpt_op}: click a point and drag | brush {brush.radius:.2f} m'
             )
+
+    def _pick_surface_at(self, pos):
+        ray_orig, ray_dir = self.camera.unproject_ray(
+            pos.x(), pos.y(), self.width(), self.height()
+        )
+        evaluation = self._evaluation_cache.sync(self.doc)
+        best_hit = None
+        for body in evaluation.bodies:
+            if not isinstance(body.payload, MeshPayload):
+                continue
+            hit = raycast_mesh(
+                body.entity_id,
+                body.payload,
+                ray_orig,
+                ray_dir,
+            )
+            if hit is not None and (
+                best_hit is None or hit.distance < best_hit[0]
+            ):
+                best_hit = (hit.distance, body.entity_id, hit)
+        return best_hit
+
+    def _update_sculpt_cursor(self, pos):
+        if self.active_tool != 'sculpt':
+            self._sculpt_cursor_item.hide()
+            return None
+        picked = self._pick_surface_at(pos)
+        if picked is None:
+            self._sculpt_cursor_item.hide()
+            return None
+        _distance, _eid, hit = picked
+        projected = self.camera.project(
+            hit.world_point,
+            max(100, self.width()),
+            max(100, self.height()),
+        )
+        if projected is None:
+            self._sculpt_cursor_item.hide()
+            return picked
+        focal = (
+            max(100, self.height()) / 2.0
+        ) / math.tan(1.0 / 2.0)
+        radius_px = self.sculpt_brush.radius * focal / projected[2]
+        radius_px = max(6.0, min(180.0, float(radius_px)))
+        self._sculpt_cursor_item.setRect(
+            projected[0] - radius_px,
+            projected[1] - radius_px,
+            radius_px * 2.0,
+            radius_px * 2.0,
+        )
+        self._sculpt_cursor_item.show()
+        return picked
 
     def _style_for(self, entity_id: str, kind: str):
         if entity_id in self.doc.selection:
@@ -395,24 +458,10 @@ class Viewport3D(QGraphicsView):
 
         if button == Qt.MouseButton.LeftButton:
             self._last_mouse_pos = None
-            ray_orig, ray_dir = self.camera.unproject_ray(
-                pos.x(), pos.y(), self.width(), self.height()
-            )
-            eval_res = self._evaluation_cache.sync(self.doc)
-            best_hit: Optional[Tuple[float, str, MeshRayHit]] = None
-            for body in eval_res.bodies:
-                if not isinstance(body.payload, MeshPayload):
-                    continue
-                hit = raycast_mesh(
-                    body.entity_id,
-                    body.payload,
-                    ray_orig,
-                    ray_dir,
-                )
-                if hit is not None and (
-                    best_hit is None or hit.distance < best_hit[0]
-                ):
-                    best_hit = (hit.distance, body.entity_id, hit)
+            if self.active_tool == 'sculpt':
+                best_hit = self._update_sculpt_cursor(pos)
+            else:
+                best_hit = self._pick_surface_at(pos)
 
             if best_hit is not None:
                 _, eid, mesh_hit = best_hit
@@ -435,7 +484,7 @@ class Viewport3D(QGraphicsView):
                         )
                         self._drag_start_pos = QPointF(pos)
                         self.statusChanged.emit(
-                            f"Sculpting {eid} ({mesh_hit.surface_role})"
+                            f'Sculpt point locked on {mesh_hit.surface_role}; drag to deform locally'
                         )
                     except Exception as exc:
                         self.statusChanged.emit(
@@ -474,15 +523,18 @@ class Viewport3D(QGraphicsView):
             return
 
         if self._sculpt_tx is not None and self._drag_start_pos is not None:
-            delta_y = (
-                self._drag_start_pos.y() - pos.y()
-            ) * 0.01
-            amount = max(0.0, float(delta_y))
-            self._sculpt_tx.update(amount=amount)
+            dx = float(pos.x() - self._drag_start_pos.x())
+            dy = float(pos.y() - self._drag_start_pos.y())
+            amount = math.hypot(dx, dy) * 0.006
+            self._sculpt_tx.update(amount=amount, strength=1.0)
             self.statusChanged.emit(
-                f"Sculpt Amount: {amount:.3f}"
+                f'Local sculpt displacement: {amount:.3f} m'
             )
             self.redraw(force_full=True)
+            return
+
+        if self.active_tool == 'sculpt':
+            self._update_sculpt_cursor(pos)
             return
 
         super().mouseMoveEvent(event)
@@ -517,6 +569,7 @@ class Viewport3D(QGraphicsView):
             self._drag_start_pos = None
             self.selectionChangedByView.emit()
             self.redraw(force_full=True)
+            self._update_sculpt_cursor(event.position())
             event.accept()
             return
 
