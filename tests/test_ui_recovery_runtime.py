@@ -202,3 +202,33 @@ def test_real_viewport_event_filter_captures_right_drag_orbit():
     finally:
         view.close()
         app.processEvents()
+
+
+def test_solid_surface_renderer_hides_internal_triangle_edges():
+    app = QApplication.instance() or QApplication([])
+    doc = Document()
+    doc.add(_box())
+    stack = CommandStack(doc)
+    view = Viewport3D(doc, stack)
+    view.resize(800, 600)
+    view.show()
+    app.processEvents()
+    try:
+        view.redraw(force_full=True)
+        items = view._render_cache['recovery-box']
+        assert items.mesh_items
+
+        for item in items.mesh_items:
+            assert item.pen().color() == item.brush().color()
+            assert item.pen().widthF() == 0.0
+            assert item.brush().color().alpha() == 255
+
+        doc.select(['recovery-box'])
+        view.refresh_selection()
+        for item in items.mesh_items:
+            assert item.pen().color() == item.brush().color()
+            assert item.pen().widthF() == 0.0
+            assert item.brush().color().alpha() == 255
+    finally:
+        view.close()
+        app.processEvents()
