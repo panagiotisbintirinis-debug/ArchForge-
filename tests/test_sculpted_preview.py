@@ -17,10 +17,38 @@ def test_pull_moves_only_evaluated_mesh_not_semantic_wall():
 
 
 def test_small_brush_deforms_local_region_not_whole_wall():
-    d,w=_wall_doc();hit=SurfaceHit(w.id,'exterior',(2,.1,1.5),(0,1,0));mod=sculpt_modifier_from_hit(d,hit,BrushSpec(.65,1.0,'smooth'),'pull',.35);d.add_surface_modifier(mod)
-    base=TessellatedPreviewBackend().evaluate(d).body(w.id).payload;sculpt=SculptedPreviewBackend().evaluate(d).body(w.id).payload
-    exterior={i for ti,t in enumerate(base.triangles) if base.triangle_surfaces[ti]=='exterior' for i in t};moved=[i for i in exterior if sculpt.vertices[i]!=base.vertices[i]];unchanged=[i for i in exterior if sculpt.vertices[i]==base.vertices[i]]
-    assert moved and unchanged and max(abs(base.vertices[i][0]-2) for i in moved)<1.0
+    d,w=_wall_doc()
+    hit=SurfaceHit(w.id,'exterior',(2,.1,1.5),(0,1,0))
+    mod=sculpt_modifier_from_hit(d,hit,BrushSpec(.65,1.0,'smooth'),'pull',.35)
+    d.add_surface_modifier(mod)
+
+    # Active wall sculpting intentionally uses a denser preview mesh than the ordinary
+    # viewport mesh. Compare like-for-like dense geometry instead of relying on stale
+    # coarse-mesh vertex indices.
+    dense_base=SculptedPreviewBackend(
+        dense_entity_ids={w.id},
+        wall_target_step=.15,
+    )
+    raw=d.surface_modifiers[mod.id].to_dict()
+    d.remove_surface_modifier(mod.id)
+    base=dense_base.evaluate(d).body(w.id).payload
+    d.add_surface_modifier(mod)
+    sculpt=SculptedPreviewBackend().evaluate(d).body(w.id).payload
+
+    assert len(base.vertices)==len(sculpt.vertices)
+    exterior={
+        i
+        for ti,t in enumerate(base.triangles)
+        if base.triangle_surfaces[ti]=='exterior'
+        for i in t
+    }
+    moved=[i for i in exterior if sculpt.vertices[i]!=base.vertices[i]]
+    unchanged=[i for i in exterior if sculpt.vertices[i]==base.vertices[i]]
+    assert moved and unchanged
+    assert max(
+        ((base.vertices[i][0]-2.0)**2 + (base.vertices[i][2]-1.5)**2)**0.5
+        for i in moved
+    ) < .65 + 1e-9
 
 
 def test_push_moves_opposite_surface_normal():
