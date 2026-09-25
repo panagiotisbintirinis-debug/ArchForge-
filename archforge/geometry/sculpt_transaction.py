@@ -44,7 +44,10 @@ class SculptTransaction:
         """Evaluate current drag state without altering Document or undo history."""
         # Preview on top of already committed modifiers, while keeping
         # the in-progress brush transient until commit.
-        body=SculptedPreviewBackend().evaluate(self.doc).body(self.hit.owner_id)
+        body=SculptedPreviewBackend(
+            dense_entity_ids={self.hit.owner_id},
+            wall_target_step=.15,
+        ).evaluate(self.doc).body(self.hit.owner_id)
         raw={
             'operation':self.operation,
             'target':{'owner_id':self.hit.owner_id,'surface_role':self.hit.surface_role,
