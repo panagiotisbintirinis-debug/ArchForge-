@@ -6,11 +6,11 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QDockWidget, QWidget, QFormLayout, QDoubleSpinBox,
-    QLabel, QTabWidget, QStatusBar, QFileDialog, QMessageBox,
+    QLabel, QTabWidget, QStatusBar, QFileDialog, QMessageBox, QComboBox,
 )
 
 from archforge.core.model import Document
-from archforge.core.commands import CommandStack, UpdateEntity, CreateRoomFloors
+from archforge.core.commands import CommandStack, UpdateEntity, CreateRoomFloors, CreateRoomRoofs
 from .plan_view import PlanView
 from .ortho_view import OrthoView
 from .viewport_3d import Viewport3D
@@ -72,10 +72,46 @@ class MainWindow(QMainWindow):
         sculpt.setShortcut(QKeySequence('C'))
         sculpt.triggered.connect(lambda: self.view_3d.set_tool('sculpt'))
         toolbar.addAction(sculpt)
+
+        self.sculpt_operation = QComboBox()
+        self.sculpt_operation.addItems(
+            ['pull', 'push', 'inflate', 'recess', 'smooth', 'crease']
+        )
+        self.sculpt_operation.currentTextChanged.connect(
+            lambda value: self.view_3d.configure_sculpt(operation=value)
+        )
+        toolbar.addWidget(QLabel(' Op '))
+        toolbar.addWidget(self.sculpt_operation)
+
+        self.sculpt_radius = QDoubleSpinBox()
+        self.sculpt_radius.setRange(0.05, 20.0)
+        self.sculpt_radius.setDecimals(2)
+        self.sculpt_radius.setSingleStep(0.10)
+        self.sculpt_radius.setValue(self.view_3d.sculpt_brush.radius)
+        self.sculpt_radius.valueChanged.connect(
+            lambda value: self.view_3d.configure_sculpt(radius=value)
+        )
+        toolbar.addWidget(QLabel(' Radius '))
+        toolbar.addWidget(self.sculpt_radius)
+
+        self.sculpt_strength = QDoubleSpinBox()
+        self.sculpt_strength.setRange(0.0, 1.0)
+        self.sculpt_strength.setDecimals(2)
+        self.sculpt_strength.setSingleStep(0.05)
+        self.sculpt_strength.setValue(self.view_3d.sculpt_brush.strength)
+        self.sculpt_strength.valueChanged.connect(
+            lambda value: self.view_3d.configure_sculpt(strength=value)
+        )
+        toolbar.addWidget(QLabel(' Strength '))
+        toolbar.addWidget(self.sculpt_strength)
         toolbar.addSeparator()
         auto_floors = QAction('Auto Floors', self)
         auto_floors.triggered.connect(self._create_auto_floors)
         toolbar.addAction(auto_floors)
+
+        flat_roof = QAction('Flat Roof', self)
+        flat_roof.triggered.connect(self._create_flat_roofs)
+        toolbar.addAction(flat_roof)
         toolbar.addSeparator()
         undo = QAction('Undo', self)
         undo.setShortcut(QKeySequence.StandardKey.Undo)
@@ -169,6 +205,50 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f'Created {len(signatures)} automatic floor(s)', 4000)
         except Exception as exc:
             QMessageBox.warning(self, 'Auto Floors', str(exc))
+
+    def _create_flat_roofs(self):
+        faces = self.doc.active_room_faces()
+        if not faces:
+            self.statusBar().showMessage(
+                'No closed rooms available for a flat roof',
+                4000,
+            )
+            return
+
+        existing = {
+            entity.params.get('room_signature')
+            for entity in self.doc.entities.values()
+            if entity.kind == 'room_roof'
+            and entity.params.get('roof_type') == 'flat'
+        }
+        signatures = [
+            face.signature
+            for face in faces
+            if face.signature not in existing
+        ]
+        if not signatures:
+            self.statusBar().showMessage(
+                'All current rooms already have flat roofs',
+                4000,
+            )
+            return
+
+        try:
+            self.stack.execute(
+                CreateRoomRoofs(
+                    signatures,
+                    thickness=.20,
+                    roof_type='flat',
+                )
+            )
+            self._redraw_views(all_views=True)
+            self.refresh_inspector()
+            self.statusBar().showMessage(
+                f'Created {len(signatures)} flat roof slab(s)',
+                4000,
+            )
+        except Exception as exc:
+            QMessageBox.warning(self, 'Flat Roof', str(exc))
 
     def _selection_from_view(self):
         sender = self.sender()
