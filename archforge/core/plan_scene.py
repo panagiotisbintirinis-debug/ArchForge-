@@ -108,11 +108,23 @@ def entity_primitive(doc,eid):
         if seg is None:return None
         return Primitive2D('line',seg,entity_id=eid,role='organic-junction',meta=(('semantic','organic_junction'),('component_a',p.get('component_a')),('component_b',p.get('component_b'))))
     if e.kind in ('floor','room'):return Primitive2D('polygon',tuple(tuple(q) for q in p['points']),entity_id=eid,meta=(('semantic',e.kind),))
-    if e.kind=='room_floor':
-        from archforge.architecture.rooms import room_floor_geometry
-        g=room_floor_geometry(doc,e)
+    if e.kind in ('room_floor','room_ceiling','room_foundation','room_roof'):
+        from archforge.architecture.rooms import room_slab_geometry
+        g=room_slab_geometry(doc,e)
         if g is None:return None
-        return Primitive2D('polygon',tuple(g['points']),entity_id=eid,role='room-floor',meta=(('semantic','room_floor'),('signature',g['room_signature']),('thickness',g['thickness']),('z',g['z'])))
+        role=e.kind.replace('_','-')
+        return Primitive2D(
+            'polygon',
+            tuple(g['points']),
+            entity_id=eid,
+            role=role,
+            meta=(
+                ('semantic',e.kind),
+                ('signature',g['room_signature']),
+                ('thickness',g['thickness']),
+                ('z',g['z']),
+            ),
+        )
     if e.kind in ('door','window'):
         seg=_opening_segment(doc,e)
         if seg is None:return None

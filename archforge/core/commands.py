@@ -205,6 +205,99 @@ class CreateRoomFloors(Command):
         for e in self.entities.values():
             if e.id in doc.entities:doc.remove(e.id)
 
+class CreateRoomRoofs(Command):
+    """Create topology-linked flat roof slabs at the common wall top elevation."""
+    def __init__(
+        self,
+        signatures:List[str],
+        thickness:float=.20,
+        roof_type:str='flat',
+        tolerance:float=1e-4,
+    ):
+        self.signatures=list(dict.fromkeys(signatures))
+        self.thickness=float(thickness)
+        self.roof_type=str(roof_type)
+        self.tolerance=float(tolerance)
+        self.entities:Dict[str,Entity]={}
+
+    def do(self,doc):
+        from archforge.architecture.rooms import find_room_face
+        from archforge.architecture.room_identity import room_id_for_signature
+
+        if self.roof_type != 'flat':
+            raise ValueError('CreateRoomRoofs currently supports flat roofs only')
+
+        created=[]
+        try:
+            for sig in self.signatures:
+                found=find_room_face(doc,sig)
+                if found is None:
+                    raise ValueError('room signature is not currently active')
+                face,base_z=found
+                room_id=room_id_for_signature(doc,sig,z=base_z)
+
+                if any(
+                    e.kind=='room_roof'
+                    and e.params.get('roof_type')=='flat'
+                    and (
+                        e.params.get('room_id')==room_id
+                        or e.params.get('room_signature')==sig
+                    )
+                    for e in doc.entities.values()
+                ):
+                    continue
+
+                tops=[]
+                for wid in face.wall_ids:
+                    wall=doc.get(wid)
+                    tops.append(float(wall.params['z'])+float(wall.params['height']))
+                if not tops:
+                    raise ValueError('flat roof requires boundary walls')
+                if max(tops)-min(tops)>self.tolerance:
+                    raise ValueError(
+                        'flat roof requires boundary walls with a common top elevation'
+                    )
+
+                top_z=sum(tops)/len(tops)
+                offset_z=top_z-float(base_z)
+                key=room_id or sig
+                e=self.entities.get(key)
+                if e is None:
+                    params={
+                        'room_signature':sig,
+                        'thickness':self.thickness,
+                        'offset_z':offset_z,
+                        'roof_type':'flat',
+                    }
+                    if room_id is not None:
+                        params['room_id']=room_id
+                    e=Entity('room_roof',params,name='Flat Roof')
+                    self.entities[key]=e
+                else:
+                    e=e.clone()
+                    e.params['room_signature']=sig
+                    e.params['offset_z']=offset_z
+                    e.params['roof_type']='flat'
+                    if room_id is not None:
+                        e.params['room_id']=room_id
+
+                doc.add(e)
+                created.append(e.id)
+                for wid in face.wall_ids:
+                    if wid in doc.entities and e.id not in doc.dependencies.get(wid,set()):
+                        doc.add_dependency(wid,e.id)
+        except Exception:
+            for eid in reversed(created):
+                if eid in doc.entities:
+                    doc.remove(eid)
+            raise
+
+    def undo(self,doc):
+        for e in self.entities.values():
+            if e.id in doc.entities:
+                doc.remove(e.id)
+
+
 @dataclass
 class SetWorkPlane(Command):
     work_plane: WorkPlane
