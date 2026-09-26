@@ -104,7 +104,12 @@ scene.add(ground);
 
 const modelRoot = new THREE.Group();
 scene.add(modelRoot);
+const axesHelper = new THREE.AxesHelper(2.5);
+axesHelper.visible = false;
+scene.add(axesHelper);
 let activeTechnique = "pbr";
+let activeCameraPreset = "orbit";
+let cutawayEnabled = false;
 let activeTool = "orbit";
 let bridge = null;
 let sculpting = false;
@@ -154,18 +159,58 @@ function applyTechnique() {
   });
 }
 
-function fitCamera() {
+function sceneBounds() {
   const box = new THREE.Box3().setFromObject(modelRoot);
-  if (box.isEmpty()) return;
+  if (box.isEmpty()) return null;
   const center = box.getCenter(new THREE.Vector3());
   const size = box.getSize(new THREE.Vector3());
   const radius = Math.max(size.length() * 0.62, 2.0);
-  controls.target.copy(center);
-  camera.position.set(center.x + radius, center.y - radius * 1.25, center.z + radius * 0.85);
+  return {box, center, size, radius};
+}
+
+function setCameraPreset(mode) {
+  const bounds = sceneBounds();
+  if (!bounds) return;
+  const {center, radius} = bounds;
+  activeCameraPreset = mode;
+  controls.enabled = activeTool !== "sculpt";
+  camera.up.set(0, 0, 1);
   camera.near = Math.max(0.02, radius / 500.0);
   camera.far = Math.max(200.0, radius * 40.0);
+
+  if (mode === "top") {
+    camera.up.set(0, 1, 0);
+    camera.position.set(center.x, center.y, center.z + radius * 1.9);
+    controls.target.set(center.x, center.y, center.z);
+  } else if (mode === "front") {
+    camera.position.set(center.x, center.y - radius * 1.8, center.z + radius * 0.05);
+    controls.target.set(center.x, center.y, center.z);
+  } else if (mode === "side") {
+    camera.position.set(center.x + radius * 1.8, center.y, center.z + radius * 0.05);
+    controls.target.set(center.x, center.y, center.z);
+  } else if (mode === "iso30" || mode === "cutaway") {
+    const elev = Math.PI / 6;
+    const horizontal = radius * 1.55;
+    camera.position.set(
+      center.x + horizontal * Math.cos(Math.PI / 4),
+      center.y - horizontal * Math.sin(Math.PI / 4),
+      center.z + horizontal * Math.tan(elev)
+    );
+    controls.target.set(center.x, center.y, center.z);
+  } else if (mode === "eye") {
+    camera.position.set(center.x, center.y - radius * 1.7, 1.7);
+    controls.target.set(center.x, center.y, Math.min(center.z + 0.3, 1.7));
+  } else {
+    camera.position.set(center.x + radius, center.y - radius * 1.25, center.z + radius * 0.85);
+    controls.target.copy(center);
+  }
   camera.updateProjectionMatrix();
+  camera.lookAt(controls.target);
   controls.update();
+}
+
+function fitCamera() {
+  setCameraPreset(activeCameraPreset || "orbit");
 }
 
 window.archforgeSetScene = function(payload, fit = true) {
@@ -186,6 +231,7 @@ window.archforgeSetScene = function(payload, fit = true) {
     mesh.userData.entityId = item.id || "";
     mesh.userData.kind = item.kind || "";
     mesh.userData.surfaceRoles = item.surfaces || [];
+    mesh.visible = !(cutawayEnabled && item.kind === "room_roof");
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     modelRoot.add(mesh);
@@ -201,6 +247,40 @@ window.setTechnique = function(mode) {
   }
 };
 
+
+
+window.setCameraPreset = function(mode) {
+  const allowed = ["cutaway", "top", "front", "side", "iso30", "eye", "orbit"];
+  if (!allowed.includes(mode)) return;
+  if (mode === "cutaway") {
+    cutawayEnabled = true;
+    modelRoot.children.forEach((mesh) => {
+      if (mesh.userData && mesh.userData.kind === "room_roof") mesh.visible = false;
+    });
+  } else {
+    cutawayEnabled = false;
+    modelRoot.children.forEach((mesh) => mesh.visible = true);
+  }
+  setCameraPreset(mode);
+};
+
+window.setAxesVisible = function(enabled) {
+  axesHelper.visible = !!enabled;
+};
+
+window.setAutoRotate = function(enabled) {
+  controls.autoRotate = !!enabled;
+  controls.autoRotateSpeed = 1.25;
+};
+
+window.setCutaway = function(enabled) {
+  cutawayEnabled = !!enabled;
+  modelRoot.children.forEach((mesh) => {
+    if (mesh.userData && mesh.userData.kind === "room_roof") {
+      mesh.visible = !cutawayEnabled;
+    }
+  });
+};
 
 window.setActiveTool = function(tool) {
   activeTool = tool || "orbit";
@@ -310,6 +390,10 @@ class PBRViewport(QWidget):
         self.stack = stack
         self._evaluation_cache = IncrementalEvaluationCache(SculptedPreviewBackend())
         self._technique = "pbr"
+        self._camera_preset = "orbit"
+        self._axes_visible = False
+        self._auto_rotate = False
+        self._cutaway = False
         self.active_tool = "orbit"
         self.sculpt_brush = BrushSpec(radius=0.35, strength=1.0, falloff="smooth")
         self.sculpt_op = "pull"
@@ -350,7 +434,11 @@ class PBRViewport(QWidget):
             return
         self.statusChanged.emit("PBR Preview ready")
         self.set_render_technique(self._technique)
+        self.set_axes_visible(self._axes_visible)
+        self.set_auto_rotate(self._auto_rotate)
+        self.set_cutaway(self._cutaway)
         self.redraw(force_full=True)
+        self.set_camera_preset(self._camera_preset)
 
     def rebind(self, doc, stack) -> None:
         self.doc = doc
@@ -447,6 +535,52 @@ class PBRViewport(QWidget):
         except Exception as exc:
             self.statusChanged.emit(f"PBR sculpt commit error: {exc}")
             self.redraw(force_full=False)
+
+
+    def set_camera_preset(self, mode: str) -> None:
+        allowed = ("cutaway", "top", "front", "side", "iso30", "eye", "orbit")
+        mode = str(mode)
+        if mode not in allowed:
+            raise ValueError(f"unsupported camera preset: {mode}")
+        self._camera_preset = mode
+        if mode == "cutaway":
+            self._cutaway = True
+        elif mode != "cutaway":
+            self._cutaway = False
+        if self.web_view is not None:
+            self.web_view.page().runJavaScript(
+                "if (window.setCameraPreset) window.setCameraPreset("
+                + json.dumps(mode)
+                + ");"
+            )
+        self.statusChanged.emit(f"PBR camera: {mode}")
+
+    def set_axes_visible(self, enabled: bool) -> None:
+        self._axes_visible = bool(enabled)
+        if self.web_view is not None:
+            self.web_view.page().runJavaScript(
+                "if (window.setAxesVisible) window.setAxesVisible("
+                + ("true" if self._axes_visible else "false")
+                + ");"
+            )
+
+    def set_auto_rotate(self, enabled: bool) -> None:
+        self._auto_rotate = bool(enabled)
+        if self.web_view is not None:
+            self.web_view.page().runJavaScript(
+                "if (window.setAutoRotate) window.setAutoRotate("
+                + ("true" if self._auto_rotate else "false")
+                + ");"
+            )
+
+    def set_cutaway(self, enabled: bool) -> None:
+        self._cutaway = bool(enabled)
+        if self.web_view is not None:
+            self.web_view.page().runJavaScript(
+                "if (window.setCutaway) window.setCutaway("
+                + ("true" if self._cutaway else "false")
+                + ");"
+            )
 
     def set_render_technique(self, technique: str) -> None:
         if technique not in ("pbr", "technical", "glass"):
