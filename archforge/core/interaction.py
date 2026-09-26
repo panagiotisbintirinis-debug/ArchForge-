@@ -101,6 +101,80 @@ class WallDrawTransaction:
         self.stack.execute(AddEntity(e));return e.id
     def cancel(self):self.cancelled=True
 
+class StairPlaceTransaction:
+    """Live adaptive stair placement between the active level and the next level above."""
+    def __init__(
+        self,
+        doc: Document,
+        stack: CommandStack,
+        origin: Tuple[float, float],
+        *,
+        width: float = 1.0,
+        preferred_riser: float = 0.17,
+        preferred_tread: float = 0.29,
+    ):
+        from archforge.architecture.stairs import next_level_above
+        self.doc,self.stack=doc,stack
+        self.origin=(float(origin[0]),float(origin[1]))
+        self.width=float(width)
+        self.preferred_riser=float(preferred_riser)
+        self.preferred_tread=float(preferred_tread)
+        self.lower_z=float(doc.work_plane.origin[2])
+        next_level=next_level_above(doc,self.lower_z)
+        if next_level is None:
+            raise ValueError('Create an upper floor level before placing stairs')
+        self.upper_z=float(next_level[0])
+        self.upper_level_name=str(next_level[1])
+        self.pointer=self.origin
+        self.candidates=()
+        self.preview={}
+        self.cancelled=False
+        self.update(*self.origin)
+
+    def update(self,x,y):
+        from archforge.architecture.stairs import solve_stair_candidates,stair_footprint
+        self.pointer=(float(x),float(y))
+        self.candidates=solve_stair_candidates(
+            self.lower_z,self.upper_z,self.origin,self.pointer,
+            width=self.width,
+            preferred_riser=self.preferred_riser,
+            preferred_tread=self.preferred_tread,
+        )
+        if not self.candidates:
+            raise ValueError('no stair solution available')
+        best=self.candidates[0]
+        self.preview={
+            'chosen':best.to_params(),
+            'candidates':[candidate.to_params() for candidate in self.candidates[:4]],
+            'footprint':list(stair_footprint(best)),
+            'upper_level_name':self.upper_level_name,
+            'suggestions':list(best.suggestions),
+        }
+        return HUD({
+            'risers':float(best.riser_count),
+            'riser':best.riser_height,
+            'tread':best.tread_depth,
+            'width':best.width,
+            'floor_height':best.floor_height,
+        })
+
+    def commit(self):
+        if self.cancelled:
+            raise RuntimeError('transaction cancelled')
+        if not self.candidates:
+            raise ValueError('stair has no valid preview')
+        best=self.candidates[0]
+        entity=Entity('stair',best.to_params(),name='Stair')
+        self.stack.execute(AddEntity(entity))
+        self.doc.select([entity.id])
+        return entity.id
+
+    def cancel(self):
+        self.cancelled=True
+        self.candidates=()
+        self.preview={}
+
+
 class BoxStretchTransaction:
     def __init__(self,doc,stack,eid,handle):
         self.doc,self.stack,self.eid,self.handle=doc,stack,eid,handle;self.before=doc.get(eid).params.copy();self.preview=self.before.copy()
