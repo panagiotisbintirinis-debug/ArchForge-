@@ -170,8 +170,20 @@ def test_context_menu_registry_is_editable_and_view_aware():
         'properties', 'move', 'stretch', 'rotate', None, 'delete'
     ]
     assert [entry['id'] if entry else None for entry in pbr_wall] == [
-        'properties', None, 'delete'
+        'properties', None, 'delete',
+        'fit_view', 'orbit_view', 'top_view', 'front_view', 'side_view', 'iso_view'
     ]
+    placements = {
+        entry['id']: entry['placement']
+        for entry in pbr_wall
+        if entry is not None
+    }
+    assert placements['properties'] == 'radial'
+    assert placements['delete'] == 'radial'
+    assert placements['fit_view'] == 'radial'
+    assert placements['orbit_view'] == 'radial'
+    assert placements['top_view'] == 'panel'
+    assert placements['front_view'] == 'panel'
 
 
 def test_context_menu_properties_and_plan_tool_actions_use_selected_entity():
@@ -188,4 +200,30 @@ def test_context_menu_properties_and_plan_tool_actions_use_selected_entity():
     assert window.view is window.plan_view
     assert window.plan_view.controller.tool == 'rotate'
     assert window.plan_view.controller.active_entity == wall.id
+    window.close()
+
+
+
+def test_marking_menu_camera_actions_route_to_pbr_view(monkeypatch):
+    window = MainWindow()
+    wall = _wall('menu-camera-wall', 0.0)
+    window.doc.add(wall)
+    calls = []
+
+    monkeypatch.setattr(window.pbr_view, 'fit_camera', lambda: calls.append('fit'))
+    monkeypatch.setattr(
+        window.pbr_view,
+        'set_camera_preset',
+        lambda mode: calls.append(mode),
+    )
+
+    window._handle_object_context_action(wall.id, 'fit_view')
+    window._handle_object_context_action(wall.id, 'top_view')
+    window._handle_object_context_action(wall.id, 'front_view')
+    window._handle_object_context_action(wall.id, 'side_view')
+    window._handle_object_context_action(wall.id, 'iso_view')
+    window._handle_object_context_action(wall.id, 'orbit_view')
+
+    assert calls == ['fit', 'top', 'front', 'side', 'iso30', 'orbit']
+    assert window.view is window.pbr_view
     window.close()
