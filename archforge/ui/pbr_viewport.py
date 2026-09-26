@@ -10,7 +10,7 @@ from archforge.geometry.incremental import IncrementalEvaluationCache
 from archforge.geometry.sculpt import SculptedPreviewBackend
 from archforge.geometry.selection import BrushSpec, SurfaceHit
 from archforge.geometry.sculpt_transaction import SculptTransaction
-from archforge.core.interaction import OpeningPlaceTransaction
+from archforge.core.interaction import OpeningPlaceTransaction, StairPlaceTransaction
 from archforge.rendering.scene import build_pbr_scene_payload
 from archforge.ui.object_context_menu import object_context_actions
 
@@ -165,6 +165,8 @@ let activeTool = "orbit";
 let bridge = null;
 let sculpting = false;
 let sculptStartY = 0;
+let stairing = false;
+let stairPlaneZ = 0;
 
 function resize() {
   const w = Math.max(1, container.clientWidth);
@@ -371,7 +373,7 @@ window.setCutaway = function(enabled) {
 
 window.setActiveTool = function(tool) {
   activeTool = tool || "orbit";
-  if (!sculpting) controls.enabled = activeTool !== "sculpt";
+  if (!sculpting && !stairing) controls.enabled = activeTool !== "sculpt";
 };
 
 function hideMarkingMenu() {
@@ -449,11 +451,35 @@ function pickModel(event) {
   return hits.length ? hits[0] : null;
 }
 
+function pointOnHorizontalPlane(event, z) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  const mouse = new THREE.Vector2(
+    ((event.clientX - rect.left) / rect.width) * 2 - 1,
+    -((event.clientY - rect.top) / rect.height) * 2 + 1
+  );
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(mouse, camera);
+  const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -Number(z));
+  const target = new THREE.Vector3();
+  return raycaster.ray.intersectPlane(plane, target) ? target : null;
+}
+
 renderer.domElement.addEventListener("pointerdown", (event) => {
   if (!bridge) return;
   if (event.button !== 2) hideMarkingMenu();
   const hit = pickModel(event);
   if (!hit || !hit.face) return;
+
+  if (activeTool === "stair") {
+    stairing = true;
+    stairPlaneZ = Number(hit.point.z);
+    controls.enabled = false;
+    if (renderer.domElement.setPointerCapture) renderer.domElement.setPointerCapture(event.pointerId);
+    bridge.beginStair(Number(hit.point.x), Number(hit.point.y));
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
 
   if (activeTool === "door" || activeTool === "window") {
     const kind = hit.object.userData.kind || "";
@@ -489,8 +515,8 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
 }, true);
 
 renderer.domElement.addEventListener("dblclick", (event) => {
-  if (!bridge || sculpting) return;
-  if (activeTool === "door" || activeTool === "window" || activeTool === "sculpt") return;
+  if (!bridge || sculpting || stairing) return;
+  if (activeTool === "door" || activeTool === "window" || activeTool === "sculpt" || activeTool === "stair") return;
   const hit = pickModel(event);
   if (!hit || !hit.face) return;
   bridge.selectEntity(hit.object.userData.entityId || "");
@@ -517,7 +543,15 @@ window.addEventListener("keydown", (event) => {
 });
 
 renderer.domElement.addEventListener("pointermove", (event) => {
-  if (!sculpting || !bridge) return;
+  if (!bridge) return;
+  if (stairing) {
+    const point = pointOnHorizontalPlane(event, stairPlaneZ);
+    if (point) bridge.updateStair(Number(point.x), Number(point.y));
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+  if (!sculpting) return;
   const amount = Math.abs(event.clientY - sculptStartY) * 0.006;
   bridge.updateSculpt(amount);
   event.preventDefault();
@@ -525,7 +559,16 @@ renderer.domElement.addEventListener("pointermove", (event) => {
 }, true);
 
 renderer.domElement.addEventListener("pointerup", (event) => {
-  if (!sculpting || !bridge) return;
+  if (!bridge) return;
+  if (stairing) {
+    stairing = false;
+    controls.enabled = activeTool !== "sculpt";
+    bridge.endStair();
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+  if (!sculpting) return;
   sculpting = false;
   controls.enabled = activeTool !== "sculpt";
   bridge.endSculpt();
@@ -584,6 +627,18 @@ class PBRInteractionBridge(QObject):
     def placeOpening(self, kind: str, payload_json: str) -> None:
         self.viewport._place_opening_from_web(kind, payload_json)
 
+    @Slot(float, float)
+    def beginStair(self, x: float, y: float) -> None:
+        self.viewport._begin_stair_from_web(x, y)
+
+    @Slot(float, float)
+    def updateStair(self, x: float, y: float) -> None:
+        self.viewport._update_stair_from_web(x, y)
+
+    @Slot()
+    def endStair(self) -> None:
+        self.viewport._finish_stair_from_web()
+
 
 class PBRViewport(QWidget):
     """GPU/WebGL derived preview of the current authoritative ArchForge geometry.
@@ -611,6 +666,7 @@ class PBRViewport(QWidget):
         self.sculpt_op = "pull"
         self._sculpt_tx = None
         self._stair_preview_payload = {"options": []}
+        self._stair_tx = None
         self.channel = None
         self.bridge = None
         layout = QVBoxLayout(self)
@@ -798,22 +854,73 @@ class PBRViewport(QWidget):
             self.redraw(force_full=False)
 
 
-    def set_stair_preview(self, preview) -> None:
+    def _set_stair_candidate_params(self, candidates) -> None:
         options = []
         try:
-            if preview is not None and getattr(preview, "kind", None) == "stair":
-                from archforge.geometry.mesh import _stair_mesh
-                for params in list(getattr(preview, "geometry", {}).get("candidates", ()))[:4]:
-                    mesh = _stair_mesh(params)
-                    options.append({
-                        "vertices": [[float(x), float(y), float(z)] for x, y, z in mesh.vertices],
-                        "triangles": [[int(a), int(b), int(c)] for a, b, c in mesh.triangles],
-                    })
+            from archforge.geometry.mesh import _stair_mesh
+            for params in list(candidates)[:4]:
+                mesh = _stair_mesh(params)
+                options.append({
+                    "vertices": [[float(x), float(y), float(z)] for x, y, z in mesh.vertices],
+                    "triangles": [[int(a), int(b), int(c)] for a, b, c in mesh.triangles],
+                })
         except Exception as exc:
             self.statusChanged.emit(f"Stair preview error: {exc}")
             options = []
         self._stair_preview_payload = {"options": options}
         self._push_stair_preview()
+
+    def set_stair_preview(self, preview) -> None:
+        candidates = ()
+        if preview is not None and getattr(preview, "kind", None) == "stair":
+            candidates = getattr(preview, "geometry", {}).get("candidates", ())
+        self._set_stair_candidate_params(candidates)
+
+    def _begin_stair_from_web(self, x: float, y: float) -> None:
+        try:
+            self._stair_tx = StairPlaceTransaction(self.doc, self.stack, (float(x), float(y)))
+            hud = self._stair_tx.update(float(x), float(y))
+            self._set_stair_candidate_params(self._stair_tx.preview.get("candidates", ()))
+            self.statusChanged.emit(
+                f"Stair preview: {int(hud.values['risers'])} risers, "
+                f"{hud.values['riser']:.3f} m rise, {hud.values['tread']:.3f} m tread"
+            )
+        except Exception as exc:
+            self._stair_tx = None
+            self._set_stair_candidate_params(())
+            self.statusChanged.emit(f"Cannot start stair: {exc}")
+
+    def _update_stair_from_web(self, x: float, y: float) -> None:
+        if self._stair_tx is None:
+            return
+        try:
+            hud = self._stair_tx.update(float(x), float(y))
+            self._set_stair_candidate_params(self._stair_tx.preview.get("candidates", ()))
+            best = self._stair_tx.candidates[0]
+            note = best.suggestions[0] if best.suggestions else "valid layout"
+            self.statusChanged.emit(
+                f"Stair {best.layout.upper()} | {best.riser_count} risers × "
+                f"{best.riser_height:.3f} m | tread {best.tread_depth:.3f} m | {note}"
+            )
+        except Exception as exc:
+            self.statusChanged.emit(f"Stair preview error: {exc}")
+
+    def _finish_stair_from_web(self) -> None:
+        if self._stair_tx is None:
+            return
+        tx = self._stair_tx
+        self._stair_tx = None
+        try:
+            entity_id = tx.commit()
+            self._evaluation_cache.clear()
+            self._set_stair_candidate_params(())
+            self.doc.select([entity_id])
+            self.selectionChangedByView.emit()
+            self.redraw(force_full=False)
+            self.statusChanged.emit("Stair committed with linked upper-floor opening — Undo is available")
+        except Exception as exc:
+            self._set_stair_candidate_params(())
+            self.statusChanged.emit(f"Cannot commit stair: {exc}")
 
     def _push_stair_preview(self) -> None:
         if self.web_view is None:
