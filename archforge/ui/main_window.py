@@ -77,7 +77,7 @@ class MainWindow(QMainWindow):
         toolbar = self.tools_toolbar
         for text, tool, key in [
             ('Select', 'select', 'S'), ('Wall', 'wall', 'W'), ('Door', 'door', 'D'),
-            ('Window', 'window', 'N'), ('Stair', 'stair', 'A'),
+            ('Window', 'window', 'N'), ('Stair', 'stair', 'A'), ('Ramp', 'ramp', 'P'),
             ('Move', 'move', 'G'), ('Stretch', 'stretch', 'T'), ('Rotate', 'rotate', 'R'),
         ]:
             action = QAction(text, self)
@@ -329,6 +329,47 @@ class MainWindow(QMainWindow):
                     lower_z = float(value)
                     changes['lower_z'] = lower_z
                     changes['riser_height'] = (upper_z - lower_z) / riser_count
+
+            elif entity.kind == 'ramp':
+                p = entity.params
+                lower_z = float(p['lower_z'])
+                upper_z = float(p['upper_z'])
+                rise = upper_z - lower_z
+                slope = float(p['slope_pct'])
+                run = float(p['run_length'])
+
+                if key == 'slope_pct':
+                    slope = max(1e-6, float(value))
+                    changes['slope_pct'] = slope
+                    changes['run_length'] = rise / (slope / 100.0)
+                elif key == 'run_length':
+                    run = max(1e-6, float(value))
+                    changes['run_length'] = run
+                    changes['slope_pct'] = rise / run * 100.0
+                elif key == 'upper_slab_thickness':
+                    upper_floor_z = float(p.get('upper_floor_z', upper_z))
+                    upper_z = upper_floor_z + max(0.0, float(value))
+                    rise = upper_z - lower_z
+                    changes['upper_slab_thickness'] = max(0.0, float(value))
+                    changes['upper_z'] = upper_z
+                    changes['run_length'] = rise / (slope / 100.0)
+                elif key == 'upper_floor_z':
+                    slab_thickness = float(p.get('upper_slab_thickness', 0.0))
+                    upper_z = float(value) + slab_thickness
+                    rise = upper_z - lower_z
+                    changes['upper_floor_z'] = float(value)
+                    changes['upper_z'] = upper_z
+                    changes['run_length'] = rise / (slope / 100.0)
+                elif key == 'upper_z':
+                    upper_z = float(value)
+                    rise = upper_z - lower_z
+                    changes['upper_z'] = upper_z
+                    changes['run_length'] = rise / (slope / 100.0)
+                elif key == 'lower_z':
+                    lower_z = float(value)
+                    rise = upper_z - lower_z
+                    changes['lower_z'] = lower_z
+                    changes['run_length'] = rise / (slope / 100.0)
 
             self.stack.execute(UpdateEntity(eid, changes))
             self._redraw_views(all_views=True)
