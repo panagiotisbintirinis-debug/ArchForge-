@@ -5,7 +5,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from archforge.architecture.stairs import solve_stair_candidates
 from archforge.core.commands import CommandStack
 from archforge.core.interaction import StairPlaceTransaction
-from archforge.core.model import Document, WorkPlane
+from archforge.core.model import Document, Entity, WorkPlane
 from archforge.geometry.mesh import TessellatedPreviewBackend
 
 
@@ -101,3 +101,46 @@ def test_stair_preview_tracks_active_index():
 
     assert tx.preview['active_index'] == 1
     assert tx.preview['chosen']['layout'] == tx.active_candidate.layout
+
+
+
+def test_stair_automatically_lands_on_top_of_upper_slab():
+    doc = _two_level_document()
+    doc.add(Entity(
+        'floor',
+        {
+            'points': [(-5.0, -5.0), (5.0, -5.0), (5.0, 5.0), (-5.0, 5.0)],
+            'z': 2.7,
+            'thickness': 0.15,
+        },
+        id='upper-slab',
+    ))
+    stack = CommandStack(doc)
+
+    tx = StairPlaceTransaction(doc, stack, (0.0, 0.0))
+    tx.update(5.0, 0.0)
+    stair_id = tx.commit()
+    stair = doc.get(stair_id)
+
+    assert stair.params['upper_floor_z'] == 2.7
+    assert stair.params['upper_slab_thickness'] == 0.15
+    assert abs(stair.params['upper_z'] - 2.85) < 1e-9
+    assert abs(
+        stair.params['riser_count'] * stair.params['riser_height'] - 2.85
+    ) < 1e-6
+
+
+def test_cancelled_stair_transaction_never_creates_entity():
+    doc = _two_level_document()
+    stack = CommandStack(doc)
+    tx = StairPlaceTransaction(doc, stack, (0.0, 0.0))
+    tx.update(3.0, 1.0)
+    tx.cancel()
+
+    assert not any(entity.kind == 'stair' for entity in doc.entities.values())
+    try:
+        tx.commit()
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError('cancelled stair transaction must not commit')
