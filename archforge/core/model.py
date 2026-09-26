@@ -424,11 +424,11 @@ class Document:
                 if related_id in self.entities:
                     self.mark_dirty(str(related_id))
         elif entity.kind in ('stair', 'ramp'):
-            # Vertical circulation geometry can cut the slab at its upper level.
-            # Keep both inferred room slabs and explicit floor slabs dirty so
-            # the opening follows move/resize/delete operations.
+            # Vertical circulation geometry can cut any slab occupying the
+            # upper-floor plane. In legacy/current projects this may include
+            # both an upper room_floor and a lower room_roof/room_ceiling.
             for related in self.entities.values():
-                if related.kind in ('room_floor', 'floor'):
+                if related.kind in ('room_floor', 'room_roof', 'room_ceiling', 'floor'):
                     self.mark_dirty(related.id)
 
     def _validate_wall_opening_conflicts(self, entity, tolerance=1e-9):
