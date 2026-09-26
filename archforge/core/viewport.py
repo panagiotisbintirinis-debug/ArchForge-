@@ -4,7 +4,7 @@ from typing import Dict, Any, Optional, Tuple, List
 import copy
 from .model import Document
 from .commands import CommandStack
-from .interaction import MoveTransaction,WallDrawTransaction,WallEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction,OpeningPlaceTransaction,OpeningEditTransaction,StairPlaceTransaction
+from .interaction import MoveTransaction,WallDrawTransaction,WallEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction,OpeningPlaceTransaction,OpeningEditTransaction,StairPlaceTransaction,RampPlaceTransaction
 from .wall_junction import ConnectedWallEndpointStretchTransaction
 from .snapping import best_snap
 
@@ -54,6 +54,11 @@ class PointerController:
             hud=self.active.update(x,y)
             self.preview=PreviewState('stair',copy.deepcopy(self.active.preview),hud.values,None)
             return self.preview
+        if self.tool=='ramp':
+            self.active=RampPlaceTransaction(self.doc,self.stack,(x,y))
+            hud=self.active.update(x,y)
+            self.preview=PreviewState('ramp',copy.deepcopy(self.active.preview),hud.values,None)
+            return self.preview
         if self.tool in ('door','window'):
             self.active=OpeningPlaceTransaction(self.doc,self.stack,self.tool,x,y,tolerance=max(self.snap_tolerance,.35));hud=self.active.update(x,y);seg=self.active.preview_segment();geom={'opening_kind':self.tool,'host_id':self.active.host_id,'params':copy.deepcopy(self.active.preview)}
             if seg:geom.update({'x1':seg[0][0],'y1':seg[0][1],'x2':seg[1][0],'y2':seg[1][1]})
@@ -99,6 +104,9 @@ class PointerController:
         elif isinstance(self.active,StairPlaceTransaction):
             hud=self.active.update(x,y)
             self.preview=PreviewState('stair',copy.deepcopy(self.active.preview),hud.values,None)
+        elif isinstance(self.active,RampPlaceTransaction):
+            hud=self.active.update(x,y)
+            self.preview=PreviewState('ramp',copy.deepcopy(self.active.preview),hud.values,None)
         elif isinstance(self.active,MoveTransaction):
             hud=self.active.update_pointer(x,y,snap=False);values=dict(hud.values);values['distance']=(self.active.dx*self.active.dx+self.active.dy*self.active.dy)**.5
             self.preview=PreviewState('move',{'entities':copy.deepcopy(self.active.preview)},values,None)
@@ -110,6 +118,7 @@ class PointerController:
         elif isinstance(self.active,(ConnectedWallEndpointStretchTransaction,WallEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction,OpeningEditTransaction)):self.active.commit();committed_id=getattr(self.active,'eid',None)
         elif isinstance(self.active,OpeningPlaceTransaction):committed_id=self.active.commit()
         elif isinstance(self.active,StairPlaceTransaction):committed_id=self.active.commit()
+        elif isinstance(self.active,RampPlaceTransaction):committed_id=self.active.commit()
         elif isinstance(self.active,MoveTransaction):
             if abs(self.active.dx)>1e-12 or abs(self.active.dy)>1e-12 or abs(self.active.dz)>1e-12:self.active.commit()
         result=self.preview;result.entity_id=committed_id;self.active=None;return result
