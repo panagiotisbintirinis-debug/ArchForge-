@@ -38,7 +38,7 @@ class MainWindow(QMainWindow):
         for view in (self.plan_view, self.pbr_view):
             view.statusChanged.connect(self.statusBar().showMessage)
             view.selectionChangedByView.connect(self._selection_from_view)
-        self.pbr_view.deleteRequested.connect(self._delete_entity_from_view)
+            view.contextActionRequested.connect(self._handle_object_context_action)
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self._build_toolbar()
         self._build_view_toolbar()
@@ -292,12 +292,42 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, 'Invalid value', str(exc))
             self.refresh_inspector()
 
-    def _delete_entity_from_view(self, entity_id):
+    def _handle_object_context_action(self, entity_id, action_id):
         entity_id = str(entity_id)
+        action_id = str(action_id)
         if entity_id not in self.doc.entities:
             return
+
         self.doc.select([entity_id])
-        self._delete_selection()
+        self.refresh_inspector()
+
+        if action_id == 'properties':
+            self.dock.show()
+            self.dock.raise_()
+            entity = self.doc.get(entity_id)
+            self.statusBar().showMessage(
+                f'Properties: {entity.name or entity.kind.title()}',
+                3000,
+            )
+            return
+
+        if action_id == 'delete':
+            self._delete_selection()
+            return
+
+        if action_id in ('move', 'stretch', 'rotate'):
+            # These actions are currently implemented through the Floor Plan
+            # direct-manipulation controller. The PBR registry intentionally
+            # does not advertise them until equivalent 3D gizmos exist.
+            self.tabs.setCurrentWidget(self.plan_view)
+            self.plan_view.set_tool(action_id)
+            self.plan_view.controller.set_target(entity_id, None)
+            self.plan_view.redraw()
+            self.statusBar().showMessage(
+                f'{action_id.title()} {self.doc.get(entity_id).name or self.doc.get(entity_id).kind.title()}',
+                3000,
+            )
+            return
 
     def _delete_selection(self):
         ids = list(self.doc.selection)
