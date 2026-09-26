@@ -315,6 +315,23 @@ class MainWindow(QMainWindow):
             self._delete_selection()
             return
 
+        if action_id == 'fit_view':
+            self.tabs.setCurrentWidget(self.pbr_view)
+            self.pbr_view.fit_camera()
+            return
+
+        camera_actions = {
+            'orbit_view': 'orbit',
+            'top_view': 'top',
+            'front_view': 'front',
+            'side_view': 'side',
+            'iso_view': 'iso30',
+        }
+        if action_id in camera_actions:
+            self.tabs.setCurrentWidget(self.pbr_view)
+            self.pbr_view.set_camera_preset(camera_actions[action_id])
+            return
+
         if action_id in ('move', 'stretch', 'rotate'):
             # These actions are currently implemented through the Floor Plan
             # direct-manipulation controller. The PBR registry intentionally
