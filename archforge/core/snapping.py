@@ -36,17 +36,19 @@ def _wall_projection(eid,p,x,y,tolerance):
     return SnapPoint(px,py,p['z'],'wall',eid)
 
 def best_snap(doc:Document,x:float,y:float,tolerance:float,grid:float|None=None,exclude:Set[str]|None=None):
-    exclude=exclude or set();best=None;bestd=tolerance
-    # Explicit semantic snap points have highest priority.
+    exclude=exclude or set();best=None;bestd=tolerance;active_z=float(doc.work_plane.origin[2])
+    # Explicit semantic snap points have highest priority, but only on the active storey.
     for eid in doc.entities:
         if eid in exclude:continue
         for sp in points_for(doc,eid):
+            if abs(float(sp.z)-active_z)>1e-5:continue
             d=hypot(sp.x-x,sp.y-y)
             if d <= bestd:best,bestd=sp,d
     if best:return best
-    # Then allow arbitrary projection to a wall centerline, enabling natural T-junctions.
+    # Then allow arbitrary projection to a wall centerline on the active storey.
     for eid,e in doc.entities.items():
         if eid in exclude or e.kind!='wall' or not e.visible:continue
+        if abs(float(e.params.get('z',0.0))-active_z)>1e-5:continue
         sp=_wall_projection(eid,e.params,x,y,tolerance)
         if sp is None:continue
         d=hypot(sp.x-x,sp.y-y)
@@ -54,5 +56,5 @@ def best_snap(doc:Document,x:float,y:float,tolerance:float,grid:float|None=None,
     if best:return best
     if grid:
         gx=round(x/grid)*grid;gy=round(y/grid)*grid
-        if hypot(gx-x,gy-y)<=tolerance:return SnapPoint(gx,gy,doc.work_plane.origin[2],'grid','')
+        if hypot(gx-x,gy-y)<=tolerance:return SnapPoint(gx,gy,active_z,'grid','')
     return None
