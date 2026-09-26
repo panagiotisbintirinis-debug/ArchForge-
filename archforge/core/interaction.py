@@ -12,7 +12,7 @@ class HUD:
 
 class MoveTransaction:
     """Translate one or more entities via pointer/gizmo interaction."""
-    def __init__(self, doc: Document, stack: CommandStack, entity_ids: Sequence[str], origin: Optional[Tuple[float, float, float]] = None, grid: float = 0.1, snap_tol: float = 0.15):
+    def __init__(self, doc: Document, stack: CommandStack, entity_ids: Sequence[str], origin: Optional[Tuple[float, float, float]] = None, grid: float = 0.1, snap_tol: float = 0.10):
         self.doc, self.stack = doc, stack
         self.ids = [str(eid) for eid in entity_ids]
         missing = [eid for eid in self.ids if eid not in doc.entities]
