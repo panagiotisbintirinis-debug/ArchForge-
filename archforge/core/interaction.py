@@ -62,9 +62,13 @@ class MoveTransaction:
         proposed_dx, proposed_dy = px - ox, py - oy
 
         if snap:
-            # Stair/Ramp snapping is object-aware: snap the footprint to the
-            # physical face of a wall instead of snapping only the cursor.
-            from .snapping import snap_polygon_translation_to_wall_faces
+            # Object-aware snapping: stairs/ramps touch physical wall faces,
+            # while whole walls snap their own endpoint/midpoint geometry to
+            # semantic points/centerlines of other walls.
+            from .snapping import (
+                snap_polygon_translation_to_wall_faces,
+                snap_translation_points,
+            )
             object_snap = None
             for eid in self.ids:
                 entity = self.doc.get(eid)
@@ -72,19 +76,45 @@ class MoveTransaction:
                     if entity.kind == 'stair':
                         from archforge.architecture.stairs import candidate_from_params, stair_footprint
                         polygon = stair_footprint(candidate_from_params(self.before[eid]))
+                        candidate_snap = snap_polygon_translation_to_wall_faces(
+                            self.doc,
+                            polygon,
+                            proposed_dx,
+                            proposed_dy,
+                            self.snap_tol,
+                            exclude=set(self.ids),
+                        )
                     elif entity.kind == 'ramp':
                         from archforge.architecture.ramps import candidate_from_params, ramp_footprint
                         polygon = ramp_footprint(candidate_from_params(self.before[eid]))
+                        candidate_snap = snap_polygon_translation_to_wall_faces(
+                            self.doc,
+                            polygon,
+                            proposed_dx,
+                            proposed_dy,
+                            self.snap_tol,
+                            exclude=set(self.ids),
+                        )
+                    elif entity.kind == 'wall':
+                        p = self.before[eid]
+                        probes = (
+                            (float(p['x1']), float(p['y1'])),
+                            (float(p['x2']), float(p['y2'])),
+                            (
+                                (float(p['x1']) + float(p['x2'])) / 2.0,
+                                (float(p['y1']) + float(p['y2'])) / 2.0,
+                            ),
+                        )
+                        candidate_snap = snap_translation_points(
+                            self.doc,
+                            probes,
+                            proposed_dx,
+                            proposed_dy,
+                            self.snap_tol,
+                            exclude=set(self.ids),
+                        )
                     else:
                         continue
-                    candidate_snap = snap_polygon_translation_to_wall_faces(
-                        self.doc,
-                        polygon,
-                        proposed_dx,
-                        proposed_dy,
-                        self.snap_tol,
-                        exclude=set(self.ids),
-                    )
                     if candidate_snap is None:
                         continue
                     cx, cy = candidate_snap['correction']
