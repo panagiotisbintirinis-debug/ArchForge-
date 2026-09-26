@@ -14,6 +14,8 @@ class StairCandidate:
     angle_deg: float
     lower_z: float
     upper_z: float
+    upper_floor_z: float
+    upper_slab_thickness: float
     width: float
     riser_count: int
     riser_height: float
@@ -37,6 +39,8 @@ class StairCandidate:
             'y': float(self.origin[1]),
             'lower_z': float(self.lower_z),
             'upper_z': float(self.upper_z),
+            'upper_floor_z': float(self.upper_floor_z),
+            'upper_slab_thickness': float(self.upper_slab_thickness),
             'layout': str(self.layout),
             'angle_deg': float(self.angle_deg),
             'width': float(self.width),
@@ -104,6 +108,8 @@ def solve_stair_candidates(
     preferred_riser: float = 0.17,
     preferred_tread: float = 0.29,
     landing_depth: float | None = None,
+    upper_floor_z: float | None = None,
+    upper_slab_thickness: float = 0.0,
 ) -> Tuple[StairCandidate, ...]:
     """Generate ranked live stair alternatives from one placement drag.
 
@@ -120,8 +126,11 @@ def solve_stair_candidates(
     if width <= 0:
         raise ValueError('stair width must be positive')
 
+    upper_floor_z = float(upper_z if upper_floor_z is None else upper_floor_z)
+    upper_slab_thickness = max(0.0, float(upper_slab_thickness))
+    landing_z = float(upper_floor_z) + upper_slab_thickness
     risers, riser, riser_notes = _riser_solution(
-        float(upper_z) - float(lower_z),
+        landing_z - float(lower_z),
         preferred_riser=preferred_riser,
     )
     tread, tread_notes = _preferred_tread(riser, preferred_tread)
@@ -161,7 +170,9 @@ def solve_stair_candidates(
                 origin=(ox, oy),
                 angle_deg=angle,
                 lower_z=float(lower_z),
-                upper_z=float(upper_z),
+                upper_z=landing_z,
+                upper_floor_z=upper_floor_z,
+                upper_slab_thickness=upper_slab_thickness,
                 width=width,
                 riser_count=risers,
                 riser_height=riser,
@@ -182,6 +193,8 @@ def candidate_from_params(params) -> StairCandidate:
         angle_deg=float(params['angle_deg']),
         lower_z=float(params['lower_z']),
         upper_z=float(params['upper_z']),
+        upper_floor_z=float(params.get('upper_floor_z', params['upper_z'])),
+        upper_slab_thickness=float(params.get('upper_slab_thickness', 0.0)),
         width=float(params['width']),
         riser_count=int(params['riser_count']),
         riser_height=float(params['riser_height']),
@@ -264,6 +277,62 @@ def stair_opening_polygon(candidate: StairCandidate) -> Tuple[Point2, ...]:
     # First implementation uses a conservative safe opening envelope.
     # Later headroom analysis can trim the lower-flight area while preserving clearance.
     return stair_footprint(candidate, margin=0.05)
+
+
+def _point_in_polygon(point: Point2, polygon: Sequence[Point2]) -> bool:
+    x, y = map(float, point)
+    inside = False
+    pts = [(float(px), float(py)) for px, py in polygon]
+    if len(pts) < 3:
+        return False
+    j = len(pts) - 1
+    for i, (xi, yi) in enumerate(pts):
+        xj, yj = pts[j]
+        if (yi > y) != (yj > y):
+            at_x = xj + (y - yj) * (xi - xj) / (yi - yj)
+            if x < at_x:
+                inside = not inside
+        j = i
+    return inside
+
+
+def upper_floor_landing(doc, lower_z: float, point: Point2 | None = None):
+    """Resolve next level plus the actual room-floor slab thickness.
+
+    The level elevation identifies the slab base; landing_z is its top surface.
+    If multiple room floors exist, prefer the slab containing the placement point.
+    """
+    next_level = next_level_above(doc, lower_z)
+    if next_level is None:
+        return None
+    level_z, level_name = next_level
+
+    from archforge.architecture.rooms import room_slab_geometry
+    matches = []
+    for entity in doc.entities.values():
+        if entity.kind != 'room_floor':
+            continue
+        geom = room_slab_geometry(doc, entity)
+        if geom is None or abs(float(geom['z']) - float(level_z)) > 1e-5:
+            continue
+        contains = bool(point is not None and _point_in_polygon(point, geom['points']))
+        matches.append((contains, float(geom['thickness']), entity.id))
+
+    if matches:
+        containing = [item for item in matches if item[0]]
+        pool = containing if containing else matches
+        # If several room slabs share the level, choose the thickest safe landing
+        # unless the placement point identifies its exact host slab.
+        thickness = max(item[1] for item in pool)
+    else:
+        thickness = 0.0
+
+    return {
+        'level_name': str(level_name),
+        'floor_z': float(level_z),
+        'slab_thickness': float(thickness),
+        'landing_z': float(level_z) + float(thickness),
+    }
 
 
 def next_level_above(doc, z: float):
