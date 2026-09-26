@@ -2,7 +2,12 @@ import math
 
 import pytest
 
-from archforge.geometry.wall_detail import detailed_wall_geometry, wall_height_at, wall_top_heights
+from archforge.geometry.wall_detail import (
+    detailed_wall_geometry,
+    opening_fits_wall_profile,
+    wall_height_at,
+    wall_top_heights,
+)
 
 
 def _wall(**changes):
@@ -55,3 +60,18 @@ def test_endpoint_heights_must_remain_positive_and_finite():
         detailed_wall_geometry(_wall(start_height=0.0))
     with pytest.raises(ValueError):
         detailed_wall_geometry(_wall(end_height=float('nan')))
+
+
+def test_opening_clearance_uses_local_sloped_top_not_legacy_height():
+    wall = _wall(start_height=2.0, end_height=4.0)
+    low_side = {'kind': 'window', 'offset': 0.75, 'width': 1.0, 'sill': 1.0, 'height': 1.5}
+    high_side = {'kind': 'window', 'offset': 3.25, 'width': 1.0, 'sill': 1.0, 'height': 1.5}
+    assert not opening_fits_wall_profile(wall, low_side)
+    assert opening_fits_wall_profile(wall, high_side)
+
+
+def test_invalid_opening_is_rejected_before_mesh_generation():
+    opening = {'kind': 'window', 'offset': 0.75, 'width': 1.0, 'sill': 1.0, 'height': 1.5}
+    wall = _wall(start_height=2.0, end_height=4.0, _opening_intents=(opening,))
+    with pytest.raises(ValueError, match='local wall height'):
+        detailed_wall_geometry(wall)
