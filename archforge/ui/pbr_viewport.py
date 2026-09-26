@@ -452,6 +452,7 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
 
 renderer.domElement.addEventListener("dblclick", (event) => {
   if (!bridge || sculpting) return;
+  if (activeTool === "door" || activeTool === "window" || activeTool === "sculpt") return;
   const hit = pickModel(event);
   if (!hit || !hit.face) return;
   bridge.selectEntity(hit.object.userData.entityId || "");
