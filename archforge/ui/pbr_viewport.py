@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 
 from PySide6.QtCore import Qt, QUrl, Signal, Slot, QObject
-from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PySide6.QtGui import QCursor
+from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget, QMenu
 from PySide6.QtWebChannel import QWebChannel
 
 from archforge.geometry.incremental import IncrementalEvaluationCache
@@ -305,13 +306,6 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
   const hit = pickModel(event);
   if (!hit || !hit.face) return;
 
-  if (activeTool === "select") {
-    bridge.selectEntity(hit.object.userData.entityId || "");
-    event.preventDefault();
-    event.stopPropagation();
-    return;
-  }
-
   if (activeTool === "door" || activeTool === "window") {
     const kind = hit.object.userData.kind || "";
     if (kind !== "wall" && kind !== "pod") return;
@@ -342,6 +336,24 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
   if (renderer.domElement.setPointerCapture) renderer.domElement.setPointerCapture(event.pointerId);
   bridge.beginSculpt(JSON.stringify(payload));
   event.preventDefault();
+  event.stopPropagation();
+}, true);
+
+renderer.domElement.addEventListener("dblclick", (event) => {
+  if (!bridge || sculpting) return;
+  const hit = pickModel(event);
+  if (!hit || !hit.face) return;
+  bridge.selectEntity(hit.object.userData.entityId || "");
+  event.preventDefault();
+  event.stopPropagation();
+}, true);
+
+renderer.domElement.addEventListener("contextmenu", (event) => {
+  event.preventDefault();
+  if (!bridge || sculpting) return;
+  const hit = pickModel(event);
+  if (!hit || !hit.face) return;
+  bridge.showContextMenu(hit.object.userData.entityId || "");
   event.stopPropagation();
 }, true);
 
@@ -400,6 +412,10 @@ class PBRInteractionBridge(QObject):
     def selectEntity(self, entity_id: str) -> None:
         self.viewport._select_entity_from_web(entity_id)
 
+    @Slot(str)
+    def showContextMenu(self, entity_id: str) -> None:
+        self.viewport._show_context_menu(entity_id)
+
     @Slot(str, str)
     def placeOpening(self, kind: str, payload_json: str) -> None:
         self.viewport._place_opening_from_web(kind, payload_json)
@@ -413,6 +429,7 @@ class PBRViewport(QWidget):
     """
 
     selectionChangedByView = Signal()
+    deleteRequested = Signal(str)
     statusChanged = Signal(str)
 
     def __init__(self, doc, stack, parent=None):
@@ -511,8 +528,6 @@ class PBRViewport(QWidget):
             )
 
     def _select_entity_from_web(self, entity_id: str) -> None:
-        if self.active_tool != "select":
-            return
         entity_id = str(entity_id)
         if entity_id not in self.doc.entities:
             self.doc.select([])
@@ -527,6 +542,21 @@ class PBRViewport(QWidget):
         self.statusChanged.emit(
             f"Selected {entity.name or entity.kind.title()} — press Delete to remove"
         )
+
+    def _show_context_menu(self, entity_id: str) -> None:
+        entity_id = str(entity_id)
+        if entity_id not in self.doc.entities:
+            return
+        self.doc.select([entity_id])
+        self.selectionChangedByView.emit()
+        self.redraw(force_full=False)
+
+        entity = self.doc.get(entity_id)
+        menu = QMenu(self)
+        delete_action = menu.addAction(f"Delete {entity.name or entity.kind.title()}")
+        chosen = menu.exec(QCursor.pos())
+        if chosen is delete_action:
+            self.deleteRequested.emit(entity_id)
 
     def _begin_sculpt_from_web(self, payload_json: str) -> None:
         if self.active_tool != "sculpt":
