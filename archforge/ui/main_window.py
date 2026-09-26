@@ -14,6 +14,7 @@ from archforge.core.commands import CommandStack, UpdateEntity, CreateRoomFloors
 from .plan_view import PlanView
 from .ortho_view import OrthoView
 from .viewport_3d import Viewport3D
+from .pbr_viewport import PBRViewport
 
 
 class MainWindow(QMainWindow):
@@ -30,14 +31,16 @@ class MainWindow(QMainWindow):
         self.front_view = OrthoView(self.doc, self.stack, 'XZ')
         self.side_view = OrthoView(self.doc, self.stack, 'YZ')
         self.view_3d = Viewport3D(self.doc, self.stack)
+        self.pbr_view = PBRViewport(self.doc, self.stack)
         self.tabs.addTab(self.plan_view, 'XY PLAN')
         self.tabs.addTab(self.front_view, 'XZ FRONT')
         self.tabs.addTab(self.side_view, 'YZ SIDE')
         self.tabs.addTab(self.view_3d, '3D PERSPECTIVE')
+        self.tabs.addTab(self.pbr_view, '3D PBR PREVIEW')
         self.setCentralWidget(self.tabs)
         self.view = self.plan_view
         self.setStatusBar(QStatusBar())
-        for view in (self.plan_view, self.front_view, self.side_view, self.view_3d):
+        for view in (self.plan_view, self.front_view, self.side_view, self.view_3d, self.pbr_view):
             view.statusChanged.connect(self.statusBar().showMessage)
             view.selectionChangedByView.connect(self._selection_from_view)
         self.tabs.currentChanged.connect(self._on_tab_changed)
@@ -46,7 +49,7 @@ class MainWindow(QMainWindow):
         self.refresh_inspector()
 
     def _on_tab_changed(self, idx):
-        widgets = [self.plan_view, self.front_view, self.side_view, self.view_3d]
+        widgets = [self.plan_view, self.front_view, self.side_view, self.view_3d, self.pbr_view]
         if 0 <= idx < len(widgets):
             self.view = widgets[idx]
         self._redraw_views()
@@ -99,6 +102,19 @@ class MainWindow(QMainWindow):
         )
         toolbar.addWidget(QLabel(' Brush '))
         toolbar.addWidget(self.sculpt_radius)
+        toolbar.addSeparator()
+
+        self.render_technique = QComboBox()
+        self.render_technique.addItem('PBR', 'pbr')
+        self.render_technique.addItem('Technical', 'technical')
+        self.render_technique.addItem('Glass', 'glass')
+        self.render_technique.currentIndexChanged.connect(
+            lambda _index: self.pbr_view.set_render_technique(
+                self.render_technique.currentData()
+            )
+        )
+        toolbar.addWidget(QLabel(' Render '))
+        toolbar.addWidget(self.render_technique)
         toolbar.addSeparator()
         auto_floors = QAction('Auto Floors', self)
         auto_floors.triggered.connect(self._create_auto_floors)
@@ -252,7 +268,7 @@ class MainWindow(QMainWindow):
         self.refresh_inspector()
 
     def _redraw_views(self, *, all_views=False):
-        targets=(self.plan_view,self.front_view,self.side_view,self.view_3d) if all_views else (self.view,)
+        targets=(self.plan_view,self.front_view,self.side_view,self.view_3d,self.pbr_view) if all_views else (self.view,)
         for view in targets:
             if view is self.view_3d:
                 view.redraw(force_full=True)
@@ -299,7 +315,7 @@ class MainWindow(QMainWindow):
     def _replace_project(self, doc, path=None):
         self.doc = doc
         self.stack = CommandStack(self.doc)
-        for view in (self.plan_view, self.front_view, self.side_view, self.view_3d):
+        for view in (self.plan_view, self.front_view, self.side_view, self.view_3d, self.pbr_view):
             view.rebind(self.doc, self.stack)
         self.current_path = path
         self._mark_clean()
