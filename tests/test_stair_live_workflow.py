@@ -2,7 +2,7 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from archforge.architecture.stairs import solve_stair_candidates
+from archforge.architecture.stairs import discover_building_levels, solve_stair_candidates
 from archforge.core.commands import CommandStack
 from archforge.core.interaction import StairPlaceTransaction
 from archforge.core.model import Document, Entity, WorkPlane
@@ -144,3 +144,59 @@ def test_cancelled_stair_transaction_never_creates_entity():
         pass
     else:
         raise AssertionError('cancelled stair transaction must not commit')
+
+
+
+def test_stair_finds_legacy_second_storey_even_when_levels_only_contains_ground():
+    doc = Document()
+    doc.levels = {'Ground': 0.0}
+    doc.work_plane = WorkPlane(name='Ground', origin=(0.0, 0.0, 0.0))
+    doc.add(Entity(
+        'wall',
+        {
+            'x1': 0.0, 'y1': 0.0, 'x2': 4.0, 'y2': 0.0,
+            'z': 2.7, 'height': 2.7, 'thickness': 0.15,
+        },
+        id='legacy-upper-wall',
+    ))
+    doc.add(Entity(
+        'floor',
+        {
+            'points': [(-5.0, -5.0), (5.0, -5.0), (5.0, 5.0), (-5.0, 5.0)],
+            'z': 2.7,
+            'thickness': 0.15,
+        },
+        id='legacy-upper-floor',
+    ))
+
+    levels = discover_building_levels(doc)
+    assert [(item['name'], item['elevation']) for item in levels] == [
+        ('Ground', 0.0),
+        ('Floor 2', 2.7),
+    ]
+    assert levels[1]['inferred'] is True
+
+    tx = StairPlaceTransaction(doc, CommandStack(doc), (0.0, 0.0))
+    assert tx.upper_floor_z == 2.7
+    assert tx.upper_slab_thickness == 0.15
+    assert tx.upper_z == 2.85
+    assert tx.candidates
+
+
+def test_geometry_only_upper_walls_are_enough_to_resolve_a_stair_level():
+    doc = Document()
+    doc.levels = {'Ground': 0.0}
+    doc.work_plane = WorkPlane(name='Ground', origin=(0.0, 0.0, 0.0))
+    doc.add(Entity(
+        'wall',
+        {
+            'x1': 0.0, 'y1': 0.0, 'x2': 3.0, 'y2': 0.0,
+            'z': 2.7, 'height': 2.7, 'thickness': 0.15,
+        },
+        id='upper-wall-only',
+    ))
+
+    tx = StairPlaceTransaction(doc, CommandStack(doc), (0.0, 0.0))
+    assert tx.upper_floor_z == 2.7
+    assert tx.upper_slab_thickness == 0.0
+    assert tx.upper_z == 2.7
