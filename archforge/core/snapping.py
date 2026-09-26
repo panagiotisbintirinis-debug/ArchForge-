@@ -117,3 +117,35 @@ def snap_polygon_translation_to_wall_faces(
                     'distance':d,
                 }
     return best
+
+
+def snap_translation_points(
+    doc:Document,
+    points,
+    dx:float,
+    dy:float,
+    tolerance:float,
+    exclude:Set[str]|None=None,
+):
+    """Find the smallest translation correction that snaps one moved probe point.
+
+    Useful for moving whole walls: their endpoint/midpoint geometry snaps to
+    another wall's semantic endpoint/midpoint/centerline instead of snapping
+    only the mouse cursor.
+    """
+    exclude=exclude or set();best=None;bestd=float(tolerance)
+    for x,y in points:
+        tx=float(x)+float(dx);ty=float(y)+float(dy)
+        sp=best_snap(doc,tx,ty,tolerance,grid=None,exclude=exclude)
+        if sp is None:continue
+        d=hypot(float(sp.x)-tx,float(sp.y)-ty)
+        if d<=bestd:
+            bestd=d
+            best={
+                'correction':(float(sp.x)-tx,float(sp.y)-ty),
+                'point':(float(sp.x),float(sp.y)),
+                'kind':str(sp.kind),
+                'entity_id':str(sp.entity_id),
+                'distance':d,
+            }
+    return best
