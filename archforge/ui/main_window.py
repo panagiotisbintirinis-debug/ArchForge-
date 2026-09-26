@@ -6,13 +6,15 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QDockWidget, QWidget, QFormLayout, QDoubleSpinBox,
-    QLabel, QTabWidget, QStatusBar, QFileDialog, QMessageBox, QComboBox,
+    QLabel, QTabWidget, QStatusBar, QFileDialog, QMessageBox, QComboBox, QInputDialog,
 )
 
-from archforge.core.model import Document
-from archforge.core.commands import CommandStack, UpdateEntity, CreateRoomFloors, CreateRoomRoofs
+from archforge.core.model import Document, WorkPlane
+from archforge.core.commands import (
+    CommandStack, UpdateEntity, CreateRoomFloors, CreateRoomRoofs,
+    DeleteEntities, CreateFloorLevel, SetWorkPlane,
+)
 from .plan_view import PlanView
-from .ortho_view import OrthoView
 from .pbr_viewport import PBRViewport
 
 
@@ -27,15 +29,13 @@ class MainWindow(QMainWindow):
         self._clean_state = copy.deepcopy(self.doc.to_dict())
         self.tabs = QTabWidget()
         self.plan_view = PlanView(self.doc, self.stack)
-        self.front_view = OrthoView(self.doc, self.stack, 'XZ')
         self.pbr_view = PBRViewport(self.doc, self.stack)
         self.tabs.addTab(self.plan_view, 'FLOOR PLAN')
-        self.tabs.addTab(self.front_view, 'FRONT ELEVATION')
         self.tabs.addTab(self.pbr_view, '3D STUDIO')
         self.setCentralWidget(self.tabs)
         self.view = self.plan_view
         self.setStatusBar(QStatusBar())
-        for view in (self.plan_view, self.front_view, self.pbr_view):
+        for view in (self.plan_view, self.pbr_view):
             view.statusChanged.connect(self.statusBar().showMessage)
             view.selectionChangedByView.connect(self._selection_from_view)
         self.tabs.currentChanged.connect(self._on_tab_changed)
@@ -46,7 +46,7 @@ class MainWindow(QMainWindow):
         self.refresh_inspector()
 
     def _on_tab_changed(self, idx):
-        widgets = [self.plan_view, self.front_view, self.pbr_view]
+        widgets = [self.plan_view, self.pbr_view]
         if 0 <= idx < len(widgets):
             self.view = widgets[idx]
         if self.view is self.pbr_view:
@@ -80,6 +80,13 @@ class MainWindow(QMainWindow):
             action.setShortcut(QKeySequence(key))
             action.triggered.connect(lambda checked=False, t=tool: self._set_active_tool(t))
             toolbar.addAction(action)
+
+        delete_action = QAction('Delete', self)
+        delete_action.setShortcut(QKeySequence(Qt.Key.Key_Delete))
+        delete_action.triggered.connect(self._delete_selection)
+        toolbar.addAction(delete_action)
+        self.delete_action = delete_action
+
         sculpt = QAction('Sculpt 3D', self)
         sculpt.setShortcut(QKeySequence('C'))
         sculpt.triggered.connect(self._activate_sculpt_tool)
@@ -125,6 +132,18 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(QLabel(' Render '))
         toolbar.addWidget(self.render_technique)
         toolbar.addSeparator()
+        toolbar.addWidget(QLabel(' Floor '))
+        self.floor_selector = QComboBox()
+        self.floor_selector.setMinimumWidth(110)
+        self.floor_selector.currentIndexChanged.connect(self._activate_selected_floor)
+        toolbar.addWidget(self.floor_selector)
+
+        add_floor = QAction('+ Floor', self)
+        add_floor.triggered.connect(self._add_floor_level)
+        toolbar.addAction(add_floor)
+        self.add_floor_action = add_floor
+        self._refresh_floor_selector()
+
         auto_floors = QAction('Auto Floors', self)
         auto_floors.triggered.connect(self._create_auto_floors)
         toolbar.addAction(auto_floors)
@@ -272,6 +291,96 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, 'Invalid value', str(exc))
             self.refresh_inspector()
 
+    def _delete_selection(self):
+        ids = list(self.doc.selection)
+        if not ids:
+            self.statusBar().showMessage('Nothing selected to delete', 2500)
+            return
+        try:
+            self.stack.execute(DeleteEntities(ids))
+            self._redraw_views(all_views=True)
+            self.refresh_inspector()
+            self.statusBar().showMessage(f'Deleted {len(ids)} object(s) — Undo is available', 3500)
+        except Exception as exc:
+            QMessageBox.warning(self, 'Delete failed', str(exc))
+
+    def _refresh_floor_selector(self):
+        if not hasattr(self, 'floor_selector'):
+            return
+        active_name = str(getattr(self.doc.work_plane, 'name', '') or '')
+        active_z = float(self.doc.work_plane.origin[2])
+        levels = sorted(
+            ((str(name), float(z)) for name, z in self.doc.levels.items()),
+            key=lambda item: (item[1], item[0]),
+        )
+        self.floor_selector.blockSignals(True)
+        self.floor_selector.clear()
+        active_index = 0
+        for index, (name, elevation) in enumerate(levels):
+            self.floor_selector.addItem(f'{name}  ({elevation:.2f} m)', (name, elevation))
+            if name == active_name or abs(elevation - active_z) <= 1e-6:
+                active_index = index
+        if levels:
+            self.floor_selector.setCurrentIndex(active_index)
+        self.floor_selector.blockSignals(False)
+
+    def _activate_selected_floor(self, index):
+        if index < 0 or not hasattr(self, 'floor_selector'):
+            return
+        data = self.floor_selector.itemData(index)
+        if not data:
+            return
+        name, elevation = data
+        elevation = float(elevation)
+        if (
+            str(self.doc.work_plane.name) == str(name)
+            and abs(float(self.doc.work_plane.origin[2]) - elevation) <= 1e-6
+        ):
+            return
+        wp = self.doc.work_plane
+        self.stack.execute(SetWorkPlane(WorkPlane(
+            name=str(name),
+            origin=(float(wp.origin[0]), float(wp.origin[1]), elevation),
+            u=tuple(wp.u),
+            v=tuple(wp.v),
+        )))
+        self.doc.select([])
+        self._redraw_views(all_views=True)
+        self.refresh_inspector()
+        self.statusBar().showMessage(f'Active floor: {name} — {elevation:.2f} m', 3000)
+
+    def _add_floor_level(self):
+        existing = sorted(float(z) for z in self.doc.levels.values())
+        default_elevation = (max(existing) if existing else 0.0) + 2.70
+        elevation, accepted = QInputDialog.getDouble(
+            self,
+            'Add Floor',
+            'Floor elevation (m):',
+            default_elevation,
+            -1000.0,
+            1000.0,
+            3,
+        )
+        if not accepted:
+            return
+        number = 2
+        existing_names = set(self.doc.levels)
+        while f'Floor {number}' in existing_names:
+            number += 1
+        name = f'Floor {number}'
+        try:
+            self.stack.execute(CreateFloorLevel(name, elevation))
+        except Exception as exc:
+            QMessageBox.warning(self, 'Add Floor', str(exc))
+            return
+        self._refresh_floor_selector()
+        self._redraw_views(all_views=True)
+        self.refresh_inspector()
+        self.statusBar().showMessage(
+            f'Created and activated {name} at {float(elevation):.2f} m',
+            3500,
+        )
+
     def _create_auto_floors(self):
         faces = self.doc.active_room_faces()
         if not faces:
@@ -342,7 +451,7 @@ class MainWindow(QMainWindow):
         self.refresh_inspector()
 
     def _redraw_views(self, *, all_views=False):
-        targets=(self.plan_view,self.front_view,self.pbr_view) if all_views else (self.view,)
+        targets=(self.plan_view,self.pbr_view) if all_views else (self.view,)
         for view in targets:
             if view is self.pbr_view:
                 view.redraw(force_full=True)
@@ -400,6 +509,7 @@ class MainWindow(QMainWindow):
             view.rebind(self.doc, self.stack)
         self.current_path = path
         self._mark_clean()
+        self._refresh_floor_selector()
         self._redraw_views(all_views=True)
         self.refresh_inspector()
 
