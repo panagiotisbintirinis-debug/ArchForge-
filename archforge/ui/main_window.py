@@ -38,6 +38,7 @@ class MainWindow(QMainWindow):
         for view in (self.plan_view, self.pbr_view):
             view.statusChanged.connect(self.statusBar().showMessage)
             view.selectionChangedByView.connect(self._selection_from_view)
+        self.pbr_view.deleteRequested.connect(self._delete_entity_from_view)
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self._build_toolbar()
         self._build_view_toolbar()
@@ -290,6 +291,13 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             QMessageBox.warning(self, 'Invalid value', str(exc))
             self.refresh_inspector()
+
+    def _delete_entity_from_view(self, entity_id):
+        entity_id = str(entity_id)
+        if entity_id not in self.doc.entities:
+            return
+        self.doc.select([entity_id])
+        self._delete_selection()
 
     def _delete_selection(self):
         ids = list(self.doc.selection)
