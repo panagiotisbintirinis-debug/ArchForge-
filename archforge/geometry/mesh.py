@@ -240,11 +240,121 @@ def _pod_mesh_for_node(doc,node):
  for plane,keep_sign in _active_junction_planes_for_pod(doc,node.entity_id):mesh=_clip_mesh_halfspace(mesh,plane,keep_sign)
  for geom in _active_opening_patches_for_pod(doc,node.entity_id):mesh=_subtract_opening_patch(mesh,geom)
  return mesh
+
+def _oriented_prism(cx,cy,z0,width,depth,height,angle_deg):
+ a=math.radians(float(angle_deg));ca,sa=math.cos(a),math.sin(a)
+ hw,hd=float(width)/2.0,float(depth)/2.0
+ local=[(-hd,-hw),(hd,-hw),(hd,hw),(-hd,hw)]
+ plan=[(float(cx)+ca*x-sa*y,float(cy)+sa*x+ca*y) for x,y in local]
+ verts=tuple((x,y,float(z0)) for x,y in plan)+tuple((x,y,float(z0)+float(height)) for x,y in plan)
+ quads=((0,1,5,4,'riser'),(1,2,6,5,'edge'),(2,3,7,6,'riser'),(3,0,4,7,'edge'),(4,5,6,7,'tread'),(3,2,1,0,'bottom'))
+ tris=[];roles=[]
+ for a0,b0,c0,d0,role in quads:
+  tris.extend(((a0,b0,c0),(a0,c0,d0)));roles.extend((role,role))
+ return MeshPayload(verts,tuple(tris),tuple(roles))
+
+
+def _stair_mesh(p):
+ from archforge.architecture.stairs import candidate_from_params
+ candidate=candidate_from_params(p)
+ n=candidate.tread_count;t=candidate.tread_depth;r=candidate.riser_height
+ width=candidate.width;z0=candidate.lower_z;angle=candidate.angle_deg;turn=candidate.turn_direction
+ meshes=[]
+ def world(local_x,local_y):
+  a=math.radians(angle);ca,sa=math.cos(a),math.sin(a)
+  return (candidate.origin[0]+ca*local_x-sa*local_y,candidate.origin[1]+sa*local_x+ca*local_y)
+ def add_step(local_x,local_y,local_angle,index,depth=None):
+  cx,cy=world(local_x,local_y)
+  meshes.append(_oriented_prism(cx,cy,z0,width,float(depth or t),(index+1)*r,angle+local_angle))
+ if candidate.layout=='straight':
+  for i in range(n):add_step((i+.5)*t,0.0,0.0,i)
+ elif candidate.layout=='l':
+  first=max(1,n//2);second=n-first
+  for i in range(first):add_step((i+.5)*t,0.0,0.0,i)
+  landing_x=first*t+candidate.landing_depth/2.0
+  lx,ly=world(landing_x,turn*candidate.landing_depth/2.0)
+  meshes.append(_oriented_prism(lx,ly,z0,candidate.landing_depth,candidate.landing_depth,first*r,angle))
+  for j in range(second):
+   local_x=first*t+candidate.landing_depth/2.0
+   local_y=turn*(candidate.landing_depth+(j+.5)*t)
+   add_step(local_x,local_y,90.0*turn,first+j)
+ elif candidate.layout=='u':
+  first=max(1,n//2);second=n-first;offset=turn*(width+0.20)
+  for i in range(first):add_step((i+.5)*t,0.0,0.0,i)
+  landing_x=first*t+candidate.landing_depth/2.0
+  landing_y=offset/2.0
+  lx,ly=world(landing_x,landing_y)
+  meshes.append(_oriented_prism(lx,ly,z0,abs(offset)+width,candidate.landing_depth,first*r,angle))
+  for j in range(second):
+   local_x=first*t+candidate.landing_depth-(j+.5)*t
+   add_step(local_x,offset,180.0,first+j)
+ elif candidate.layout=='spiral':
+  inner=max(0.12,width*.20);outer=max(width,0.85)+width*.45
+  sweep=turn*2.0*math.pi
+  for i in range(n):
+   a0=sweep*i/n;a1=sweep*(i+1)/n
+   points=[(inner*math.cos(a0),inner*math.sin(a0)),(outer*math.cos(a0),outer*math.sin(a0)),(outer*math.cos(a1),outer*math.sin(a1)),(inner*math.cos(a1),inner*math.sin(a1))]
+   plan=[world(x,y) for x,y in points];top=z0+(i+1)*r
+   verts=tuple((x,y,z0) for x,y in plan)+tuple((x,y,top) for x,y in plan)
+   quads=((0,1,5,4,'riser'),(1,2,6,5,'edge'),(2,3,7,6,'riser'),(3,0,4,7,'edge'),(4,5,6,7,'tread'),(3,2,1,0,'bottom'))
+   tris=[];roles=[]
+   for aa,bb,cc,dd,role in quads:tris.extend(((aa,bb,cc),(aa,cc,dd)));roles.extend((role,role))
+   meshes.append(MeshPayload(verts,tuple(tris),tuple(roles)))
+ else:
+  raise ValueError(f'stair mesh layout not implemented: {candidate.layout}')
+ if not meshes:raise ValueError('stair generated no steps')
+ return _combine_meshes(tuple(meshes),1e-8)
+
+
+def _point_in_polygon_xy(point,polygon):
+ x,y=map(float,point);inside=False
+ pts=[(float(a),float(b)) for a,b in polygon];j=len(pts)-1
+ for i,(xi,yi) in enumerate(pts):
+  xj,yj=pts[j]
+  if ((yi>y)!=(yj>y)):
+   at=xj+(y-yj)*(xi-xj)/(yi-yj)
+   if x<at:inside=not inside
+  j=i
+ return inside
+
+
+def _rect_hole_side_mesh(xmin,xmax,ymin,ymax,z0,z1):
+ verts=[];tris=[];roles=[]
+ def quad(a,b,c,d):
+  base=len(verts);verts.extend((a,b,c,d));tris.extend(((base,base+1,base+2),(base,base+2,base+3)));roles.extend(('stair_opening_edge','stair_opening_edge'))
+ quad((xmin,ymin,z0),(xmin,ymax,z0),(xmin,ymax,z1),(xmin,ymin,z1))
+ quad((xmax,ymax,z0),(xmax,ymin,z0),(xmax,ymin,z1),(xmax,ymax,z1))
+ quad((xmax,ymin,z0),(xmin,ymin,z0),(xmin,ymin,z1),(xmax,ymin,z1))
+ quad((xmin,ymax,z0),(xmax,ymax,z0),(xmax,ymax,z1),(xmin,ymax,z1))
+ return MeshPayload(tuple(verts),tuple(tris),tuple(roles))
+
+
+def _subtract_rectangular_slab_hole(mesh,opening,z0,z1):
+ xs=[float(p[0]) for p in opening];ys=[float(p[1]) for p in opening]
+ xmin,xmax=min(xs),max(xs);ymin,ymax=min(ys),max(ys)
+ left=_clip_mesh_scalar(mesh,lambda v:xmin-v[0],True)
+ right=_clip_mesh_scalar(mesh,lambda v:v[0]-xmax,True)
+ middle=_clip_mesh_scalar(mesh,lambda v:v[0]-xmin,True)
+ middle=_clip_mesh_scalar(middle,lambda v:xmax-v[0],True)
+ front=_clip_mesh_scalar(middle,lambda v:ymin-v[1],True)
+ back=_clip_mesh_scalar(middle,lambda v:v[1]-ymax,True)
+ sides=_rect_hole_side_mesh(xmin,xmax,ymin,ymax,float(z0),float(z1))
+ return _combine_meshes((left,right,front,back,sides),1e-8)
+
 def _room_slab(doc,node):
  from archforge.architecture.rooms import room_slab_geometry
  g=room_slab_geometry(doc,doc.get(node.entity_id))
  if g is None:raise ValueError('derived room element has no currently closed room')
- return _polygon_prism(g['points'],g['z'],g['thickness'])
+ mesh=_polygon_prism(g['points'],g['z'],g['thickness'])
+ if node.semantic_kind=='room_floor':
+  from archforge.architecture.stairs import candidate_from_params,stair_opening_polygon
+  slab_z=float(g['z'])
+  for stair in doc.entities.values():
+   if stair.kind!='stair' or abs(float(stair.params['upper_z'])-slab_z)>1e-5:continue
+   opening=stair_opening_polygon(candidate_from_params(stair.params))
+   if opening and all(_point_in_polygon_xy(point,g['points']) for point in opening):
+    mesh=_subtract_rectangular_slab_hole(mesh,opening,slab_z,slab_z+float(g['thickness']))
+ return mesh
 def _organic_junction_mesh(doc,node):
  from archforge.organic.biospectre import junction_plane,junction_section_polygon
  p=node.params
@@ -295,6 +405,7 @@ def _payload(doc,node):
  if k in('box','mechanical_part'):return _box_mesh(p,node.transform)
  if k=='pod':return _pod_mesh_for_node(doc,node)
  if k=='mesh':return _authoritative_mesh(p)
+ if k=='stair':return _stair_mesh(p)
  if k=='arboreal_branch':return _arboreal_branch_mesh(doc,node)
  if k=='organic_junction':return _organic_junction_mesh(doc,node)
  if k=='organic_opening_patch':return _organic_opening_patch_mesh(doc,node)
