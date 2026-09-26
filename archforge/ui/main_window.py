@@ -289,8 +289,50 @@ class MainWindow(QMainWindow):
 
     def _commit_property(self, eid, key, value):
         try:
-            self.stack.execute(UpdateEntity(eid, {key: value}))
-            self._redraw_views()
+            entity = self.doc.get(eid)
+            changes = {key: value}
+            if entity.kind == 'stair':
+                p = entity.params
+                lower_z = float(p['lower_z'])
+                upper_floor_z = float(p.get('upper_floor_z', p['upper_z']))
+                slab_thickness = float(p.get('upper_slab_thickness', max(0.0, float(p['upper_z']) - upper_floor_z)))
+                upper_z = float(p['upper_z'])
+                riser_count = int(p['riser_count'])
+
+                if key == 'riser_count':
+                    riser_count = max(2, int(round(float(value))))
+                    changes['riser_count'] = riser_count
+                    changes['riser_height'] = (upper_z - lower_z) / riser_count
+                elif key == 'riser_height':
+                    requested = max(1e-6, float(value))
+                    riser_count = max(2, int(round((upper_z - lower_z) / requested)))
+                    changes['riser_count'] = riser_count
+                    changes['riser_height'] = (upper_z - lower_z) / riser_count
+                elif key == 'upper_slab_thickness':
+                    slab_thickness = max(0.0, float(value))
+                    upper_z = upper_floor_z + slab_thickness
+                    changes['upper_slab_thickness'] = slab_thickness
+                    changes['upper_z'] = upper_z
+                    changes['riser_height'] = (upper_z - lower_z) / riser_count
+                elif key == 'upper_floor_z':
+                    upper_floor_z = float(value)
+                    upper_z = upper_floor_z + slab_thickness
+                    changes['upper_floor_z'] = upper_floor_z
+                    changes['upper_z'] = upper_z
+                    changes['riser_height'] = (upper_z - lower_z) / riser_count
+                elif key == 'upper_z':
+                    upper_z = float(value)
+                    changes['upper_z'] = upper_z
+                    changes['upper_slab_thickness'] = max(0.0, upper_z - upper_floor_z)
+                    changes['riser_height'] = (upper_z - lower_z) / riser_count
+                elif key == 'lower_z':
+                    lower_z = float(value)
+                    changes['lower_z'] = lower_z
+                    changes['riser_height'] = (upper_z - lower_z) / riser_count
+
+            self.stack.execute(UpdateEntity(eid, changes))
+            self._redraw_views(all_views=True)
+            self.refresh_inspector()
         except Exception as exc:
             QMessageBox.warning(self, 'Invalid value', str(exc))
             self.refresh_inspector()
