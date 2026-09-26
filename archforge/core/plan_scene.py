@@ -94,11 +94,51 @@ def _opening_segment(doc,e):
         if pod_opening_junction_conflict(doc,e.id) is not None:return None
         return pod_opening_plan_segment(host.params,{**e.params,'_kind':e.kind})
     return None
+def _entity_on_active_level(doc,e,tolerance=1e-5):
+    """Keep FLOOR PLAN focused on the active storey while 3D remains whole-building."""
+    z=float(doc.work_plane.origin[2]);p=e.params
+    if e.kind=='wall':return abs(float(p.get('z',0.0))-z)<=tolerance
+    if e.kind=='pod':return abs(float(p.get('floor_level',0.0))-z)<=tolerance
+    if e.kind in ('floor','room'):return abs(float(p.get('z',0.0))-z)<=tolerance
+    if e.kind in ('stair','ramp'):
+        return abs(float(p.get('lower_z',0.0))-z)<=tolerance or abs(float(p.get('upper_z',0.0))-z)<=tolerance
+    if e.kind in ('door','window'):
+        if not e.parent_id or e.parent_id not in doc.entities:return False
+        host=doc.get(e.parent_id);hp=host.params
+        if host.kind=='wall':return abs(float(hp.get('z',0.0))-z)<=tolerance
+        if host.kind=='pod':return abs(float(hp.get('floor_level',0.0))-z)<=tolerance
+        return False
+    if e.kind in ('room_floor','room_ceiling','room_foundation','room_roof'):
+        from archforge.architecture.rooms import room_slab_geometry
+        g=room_slab_geometry(doc,e,tolerance=tolerance)
+        return g is not None and abs(float(g['z'])-z)<=tolerance
+    return True
+
 def entity_primitive(doc,eid):
     e=doc.get(eid);p=e.params
     if not e.visible:return None
     if e.kind=='wall':return Primitive2D('line',((p['x1'],p['y1']),(p['x2'],p['y2'])),entity_id=eid,meta=(('thickness',p['thickness']),))
     if e.kind=='box':return Primitive2D('polygon',tuple(_box_corners(p)),entity_id=eid)
+    if e.kind=='stair':
+        from archforge.architecture.stairs import candidate_from_params,stair_footprint
+        candidate=candidate_from_params(p)
+        return Primitive2D(
+            'polygon',
+            tuple(stair_footprint(candidate)),
+            entity_id=eid,
+            role='stair',
+            meta=(('semantic','stair'),('layout',candidate.layout),('risers',candidate.riser_count)),
+        )
+    if e.kind=='ramp':
+        from archforge.architecture.ramps import candidate_from_params,ramp_footprint
+        candidate=candidate_from_params(p)
+        return Primitive2D(
+            'polygon',
+            tuple(ramp_footprint(candidate)),
+            entity_id=eid,
+            role='ramp',
+            meta=(('semantic','ramp'),('slope_pct',candidate.slope_pct),('run_length',candidate.run_length)),
+        )
     if e.kind=='pod':
         clipped=_pod_plan_polygon(doc,e)
         if clipped is not None:return Primitive2D('polygon',clipped,entity_id=eid,role='pod-junction-clipped',meta=(('semantic','pod'),('junction_clipped',True)))
@@ -139,7 +179,7 @@ def selection_handles(doc):
     for eid in doc.selection:
         if eid not in doc.entities:continue
         e=doc.get(eid);p=e.params
-        if e.locked:continue
+        if e.locked or not _entity_on_active_level(doc,e):continue
         if e.kind=='wall':out.extend([Handle2D(p['x1'],p['y1'],eid,'endpoint1'),Handle2D(p['x2'],p['y2'],eid,'endpoint2')])
         elif e.kind=='box':out.extend(_box_handles(eid,p))
         elif e.kind=='pod':out.extend(_pod_handles(eid,p))
@@ -157,6 +197,42 @@ def selection_handles(doc):
 def preview_primitives(preview):
     g=preview.geometry
     if preview.kind=='wall' and g:return [Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),entity_id=preview.entity_id or '',role='preview')]
+    if preview.kind=='stair' and g:
+        candidates=list(g.get('candidates',()))
+        if not candidates:return []
+        index=max(0,min(int(g.get('active_index',0)),len(candidates)-1))
+        from archforge.architecture.stairs import candidate_from_params,stair_footprint
+        candidate=candidate_from_params(candidates[index])
+        return [
+            Primitive2D(
+                'polygon',
+                tuple(stair_footprint(candidate)),
+                role='preview',
+                meta=(
+                    ('semantic','stair-preview'),
+                    ('layout',candidate.layout),
+                    ('option_index',index),
+                ),
+            )
+        ]
+    if preview.kind=='ramp' and g:
+        candidates=list(g.get('candidates',()))
+        if not candidates:return []
+        index=max(0,min(int(g.get('active_index',0)),len(candidates)-1))
+        from archforge.architecture.ramps import candidate_from_params,ramp_footprint
+        candidate=candidate_from_params(candidates[index])
+        return [
+            Primitive2D(
+                'polygon',
+                tuple(ramp_footprint(candidate)),
+                role='preview',
+                meta=(
+                    ('semantic','ramp-preview'),
+                    ('slope_pct',candidate.slope_pct),
+                    ('option_index',index),
+                ),
+            )
+        ]
     if preview.kind in ('opening','opening-edit') and {'x1','y1','x2','y2'}<=set(g):return [Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),entity_id=preview.entity_id or '',role='preview',meta=(('semantic',g.get('opening_kind','opening')),))]
     if preview.kind=='stretch' and 'entities' in g:
         out=[]
@@ -172,6 +248,12 @@ def preview_primitives(preview):
         out=[]
         for eid,p in g['entities'].items():
             if {'x1','y1','x2','y2'}<=set(p):out.append(Primitive2D('line',((p['x1'],p['y1']),(p['x2'],p['y2'])),entity_id=eid,role='preview'))
+            elif 'layout' in p and {'x','y','riser_count','tread_depth'}<=set(p):
+                from archforge.architecture.stairs import candidate_from_params,stair_footprint
+                out.append(Primitive2D('polygon',tuple(stair_footprint(candidate_from_params(p))),entity_id=eid,role='preview'))
+            elif 'slope_pct' in p and {'x','y','run_length','width'}<=set(p):
+                from archforge.architecture.ramps import candidate_from_params,ramp_footprint
+                out.append(Primitive2D('polygon',tuple(ramp_footprint(candidate_from_params(p))),entity_id=eid,role='preview'))
             elif {'x','y','width','depth'}<=set(p):out.append(Primitive2D('polygon',tuple(_box_corners(p)),entity_id=eid,role='preview'))
             elif {'cx','cy','diameter_x','diameter_y'}<=set(p):out.append(Primitive2D('ellipse',((p['cx'],p['cy']),),p['diameter_x']/2,p['diameter_y']/2,p.get('rotation',0.),eid,'preview'))
         return out
@@ -190,6 +272,8 @@ def build_plan_frame(doc,preview=None):
     except (ValueError,KeyError):
         pass
     for eid in doc.entities:
+        e=doc.get(eid)
+        if not _entity_on_active_level(doc,e):continue
         p=entity_primitive(doc,eid)
         if p:f.primitives.append(p)
     f.handles=selection_handles(doc)

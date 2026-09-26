@@ -82,10 +82,12 @@ def project_to_pod(pod_params, x, y):
 
 
 def nearest_opening_host(doc, x, y, tolerance=0.35):
-    """Return nearest visible wall or pod that can host a standard opening."""
-    best=None
+    """Return nearest visible wall or pod on the active storey."""
+    best=None;active_z=float(doc.work_plane.origin[2])
     for eid,e in doc.entities.items():
         if not e.visible or e.kind not in ('wall','pod'):continue
+        base_z=float(e.params.get('z',0.0)) if e.kind=='wall' else float(e.params.get('floor_level',0.0))
+        if abs(base_z-active_z)>1e-5:continue
         try:
             if e.kind=='wall':
                 off,px,py,dist=project_to_wall(e.params,x,y);raw={'host_id':eid,'host_kind':'wall','offset':off,'x':px,'y':py,'distance':dist}
@@ -121,8 +123,10 @@ def project_to_wall(wall_params, x, y):
 def nearest_wall_projection(doc, x, y, tolerance=0.35):
     """Return nearest visible wall projection within tolerance, or None."""
     best=None
+    active_z=float(doc.work_plane.origin[2])
     for eid,e in doc.entities.items():
         if e.kind!='wall' or not e.visible: continue
+        if abs(float(e.params.get('z',0.0))-active_z)>1e-5: continue
         try: off,px,py,dist=project_to_wall(e.params,x,y)
         except ValueError: continue
         if dist <= tolerance and (best is None or dist < best["distance"]):

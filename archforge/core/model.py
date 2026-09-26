@@ -56,6 +56,105 @@ def _polygon(v):
     return validate_polygon(v)
 
 
+
+def _mesh_vertices(v):
+    if not isinstance(v, list) or not v:
+        raise ValueError('mesh vertices must be a non-empty list')
+    out = []
+    for point in v:
+        if not isinstance(point, (list, tuple)) or len(point) != 3:
+            raise ValueError('each mesh vertex must be a 3-vector')
+        out.append([_finite(x) for x in point])
+    return out
+
+
+def _mesh_faces(v):
+    if not isinstance(v, list) or not v:
+        raise ValueError('mesh faces must be a non-empty list')
+    out = []
+    for face in v:
+        if not isinstance(face, (list, tuple)) or len(face) < 3:
+            raise ValueError('each mesh face must contain at least three vertex indices')
+        indices = [int(i) for i in face]
+        if any(i < 0 for i in indices):
+            raise ValueError('mesh face indices must be non-negative')
+        out.append(indices)
+    return out
+
+
+def _matrix16(v):
+    if not isinstance(v, (list, tuple)) or len(v) != 16:
+        raise ValueError('mesh matrix must contain 16 values')
+    return [_finite(x) for x in v]
+
+
+def _mesh_metadata(v):
+    if not isinstance(v, dict):
+        raise ValueError('mesh metadata must be a dictionary')
+    return copy.deepcopy(v)
+
+
+def _conduit_diameter(v):
+    value = _finite(v)
+    if value < 0.005 or value > 0.5:
+        raise ValueError('conduit diameter must be between 0.005 m and 0.5 m')
+    return value
+
+
+def _conduit_node(v):
+    if not isinstance(v, str) or not v:
+        raise ValueError('conduit node must be a non-empty string')
+    return v
+
+
+def _conduit_path(v):
+    if not isinstance(v, list) or len(v) < 2:
+        raise ValueError('conduit path_vertices must contain at least two 3D points')
+    out = [_vec3(point) for point in v]
+    for a, b in zip(out, out[1:]):
+        if math.dist(a, b) <= 1e-9:
+            raise ValueError('conduit path_vertices must not contain zero-length segments')
+    return out
+
+
+def _conduit_system_type(v):
+    value = str(v).lower()
+    if value not in ('hydraulic', 'electrical', 'hvac'):
+        raise ValueError('conduit system_type must be hydraulic, electrical, or hvac')
+    return value
+
+
+def _stair_layout(v):
+    value = str(v).lower()
+    if value not in ('straight', 'l', 'u', 'spiral', 'custom'):
+        raise ValueError('unsupported stair layout')
+    return value
+
+
+def _positive_int(v):
+    value = int(v)
+    if value <= 0:
+        raise ValueError('value must be a positive integer')
+    return value
+
+
+def _turn_direction(v):
+    value = int(v)
+    if value == 0:
+        raise ValueError('turn direction must be -1 or 1')
+    return 1 if value > 0 else -1
+
+
+def validate_conduit_spec(start_node, end_node, diameter, system_type, path_vertices):
+    return {
+        'start_node': _conduit_node(start_node),
+        'end_node': _conduit_node(end_node),
+        'diameter': _conduit_diameter(diameter),
+        'system_type': _conduit_system_type(system_type),
+        'path_vertices': _conduit_path(path_vertices),
+    }
+
+
 @dataclass
 class WorkPlane:
     name: str = 'XY'
@@ -100,6 +199,38 @@ SCHEMAS = {
     'box': {'x': _finite, 'y': _finite, 'z': _finite, 'width': _positive, 'depth': _positive, 'height': _positive, 'rotation': _finite},
     'wall': {'x1': _finite, 'y1': _finite, 'z': _finite, 'x2': _finite, 'y2': _finite, 'height': _positive, 'thickness': _positive},
     'pod': {'cx': _finite, 'cy': _finite, 'floor_level': _finite, 'diameter_x': _positive, 'diameter_y': _positive, 'height': _positive, 'shell_thickness': _positive, 'rotation': _finite},
+    'stair': {
+        'x': _finite,
+        'y': _finite,
+        'lower_z': _finite,
+        'upper_z': _finite,
+        'upper_floor_z': _finite,
+        'upper_slab_thickness': _nonnegative,
+        'layout': _stair_layout,
+        'angle_deg': _finite,
+        'width': _positive,
+        'riser_count': _positive_int,
+        'riser_height': _positive,
+        'tread_depth': _positive,
+        'landing_depth': _positive,
+        'turn_direction': _turn_direction,
+        'opening_margin': _nonnegative,
+    },
+    'ramp': {
+        'x': _finite,
+        'y': _finite,
+        'lower_z': _finite,
+        'upper_z': _finite,
+        'upper_floor_z': _finite,
+        'upper_slab_thickness': _nonnegative,
+        'angle_deg': _finite,
+        'width': _positive,
+        'slope_pct': _positive,
+        'run_length': _positive,
+        'thickness': _positive,
+        'opening_margin': _nonnegative,
+    },
+    'mesh': {'vertices': _mesh_vertices, 'faces': _mesh_faces, 'matrix': _matrix16, 'metadata': _mesh_metadata},
     'arboreal_branch': {'core_id': _nonempty, 'elevation_z': _finite, 'azimuth_deg': _finite, 'length': _positive, 'slope_deg': _finite, 'root_radius': _positive, 'tip_radius': _positive, 'mounted_pod_id': _nonempty},
     'floor': {'points': _polygon, 'z': _finite, 'thickness': _positive},
     'room': {'points': _polygon, 'z': _finite, 'height': _positive},
@@ -121,6 +252,43 @@ def validate_params(kind, params):
     for key, fn in SCHEMAS.get(kind, {}).items():
         if key in out:
             out[key] = fn(out[key])
+    if kind == 'mesh':
+        required = {'vertices', 'faces', 'matrix'}
+        missing = required - set(out)
+        if missing:
+            raise ValueError('mesh is missing required fields: ' + ', '.join(sorted(missing)))
+        n = len(out['vertices'])
+        if any(index >= n for face in out['faces'] for index in face):
+            raise ValueError('mesh face references a missing vertex')
+    if kind == 'stair':
+        required = {
+            'x', 'y', 'lower_z', 'upper_z', 'layout', 'angle_deg', 'width',
+            'riser_count', 'riser_height', 'tread_depth', 'landing_depth',
+            'turn_direction', 'opening_margin',
+        }
+        missing = required - set(out)
+        if missing:
+            raise ValueError('stair is missing required fields: ' + ', '.join(sorted(missing)))
+        height = float(out['upper_z']) - float(out['lower_z'])
+        if height <= 0:
+            raise ValueError('stair upper_z must be above lower_z')
+        solved = float(out['riser_count']) * float(out['riser_height'])
+        if abs(solved - height) > 1e-4:
+            raise ValueError('stair riser count/height must match floor-to-floor height')
+    if kind == 'ramp':
+        required = {
+            'x', 'y', 'lower_z', 'upper_z', 'angle_deg', 'width',
+            'slope_pct', 'run_length', 'thickness', 'opening_margin',
+        }
+        missing = required - set(out)
+        if missing:
+            raise ValueError('ramp is missing required fields: ' + ', '.join(sorted(missing)))
+        rise = float(out['upper_z']) - float(out['lower_z'])
+        if rise <= 0:
+            raise ValueError('ramp upper_z must be above lower_z')
+        expected_run = rise / (float(out['slope_pct']) / 100.0)
+        if abs(float(out['run_length']) - expected_run) > 1e-4:
+            raise ValueError('ramp run_length must match rise and slope')
     return out
 
 
@@ -255,6 +423,13 @@ class Document:
                 related_id = entity.params.get(key)
                 if related_id in self.entities:
                     self.mark_dirty(str(related_id))
+        elif entity.kind in ('stair', 'ramp'):
+            # Vertical circulation geometry can cut any slab occupying the
+            # upper-floor plane. In legacy/current projects this may include
+            # both an upper room_floor and a lower room_roof/room_ceiling.
+            for related in self.entities.values():
+                if related.kind in ('room_floor', 'room_roof', 'room_ceiling', 'floor'):
+                    self.mark_dirty(related.id)
 
     def _validate_wall_opening_conflicts(self, entity, tolerance=1e-9):
         if not entity.parent_id:
@@ -497,6 +672,10 @@ class Document:
                     refs = [entity.params.get('parent_part'), entity.params.get('child_part')]
                 elif entity.kind == 'mechanical_mount':
                     refs = [entity.params.get('host_id'), entity.params.get('part_id')]
+                elif entity.kind == 'mesh':
+                    metadata = entity.params.get('metadata', {})
+                    if metadata.get('semantic_type') == 'conduit':
+                        refs = [metadata.get('start_node'), metadata.get('end_node')]
                 if any(ref in ids for ref in refs):
                     ids.append(rid)
                     changed = True

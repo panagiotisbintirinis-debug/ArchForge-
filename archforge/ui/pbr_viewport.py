@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from math import atan2, degrees
 
 from PySide6.QtCore import Qt, QUrl, Signal, Slot, QObject
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
@@ -10,8 +11,9 @@ from archforge.geometry.incremental import IncrementalEvaluationCache
 from archforge.geometry.sculpt import SculptedPreviewBackend
 from archforge.geometry.selection import BrushSpec, SurfaceHit
 from archforge.geometry.sculpt_transaction import SculptTransaction
-from archforge.core.interaction import OpeningPlaceTransaction
+from archforge.core.interaction import OpeningPlaceTransaction, StairPlaceTransaction, RampPlaceTransaction, MoveTransaction, RotateTransaction
 from archforge.rendering.scene import build_pbr_scene_payload
+from archforge.ui.object_context_menu import object_context_actions
 
 try:
     from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -27,7 +29,43 @@ _PBR_HTML = r"""<!doctype html>
 <style>
 html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #d9dee5; }
 #stage { width: 100%; height: 100%; }
-#notice { position: absolute; left: 12px; bottom: 10px; font: 12px sans-serif; color: #4b5563; }
+#notice { position: absolute; left: 12px; bottom: 10px; font: 12px sans-serif; color: #4b5563; pointer-events: none; }
+#markingRoot {
+  position: fixed; inset: 0; display: none; z-index: 50; pointer-events: none;
+  font-family: "Segoe UI", sans-serif;
+}
+#markingCenter {
+  position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px;
+  border-radius: 50%; background: rgba(54, 124, 186, 0.95);
+  box-shadow: 0 0 0 4px rgba(255,255,255,0.72);
+}
+#radialMenu { position: absolute; width: 260px; height: 260px; transform: translate(-130px,-130px); }
+.markAction {
+  position: absolute; transform: translate(-50%,-50%); min-width: 74px; height: 34px;
+  padding: 0 12px; border: 1px solid rgba(35,45,58,0.72); border-radius: 18px;
+  background: rgba(244,247,250,0.96); color: #202935; font-size: 12px; font-weight: 600;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.22); pointer-events: auto; cursor: pointer;
+}
+.markAction:hover { background: #d9eaff; border-color: #2f75b5; }
+.markAction.danger:hover { background: #ffe0e0; border-color: #b63b3b; color: #8f2020; }
+#commandStrip {
+  position: absolute; display: flex; gap: 3px; transform: translate(-50%,-100%);
+  padding: 4px; border-radius: 7px; background: rgba(46,54,66,0.94);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.28); pointer-events: auto;
+}
+.stripAction {
+  border: 0; border-radius: 4px; background: transparent; color: #fff;
+  padding: 6px 9px; font-size: 11px; cursor: pointer;
+}
+.stripAction:hover { background: rgba(255,255,255,0.16); }
+#stairHud {
+  position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%);
+  display: none; min-width: 300px; padding: 8px 12px; border-radius: 8px;
+  background: rgba(31,38,48,0.90); color: #fff; font: 12px "Segoe UI", sans-serif;
+  text-align: center; box-shadow: 0 4px 16px rgba(0,0,0,0.28); pointer-events: none;
+}
+#stairHud strong { font-size: 13px; margin-right: 8px; }
+#stairHud .hint { opacity: 0.72; margin-left: 8px; }
 </style>
 <script type="importmap">
 {
@@ -42,6 +80,12 @@ html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background:
 <body>
 <div id="stage"></div>
 <div id="notice">ArchForge PBR Preview · derived from authoritative geometry</div>
+<div id="stairHud"></div>
+<div id="markingRoot">
+  <div id="markingCenter"></div>
+  <div id="radialMenu"></div>
+  <div id="commandStrip"></div>
+</div>
 <script type="module">
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
@@ -66,8 +110,29 @@ container.appendChild(renderer.domElement);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
+controls.enableRotate = true;
+controls.enablePan = true;
+controls.enableZoom = true;
+// Tuned for architectural work: deliberate movement instead of twitchy CAD navigation.
+// Keep these together so they can later become user preferences without touching
+// the interaction state machine.
+controls.rotateSpeed = 0.42;
+controls.panSpeed = 0.52;
+controls.zoomSpeed = 0.62;
+// Inventor-style navigation: left drag = orbit, middle drag = pan,
+// wheel = zoom, right mouse is reserved for the marking menu.
+controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+controls.mouseButtons.MIDDLE = THREE.MOUSE.PAN;
+controls.mouseButtons.RIGHT = null;
 controls.target.set(0, 0, 1.4);
 controls.update();
+
+const markingRoot = document.getElementById("markingRoot");
+const markingCenter = document.getElementById("markingCenter");
+const radialMenu = document.getElementById("radialMenu");
+const commandStrip = document.getElementById("commandStrip");
+const stairHud = document.getElementById("stairHud");
+let markingEntityId = "";
 
 if (typeof QWebChannel !== "undefined" && typeof qt !== "undefined") {
   new QWebChannel(qt.webChannelTransport, function(channel) {
@@ -105,6 +170,8 @@ scene.add(ground);
 
 const modelRoot = new THREE.Group();
 scene.add(modelRoot);
+const previewRoot = new THREE.Group();
+scene.add(previewRoot);
 const axesHelper = new THREE.AxesHelper(2.5);
 axesHelper.visible = false;
 scene.add(axesHelper);
@@ -115,6 +182,170 @@ let activeTool = "orbit";
 let bridge = null;
 let sculpting = false;
 let sculptStartY = 0;
+let stairing = false;
+let stairPlaneZ = 0;
+let pendingStairPoint = null;
+let stairUpdateScheduled = false;
+
+function scheduleStairUpdate(point) {
+  pendingStairPoint = point;
+  if (stairUpdateScheduled) return;
+  stairUpdateScheduled = true;
+  requestAnimationFrame(() => {
+    stairUpdateScheduled = false;
+    if (!stairing || !bridge || !pendingStairPoint) return;
+    const point = pendingStairPoint;
+    pendingStairPoint = null;
+    bridge.updateStair(Number(point.x), Number(point.y));
+  });
+}
+
+let ramping = false;
+let rampPlaneZ = 0;
+let pendingRampPoint = null;
+let rampUpdateScheduled = false;
+
+function scheduleRampUpdate(point) {
+  pendingRampPoint = point;
+  if (rampUpdateScheduled) return;
+  rampUpdateScheduled = true;
+  requestAnimationFrame(() => {
+    rampUpdateScheduled = false;
+    if (!ramping || !bridge || !pendingRampPoint) return;
+    const point = pendingRampPoint;
+    pendingRampPoint = null;
+    bridge.updateRamp(Number(point.x), Number(point.y));
+  });
+}
+
+let movingEntity = false;
+let moveEntityId = "";
+let movePlaneZ = 0;
+let moveAnchor = null;
+let moveGhost = null;
+let pendingMovePoint = null;
+let moveUpdateScheduled = false;
+let snapEnabled = true;
+let pendingMoveSnap = true;
+let pendingMoveAxisLock = false;
+
+function clearMoveGhost() {
+  if (moveGhost) {
+    previewRoot.remove(moveGhost);
+    if (moveGhost.geometry) moveGhost.geometry.dispose();
+    if (moveGhost.material) moveGhost.material.dispose();
+  }
+  moveGhost = null;
+}
+
+function startMoveGhost(sourceMesh) {
+  clearMoveGhost();
+  const material = new THREE.MeshStandardMaterial({
+    color: 0x2f9cff,
+    roughness: 0.45,
+    metalness: 0.0,
+    transparent: true,
+    opacity: 0.58,
+    depthWrite: true,
+    side: THREE.DoubleSide
+  });
+  moveGhost = new THREE.Mesh(sourceMesh.geometry.clone(), material);
+  moveGhost.userData.preview = true;
+  previewRoot.add(moveGhost);
+}
+
+function scheduleMoveUpdate(point, event) {
+  pendingMovePoint = point;
+  pendingMoveSnap = snapEnabled && !(event && event.shiftKey);
+  pendingMoveAxisLock = !!(event && event.ctrlKey);
+  if (moveUpdateScheduled) return;
+  moveUpdateScheduled = true;
+  requestAnimationFrame(() => {
+    moveUpdateScheduled = false;
+    if (!movingEntity || !bridge || !pendingMovePoint || !moveAnchor) return;
+    const point = pendingMovePoint;
+    pendingMovePoint = null;
+    // The authoritative transaction computes the final snapped delta. The ghost
+    // follows raw pointer motion immediately; the committed model uses the exact snap.
+    if (moveGhost) {
+      let dx = point.x - moveAnchor.x;
+      let dy = point.y - moveAnchor.y;
+      if (pendingMoveAxisLock) {
+        if (Math.abs(dx) >= Math.abs(dy)) dy = 0;
+        else dx = 0;
+      }
+      moveGhost.position.set(dx, dy, 0);
+    }
+    bridge.updateMove(
+      Number(point.x),
+      Number(point.y),
+      Boolean(pendingMoveSnap),
+      Boolean(pendingMoveAxisLock)
+    );
+  });
+}
+
+let rotatingEntity = false;
+let rotateEntityId = "";
+let rotatePlaneZ = 0;
+let rotatePivot = null;
+let rotateGhost = null;
+let rotateStartAngle = 0;
+let pendingRotatePoint = null;
+let pendingRotateSnap = true;
+let rotateUpdateScheduled = false;
+
+function clearRotateGhost() {
+  if (rotateGhost) {
+    previewRoot.remove(rotateGhost);
+    if (rotateGhost.geometry) rotateGhost.geometry.dispose();
+    if (rotateGhost.material) rotateGhost.material.dispose();
+  }
+  rotateGhost = null;
+}
+
+function startRotateGhost(sourceMesh, pivot) {
+  clearRotateGhost();
+  const geometry = sourceMesh.geometry.clone();
+  geometry.translate(-pivot.x, -pivot.y, 0);
+  const material = new THREE.MeshStandardMaterial({
+    color: 0x9b6cff,
+    roughness: 0.45,
+    metalness: 0.0,
+    transparent: true,
+    opacity: 0.58,
+    depthWrite: true,
+    side: THREE.DoubleSide
+  });
+  rotateGhost = new THREE.Mesh(geometry, material);
+  rotateGhost.position.set(pivot.x, pivot.y, 0);
+  rotateGhost.userData.preview = true;
+  previewRoot.add(rotateGhost);
+}
+
+function scheduleRotateUpdate(point, event) {
+  pendingRotatePoint = point;
+  pendingRotateSnap = snapEnabled && !(event && event.shiftKey);
+  if (rotateUpdateScheduled) return;
+  rotateUpdateScheduled = true;
+  requestAnimationFrame(() => {
+    rotateUpdateScheduled = false;
+    if (!rotatingEntity || !bridge || !pendingRotatePoint || !rotatePivot) return;
+    const point = pendingRotatePoint;
+    pendingRotatePoint = null;
+    let angle = Math.atan2(point.y - rotatePivot.y, point.x - rotatePivot.x) - rotateStartAngle;
+    if (pendingRotateSnap) {
+      const step = THREE.MathUtils.degToRad(15);
+      angle = Math.round(angle / step) * step;
+    }
+    if (rotateGhost) rotateGhost.rotation.z = angle;
+    bridge.updateRotate(
+      Number(point.x),
+      Number(point.y),
+      Boolean(pendingRotateSnap)
+    );
+  });
+}
 
 function resize() {
   const w = Math.max(1, container.clientWidth);
@@ -133,6 +364,105 @@ function disposeModel() {
     if (child.material) child.material.dispose();
   }
 }
+
+function disposePreview() {
+  while (previewRoot.children.length) {
+    const child = previewRoot.children.pop();
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) child.material.dispose();
+  }
+}
+
+window.setStairPreview = function(payload) {
+  disposePreview();
+  const item = payload && payload.active ? payload.active : null;
+  if (!item) {
+    stairHud.style.display = "none";
+    stairHud.textContent = "";
+    return;
+  }
+
+  const positions = [];
+  for (const v of item.vertices) positions.push(v[0], v[1], v[2]);
+  const indices = [];
+  for (const t of item.triangles) indices.push(t[0], t[1], t[2]);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+
+  const material = new THREE.MeshStandardMaterial({
+    color: 0x4aa3ff,
+    roughness: 0.52,
+    metalness: 0.0,
+    transparent: true,
+    opacity: 0.68,
+    depthWrite: true
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.userData.preview = true;
+  previewRoot.add(mesh);
+
+  const info = payload.info || {};
+  const label = String(info.layout || "STAIR").toUpperCase();
+  const optionText = info.option_count
+    ? ("Option " + String(info.option_index + 1) + "/" + String(info.option_count))
+    : "";
+  stairHud.innerHTML =
+    "<strong>" + label + "</strong>" +
+    optionText +
+    " · " + String(info.risers || "") + " risers" +
+    " · rise " + Number(info.riser || 0).toFixed(3) + " m" +
+    " · tread " + Number(info.tread || 0).toFixed(3) + " m" +
+    " · landing " + Number(info.landing_z || 0).toFixed(3) + " m" +
+    " · slab " + Number(info.slab_thickness || 0).toFixed(3) + " m" +
+    "<span class='hint'>Move = adjust · Wheel = alternative · Left click = place · Right click/Esc = cancel</span>";
+  stairHud.style.display = "block";
+};
+
+window.setRampPreview = function(payload) {
+  disposePreview();
+  const item = payload && payload.active ? payload.active : null;
+  if (!item) {
+    stairHud.style.display = "none";
+    stairHud.textContent = "";
+    return;
+  }
+
+  const positions = [];
+  for (const v of item.vertices) positions.push(v[0], v[1], v[2]);
+  const indices = [];
+  for (const t of item.triangles) indices.push(t[0], t[1], t[2]);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+
+  const material = new THREE.MeshStandardMaterial({
+    color: 0x5eaed6,
+    roughness: 0.52,
+    metalness: 0.0,
+    transparent: true,
+    opacity: 0.68,
+    depthWrite: true
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.userData.preview = true;
+  previewRoot.add(mesh);
+
+  const info = payload.info || {};
+  const optionText = info.option_count
+    ? ("Option " + String(info.option_index + 1) + "/" + String(info.option_count))
+    : "";
+  stairHud.innerHTML =
+    "<strong>RAMP</strong>" +
+    optionText +
+    " · slope " + Number(info.slope_pct || 0).toFixed(1) + "%" +
+    " · run " + Number(info.run_length || 0).toFixed(2) + " m" +
+    " · rise " + Number(info.rise || 0).toFixed(2) + " m" +
+    "<span class='hint'>Move = direction/space · Wheel = slope · Left click = place · Right click/Esc = cancel</span>";
+  stairHud.style.display = "block";
+};
 
 function materialFor(spec) {
   return new THREE.MeshStandardMaterial({
@@ -285,7 +615,85 @@ window.setCutaway = function(enabled) {
 
 window.setActiveTool = function(tool) {
   activeTool = tool || "orbit";
-  if (!sculpting) controls.enabled = activeTool !== "sculpt";
+  if (!sculpting && !stairing && !ramping && !movingEntity && !rotatingEntity) {
+    controls.enabled = activeTool !== "sculpt";
+  }
+};
+
+window.setSnapEnabled = function(enabled) {
+  snapEnabled = !!enabled;
+};
+
+window.setMoveGhostDelta = function(dx, dy, snapped) {
+  if (!moveGhost) return;
+  moveGhost.position.set(Number(dx), Number(dy), 0);
+  if (moveGhost.material) {
+    moveGhost.material.opacity = snapped ? 0.78 : 0.58;
+    moveGhost.material.needsUpdate = true;
+  }
+};
+
+function hideMarkingMenu() {
+  markingRoot.style.display = "none";
+  radialMenu.replaceChildren();
+  commandStrip.replaceChildren();
+  markingEntityId = "";
+}
+
+function dispatchMarkingAction(actionId) {
+  if (!bridge || !markingEntityId || !actionId) return;
+  const entityId = markingEntityId;
+  hideMarkingMenu();
+  bridge.contextAction(entityId, actionId);
+}
+
+window.showMarkingMenu = function(entityId, x, y, entries) {
+  hideMarkingMenu();
+  markingEntityId = entityId || "";
+  if (!markingEntityId) return;
+
+  const radial = (entries || []).filter((entry) => entry && entry.placement === "radial");
+  const panel = (entries || []).filter((entry) => entry && entry.placement === "panel");
+  const cx = Math.max(145, Math.min(window.innerWidth - 145, Number(x)));
+  const cy = Math.max(150, Math.min(window.innerHeight - 110, Number(y)));
+
+  markingRoot.style.display = "block";
+  markingCenter.style.left = cx + "px";
+  markingCenter.style.top = cy + "px";
+  radialMenu.style.left = cx + "px";
+  radialMenu.style.top = cy + "px";
+
+  const radius = 92;
+  radial.forEach((entry, index) => {
+    const angle = -Math.PI / 2 + index * (2 * Math.PI / Math.max(1, radial.length));
+    const button = document.createElement("button");
+    button.className = "markAction" + (entry.id === "delete" ? " danger" : "");
+    button.textContent = entry.label;
+    button.style.left = (130 + Math.cos(angle) * radius) + "px";
+    button.style.top = (130 + Math.sin(angle) * radius) + "px";
+    button.addEventListener("pointerdown", (event) => event.stopPropagation());
+    button.addEventListener("click", (event) => {
+      event.preventDefault(); event.stopPropagation();
+      dispatchMarkingAction(entry.id);
+    });
+    radialMenu.appendChild(button);
+  });
+
+  if (panel.length) {
+    commandStrip.style.left = cx + "px";
+    commandStrip.style.top = Math.max(42, cy - 116) + "px";
+    panel.forEach((entry) => {
+      const button = document.createElement("button");
+      button.className = "stripAction";
+      button.textContent = entry.label;
+      button.addEventListener("pointerdown", (event) => event.stopPropagation());
+      button.addEventListener("click", (event) => {
+        event.preventDefault(); event.stopPropagation();
+        dispatchMarkingAction(entry.id);
+      });
+      commandStrip.appendChild(button);
+    });
+  }
 };
 
 function pickModel(event) {
@@ -300,8 +708,221 @@ function pickModel(event) {
   return hits.length ? hits[0] : null;
 }
 
+function pointOnHorizontalPlane(event, z) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  const mouse = new THREE.Vector2(
+    ((event.clientX - rect.left) / rect.width) * 2 - 1,
+    -((event.clientY - rect.top) / rect.height) * 2 + 1
+  );
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(mouse, camera);
+  const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -Number(z));
+  const target = new THREE.Vector3();
+  return raycaster.ray.intersectPlane(plane, target) ? target : null;
+}
+
 renderer.domElement.addEventListener("pointerdown", (event) => {
   if (!bridge) return;
+  if (event.button !== 2) hideMarkingMenu();
+
+  if (activeTool === "move") {
+    if (event.button === 2) {
+      if (movingEntity) {
+        movingEntity = false;
+        pendingMovePoint = null;
+        controls.enabled = true;
+        clearMoveGhost();
+        bridge.cancelMove();
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    if (event.button !== 0) return;
+
+    if (movingEntity) {
+      const point = pointOnHorizontalPlane(event, movePlaneZ);
+      if (point) bridge.updateMove(
+        Number(point.x),
+        Number(point.y),
+        Boolean(snapEnabled && !event.shiftKey),
+        Boolean(event.ctrlKey)
+      );
+      pendingMovePoint = null;
+      movingEntity = false;
+      controls.enabled = true;
+      clearMoveGhost();
+      bridge.endMove();
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    const hit = pickModel(event);
+    if (!hit || !hit.face) return;
+    const kind = hit.object.userData.kind || "";
+    const supported = ["stair", "ramp", "wall", "box", "pod", "floor", "room", "mechanical_part"];
+    if (!supported.includes(kind)) {
+      bridge.reportStatus("Move in 3D is not supported for " + kind);
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    moveEntityId = hit.object.userData.entityId || "";
+    if (!moveEntityId) return;
+    movingEntity = true;
+    movePlaneZ = Number(hit.point.z);
+    moveAnchor = hit.point.clone();
+    pendingMovePoint = null;
+    controls.enabled = false;
+    startMoveGhost(hit.object);
+    bridge.beginMove(moveEntityId, Number(hit.point.x), Number(hit.point.y));
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+
+  if (activeTool === "rotate") {
+    if (event.button === 2) {
+      if (rotatingEntity) {
+        rotatingEntity = false;
+        pendingRotatePoint = null;
+        controls.enabled = true;
+        clearRotateGhost();
+        bridge.cancelRotate();
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    if (event.button !== 0) return;
+
+    if (rotatingEntity) {
+      const point = pointOnHorizontalPlane(event, rotatePlaneZ);
+      if (point) bridge.updateRotate(
+        Number(point.x),
+        Number(point.y),
+        Boolean(snapEnabled && !event.shiftKey)
+      );
+      pendingRotatePoint = null;
+      rotatingEntity = false;
+      controls.enabled = true;
+      clearRotateGhost();
+      bridge.endRotate();
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    const hit = pickModel(event);
+    if (!hit || !hit.face) return;
+    const kind = hit.object.userData.kind || "";
+    const supported = ["stair", "ramp", "wall", "box", "pod"];
+    if (!supported.includes(kind)) {
+      bridge.reportStatus("Rotate in 3D is not supported for " + kind);
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    rotateEntityId = hit.object.userData.entityId || "";
+    if (!rotateEntityId) return;
+
+    const bounds = new THREE.Box3().setFromObject(hit.object);
+    const center = bounds.getCenter(new THREE.Vector3());
+    rotatePivot = center.clone();
+    rotatePlaneZ = Number(center.z);
+    const startPoint = pointOnHorizontalPlane(event, rotatePlaneZ) || hit.point.clone();
+    rotateStartAngle = Math.atan2(startPoint.y - rotatePivot.y, startPoint.x - rotatePivot.x);
+    pendingRotatePoint = null;
+    rotatingEntity = true;
+    controls.enabled = false;
+    startRotateGhost(hit.object, rotatePivot);
+    bridge.beginRotate(
+      rotateEntityId,
+      Number(startPoint.x),
+      Number(startPoint.y),
+      Number(rotatePivot.x),
+      Number(rotatePivot.y)
+    );
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+
+  if (activeTool === "stair") {
+    if (event.button === 2) {
+      if (stairing) {
+        stairing = false;
+        pendingStairPoint = null;
+        controls.enabled = true;
+        bridge.cancelStair();
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    if (event.button !== 0) return;
+
+    if (stairing) {
+      const point = pointOnHorizontalPlane(event, stairPlaneZ);
+      if (point) bridge.updateStair(Number(point.x), Number(point.y));
+      pendingStairPoint = null;
+      stairing = false;
+      controls.enabled = true;
+      bridge.endStair();
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    const hit = pickModel(event);
+    if (!hit || !hit.face) return;
+    stairing = true;
+    stairPlaneZ = Number(hit.point.z);
+    controls.enabled = false;
+    bridge.beginStair(Number(hit.point.x), Number(hit.point.y));
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+
+  if (activeTool === "ramp") {
+    if (event.button === 2) {
+      if (ramping) {
+        ramping = false;
+        pendingRampPoint = null;
+        controls.enabled = true;
+        bridge.cancelRamp();
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    if (event.button !== 0) return;
+
+    if (ramping) {
+      const point = pointOnHorizontalPlane(event, rampPlaneZ);
+      if (point) bridge.updateRamp(Number(point.x), Number(point.y));
+      pendingRampPoint = null;
+      ramping = false;
+      controls.enabled = true;
+      bridge.endRamp();
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    const hit = pickModel(event);
+    if (!hit || !hit.face) return;
+    ramping = true;
+    rampPlaneZ = Number(hit.point.z);
+    controls.enabled = false;
+    bridge.beginRamp(Number(hit.point.x), Number(hit.point.y));
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+
   const hit = pickModel(event);
   if (!hit || !hit.face) return;
 
@@ -338,8 +959,146 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
   event.stopPropagation();
 }, true);
 
+renderer.domElement.addEventListener("dblclick", (event) => {
+  if (!bridge || sculpting || stairing || ramping || movingEntity || rotatingEntity) return;
+  if (activeTool === "door" || activeTool === "window" || activeTool === "sculpt" || activeTool === "stair" || activeTool === "ramp" || activeTool === "move" || activeTool === "rotate") return;
+  const hit = pickModel(event);
+  if (!hit || !hit.face) return;
+  bridge.selectEntity(hit.object.userData.entityId || "");
+  event.preventDefault();
+  event.stopPropagation();
+}, true);
+
+renderer.domElement.addEventListener("contextmenu", (event) => {
+  event.preventDefault();
+  if (!bridge || sculpting) return;
+  if (activeTool === "move" && movingEntity) {
+    movingEntity = false;
+    pendingMovePoint = null;
+    controls.enabled = true;
+    clearMoveGhost();
+    bridge.cancelMove();
+    event.stopPropagation();
+    return;
+  }
+  if (activeTool === "rotate" && rotatingEntity) {
+    rotatingEntity = false;
+    pendingRotatePoint = null;
+    controls.enabled = true;
+    clearRotateGhost();
+    bridge.cancelRotate();
+    event.stopPropagation();
+    return;
+  }
+  if (activeTool === "stair") {
+    if (stairing) {
+      stairing = false;
+      pendingStairPoint = null;
+      controls.enabled = true;
+      bridge.cancelStair();
+    }
+    event.stopPropagation();
+    return;
+  }
+  if (activeTool === "ramp") {
+    if (ramping) {
+      ramping = false;
+      pendingRampPoint = null;
+      controls.enabled = true;
+      bridge.cancelRamp();
+    }
+    event.stopPropagation();
+    return;
+  }
+  const hit = pickModel(event);
+  if (!hit || !hit.face) { hideMarkingMenu(); return; }
+  bridge.showContextMenu(
+    hit.object.userData.entityId || "",
+    Number(event.clientX),
+    Number(event.clientY)
+  );
+  event.stopPropagation();
+}, true);
+
+renderer.domElement.addEventListener("wheel", (event) => {
+  hideMarkingMenu();
+  if (stairing && bridge) {
+    bridge.cycleStair(event.deltaY > 0 ? 1 : -1);
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  if (ramping && bridge) {
+    bridge.cycleRamp(event.deltaY > 0 ? 1 : -1);
+    event.preventDefault();
+    event.stopPropagation();
+  }
+}, {passive: false});
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    hideMarkingMenu();
+    if (movingEntity && bridge) {
+      movingEntity = false;
+      pendingMovePoint = null;
+      controls.enabled = true;
+      clearMoveGhost();
+      bridge.cancelMove();
+      event.preventDefault();
+    }
+    if (rotatingEntity && bridge) {
+      rotatingEntity = false;
+      pendingRotatePoint = null;
+      controls.enabled = true;
+      clearRotateGhost();
+      bridge.cancelRotate();
+      event.preventDefault();
+    }
+    if (stairing && bridge) {
+      stairing = false;
+      controls.enabled = true;
+      bridge.cancelStair();
+      event.preventDefault();
+    }
+    if (ramping && bridge) {
+      ramping = false;
+      pendingRampPoint = null;
+      controls.enabled = true;
+      bridge.cancelRamp();
+      event.preventDefault();
+    }
+  }
+});
+
 renderer.domElement.addEventListener("pointermove", (event) => {
-  if (!sculpting || !bridge) return;
+  if (!bridge) return;
+  if (movingEntity) {
+    const point = pointOnHorizontalPlane(event, movePlaneZ);
+    if (point) scheduleMoveUpdate(point, event);
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+  if (rotatingEntity) {
+    const point = pointOnHorizontalPlane(event, rotatePlaneZ);
+    if (point) scheduleRotateUpdate(point, event);
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+  if (stairing) {
+    const point = pointOnHorizontalPlane(event, stairPlaneZ);
+    if (point) scheduleStairUpdate(point);
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+  if (ramping) {
+    const point = pointOnHorizontalPlane(event, rampPlaneZ);
+    if (point) scheduleRampUpdate(point);
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+  if (!sculpting) return;
   const amount = Math.abs(event.clientY - sculptStartY) * 0.006;
   bridge.updateSculpt(amount);
   event.preventDefault();
@@ -347,7 +1106,8 @@ renderer.domElement.addEventListener("pointermove", (event) => {
 }, true);
 
 renderer.domElement.addEventListener("pointerup", (event) => {
-  if (!sculpting || !bridge) return;
+  if (!bridge) return;
+  if (!sculpting) return;
   sculpting = false;
   controls.enabled = activeTool !== "sculpt";
   bridge.endSculpt();
@@ -357,6 +1117,8 @@ renderer.domElement.addEventListener("pointerup", (event) => {
 
 if (window.__archforgePendingTechnique) window.setTechnique(window.__archforgePendingTechnique);
 if (window.__archforgePendingScene) window.archforgeSetScene(window.__archforgePendingScene);
+if (window.__archforgePendingStairPreview) window.setStairPreview(window.__archforgePendingStairPreview);
+if (window.__archforgePendingRampPreview) window.setRampPreview(window.__archforgePendingRampPreview);
 
 function animate() {
   controls.update();
@@ -389,9 +1151,104 @@ class PBRInteractionBridge(QObject):
     def endSculpt(self) -> None:
         self.viewport._finish_sculpt_from_web()
 
+    @Slot(str)
+    def selectEntity(self, entity_id: str) -> None:
+        self.viewport._select_entity_from_web(entity_id)
+
+    @Slot(str, float, float)
+    def showContextMenu(self, entity_id: str, x: float, y: float) -> None:
+        self.viewport._show_context_menu(entity_id, x, y)
+
+    @Slot(str, str)
+    def contextAction(self, entity_id: str, action_id: str) -> None:
+        self.viewport.contextActionRequested.emit(str(entity_id), str(action_id))
+
     @Slot(str, str)
     def placeOpening(self, kind: str, payload_json: str) -> None:
         self.viewport._place_opening_from_web(kind, payload_json)
+
+    @Slot(float, float)
+    def beginStair(self, x: float, y: float) -> None:
+        self.viewport._begin_stair_from_web(x, y)
+
+    @Slot(float, float)
+    def updateStair(self, x: float, y: float) -> None:
+        self.viewport._update_stair_from_web(x, y)
+
+    @Slot()
+    def endStair(self) -> None:
+        self.viewport._finish_stair_from_web()
+
+    @Slot(int)
+    def cycleStair(self, step: int) -> None:
+        self.viewport._cycle_stair_from_web(step)
+
+    @Slot()
+    def cancelStair(self) -> None:
+        self.viewport._cancel_stair_from_web()
+
+    @Slot(float, float)
+    def beginRamp(self, x: float, y: float) -> None:
+        self.viewport._begin_ramp_from_web(x, y)
+
+    @Slot(float, float)
+    def updateRamp(self, x: float, y: float) -> None:
+        self.viewport._update_ramp_from_web(x, y)
+
+    @Slot()
+    def endRamp(self) -> None:
+        self.viewport._finish_ramp_from_web()
+
+    @Slot(int)
+    def cycleRamp(self, step: int) -> None:
+        self.viewport._cycle_ramp_from_web(step)
+
+    @Slot()
+    def cancelRamp(self) -> None:
+        self.viewport._cancel_ramp_from_web()
+
+    @Slot(str)
+    def reportStatus(self, message: str) -> None:
+        self.viewport.statusChanged.emit(str(message))
+
+    @Slot(str, float, float)
+    def beginMove(self, entity_id: str, x: float, y: float) -> None:
+        self.viewport._begin_move_from_web(entity_id, x, y)
+
+    @Slot(float, float, bool, bool)
+    def updateMove(self, x: float, y: float, snap: bool, axis_lock: bool) -> None:
+        self.viewport._update_move_from_web(x, y, snap, axis_lock)
+
+    @Slot()
+    def endMove(self) -> None:
+        self.viewport._finish_move_from_web()
+
+    @Slot()
+    def cancelMove(self) -> None:
+        self.viewport._cancel_move_from_web()
+
+    @Slot(str, float, float, float, float)
+    def beginRotate(
+        self,
+        entity_id: str,
+        x: float,
+        y: float,
+        pivot_x: float,
+        pivot_y: float,
+    ) -> None:
+        self.viewport._begin_rotate_from_web(entity_id, x, y, pivot_x, pivot_y)
+
+    @Slot(float, float, bool)
+    def updateRotate(self, x: float, y: float, snap: bool) -> None:
+        self.viewport._update_rotate_from_web(x, y, snap)
+
+    @Slot()
+    def endRotate(self) -> None:
+        self.viewport._finish_rotate_from_web()
+
+    @Slot()
+    def cancelRotate(self) -> None:
+        self.viewport._cancel_rotate_from_web()
 
 
 class PBRViewport(QWidget):
@@ -402,6 +1259,7 @@ class PBRViewport(QWidget):
     """
 
     selectionChangedByView = Signal()
+    contextActionRequested = Signal(str, str)
     statusChanged = Signal(str)
 
     def __init__(self, doc, stack, parent=None):
@@ -418,6 +1276,14 @@ class PBRViewport(QWidget):
         self.sculpt_brush = BrushSpec(radius=0.35, strength=1.0, falloff="smooth")
         self.sculpt_op = "pull"
         self._sculpt_tx = None
+        self._stair_preview_payload = {"options": []}
+        self._stair_tx = None
+        self._ramp_preview_payload = {"active": None, "info": {}}
+        self._ramp_tx = None
+        self._move_tx = None
+        self._rotate_tx = None
+        self._rotate_start_angle_deg = 0.0
+        self._snap_enabled = True
         self.channel = None
         self.bridge = None
         layout = QVBoxLayout(self)
@@ -459,12 +1325,26 @@ class PBRViewport(QWidget):
         self.set_cutaway(self._cutaway)
         self.redraw(force_full=True)
         self.set_camera_preset(self._camera_preset)
+        self._push_stair_preview()
+        self._push_ramp_preview()
+        self.set_snap_enabled(self._snap_enabled)
 
     def rebind(self, doc, stack) -> None:
         self.doc = doc
         self.stack = stack
         self._evaluation_cache.clear()
         self.redraw(force_full=True)
+
+    def set_snap_enabled(self, enabled: bool) -> None:
+        self._snap_enabled = bool(enabled)
+        if self.web_view is not None:
+            script = (
+                "if (window.setSnapEnabled) window.setSnapEnabled("
+                + ("true" if self._snap_enabled else "false")
+                + ");"
+            )
+            self.web_view.page().runJavaScript(script)
+        self.statusChanged.emit("Snap ON" if self._snap_enabled else "Snap OFF — Free mode")
 
     def set_tool(self, tool: str) -> None:
         self.active_tool = str(tool)
@@ -498,6 +1378,53 @@ class PBRViewport(QWidget):
             self.statusChanged.emit(
                 f"PBR Sculpt {self.sculpt_op}: click a surface and drag | brush {brush.radius:.2f} m"
             )
+
+    def _select_entity_from_web(self, entity_id: str) -> None:
+        entity_id = str(entity_id)
+        if entity_id not in self.doc.entities:
+            self.doc.select([])
+            self.selectionChangedByView.emit()
+            self.redraw(force_full=False)
+            self.statusChanged.emit("Selection cleared")
+            return
+        self.doc.select([entity_id])
+        self.selectionChangedByView.emit()
+        self.redraw(force_full=False)
+        entity = self.doc.get(entity_id)
+        self.statusChanged.emit(
+            f"Selected {entity.name or entity.kind.title()} — press Delete to remove"
+        )
+
+    def _show_context_menu(self, entity_id: str, x: float, y: float) -> None:
+        entity_id = str(entity_id)
+        if entity_id not in self.doc.entities:
+            return
+        self.doc.select([entity_id])
+        self.selectionChangedByView.emit()
+        self.redraw(force_full=False)
+
+        entity = self.doc.get(entity_id)
+        entries = [
+            entry
+            for entry in object_context_actions(entity.kind, 'pbr')
+            if entry is not None
+        ]
+        if self.web_view is not None:
+            script = (
+                "if (window.showMarkingMenu) window.showMarkingMenu("
+                + json.dumps(entity_id)
+                + ","
+                + json.dumps(float(x))
+                + ","
+                + json.dumps(float(y))
+                + ","
+                + json.dumps(entries, separators=(',', ':'))
+                + ");"
+            )
+            self.web_view.page().runJavaScript(script)
+        self.statusChanged.emit(
+            f"Context: {entity.name or entity.kind.title()} — choose an action"
+        )
 
     def _begin_sculpt_from_web(self, payload_json: str) -> None:
         if self.active_tool != "sculpt":
@@ -556,6 +1483,434 @@ class PBRViewport(QWidget):
             self.statusChanged.emit(f"PBR sculpt commit error: {exc}")
             self.redraw(force_full=False)
 
+
+    def _set_stair_candidate_params(self, candidates, active_index=0) -> None:
+        candidates = list(candidates)
+        payload = {"active": None, "info": {}}
+        try:
+            if candidates:
+                active_index = max(0, min(int(active_index), len(candidates) - 1))
+                params = candidates[active_index]
+                from archforge.geometry.mesh import _stair_mesh
+                mesh = _stair_mesh(params)
+                payload = {
+                    "active": {
+                        "vertices": [[float(x), float(y), float(z)] for x, y, z in mesh.vertices],
+                        "triangles": [[int(a), int(b), int(c)] for a, b, c in mesh.triangles],
+                    },
+                    "info": {
+                        "layout": str(params.get("layout", "stair")),
+                        "risers": int(params.get("riser_count", 0)),
+                        "riser": float(params.get("riser_height", 0.0)),
+                        "tread": float(params.get("tread_depth", 0.0)),
+                        "landing_z": float(params.get("upper_z", 0.0)),
+                        "slab_thickness": float(params.get("upper_slab_thickness", 0.0)),
+                        "option_index": active_index,
+                        "option_count": min(4, len(candidates)),
+                    },
+                }
+        except Exception as exc:
+            self.statusChanged.emit(f"Stair preview error: {exc}")
+            payload = {"active": None, "info": {}}
+        self._stair_preview_payload = payload
+        self._push_stair_preview()
+
+    def set_stair_preview(self, preview) -> None:
+        candidates = ()
+        active_index = 0
+        if preview is not None and getattr(preview, "kind", None) == "stair":
+            geometry = getattr(preview, "geometry", {})
+            candidates = geometry.get("candidates", ())
+            active_index = geometry.get("active_index", 0)
+        self._set_stair_candidate_params(candidates, active_index)
+
+    def _stair_status(self) -> None:
+        if self._stair_tx is None or not self._stair_tx.candidates:
+            return
+        active = self._stair_tx.active_candidate
+        note = active.suggestions[0] if active.suggestions else "valid layout"
+        self.statusChanged.emit(
+            f"Stair {active.layout.upper()} | option {self._stair_tx.active_index + 1}/"
+            f"{min(4, len(self._stair_tx.candidates))} | "
+            f"{active.riser_count} risers × {active.riser_height:.3f} m | "
+            f"tread {active.tread_depth:.3f} m | {note}"
+        )
+
+    def _begin_stair_from_web(self, x: float, y: float) -> None:
+        try:
+            self._stair_tx = StairPlaceTransaction(self.doc, self.stack, (float(x), float(y)))
+            self._stair_tx.update(float(x), float(y))
+            self._set_stair_candidate_params(
+                self._stair_tx.preview.get("candidates", ()),
+                self._stair_tx.active_index,
+            )
+            self._stair_status()
+        except Exception as exc:
+            self._stair_tx = None
+            self._set_stair_candidate_params(())
+            self.statusChanged.emit(f"Cannot start stair: {exc}")
+
+    def _update_stair_from_web(self, x: float, y: float) -> None:
+        if self._stair_tx is None:
+            return
+        try:
+            self._stair_tx.update(float(x), float(y))
+            self._set_stair_candidate_params(
+                self._stair_tx.preview.get("candidates", ()),
+                self._stair_tx.active_index,
+            )
+            self._stair_status()
+        except Exception as exc:
+            self.statusChanged.emit(f"Stair preview error: {exc}")
+
+    def _cycle_stair_from_web(self, step: int) -> None:
+        if self._stair_tx is None:
+            return
+        try:
+            self._stair_tx.cycle_candidate(1 if int(step) >= 0 else -1)
+            self._set_stair_candidate_params(
+                self._stair_tx.preview.get("candidates", ()),
+                self._stair_tx.active_index,
+            )
+            self._stair_status()
+        except Exception as exc:
+            self.statusChanged.emit(f"Cannot change stair option: {exc}")
+
+    def _cancel_stair_from_web(self) -> None:
+        if self._stair_tx is not None:
+            self._stair_tx.cancel()
+        self._stair_tx = None
+        self._set_stair_candidate_params(())
+        self.statusChanged.emit("Stair placement cancelled")
+
+    def _finish_stair_from_web(self) -> None:
+        if self._stair_tx is None:
+            return
+        tx = self._stair_tx
+        self._stair_tx = None
+        try:
+            chosen = tx.active_candidate
+            entity_id = tx.commit()
+            self._evaluation_cache.clear()
+            self._set_stair_candidate_params(())
+            self.doc.select([entity_id])
+            self.selectionChangedByView.emit()
+            self.redraw(force_full=False)
+            self.statusChanged.emit(
+                f"Committed {chosen.layout.upper()} stair — Undo is available"
+            )
+        except Exception as exc:
+            self._set_stair_candidate_params(())
+            self.statusChanged.emit(f"Cannot commit stair: {exc}")
+
+    def _begin_move_from_web(self, entity_id: str, x: float, y: float) -> None:
+        entity_id = str(entity_id)
+        if entity_id not in self.doc.entities:
+            self.statusChanged.emit("Move target no longer exists")
+            return
+        entity = self.doc.get(entity_id)
+        supported = {"stair", "ramp", "wall", "box", "pod", "floor", "room", "mechanical_part"}
+        if entity.kind not in supported:
+            self.statusChanged.emit(f"Move in 3D is not supported for {entity.kind}")
+            return
+        try:
+            self.doc.select([entity_id])
+            self.selectionChangedByView.emit()
+            self._move_tx = MoveTransaction(
+                self.doc,
+                self.stack,
+                [entity_id],
+                origin=(float(x), float(y), float(self.doc.work_plane.origin[2])),
+            )
+            self.statusChanged.emit(
+                f"Move {entity.name or entity.kind.title()}: move pointer, left click to place, right click/Esc to cancel"
+            )
+        except Exception as exc:
+            self._move_tx = None
+            self.statusChanged.emit(f"Cannot start move: {exc}")
+
+    def _update_move_from_web(
+        self,
+        x: float,
+        y: float,
+        snap: bool = True,
+        axis_lock: bool = False,
+    ) -> None:
+        if self._move_tx is None:
+            return
+        try:
+            use_snap = self._snap_enabled and bool(snap)
+            hud = self._move_tx.update_pointer(
+                float(x),
+                float(y),
+                snap=use_snap,
+                axis_lock=bool(axis_lock),
+            )
+            qualifiers = []
+            if self._move_tx.last_snap_kind:
+                qualifiers.append(f"SNAP {self._move_tx.last_snap_kind}")
+            if self._move_tx.axis_lock:
+                qualifiers.append(f"CTRL {self._move_tx.axis_lock.upper()}-axis")
+            suffix = (" · " + " · ".join(qualifiers)) if qualifiers else ""
+            if self.web_view is not None:
+                self.web_view.page().runJavaScript(
+                    "if (window.setMoveGhostDelta) window.setMoveGhostDelta("
+                    + json.dumps(float(self._move_tx.dx))
+                    + ","
+                    + json.dumps(float(self._move_tx.dy))
+                    + ","
+                    + ("true" if bool(self._move_tx.last_snap_kind) else "false")
+                    + ");"
+                )
+            self.statusChanged.emit(
+                f"Move ΔX {hud.values['dx']:.3f} m · ΔY {hud.values['dy']:.3f} m{suffix}"
+            )
+        except Exception as exc:
+            self.statusChanged.emit(f"Move preview error: {exc}")
+
+    def _cancel_move_from_web(self) -> None:
+        if self._move_tx is not None:
+            self._move_tx.cancel()
+        self._move_tx = None
+        self.statusChanged.emit("Move cancelled")
+
+    def _finish_move_from_web(self) -> None:
+        if self._move_tx is None:
+            return
+        tx = self._move_tx
+        self._move_tx = None
+        try:
+            if abs(tx.dx) > 1e-12 or abs(tx.dy) > 1e-12:
+                tx.commit()
+                self._evaluation_cache.clear()
+                self.redraw(force_full=True)
+                self.selectionChangedByView.emit()
+                self.statusChanged.emit(
+                    f"Moved object ΔX {tx.dx:.3f} m · ΔY {tx.dy:.3f} m — Undo is available"
+                )
+            else:
+                tx.cancel()
+                self.statusChanged.emit("Move cancelled: position unchanged")
+        except Exception as exc:
+            self.statusChanged.emit(f"Cannot commit move: {exc}")
+
+    def _begin_rotate_from_web(
+        self,
+        entity_id: str,
+        x: float,
+        y: float,
+        pivot_x: float,
+        pivot_y: float,
+    ) -> None:
+        entity_id = str(entity_id)
+        if entity_id not in self.doc.entities:
+            self.statusChanged.emit("Rotate target no longer exists")
+            return
+        entity = self.doc.get(entity_id)
+        supported = {"stair", "ramp", "wall", "box", "pod"}
+        if entity.kind not in supported:
+            self.statusChanged.emit(f"Rotate in 3D is not supported for {entity.kind}")
+            return
+        try:
+            self.doc.select([entity_id])
+            self.selectionChangedByView.emit()
+            self._rotate_tx = RotateTransaction(
+                self.doc,
+                self.stack,
+                entity_id,
+                pivot=(float(pivot_x), float(pivot_y)),
+                angle_increment=15.0,
+            )
+            self._rotate_start_angle_deg = degrees(
+                atan2(float(y) - float(pivot_y), float(x) - float(pivot_x))
+            )
+            self.statusChanged.emit(
+                f"Rotate {entity.name or entity.kind.title()}: move pointer, left click to place, Shift = free angle, right click/Esc = cancel"
+            )
+        except Exception as exc:
+            self._rotate_tx = None
+            self.statusChanged.emit(f"Cannot start rotate: {exc}")
+
+    def _update_rotate_from_web(
+        self,
+        x: float,
+        y: float,
+        snap: bool = True,
+    ) -> None:
+        if self._rotate_tx is None:
+            return
+        try:
+            use_snap = self._snap_enabled and bool(snap)
+            hud = self._rotate_tx.update_pointer(
+                float(x),
+                float(y),
+                start_angle_deg=self._rotate_start_angle_deg,
+                snap=use_snap,
+            )
+            suffix = " · SNAP 15°" if use_snap else " · FREE"
+            self.statusChanged.emit(
+                f"Rotate {hud.values['angle_deg']:.1f}°{suffix}"
+            )
+        except Exception as exc:
+            self.statusChanged.emit(f"Rotate preview error: {exc}")
+
+    def _cancel_rotate_from_web(self) -> None:
+        if self._rotate_tx is not None:
+            self._rotate_tx.cancel()
+        self._rotate_tx = None
+        self.statusChanged.emit("Rotate cancelled")
+
+    def _finish_rotate_from_web(self) -> None:
+        if self._rotate_tx is None:
+            return
+        tx = self._rotate_tx
+        self._rotate_tx = None
+        try:
+            if abs(float(tx.angle)) > 1e-12:
+                tx.commit()
+                self._evaluation_cache.clear()
+                self.redraw(force_full=True)
+                self.selectionChangedByView.emit()
+                self.statusChanged.emit(
+                    f"Rotated object {tx.angle:.1f}° — Undo is available"
+                )
+            else:
+                tx.cancel()
+                self.statusChanged.emit("Rotate cancelled: angle unchanged")
+        except Exception as exc:
+            self.statusChanged.emit(f"Cannot commit rotate: {exc}")
+
+    def _set_ramp_candidate_params(self, candidates, active_index=0) -> None:
+        candidates = list(candidates)
+        payload = {"active": None, "info": {}}
+        try:
+            if candidates:
+                active_index = max(0, min(int(active_index), len(candidates) - 1))
+                params = candidates[active_index]
+                from archforge.geometry.mesh import _ramp_mesh
+                mesh = _ramp_mesh(params)
+                payload = {
+                    "active": {
+                        "vertices": [[float(x), float(y), float(z)] for x, y, z in mesh.vertices],
+                        "triangles": [[int(a), int(b), int(c)] for a, b, c in mesh.triangles],
+                    },
+                    "info": {
+                        "slope_pct": float(params.get("slope_pct", 0.0)),
+                        "run_length": float(params.get("run_length", 0.0)),
+                        "rise": float(params.get("upper_z", 0.0)) - float(params.get("lower_z", 0.0)),
+                        "option_index": active_index,
+                        "option_count": len(candidates),
+                    },
+                }
+        except Exception as exc:
+            self.statusChanged.emit(f"Ramp preview error: {exc}")
+            payload = {"active": None, "info": {}}
+        self._ramp_preview_payload = payload
+        self._push_ramp_preview()
+
+    def _ramp_status(self) -> None:
+        if self._ramp_tx is None or not self._ramp_tx.candidates:
+            return
+        active = self._ramp_tx.active_candidate
+        self.statusChanged.emit(
+            f"Ramp {active.slope_pct:.1f}% | option {self._ramp_tx.active_index + 1}/"
+            f"{len(self._ramp_tx.candidates)} | run {active.run_length:.2f} m | "
+            f"rise {active.rise:.2f} m"
+        )
+
+    def _begin_ramp_from_web(self, x: float, y: float) -> None:
+        try:
+            self._ramp_tx = RampPlaceTransaction(self.doc, self.stack, (float(x), float(y)))
+            self._ramp_tx.update(float(x), float(y))
+            self._set_ramp_candidate_params(
+                self._ramp_tx.preview.get("candidates", ()),
+                self._ramp_tx.active_index,
+            )
+            self._ramp_status()
+        except Exception as exc:
+            self._ramp_tx = None
+            self._set_ramp_candidate_params(())
+            self.statusChanged.emit(f"Cannot start ramp: {exc}")
+
+    def _update_ramp_from_web(self, x: float, y: float) -> None:
+        if self._ramp_tx is None:
+            return
+        try:
+            self._ramp_tx.update(float(x), float(y))
+            self._set_ramp_candidate_params(
+                self._ramp_tx.preview.get("candidates", ()),
+                self._ramp_tx.active_index,
+            )
+            self._ramp_status()
+        except Exception as exc:
+            self.statusChanged.emit(f"Ramp preview error: {exc}")
+
+    def _cycle_ramp_from_web(self, step: int) -> None:
+        if self._ramp_tx is None:
+            return
+        try:
+            self._ramp_tx.cycle_candidate(1 if int(step) >= 0 else -1)
+            self._set_ramp_candidate_params(
+                self._ramp_tx.preview.get("candidates", ()),
+                self._ramp_tx.active_index,
+            )
+            self._ramp_status()
+        except Exception as exc:
+            self.statusChanged.emit(f"Cannot change ramp slope: {exc}")
+
+    def _cancel_ramp_from_web(self) -> None:
+        if self._ramp_tx is not None:
+            self._ramp_tx.cancel()
+        self._ramp_tx = None
+        self._set_ramp_candidate_params(())
+        self.statusChanged.emit("Ramp placement cancelled")
+
+    def _finish_ramp_from_web(self) -> None:
+        if self._ramp_tx is None:
+            return
+        tx = self._ramp_tx
+        self._ramp_tx = None
+        try:
+            chosen = tx.active_candidate
+            entity_id = tx.commit()
+            self._evaluation_cache.clear()
+            self._set_ramp_candidate_params(())
+            self.doc.select([entity_id])
+            self.selectionChangedByView.emit()
+            self.redraw(force_full=False)
+            self.statusChanged.emit(
+                f"Committed ramp at {chosen.slope_pct:.1f}% slope — Undo is available"
+            )
+        except Exception as exc:
+            self._set_ramp_candidate_params(())
+            self.statusChanged.emit(f"Cannot commit ramp: {exc}")
+
+    def _push_ramp_preview(self) -> None:
+        if self.web_view is None:
+            return
+        script = (
+            "window.__archforgePendingRampPreview = "
+            + json.dumps(self._ramp_preview_payload, separators=(',', ':'))
+            + "; if (window.setRampPreview) window.setRampPreview(window.__archforgePendingRampPreview);"
+        )
+        self.web_view.page().runJavaScript(script)
+
+    def _push_stair_preview(self) -> None:
+        if self.web_view is None:
+            return
+        script = (
+            "window.__archforgePendingStairPreview = "
+            + json.dumps(self._stair_preview_payload, separators=(',', ':'))
+            + "; if (window.setStairPreview) window.setStairPreview(window.__archforgePendingStairPreview);"
+        )
+        self.web_view.page().runJavaScript(script)
+
+    def fit_camera(self) -> None:
+        if self.web_view is not None:
+            self.web_view.page().runJavaScript(
+                "if (typeof fitCamera === 'function') fitCamera();"
+            )
+        self.statusChanged.emit("PBR camera: fit")
 
     def set_camera_preset(self, mode: str) -> None:
         allowed = ("cutaway", "top", "front", "side", "iso30", "eye", "orbit")

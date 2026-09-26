@@ -1,18 +1,20 @@
 from __future__ import annotations
 import math
+import copy
 from typing import Optional, Dict
 
 from PySide6.QtCore import Qt, QPointF, Signal
 from PySide6.QtGui import QPen, QBrush, QColor, QPainter
-from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsTextItem
+from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsTextItem, QMenu
 
 from archforge.core.model import Document
 from archforge.core.commands import CommandStack
 from archforge.core.viewport import PointerController, PointerEvent
 from archforge.core.plan_scene import build_plan_frame, Primitive2D, Handle2D
+from archforge.ui.object_context_menu import object_context_actions
 
 class PlanView(QGraphicsView):
-    selectionChangedByView=Signal();statusChanged=Signal(str)
+    selectionChangedByView=Signal();contextActionRequested=Signal(str,str);previewChanged=Signal(object);statusChanged=Signal(str)
     def __init__(self,doc:Document,stack:CommandStack,parent=None):
         self._scene=QGraphicsScene();super().__init__(self._scene,parent);self.doc=doc;self.stack=stack;self.controller=PointerController(doc,stack)
         self.setRenderHint(QPainter.RenderHint.Antialiasing,True);self.setDragMode(QGraphicsView.DragMode.NoDrag);self.setMouseTracking(True);self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse);self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter);self.setBackgroundBrush(QColor(248,248,248))
@@ -39,6 +41,30 @@ class PlanView(QGraphicsView):
         self.selectionChangedByView.emit()
         return eid is not None
     def wheelEvent(self,event):self.scale(1.15 if event.angleDelta().y()>0 else 1/1.15,1.15 if event.angleDelta().y()>0 else 1/1.15)
+    def mouseDoubleClickEvent(self,event):
+        if event.button()==Qt.MouseButton.LeftButton:
+            hit=self.itemAt(event.position().toPoint());eid=self._entity_items.get(hit)
+            if eid and eid in self.doc.entities:
+                self.doc.select([eid]);self.controller.set_target(eid,None)
+                self.selectionChangedByView.emit();self.redraw();event.accept();return
+        super().mouseDoubleClickEvent(event)
+
+    def contextMenuEvent(self,event):
+        hit=self.itemAt(event.pos());eid=self._entity_items.get(hit)
+        if not eid or eid not in self.doc.entities:
+            super().contextMenuEvent(event);return
+        self.doc.select([eid]);self.controller.set_target(eid,None)
+        self.selectionChangedByView.emit();self.redraw()
+
+        entity=self.doc.get(eid);menu=QMenu(self);action_map={}
+        for spec in object_context_actions(entity.kind,'plan'):
+            if spec is None:
+                menu.addSeparator();continue
+            action=menu.addAction(spec['label']);action_map[action]=spec['id']
+        chosen=menu.exec(event.globalPos())
+        if chosen in action_map:self.contextActionRequested.emit(eid,action_map[chosen])
+        event.accept()
+
     def mousePressEvent(self,event):
         if event.button()!=Qt.MouseButton.LeftButton:super().mousePressEvent(event);return
         self._mouse_down=True;hit=self.itemAt(event.position().toPoint())
@@ -60,10 +86,25 @@ class PlanView(QGraphicsView):
             if not self._acquire_rotate_target(hit):self._mouse_down=False;self.redraw();return
         elif self.controller.tool=='stretch':
             if not self._acquire_stretch_target(hit):self._mouse_down=False;self.redraw();return
-        ev=self._scene_to_plane(event.position().toPoint());ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier);self.controller.pointer_down(ev);self.redraw()
+        ev=self._scene_to_plane(event.position().toPoint())
+        ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
+        ev.ctrl=bool(event.modifiers()&Qt.KeyboardModifier.ControlModifier)
+        try:
+            self.controller.pointer_down(ev)
+        except (ValueError, RuntimeError) as exc:
+            self._mouse_down=False
+            self._active_handle=None
+            self.controller.cancel()
+            self.statusChanged.emit(str(exc))
+            self.redraw()
+            event.accept()
+            return
+        self.redraw()
     def mouseMoveEvent(self,event):
         if self._mouse_down and self.controller.active is not None:
-            ev=self._scene_to_plane(event.position().toPoint());ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
+            ev=self._scene_to_plane(event.position().toPoint())
+            ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
+            ev.ctrl=bool(event.modifiers()&Qt.KeyboardModifier.ControlModifier)
             try:self.controller.pointer_move(ev);self.redraw()
             except ValueError as exc:self.statusChanged.emit(str(exc))
         else:
@@ -73,7 +114,9 @@ class PlanView(QGraphicsView):
         if event.button()==Qt.MouseButton.LeftButton and self._mouse_down:
             self._mouse_down=False
             if self.controller.active is not None:
-                ev=self._scene_to_plane(event.position().toPoint());ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
+                ev=self._scene_to_plane(event.position().toPoint())
+                ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
+                ev.ctrl=bool(event.modifiers()&Qt.KeyboardModifier.ControlModifier)
                 try:self.controller.pointer_up(ev)
                 except ValueError as exc:self.statusChanged.emit(str(exc));self.controller.cancel()
                 self._active_handle=None;self.redraw();return
@@ -81,6 +124,10 @@ class PlanView(QGraphicsView):
     def keyPressEvent(self,event):
         if event.key()==Qt.Key.Key_Escape:self.controller.cancel();self._mouse_down=False;self.redraw();return
         super().keyPressEvent(event)
+    def set_snap_enabled(self, enabled):
+        self.controller.set_snap_enabled(enabled)
+        self.statusChanged.emit('Snap ON' if enabled else 'Snap OFF — Free mode')
+
     def redraw(self):
         self._scene.clear();self._handle_items.clear();self._entity_items.clear();self._draw_grid();frame=build_plan_frame(self.doc,self.controller.preview)
         for p in frame.primitives:self._draw_primitive(p)
@@ -88,6 +135,7 @@ class PlanView(QGraphicsView):
         if frame.snap:self._draw_snap(frame.snap)
         if frame.hud:self._draw_hud(frame.hud)
         r=self.mapToScene(self.viewport().rect()).boundingRect();self._scene.setSceneRect(r.adjusted(-5,-5,5,5))
+        self.previewChanged.emit(copy.deepcopy(self.controller.preview))
     def _draw_grid(self):
         extent=100;pen=QPen(QColor(225,225,225));pen.setWidthF(0);axis=QPen(QColor(160,160,160));axis.setWidthF(0)
         for i in range(-extent,extent+1):self._scene.addLine(i,-extent,i,extent,axis if i==0 else pen).setZValue(-100);self._scene.addLine(-extent,i,extent,i,axis if i==0 else pen).setZValue(-100)

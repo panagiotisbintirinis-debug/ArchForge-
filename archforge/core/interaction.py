@@ -12,7 +12,7 @@ class HUD:
 
 class MoveTransaction:
     """Translate one or more entities via pointer/gizmo interaction."""
-    def __init__(self, doc: Document, stack: CommandStack, entity_ids: Sequence[str], origin: Optional[Tuple[float, float, float]] = None, grid: float = 0.1, snap_tol: float = 0.15):
+    def __init__(self, doc: Document, stack: CommandStack, entity_ids: Sequence[str], origin: Optional[Tuple[float, float, float]] = None, grid: float = 0.1, snap_tol: float = 0.10):
         self.doc, self.stack = doc, stack
         self.ids = [str(eid) for eid in entity_ids]
         missing = [eid for eid in self.ids if eid not in doc.entities]
@@ -25,6 +25,8 @@ class MoveTransaction:
         self.dy = 0.0
         self.dz = 0.0
         self.cancelled = False
+        self.last_snap_kind = None
+        self.axis_lock = None
         self.before = {eid: doc.get(eid).params.copy() for eid in self.ids}
         self.preview = {eid: doc.get(eid).params.copy() for eid in self.ids}
 
@@ -35,17 +37,135 @@ class MoveTransaction:
         self._compute_preview()
         return HUD({'dx': self.dx, 'dy': self.dy, 'dz': self.dz})
 
-    def update_pointer(self, x: float, y: float, z: Optional[float] = None, snap: bool = True) -> HUD:
-        px, py = x, y
+    def update_pointer(
+        self,
+        x: float,
+        y: float,
+        z: Optional[float] = None,
+        snap: bool = True,
+        axis_lock: bool = False,
+    ) -> HUD:
+        px, py = float(x), float(y)
+        ox, oy = float(self.origin[0]), float(self.origin[1])
+        self.last_snap_kind = None
+        self.axis_lock = None
+
+        if axis_lock:
+            raw_dx, raw_dy = px - ox, py - oy
+            if abs(raw_dx) >= abs(raw_dy):
+                py = oy
+                self.axis_lock = 'x'
+            else:
+                px = ox
+                self.axis_lock = 'y'
+
+        proposed_dx, proposed_dy = px - ox, py - oy
+
         if snap:
-            sp = best_snap(self.doc, x, y, self.snap_tol, self.grid)
-            if sp:
-                px, py = sp.x, sp.y
-        self.dx = px - self.origin[0]
-        self.dy = py - self.origin[1]
+            # Object-aware snapping: stairs/ramps touch physical wall faces,
+            # while whole walls snap their own endpoint/midpoint geometry to
+            # semantic points/centerlines of other walls.
+            from .snapping import (
+                snap_polygon_translation_to_wall_faces,
+                snap_translation_points,
+            )
+            object_snap = None
+            for eid in self.ids:
+                entity = self.doc.get(eid)
+                try:
+                    if entity.kind == 'stair':
+                        from archforge.architecture.stairs import candidate_from_params, stair_footprint
+                        polygon = stair_footprint(candidate_from_params(self.before[eid]))
+                        candidate_snap = snap_polygon_translation_to_wall_faces(
+                            self.doc,
+                            polygon,
+                            proposed_dx,
+                            proposed_dy,
+                            min(self.snap_tol, 0.06),
+                            exclude=set(self.ids),
+                        )
+                    elif entity.kind == 'ramp':
+                        from archforge.architecture.ramps import candidate_from_params, ramp_footprint
+                        polygon = ramp_footprint(candidate_from_params(self.before[eid]))
+                        candidate_snap = snap_polygon_translation_to_wall_faces(
+                            self.doc,
+                            polygon,
+                            proposed_dx,
+                            proposed_dy,
+                            min(self.snap_tol, 0.06),
+                            exclude=set(self.ids),
+                        )
+                    elif entity.kind == 'wall':
+                        p = self.before[eid]
+                        probes = (
+                            (float(p['x1']), float(p['y1'])),
+                            (float(p['x2']), float(p['y2'])),
+                            (
+                                (float(p['x1']) + float(p['x2'])) / 2.0,
+                                (float(p['y1']) + float(p['y2'])) / 2.0,
+                            ),
+                        )
+                        candidate_snap = snap_translation_points(
+                            self.doc,
+                            probes,
+                            proposed_dx,
+                            proposed_dy,
+                            min(self.snap_tol, 0.08),
+                            exclude=set(self.ids),
+                        )
+                    else:
+                        continue
+                    if candidate_snap is None:
+                        continue
+                    cx, cy = candidate_snap['correction']
+                    if self.axis_lock == 'x' and abs(cy) > 1e-8:
+                        continue
+                    if self.axis_lock == 'y' and abs(cx) > 1e-8:
+                        continue
+                    if object_snap is None or candidate_snap['distance'] < object_snap['distance']:
+                        object_snap = candidate_snap
+                except (KeyError, ValueError):
+                    continue
+
+            if object_snap is not None:
+                cx, cy = object_snap['correction']
+                proposed_dx += cx
+                proposed_dy += cy
+                px, py = ox + proposed_dx, oy + proposed_dy
+                self.last_snap_kind = object_snap['kind']
+            else:
+                sp = best_snap(
+                    self.doc,
+                    px,
+                    py,
+                    self.snap_tol,
+                    self.grid,
+                    exclude=set(self.ids),
+                )
+                if sp:
+                    if self.axis_lock == 'x':
+                        px = sp.x
+                        py = oy
+                    elif self.axis_lock == 'y':
+                        px = ox
+                        py = sp.y
+                    else:
+                        px, py = sp.x, sp.y
+                    self.last_snap_kind = sp.kind
+
+        self.dx = px - ox
+        self.dy = py - oy
         self.dz = (z - self.origin[2]) if z is not None else 0.0
         self._compute_preview()
-        return HUD({'dx': self.dx, 'dy': self.dy, 'dz': self.dz, 'x': px, 'y': py})
+        return HUD({
+            'dx': self.dx,
+            'dy': self.dy,
+            'dz': self.dz,
+            'x': px,
+            'y': py,
+            'snap': 1.0 if self.last_snap_kind else 0.0,
+            'axis_locked': 1.0 if self.axis_lock else 0.0,
+        })
 
     def _compute_preview(self):
         self.preview = {}
@@ -69,6 +189,11 @@ class MoveTransaction:
             elif e.kind in ('floor', 'room'):
                 p['points'] = [(qx + self.dx, qy + self.dy) for qx, qy in p['points']]
                 p['z'] = p['z'] + self.dz
+            elif e.kind in ('stair', 'ramp'):
+                p['x'] = p['x'] + self.dx
+                p['y'] = p['y'] + self.dy
+                # Vertical-circulation objects remain tied to floor elevations.
+                # XY movement must not silently detach them vertically.
             self.preview[eid] = p
 
     def commit(self):
@@ -82,10 +207,10 @@ class MoveTransaction:
 
 
 class WallDrawTransaction:
-    def __init__(self,doc:Document,stack:CommandStack,start:Tuple[float,float],z=0.0,height=2.7,thickness=0.15,grid=0.1,snap_tol=0.15):
-        self.doc,self.stack=doc,stack;self.start=start;self.end=start;self.z=z;self.height=height;self.thickness=thickness;self.grid=grid;self.snap_tol=snap_tol;self.cancelled=False
+    def __init__(self,doc:Document,stack:CommandStack,start:Tuple[float,float],z=0.0,height=2.7,thickness=0.15,grid=0.1,snap_tol=0.15,snap_enabled=True):
+        self.doc,self.stack=doc,stack;self.start=start;self.end=start;self.z=z;self.height=height;self.thickness=thickness;self.grid=grid;self.snap_tol=snap_tol;self.snap_enabled=bool(snap_enabled);self.cancelled=False
     def update(self,x,y):
-        sp=best_snap(self.doc,x,y,self.snap_tol,self.grid)
+        sp=best_snap(self.doc,x,y,self.snap_tol,self.grid) if self.snap_enabled else None
         self.end=(sp.x,sp.y) if sp else (x,y)
         dx=self.end[0]-self.start[0];dy=self.end[1]-self.start[1]
         return HUD({'length':hypot(dx,dy),'angle_deg':degrees(atan2(dy,dx)),'x':self.end[0],'y':self.end[1],'z':self.z})
@@ -100,6 +225,173 @@ class WallDrawTransaction:
         e=Entity('wall',{'x1':sx,'y1':sy,'x2':ex,'y2':ey,'z':self.z,'height':self.height,'thickness':self.thickness},name='Wall')
         self.stack.execute(AddEntity(e));return e.id
     def cancel(self):self.cancelled=True
+
+class StairPlaceTransaction:
+    """Live adaptive stair placement between the active level and the next level above."""
+    def __init__(
+        self,
+        doc: Document,
+        stack: CommandStack,
+        origin: Tuple[float, float],
+        *,
+        width: float = 1.0,
+        preferred_riser: float = 0.17,
+        preferred_tread: float = 0.29,
+    ):
+        from archforge.architecture.stairs import upper_floor_landing
+        self.doc,self.stack=doc,stack
+        self.origin=(float(origin[0]),float(origin[1]))
+        self.width=float(width)
+        self.preferred_riser=float(preferred_riser)
+        self.preferred_tread=float(preferred_tread)
+        self.lower_z=float(doc.work_plane.origin[2])
+        landing=upper_floor_landing(doc,self.lower_z,self.origin)
+        if landing is None:
+            raise ValueError('Create an upper floor level before placing stairs')
+        self.upper_floor_z=float(landing['floor_z'])
+        self.upper_slab_thickness=float(landing['slab_thickness'])
+        self.upper_z=float(landing['landing_z'])
+        self.upper_level_name=str(landing['level_name'])
+        self.pointer=self.origin
+        self.candidates=()
+        self.active_index=0
+        self.preview={}
+        self.cancelled=False
+        self.update(*self.origin)
+
+    def update(self,x,y):
+        from archforge.architecture.stairs import solve_stair_candidates,stair_footprint
+        self.pointer=(float(x),float(y))
+        self.candidates=solve_stair_candidates(
+            self.lower_z,self.upper_z,self.origin,self.pointer,
+            width=self.width,
+            preferred_riser=self.preferred_riser,
+            preferred_tread=self.preferred_tread,
+            upper_floor_z=self.upper_floor_z,
+            upper_slab_thickness=self.upper_slab_thickness,
+        )
+        if not self.candidates:
+            raise ValueError('no stair solution available')
+        self.active_index=min(self.active_index,max(0,min(3,len(self.candidates)-1)))
+        active=self.candidates[self.active_index]
+        self.preview={
+            'chosen':active.to_params(),
+            'candidates':[candidate.to_params() for candidate in self.candidates[:4]],
+            'active_index':self.active_index,
+            'footprint':list(stair_footprint(active)),
+            'upper_level_name':self.upper_level_name,
+            'suggestions':list(active.suggestions),
+        }
+        return HUD({
+            'risers':float(active.riser_count),
+            'riser':active.riser_height,
+            'tread':active.tread_depth,
+            'width':active.width,
+            'floor_height':active.floor_height,
+            'option':float(self.active_index+1),
+        })
+
+    @property
+    def active_candidate(self):
+        if not self.candidates:
+            raise ValueError('stair has no candidates')
+        return self.candidates[self.active_index]
+
+    def cycle_candidate(self, step=1):
+        if not self.candidates:
+            return self.preview
+        count=min(4,len(self.candidates))
+        self.active_index=(self.active_index+int(step))%count
+        return self.update(*self.pointer)
+
+    def commit(self):
+        if self.cancelled:
+            raise RuntimeError('transaction cancelled')
+        if not self.candidates:
+            raise ValueError('stair has no valid preview')
+        chosen=self.active_candidate
+        entity=Entity('stair',chosen.to_params(),name='Stair')
+        self.stack.execute(AddEntity(entity))
+        self.doc.select([entity.id])
+        return entity.id
+
+    def cancel(self):
+        self.cancelled=True
+        self.candidates=()
+        self.preview={}
+
+
+class RampPlaceTransaction:
+    """Live ramp placement with wheel-selectable slope alternatives."""
+    def __init__(
+        self,
+        doc: Document,
+        stack: CommandStack,
+        origin: Tuple[float, float],
+        *,
+        width: float = 1.20,
+        thickness: float = 0.15,
+    ):
+        self.doc,self.stack=doc,stack
+        self.origin=(float(origin[0]),float(origin[1]))
+        self.width=float(width)
+        self.thickness=float(thickness)
+        self.lower_z=float(doc.work_plane.origin[2])
+        self.pointer=self.origin
+        self.candidates=()
+        self.active_index=0
+        self.preview={}
+        self.cancelled=False
+        self.update(*self.origin)
+
+    def update(self,x,y):
+        from archforge.architecture.ramps import solve_ramp_candidates,ramp_footprint
+        self.pointer=(float(x),float(y))
+        self.candidates=solve_ramp_candidates(
+            self.doc,self.lower_z,self.origin,self.pointer,
+            width=self.width,
+            thickness=self.thickness,
+        )
+        self.active_index=min(self.active_index,max(0,len(self.candidates)-1))
+        active=self.candidates[self.active_index]
+        self.preview={
+            'chosen':active.to_params(),
+            'candidates':[candidate.to_params() for candidate in self.candidates],
+            'active_index':self.active_index,
+            'footprint':list(ramp_footprint(active)),
+        }
+        return HUD({
+            'slope_pct':active.slope_pct,
+            'run_length':active.run_length,
+            'rise':active.rise,
+            'width':active.width,
+            'option':float(self.active_index+1),
+        })
+
+    @property
+    def active_candidate(self):
+        if not self.candidates:
+            raise ValueError('ramp has no candidates')
+        return self.candidates[self.active_index]
+
+    def cycle_candidate(self,step=1):
+        if not self.candidates:return self.preview
+        self.active_index=(self.active_index+int(step))%len(self.candidates)
+        return self.update(*self.pointer)
+
+    def commit(self):
+        if self.cancelled:raise RuntimeError('transaction cancelled')
+        active=self.active_candidate
+        entity=Entity('ramp',active.to_params(),name='Ramp')
+        self.stack.execute(AddEntity(entity))
+        self.doc.select([entity.id])
+        return entity.id
+
+    def cancel(self):
+        self.cancelled=True
+        self.candidates=()
+        self.preview={}
+
 
 class BoxStretchTransaction:
     def __init__(self,doc,stack,eid,handle):
@@ -126,6 +418,14 @@ class RotateTransaction:
         elif e.kind=='box':self.pivot=(p['x'],p['y'])
         elif e.kind=='pod':self.pivot=(p['cx'],p['cy'])
         elif e.kind=='wall':self.pivot=((p['x1']+p['x2'])/2,(p['y1']+p['y2'])/2)
+        elif e.kind=='stair':
+            from archforge.architecture.stairs import candidate_from_params,stair_footprint
+            poly=stair_footprint(candidate_from_params(p))
+            self.pivot=((min(q[0] for q in poly)+max(q[0] for q in poly))/2,(min(q[1] for q in poly)+max(q[1] for q in poly))/2)
+        elif e.kind=='ramp':
+            from archforge.architecture.ramps import candidate_from_params,ramp_footprint
+            poly=ramp_footprint(candidate_from_params(p))
+            self.pivot=((min(q[0] for q in poly)+max(q[0] for q in poly))/2,(min(q[1] for q in poly)+max(q[1] for q in poly))/2)
         else:raise ValueError('rotation unsupported for entity kind')
     def update_angle(self,angle_deg,snap=True):
         a=float(angle_deg)
@@ -138,6 +438,11 @@ class RotateTransaction:
             def rot(x,y):dx,dy=x-px,y-py;return px+dx*c-dy*s,py+dx*s+dy*c
             p['x1'],p['y1']=rot(p['x1'],p['y1']);p['x2'],p['y2']=rot(p['x2'],p['y2'])
         elif e.kind=='pod':p['rotation']=(p.get('rotation',0.0)+a)%360.0
+        elif e.kind in ('stair','ramp'):
+            dx,dy=float(p['x'])-px,float(p['y'])-py
+            p['x']=px+dx*c-dy*s
+            p['y']=py+dx*s+dy*c
+            p['angle_deg']=(float(p.get('angle_deg',0.0))+a)%360.0
         self.preview=p;return HUD({'angle_deg':a,'pivot_x':px,'pivot_y':py})
     def update_pointer(self,x,y,start_angle_deg=0.0,snap=True):return self.update_angle(degrees(atan2(y-self.pivot[1],x-self.pivot[0]))-float(start_angle_deg),snap)
     def commit(self):self.stack.execute(RotateEntities([self.eid],self.angle,pivot=self.pivot))

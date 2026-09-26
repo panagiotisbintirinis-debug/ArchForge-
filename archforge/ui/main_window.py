@@ -6,14 +6,18 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QDockWidget, QWidget, QFormLayout, QDoubleSpinBox,
-    QLabel, QTabWidget, QStatusBar, QFileDialog, QMessageBox, QComboBox,
+    QLabel, QTabWidget, QStatusBar, QFileDialog, QMessageBox, QComboBox, QInputDialog,
+    QDialog, QDialogButtonBox, QVBoxLayout,
 )
 
-from archforge.core.model import Document
-from archforge.core.commands import CommandStack, UpdateEntity, CreateRoomFloors, CreateRoomRoofs
+from archforge.core.model import Document, WorkPlane
+from archforge.core.commands import (
+    CommandStack, UpdateEntity, CreateRoomFloors, CreateRoomRoofs,
+    DeleteEntities, CreateFloorLevel, SetWorkPlane,
+)
 from .plan_view import PlanView
-from .ortho_view import OrthoView
 from .pbr_viewport import PBRViewport
+from .object_properties import property_fields, property_values, property_changes
 
 
 class MainWindow(QMainWindow):
@@ -27,25 +31,26 @@ class MainWindow(QMainWindow):
         self._clean_state = copy.deepcopy(self.doc.to_dict())
         self.tabs = QTabWidget()
         self.plan_view = PlanView(self.doc, self.stack)
-        self.front_view = OrthoView(self.doc, self.stack, 'XZ')
         self.pbr_view = PBRViewport(self.doc, self.stack)
         self.tabs.addTab(self.plan_view, 'FLOOR PLAN')
-        self.tabs.addTab(self.front_view, 'FRONT ELEVATION')
         self.tabs.addTab(self.pbr_view, '3D STUDIO')
         self.setCentralWidget(self.tabs)
         self.view = self.plan_view
         self.setStatusBar(QStatusBar())
-        for view in (self.plan_view, self.front_view, self.pbr_view):
+        for view in (self.plan_view, self.pbr_view):
             view.statusChanged.connect(self.statusBar().showMessage)
             view.selectionChangedByView.connect(self._selection_from_view)
+            view.contextActionRequested.connect(self._handle_object_context_action)
+        self.plan_view.previewChanged.connect(self.pbr_view.set_stair_preview)
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self._build_toolbar()
         self._build_view_toolbar()
+        self._build_view_menu()
         self._build_inspector()
         self.refresh_inspector()
 
     def _on_tab_changed(self, idx):
-        widgets = [self.plan_view, self.front_view, self.pbr_view]
+        widgets = [self.plan_view, self.pbr_view]
         if 0 <= idx < len(widgets):
             self.view = widgets[idx]
         if self.view is self.pbr_view:
@@ -56,6 +61,17 @@ class MainWindow(QMainWindow):
         if hasattr(self.view, 'set_tool'):
             self.view.set_tool(tool)
 
+    def _set_snap_enabled(self, enabled):
+        enabled = bool(enabled)
+        self.plan_view.set_snap_enabled(enabled)
+        self.pbr_view.set_snap_enabled(enabled)
+        self.statusBar().showMessage(
+            'Snap ON — wall faces/endpoints/midpoints | Shift = Free | Ctrl = X/Y constraint'
+            if enabled
+            else 'Snap OFF — Free placement | Ctrl still constrains X/Y',
+            4500,
+        )
+
     def _activate_sculpt_tool(self):
         self.tabs.setCurrentWidget(self.pbr_view)
         self.pbr_view.activate()
@@ -65,18 +81,37 @@ class MainWindow(QMainWindow):
         self.pbr_view.configure_sculpt(**kwargs)
 
     def _build_toolbar(self):
-        toolbar = QToolBar('Tools')
-        toolbar.setMovable(False)
-        self.addToolBar(toolbar)
+        self.tools_toolbar = QToolBar('Tools')
+        self.tools_toolbar.setObjectName('tools_toolbar')
+        self.tools_toolbar.setMovable(False)
+        self.addToolBar(self.tools_toolbar)
+        toolbar = self.tools_toolbar
         for text, tool, key in [
             ('Select', 'select', 'S'), ('Wall', 'wall', 'W'), ('Door', 'door', 'D'),
-            ('Window', 'window', 'N'), ('Move', 'move', 'G'), ('Stretch', 'stretch', 'T'),
-            ('Rotate', 'rotate', 'R'),
+            ('Window', 'window', 'N'), ('Stair', 'stair', 'A'), ('Ramp', 'ramp', 'P'),
+            ('Move', 'move', 'G'), ('Stretch', 'stretch', 'T'), ('Rotate', 'rotate', 'R'),
         ]:
             action = QAction(text, self)
             action.setShortcut(QKeySequence(key))
             action.triggered.connect(lambda checked=False, t=tool: self._set_active_tool(t))
             toolbar.addAction(action)
+
+        snap_action = QAction('Snap', self)
+        snap_action.setCheckable(True)
+        snap_action.setChecked(True)
+        snap_action.setToolTip(
+            'Snap ON: endpoints, midpoints and wall faces. Shift = temporary Free, Ctrl = X/Y constraint while moving.'
+        )
+        snap_action.toggled.connect(self._set_snap_enabled)
+        toolbar.addAction(snap_action)
+        self.snap_action = snap_action
+
+        delete_action = QAction('Delete', self)
+        delete_action.setShortcut(QKeySequence(Qt.Key.Key_Delete))
+        delete_action.triggered.connect(self._delete_selection)
+        self.addAction(delete_action)
+        self.delete_action = delete_action
+
         sculpt = QAction('Sculpt 3D', self)
         sculpt.setShortcut(QKeySequence('C'))
         sculpt.triggered.connect(self._activate_sculpt_tool)
@@ -122,6 +157,18 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(QLabel(' Render '))
         toolbar.addWidget(self.render_technique)
         toolbar.addSeparator()
+        toolbar.addWidget(QLabel(' Floor '))
+        self.floor_selector = QComboBox()
+        self.floor_selector.setMinimumWidth(110)
+        self.floor_selector.currentIndexChanged.connect(self._activate_selected_floor)
+        toolbar.addWidget(self.floor_selector)
+
+        add_floor = QAction('+ Floor', self)
+        add_floor.triggered.connect(self._add_floor_level)
+        toolbar.addAction(add_floor)
+        self.add_floor_action = add_floor
+        self._refresh_floor_selector()
+
         auto_floors = QAction('Auto Floors', self)
         auto_floors.triggered.connect(self._create_auto_floors)
         toolbar.addAction(auto_floors)
@@ -155,6 +202,19 @@ class MainWindow(QMainWindow):
         stl_action.triggered.connect(self.export_stl)
         toolbar.addAction(stl_action)
 
+
+
+    def _build_view_menu(self):
+        view_menu = self.menuBar().addMenu('&View')
+
+        self.status_bar_action = QAction('Status Bar', self, checkable=True)
+        self.status_bar_action.setChecked(not self.statusBar().isHidden())
+        self.status_bar_action.toggled.connect(self.statusBar().setVisible)
+        view_menu.addAction(self.status_bar_action)
+
+        self.tools_toolbar_action = self.tools_toolbar.toggleViewAction()
+        self.tools_toolbar_action.setText('Tools Toolbar')
+        view_menu.addAction(self.tools_toolbar_action)
 
     def _build_view_toolbar(self):
         self.addToolBarBreak()
@@ -250,11 +310,307 @@ class MainWindow(QMainWindow):
 
     def _commit_property(self, eid, key, value):
         try:
-            self.stack.execute(UpdateEntity(eid, {key: value}))
-            self._redraw_views()
+            entity = self.doc.get(eid)
+            changes = {key: value}
+            if entity.kind == 'stair':
+                p = entity.params
+                lower_z = float(p['lower_z'])
+                upper_floor_z = float(p.get('upper_floor_z', p['upper_z']))
+                slab_thickness = float(p.get('upper_slab_thickness', max(0.0, float(p['upper_z']) - upper_floor_z)))
+                upper_z = float(p['upper_z'])
+                riser_count = int(p['riser_count'])
+
+                if key == 'riser_count':
+                    riser_count = max(2, int(round(float(value))))
+                    changes['riser_count'] = riser_count
+                    changes['riser_height'] = (upper_z - lower_z) / riser_count
+                elif key == 'riser_height':
+                    requested = max(1e-6, float(value))
+                    riser_count = max(2, int(round((upper_z - lower_z) / requested)))
+                    changes['riser_count'] = riser_count
+                    changes['riser_height'] = (upper_z - lower_z) / riser_count
+                elif key == 'upper_slab_thickness':
+                    slab_thickness = max(0.0, float(value))
+                    upper_z = upper_floor_z + slab_thickness
+                    changes['upper_slab_thickness'] = slab_thickness
+                    changes['upper_z'] = upper_z
+                    changes['riser_height'] = (upper_z - lower_z) / riser_count
+                elif key == 'upper_floor_z':
+                    upper_floor_z = float(value)
+                    upper_z = upper_floor_z + slab_thickness
+                    changes['upper_floor_z'] = upper_floor_z
+                    changes['upper_z'] = upper_z
+                    changes['riser_height'] = (upper_z - lower_z) / riser_count
+                elif key == 'upper_z':
+                    upper_z = float(value)
+                    changes['upper_z'] = upper_z
+                    changes['upper_slab_thickness'] = max(0.0, upper_z - upper_floor_z)
+                    changes['riser_height'] = (upper_z - lower_z) / riser_count
+                elif key == 'lower_z':
+                    lower_z = float(value)
+                    changes['lower_z'] = lower_z
+                    changes['riser_height'] = (upper_z - lower_z) / riser_count
+
+            elif entity.kind == 'ramp':
+                p = entity.params
+                lower_z = float(p['lower_z'])
+                upper_z = float(p['upper_z'])
+                rise = upper_z - lower_z
+                slope = float(p['slope_pct'])
+                run = float(p['run_length'])
+
+                if key == 'slope_pct':
+                    slope = max(1e-6, float(value))
+                    changes['slope_pct'] = slope
+                    changes['run_length'] = rise / (slope / 100.0)
+                elif key == 'run_length':
+                    run = max(1e-6, float(value))
+                    changes['run_length'] = run
+                    changes['slope_pct'] = rise / run * 100.0
+                elif key == 'upper_slab_thickness':
+                    upper_floor_z = float(p.get('upper_floor_z', upper_z))
+                    upper_z = upper_floor_z + max(0.0, float(value))
+                    rise = upper_z - lower_z
+                    changes['upper_slab_thickness'] = max(0.0, float(value))
+                    changes['upper_z'] = upper_z
+                    changes['run_length'] = rise / (slope / 100.0)
+                elif key == 'upper_floor_z':
+                    slab_thickness = float(p.get('upper_slab_thickness', 0.0))
+                    upper_z = float(value) + slab_thickness
+                    rise = upper_z - lower_z
+                    changes['upper_floor_z'] = float(value)
+                    changes['upper_z'] = upper_z
+                    changes['run_length'] = rise / (slope / 100.0)
+                elif key == 'upper_z':
+                    upper_z = float(value)
+                    rise = upper_z - lower_z
+                    changes['upper_z'] = upper_z
+                    changes['run_length'] = rise / (slope / 100.0)
+                elif key == 'lower_z':
+                    lower_z = float(value)
+                    rise = upper_z - lower_z
+                    changes['lower_z'] = lower_z
+                    changes['run_length'] = rise / (slope / 100.0)
+
+            self.stack.execute(UpdateEntity(eid, changes))
+            self._redraw_views(all_views=True)
+            self.refresh_inspector()
         except Exception as exc:
             QMessageBox.warning(self, 'Invalid value', str(exc))
             self.refresh_inspector()
+
+    def _apply_object_properties(self, entity_id, values):
+        entity_id = str(entity_id)
+        if entity_id not in self.doc.entities:
+            raise KeyError(entity_id)
+        entity = self.doc.get(entity_id)
+        changes = property_changes(entity, values)
+        self.stack.execute(UpdateEntity(entity_id, changes))
+        self.doc.select([entity_id])
+        self._redraw_views(all_views=True)
+        self.refresh_inspector()
+
+    def _open_object_properties(self, entity_id):
+        entity_id = str(entity_id)
+        if entity_id not in self.doc.entities:
+            return
+        entity = self.doc.get(entity_id)
+        fields = property_fields(entity.kind)
+        if not fields:
+            self.dock.show()
+            self.dock.raise_()
+            self.statusBar().showMessage(
+                f'No editable dimension set yet for {entity.kind}',
+                3000,
+            )
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f'{entity.name or entity.kind.title()} Properties')
+        layout = QVBoxLayout(dialog)
+        form = QFormLayout()
+        layout.addLayout(form)
+
+        current = property_values(entity)
+        editors = {}
+        for spec in fields:
+            spin = QDoubleSpinBox(dialog)
+            spin.setDecimals(3)
+            spin.setRange(float(spec.get('minimum', -1e6)), float(spec.get('maximum', 1e6)))
+            spin.setSingleStep(float(spec.get('step', 0.05)))
+            spin.setValue(float(current[spec['id']]))
+            spin.setSuffix(f" {spec.get('unit', '')}" if spec.get('unit') else '')
+            form.addRow(spec['label'], spin)
+            editors[spec['id']] = spin
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok
+            | QDialogButtonBox.StandardButton.Cancel,
+            parent=dialog,
+        )
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        values = {key: editor.value() for key, editor in editors.items()}
+        try:
+            self._apply_object_properties(entity_id, values)
+        except Exception as exc:
+            QMessageBox.warning(dialog, 'Invalid dimensions', str(exc))
+            self.refresh_inspector()
+            return
+
+        self.statusBar().showMessage(
+            f'Updated {entity.name or entity.kind.title()} dimensions — Undo is available',
+            3500,
+        )
+
+    def _handle_object_context_action(self, entity_id, action_id):
+        entity_id = str(entity_id)
+        action_id = str(action_id)
+        if entity_id not in self.doc.entities:
+            return
+
+        self.doc.select([entity_id])
+        self.refresh_inspector()
+
+        if action_id == 'properties':
+            self._open_object_properties(entity_id)
+            return
+
+        if action_id == 'delete':
+            self._delete_selection()
+            return
+
+        if action_id in ('move', 'stretch', 'rotate'):
+            entity = self.doc.get(entity_id)
+            if self.view is self.pbr_view:
+                if action_id == 'move' and entity.kind in {
+                    'stair', 'ramp', 'wall', 'box', 'pod', 'floor', 'room', 'mechanical_part'
+                }:
+                    self.pbr_view.set_tool('move')
+                    self.statusBar().showMessage(
+                        f'Move {entity.name or entity.kind.title()}: click object, move pointer, click to place',
+                        4000,
+                    )
+                    return
+                if action_id == 'rotate' and entity.kind in {
+                    'stair', 'ramp', 'wall', 'box', 'pod'
+                }:
+                    self.pbr_view.set_tool('rotate')
+                    self.statusBar().showMessage(
+                        f'Rotate {entity.name or entity.kind.title()}: click object, move pointer, click to place · Shift = free angle',
+                        4500,
+                    )
+                    return
+            self.tabs.setCurrentWidget(self.plan_view)
+            self.plan_view.set_tool(action_id)
+            self.plan_view.controller.set_target(entity_id, None)
+            self.plan_view.redraw()
+            self.statusBar().showMessage(
+                f'{action_id.title()} {entity.name or entity.kind.title()}',
+                3000,
+            )
+            return
+
+    def _delete_selection(self):
+        ids = list(self.doc.selection)
+        if not ids:
+            self.statusBar().showMessage('Nothing selected to delete', 2500)
+            return
+        try:
+            self.stack.execute(DeleteEntities(ids))
+            self._redraw_views(all_views=True)
+            self.refresh_inspector()
+            self.statusBar().showMessage(f'Deleted {len(ids)} object(s) — Undo is available', 3500)
+        except Exception as exc:
+            QMessageBox.warning(self, 'Delete failed', str(exc))
+
+    def _refresh_floor_selector(self):
+        if not hasattr(self, 'floor_selector'):
+            return
+        active_name = str(getattr(self.doc.work_plane, 'name', '') or '')
+        active_z = float(self.doc.work_plane.origin[2])
+        from archforge.architecture.stairs import discover_building_levels
+        levels = discover_building_levels(self.doc)
+        self.floor_selector.blockSignals(True)
+        self.floor_selector.clear()
+        active_index = 0
+        for index, item in enumerate(levels):
+            name = str(item['name'])
+            elevation = float(item['elevation'])
+            inferred = bool(item.get('inferred', False))
+            label = f'{name}  ({elevation:.2f} m)'
+            if inferred:
+                label += ' *'
+            self.floor_selector.addItem(label, (name, elevation, inferred))
+            if name == active_name or abs(elevation - active_z) <= 1e-6:
+                active_index = index
+        if levels:
+            self.floor_selector.setCurrentIndex(active_index)
+        self.floor_selector.blockSignals(False)
+
+    def _activate_selected_floor(self, index):
+        if index < 0 or not hasattr(self, 'floor_selector'):
+            return
+        data = self.floor_selector.itemData(index)
+        if not data:
+            return
+        name, elevation, inferred = data
+        elevation = float(elevation)
+        if (
+            str(self.doc.work_plane.name) == str(name)
+            and abs(float(self.doc.work_plane.origin[2]) - elevation) <= 1e-6
+        ):
+            return
+        wp = self.doc.work_plane
+        self.stack.execute(SetWorkPlane(WorkPlane(
+            name=str(name),
+            origin=(float(wp.origin[0]), float(wp.origin[1]), elevation),
+            u=tuple(wp.u),
+            v=tuple(wp.v),
+        )))
+        self.doc.select([])
+        self._redraw_views(all_views=True)
+        self.refresh_inspector()
+        self.statusBar().showMessage(f'Active floor: {name} — {elevation:.2f} m', 3000)
+
+    def _add_floor_level(self):
+        from archforge.architecture.stairs import discover_building_levels
+        discovered = discover_building_levels(self.doc)
+        existing = sorted(float(item['elevation']) for item in discovered)
+        default_elevation = (max(existing) if existing else 0.0) + 2.70
+        elevation, accepted = QInputDialog.getDouble(
+            self,
+            'Add Floor',
+            'Floor elevation (m):',
+            default_elevation,
+            -1000.0,
+            1000.0,
+            3,
+        )
+        if not accepted:
+            return
+        number = 2
+        existing_names = set(self.doc.levels)
+        while f'Floor {number}' in existing_names:
+            number += 1
+        name = f'Floor {number}'
+        try:
+            self.stack.execute(CreateFloorLevel(name, elevation))
+        except Exception as exc:
+            QMessageBox.warning(self, 'Add Floor', str(exc))
+            return
+        self._refresh_floor_selector()
+        self._redraw_views(all_views=True)
+        self.refresh_inspector()
+        self.statusBar().showMessage(
+            f'Created and activated {name} at {float(elevation):.2f} m',
+            3500,
+        )
 
     def _create_auto_floors(self):
         faces = self.doc.active_room_faces()
@@ -326,7 +682,7 @@ class MainWindow(QMainWindow):
         self.refresh_inspector()
 
     def _redraw_views(self, *, all_views=False):
-        targets=(self.plan_view,self.front_view,self.pbr_view) if all_views else (self.view,)
+        targets=(self.plan_view,self.pbr_view) if all_views else (self.view,)
         for view in targets:
             if view is self.pbr_view:
                 view.redraw(force_full=True)
@@ -370,13 +726,21 @@ class MainWindow(QMainWindow):
             return self.save()
         return choice == QMessageBox.StandardButton.Discard
 
+
+    def closeEvent(self, event):
+        if self._confirm_destructive_action():
+            event.accept()
+        else:
+            event.ignore()
+
     def _replace_project(self, doc, path=None):
         self.doc = doc
         self.stack = CommandStack(self.doc)
-        for view in (self.plan_view, self.front_view, self.pbr_view):
+        for view in (self.plan_view, self.pbr_view):
             view.rebind(self.doc, self.stack)
         self.current_path = path
         self._mark_clean()
+        self._refresh_floor_selector()
         self._redraw_views(all_views=True)
         self.refresh_inspector()
 

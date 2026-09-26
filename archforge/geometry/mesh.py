@@ -58,6 +58,66 @@ def _pod_mesh(p,segments=32,rings=12):
  for j in range(rings):
   for i in range(segments):n=(i+1)%segments;a=j*segments+i;b=j*segments+n;c=(j+1)*segments+n;d=(j+1)*segments+i;tris.extend(((a,b,c),(a,c,d)));roles.extend(('pod_shell','pod_shell'))
  return MeshPayload(tuple(v),tuple(tris),tuple(roles))
+
+
+def generate_conduit_topology(path_vertices, diameter, segments=12):
+ path=[tuple(map(float,point)) for point in path_vertices]
+ radius=float(diameter)/2.0
+ n=max(8,int(segments))
+ rings=[]
+ for i,center in enumerate(path):
+  if i==0:
+   tangent=tuple(path[1][k]-path[0][k] for k in range(3))
+  elif i==len(path)-1:
+   tangent=tuple(path[-1][k]-path[-2][k] for k in range(3))
+  else:
+   tangent=tuple(path[i+1][k]-path[i-1][k] for k in range(3))
+  length=math.sqrt(sum(v*v for v in tangent))
+  if length<=1e-12:raise ValueError('conduit path contains zero-length tangent')
+  u=tuple(v/length for v in tangent)
+  ref=(0.0,0.0,1.0) if abs(u[2])<0.9 else (0.0,1.0,0.0)
+  v=(u[1]*ref[2]-u[2]*ref[1],u[2]*ref[0]-u[0]*ref[2],u[0]*ref[1]-u[1]*ref[0])
+  vn=math.sqrt(sum(q*q for q in v))
+  if vn<=1e-12:raise ValueError('conduit frame is degenerate')
+  v=tuple(q/vn for q in v)
+  w=(u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0])
+  ring=[]
+  for j in range(n):
+   angle=2.0*math.pi*j/n;c0,s0=math.cos(angle),math.sin(angle)
+   ring.append(tuple(center[k]+radius*(c0*v[k]+s0*w[k]) for k in range(3)))
+  rings.append(ring)
+ vertices=[point for ring in rings for point in ring]
+ faces=[]
+ for ring_index in range(len(rings)-1):
+  a0=ring_index*n;b0=(ring_index+1)*n
+  for j in range(n):
+   q=(j+1)%n
+   faces.append((a0+j,a0+q,b0+q,b0+j))
+ faces.append(tuple(reversed(range(n))))
+ base=(len(rings)-1)*n
+ faces.append(tuple(base+j for j in range(n)))
+ return tuple(vertices),tuple(faces)
+
+
+def _authoritative_mesh(p):
+ vertices=[tuple(map(float,point)) for point in p['vertices']]
+ matrix=[float(v) for v in p['matrix']]
+ def transform(point):
+  x,y,z=point
+  return (
+   matrix[0]*x+matrix[1]*y+matrix[2]*z+matrix[3],
+   matrix[4]*x+matrix[5]*y+matrix[6]*z+matrix[7],
+   matrix[8]*x+matrix[9]*y+matrix[10]*z+matrix[11],
+  )
+ transformed=[transform(point) for point in vertices]
+ triangles=[];roles=[]
+ for face_index,face in enumerate(p['faces']):
+  if len(face)<3:continue
+  for i in range(1,len(face)-1):
+   triangles.append((int(face[0]),int(face[i]),int(face[i+1])))
+   roles.append(f'mesh_face:{face_index}')
+ return MeshPayload(tuple(transformed),tuple(triangles),tuple(roles))
+
 def _arboreal_branch_mesh(doc,node,segments=20):
  from archforge.organic.arboreal import arboreal_branch_geometry
  g=arboreal_branch_geometry(doc,node.entity_id);a=tuple(float(v) for v in g['start']);b=tuple(float(v) for v in g['end']);r0=float(g['root_radius']);r1=float(g['tip_radius'])
@@ -180,11 +240,174 @@ def _pod_mesh_for_node(doc,node):
  for plane,keep_sign in _active_junction_planes_for_pod(doc,node.entity_id):mesh=_clip_mesh_halfspace(mesh,plane,keep_sign)
  for geom in _active_opening_patches_for_pod(doc,node.entity_id):mesh=_subtract_opening_patch(mesh,geom)
  return mesh
+
+def _oriented_prism(cx,cy,z0,width,depth,height,angle_deg):
+ a=math.radians(float(angle_deg));ca,sa=math.cos(a),math.sin(a)
+ hw,hd=float(width)/2.0,float(depth)/2.0
+ local=[(-hd,-hw),(hd,-hw),(hd,hw),(-hd,hw)]
+ plan=[(float(cx)+ca*x-sa*y,float(cy)+sa*x+ca*y) for x,y in local]
+ verts=tuple((x,y,float(z0)) for x,y in plan)+tuple((x,y,float(z0)+float(height)) for x,y in plan)
+ quads=((0,1,5,4,'riser'),(1,2,6,5,'edge'),(2,3,7,6,'riser'),(3,0,4,7,'edge'),(4,5,6,7,'tread'),(3,2,1,0,'bottom'))
+ tris=[];roles=[]
+ for a0,b0,c0,d0,role in quads:
+  tris.extend(((a0,b0,c0),(a0,c0,d0)));roles.extend((role,role))
+ return MeshPayload(verts,tuple(tris),tuple(roles))
+
+
+def _stair_mesh(p):
+ from archforge.architecture.stairs import candidate_from_params
+ candidate=candidate_from_params(p)
+ n=candidate.tread_count;t=candidate.tread_depth;r=candidate.riser_height
+ width=candidate.width;z0=candidate.lower_z;angle=candidate.angle_deg;turn=candidate.turn_direction
+ meshes=[]
+ def world(local_x,local_y):
+  a=math.radians(angle);ca,sa=math.cos(a),math.sin(a)
+  return (candidate.origin[0]+ca*local_x-sa*local_y,candidate.origin[1]+sa*local_x+ca*local_y)
+ def add_step(local_x,local_y,local_angle,index,depth=None):
+  cx,cy=world(local_x,local_y)
+  meshes.append(_oriented_prism(cx,cy,z0,width,float(depth or t),(index+1)*r,angle+local_angle))
+ if candidate.layout=='straight':
+  for i in range(n):add_step((i+.5)*t,0.0,0.0,i)
+ elif candidate.layout=='l':
+  first=max(1,n//2);second=n-first
+  for i in range(first):add_step((i+.5)*t,0.0,0.0,i)
+  landing_x=first*t+candidate.landing_depth/2.0
+  lx,ly=world(landing_x,turn*candidate.landing_depth/2.0)
+  meshes.append(_oriented_prism(lx,ly,z0,candidate.landing_depth,candidate.landing_depth,first*r,angle))
+  for j in range(second):
+   local_x=first*t+candidate.landing_depth/2.0
+   local_y=turn*(candidate.landing_depth+(j+.5)*t)
+   add_step(local_x,local_y,90.0*turn,first+j)
+ elif candidate.layout=='u':
+  first=max(1,n//2);second=n-first;offset=turn*(width+0.20)
+  for i in range(first):add_step((i+.5)*t,0.0,0.0,i)
+  landing_x=first*t+candidate.landing_depth/2.0
+  landing_y=offset/2.0
+  lx,ly=world(landing_x,landing_y)
+  meshes.append(_oriented_prism(lx,ly,z0,abs(offset)+width,candidate.landing_depth,first*r,angle))
+  for j in range(second):
+   local_x=first*t+candidate.landing_depth-(j+.5)*t
+   add_step(local_x,offset,180.0,first+j)
+ elif candidate.layout=='spiral':
+  inner=max(0.12,width*.20);outer=max(width,0.85)+width*.45
+  sweep=turn*2.0*math.pi
+  for i in range(n):
+   a0=sweep*i/n;a1=sweep*(i+1)/n
+   points=[(inner*math.cos(a0),inner*math.sin(a0)),(outer*math.cos(a0),outer*math.sin(a0)),(outer*math.cos(a1),outer*math.sin(a1)),(inner*math.cos(a1),inner*math.sin(a1))]
+   plan=[world(x,y) for x,y in points];top=z0+(i+1)*r
+   verts=tuple((x,y,z0) for x,y in plan)+tuple((x,y,top) for x,y in plan)
+   quads=((0,1,5,4,'riser'),(1,2,6,5,'edge'),(2,3,7,6,'riser'),(3,0,4,7,'edge'),(4,5,6,7,'tread'),(3,2,1,0,'bottom'))
+   tris=[];roles=[]
+   for aa,bb,cc,dd,role in quads:tris.extend(((aa,bb,cc),(aa,cc,dd)));roles.extend((role,role))
+   meshes.append(MeshPayload(verts,tuple(tris),tuple(roles)))
+ else:
+  raise ValueError(f'stair mesh layout not implemented: {candidate.layout}')
+ if not meshes:raise ValueError('stair generated no steps')
+ return _combine_meshes(tuple(meshes),1e-8)
+
+
+def _ramp_mesh(p):
+ from archforge.architecture.ramps import candidate_from_params
+ candidate=candidate_from_params(p)
+ a=math.radians(candidate.angle_deg);ux,uy=math.cos(a),math.sin(a);vx,vy=-uy,ux
+ ox,oy=candidate.origin;run=float(candidate.run_length);half=float(candidate.width)/2.0
+ z0=float(candidate.lower_z);z1=float(candidate.upper_z);th=float(candidate.thickness)
+ def point(along,across,z):
+  return (ox+ux*along+vx*across,oy+uy*along+vy*across,z)
+ verts=(
+  point(0.0,-half,z0-th),point(run,-half,z1-th),
+  point(run,half,z1-th),point(0.0,half,z0-th),
+  point(0.0,-half,z0),point(run,-half,z1),
+  point(run,half,z1),point(0.0,half,z0),
+ )
+ quads=(
+  (0,1,5,4,'ramp_side'),
+  (1,2,6,5,'ramp_end'),
+  (2,3,7,6,'ramp_side'),
+  (3,0,4,7,'ramp_start'),
+  (4,5,6,7,'ramp_surface'),
+  (3,2,1,0,'ramp_bottom'),
+ )
+ tris=[];roles=[]
+ for aa,bb,cc,dd,role in quads:
+  tris.extend(((aa,bb,cc),(aa,cc,dd)));roles.extend((role,role))
+ return MeshPayload(tuple(verts),tuple(tris),tuple(roles))
+
+
+def _point_in_polygon_xy(point,polygon):
+ x,y=map(float,point);inside=False
+ pts=[(float(a),float(b)) for a,b in polygon];j=len(pts)-1
+ for i,(xi,yi) in enumerate(pts):
+  xj,yj=pts[j]
+  if ((yi>y)!=(yj>y)):
+   at=xj+(y-yj)*(xi-xj)/(yi-yj)
+   if x<at:inside=not inside
+  j=i
+ return inside
+
+
+def _rect_hole_side_mesh(xmin,xmax,ymin,ymax,z0,z1):
+ verts=[];tris=[];roles=[]
+ def quad(a,b,c,d):
+  base=len(verts);verts.extend((a,b,c,d));tris.extend(((base,base+1,base+2),(base,base+2,base+3)));roles.extend(('stair_opening_edge','stair_opening_edge'))
+ quad((xmin,ymin,z0),(xmin,ymax,z0),(xmin,ymax,z1),(xmin,ymin,z1))
+ quad((xmax,ymax,z0),(xmax,ymin,z0),(xmax,ymin,z1),(xmax,ymax,z1))
+ quad((xmax,ymin,z0),(xmin,ymin,z0),(xmin,ymin,z1),(xmax,ymin,z1))
+ quad((xmin,ymax,z0),(xmax,ymax,z0),(xmax,ymax,z1),(xmin,ymax,z1))
+ return MeshPayload(tuple(verts),tuple(tris),tuple(roles))
+
+
+def _subtract_rectangular_slab_hole(mesh,opening,z0,z1):
+ xs=[float(p[0]) for p in opening];ys=[float(p[1]) for p in opening]
+ xmin,xmax=min(xs),max(xs);ymin,ymax=min(ys),max(ys)
+ left=_clip_mesh_scalar(mesh,lambda v:xmin-v[0],True)
+ right=_clip_mesh_scalar(mesh,lambda v:v[0]-xmax,True)
+ middle=_clip_mesh_scalar(mesh,lambda v:v[0]-xmin,True)
+ middle=_clip_mesh_scalar(middle,lambda v:xmax-v[0],True)
+ front=_clip_mesh_scalar(middle,lambda v:ymin-v[1],True)
+ back=_clip_mesh_scalar(middle,lambda v:v[1]-ymax,True)
+ sides=_rect_hole_side_mesh(xmin,xmax,ymin,ymax,float(z0),float(z1))
+ return _combine_meshes((left,right,front,back,sides),1e-8)
+
+def _apply_vertical_openings_to_slab(doc,mesh,points,slab_z,thickness):
+ from archforge.architecture.stairs import candidate_from_params as stair_candidate,stair_opening_polygon
+ from archforge.architecture.ramps import candidate_from_params as ramp_candidate,ramp_opening_polygon
+ slab_z=float(slab_z);thickness=float(thickness)
+ for entity in doc.entities.values():
+  if entity.kind not in ('stair','ramp'):continue
+  upper_floor_z=float(entity.params.get('upper_floor_z',entity.params['upper_z']))
+  if abs(upper_floor_z-slab_z)>1e-5:continue
+  if entity.kind=='stair':
+   opening=stair_opening_polygon(stair_candidate(entity.params))
+  else:
+   opening=ramp_opening_polygon(ramp_candidate(entity.params))
+  if not opening:continue
+  # The opening may legitimately cross a room boundary. Requiring every
+  # envelope corner to sit inside one slab prevented any cut at all.
+  cx=sum(float(p[0]) for p in opening)/len(opening)
+  cy=sum(float(p[1]) for p in opening)/len(opening)
+  overlaps=(
+   _point_in_polygon_xy((cx,cy),points)
+   or any(_point_in_polygon_xy(point,points) for point in opening)
+   or any(_point_in_polygon_xy(point,opening) for point in points)
+  )
+  if overlaps:
+   mesh=_subtract_rectangular_slab_hole(mesh,opening,slab_z,slab_z+thickness)
+ return mesh
+
+def _floor_slab(doc,node):
+ p=node.params
+ mesh=_polygon_prism(p['points'],p['z'],p['thickness'])
+ return _apply_vertical_openings_to_slab(doc,mesh,p['points'],p['z'],p['thickness'])
+
 def _room_slab(doc,node):
  from archforge.architecture.rooms import room_slab_geometry
  g=room_slab_geometry(doc,doc.get(node.entity_id))
  if g is None:raise ValueError('derived room element has no currently closed room')
- return _polygon_prism(g['points'],g['z'],g['thickness'])
+ mesh=_polygon_prism(g['points'],g['z'],g['thickness'])
+ if node.semantic_kind in ('room_floor','room_ceiling','room_roof'):
+  mesh=_apply_vertical_openings_to_slab(doc,mesh,g['points'],g['z'],g['thickness'])
+ return mesh
 def _organic_junction_mesh(doc,node):
  from archforge.organic.biospectre import junction_plane,junction_section_polygon
  p=node.params
@@ -234,10 +457,13 @@ def _payload(doc,node):
  if k=='wall':return _wall_mesh(p)
  if k in('box','mechanical_part'):return _box_mesh(p,node.transform)
  if k=='pod':return _pod_mesh_for_node(doc,node)
+ if k=='mesh':return _authoritative_mesh(p)
+ if k=='stair':return _stair_mesh(p)
+ if k=='ramp':return _ramp_mesh(p)
  if k=='arboreal_branch':return _arboreal_branch_mesh(doc,node)
  if k=='organic_junction':return _organic_junction_mesh(doc,node)
  if k=='organic_opening_patch':return _organic_opening_patch_mesh(doc,node)
- if k=='floor':return _polygon_prism(p['points'],p['z'],p['thickness'])
+ if k=='floor':return _floor_slab(doc,node)
  if k in('room_floor','room_ceiling','room_foundation','room_roof'):return _room_slab(doc,node)
  raise ValueError(f'tessellation not implemented for {k}')
 class TessellatedPreviewBackend(GeometryBackend):

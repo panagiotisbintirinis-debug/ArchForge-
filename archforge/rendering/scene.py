@@ -16,6 +16,8 @@ _MATERIALS: Mapping[str, dict] = {
     "box": {"color": "#bfc7cf", "roughness": 0.58, "metalness": 0.03},
     "mechanical_part": {"color": "#9da7b1", "roughness": 0.38, "metalness": 0.42},
     "arboreal_branch": {"color": "#856a4f", "roughness": 0.88, "metalness": 0.0},
+    "stair": {"color": "#c7b99f", "roughness": 0.72, "metalness": 0.01},
+    "ramp": {"color": "#b8c2c9", "roughness": 0.74, "metalness": 0.01},
 }
 _DEFAULT_MATERIAL = {"color": "#bdc5ce", "roughness": 0.64, "metalness": 0.02}
 _SELECTED_MATERIAL = {"color": "#46a6ff", "roughness": 0.42, "metalness": 0.06}

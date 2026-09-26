@@ -71,6 +71,10 @@ class MoveEntities(Command):
             elif e.kind=='pod':doc.update(i,{'cx':p['cx']+self.dx,'cy':p['cy']+self.dy,'floor_level':p['floor_level']+self.dz})
             elif e.kind in ('floor','room'):
                 doc.update(i,{'points':[(x+self.dx,y+self.dy) for x,y in p['points']], 'z':p['z']+self.dz})
+            elif e.kind in ('stair','ramp'):
+                if abs(float(self.dz))>1e-12:
+                    raise ValueError(f'{e.kind}s can only move in XY; floor elevations remain linked')
+                doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy})
         # Compatibility only: modern UV/local attachments are immutable semantic intent.
         # Old project files may still contain world-only sculpt centers, so translate those
         # until they can be migrated to an intrinsic surface frame.
@@ -127,6 +131,15 @@ class RotateEntities(Command):
                 nx1, ny1 = rot(p['x1'], p['y1'])
                 nx2, ny2 = rot(p['x2'], p['y2'])
                 doc.update(i, {'x1': nx1, 'y1': ny1, 'x2': nx2, 'y2': ny2})
+            elif e.kind in ('stair', 'ramp'):
+                px, py = self.pivot if self.pivot is not None else (p['x'], p['y'])
+                dx, dy = float(p['x']) - px, float(p['y']) - py
+                nx, ny = px + dx * c - dy * s, py + dx * s + dy * c
+                doc.update(i, {
+                    'x': nx,
+                    'y': ny,
+                    'angle_deg': (float(p.get('angle_deg', 0.0)) + self.angle) % 360.0,
+                })
 
     def undo(self, doc: Document):
         if self.before is not None:
@@ -298,6 +311,243 @@ class CreateRoomRoofs(Command):
                 doc.remove(e.id)
 
 
+
+
+class RouteAndConnectInfrastructure(Command):
+    """Route between semantic endpoint anchors, then commit one authoritative mesh."""
+    def __init__(
+        self,
+        start_entity_id,
+        end_entity_id,
+        diameter,
+        system_type,
+        *,
+        grid_resolution=0.05,
+    ):
+        self.start_id = str(start_entity_id)
+        self.end_id = str(end_entity_id)
+        self.diameter = float(diameter)
+        self.system_type = str(system_type)
+        self.grid_resolution = float(grid_resolution)
+        self.generated_id = f"mep_{self.start_id}_{self.end_id}"
+        self.ids = [self.generated_id]
+        self.route = None
+        self._connect_command = None
+
+    def do(self, doc):
+        from archforge.core.router import MEPPathRouter
+        if self.start_id not in doc.entities or self.end_id not in doc.entities:
+            raise ValueError('MEP endpoints must exist in the authoritative Document')
+        if self.route is None:
+            router = MEPPathRouter(
+                doc,
+                grid_resolution=self.grid_resolution,
+                clearance=max(0.0, self.diameter / 2.0),
+                ignore_entity_ids={self.start_id, self.end_id},
+            )
+            start = router.entity_anchor(self.start_id)
+            end = router.entity_anchor(self.end_id)
+            self.route = router.compute_route(start, end)
+
+        self._connect_command = ConnectInfrastructure(
+            self.start_id,
+            self.end_id,
+            self.diameter,
+            self.system_type,
+            copy.deepcopy(self.route),
+        )
+        self._connect_command.do(doc)
+        entity = doc.get(self.generated_id)
+        metadata = copy.deepcopy(entity.params.get('metadata', {}))
+        metadata['routing'] = {
+            'algorithm': 'astar-3d',
+            'grid_resolution': self.grid_resolution,
+            'route_nodes': len(self.route),
+        }
+        doc.update(self.generated_id, {'metadata': metadata})
+
+    def undo(self, doc):
+        if self._connect_command is not None:
+            self._connect_command.undo(doc)
+
+
+class ConnectInfrastructure(Command):
+    """Commit an MEP centerline as authoritative editable mesh topology."""
+    def __init__(self, start_entity_id, end_entity_id, diameter, system_type, path_vertices):
+        self.start_id = str(start_entity_id)
+        self.end_id = str(end_entity_id)
+        self.diameter = float(diameter)
+        self.system_type = str(system_type)
+        self.path = copy.deepcopy(path_vertices)
+        self.generated_id = f"mep_{self.start_id}_{self.end_id}"
+        self.ids = [self.generated_id]
+
+    def do(self, doc):
+        from archforge.core.model import validate_conduit_spec
+        from archforge.geometry.mesh import generate_conduit_topology
+
+        if self.start_id not in doc.entities or self.end_id not in doc.entities:
+            raise ValueError('MEP endpoints must exist in the authoritative Document')
+        if self.generated_id in doc.entities:
+            raise ValueError('MEP connection already exists')
+
+        spec = validate_conduit_spec(
+            self.start_id,
+            self.end_id,
+            self.diameter,
+            self.system_type,
+            self.path,
+        )
+        segments = 12
+        vertices, faces = generate_conduit_topology(
+            spec['path_vertices'],
+            spec['diameter'],
+            segments=segments,
+        )
+        mesh_params = {
+            'vertices': [list(vertex) for vertex in vertices],
+            'faces': [list(face) for face in faces],
+            'matrix': [
+                1.0, 0.0, 0.0, 0.0,
+                0.0, 1.0, 0.0, 0.0,
+                0.0, 0.0, 1.0, 0.0,
+                0.0, 0.0, 0.0, 1.0,
+            ],
+            'metadata': {
+                'semantic_type': 'conduit',
+                'system_type': spec['system_type'],
+                'diameter': spec['diameter'],
+                'start_node': spec['start_node'],
+                'end_node': spec['end_node'],
+                'source_path_vertices': copy.deepcopy(spec['path_vertices']),
+                'sweep_segments': segments,
+            },
+        }
+        mesh_entity = Entity(
+            kind='mesh',
+            params=mesh_params,
+            name=f"{spec['system_type']}_line",
+            id=self.generated_id,
+        )
+        doc.add(mesh_entity)
+        doc.add_dependency(self.start_id, self.generated_id)
+        doc.add_dependency(self.end_id, self.generated_id)
+
+    def undo(self, doc):
+        if self.generated_id in doc.entities:
+            doc.remove(self.generated_id)
+
+
+@dataclass
+class MoveVertices(Command):
+    """Move one authoritative mesh vertex as a reversible model mutation."""
+    eid: str
+    vertex_index: int
+    dx: float
+    dy: float
+    dz: float = 0.0
+    before: Optional[List[float]] = None
+
+    @property
+    def ids(self):
+        return (self.eid,)
+
+    def do(self, doc: Document):
+        entity = doc.get(self.eid)
+        if entity.kind != 'mesh':
+            raise ValueError('MoveVertices requires a mesh entity')
+        vertices = copy.deepcopy(entity.params['vertices'])
+        index = int(self.vertex_index)
+        if index < 0 or index >= len(vertices):
+            raise IndexError('mesh vertex index out of range')
+        if self.before is None:
+            self.before = list(vertices[index])
+        vertex = vertices[index]
+        vertices[index] = [
+            float(vertex[0]) + float(self.dx),
+            float(vertex[1]) + float(self.dy),
+            float(vertex[2]) + float(self.dz),
+        ]
+        doc.update(self.eid, {'vertices': vertices})
+
+    def undo(self, doc: Document):
+        if self.before is None:
+            return
+        entity = doc.get(self.eid)
+        if entity.kind != 'mesh':
+            raise ValueError('MoveVertices requires a mesh entity')
+        vertices = copy.deepcopy(entity.params['vertices'])
+        index = int(self.vertex_index)
+        if index < 0 or index >= len(vertices):
+            raise IndexError('mesh vertex index out of range')
+        vertices[index] = list(self.before)
+        doc.update(self.eid, {'vertices': vertices})
+
+
+@dataclass
+class FreezeToMesh(Command):
+    """Freeze one standalone pod into authoritative editable mesh geometry."""
+    eid: str
+    before: Optional[Entity] = None
+
+    @property
+    def ids(self):
+        return (self.eid,)
+
+    def _assert_freezable(self, doc: Document):
+        entity = doc.get(self.eid)
+        if entity.kind != 'pod':
+            raise ValueError('FreezeToMesh currently supports pod entities only')
+        if doc.children.get(self.eid):
+            raise ValueError('cannot freeze a pod that still hosts child entities')
+        if doc.dependencies.get(self.eid):
+            raise ValueError('cannot freeze a pod with active semantic dependents')
+        if doc.modifier_ids_for_owner(self.eid):
+            raise ValueError('cannot freeze a pod with active surface modifiers')
+        return entity
+
+    def do(self, doc: Document):
+        from archforge.geometry.mesh import _pod_mesh
+        from archforge.core.model import validate_params
+
+        source = self._assert_freezable(doc)
+        if self.before is None:
+            self.before = source.clone()
+        payload = _pod_mesh(source.params)
+        params = {
+            'vertices': [list(v) for v in payload.vertices],
+            'faces': [list(face) for face in payload.triangles],
+            'matrix': [
+                1.0, 0.0, 0.0, 0.0,
+                0.0, 1.0, 0.0, 0.0,
+                0.0, 0.0, 1.0, 0.0,
+                0.0, 0.0, 0.0, 1.0,
+            ],
+            'metadata': {
+                'semantic_type': 'frozen_mesh',
+                'source_kind': 'pod',
+            },
+        }
+        frozen = Entity(
+            'mesh',
+            validate_params('mesh', params),
+            name=source.name,
+            id=source.id,
+            parent_id=source.parent_id,
+            locked=source.locked,
+            visible=source.visible,
+            revision=source.revision + 1,
+        )
+        doc.entities[self.eid] = frozen
+        doc.mark_dirty(self.eid)
+
+    def undo(self, doc: Document):
+        if self.before is None:
+            return
+        doc.entities[self.eid] = self.before.clone()
+        doc.mark_dirty(self.eid)
+
+
 @dataclass
 class SetWorkPlane(Command):
     work_plane: WorkPlane
@@ -309,6 +559,44 @@ class SetWorkPlane(Command):
     def undo(self, doc: Document):
         if self.before is not None:
             doc.work_plane = copy.deepcopy(self.before)
+
+@dataclass
+class CreateFloorLevel(Command):
+    """Create one named storey elevation and activate it as the current work plane."""
+    name: str
+    elevation: float
+    before_levels: Optional[Dict[str, float]] = None
+    before_work_plane: Optional[WorkPlane] = None
+
+    def do(self, doc: Document):
+        name = str(self.name).strip()
+        if not name:
+            raise ValueError('floor level name must not be empty')
+        if self.before_levels is None:
+            if name in doc.levels:
+                raise ValueError(f"level '{name}' already exists")
+            self.before_levels = copy.deepcopy(doc.levels)
+            self.before_work_plane = copy.deepcopy(doc.work_plane)
+        elevation = float(self.elevation)
+        if any(abs(float(z) - elevation) <= 1e-6 for level_name, z in doc.levels.items() if level_name != name):
+            raise ValueError('another floor level already uses this elevation')
+        doc.levels[name] = elevation
+        wp = doc.work_plane
+        doc.work_plane = WorkPlane(
+            name=name,
+            origin=(float(wp.origin[0]), float(wp.origin[1]), elevation),
+            u=tuple(wp.u),
+            v=tuple(wp.v),
+        )
+        doc.selection = []
+
+    def undo(self, doc: Document):
+        if self.before_levels is None or self.before_work_plane is None:
+            return
+        doc.levels = copy.deepcopy(self.before_levels)
+        doc.work_plane = copy.deepcopy(self.before_work_plane)
+        doc.selection = []
+
 
 @dataclass
 class SetLevel(Command):

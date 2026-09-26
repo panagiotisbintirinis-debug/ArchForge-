@@ -10,7 +10,7 @@ from archforge.kinematics.evaluation import base_part_matrix, evaluate_assembly
 Matrix4 = Tuple[Tuple[float,float,float,float],Tuple[float,float,float,float],Tuple[float,float,float,float],Tuple[float,float,float,float]]
 
 NON_GEOMETRY_KINDS = {'mechanical_joint','mechanical_mount','door','window'}
-FABRICATION_KINDS = {'box','wall','pod','floor','room_floor','mechanical_part'}
+FABRICATION_KINDS = {'box','wall','pod','mesh','floor','room_floor','mechanical_part'}
 
 
 @dataclass(frozen=True)
