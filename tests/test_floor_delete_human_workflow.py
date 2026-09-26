@@ -9,6 +9,7 @@ from archforge.core.model import Document, Entity, WorkPlane
 from archforge.core.plan_scene import build_plan_frame
 from archforge.core.viewport import PointerEvent
 from archforge.ui.main_window import MainWindow
+from archforge.ui.object_context_menu import object_context_actions
 
 
 _APP = QApplication.instance() or QApplication([])
@@ -157,4 +158,34 @@ def test_pbr_select_then_general_delete_removes_one_wall_and_undo_restores_it():
     window._undo()
     assert 'wall-a' in window.doc.entities
     assert 'wall-b' in window.doc.entities
+    window.close()
+
+
+
+def test_context_menu_registry_is_editable_and_view_aware():
+    plan_wall = object_context_actions('wall', 'plan')
+    pbr_wall = object_context_actions('wall', 'pbr')
+
+    assert [entry['id'] if entry else None for entry in plan_wall] == [
+        'properties', 'move', 'stretch', 'rotate', None, 'delete'
+    ]
+    assert [entry['id'] if entry else None for entry in pbr_wall] == [
+        'properties', None, 'delete'
+    ]
+
+
+def test_context_menu_properties_and_plan_tool_actions_use_selected_entity():
+    window = MainWindow()
+    wall = _wall('menu-wall', 0.0)
+    window.doc.add(wall)
+
+    window._handle_object_context_action(wall.id, 'properties')
+    assert window.doc.selection == [wall.id]
+    assert window.dock.isVisible() or not window.isVisible()
+
+    window._handle_object_context_action(wall.id, 'rotate')
+    assert window.doc.selection == [wall.id]
+    assert window.view is window.plan_view
+    assert window.plan_view.controller.tool == 'rotate'
+    assert window.plan_view.controller.active_entity == wall.id
     window.close()
