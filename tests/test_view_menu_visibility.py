@@ -24,6 +24,12 @@ def test_view_menu_controls_real_status_bar_and_tools_toolbar_visibility():
     assert window.status_bar_action.isChecked() == window.statusBar().isVisible()
     assert window.tools_toolbar_action.isChecked() == window.tools_toolbar.isVisible()
 
+    # Verify the menu contents while the QMenu wrapper is definitely live. Some
+    # offscreen PySide6 builds invalidate a retained QMenu wrapper after visibility
+    # changes even though the actual menu/action ownership remains correct.
+    labels = {action.text() for action in menus['View'].actions()}
+    assert labels == {'Status Bar', 'Tools Toolbar'}
+
     window.status_bar_action.trigger()
     window.tools_toolbar_action.trigger()
     QApplication.processEvents()
@@ -40,6 +46,4 @@ def test_view_menu_controls_real_status_bar_and_tools_toolbar_visibility():
     assert window.status_bar_action.isChecked()
     assert window.tools_toolbar_action.isChecked()
 
-    labels = {action.text() for action in menus['View'].actions()}
-    assert labels == {'Status Bar', 'Tools Toolbar'}
     window.close()
