@@ -58,6 +58,66 @@ def _pod_mesh(p,segments=32,rings=12):
  for j in range(rings):
   for i in range(segments):n=(i+1)%segments;a=j*segments+i;b=j*segments+n;c=(j+1)*segments+n;d=(j+1)*segments+i;tris.extend(((a,b,c),(a,c,d)));roles.extend(('pod_shell','pod_shell'))
  return MeshPayload(tuple(v),tuple(tris),tuple(roles))
+
+
+def generate_conduit_topology(path_vertices, diameter, segments=12):
+ path=[tuple(map(float,point)) for point in path_vertices]
+ radius=float(diameter)/2.0
+ n=max(8,int(segments))
+ rings=[]
+ for i,center in enumerate(path):
+  if i==0:
+   tangent=tuple(path[1][k]-path[0][k] for k in range(3))
+  elif i==len(path)-1:
+   tangent=tuple(path[-1][k]-path[-2][k] for k in range(3))
+  else:
+   tangent=tuple(path[i+1][k]-path[i-1][k] for k in range(3))
+  length=math.sqrt(sum(v*v for v in tangent))
+  if length<=1e-12:raise ValueError('conduit path contains zero-length tangent')
+  u=tuple(v/length for v in tangent)
+  ref=(0.0,0.0,1.0) if abs(u[2])<0.9 else (0.0,1.0,0.0)
+  v=(u[1]*ref[2]-u[2]*ref[1],u[2]*ref[0]-u[0]*ref[2],u[0]*ref[1]-u[1]*ref[0])
+  vn=math.sqrt(sum(q*q for q in v))
+  if vn<=1e-12:raise ValueError('conduit frame is degenerate')
+  v=tuple(q/vn for q in v)
+  w=(u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0])
+  ring=[]
+  for j in range(n):
+   angle=2.0*math.pi*j/n;c0,s0=math.cos(angle),math.sin(angle)
+   ring.append(tuple(center[k]+radius*(c0*v[k]+s0*w[k]) for k in range(3)))
+  rings.append(ring)
+ vertices=[point for ring in rings for point in ring]
+ faces=[]
+ for ring_index in range(len(rings)-1):
+  a0=ring_index*n;b0=(ring_index+1)*n
+  for j in range(n):
+   q=(j+1)%n
+   faces.append((a0+j,a0+q,b0+q,b0+j))
+ faces.append(tuple(reversed(range(n))))
+ base=(len(rings)-1)*n
+ faces.append(tuple(base+j for j in range(n)))
+ return tuple(vertices),tuple(faces)
+
+
+def _authoritative_mesh(p):
+ vertices=[tuple(map(float,point)) for point in p['vertices']]
+ matrix=[float(v) for v in p['matrix']]
+ def transform(point):
+  x,y,z=point
+  return (
+   matrix[0]*x+matrix[1]*y+matrix[2]*z+matrix[3],
+   matrix[4]*x+matrix[5]*y+matrix[6]*z+matrix[7],
+   matrix[8]*x+matrix[9]*y+matrix[10]*z+matrix[11],
+  )
+ transformed=[transform(point) for point in vertices]
+ triangles=[];roles=[]
+ for face_index,face in enumerate(p['faces']):
+  if len(face)<3:continue
+  for i in range(1,len(face)-1):
+   triangles.append((int(face[0]),int(face[i]),int(face[i+1])))
+   roles.append(f'mesh_face:{face_index}')
+ return MeshPayload(tuple(transformed),tuple(triangles),tuple(roles))
+
 def _arboreal_branch_mesh(doc,node,segments=20):
  from archforge.organic.arboreal import arboreal_branch_geometry
  g=arboreal_branch_geometry(doc,node.entity_id);a=tuple(float(v) for v in g['start']);b=tuple(float(v) for v in g['end']);r0=float(g['root_radius']);r1=float(g['tip_radius'])
@@ -234,6 +294,7 @@ def _payload(doc,node):
  if k=='wall':return _wall_mesh(p)
  if k in('box','mechanical_part'):return _box_mesh(p,node.transform)
  if k=='pod':return _pod_mesh_for_node(doc,node)
+ if k=='mesh':return _authoritative_mesh(p)
  if k=='arboreal_branch':return _arboreal_branch_mesh(doc,node)
  if k=='organic_junction':return _organic_junction_mesh(doc,node)
  if k=='organic_opening_patch':return _organic_opening_patch_mesh(doc,node)
