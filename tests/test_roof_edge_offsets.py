@@ -1,8 +1,9 @@
 import pytest
 
 from archforge.architecture.rooms import room_slab_geometry
-from archforge.core.commands import CommandStack, CreateRoomRoofs, UpdateEntity
+from archforge.core.commands import CommandStack, CreateRoomRoofs
 from archforge.core.model import Document, Entity
+from archforge.core.roof_commands import SetRoofEdgeOffset
 
 
 def _closed_room():
@@ -29,8 +30,9 @@ def test_flat_roof_one_semantic_edge_offset_is_asymmetric_and_undoable():
     stack.execute(CreateRoomRoofs([face.signature], thickness=.20))
     roof = _roof(doc)
     baseline = room_slab_geometry(doc, roof)['points']
+    assert 'edge_offsets' not in roof.params
 
-    stack.execute(UpdateEntity(roof.id, {'edge_offsets': {'east': .40}}))
+    stack.execute(SetRoofEdgeOffset(roof.id, 'east', .40))
     edited = room_slab_geometry(doc, roof)['points']
     assert min(x for x, _y in edited) == pytest.approx(-.10)
     assert max(x for x, _y in edited) == pytest.approx(4.50)
@@ -38,6 +40,7 @@ def test_flat_roof_one_semantic_edge_offset_is_asymmetric_and_undoable():
     assert max(y for _x, y in edited) == pytest.approx(3.10)
 
     stack.undo()
+    assert 'edge_offsets' not in roof.params
     assert room_slab_geometry(doc, roof)['points'] == baseline
     stack.redo()
     assert room_slab_geometry(doc, roof)['points'] == edited
@@ -49,7 +52,8 @@ def test_flat_roof_edge_offsets_round_trip_with_authoritative_document():
     face = doc.active_room_faces()[0]
     stack.execute(CreateRoomRoofs([face.signature], thickness=.20))
     roof = _roof(doc)
-    stack.execute(UpdateEntity(roof.id, {'edge_offsets': {'east': .40, 'north': -.05}}))
+    stack.execute(SetRoofEdgeOffset(roof.id, 'east', .40))
+    stack.execute(SetRoofEdgeOffset(roof.id, 'north', -.05))
 
     restored = Document.from_dict(doc.to_dict())
     restored_roof = restored.get(roof.id)
