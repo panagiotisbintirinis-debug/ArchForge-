@@ -25,16 +25,17 @@ def _material(kind: str, selected: bool) -> dict:
     return dict(_SELECTED_MATERIAL if selected else _MATERIALS.get(kind, _DEFAULT_MATERIAL))
 
 
-def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = ()) -> dict:
+def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_overrides=None) -> dict:
     """Serialize evaluated MeshPayloads for the derived WebGL renderer.
 
     The returned structure contains no authoritative state and is safe to discard at any
     time. Entity identity is retained only so display selection can be represented.
     """
     selected = set(selected_ids)
+    overrides = dict(mesh_overrides or {})
     objects = []
     for body in evaluation.bodies:
-        mesh = body.payload
+        mesh = overrides.get(body.entity_id, body.payload)
         if not isinstance(mesh, MeshPayload):
             continue
         objects.append(
@@ -43,6 +44,7 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = ()) -> dic
                 "kind": str(body.semantic_kind),
                 "vertices": [[float(x), float(y), float(z)] for x, y, z in mesh.vertices],
                 "triangles": [[int(a), int(b), int(c)] for a, b, c in mesh.triangles],
+                "surfaces": [str(role) for role in mesh.triangle_surfaces],
                 "material": _material(body.semantic_kind, body.entity_id in selected),
             }
         )
