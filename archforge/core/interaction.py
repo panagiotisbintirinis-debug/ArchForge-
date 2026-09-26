@@ -69,6 +69,11 @@ class MoveTransaction:
             elif e.kind in ('floor', 'room'):
                 p['points'] = [(qx + self.dx, qy + self.dy) for qx, qy in p['points']]
                 p['z'] = p['z'] + self.dz
+            elif e.kind == 'stair':
+                p['x'] = p['x'] + self.dx
+                p['y'] = p['y'] + self.dy
+                # Stairs remain semantically tied to their two floor elevations.
+                # XY movement must not silently detach them vertically.
             self.preview[eid] = p
 
     def commit(self):
