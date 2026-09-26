@@ -43,10 +43,11 @@ class SculptTransaction:
     def preview_mesh(self):
         """Evaluate current drag state without altering Document or undo history."""
         # Preview on top of already committed modifiers, while keeping
-        # the in-progress brush transient until commit.
+        # the in-progress brush transient until commit. Use the same sculpt-only
+        # sampling density as committed modifiers so release does not visibly
+        # snap between two different meshes.
         body=SculptedPreviewBackend(
             dense_entity_ids={self.hit.owner_id},
-            wall_target_step=.15,
         ).evaluate(self.doc).body(self.hit.owner_id)
         raw={
             'operation':self.operation,
