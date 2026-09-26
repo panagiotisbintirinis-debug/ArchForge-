@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import json
 
-from PySide6.QtCore import Qt, QUrl, Signal
+from PySide6.QtCore import Qt, QUrl, Signal, Slot, QObject
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PySide6.QtWebChannel import QWebChannel
 
 from archforge.geometry.incremental import IncrementalEvaluationCache
 from archforge.geometry.sculpt import SculptedPreviewBackend
+from archforge.geometry.selection import BrushSpec, SurfaceHit
+from archforge.geometry.sculpt_transaction import SculptTransaction
 from archforge.rendering.scene import build_pbr_scene_payload
 
 try:
@@ -33,6 +36,7 @@ html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background:
   }
 }
 </script>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 </head>
 <body>
 <div id="stage"></div>
@@ -63,6 +67,12 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.target.set(0, 0, 1.4);
 controls.update();
+
+if (typeof QWebChannel !== "undefined" && typeof qt !== "undefined") {
+  new QWebChannel(qt.webChannelTransport, function(channel) {
+    bridge = channel.objects.renderBridge;
+  });
+}
 
 scene.add(new THREE.AmbientLight(0xffffff, 0.42));
 const key = new THREE.DirectionalLight(0xfff4df, 3.2);
@@ -95,6 +105,10 @@ scene.add(ground);
 const modelRoot = new THREE.Group();
 scene.add(modelRoot);
 let activeTechnique = "pbr";
+let activeTool = "orbit";
+let bridge = null;
+let sculpting = false;
+let sculptStartY = 0;
 
 function resize() {
   const w = Math.max(1, container.clientWidth);
@@ -154,7 +168,7 @@ function fitCamera() {
   controls.update();
 }
 
-window.archforgeSetScene = function(payload) {
+window.archforgeSetScene = function(payload, fit = true) {
   disposeModel();
   const objects = (payload && payload.objects) || [];
   for (const item of objects) {
@@ -169,12 +183,15 @@ window.archforgeSetScene = function(payload) {
     geometry.computeBoundingSphere();
     const mesh = new THREE.Mesh(geometry, materialFor(item.material || {}));
     mesh.name = item.id || item.kind || "entity";
+    mesh.userData.entityId = item.id || "";
+    mesh.userData.kind = item.kind || "";
+    mesh.userData.surfaceRoles = item.surfaces || [];
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     modelRoot.add(mesh);
   }
   applyTechnique();
-  fitCamera();
+  if (fit) fitCamera();
 };
 
 window.setTechnique = function(mode) {
@@ -183,6 +200,64 @@ window.setTechnique = function(mode) {
     applyTechnique();
   }
 };
+
+
+window.setActiveTool = function(tool) {
+  activeTool = tool || "orbit";
+  if (!sculpting) controls.enabled = activeTool !== "sculpt";
+};
+
+function pickModel(event) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  const mouse = new THREE.Vector2(
+    ((event.clientX - rect.left) / rect.width) * 2 - 1,
+    -((event.clientY - rect.top) / rect.height) * 2 + 1
+  );
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(modelRoot.children, false);
+  return hits.length ? hits[0] : null;
+}
+
+renderer.domElement.addEventListener("pointerdown", (event) => {
+  if (activeTool !== "sculpt" || !bridge) return;
+  const hit = pickModel(event);
+  if (!hit || !hit.face) return;
+  const roles = hit.object.userData.surfaceRoles || [];
+  const surfaceRole = roles[hit.faceIndex] || hit.object.userData.kind || "default";
+  const normal = hit.face.normal.clone();
+  normal.applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld)).normalize();
+  const payload = {
+    entity_id: hit.object.userData.entityId,
+    surface_role: surfaceRole,
+    point: [hit.point.x, hit.point.y, hit.point.z],
+    normal: [normal.x, normal.y, normal.z]
+  };
+  sculpting = true;
+  sculptStartY = event.clientY;
+  controls.enabled = false;
+  if (renderer.domElement.setPointerCapture) renderer.domElement.setPointerCapture(event.pointerId);
+  bridge.beginSculpt(JSON.stringify(payload));
+  event.preventDefault();
+  event.stopPropagation();
+}, true);
+
+renderer.domElement.addEventListener("pointermove", (event) => {
+  if (!sculpting || !bridge) return;
+  const amount = Math.abs(event.clientY - sculptStartY) * 0.006;
+  bridge.updateSculpt(amount);
+  event.preventDefault();
+  event.stopPropagation();
+}, true);
+
+renderer.domElement.addEventListener("pointerup", (event) => {
+  if (!sculpting || !bridge) return;
+  sculpting = false;
+  controls.enabled = activeTool !== "sculpt";
+  bridge.endSculpt();
+  event.preventDefault();
+  event.stopPropagation();
+}, true);
 
 if (window.__archforgePendingTechnique) window.setTechnique(window.__archforgePendingTechnique);
 if (window.__archforgePendingScene) window.archforgeSetScene(window.__archforgePendingScene);
@@ -197,6 +272,26 @@ animate();
 </body>
 </html>
 """
+
+
+class PBRInteractionBridge(QObject):
+    """WebGL pointer bridge into ArchForge's existing semantic sculpt transaction."""
+
+    def __init__(self, viewport):
+        super().__init__(viewport)
+        self.viewport = viewport
+
+    @Slot(str)
+    def beginSculpt(self, payload_json: str) -> None:
+        self.viewport._begin_sculpt_from_web(payload_json)
+
+    @Slot(float)
+    def updateSculpt(self, amount: float) -> None:
+        self.viewport._update_sculpt_from_web(amount)
+
+    @Slot()
+    def endSculpt(self) -> None:
+        self.viewport._finish_sculpt_from_web()
 
 
 class PBRViewport(QWidget):
@@ -215,6 +310,12 @@ class PBRViewport(QWidget):
         self.stack = stack
         self._evaluation_cache = IncrementalEvaluationCache(SculptedPreviewBackend())
         self._technique = "pbr"
+        self.active_tool = "orbit"
+        self.sculpt_brush = BrushSpec(radius=0.35, strength=1.0, falloff="smooth")
+        self.sculpt_op = "pull"
+        self._sculpt_tx = None
+        self.channel = None
+        self.bridge = None
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
@@ -236,6 +337,10 @@ class PBRViewport(QWidget):
         self._placeholder.hide()
         self.web_view = QWebEngineView(self)
         self._layout.addWidget(self.web_view)
+        self.channel = QWebChannel(self.web_view.page())
+        self.bridge = PBRInteractionBridge(self)
+        self.channel.registerObject("renderBridge", self.bridge)
+        self.web_view.page().setWebChannel(self.channel)
         self.web_view.loadFinished.connect(self._on_load_finished)
         self.web_view.setHtml(_PBR_HTML, QUrl("https://cdn.jsdelivr.net/"))
 
@@ -254,9 +359,94 @@ class PBRViewport(QWidget):
         self.redraw(force_full=True)
 
     def set_tool(self, tool: str) -> None:
-        self.statusChanged.emit(
-            "PBR Preview is display-only in this integration; edit in Plan/Front/Side/3D Perspective"
+        self.active_tool = str(tool)
+        if self.web_view is not None:
+            script = (
+                "if (window.setActiveTool) window.setActiveTool("
+                + json.dumps(self.active_tool)
+                + ");"
+            )
+            self.web_view.page().runJavaScript(script)
+        if self.active_tool == "sculpt":
+            self.statusChanged.emit(
+                f"PBR Sculpt {self.sculpt_op}: click a surface and drag | brush {self.sculpt_brush.radius:.2f} m"
+            )
+        else:
+            self.statusChanged.emit(f"PBR Viewport Tool: {self.active_tool}")
+
+    def configure_sculpt(self, *, operation=None, radius=None, strength=None, falloff=None) -> None:
+        operation = self.sculpt_op if operation is None else str(operation)
+        if operation not in ("pull", "push", "inflate", "recess", "smooth", "crease"):
+            raise ValueError(f"unsupported live sculpt operation: {operation}")
+        brush = BrushSpec(
+            radius=self.sculpt_brush.radius if radius is None else float(radius),
+            strength=self.sculpt_brush.strength if strength is None else float(strength),
+            falloff=self.sculpt_brush.falloff if falloff is None else str(falloff),
         )
+        brush.validate()
+        self.sculpt_op = operation
+        self.sculpt_brush = brush
+        if self.active_tool == "sculpt":
+            self.statusChanged.emit(
+                f"PBR Sculpt {self.sculpt_op}: click a surface and drag | brush {brush.radius:.2f} m"
+            )
+
+    def _begin_sculpt_from_web(self, payload_json: str) -> None:
+        if self.active_tool != "sculpt":
+            return
+        try:
+            payload = json.loads(payload_json)
+            hit = SurfaceHit(
+                str(payload["entity_id"]),
+                str(payload["surface_role"]),
+                tuple(float(v) for v in payload["point"]),
+                tuple(float(v) for v in payload["normal"]),
+            )
+            hit.validate(self.doc)
+            self._sculpt_tx = SculptTransaction(
+                self.doc,
+                self.stack,
+                hit,
+                self.sculpt_brush,
+                self.sculpt_op,
+                0.0,
+            )
+            self.statusChanged.emit(
+                f"PBR sculpt point locked on {hit.surface_role}; drag to deform locally"
+            )
+        except Exception as exc:
+            self._sculpt_tx = None
+            self.statusChanged.emit(f"Cannot sculpt PBR surface: {exc}")
+
+    def _update_sculpt_from_web(self, amount: float) -> None:
+        if self._sculpt_tx is None:
+            return
+        try:
+            self._sculpt_tx.update(amount=float(amount), strength=self.sculpt_brush.strength)
+            self.redraw(force_full=False)
+            self.statusChanged.emit(
+                f"PBR local sculpt displacement: {self._sculpt_tx.amount:.3f} m"
+            )
+        except Exception as exc:
+            self.statusChanged.emit(f"PBR sculpt preview error: {exc}")
+
+    def _finish_sculpt_from_web(self) -> None:
+        if self._sculpt_tx is None:
+            return
+        tx = self._sculpt_tx
+        self._sculpt_tx = None
+        try:
+            if tx.amount > 0.001:
+                tx.commit()
+                self._evaluation_cache.clear()
+                self.statusChanged.emit(f"Applied sculpt modifier ({self.sculpt_op})")
+            else:
+                tx.cancel()
+            self.selectionChangedByView.emit()
+            self.redraw(force_full=False)
+        except Exception as exc:
+            self.statusChanged.emit(f"PBR sculpt commit error: {exc}")
+            self.redraw(force_full=False)
 
     def set_render_technique(self, technique: str) -> None:
         if technique not in ("pbr", "technical", "glass"):
@@ -278,10 +468,23 @@ class PBRViewport(QWidget):
         if self.web_view is None:
             return
         evaluation = self._evaluation_cache.sync(self.doc)
-        payload = build_pbr_scene_payload(evaluation, self.doc.selection)
+        overrides = None
+        if self._sculpt_tx is not None:
+            try:
+                overrides = {self._sculpt_tx.hit.owner_id: self._sculpt_tx.preview_mesh()}
+            except Exception as exc:
+                self.statusChanged.emit(f"PBR sculpt preview error: {exc}")
+        payload = build_pbr_scene_payload(
+            evaluation,
+            self.doc.selection,
+            mesh_overrides=overrides,
+        )
+        fit = "true" if force_full and self._sculpt_tx is None else "false"
         script = (
             "window.__archforgePendingScene = "
             + json.dumps(payload, separators=(",", ":"))
-            + "; if (window.archforgeSetScene) window.archforgeSetScene(window.__archforgePendingScene);"
+            + "; if (window.archforgeSetScene) window.archforgeSetScene(window.__archforgePendingScene, "
+            + fit
+            + ");"
         )
         self.web_view.page().runJavaScript(script)
