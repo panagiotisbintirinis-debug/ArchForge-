@@ -306,6 +306,34 @@ def _stair_mesh(p):
  return _combine_meshes(tuple(meshes),1e-8)
 
 
+def _ramp_mesh(p):
+ from archforge.architecture.ramps import candidate_from_params
+ candidate=candidate_from_params(p)
+ a=math.radians(candidate.angle_deg);ux,uy=math.cos(a),math.sin(a);vx,vy=-uy,ux
+ ox,oy=candidate.origin;run=float(candidate.run_length);half=float(candidate.width)/2.0
+ z0=float(candidate.lower_z);z1=float(candidate.upper_z);th=float(candidate.thickness)
+ def point(along,across,z):
+  return (ox+ux*along+vx*across,oy+uy*along+vy*across,z)
+ verts=(
+  point(0.0,-half,z0-th),point(run,-half,z1-th),
+  point(run,half,z1-th),point(0.0,half,z0-th),
+  point(0.0,-half,z0),point(run,-half,z1),
+  point(run,half,z1),point(0.0,half,z0),
+ )
+ quads=(
+  (0,1,5,4,'ramp_side'),
+  (1,2,6,5,'ramp_end'),
+  (2,3,7,6,'ramp_side'),
+  (3,0,4,7,'ramp_start'),
+  (4,5,6,7,'ramp_surface'),
+  (3,2,1,0,'ramp_bottom'),
+ )
+ tris=[];roles=[]
+ for aa,bb,cc,dd,role in quads:
+  tris.extend(((aa,bb,cc),(aa,cc,dd)));roles.extend((role,role))
+ return MeshPayload(tuple(verts),tuple(tris),tuple(roles))
+
+
 def _point_in_polygon_xy(point,polygon):
  x,y=map(float,point);inside=False
  pts=[(float(a),float(b)) for a,b in polygon];j=len(pts)-1
@@ -341,14 +369,18 @@ def _subtract_rectangular_slab_hole(mesh,opening,z0,z1):
  sides=_rect_hole_side_mesh(xmin,xmax,ymin,ymax,float(z0),float(z1))
  return _combine_meshes((left,right,front,back,sides),1e-8)
 
-def _apply_stair_openings_to_slab(doc,mesh,points,slab_z,thickness):
- from archforge.architecture.stairs import candidate_from_params,stair_opening_polygon
+def _apply_vertical_openings_to_slab(doc,mesh,points,slab_z,thickness):
+ from archforge.architecture.stairs import candidate_from_params as stair_candidate,stair_opening_polygon
+ from archforge.architecture.ramps import candidate_from_params as ramp_candidate,ramp_opening_polygon
  slab_z=float(slab_z);thickness=float(thickness)
- for stair in doc.entities.values():
-  if stair.kind!='stair':continue
-  upper_floor_z=float(stair.params.get('upper_floor_z',stair.params['upper_z']))
+ for entity in doc.entities.values():
+  if entity.kind not in ('stair','ramp'):continue
+  upper_floor_z=float(entity.params.get('upper_floor_z',entity.params['upper_z']))
   if abs(upper_floor_z-slab_z)>1e-5:continue
-  opening=stair_opening_polygon(candidate_from_params(stair.params))
+  if entity.kind=='stair':
+   opening=stair_opening_polygon(stair_candidate(entity.params))
+  else:
+   opening=ramp_opening_polygon(ramp_candidate(entity.params))
   if opening and all(_point_in_polygon_xy(point,points) for point in opening):
    mesh=_subtract_rectangular_slab_hole(mesh,opening,slab_z,slab_z+thickness)
  return mesh
@@ -356,7 +388,7 @@ def _apply_stair_openings_to_slab(doc,mesh,points,slab_z,thickness):
 def _floor_slab(doc,node):
  p=node.params
  mesh=_polygon_prism(p['points'],p['z'],p['thickness'])
- return _apply_stair_openings_to_slab(doc,mesh,p['points'],p['z'],p['thickness'])
+ return _apply_vertical_openings_to_slab(doc,mesh,p['points'],p['z'],p['thickness'])
 
 def _room_slab(doc,node):
  from archforge.architecture.rooms import room_slab_geometry
@@ -364,7 +396,7 @@ def _room_slab(doc,node):
  if g is None:raise ValueError('derived room element has no currently closed room')
  mesh=_polygon_prism(g['points'],g['z'],g['thickness'])
  if node.semantic_kind=='room_floor':
-  mesh=_apply_stair_openings_to_slab(doc,mesh,g['points'],g['z'],g['thickness'])
+  mesh=_apply_vertical_openings_to_slab(doc,mesh,g['points'],g['z'],g['thickness'])
  return mesh
 def _organic_junction_mesh(doc,node):
  from archforge.organic.biospectre import junction_plane,junction_section_polygon
@@ -417,6 +449,7 @@ def _payload(doc,node):
  if k=='pod':return _pod_mesh_for_node(doc,node)
  if k=='mesh':return _authoritative_mesh(p)
  if k=='stair':return _stair_mesh(p)
+ if k=='ramp':return _ramp_mesh(p)
  if k=='arboreal_branch':return _arboreal_branch_mesh(doc,node)
  if k=='organic_junction':return _organic_junction_mesh(doc,node)
  if k=='organic_opening_patch':return _organic_opening_patch_mesh(doc,node)
