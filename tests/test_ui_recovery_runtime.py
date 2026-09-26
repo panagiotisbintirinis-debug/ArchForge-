@@ -238,3 +238,45 @@ def test_solid_surface_renderer_hides_internal_triangle_edges():
     finally:
         view.close()
         app.processEvents()
+
+
+def test_pbr_view_can_place_window_on_clicked_wall_without_webengine_activation():
+    import json
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    try:
+        wall = Entity(
+            'wall',
+            {
+                'x1': 0.0,
+                'y1': 0.0,
+                'x2': 4.0,
+                'y2': 0.0,
+                'z': 0.0,
+                'height': 2.7,
+                'thickness': 0.2,
+            },
+            id='pbr-opening-wall',
+        )
+        window.doc.add(wall)
+        before = set(window.doc.entities)
+        window.pbr_view.set_tool('window')
+        window.pbr_view._place_opening_from_web(
+            'window',
+            json.dumps({
+                'entity_id': wall.id,
+                'point': [2.0, 0.1, 1.4],
+            }),
+        )
+
+        created = [e for eid, e in window.doc.entities.items() if eid not in before]
+        assert len(created) == 1
+        opening = created[0]
+        assert opening.kind == 'window'
+        assert opening.parent_id == wall.id
+        assert abs(float(opening.params['offset']) - 2.0) < 1e-9
+        assert window.stack.done
+    finally:
+        window.close()
+        app.processEvents()
