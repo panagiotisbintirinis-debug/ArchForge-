@@ -2,8 +2,9 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from archforge.architecture.stairs import discover_building_levels, solve_stair_candidates
-from archforge.core.commands import CommandStack
+from archforge.architecture.stairs import discover_building_levels, solve_stair_candidates, stair_footprint, stair_opening_polygon
+from archforge.architecture.topology import room_faces
+from archforge.core.commands import CommandStack, CreateRoomFloors, CreateRoomRoofs
 from archforge.core.interaction import MoveTransaction, RotateTransaction, StairPlaceTransaction
 from archforge.core.model import Document, Entity, WorkPlane
 from archforge.geometry.mesh import TessellatedPreviewBackend
@@ -331,3 +332,69 @@ def test_stair_move_snaps_footprint_to_physical_wall_face():
     move.update_pointer(0.0, desired_dy, snap=True)
 
     assert move.last_snap_kind == 'wall_face'
+
+
+
+def _add_square_room_walls(doc, prefix, z, size=6.0):
+    coords = [
+        ((0.0, 0.0), (size, 0.0)),
+        ((size, 0.0), (size, size)),
+        ((size, size), (0.0, size)),
+        ((0.0, size), (0.0, 0.0)),
+    ]
+    for index, (a, b) in enumerate(coords, start=1):
+        doc.add(Entity(
+            'wall',
+            {
+                'x1': a[0], 'y1': a[1], 'x2': b[0], 'y2': b[1],
+                'z': float(z), 'height': 2.7, 'thickness': 0.15,
+            },
+            id=f'{prefix}-{index}',
+        ))
+
+
+def test_stair_opening_uses_upper_headroom_path_not_full_footprint():
+    candidate = solve_stair_candidates(
+        0.0,
+        2.85,
+        (0.0, 0.0),
+        (5.0, 0.0),
+        upper_floor_z=2.7,
+        upper_slab_thickness=0.15,
+    )[0]
+
+    full = stair_footprint(candidate)
+    opening = stair_opening_polygon(candidate)
+
+    full_width = max(x for x, _ in full) - min(x for x, _ in full)
+    opening_width = max(x for x, _ in opening) - min(x for x, _ in opening)
+    assert opening_width < full_width
+
+
+def test_stair_cuts_both_upper_room_floor_and_lower_room_roof():
+    doc = Document()
+    doc.levels = {'Ground': 0.0, 'Floor 2': 2.7}
+    doc.work_plane = WorkPlane(name='Ground', origin=(0.0, 0.0, 0.0))
+    _add_square_room_walls(doc, 'lower', 0.0)
+    _add_square_room_walls(doc, 'upper', 2.7)
+
+    lower_face = room_faces(doc, z=0.0)[0]
+    upper_face = room_faces(doc, z=2.7)[0]
+    stack = CommandStack(doc)
+    stack.execute(CreateRoomRoofs([lower_face.signature], thickness=0.20))
+    stack.execute(CreateRoomFloors([upper_face.signature], thickness=0.15))
+
+    tx = StairPlaceTransaction(doc, stack, (1.0, 1.0))
+    tx.update(5.0, 1.0)
+    stair_id = tx.commit()
+
+    evaluation = TessellatedPreviewBackend().evaluate(doc)
+    floor_id = next(e.id for e in doc.entities.values() if e.kind == 'room_floor')
+    roof_id = next(e.id for e in doc.entities.values() if e.kind == 'room_roof')
+
+    floor_body = evaluation.body(floor_id)
+    roof_body = evaluation.body(roof_id)
+
+    assert 'stair_opening_edge' in floor_body.payload.triangle_surfaces
+    assert 'stair_opening_edge' in roof_body.payload.triangle_surfaces
+    assert evaluation.body(stair_id).payload.triangles
