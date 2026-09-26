@@ -296,6 +296,62 @@ def _point_in_polygon(point: Point2, polygon: Sequence[Point2]) -> bool:
     return inside
 
 
+def discover_building_levels(doc, tolerance: float = 1e-5):
+    """Merge declared levels with elevations already present in building geometry.
+
+    This also acts as a compatibility bridge for older ArchForge projects that
+    contain second-storey walls/slabs but predate the explicit Floor registry.
+    """
+    explicit = [
+        (float(value), str(name), False)
+        for name, value in doc.levels.items()
+    ]
+    candidates = list(explicit)
+
+    from archforge.architecture.rooms import room_slab_geometry
+    for entity in doc.entities.values():
+        p = entity.params
+        if entity.kind == 'wall':
+            candidates.append((float(p.get('z', 0.0)), '', True))
+        elif entity.kind == 'pod':
+            candidates.append((float(p.get('floor_level', 0.0)), '', True))
+        elif entity.kind in ('floor', 'room'):
+            candidates.append((float(p.get('z', 0.0)), '', True))
+        elif entity.kind == 'room_floor':
+            geom = room_slab_geometry(doc, entity)
+            if geom is not None:
+                candidates.append((float(geom['z']), '', True))
+
+    merged = []
+    for elevation, name, inferred in sorted(candidates, key=lambda item: item[0]):
+        existing = next(
+            (item for item in merged if abs(item['elevation'] - elevation) <= tolerance),
+            None,
+        )
+        if existing is None:
+            merged.append({
+                'elevation': elevation,
+                'name': name,
+                'inferred': inferred,
+            })
+        elif name and existing['inferred']:
+            existing['name'] = name
+            existing['inferred'] = False
+
+    used_names = {item['name'] for item in merged if item['name']}
+    floor_number = 2
+    for item in merged:
+        if item['name']:
+            continue
+        while f'Floor {floor_number}' in used_names:
+            floor_number += 1
+        item['name'] = f'Floor {floor_number}'
+        used_names.add(item['name'])
+        floor_number += 1
+
+    return tuple(merged)
+
+
 def upper_floor_landing(doc, lower_z: float, point: Point2 | None = None):
     """Resolve next level plus the actual room-floor slab thickness.
 
@@ -346,5 +402,9 @@ def upper_floor_landing(doc, lower_z: float, point: Point2 | None = None):
 
 
 def next_level_above(doc, z: float):
-    levels = sorted((float(value), str(name)) for name, value in doc.levels.items() if float(value) > float(z) + 1e-6)
+    levels = [
+        (float(item['elevation']), str(item['name']))
+        for item in discover_building_levels(doc)
+        if float(item['elevation']) > float(z) + 1e-6
+    ]
     return levels[0] if levels else None
