@@ -273,10 +273,64 @@ def stair_footprint(candidate: StairCandidate, margin: float = 0.0) -> Tuple[Poi
     )
 
 
-def stair_opening_polygon(candidate: StairCandidate) -> Tuple[Point2, ...]:
-    # First implementation uses a conservative safe opening envelope.
-    # Later headroom analysis can trim the lower-flight area while preserving clearance.
-    return stair_footprint(candidate, margin=0.05)
+def _polyline_tail_from_fraction(path: Sequence[Point2], fraction: float) -> Tuple[Point2, ...]:
+    pts = tuple((float(x), float(y)) for x, y in path)
+    if len(pts) < 2:
+        return pts
+    fraction = max(0.0, min(1.0, float(fraction)))
+    lengths = [
+        hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1])
+        for i in range(len(pts) - 1)
+    ]
+    total = sum(lengths)
+    if total <= 1e-12:
+        return pts
+    target = total * fraction
+    walked = 0.0
+    for i, seg_len in enumerate(lengths):
+        if walked + seg_len + 1e-12 < target:
+            walked += seg_len
+            continue
+        u = 0.0 if seg_len <= 1e-12 else (target - walked) / seg_len
+        ax, ay = pts[i]
+        bx, by = pts[i + 1]
+        start = (ax + (bx - ax) * u, ay + (by - ay) * u)
+        return (start,) + pts[i + 1:]
+    return (pts[-1],)
+
+
+def stair_opening_polygon(
+    candidate: StairCandidate,
+    headroom: float = 2.0,
+) -> Tuple[Point2, ...]:
+    """Opening envelope for the upper part of the stair that needs headroom.
+
+    The previous implementation used the complete stair footprint, so a stair
+    beginning outside a room could prevent *any* slab opening. Here the opening
+    begins where the tread elevation enters the required headroom zone below the
+    upper slab and follows only the remaining upper path.
+    """
+    path = stair_centerline(candidate)
+    total_rise = max(1e-9, float(candidate.upper_z) - float(candidate.lower_z))
+    slab_underside = float(candidate.upper_floor_z)
+    start_elevation = max(
+        float(candidate.lower_z),
+        slab_underside - max(0.1, float(headroom)),
+    )
+    fraction = (start_elevation - float(candidate.lower_z)) / total_rise
+    upper_path = _polyline_tail_from_fraction(path, fraction)
+    if not upper_path:
+        upper_path = path
+
+    xs = [p[0] for p in upper_path]
+    ys = [p[1] for p in upper_path]
+    half = float(candidate.width) / 2.0 + 0.05
+    return (
+        (min(xs) - half, min(ys) - half),
+        (max(xs) + half, min(ys) - half),
+        (max(xs) + half, max(ys) + half),
+        (min(xs) - half, max(ys) + half),
+    )
 
 
 def _point_in_polygon(point: Point2, polygon: Sequence[Point2]) -> bool:
