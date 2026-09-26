@@ -41,6 +41,7 @@ class MainWindow(QMainWindow):
             view.statusChanged.connect(self.statusBar().showMessage)
             view.selectionChangedByView.connect(self._selection_from_view)
             view.contextActionRequested.connect(self._handle_object_context_action)
+        self.plan_view.previewChanged.connect(self.pbr_view.set_stair_preview)
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self._build_toolbar()
         self._build_view_toolbar()
@@ -76,8 +77,8 @@ class MainWindow(QMainWindow):
         toolbar = self.tools_toolbar
         for text, tool, key in [
             ('Select', 'select', 'S'), ('Wall', 'wall', 'W'), ('Door', 'door', 'D'),
-            ('Window', 'window', 'N'), ('Move', 'move', 'G'), ('Stretch', 'stretch', 'T'),
-            ('Rotate', 'rotate', 'R'),
+            ('Window', 'window', 'N'), ('Stair', 'stair', 'A'),
+            ('Move', 'move', 'G'), ('Stretch', 'stretch', 'T'), ('Rotate', 'rotate', 'R'),
         ]:
             action = QAction(text, self)
             action.setShortcut(QKeySequence(key))
