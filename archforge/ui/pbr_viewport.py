@@ -112,6 +112,12 @@ controls.dampingFactor = 0.08;
 controls.enableRotate = true;
 controls.enablePan = true;
 controls.enableZoom = true;
+// Tuned for architectural work: deliberate movement instead of twitchy CAD navigation.
+// Keep these together so they can later become user preferences without touching
+// the interaction state machine.
+controls.rotateSpeed = 0.42;
+controls.panSpeed = 0.52;
+controls.zoomSpeed = 0.62;
 // Inventor-style navigation: left drag = orbit, middle drag = pan,
 // wheel = zoom, right mouse is reserved for the marking menu.
 controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
