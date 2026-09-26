@@ -32,10 +32,12 @@ class IncrementalViewportAdapter:
 
 class PointerController:
     def __init__(self,doc,stack):
-        self.doc=doc;self.stack=stack;self.tool='select';self.active=None;self.active_entity=None;self.active_handle=None;self.preview=PreviewState();self.grid=.1;self.snap_tolerance=.15;self.angle_increment=15.
+        self.doc=doc;self.stack=stack;self.tool='select';self.active=None;self.active_entity=None;self.active_handle=None;self.preview=PreviewState();self.grid=.1;self.snap_tolerance=.15;self.angle_increment=15.;self.snap_enabled=True
     def set_tool(self,tool):
         if self.active is not None:self.cancel()
         self.tool=tool;self.preview=PreviewState()
+    def set_snap_enabled(self,enabled):
+        self.snap_enabled=bool(enabled)
     def set_target(self,entity_id,handle=None):self.active_entity=entity_id;self.active_handle=handle
     def _world(self,ev):return self.doc.work_plane.unproject(ev.a,ev.b)
     def _plan_xy(self,ev):x,y,_=self._world(ev);return x,y
@@ -48,7 +50,10 @@ class PointerController:
     def pointer_down(self,ev):
         x,y=self._plan_xy(ev)
         if self.tool=='wall':
-            sp=best_snap(self.doc,x,y,self.snap_tolerance,self.grid);sx,sy=(sp.x,sp.y) if sp else (x,y);self.active=WallDrawTransaction(self.doc,self.stack,(sx,sy),z=self.doc.work_plane.origin[2],grid=self.grid,snap_tol=self.snap_tolerance);self.preview=PreviewState('wall',{'x1':sx,'y1':sy,'x2':sx,'y2':sy,'z':self.doc.work_plane.origin[2]}, {}, self._snap_dict(sp));return self.preview
+            sp=best_snap(self.doc,x,y,self.snap_tolerance,self.grid) if self.snap_enabled and not ev.shift else None
+            sx,sy=(sp.x,sp.y) if sp else (x,y)
+            self.active=WallDrawTransaction(self.doc,self.stack,(sx,sy),z=self.doc.work_plane.origin[2],grid=self.grid,snap_tol=self.snap_tolerance,snap_enabled=self.snap_enabled and not ev.shift)
+            self.preview=PreviewState('wall',{'x1':sx,'y1':sy,'x2':sx,'y2':sy,'z':self.doc.work_plane.origin[2]}, {}, self._snap_dict(sp));return self.preview
         if self.tool=='stair':
             self.active=StairPlaceTransaction(self.doc,self.stack,(x,y))
             hud=self.active.update(x,y)
@@ -108,7 +113,12 @@ class PointerController:
             hud=self.active.update(x,y)
             self.preview=PreviewState('ramp',copy.deepcopy(self.active.preview),hud.values,None)
         elif isinstance(self.active,MoveTransaction):
-            hud=self.active.update_pointer(x,y,snap=False);values=dict(hud.values);values['distance']=(self.active.dx*self.active.dx+self.active.dy*self.active.dy)**.5
+            hud=self.active.update_pointer(
+                x,y,
+                snap=self.snap_enabled and not ev.shift,
+                axis_lock=bool(ev.ctrl),
+            )
+            values=dict(hud.values);values['distance']=(self.active.dx*self.active.dx+self.active.dy*self.active.dy)**.5
             self.preview=PreviewState('move',{'entities':copy.deepcopy(self.active.preview)},values,None)
         return self.preview
     def pointer_up(self,ev,exact=None):
