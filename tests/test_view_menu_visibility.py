@@ -24,17 +24,21 @@ def test_view_menu_controls_real_status_bar_and_tools_toolbar_visibility():
     assert window.status_bar_action.isChecked() == window.statusBar().isVisible()
     assert window.tools_toolbar_action.isChecked() == window.tools_toolbar.isVisible()
 
-    window.status_bar_action.setChecked(False)
-    window.tools_toolbar_action.setChecked(False)
+    window.status_bar_action.trigger()
+    window.tools_toolbar_action.trigger()
     QApplication.processEvents()
     assert not window.statusBar().isVisible()
     assert not window.tools_toolbar.isVisible()
+    assert not window.status_bar_action.isChecked()
+    assert not window.tools_toolbar_action.isChecked()
 
-    window.status_bar_action.setChecked(True)
-    window.tools_toolbar_action.setChecked(True)
+    window.status_bar_action.trigger()
+    window.tools_toolbar_action.trigger()
     QApplication.processEvents()
     assert window.statusBar().isVisible()
     assert window.tools_toolbar.isVisible()
+    assert window.status_bar_action.isChecked()
+    assert window.tools_toolbar_action.isChecked()
 
     labels = {action.text() for action in menus['View'].actions()}
     assert labels == {'Status Bar', 'Tools Toolbar'}
