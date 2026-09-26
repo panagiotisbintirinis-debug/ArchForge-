@@ -245,6 +245,8 @@ window.setStairPreview = function(payload) {
     " · " + String(info.risers || "") + " risers" +
     " · rise " + Number(info.riser || 0).toFixed(3) + " m" +
     " · tread " + Number(info.tread || 0).toFixed(3) + " m" +
+    " · landing " + Number(info.landing_z || 0).toFixed(3) + " m" +
+    " · slab " + Number(info.slab_thickness || 0).toFixed(3) + " m" +
     "<span class='hint'>Move = adjust · Wheel = alternative · Left click = place · Right click/Esc = cancel</span>";
   stairHud.style.display = "block";
 };
@@ -577,10 +579,12 @@ renderer.domElement.addEventListener("dblclick", (event) => {
 renderer.domElement.addEventListener("contextmenu", (event) => {
   event.preventDefault();
   if (!bridge || sculpting) return;
-  if (stairing) {
-    stairing = false;
-    controls.enabled = true;
-    bridge.cancelStair();
+  if (activeTool === "stair") {
+    if (stairing) {
+      stairing = false;
+      controls.enabled = true;
+      bridge.cancelStair();
+    }
     event.stopPropagation();
     return;
   }
@@ -945,6 +949,8 @@ class PBRViewport(QWidget):
                         "risers": int(params.get("riser_count", 0)),
                         "riser": float(params.get("riser_height", 0.0)),
                         "tread": float(params.get("tread_depth", 0.0)),
+                        "landing_z": float(params.get("upper_z", 0.0)),
+                        "slab_thickness": float(params.get("upper_slab_thickness", 0.0)),
                         "option_index": active_index,
                         "option_count": min(4, len(candidates)),
                     },
