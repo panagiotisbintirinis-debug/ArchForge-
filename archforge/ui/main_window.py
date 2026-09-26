@@ -296,6 +296,12 @@ class MainWindow(QMainWindow):
             return self.save()
         return choice == QMessageBox.StandardButton.Discard
 
+    def closeEvent(self, event):
+        if self._confirm_destructive_action():
+            event.accept()
+        else:
+            event.ignore()
+
     def _replace_project(self, doc, path=None):
         self.doc = doc
         self.stack = CommandStack(self.doc)
