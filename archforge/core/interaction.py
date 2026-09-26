@@ -81,7 +81,7 @@ class MoveTransaction:
                             polygon,
                             proposed_dx,
                             proposed_dy,
-                            self.snap_tol,
+                            min(self.snap_tol, 0.06),
                             exclude=set(self.ids),
                         )
                     elif entity.kind == 'ramp':
@@ -92,7 +92,7 @@ class MoveTransaction:
                             polygon,
                             proposed_dx,
                             proposed_dy,
-                            self.snap_tol,
+                            min(self.snap_tol, 0.06),
                             exclude=set(self.ids),
                         )
                     elif entity.kind == 'wall':
@@ -110,7 +110,7 @@ class MoveTransaction:
                             probes,
                             proposed_dx,
                             proposed_dy,
-                            self.snap_tol,
+                            min(self.snap_tol, 0.08),
                             exclude=set(self.ids),
                         )
                     else:
