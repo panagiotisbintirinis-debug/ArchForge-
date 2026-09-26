@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 
 from archforge.core.model import Document
 from archforge.core.commands import CommandStack, UpdateEntity, CreateRoomFloors, CreateRoomRoofs
+from archforge.core.wall_profile_commands import SetWallTopEndpoint
 from .plan_view import PlanView
 from .ortho_view import OrthoView
 from .viewport_3d import Viewport3D
@@ -145,6 +146,22 @@ class MainWindow(QMainWindow):
         while self.form.rowCount():
             self.form.removeRow(0)
 
+    def _add_wall_top_endpoint_editor(self, eid, endpoint, value):
+        spin = QDoubleSpinBox()
+        spin.setDecimals(4)
+        spin.setRange(0.0001, 1e6)
+        spin.setValue(float(value))
+        spin.setSingleStep(.1)
+        spin.setToolTip(
+            f'Exact {endpoint} top height above the wall base; committed through the shared wall-profile command.'
+        )
+        spin.editingFinished.connect(
+            lambda wall_id=eid, which=endpoint, widget=spin: self._commit_wall_top_endpoint(
+                wall_id, which, widget.value()
+            )
+        )
+        self.form.addRow(f'{endpoint.title()} top height', spin)
+
     def refresh_inspector(self):
         self._clear_form()
         if len(self.doc.selection) != 1:
@@ -157,7 +174,17 @@ class MainWindow(QMainWindow):
         if entity.parent_id and entity.parent_id in self.doc.entities:
             host = self.doc.get(entity.parent_id)
             self.form.addRow('Host', QLabel(host.name or f'{host.kind.title()} {host.id[:8]}'))
+        if entity.kind == 'wall':
+            legacy_height = float(entity.params['height'])
+            self._add_wall_top_endpoint_editor(
+                eid, 'start', entity.params.get('start_height', legacy_height)
+            )
+            self._add_wall_top_endpoint_editor(
+                eid, 'end', entity.params.get('end_height', legacy_height)
+            )
         for key, value in entity.params.items():
+            if entity.kind == 'wall' and key in ('start_height', 'end_height'):
+                continue
             if isinstance(value, (int, float)):
                 spin = QDoubleSpinBox()
                 spin.setDecimals(4)
@@ -170,6 +197,15 @@ class MainWindow(QMainWindow):
                 self.form.addRow(key, spin)
             elif entity.kind == 'room_floor' and key == 'room_signature':
                 self.form.addRow('Room', QLabel(str(value)))
+
+    def _commit_wall_top_endpoint(self, eid, endpoint, value):
+        try:
+            self.stack.execute(SetWallTopEndpoint(eid, endpoint, value))
+            self._redraw_views(all_views=True)
+            self.refresh_inspector()
+        except Exception as exc:
+            QMessageBox.warning(self, 'Invalid wall top', str(exc))
+            self.refresh_inspector()
 
     def _commit_property(self, eid, key, value):
         try:
@@ -260,103 +296,76 @@ class MainWindow(QMainWindow):
                 view.redraw()
 
     def _undo(self):
-        self.stack.undo()
-        self._redraw_views()
-        self.refresh_inspector()
+        self.stack.undo(); self._redraw_views(all_views=True); self.refresh_inspector()
 
     def _redo(self):
-        self.stack.redo()
-        self._redraw_views()
-        self.refresh_inspector()
-
-    def _authoritative_state(self):
-        return self.doc.to_dict()
+        self.stack.redo(); self._redraw_views(all_views=True); self.refresh_inspector()
 
     def _is_dirty(self):
-        return self._authoritative_state() != self._clean_state
+        return self.doc.to_dict() != self._clean_state
 
-    def _mark_clean(self):
-        self._clean_state = copy.deepcopy(self._authoritative_state())
-
-    def _confirm_destructive_action(self):
+    def _confirm_discard_changes(self):
         if not self._is_dirty():
             return True
-        choice = QMessageBox.warning(
+        result = QMessageBox.question(
             self,
             'Unsaved changes',
-            'The current project has unsaved changes. Save them before continuing?',
-            QMessageBox.StandardButton.Save
-            | QMessageBox.StandardButton.Discard
-            | QMessageBox.StandardButton.Cancel,
-            QMessageBox.StandardButton.Save,
+            'Discard unsaved changes?',
+            QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
         )
-        if choice == QMessageBox.StandardButton.Cancel:
-            return False
-        if choice == QMessageBox.StandardButton.Save:
-            return self.save()
-        return choice == QMessageBox.StandardButton.Discard
-
-    def _replace_project(self, doc, path=None):
-        self.doc = doc
-        self.stack = CommandStack(self.doc)
-        for view in (self.plan_view, self.front_view, self.side_view, self.view_3d):
-            view.rebind(self.doc, self.stack)
-        self.current_path = path
-        self._mark_clean()
-        self._redraw_views(all_views=True)
-        self.refresh_inspector()
+        return result == QMessageBox.StandardButton.Discard
 
     def new_project(self):
-        if not self._confirm_destructive_action():
-            return False
-        self._replace_project(Document())
-        self.statusBar().showMessage('New project', 3000)
-        return True
+        if not self._confirm_discard_changes():
+            return
+        self.doc = Document()
+        self.stack = CommandStack(self.doc)
+        self.current_path = None
+        self._clean_state = copy.deepcopy(self.doc.to_dict())
+        for view in (self.plan_view, self.front_view, self.side_view, self.view_3d):
+            view.doc = self.doc
+            view.stack = self.stack
+        self._redraw_views(all_views=True)
+        self.refresh_inspector()
 
     def save(self):
         path = self.current_path
         if not path:
-            path, _ = QFileDialog.getSaveFileName(self, 'Save ArchForge Project', '', 'ArchForge Project (*.archforge)')
-        if not path:
-            return False
-        if not path.lower().endswith('.archforge'):
-            path += '.archforge'
-        try:
-            self.doc.save(path)
-        except Exception as exc:
-            QMessageBox.critical(self, 'Save failed', str(exc))
-            return False
+            path, _ = QFileDialog.getSaveFileName(self, 'Save ArchForge Project', '', 'ArchForge Project (*.json)')
+            if not path:
+                return False
+        self.doc.save(path)
         self.current_path = path
-        self._mark_clean()
+        self._clean_state = copy.deepcopy(self.doc.to_dict())
         self.statusBar().showMessage(f'Saved {os.path.basename(path)}', 3000)
         return True
 
     def open(self):
-        path, _ = QFileDialog.getOpenFileName(self, 'Open ArchForge Project', '', 'ArchForge Project (*.archforge)')
-        if not path:
-            return False
-        if not self._confirm_destructive_action():
-            return False
-        try:
-            doc = Document.load(path)
-        except Exception as exc:
-            QMessageBox.critical(self, 'Open failed', str(exc))
-            return False
-        self._replace_project(doc, path)
-        return True
-
-    def export_stl(self):
-        from archforge.geometry.fabrication import export_document_stl
-        path, _ = QFileDialog.getSaveFileName(
-            self, 'Export STL for Fabrication / 3D Printing', '', 'Stereolithography (*.stl)'
-        )
+        if not self._confirm_discard_changes():
+            return
+        path, _ = QFileDialog.getOpenFileName(self, 'Open ArchForge Project', '', 'ArchForge Project (*.json)')
         if not path:
             return
-        if not path.lower().endswith('.stl'):
-            path += '.stl'
-        try:
-            scope = list(self.doc.selection) if self.doc.selection else None
-            count = export_document_stl(self.doc, path, entity_ids=scope, binary=True)
-            self.statusBar().showMessage(f'Exported {count} triangles to {os.path.basename(path)}', 4000)
-        except Exception as exc:
-            QMessageBox.warning(self, 'Fabrication Gate Failed', f'Cannot export STL: {exc}')
+        self.doc = Document.load(path)
+        self.stack = CommandStack(self.doc)
+        self.current_path = path
+        self._clean_state = copy.deepcopy(self.doc.to_dict())
+        for view in (self.plan_view, self.front_view, self.side_view, self.view_3d):
+            view.doc = self.doc
+            view.stack = self.stack
+        self._redraw_views(all_views=True)
+        self.refresh_inspector()
+
+    def export_stl(self):
+        path, _ = QFileDialog.getSaveFileName(self, 'Export STL', '', 'STL (*.stl)')
+        if not path:
+            return
+        self.doc.export_stl(path)
+        self.statusBar().showMessage(f'Exported {os.path.basename(path)}', 3000)
+
+    def closeEvent(self, event):
+        if self._confirm_discard_changes():
+            event.accept()
+        else:
+            event.ignore()
