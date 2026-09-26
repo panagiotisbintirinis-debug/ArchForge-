@@ -188,19 +188,23 @@ def preview_primitives(preview):
     g=preview.geometry
     if preview.kind=='wall' and g:return [Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),entity_id=preview.entity_id or '',role='preview')]
     if preview.kind=='stair' and g:
-        out=[]
-        for index,params in enumerate(g.get('candidates',())):
-            from archforge.architecture.stairs import candidate_from_params,stair_footprint
-            candidate=candidate_from_params(params)
-            out.append(
-                Primitive2D(
-                    'polygon',
-                    tuple(stair_footprint(candidate)),
-                    role='preview' if index==0 else 'stair-option',
-                    meta=(('semantic','stair-preview'),('layout',candidate.layout),('preferred',index==0)),
-                )
+        candidates=list(g.get('candidates',()))
+        if not candidates:return []
+        index=max(0,min(int(g.get('active_index',0)),len(candidates)-1))
+        from archforge.architecture.stairs import candidate_from_params,stair_footprint
+        candidate=candidate_from_params(candidates[index])
+        return [
+            Primitive2D(
+                'polygon',
+                tuple(stair_footprint(candidate)),
+                role='preview',
+                meta=(
+                    ('semantic','stair-preview'),
+                    ('layout',candidate.layout),
+                    ('option_index',index),
+                ),
             )
-        return out
+        ]
     if preview.kind in ('opening','opening-edit') and {'x1','y1','x2','y2'}<=set(g):return [Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),entity_id=preview.entity_id or '',role='preview',meta=(('semantic',g.get('opening_kind','opening')),))]
     if preview.kind=='stretch' and 'entities' in g:
         out=[]
