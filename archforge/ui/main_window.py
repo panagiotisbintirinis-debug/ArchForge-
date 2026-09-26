@@ -7,6 +7,7 @@ from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QDockWidget, QWidget, QFormLayout, QDoubleSpinBox,
     QLabel, QTabWidget, QStatusBar, QFileDialog, QMessageBox, QComboBox, QInputDialog,
+    QDialog, QDialogButtonBox, QVBoxLayout,
 )
 
 from archforge.core.model import Document, WorkPlane
@@ -16,6 +17,7 @@ from archforge.core.commands import (
 )
 from .plan_view import PlanView
 from .pbr_viewport import PBRViewport
+from .object_properties import property_fields, property_values, property_changes
 
 
 class MainWindow(QMainWindow):
@@ -292,6 +294,75 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, 'Invalid value', str(exc))
             self.refresh_inspector()
 
+    def _apply_object_properties(self, entity_id, values):
+        entity_id = str(entity_id)
+        if entity_id not in self.doc.entities:
+            raise KeyError(entity_id)
+        entity = self.doc.get(entity_id)
+        changes = property_changes(entity, values)
+        self.stack.execute(UpdateEntity(entity_id, changes))
+        self.doc.select([entity_id])
+        self._redraw_views(all_views=True)
+        self.refresh_inspector()
+
+    def _open_object_properties(self, entity_id):
+        entity_id = str(entity_id)
+        if entity_id not in self.doc.entities:
+            return
+        entity = self.doc.get(entity_id)
+        fields = property_fields(entity.kind)
+        if not fields:
+            self.dock.show()
+            self.dock.raise_()
+            self.statusBar().showMessage(
+                f'No editable dimension set yet for {entity.kind}',
+                3000,
+            )
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f'{entity.name or entity.kind.title()} Properties')
+        layout = QVBoxLayout(dialog)
+        form = QFormLayout()
+        layout.addLayout(form)
+
+        current = property_values(entity)
+        editors = {}
+        for spec in fields:
+            spin = QDoubleSpinBox(dialog)
+            spin.setDecimals(3)
+            spin.setRange(float(spec.get('minimum', -1e6)), float(spec.get('maximum', 1e6)))
+            spin.setSingleStep(float(spec.get('step', 0.05)))
+            spin.setValue(float(current[spec['id']]))
+            spin.setSuffix(f" {spec.get('unit', '')}" if spec.get('unit') else '')
+            form.addRow(spec['label'], spin)
+            editors[spec['id']] = spin
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok
+            | QDialogButtonBox.StandardButton.Cancel,
+            parent=dialog,
+        )
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        values = {key: editor.value() for key, editor in editors.items()}
+        try:
+            self._apply_object_properties(entity_id, values)
+        except Exception as exc:
+            QMessageBox.warning(dialog, 'Invalid dimensions', str(exc))
+            self.refresh_inspector()
+            return
+
+        self.statusBar().showMessage(
+            f'Updated {entity.name or entity.kind.title()} dimensions — Undo is available',
+            3500,
+        )
+
     def _handle_object_context_action(self, entity_id, action_id):
         entity_id = str(entity_id)
         action_id = str(action_id)
@@ -302,34 +373,11 @@ class MainWindow(QMainWindow):
         self.refresh_inspector()
 
         if action_id == 'properties':
-            self.dock.show()
-            self.dock.raise_()
-            entity = self.doc.get(entity_id)
-            self.statusBar().showMessage(
-                f'Properties: {entity.name or entity.kind.title()}',
-                3000,
-            )
+            self._open_object_properties(entity_id)
             return
 
         if action_id == 'delete':
             self._delete_selection()
-            return
-
-        if action_id == 'fit_view':
-            self.tabs.setCurrentWidget(self.pbr_view)
-            self.pbr_view.fit_camera()
-            return
-
-        camera_actions = {
-            'orbit_view': 'orbit',
-            'top_view': 'top',
-            'front_view': 'front',
-            'side_view': 'side',
-            'iso_view': 'iso30',
-        }
-        if action_id in camera_actions:
-            self.tabs.setCurrentWidget(self.pbr_view)
-            self.pbr_view.set_camera_preset(camera_actions[action_id])
             return
 
         if action_id in ('move', 'stretch', 'rotate'):
