@@ -244,6 +244,21 @@ def validate_params(kind, params):
         n = len(out['vertices'])
         if any(index >= n for face in out['faces'] for index in face):
             raise ValueError('mesh face references a missing vertex')
+    if kind == 'stair':
+        required = {
+            'x', 'y', 'lower_z', 'upper_z', 'layout', 'angle_deg', 'width',
+            'riser_count', 'riser_height', 'tread_depth', 'landing_depth',
+            'turn_direction', 'opening_margin',
+        }
+        missing = required - set(out)
+        if missing:
+            raise ValueError('stair is missing required fields: ' + ', '.join(sorted(missing)))
+        height = float(out['upper_z']) - float(out['lower_z'])
+        if height <= 0:
+            raise ValueError('stair upper_z must be above lower_z')
+        solved = float(out['riser_count']) * float(out['riser_height'])
+        if abs(solved - height) > 1e-4:
+            raise ValueError('stair riser count/height must match floor-to-floor height')
     return out
 
 
@@ -378,6 +393,12 @@ class Document:
                 related_id = entity.params.get(key)
                 if related_id in self.entities:
                     self.mark_dirty(str(related_id))
+        elif entity.kind == 'stair':
+            # Stair geometry semantically cuts the slab at its upper level.
+            # Keep all room-floor bodies dirty so the opening is regenerated.
+            for related in self.entities.values():
+                if related.kind == 'room_floor':
+                    self.mark_dirty(related.id)
 
     def _validate_wall_opening_conflicts(self, entity, tolerance=1e-9):
         if not entity.parent_id:
