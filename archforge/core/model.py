@@ -397,9 +397,10 @@ class Document:
                     self.mark_dirty(str(related_id))
         elif entity.kind == 'stair':
             # Stair geometry semantically cuts the slab at its upper level.
-            # Keep all room-floor bodies dirty so the opening is regenerated.
+            # Keep both inferred room slabs and explicit floor slabs dirty so
+            # the opening follows move/resize/delete operations.
             for related in self.entities.values():
-                if related.kind == 'room_floor':
+                if related.kind in ('room_floor', 'floor'):
                     self.mark_dirty(related.id)
 
     def _validate_wall_opening_conflicts(self, entity, tolerance=1e-9):
