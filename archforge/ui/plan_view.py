@@ -86,7 +86,18 @@ class PlanView(QGraphicsView):
             if not self._acquire_rotate_target(hit):self._mouse_down=False;self.redraw();return
         elif self.controller.tool=='stretch':
             if not self._acquire_stretch_target(hit):self._mouse_down=False;self.redraw();return
-        ev=self._scene_to_plane(event.position().toPoint());ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier);self.controller.pointer_down(ev);self.redraw()
+        ev=self._scene_to_plane(event.position().toPoint());ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
+        try:
+            self.controller.pointer_down(ev)
+        except (ValueError, RuntimeError) as exc:
+            self._mouse_down=False
+            self._active_handle=None
+            self.controller.cancel()
+            self.statusChanged.emit(str(exc))
+            self.redraw()
+            event.accept()
+            return
+        self.redraw()
     def mouseMoveEvent(self,event):
         if self._mouse_down and self.controller.active is not None:
             ev=self._scene_to_plane(event.position().toPoint());ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
