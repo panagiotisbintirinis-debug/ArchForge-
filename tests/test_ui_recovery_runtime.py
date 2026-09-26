@@ -85,9 +85,10 @@ def test_recovery_launcher_exists_and_main_window_constructs():
     app = QApplication.instance() or QApplication([])
     window = MainWindow()
     try:
-        assert window.tabs.count() == 4
+        assert window.tabs.count() == 5
         assert window.tabs.tabText(0) == 'XY PLAN'
         assert window.tabs.tabText(3) == '3D PERSPECTIVE'
+        assert window.tabs.tabText(4) == '3D PBR PREVIEW'
     finally:
         window.close()
         app.processEvents()
