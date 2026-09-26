@@ -85,7 +85,7 @@ class MainWindow(QMainWindow):
         delete_action = QAction('Delete', self)
         delete_action.setShortcut(QKeySequence(Qt.Key.Key_Delete))
         delete_action.triggered.connect(self._delete_selection)
-        toolbar.addAction(delete_action)
+        self.addAction(delete_action)
         self.delete_action = delete_action
 
         sculpt = QAction('Sculpt 3D', self)
