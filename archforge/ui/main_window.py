@@ -465,15 +465,22 @@ class MainWindow(QMainWindow):
             return
 
         if action_id in ('move', 'stretch', 'rotate'):
-            # These actions are currently implemented through the Floor Plan
-            # direct-manipulation controller. The PBR registry intentionally
-            # does not advertise them until equivalent 3D gizmos exist.
+            entity = self.doc.get(entity_id)
+            if action_id == 'move' and self.view is self.pbr_view and entity.kind in {
+                'stair', 'ramp', 'wall', 'box', 'pod', 'floor', 'room', 'mechanical_part'
+            }:
+                self.pbr_view.set_tool('move')
+                self.statusBar().showMessage(
+                    f'Move {entity.name or entity.kind.title()}: click object, move pointer, click to place',
+                    4000,
+                )
+                return
             self.tabs.setCurrentWidget(self.plan_view)
             self.plan_view.set_tool(action_id)
             self.plan_view.controller.set_target(entity_id, None)
             self.plan_view.redraw()
             self.statusBar().showMessage(
-                f'{action_id.title()} {self.doc.get(entity_id).name or self.doc.get(entity_id).kind.title()}',
+                f'{action_id.title()} {entity.name or entity.kind.title()}',
                 3000,
             )
             return
