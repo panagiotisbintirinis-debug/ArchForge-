@@ -131,6 +131,15 @@ class RotateEntities(Command):
                 nx1, ny1 = rot(p['x1'], p['y1'])
                 nx2, ny2 = rot(p['x2'], p['y2'])
                 doc.update(i, {'x1': nx1, 'y1': ny1, 'x2': nx2, 'y2': ny2})
+            elif e.kind in ('stair', 'ramp'):
+                px, py = self.pivot if self.pivot is not None else (p['x'], p['y'])
+                dx, dy = float(p['x']) - px, float(p['y']) - py
+                nx, ny = px + dx * c - dy * s, py + dx * s + dy * c
+                doc.update(i, {
+                    'x': nx,
+                    'y': ny,
+                    'angle_deg': (float(p.get('angle_deg', 0.0)) + self.angle) % 360.0,
+                })
 
     def undo(self, doc: Document):
         if self.before is not None:
