@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from math import hypot
 from typing import Optional
 
 from archforge.core.model import Entity
@@ -49,6 +50,55 @@ def create_room_floor(doc, signature: str, thickness: float = 0.15, offset_z: fl
     return e
 
 
+def _flat_roof_outer_polygon(doc, face, tolerance: float):
+    """Offset each room boundary edge to its wall's exterior face and miter corners."""
+    polygon=[tuple(q) for q in face.polygon]
+    if len(polygon)<3:
+        return polygon
+    signed_area=.5*sum(
+        polygon[i][0]*polygon[(i+1)%len(polygon)][1]
+        - polygon[(i+1)%len(polygon)][0]*polygon[i][1]
+        for i in range(len(polygon))
+    )
+    if abs(signed_area)<=tolerance:
+        return polygon
+    orientation=1.0 if signed_area>0 else -1.0
+    boundary_walls=[doc.get(wid) for wid in face.wall_ids if wid in doc.entities]
+    lines=[]
+    for i,a in enumerate(polygon):
+        b=polygon[(i+1)%len(polygon)]
+        dx=b[0]-a[0];dy=b[1]-a[1];length=hypot(dx,dy)
+        if length<=tolerance:
+            return polygon
+        wall=None
+        for candidate in boundary_walls:
+            p=candidate.params
+            wx=float(p['x2'])-float(p['x1']);wy=float(p['y2'])-float(p['y1'])
+            wlen=hypot(wx,wy)
+            if wlen<=tolerance:
+                continue
+            cross=abs(dx*wy-dy*wx)/(length*wlen)
+            distance=abs((a[0]-float(p['x1']))*wy-(a[1]-float(p['y1']))*wx)/wlen
+            if cross<=tolerance and distance<=tolerance:
+                wall=candidate;break
+        if wall is None:
+            return polygon
+        half=.5*float(wall.params.get('thickness',0.0))
+        nx=orientation*dy/length;ny=-orientation*dx/length
+        lines.append(((a[0]+nx*half,a[1]+ny*half),(dx,dy)))
+
+    out=[]
+    for i in range(len(lines)):
+        p0,d0=lines[i-1];p1,d1=lines[i]
+        den=d0[0]*d1[1]-d0[1]*d1[0]
+        if abs(den)<=tolerance:
+            out.append(p1);continue
+        qx=p1[0]-p0[0];qy=p1[1]-p0[1]
+        t=(qx*d1[1]-qy*d1[0])/den
+        out.append((p0[0]+t*d0[0],p0[1]+t*d0[1]))
+    return out
+
+
 def room_slab_geometry(doc, slab_entity: Entity, tolerance: float = 1e-5) -> Optional[dict]:
     """Resolve any inferred room slab against the room's current live topology."""
     if slab_entity.kind not in ROOM_SLAB_KINDS:
@@ -60,7 +110,10 @@ def room_slab_geometry(doc, slab_entity: Entity, tolerance: float = 1e-5) -> Opt
         return None
     face,base_z=found
     z=base_z+float(p.get('offset_z',0.0))
-    return {'points':[tuple(q) for q in face.polygon],
+    points=[tuple(q) for q in face.polygon]
+    if slab_entity.kind=='room_roof' and p.get('roof_type','flat')=='flat':
+        points=_flat_roof_outer_polygon(doc,face,tolerance)
+    return {'points':points,
             'z':z,
             'thickness':float(p['thickness']),
             'room_id':room_id,
