@@ -4,7 +4,7 @@ from PySide6.QtCore import Qt,QPointF,Signal
 from PySide6.QtGui import QPen,QBrush,QColor,QPainter,QPolygonF,QPainterPath
 from PySide6.QtWidgets import QGraphicsView,QGraphicsScene
 from archforge.core.model import Document
-from archforge.core.commands import CommandStack
+from archforge.core.commands import CommandStack,SetWallTopEndpoint
 from archforge.core.interaction import VerticalStretchTransaction
 from archforge.core.opening_vertical import OpeningVerticalEditTransaction,opening_elevation_handles
 from archforge.core.view_frame import build_view_frame,ViewPrimitive,elevation_top_handle
@@ -13,15 +13,20 @@ class OrthoView(QGraphicsView):
     selectionChangedByView=Signal();statusChanged=Signal(str)
     def __init__(self,doc,stack,axis,parent=None):
         if axis not in ('XZ','YZ'):raise ValueError('OrthoView supports XZ/YZ')
-        self._scene=QGraphicsScene();super().__init__(self._scene,parent);self.doc=doc;self.stack=stack;self.axis=axis;self._entity_items={};self._handle_items={};self._drag_tx=None;self._drag_eid=None;self._preview_overrides={}
+        self._scene=QGraphicsScene();super().__init__(self._scene,parent);self.doc=doc;self.stack=stack;self.axis=axis;self._entity_items={};self._handle_items={};self._drag_tx=None;self._drag_eid=None;self._wall_top_drag=None;self._preview_overrides={}
         self.setRenderHint(QPainter.RenderHint.Antialiasing,True);self.setMouseTracking(True);self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse);self.setBackgroundBrush(QColor(248,248,248));self.scale(55,-55);self.redraw()
-    def rebind(self,doc,stack):self.doc=doc;self.stack=stack;self._drag_tx=None;self._drag_eid=None;self._preview_overrides.clear();self.redraw()
+    def rebind(self,doc,stack):self.doc=doc;self.stack=stack;self._drag_tx=None;self._drag_eid=None;self._wall_top_drag=None;self._preview_overrides.clear();self.redraw()
     def wheelEvent(self,event):f=1.15 if event.angleDelta().y()>0 else 1/1.15;self.scale(f,f)
     def mousePressEvent(self,event):
         if event.button()==Qt.MouseButton.LeftButton:
             hit=self.itemAt(event.position().toPoint())
             if hit in self._handle_items:
                 eid,handle=self._handle_items[hit];e=self.doc.get(eid)
+                if e.kind=='wall' and handle in ('start_top','end_top'):
+                    endpoint='start' if handle=='start_top' else 'end';self._wall_top_drag=(eid,endpoint);self._drag_eid=eid;p=self.mapToScene(event.position().toPoint())
+                    try:self._update_wall_top_drag(p.y());self.redraw()
+                    except ValueError as exc:self.statusChanged.emit(str(exc))
+                    return
                 if e.kind in ('door','window'):
                     self._drag_tx=OpeningVerticalEditTransaction(self.doc,self.stack,eid,handle)
                 else:
@@ -35,6 +40,10 @@ class OrthoView(QGraphicsView):
             elif not(event.modifiers()&Qt.KeyboardModifier.ControlModifier):self.doc.select([])
             self.selectionChangedByView.emit();self.redraw();return
         super().mousePressEvent(event)
+    def _update_wall_top_drag(self,z):
+        eid,endpoint=self._wall_top_drag;e=self.doc.get(eid);base=float(e.params['z']);height=float(z)-base
+        if height<=0:raise ValueError('wall top must remain above base')
+        p=e.params.copy();p[f'{endpoint}_height']=height;self._preview_overrides[eid]=p;self.statusChanged.emit(f"{endpoint.title()} top height {height:.3f}   Top Z {float(z):.3f}");return height
     def _update_drag(self,z):
         result=self._drag_tx.update(z);self._preview_overrides[self._drag_eid]=dict(self._drag_tx.preview)
         if hasattr(result,'values'):
@@ -46,12 +55,22 @@ class OrthoView(QGraphicsView):
         return hud
     def mouseMoveEvent(self,event):
         p=self.mapToScene(event.position().toPoint())
+        if self._wall_top_drag is not None:
+            try:self._update_wall_top_drag(p.y());self.redraw()
+            except ValueError as exc:self.statusChanged.emit(str(exc))
+            return
         if self._drag_tx is not None and self._drag_eid is not None:
             try:self._update_drag(p.y());self.redraw()
             except ValueError as exc:self.statusChanged.emit(str(exc))
             return
         labels=('X','Z') if self.axis=='XZ' else ('Y','Z');self.statusChanged.emit(f'{labels[0]} {p.x():.3f}   {labels[1]} {p.y():.3f}');super().mouseMoveEvent(event)
     def mouseReleaseEvent(self,event):
+        if event.button()==Qt.MouseButton.LeftButton and self._wall_top_drag is not None:
+            p=self.mapToScene(event.position().toPoint());eid,endpoint=self._wall_top_drag
+            try:
+                height=self._update_wall_top_drag(p.y());self.stack.execute(SetWallTopEndpoint(eid,endpoint,height))
+            except ValueError as exc:self.statusChanged.emit(str(exc))
+            self._wall_top_drag=None;self._drag_eid=None;self._preview_overrides.clear();self.selectionChangedByView.emit();self.redraw();return
         if event.button()==Qt.MouseButton.LeftButton and self._drag_tx is not None:
             p=self.mapToScene(event.position().toPoint())
             try:self._update_drag(p.y());self._drag_tx.commit()
@@ -59,6 +78,7 @@ class OrthoView(QGraphicsView):
             self._drag_tx=None;self._drag_eid=None;self._preview_overrides.clear();self.selectionChangedByView.emit();self.redraw();return
         super().mouseReleaseEvent(event)
     def keyPressEvent(self,event):
+        if event.key()==Qt.Key.Key_Escape and self._wall_top_drag is not None:self._wall_top_drag=None;self._drag_eid=None;self._preview_overrides.clear();self.redraw();return
         if event.key()==Qt.Key.Key_Escape and self._drag_tx is not None:self._drag_tx.cancel();self._drag_tx=None;self._drag_eid=None;self._preview_overrides.clear();self.redraw();return
         super().keyPressEvent(event)
     def redraw(self):
@@ -69,6 +89,9 @@ class OrthoView(QGraphicsView):
             e=self.doc.get(eid);override=self._preview_overrides.get(eid)
             if e.kind in ('door','window'):
                 for handle,x,z in opening_elevation_handles(self.doc,eid,self.axis,override):self._draw_handle(eid,x,z,handle)
+            elif e.kind=='wall':
+                p=override or e.params;base=float(p['z']);legacy=float(p['height']);coord1=float(p['x1'] if self.axis=='XZ' else p['y1']);coord2=float(p['x2'] if self.axis=='XZ' else p['y2'])
+                self._draw_handle(eid,coord1,base+float(p.get('start_height',legacy)),'start_top');self._draw_handle(eid,coord2,base+float(p.get('end_height',legacy)),'end_top')
             else:
                 hp=elevation_top_handle(self.doc,eid,self.axis,override)
                 if hp:self._draw_handle(eid,*hp,'top')
