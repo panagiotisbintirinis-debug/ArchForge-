@@ -4,15 +4,16 @@ from typing import Optional, Dict
 
 from PySide6.QtCore import Qt, QPointF, Signal
 from PySide6.QtGui import QPen, QBrush, QColor, QPainter
-from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsTextItem
+from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsTextItem, QMenu
 
 from archforge.core.model import Document
 from archforge.core.commands import CommandStack
 from archforge.core.viewport import PointerController, PointerEvent
 from archforge.core.plan_scene import build_plan_frame, Primitive2D, Handle2D
+from archforge.ui.object_context_menu import object_context_actions
 
 class PlanView(QGraphicsView):
-    selectionChangedByView=Signal();statusChanged=Signal(str)
+    selectionChangedByView=Signal();contextActionRequested=Signal(str,str);statusChanged=Signal(str)
     def __init__(self,doc:Document,stack:CommandStack,parent=None):
         self._scene=QGraphicsScene();super().__init__(self._scene,parent);self.doc=doc;self.stack=stack;self.controller=PointerController(doc,stack)
         self.setRenderHint(QPainter.RenderHint.Antialiasing,True);self.setDragMode(QGraphicsView.DragMode.NoDrag);self.setMouseTracking(True);self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse);self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter);self.setBackgroundBrush(QColor(248,248,248))
@@ -39,6 +40,30 @@ class PlanView(QGraphicsView):
         self.selectionChangedByView.emit()
         return eid is not None
     def wheelEvent(self,event):self.scale(1.15 if event.angleDelta().y()>0 else 1/1.15,1.15 if event.angleDelta().y()>0 else 1/1.15)
+    def mouseDoubleClickEvent(self,event):
+        if event.button()==Qt.MouseButton.LeftButton:
+            hit=self.itemAt(event.position().toPoint());eid=self._entity_items.get(hit)
+            if eid and eid in self.doc.entities:
+                self.doc.select([eid]);self.controller.set_target(eid,None)
+                self.selectionChangedByView.emit();self.redraw();event.accept();return
+        super().mouseDoubleClickEvent(event)
+
+    def contextMenuEvent(self,event):
+        hit=self.itemAt(event.pos());eid=self._entity_items.get(hit)
+        if not eid or eid not in self.doc.entities:
+            super().contextMenuEvent(event);return
+        self.doc.select([eid]);self.controller.set_target(eid,None)
+        self.selectionChangedByView.emit();self.redraw()
+
+        entity=self.doc.get(eid);menu=QMenu(self);action_map={}
+        for spec in object_context_actions(entity.kind,'plan'):
+            if spec is None:
+                menu.addSeparator();continue
+            action=menu.addAction(spec['label']);action_map[action]=spec['id']
+        chosen=menu.exec(event.globalPos())
+        if chosen in action_map:self.contextActionRequested.emit(eid,action_map[chosen])
+        event.accept()
+
     def mousePressEvent(self,event):
         if event.button()!=Qt.MouseButton.LeftButton:super().mousePressEvent(event);return
         self._mouse_down=True;hit=self.itemAt(event.position().toPoint())
