@@ -43,6 +43,7 @@ ENTITY_MENUS = {
     'room_floor': ('properties', None, 'delete'),
     'room_roof': ('properties', None, 'delete'),
     'stair': ('properties', 'move', None, 'delete'),
+    'ramp': ('properties', 'move', None, 'delete'),
     'mesh': ('properties', None, 'delete'),
 }
 
