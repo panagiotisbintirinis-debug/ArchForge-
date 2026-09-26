@@ -149,4 +149,4 @@ def test_main_window_redraw_defaults_to_current_view_not_all_views():
     start = source.index(marker)
     end = source.index('    def _undo', start)
     body = source[start:end]
-    assert 'targets=(self.plan_view,self.front_view,self.side_view,self.view_3d,self.pbr_view) if all_views else (self.view,)' in body
+    assert 'targets=(self.plan_view,self.front_view,self.pbr_view) if all_views else (self.view,)' in body
