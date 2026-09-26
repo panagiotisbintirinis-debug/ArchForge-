@@ -224,6 +224,9 @@ let moveAnchor = null;
 let moveGhost = null;
 let pendingMovePoint = null;
 let moveUpdateScheduled = false;
+let snapEnabled = true;
+let pendingMoveSnap = true;
+let pendingMoveAxisLock = false;
 
 function clearMoveGhost() {
   if (moveGhost) {
@@ -250,8 +253,10 @@ function startMoveGhost(sourceMesh) {
   previewRoot.add(moveGhost);
 }
 
-function scheduleMoveUpdate(point) {
+function scheduleMoveUpdate(point, event) {
   pendingMovePoint = point;
+  pendingMoveSnap = snapEnabled && !(event && event.shiftKey);
+  pendingMoveAxisLock = !!(event && event.ctrlKey);
   if (moveUpdateScheduled) return;
   moveUpdateScheduled = true;
   requestAnimationFrame(() => {
@@ -259,10 +264,23 @@ function scheduleMoveUpdate(point) {
     if (!movingEntity || !bridge || !pendingMovePoint || !moveAnchor) return;
     const point = pendingMovePoint;
     pendingMovePoint = null;
+    // The authoritative transaction computes the final snapped delta. The ghost
+    // follows raw pointer motion immediately; the committed model uses the exact snap.
     if (moveGhost) {
-      moveGhost.position.set(point.x - moveAnchor.x, point.y - moveAnchor.y, 0);
+      let dx = point.x - moveAnchor.x;
+      let dy = point.y - moveAnchor.y;
+      if (pendingMoveAxisLock) {
+        if (Math.abs(dx) >= Math.abs(dy)) dy = 0;
+        else dx = 0;
+      }
+      moveGhost.position.set(dx, dy, 0);
     }
-    bridge.updateMove(Number(point.x), Number(point.y));
+    bridge.updateMove(
+      Number(point.x),
+      Number(point.y),
+      Boolean(pendingMoveSnap),
+      Boolean(pendingMoveAxisLock)
+    );
   });
 }
 
@@ -539,6 +557,10 @@ window.setActiveTool = function(tool) {
   }
 };
 
+window.setSnapEnabled = function(enabled) {
+  snapEnabled = !!enabled;
+};
+
 function hideMarkingMenu() {
   markingRoot.style.display = "none";
   radialMenu.replaceChildren();
@@ -648,7 +670,12 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
 
     if (movingEntity) {
       const point = pointOnHorizontalPlane(event, movePlaneZ);
-      if (point) bridge.updateMove(Number(point.x), Number(point.y));
+      if (point) bridge.updateMove(
+        Number(point.x),
+        Number(point.y),
+        Boolean(snapEnabled && !event.shiftKey),
+        Boolean(event.ctrlKey)
+      );
       pendingMovePoint = null;
       movingEntity = false;
       controls.enabled = true;
@@ -889,7 +916,7 @@ renderer.domElement.addEventListener("pointermove", (event) => {
   if (!bridge) return;
   if (movingEntity) {
     const point = pointOnHorizontalPlane(event, movePlaneZ);
-    if (point) scheduleMoveUpdate(point);
+    if (point) scheduleMoveUpdate(point, event);
     event.preventDefault();
     event.stopPropagation();
     return;
@@ -1025,9 +1052,9 @@ class PBRInteractionBridge(QObject):
     def beginMove(self, entity_id: str, x: float, y: float) -> None:
         self.viewport._begin_move_from_web(entity_id, x, y)
 
-    @Slot(float, float)
-    def updateMove(self, x: float, y: float) -> None:
-        self.viewport._update_move_from_web(x, y)
+    @Slot(float, float, bool, bool)
+    def updateMove(self, x: float, y: float, snap: bool, axis_lock: bool) -> None:
+        self.viewport._update_move_from_web(x, y, snap, axis_lock)
 
     @Slot()
     def endMove(self) -> None:
@@ -1068,6 +1095,7 @@ class PBRViewport(QWidget):
         self._ramp_preview_payload = {"active": None, "info": {}}
         self._ramp_tx = None
         self._move_tx = None
+        self._snap_enabled = True
         self.channel = None
         self.bridge = None
         layout = QVBoxLayout(self)
@@ -1111,12 +1139,24 @@ class PBRViewport(QWidget):
         self.set_camera_preset(self._camera_preset)
         self._push_stair_preview()
         self._push_ramp_preview()
+        self.set_snap_enabled(self._snap_enabled)
 
     def rebind(self, doc, stack) -> None:
         self.doc = doc
         self.stack = stack
         self._evaluation_cache.clear()
         self.redraw(force_full=True)
+
+    def set_snap_enabled(self, enabled: bool) -> None:
+        self._snap_enabled = bool(enabled)
+        if self.web_view is not None:
+            script = (
+                "if (window.setSnapEnabled) window.setSnapEnabled("
+                + ("true" if self._snap_enabled else "false")
+                + ");"
+            )
+            self.web_view.page().runJavaScript(script)
+        self.statusChanged.emit("Snap ON" if self._snap_enabled else "Snap OFF — Free mode")
 
     def set_tool(self, tool: str) -> None:
         self.active_tool = str(tool)
@@ -1401,13 +1441,31 @@ class PBRViewport(QWidget):
             self._move_tx = None
             self.statusChanged.emit(f"Cannot start move: {exc}")
 
-    def _update_move_from_web(self, x: float, y: float) -> None:
+    def _update_move_from_web(
+        self,
+        x: float,
+        y: float,
+        snap: bool = True,
+        axis_lock: bool = False,
+    ) -> None:
         if self._move_tx is None:
             return
         try:
-            hud = self._move_tx.update_pointer(float(x), float(y), snap=False)
+            use_snap = self._snap_enabled and bool(snap)
+            hud = self._move_tx.update_pointer(
+                float(x),
+                float(y),
+                snap=use_snap,
+                axis_lock=bool(axis_lock),
+            )
+            qualifiers = []
+            if self._move_tx.last_snap_kind:
+                qualifiers.append(f"SNAP {self._move_tx.last_snap_kind}")
+            if self._move_tx.axis_lock:
+                qualifiers.append(f"CTRL {self._move_tx.axis_lock.upper()}-axis")
+            suffix = (" · " + " · ".join(qualifiers)) if qualifiers else ""
             self.statusChanged.emit(
-                f"Move ΔX {hud.values['dx']:.3f} m · ΔY {hud.values['dy']:.3f} m"
+                f"Move ΔX {hud.values['dx']:.3f} m · ΔY {hud.values['dy']:.3f} m{suffix}"
             )
         except Exception as exc:
             self.statusChanged.emit(f"Move preview error: {exc}")
