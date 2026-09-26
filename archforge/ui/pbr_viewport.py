@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from PySide6.QtCore import QUrl, Signal
+from PySide6.QtCore import Qt, QUrl, Signal
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 from archforge.geometry.incremental import IncrementalEvaluationCache
@@ -218,20 +218,26 @@ class PBRViewport(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        if QWebEngineView is None:
-            self.web_view = None
-            label = QLabel(
-                "PBR Preview unavailable: Qt WebEngine is not installed.\n"
-                "The normal ArchForge 3D viewport remains fully available."
-            )
-            label.setAlignment(getattr(__import__("PySide6.QtCore", fromlist=["Qt"]).Qt, "AlignCenter"))
-            layout.addWidget(label)
-            return
+        self.web_view = None
+        self._layout = layout
+        self._placeholder = QLabel(
+            "PBR Preview initializes when this tab becomes active."
+            if QWebEngineView is not None
+            else "PBR Preview unavailable: Qt WebEngine is not installed.\n"
+                 "The normal ArchForge 3D viewport remains fully available."
+        )
+        self._placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self._placeholder)
 
+    def activate(self) -> None:
+        """Lazily create the WebEngine surface only when the user opens this view."""
+        if self.web_view is not None or QWebEngineView is None:
+            return
+        self._placeholder.hide()
         self.web_view = QWebEngineView(self)
-        layout.addWidget(self.web_view)
-        self.web_view.setHtml(_PBR_HTML, QUrl("https://cdn.jsdelivr.net/"))
+        self._layout.addWidget(self.web_view)
         self.web_view.loadFinished.connect(self._on_load_finished)
+        self.web_view.setHtml(_PBR_HTML, QUrl("https://cdn.jsdelivr.net/"))
 
     def _on_load_finished(self, ok: bool) -> None:
         if not ok:
