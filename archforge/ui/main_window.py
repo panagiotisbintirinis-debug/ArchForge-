@@ -32,11 +32,11 @@ class MainWindow(QMainWindow):
         self.side_view = OrthoView(self.doc, self.stack, 'YZ')
         self.view_3d = Viewport3D(self.doc, self.stack)
         self.pbr_view = PBRViewport(self.doc, self.stack)
-        self.tabs.addTab(self.plan_view, 'XY PLAN')
-        self.tabs.addTab(self.front_view, 'XZ FRONT')
-        self.tabs.addTab(self.side_view, 'YZ SIDE')
-        self.tabs.addTab(self.view_3d, '3D PERSPECTIVE')
-        self.tabs.addTab(self.pbr_view, '3D PBR PREVIEW')
+        self.tabs.addTab(self.plan_view, 'FLOOR PLAN')
+        self.tabs.addTab(self.front_view, 'FRONT ELEVATION')
+        self.tabs.addTab(self.side_view, 'SIDE ELEVATION')
+        self.tabs.addTab(self.view_3d, '3D EDIT')
+        self.tabs.addTab(self.pbr_view, '3D STUDIO')
         self.setCentralWidget(self.tabs)
         self.view = self.plan_view
         self.setStatusBar(QStatusBar())
@@ -45,6 +45,7 @@ class MainWindow(QMainWindow):
             view.selectionChangedByView.connect(self._selection_from_view)
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self._build_toolbar()
+        self._build_view_toolbar()
         self._build_inspector()
         self.refresh_inspector()
 
@@ -159,6 +160,61 @@ class MainWindow(QMainWindow):
         stl_action = QAction('Export STL', self)
         stl_action.triggered.connect(self.export_stl)
         toolbar.addAction(stl_action)
+
+
+    def _build_view_toolbar(self):
+        self.addToolBarBreak()
+        toolbar = QToolBar('View')
+        toolbar.setMovable(False)
+        self.addToolBar(toolbar)
+
+        toolbar.addWidget(QLabel(' Camera '))
+        for text, mode in (
+            ('Cutaway', 'cutaway'),
+            ('Top', 'top'),
+            ('Front', 'front'),
+            ('Side', 'side'),
+            ('ISO 30°', 'iso30'),
+            ('Eye', 'eye'),
+            ('Orbit', 'orbit'),
+        ):
+            action = QAction(text, self)
+            action.triggered.connect(
+                lambda checked=False, m=mode: self._set_pbr_camera(m)
+            )
+            toolbar.addAction(action)
+
+        toolbar.addSeparator()
+
+        axes = QAction('Axes', self)
+        axes.setCheckable(True)
+        axes.setChecked(False)
+        axes.toggled.connect(self.pbr_view.set_axes_visible)
+        toolbar.addAction(axes)
+        self.axes_action = axes
+
+        cutaway = QAction('Cutaway', self)
+        cutaway.setCheckable(True)
+        cutaway.setChecked(False)
+        cutaway.toggled.connect(self.pbr_view.set_cutaway)
+        toolbar.addAction(cutaway)
+        self.cutaway_action = cutaway
+
+        auto_rotate = QAction('Auto Rotate', self)
+        auto_rotate.setCheckable(True)
+        auto_rotate.setChecked(False)
+        auto_rotate.toggled.connect(self.pbr_view.set_auto_rotate)
+        toolbar.addAction(auto_rotate)
+        self.auto_rotate_action = auto_rotate
+
+    def _set_pbr_camera(self, mode):
+        self.tabs.setCurrentWidget(self.pbr_view)
+        self.pbr_view.activate()
+        self.pbr_view.set_camera_preset(mode)
+        if hasattr(self, 'cutaway_action'):
+            self.cutaway_action.blockSignals(True)
+            self.cutaway_action.setChecked(mode == 'cutaway')
+            self.cutaway_action.blockSignals(False)
 
     def _build_inspector(self):
         self.dock = QDockWidget('Inspector', self)
