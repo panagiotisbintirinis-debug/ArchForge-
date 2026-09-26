@@ -10,7 +10,7 @@ from archforge.geometry.incremental import IncrementalEvaluationCache
 from archforge.geometry.sculpt import SculptedPreviewBackend
 from archforge.geometry.selection import BrushSpec, SurfaceHit
 from archforge.geometry.sculpt_transaction import SculptTransaction
-from archforge.core.interaction import OpeningPlaceTransaction, StairPlaceTransaction
+from archforge.core.interaction import OpeningPlaceTransaction, StairPlaceTransaction, RampPlaceTransaction
 from archforge.rendering.scene import build_pbr_scene_payload
 from archforge.ui.object_context_menu import object_context_actions
 
@@ -199,6 +199,24 @@ function scheduleStairUpdate(point) {
   });
 }
 
+let ramping = false;
+let rampPlaneZ = 0;
+let pendingRampPoint = null;
+let rampUpdateScheduled = false;
+
+function scheduleRampUpdate(point) {
+  pendingRampPoint = point;
+  if (rampUpdateScheduled) return;
+  rampUpdateScheduled = true;
+  requestAnimationFrame(() => {
+    rampUpdateScheduled = false;
+    if (!ramping || !bridge || !pendingRampPoint) return;
+    const point = pendingRampPoint;
+    pendingRampPoint = null;
+    bridge.updateRamp(Number(point.x), Number(point.y));
+  });
+}
+
 function resize() {
   const w = Math.max(1, container.clientWidth);
   const h = Math.max(1, container.clientHeight);
@@ -269,6 +287,50 @@ window.setStairPreview = function(payload) {
     " · landing " + Number(info.landing_z || 0).toFixed(3) + " m" +
     " · slab " + Number(info.slab_thickness || 0).toFixed(3) + " m" +
     "<span class='hint'>Move = adjust · Wheel = alternative · Left click = place · Right click/Esc = cancel</span>";
+  stairHud.style.display = "block";
+};
+
+window.setRampPreview = function(payload) {
+  disposePreview();
+  const item = payload && payload.active ? payload.active : null;
+  if (!item) {
+    stairHud.style.display = "none";
+    stairHud.textContent = "";
+    return;
+  }
+
+  const positions = [];
+  for (const v of item.vertices) positions.push(v[0], v[1], v[2]);
+  const indices = [];
+  for (const t of item.triangles) indices.push(t[0], t[1], t[2]);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+
+  const material = new THREE.MeshStandardMaterial({
+    color: 0x5eaed6,
+    roughness: 0.52,
+    metalness: 0.0,
+    transparent: true,
+    opacity: 0.68,
+    depthWrite: true
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.userData.preview = true;
+  previewRoot.add(mesh);
+
+  const info = payload.info || {};
+  const optionText = info.option_count
+    ? ("Option " + String(info.option_index + 1) + "/" + String(info.option_count))
+    : "";
+  stairHud.innerHTML =
+    "<strong>RAMP</strong>" +
+    optionText +
+    " · slope " + Number(info.slope_pct || 0).toFixed(1) + "%" +
+    " · run " + Number(info.run_length || 0).toFixed(2) + " m" +
+    " · rise " + Number(info.rise || 0).toFixed(2) + " m" +
+    "<span class='hint'>Move = direction/space · Wheel = slope · Left click = place · Right click/Esc = cancel</span>";
   stairHud.style.display = "block";
 };
 
@@ -555,6 +617,43 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     return;
   }
 
+  if (activeTool === "ramp") {
+    if (event.button === 2) {
+      if (ramping) {
+        ramping = false;
+        pendingRampPoint = null;
+        controls.enabled = true;
+        bridge.cancelRamp();
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    if (event.button !== 0) return;
+
+    if (ramping) {
+      const point = pointOnHorizontalPlane(event, rampPlaneZ);
+      if (point) bridge.updateRamp(Number(point.x), Number(point.y));
+      pendingRampPoint = null;
+      ramping = false;
+      controls.enabled = true;
+      bridge.endRamp();
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    const hit = pickModel(event);
+    if (!hit || !hit.face) return;
+    ramping = true;
+    rampPlaneZ = Number(hit.point.z);
+    controls.enabled = false;
+    bridge.beginRamp(Number(hit.point.x), Number(hit.point.y));
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+
   const hit = pickModel(event);
   if (!hit || !hit.face) return;
 
@@ -592,8 +691,8 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
 }, true);
 
 renderer.domElement.addEventListener("dblclick", (event) => {
-  if (!bridge || sculpting || stairing) return;
-  if (activeTool === "door" || activeTool === "window" || activeTool === "sculpt" || activeTool === "stair") return;
+  if (!bridge || sculpting || stairing || ramping) return;
+  if (activeTool === "door" || activeTool === "window" || activeTool === "sculpt" || activeTool === "stair" || activeTool === "ramp") return;
   const hit = pickModel(event);
   if (!hit || !hit.face) return;
   bridge.selectEntity(hit.object.userData.entityId || "");
@@ -610,6 +709,16 @@ renderer.domElement.addEventListener("contextmenu", (event) => {
       pendingStairPoint = null;
       controls.enabled = true;
       bridge.cancelStair();
+    }
+    event.stopPropagation();
+    return;
+  }
+  if (activeTool === "ramp") {
+    if (ramping) {
+      ramping = false;
+      pendingRampPoint = null;
+      controls.enabled = true;
+      bridge.cancelRamp();
     }
     event.stopPropagation();
     return;
@@ -631,6 +740,11 @@ renderer.domElement.addEventListener("wheel", (event) => {
     event.preventDefault();
     event.stopPropagation();
   }
+  if (ramping && bridge) {
+    bridge.cycleRamp(event.deltaY > 0 ? 1 : -1);
+    event.preventDefault();
+    event.stopPropagation();
+  }
 }, {passive: false});
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
@@ -641,6 +755,13 @@ window.addEventListener("keydown", (event) => {
       bridge.cancelStair();
       event.preventDefault();
     }
+    if (ramping && bridge) {
+      ramping = false;
+      pendingRampPoint = null;
+      controls.enabled = true;
+      bridge.cancelRamp();
+      event.preventDefault();
+    }
   }
 });
 
@@ -649,6 +770,13 @@ renderer.domElement.addEventListener("pointermove", (event) => {
   if (stairing) {
     const point = pointOnHorizontalPlane(event, stairPlaneZ);
     if (point) scheduleStairUpdate(point);
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+  if (ramping) {
+    const point = pointOnHorizontalPlane(event, rampPlaneZ);
+    if (point) scheduleRampUpdate(point);
     event.preventDefault();
     event.stopPropagation();
     return;
@@ -673,6 +801,7 @@ renderer.domElement.addEventListener("pointerup", (event) => {
 if (window.__archforgePendingTechnique) window.setTechnique(window.__archforgePendingTechnique);
 if (window.__archforgePendingScene) window.archforgeSetScene(window.__archforgePendingScene);
 if (window.__archforgePendingStairPreview) window.setStairPreview(window.__archforgePendingStairPreview);
+if (window.__archforgePendingRampPreview) window.setRampPreview(window.__archforgePendingRampPreview);
 
 function animate() {
   controls.update();
@@ -741,6 +870,26 @@ class PBRInteractionBridge(QObject):
     def cancelStair(self) -> None:
         self.viewport._cancel_stair_from_web()
 
+    @Slot(float, float)
+    def beginRamp(self, x: float, y: float) -> None:
+        self.viewport._begin_ramp_from_web(x, y)
+
+    @Slot(float, float)
+    def updateRamp(self, x: float, y: float) -> None:
+        self.viewport._update_ramp_from_web(x, y)
+
+    @Slot()
+    def endRamp(self) -> None:
+        self.viewport._finish_ramp_from_web()
+
+    @Slot(int)
+    def cycleRamp(self, step: int) -> None:
+        self.viewport._cycle_ramp_from_web(step)
+
+    @Slot()
+    def cancelRamp(self) -> None:
+        self.viewport._cancel_ramp_from_web()
+
 
 class PBRViewport(QWidget):
     """GPU/WebGL derived preview of the current authoritative ArchForge geometry.
@@ -769,6 +918,8 @@ class PBRViewport(QWidget):
         self._sculpt_tx = None
         self._stair_preview_payload = {"options": []}
         self._stair_tx = None
+        self._ramp_preview_payload = {"active": None, "info": {}}
+        self._ramp_tx = None
         self.channel = None
         self.bridge = None
         layout = QVBoxLayout(self)
@@ -811,6 +962,7 @@ class PBRViewport(QWidget):
         self.redraw(force_full=True)
         self.set_camera_preset(self._camera_preset)
         self._push_stair_preview()
+        self._push_ramp_preview()
 
     def rebind(self, doc, stack) -> None:
         self.doc = doc
@@ -1074,6 +1226,121 @@ class PBRViewport(QWidget):
         except Exception as exc:
             self._set_stair_candidate_params(())
             self.statusChanged.emit(f"Cannot commit stair: {exc}")
+
+    def _set_ramp_candidate_params(self, candidates, active_index=0) -> None:
+        candidates = list(candidates)
+        payload = {"active": None, "info": {}}
+        try:
+            if candidates:
+                active_index = max(0, min(int(active_index), len(candidates) - 1))
+                params = candidates[active_index]
+                from archforge.geometry.mesh import _ramp_mesh
+                mesh = _ramp_mesh(params)
+                payload = {
+                    "active": {
+                        "vertices": [[float(x), float(y), float(z)] for x, y, z in mesh.vertices],
+                        "triangles": [[int(a), int(b), int(c)] for a, b, c in mesh.triangles],
+                    },
+                    "info": {
+                        "slope_pct": float(params.get("slope_pct", 0.0)),
+                        "run_length": float(params.get("run_length", 0.0)),
+                        "rise": float(params.get("upper_z", 0.0)) - float(params.get("lower_z", 0.0)),
+                        "option_index": active_index,
+                        "option_count": len(candidates),
+                    },
+                }
+        except Exception as exc:
+            self.statusChanged.emit(f"Ramp preview error: {exc}")
+            payload = {"active": None, "info": {}}
+        self._ramp_preview_payload = payload
+        self._push_ramp_preview()
+
+    def _ramp_status(self) -> None:
+        if self._ramp_tx is None or not self._ramp_tx.candidates:
+            return
+        active = self._ramp_tx.active_candidate
+        self.statusChanged.emit(
+            f"Ramp {active.slope_pct:.1f}% | option {self._ramp_tx.active_index + 1}/"
+            f"{len(self._ramp_tx.candidates)} | run {active.run_length:.2f} m | "
+            f"rise {active.rise:.2f} m"
+        )
+
+    def _begin_ramp_from_web(self, x: float, y: float) -> None:
+        try:
+            self._ramp_tx = RampPlaceTransaction(self.doc, self.stack, (float(x), float(y)))
+            self._ramp_tx.update(float(x), float(y))
+            self._set_ramp_candidate_params(
+                self._ramp_tx.preview.get("candidates", ()),
+                self._ramp_tx.active_index,
+            )
+            self._ramp_status()
+        except Exception as exc:
+            self._ramp_tx = None
+            self._set_ramp_candidate_params(())
+            self.statusChanged.emit(f"Cannot start ramp: {exc}")
+
+    def _update_ramp_from_web(self, x: float, y: float) -> None:
+        if self._ramp_tx is None:
+            return
+        try:
+            self._ramp_tx.update(float(x), float(y))
+            self._set_ramp_candidate_params(
+                self._ramp_tx.preview.get("candidates", ()),
+                self._ramp_tx.active_index,
+            )
+            self._ramp_status()
+        except Exception as exc:
+            self.statusChanged.emit(f"Ramp preview error: {exc}")
+
+    def _cycle_ramp_from_web(self, step: int) -> None:
+        if self._ramp_tx is None:
+            return
+        try:
+            self._ramp_tx.cycle_candidate(1 if int(step) >= 0 else -1)
+            self._set_ramp_candidate_params(
+                self._ramp_tx.preview.get("candidates", ()),
+                self._ramp_tx.active_index,
+            )
+            self._ramp_status()
+        except Exception as exc:
+            self.statusChanged.emit(f"Cannot change ramp slope: {exc}")
+
+    def _cancel_ramp_from_web(self) -> None:
+        if self._ramp_tx is not None:
+            self._ramp_tx.cancel()
+        self._ramp_tx = None
+        self._set_ramp_candidate_params(())
+        self.statusChanged.emit("Ramp placement cancelled")
+
+    def _finish_ramp_from_web(self) -> None:
+        if self._ramp_tx is None:
+            return
+        tx = self._ramp_tx
+        self._ramp_tx = None
+        try:
+            chosen = tx.active_candidate
+            entity_id = tx.commit()
+            self._evaluation_cache.clear()
+            self._set_ramp_candidate_params(())
+            self.doc.select([entity_id])
+            self.selectionChangedByView.emit()
+            self.redraw(force_full=False)
+            self.statusChanged.emit(
+                f"Committed ramp at {chosen.slope_pct:.1f}% slope — Undo is available"
+            )
+        except Exception as exc:
+            self._set_ramp_candidate_params(())
+            self.statusChanged.emit(f"Cannot commit ramp: {exc}")
+
+    def _push_ramp_preview(self) -> None:
+        if self.web_view is None:
+            return
+        script = (
+            "window.__archforgePendingRampPreview = "
+            + json.dumps(self._ramp_preview_payload, separators=(',', ':'))
+            + "; if (window.setRampPreview) window.setRampPreview(window.__archforgePendingRampPreview);"
+        )
+        self.web_view.page().runJavaScript(script)
 
     def _push_stair_preview(self) -> None:
         if self.web_view is None:
