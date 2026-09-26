@@ -130,3 +130,31 @@ def test_delete_selected_object_is_reversible():
     window._undo()
     assert wall.id in window.doc.entities
     window.close()
+
+
+def test_pbr_select_then_general_delete_removes_one_wall_and_undo_restores_it():
+    window = MainWindow()
+    wall_a = _wall('wall-a', 0.0)
+    wall_b = Entity(
+        'wall',
+        {
+            'x1': 0.0, 'y1': 2.0, 'x2': 4.0, 'y2': 2.0,
+            'z': 0.0, 'height': 2.7, 'thickness': 0.15,
+        },
+        id='wall-b',
+    )
+    window.doc.add(wall_a)
+    window.doc.add(wall_b)
+    window.pbr_view.active_tool = 'select'
+
+    window.pbr_view._select_entity_from_web('wall-a')
+    assert window.doc.selection == ['wall-a']
+
+    window._delete_selection()
+    assert 'wall-a' not in window.doc.entities
+    assert 'wall-b' in window.doc.entities
+
+    window._undo()
+    assert 'wall-a' in window.doc.entities
+    assert 'wall-b' in window.doc.entities
+    window.close()
