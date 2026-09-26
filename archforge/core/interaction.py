@@ -69,10 +69,10 @@ class MoveTransaction:
             elif e.kind in ('floor', 'room'):
                 p['points'] = [(qx + self.dx, qy + self.dy) for qx, qy in p['points']]
                 p['z'] = p['z'] + self.dz
-            elif e.kind == 'stair':
+            elif e.kind in ('stair', 'ramp'):
                 p['x'] = p['x'] + self.dx
                 p['y'] = p['y'] + self.dy
-                # Stairs remain semantically tied to their two floor elevations.
+                # Vertical-circulation objects remain tied to floor elevations.
                 # XY movement must not silently detach them vertically.
             self.preview[eid] = p
 
@@ -191,6 +191,78 @@ class StairPlaceTransaction:
             raise ValueError('stair has no valid preview')
         chosen=self.active_candidate
         entity=Entity('stair',chosen.to_params(),name='Stair')
+        self.stack.execute(AddEntity(entity))
+        self.doc.select([entity.id])
+        return entity.id
+
+    def cancel(self):
+        self.cancelled=True
+        self.candidates=()
+        self.preview={}
+
+
+class RampPlaceTransaction:
+    """Live ramp placement with wheel-selectable slope alternatives."""
+    def __init__(
+        self,
+        doc: Document,
+        stack: CommandStack,
+        origin: Tuple[float, float],
+        *,
+        width: float = 1.20,
+        thickness: float = 0.15,
+    ):
+        self.doc,self.stack=doc,stack
+        self.origin=(float(origin[0]),float(origin[1]))
+        self.width=float(width)
+        self.thickness=float(thickness)
+        self.lower_z=float(doc.work_plane.origin[2])
+        self.pointer=self.origin
+        self.candidates=()
+        self.active_index=0
+        self.preview={}
+        self.cancelled=False
+        self.update(*self.origin)
+
+    def update(self,x,y):
+        from archforge.architecture.ramps import solve_ramp_candidates,ramp_footprint
+        self.pointer=(float(x),float(y))
+        self.candidates=solve_ramp_candidates(
+            self.doc,self.lower_z,self.origin,self.pointer,
+            width=self.width,
+            thickness=self.thickness,
+        )
+        self.active_index=min(self.active_index,max(0,len(self.candidates)-1))
+        active=self.candidates[self.active_index]
+        self.preview={
+            'chosen':active.to_params(),
+            'candidates':[candidate.to_params() for candidate in self.candidates],
+            'active_index':self.active_index,
+            'footprint':list(ramp_footprint(active)),
+        }
+        return HUD({
+            'slope_pct':active.slope_pct,
+            'run_length':active.run_length,
+            'rise':active.rise,
+            'width':active.width,
+            'option':float(self.active_index+1),
+        })
+
+    @property
+    def active_candidate(self):
+        if not self.candidates:
+            raise ValueError('ramp has no candidates')
+        return self.candidates[self.active_index]
+
+    def cycle_candidate(self,step=1):
+        if not self.candidates:return self.preview
+        self.active_index=(self.active_index+int(step))%len(self.candidates)
+        return self.update(*self.pointer)
+
+    def commit(self):
+        if self.cancelled:raise RuntimeError('transaction cancelled')
+        active=self.active_candidate
+        entity=Entity('ramp',active.to_params(),name='Ramp')
         self.stack.execute(AddEntity(entity))
         self.doc.select([entity.id])
         return entity.id
