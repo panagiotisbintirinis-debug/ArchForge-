@@ -388,6 +388,14 @@ class RotateTransaction:
         elif e.kind=='box':self.pivot=(p['x'],p['y'])
         elif e.kind=='pod':self.pivot=(p['cx'],p['cy'])
         elif e.kind=='wall':self.pivot=((p['x1']+p['x2'])/2,(p['y1']+p['y2'])/2)
+        elif e.kind=='stair':
+            from archforge.architecture.stairs import candidate_from_params,stair_footprint
+            poly=stair_footprint(candidate_from_params(p))
+            self.pivot=((min(q[0] for q in poly)+max(q[0] for q in poly))/2,(min(q[1] for q in poly)+max(q[1] for q in poly))/2)
+        elif e.kind=='ramp':
+            from archforge.architecture.ramps import candidate_from_params,ramp_footprint
+            poly=ramp_footprint(candidate_from_params(p))
+            self.pivot=((min(q[0] for q in poly)+max(q[0] for q in poly))/2,(min(q[1] for q in poly)+max(q[1] for q in poly))/2)
         else:raise ValueError('rotation unsupported for entity kind')
     def update_angle(self,angle_deg,snap=True):
         a=float(angle_deg)
@@ -400,6 +408,11 @@ class RotateTransaction:
             def rot(x,y):dx,dy=x-px,y-py;return px+dx*c-dy*s,py+dx*s+dy*c
             p['x1'],p['y1']=rot(p['x1'],p['y1']);p['x2'],p['y2']=rot(p['x2'],p['y2'])
         elif e.kind=='pod':p['rotation']=(p.get('rotation',0.0)+a)%360.0
+        elif e.kind in ('stair','ramp'):
+            dx,dy=float(p['x'])-px,float(p['y'])-py
+            p['x']=px+dx*c-dy*s
+            p['y']=py+dx*s+dy*c
+            p['angle_deg']=(float(p.get('angle_deg',0.0))+a)%360.0
         self.preview=p;return HUD({'angle_deg':a,'pivot_x':px,'pivot_y':py})
     def update_pointer(self,x,y,start_angle_deg=0.0,snap=True):return self.update_angle(degrees(atan2(y-self.pivot[1],x-self.pivot[0]))-float(start_angle_deg),snap)
     def commit(self):self.stack.execute(RotateEntities([self.eid],self.angle,pivot=self.pivot))
