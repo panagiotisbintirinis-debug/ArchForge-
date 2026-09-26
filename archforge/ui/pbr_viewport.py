@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from math import atan2, degrees
 
 from PySide6.QtCore import Qt, QUrl, Signal, Slot, QObject
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
@@ -10,7 +11,7 @@ from archforge.geometry.incremental import IncrementalEvaluationCache
 from archforge.geometry.sculpt import SculptedPreviewBackend
 from archforge.geometry.selection import BrushSpec, SurfaceHit
 from archforge.geometry.sculpt_transaction import SculptTransaction
-from archforge.core.interaction import OpeningPlaceTransaction, StairPlaceTransaction, RampPlaceTransaction, MoveTransaction
+from archforge.core.interaction import OpeningPlaceTransaction, StairPlaceTransaction, RampPlaceTransaction, MoveTransaction, RotateTransaction
 from archforge.rendering.scene import build_pbr_scene_payload
 from archforge.ui.object_context_menu import object_context_actions
 
@@ -284,6 +285,68 @@ function scheduleMoveUpdate(point, event) {
   });
 }
 
+let rotatingEntity = false;
+let rotateEntityId = "";
+let rotatePlaneZ = 0;
+let rotatePivot = null;
+let rotateGhost = null;
+let rotateStartAngle = 0;
+let pendingRotatePoint = null;
+let pendingRotateSnap = true;
+let rotateUpdateScheduled = false;
+
+function clearRotateGhost() {
+  if (rotateGhost) {
+    previewRoot.remove(rotateGhost);
+    if (rotateGhost.geometry) rotateGhost.geometry.dispose();
+    if (rotateGhost.material) rotateGhost.material.dispose();
+  }
+  rotateGhost = null;
+}
+
+function startRotateGhost(sourceMesh, pivot) {
+  clearRotateGhost();
+  const geometry = sourceMesh.geometry.clone();
+  geometry.translate(-pivot.x, -pivot.y, 0);
+  const material = new THREE.MeshStandardMaterial({
+    color: 0x9b6cff,
+    roughness: 0.45,
+    metalness: 0.0,
+    transparent: true,
+    opacity: 0.58,
+    depthWrite: true,
+    side: THREE.DoubleSide
+  });
+  rotateGhost = new THREE.Mesh(geometry, material);
+  rotateGhost.position.set(pivot.x, pivot.y, 0);
+  rotateGhost.userData.preview = true;
+  previewRoot.add(rotateGhost);
+}
+
+function scheduleRotateUpdate(point, event) {
+  pendingRotatePoint = point;
+  pendingRotateSnap = snapEnabled && !(event && event.shiftKey);
+  if (rotateUpdateScheduled) return;
+  rotateUpdateScheduled = true;
+  requestAnimationFrame(() => {
+    rotateUpdateScheduled = false;
+    if (!rotatingEntity || !bridge || !pendingRotatePoint || !rotatePivot) return;
+    const point = pendingRotatePoint;
+    pendingRotatePoint = null;
+    let angle = Math.atan2(point.y - rotatePivot.y, point.x - rotatePivot.x) - rotateStartAngle;
+    if (pendingRotateSnap) {
+      const step = THREE.MathUtils.degToRad(15);
+      angle = Math.round(angle / step) * step;
+    }
+    if (rotateGhost) rotateGhost.rotation.z = angle;
+    bridge.updateRotate(
+      Number(point.x),
+      Number(point.y),
+      Boolean(pendingRotateSnap)
+    );
+  });
+}
+
 function resize() {
   const w = Math.max(1, container.clientWidth);
   const h = Math.max(1, container.clientHeight);
@@ -552,7 +615,7 @@ window.setCutaway = function(enabled) {
 
 window.setActiveTool = function(tool) {
   activeTool = tool || "orbit";
-  if (!sculpting && !stairing && !ramping && !movingEntity) {
+  if (!sculpting && !stairing && !ramping && !movingEntity && !rotatingEntity) {
     controls.enabled = activeTool !== "sculpt";
   }
 };
@@ -710,6 +773,73 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     return;
   }
 
+  if (activeTool === "rotate") {
+    if (event.button === 2) {
+      if (rotatingEntity) {
+        rotatingEntity = false;
+        pendingRotatePoint = null;
+        controls.enabled = true;
+        clearRotateGhost();
+        bridge.cancelRotate();
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    if (event.button !== 0) return;
+
+    if (rotatingEntity) {
+      const point = pointOnHorizontalPlane(event, rotatePlaneZ);
+      if (point) bridge.updateRotate(
+        Number(point.x),
+        Number(point.y),
+        Boolean(snapEnabled && !event.shiftKey)
+      );
+      pendingRotatePoint = null;
+      rotatingEntity = false;
+      controls.enabled = true;
+      clearRotateGhost();
+      bridge.endRotate();
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    const hit = pickModel(event);
+    if (!hit || !hit.face) return;
+    const kind = hit.object.userData.kind || "";
+    const supported = ["stair", "ramp", "wall", "box", "pod"];
+    if (!supported.includes(kind)) {
+      bridge.reportStatus("Rotate in 3D is not supported for " + kind);
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    rotateEntityId = hit.object.userData.entityId || "";
+    if (!rotateEntityId) return;
+
+    const bounds = new THREE.Box3().setFromObject(hit.object);
+    const center = bounds.getCenter(new THREE.Vector3());
+    rotatePivot = center.clone();
+    rotatePlaneZ = Number(center.z);
+    const startPoint = pointOnHorizontalPlane(event, rotatePlaneZ) || hit.point.clone();
+    rotateStartAngle = Math.atan2(startPoint.y - rotatePivot.y, startPoint.x - rotatePivot.x);
+    pendingRotatePoint = null;
+    rotatingEntity = true;
+    controls.enabled = false;
+    startRotateGhost(hit.object, rotatePivot);
+    bridge.beginRotate(
+      rotateEntityId,
+      Number(startPoint.x),
+      Number(startPoint.y),
+      Number(rotatePivot.x),
+      Number(rotatePivot.y)
+    );
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+
   if (activeTool === "stair") {
     if (event.button === 2) {
       if (stairing) {
@@ -821,8 +951,8 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
 }, true);
 
 renderer.domElement.addEventListener("dblclick", (event) => {
-  if (!bridge || sculpting || stairing || ramping || movingEntity) return;
-  if (activeTool === "door" || activeTool === "window" || activeTool === "sculpt" || activeTool === "stair" || activeTool === "ramp" || activeTool === "move") return;
+  if (!bridge || sculpting || stairing || ramping || movingEntity || rotatingEntity) return;
+  if (activeTool === "door" || activeTool === "window" || activeTool === "sculpt" || activeTool === "stair" || activeTool === "ramp" || activeTool === "move" || activeTool === "rotate") return;
   const hit = pickModel(event);
   if (!hit || !hit.face) return;
   bridge.selectEntity(hit.object.userData.entityId || "");
@@ -839,6 +969,15 @@ renderer.domElement.addEventListener("contextmenu", (event) => {
     controls.enabled = true;
     clearMoveGhost();
     bridge.cancelMove();
+    event.stopPropagation();
+    return;
+  }
+  if (activeTool === "rotate" && rotatingEntity) {
+    rotatingEntity = false;
+    pendingRotatePoint = null;
+    controls.enabled = true;
+    clearRotateGhost();
+    bridge.cancelRotate();
     event.stopPropagation();
     return;
   }
@@ -896,6 +1035,14 @@ window.addEventListener("keydown", (event) => {
       bridge.cancelMove();
       event.preventDefault();
     }
+    if (rotatingEntity && bridge) {
+      rotatingEntity = false;
+      pendingRotatePoint = null;
+      controls.enabled = true;
+      clearRotateGhost();
+      bridge.cancelRotate();
+      event.preventDefault();
+    }
     if (stairing && bridge) {
       stairing = false;
       controls.enabled = true;
@@ -917,6 +1064,13 @@ renderer.domElement.addEventListener("pointermove", (event) => {
   if (movingEntity) {
     const point = pointOnHorizontalPlane(event, movePlaneZ);
     if (point) scheduleMoveUpdate(point, event);
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+  if (rotatingEntity) {
+    const point = pointOnHorizontalPlane(event, rotatePlaneZ);
+    if (point) scheduleRotateUpdate(point, event);
     event.preventDefault();
     event.stopPropagation();
     return;
@@ -1064,6 +1218,29 @@ class PBRInteractionBridge(QObject):
     def cancelMove(self) -> None:
         self.viewport._cancel_move_from_web()
 
+    @Slot(str, float, float, float, float)
+    def beginRotate(
+        self,
+        entity_id: str,
+        x: float,
+        y: float,
+        pivot_x: float,
+        pivot_y: float,
+    ) -> None:
+        self.viewport._begin_rotate_from_web(entity_id, x, y, pivot_x, pivot_y)
+
+    @Slot(float, float, bool)
+    def updateRotate(self, x: float, y: float, snap: bool) -> None:
+        self.viewport._update_rotate_from_web(x, y, snap)
+
+    @Slot()
+    def endRotate(self) -> None:
+        self.viewport._finish_rotate_from_web()
+
+    @Slot()
+    def cancelRotate(self) -> None:
+        self.viewport._cancel_rotate_from_web()
+
 
 class PBRViewport(QWidget):
     """GPU/WebGL derived preview of the current authoritative ArchForge geometry.
@@ -1095,6 +1272,8 @@ class PBRViewport(QWidget):
         self._ramp_preview_payload = {"active": None, "info": {}}
         self._ramp_tx = None
         self._move_tx = None
+        self._rotate_tx = None
+        self._rotate_start_angle_deg = 0.0
         self._snap_enabled = True
         self.channel = None
         self.bridge = None
@@ -1495,6 +1674,92 @@ class PBRViewport(QWidget):
                 self.statusChanged.emit("Move cancelled: position unchanged")
         except Exception as exc:
             self.statusChanged.emit(f"Cannot commit move: {exc}")
+
+    def _begin_rotate_from_web(
+        self,
+        entity_id: str,
+        x: float,
+        y: float,
+        pivot_x: float,
+        pivot_y: float,
+    ) -> None:
+        entity_id = str(entity_id)
+        if entity_id not in self.doc.entities:
+            self.statusChanged.emit("Rotate target no longer exists")
+            return
+        entity = self.doc.get(entity_id)
+        supported = {"stair", "ramp", "wall", "box", "pod"}
+        if entity.kind not in supported:
+            self.statusChanged.emit(f"Rotate in 3D is not supported for {entity.kind}")
+            return
+        try:
+            self.doc.select([entity_id])
+            self.selectionChangedByView.emit()
+            self._rotate_tx = RotateTransaction(
+                self.doc,
+                self.stack,
+                entity_id,
+                pivot=(float(pivot_x), float(pivot_y)),
+                angle_increment=15.0,
+            )
+            self._rotate_start_angle_deg = degrees(
+                atan2(float(y) - float(pivot_y), float(x) - float(pivot_x))
+            )
+            self.statusChanged.emit(
+                f"Rotate {entity.name or entity.kind.title()}: move pointer, left click to place, Shift = free angle, right click/Esc = cancel"
+            )
+        except Exception as exc:
+            self._rotate_tx = None
+            self.statusChanged.emit(f"Cannot start rotate: {exc}")
+
+    def _update_rotate_from_web(
+        self,
+        x: float,
+        y: float,
+        snap: bool = True,
+    ) -> None:
+        if self._rotate_tx is None:
+            return
+        try:
+            use_snap = self._snap_enabled and bool(snap)
+            hud = self._rotate_tx.update_pointer(
+                float(x),
+                float(y),
+                start_angle_deg=self._rotate_start_angle_deg,
+                snap=use_snap,
+            )
+            suffix = " · SNAP 15°" if use_snap else " · FREE"
+            self.statusChanged.emit(
+                f"Rotate {hud.values['angle_deg']:.1f}°{suffix}"
+            )
+        except Exception as exc:
+            self.statusChanged.emit(f"Rotate preview error: {exc}")
+
+    def _cancel_rotate_from_web(self) -> None:
+        if self._rotate_tx is not None:
+            self._rotate_tx.cancel()
+        self._rotate_tx = None
+        self.statusChanged.emit("Rotate cancelled")
+
+    def _finish_rotate_from_web(self) -> None:
+        if self._rotate_tx is None:
+            return
+        tx = self._rotate_tx
+        self._rotate_tx = None
+        try:
+            if abs(float(tx.angle)) > 1e-12:
+                tx.commit()
+                self._evaluation_cache.clear()
+                self.redraw(force_full=True)
+                self.selectionChangedByView.emit()
+                self.statusChanged.emit(
+                    f"Rotated object {tx.angle:.1f}° — Undo is available"
+                )
+            else:
+                tx.cancel()
+                self.statusChanged.emit("Rotate cancelled: angle unchanged")
+        except Exception as exc:
+            self.statusChanged.emit(f"Cannot commit rotate: {exc}")
 
     def _set_ramp_candidate_params(self, candidates, active_index=0) -> None:
         candidates = list(candidates)
