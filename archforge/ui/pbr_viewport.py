@@ -153,6 +153,8 @@ scene.add(ground);
 
 const modelRoot = new THREE.Group();
 scene.add(modelRoot);
+const previewRoot = new THREE.Group();
+scene.add(previewRoot);
 const axesHelper = new THREE.AxesHelper(2.5);
 axesHelper.visible = false;
 scene.add(axesHelper);
@@ -181,6 +183,42 @@ function disposeModel() {
     if (child.material) child.material.dispose();
   }
 }
+
+function disposePreview() {
+  while (previewRoot.children.length) {
+    const child = previewRoot.children.pop();
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) child.material.dispose();
+  }
+}
+
+window.setStairPreview = function(payload) {
+  disposePreview();
+  const options = (payload && payload.options) || [];
+  options.forEach((item, index) => {
+    const positions = [];
+    for (const v of item.vertices) positions.push(v[0], v[1], v[2]);
+    const indices = [];
+    for (const t of item.triangles) indices.push(t[0], t[1], t[2]);
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    const preferred = index === 0;
+    const material = new THREE.MeshStandardMaterial({
+      color: preferred ? 0x4aa3ff : 0x9bbfe0,
+      roughness: 0.55,
+      metalness: 0.0,
+      transparent: true,
+      opacity: preferred ? 0.72 : 0.28,
+      depthWrite: preferred
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.userData.preview = true;
+    previewRoot.add(mesh);
+  });
+};
+
 
 function materialFor(spec) {
   return new THREE.MeshStandardMaterial({
@@ -497,6 +535,7 @@ renderer.domElement.addEventListener("pointerup", (event) => {
 
 if (window.__archforgePendingTechnique) window.setTechnique(window.__archforgePendingTechnique);
 if (window.__archforgePendingScene) window.archforgeSetScene(window.__archforgePendingScene);
+if (window.__archforgePendingStairPreview) window.setStairPreview(window.__archforgePendingStairPreview);
 
 function animate() {
   controls.update();
@@ -571,6 +610,7 @@ class PBRViewport(QWidget):
         self.sculpt_brush = BrushSpec(radius=0.35, strength=1.0, falloff="smooth")
         self.sculpt_op = "pull"
         self._sculpt_tx = None
+        self._stair_preview_payload = {"options": []}
         self.channel = None
         self.bridge = None
         layout = QVBoxLayout(self)
@@ -612,6 +652,7 @@ class PBRViewport(QWidget):
         self.set_cutaway(self._cutaway)
         self.redraw(force_full=True)
         self.set_camera_preset(self._camera_preset)
+        self._push_stair_preview()
 
     def rebind(self, doc, stack) -> None:
         self.doc = doc
@@ -756,6 +797,33 @@ class PBRViewport(QWidget):
             self.statusChanged.emit(f"PBR sculpt commit error: {exc}")
             self.redraw(force_full=False)
 
+
+    def set_stair_preview(self, preview) -> None:
+        options = []
+        try:
+            if preview is not None and getattr(preview, "kind", None) == "stair":
+                from archforge.geometry.mesh import _stair_mesh
+                for params in list(getattr(preview, "geometry", {}).get("candidates", ()))[:4]:
+                    mesh = _stair_mesh(params)
+                    options.append({
+                        "vertices": [[float(x), float(y), float(z)] for x, y, z in mesh.vertices],
+                        "triangles": [[int(a), int(b), int(c)] for a, b, c in mesh.triangles],
+                    })
+        except Exception as exc:
+            self.statusChanged.emit(f"Stair preview error: {exc}")
+            options = []
+        self._stair_preview_payload = {"options": options}
+        self._push_stair_preview()
+
+    def _push_stair_preview(self) -> None:
+        if self.web_view is None:
+            return
+        script = (
+            "window.__archforgePendingStairPreview = "
+            + json.dumps(self._stair_preview_payload, separators=(',', ':'))
+            + "; if (window.setStairPreview) window.setStairPreview(window.__archforgePendingStairPreview);"
+        )
+        self.web_view.page().runJavaScript(script)
 
     def fit_camera(self) -> None:
         if self.web_view is not None:
