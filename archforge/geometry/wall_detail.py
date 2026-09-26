@@ -101,10 +101,10 @@ def _normalized_openings(p,length,height):
 
 def _wall_with_openings(p,target_step:float):
     x1,y1,zbase,x2,y2=map(float,(p['x1'],p['y1'],p['z'],p['x2'],p['y2']))
-    height,thickness=float(p['height']),float(p['thickness'])
+    h0,h1=wall_top_heights(p);height=max(h0,h1);thickness=float(p['thickness'])
     dx,dy=x2-x1,y2-y1;length=math.hypot(dx,dy)
     if length<=1e-12:raise ValueError('wall has zero length')
-    if height<=0 or thickness<=0:raise ValueError('wall height and thickness must be > 0')
+    if thickness<=0:raise ValueError('wall thickness must be > 0')
     openings=_normalized_openings(p,length,height)
     if not openings:return _plain_wall_geometry(p,target_step)
 
@@ -112,21 +112,29 @@ def _wall_with_openings(p,target_step:float):
     step=max(float(target_step),0.05)
     nu=max(1,int(math.ceil(length/step)));nv=max(1,int(math.ceil(height/step)))
     ubreaks={length*i/nu for i in range(nu+1)}
+    for u0,u1,_z0,_z1 in openings:ubreaks.update((u0,u1))
+    us=sorted(ubreaks)
+
+    # Include every longitudinal profile height in the shared vertical partition.
+    # This lets the rectangular opening grid stop exactly at each strip's lower
+    # top endpoint; a small triangular-prism cap then follows the true slope.
     zbreaks={height*j/nv for j in range(nv+1)}
-    for u0,u1,z0,z1 in openings:
-        ubreaks.update((u0,u1));zbreaks.update((z0,z1))
-    us=sorted(ubreaks);zs=sorted(zbreaks)
+    for u in us:zbreaks.add(wall_height_at(p,u,length))
+    for _u0,_u1,z0,z1 in openings:zbreaks.update((z0,z1))
+    zs=sorted(zbreaks)
 
     def is_void(u,z):
         return any(u0<u<u1 and z0<z<z1 for u0,u1,z0,z1 in openings)
 
-    solid=[]
+    solid=[];strip_floor=[]
     for i in range(len(us)-1):
-        column=[]
-        uc=(us[i]+us[i+1])/2.0
+        u0,u1=us[i],us[i+1]
+        lower_top=min(wall_height_at(p,u0,length),wall_height_at(p,u1,length))
+        strip_floor.append(lower_top)
+        column=[];uc=(u0+u1)/2.0
         for j in range(len(zs)-1):
             zc=(zs[j]+zs[j+1])/2.0
-            column.append(not is_void(uc,zc))
+            column.append(zs[j+1]<=lower_top+1e-9 and not is_void(uc,zc))
         solid.append(column)
 
     verts:List[Vec3]=[];indices={};tris:List[Tri]=[];roles=[]
@@ -141,7 +149,7 @@ def _wall_with_openings(p,target_step:float):
 
     ni=len(us)-1;nj=len(zs)-1
     for i in range(ni):
-        u0,u1=us[i],us[i+1]
+        u0,u1=us[i],us[i+1];cap_floor=strip_floor[i]
         for j in range(nj):
             if not solid[i][j]:continue
             z0,z1=zs[j],zs[j+1]
@@ -157,8 +165,21 @@ def _wall_with_openings(p,target_step:float):
                 role='end' if i==ni-1 else 'opening_reveal';quad(vid(u1,-1,z0),vid(u1,1,z0),vid(u1,1,z1),vid(u1,-1,z1),role)
             if not below_solid:
                 role='bottom' if j==0 else 'opening_reveal';quad(vid(u0,-1,z0),vid(u0,1,z0),vid(u1,1,z0),vid(u1,-1,z0),role)
-            if not above_solid:
-                role='top' if j==nj-1 else 'opening_reveal';quad(vid(u0,-1,z1),vid(u1,-1,z1),vid(u1,1,z1),vid(u0,1,z1),role)
+            if not above_solid and z1<cap_floor-1e-9:
+                quad(vid(u0,-1,z1),vid(u1,-1,z1),vid(u1,1,z1),vid(u0,1,z1),'opening_reveal')
+
+        # Semantic sloped cap for this strip. One endpoint may coincide with
+        # cap_floor; degenerate triangles are avoided by emitting the two side
+        # faces only when they have area. The top itself always follows h(u).
+        hu0=wall_height_at(p,u0,length);hu1=wall_height_at(p,u1,length)
+        quad(vid(u0,-1,hu0),vid(u1,-1,hu1),vid(u1,1,hu1),vid(u0,1,hu0),'top')
+        if hu0>cap_floor+1e-9 or hu1>cap_floor+1e-9:
+            quad(vid(u0,1,cap_floor),vid(u0,1,hu0),vid(u1,1,hu1),vid(u1,1,cap_floor),'exterior')
+            quad(vid(u0,-1,cap_floor),vid(u1,-1,cap_floor),vid(u1,-1,hu1),vid(u0,-1,hu0),'interior')
+        if i==0 and hu0>cap_floor+1e-9:
+            quad(vid(u0,-1,cap_floor),vid(u0,-1,hu0),vid(u0,1,hu0),vid(u0,1,cap_floor),'start')
+        if i==ni-1 and hu1>cap_floor+1e-9:
+            quad(vid(u1,-1,cap_floor),vid(u1,1,cap_floor),vid(u1,1,hu1),vid(u1,-1,hu1),'end')
     return tuple(verts),tuple(tris),tuple(roles)
 
 
