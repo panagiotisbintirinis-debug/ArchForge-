@@ -127,6 +127,7 @@ class StairPlaceTransaction:
         self.upper_level_name=str(next_level[1])
         self.pointer=self.origin
         self.candidates=()
+        self.active_index=0
         self.preview={}
         self.cancelled=False
         self.update(*self.origin)
@@ -142,29 +143,45 @@ class StairPlaceTransaction:
         )
         if not self.candidates:
             raise ValueError('no stair solution available')
-        best=self.candidates[0]
+        self.active_index=min(self.active_index,max(0,min(3,len(self.candidates)-1)))
+        active=self.candidates[self.active_index]
         self.preview={
-            'chosen':best.to_params(),
+            'chosen':active.to_params(),
             'candidates':[candidate.to_params() for candidate in self.candidates[:4]],
-            'footprint':list(stair_footprint(best)),
+            'active_index':self.active_index,
+            'footprint':list(stair_footprint(active)),
             'upper_level_name':self.upper_level_name,
-            'suggestions':list(best.suggestions),
+            'suggestions':list(active.suggestions),
         }
         return HUD({
-            'risers':float(best.riser_count),
-            'riser':best.riser_height,
-            'tread':best.tread_depth,
-            'width':best.width,
-            'floor_height':best.floor_height,
+            'risers':float(active.riser_count),
+            'riser':active.riser_height,
+            'tread':active.tread_depth,
+            'width':active.width,
+            'floor_height':active.floor_height,
+            'option':float(self.active_index+1),
         })
+
+    @property
+    def active_candidate(self):
+        if not self.candidates:
+            raise ValueError('stair has no candidates')
+        return self.candidates[self.active_index]
+
+    def cycle_candidate(self, step=1):
+        if not self.candidates:
+            return self.preview
+        count=min(4,len(self.candidates))
+        self.active_index=(self.active_index+int(step))%count
+        return self.update(*self.pointer)
 
     def commit(self):
         if self.cancelled:
             raise RuntimeError('transaction cancelled')
         if not self.candidates:
             raise ValueError('stair has no valid preview')
-        best=self.candidates[0]
-        entity=Entity('stair',best.to_params(),name='Stair')
+        chosen=self.active_candidate
+        entity=Entity('stair',chosen.to_params(),name='Stair')
         self.stack.execute(AddEntity(entity))
         self.doc.select([entity.id])
         return entity.id
