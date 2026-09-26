@@ -13,7 +13,6 @@ from archforge.core.model import Document
 from archforge.core.commands import CommandStack, UpdateEntity, CreateRoomFloors, CreateRoomRoofs
 from .plan_view import PlanView
 from .ortho_view import OrthoView
-from .viewport_3d import Viewport3D
 from .pbr_viewport import PBRViewport
 
 
@@ -29,18 +28,14 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.plan_view = PlanView(self.doc, self.stack)
         self.front_view = OrthoView(self.doc, self.stack, 'XZ')
-        self.side_view = OrthoView(self.doc, self.stack, 'YZ')
-        self.view_3d = Viewport3D(self.doc, self.stack)
         self.pbr_view = PBRViewport(self.doc, self.stack)
         self.tabs.addTab(self.plan_view, 'FLOOR PLAN')
         self.tabs.addTab(self.front_view, 'FRONT ELEVATION')
-        self.tabs.addTab(self.side_view, 'SIDE ELEVATION')
-        self.tabs.addTab(self.view_3d, '3D EDIT')
         self.tabs.addTab(self.pbr_view, '3D STUDIO')
         self.setCentralWidget(self.tabs)
         self.view = self.plan_view
         self.setStatusBar(QStatusBar())
-        for view in (self.plan_view, self.front_view, self.side_view, self.view_3d, self.pbr_view):
+        for view in (self.plan_view, self.front_view, self.pbr_view):
             view.statusChanged.connect(self.statusBar().showMessage)
             view.selectionChangedByView.connect(self._selection_from_view)
         self.tabs.currentChanged.connect(self._on_tab_changed)
@@ -50,7 +45,7 @@ class MainWindow(QMainWindow):
         self.refresh_inspector()
 
     def _on_tab_changed(self, idx):
-        widgets = [self.plan_view, self.front_view, self.side_view, self.view_3d, self.pbr_view]
+        widgets = [self.plan_view, self.front_view, self.pbr_view]
         if 0 <= idx < len(widgets):
             self.view = widgets[idx]
         if self.view is self.pbr_view:
@@ -62,12 +57,11 @@ class MainWindow(QMainWindow):
             self.view.set_tool(tool)
 
     def _activate_sculpt_tool(self):
-        target = self.view if self.view in (self.view_3d, self.pbr_view) else self.view_3d
-        target.set_tool('sculpt')
+        self.tabs.setCurrentWidget(self.pbr_view)
+        self.pbr_view.activate()
+        self.pbr_view.set_tool('sculpt')
 
     def _configure_sculpt_views(self, **kwargs):
-        # Keep both 3D views on the same semantic brush settings.
-        self.view_3d.configure_sculpt(**kwargs)
         self.pbr_view.configure_sculpt(**kwargs)
 
     def _build_toolbar(self):
@@ -102,7 +96,7 @@ class MainWindow(QMainWindow):
         self.sculpt_radius.setRange(0.10, 5.0)
         self.sculpt_radius.setDecimals(2)
         self.sculpt_radius.setSingleStep(0.05)
-        self.sculpt_radius.setValue(self.view_3d.sculpt_brush.radius)
+        self.sculpt_radius.setValue(self.pbr_view.sculpt_brush.radius)
         self.sculpt_radius.setToolTip(
             'Local brush diameter control: smaller values deform a tighter area around the picked point.'
         )
@@ -329,15 +323,12 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, 'Flat Roof', str(exc))
 
     def _selection_from_view(self):
-        sender = self.sender()
-        if sender is self.view_3d:
-            self.view_3d.refresh_selection()
         self.refresh_inspector()
 
     def _redraw_views(self, *, all_views=False):
-        targets=(self.plan_view,self.front_view,self.side_view,self.view_3d,self.pbr_view) if all_views else (self.view,)
+        targets=(self.plan_view,self.front_view,self.pbr_view) if all_views else (self.view,)
         for view in targets:
-            if view is self.view_3d:
+            if view is self.pbr_view:
                 view.redraw(force_full=True)
             else:
                 view.redraw()
@@ -382,7 +373,7 @@ class MainWindow(QMainWindow):
     def _replace_project(self, doc, path=None):
         self.doc = doc
         self.stack = CommandStack(self.doc)
-        for view in (self.plan_view, self.front_view, self.side_view, self.view_3d, self.pbr_view):
+        for view in (self.plan_view, self.front_view, self.pbr_view):
             view.rebind(self.doc, self.stack)
         self.current_path = path
         self._mark_clean()
