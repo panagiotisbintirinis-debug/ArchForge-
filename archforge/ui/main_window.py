@@ -61,6 +61,17 @@ class MainWindow(QMainWindow):
         if hasattr(self.view, 'set_tool'):
             self.view.set_tool(tool)
 
+    def _set_snap_enabled(self, enabled):
+        enabled = bool(enabled)
+        self.plan_view.set_snap_enabled(enabled)
+        self.pbr_view.set_snap_enabled(enabled)
+        self.statusBar().showMessage(
+            'Snap ON — wall faces/endpoints/midpoints | Shift = Free | Ctrl = X/Y constraint'
+            if enabled
+            else 'Snap OFF — Free placement | Ctrl still constrains X/Y',
+            4500,
+        )
+
     def _activate_sculpt_tool(self):
         self.tabs.setCurrentWidget(self.pbr_view)
         self.pbr_view.activate()
@@ -84,6 +95,16 @@ class MainWindow(QMainWindow):
             action.setShortcut(QKeySequence(key))
             action.triggered.connect(lambda checked=False, t=tool: self._set_active_tool(t))
             toolbar.addAction(action)
+
+        snap_action = QAction('Snap', self)
+        snap_action.setCheckable(True)
+        snap_action.setChecked(True)
+        snap_action.setToolTip(
+            'Snap ON: endpoints, midpoints and wall faces. Shift = temporary Free, Ctrl = X/Y constraint while moving.'
+        )
+        snap_action.toggled.connect(self._set_snap_enabled)
+        toolbar.addAction(snap_action)
+        self.snap_action = snap_action
 
         delete_action = QAction('Delete', self)
         delete_action.setShortcut(QKeySequence(Qt.Key.Key_Delete))
