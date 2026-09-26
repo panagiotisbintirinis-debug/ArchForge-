@@ -86,7 +86,9 @@ class PlanView(QGraphicsView):
             if not self._acquire_rotate_target(hit):self._mouse_down=False;self.redraw();return
         elif self.controller.tool=='stretch':
             if not self._acquire_stretch_target(hit):self._mouse_down=False;self.redraw();return
-        ev=self._scene_to_plane(event.position().toPoint());ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
+        ev=self._scene_to_plane(event.position().toPoint())
+        ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
+        ev.ctrl=bool(event.modifiers()&Qt.KeyboardModifier.ControlModifier)
         try:
             self.controller.pointer_down(ev)
         except (ValueError, RuntimeError) as exc:
@@ -100,7 +102,9 @@ class PlanView(QGraphicsView):
         self.redraw()
     def mouseMoveEvent(self,event):
         if self._mouse_down and self.controller.active is not None:
-            ev=self._scene_to_plane(event.position().toPoint());ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
+            ev=self._scene_to_plane(event.position().toPoint())
+            ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
+            ev.ctrl=bool(event.modifiers()&Qt.KeyboardModifier.ControlModifier)
             try:self.controller.pointer_move(ev);self.redraw()
             except ValueError as exc:self.statusChanged.emit(str(exc))
         else:
@@ -110,7 +114,9 @@ class PlanView(QGraphicsView):
         if event.button()==Qt.MouseButton.LeftButton and self._mouse_down:
             self._mouse_down=False
             if self.controller.active is not None:
-                ev=self._scene_to_plane(event.position().toPoint());ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
+                ev=self._scene_to_plane(event.position().toPoint())
+                ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
+                ev.ctrl=bool(event.modifiers()&Qt.KeyboardModifier.ControlModifier)
                 try:self.controller.pointer_up(ev)
                 except ValueError as exc:self.statusChanged.emit(str(exc));self.controller.cancel()
                 self._active_handle=None;self.redraw();return
@@ -118,6 +124,10 @@ class PlanView(QGraphicsView):
     def keyPressEvent(self,event):
         if event.key()==Qt.Key.Key_Escape:self.controller.cancel();self._mouse_down=False;self.redraw();return
         super().keyPressEvent(event)
+    def set_snap_enabled(self, enabled):
+        self.controller.set_snap_enabled(enabled)
+        self.statusChanged.emit('Snap ON' if enabled else 'Snap OFF — Free mode')
+
     def redraw(self):
         self._scene.clear();self._handle_items.clear();self._entity_items.clear();self._draw_grid();frame=build_plan_frame(self.doc,self.controller.preview)
         for p in frame.primitives:self._draw_primitive(p)
