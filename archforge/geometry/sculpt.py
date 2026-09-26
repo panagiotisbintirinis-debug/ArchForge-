@@ -9,6 +9,7 @@ from .wall_detail import detailed_wall_geometry
 from .surface_frame import resolve_modifier_for_node
 
 Vec3 = Tuple[float, float, float]
+SCULPT_WALL_TARGET_STEP = 0.075
 
 
 def _add(a,b): return (a[0]+b[0],a[1]+b[1],a[2]+b[2])
@@ -90,7 +91,7 @@ class SculptedPreviewBackend(GeometryBackend):
     """Preview backend that densifies only walls that actually need sculpt detail."""
     name='sculpted-preview'
 
-    def __init__(self, *, dense_entity_ids=(), wall_target_step:float=.15):
+    def __init__(self, *, dense_entity_ids=(), wall_target_step:float=SCULPT_WALL_TARGET_STEP):
         self.dense_entity_ids={str(eid) for eid in dense_entity_ids}
         self.wall_target_step=float(wall_target_step)
         if not math.isfinite(self.wall_target_step) or self.wall_target_step<=0:

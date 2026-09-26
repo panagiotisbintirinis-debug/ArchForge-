@@ -1,7 +1,7 @@
 from archforge.core.model import Document, Entity
 from archforge.geometry.selection import SurfaceHit, BrushSpec, sculpt_modifier_from_hit
 from archforge.geometry.mesh import TessellatedPreviewBackend
-from archforge.geometry.sculpt import SculptedPreviewBackend
+from archforge.geometry.sculpt import SculptedPreviewBackend, SCULPT_WALL_TARGET_STEP
 
 
 def _wall_doc():
@@ -23,11 +23,11 @@ def test_small_brush_deforms_local_region_not_whole_wall():
     d.add_surface_modifier(mod)
 
     # Active wall sculpting intentionally uses a denser preview mesh than the ordinary
-    # viewport mesh. Compare like-for-like dense geometry instead of relying on stale
-    # coarse-mesh vertex indices.
+    # viewport mesh. Compare like-for-like dense geometry using the current sculpt
+    # sampling contract rather than a stale historical literal.
     dense_base=SculptedPreviewBackend(
         dense_entity_ids={w.id},
-        wall_target_step=.15,
+        wall_target_step=SCULPT_WALL_TARGET_STEP,
     )
     d.remove_surface_modifier(mod.id)
     base=dense_base.evaluate(d).body(w.id).payload
