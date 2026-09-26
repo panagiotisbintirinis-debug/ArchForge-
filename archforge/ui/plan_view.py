@@ -1,5 +1,6 @@
 from __future__ import annotations
 import math
+import copy
 from typing import Optional, Dict
 
 from PySide6.QtCore import Qt, QPointF, Signal
@@ -13,7 +14,7 @@ from archforge.core.plan_scene import build_plan_frame, Primitive2D, Handle2D
 from archforge.ui.object_context_menu import object_context_actions
 
 class PlanView(QGraphicsView):
-    selectionChangedByView=Signal();contextActionRequested=Signal(str,str);statusChanged=Signal(str)
+    selectionChangedByView=Signal();contextActionRequested=Signal(str,str);previewChanged=Signal(object);statusChanged=Signal(str)
     def __init__(self,doc:Document,stack:CommandStack,parent=None):
         self._scene=QGraphicsScene();super().__init__(self._scene,parent);self.doc=doc;self.stack=stack;self.controller=PointerController(doc,stack)
         self.setRenderHint(QPainter.RenderHint.Antialiasing,True);self.setDragMode(QGraphicsView.DragMode.NoDrag);self.setMouseTracking(True);self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse);self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter);self.setBackgroundBrush(QColor(248,248,248))
@@ -113,6 +114,7 @@ class PlanView(QGraphicsView):
         if frame.snap:self._draw_snap(frame.snap)
         if frame.hud:self._draw_hud(frame.hud)
         r=self.mapToScene(self.viewport().rect()).boundingRect();self._scene.setSceneRect(r.adjusted(-5,-5,5,5))
+        self.previewChanged.emit(copy.deepcopy(self.controller.preview))
     def _draw_grid(self):
         extent=100;pen=QPen(QColor(225,225,225));pen.setWidthF(0);axis=QPen(QColor(160,160,160));axis.setWidthF(0)
         for i in range(-extent,extent+1):self._scene.addLine(i,-extent,i,extent,axis if i==0 else pen).setZValue(-100);self._scene.addLine(-extent,i,extent,i,axis if i==0 else pen).setZValue(-100)
