@@ -4,7 +4,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from archforge.architecture.stairs import discover_building_levels, solve_stair_candidates
 from archforge.core.commands import CommandStack
-from archforge.core.interaction import MoveTransaction, StairPlaceTransaction
+from archforge.core.interaction import MoveTransaction, RotateTransaction, StairPlaceTransaction
 from archforge.core.model import Document, Entity, WorkPlane
 from archforge.geometry.mesh import TessellatedPreviewBackend
 
@@ -225,3 +225,40 @@ def test_stair_move_transaction_updates_xy_and_undo_restores_position():
     restored = doc.get(stair_id)
     assert restored.params['x'] == before['x']
     assert restored.params['y'] == before['y']
+
+
+def test_stair_rotate_transaction_updates_angle_and_undo_restores_geometry():
+    doc = _two_level_document()
+    stack = CommandStack(doc)
+    stair_tx = StairPlaceTransaction(doc, stack, (0.0, 0.0))
+    stair_tx.update(5.0, 0.0)
+    stair_id = stair_tx.commit()
+    before = dict(doc.get(stair_id).params)
+
+    rotate = RotateTransaction(doc, stack, stair_id)
+    rotate.update_angle(90.0, snap=True)
+    rotate.commit()
+
+    rotated = doc.get(stair_id)
+    assert abs(((rotated.params['angle_deg'] - before['angle_deg']) % 360.0) - 90.0) < 1e-9
+
+    stack.undo()
+    restored = doc.get(stair_id)
+    assert restored.params['x'] == before['x']
+    assert restored.params['y'] == before['y']
+    assert restored.params['angle_deg'] == before['angle_deg']
+
+
+def test_move_ctrl_axis_constraint_keeps_stair_on_one_axis():
+    doc = _two_level_document()
+    stack = CommandStack(doc)
+    stair_tx = StairPlaceTransaction(doc, stack, (0.0, 0.0))
+    stair_tx.update(5.0, 0.0)
+    stair_id = stair_tx.commit()
+
+    move = MoveTransaction(doc, stack, [stair_id], origin=(0.0, 0.0, 0.0))
+    move.update_pointer(2.0, 0.7, snap=False, axis_lock=True)
+
+    assert move.axis_lock == 'x'
+    assert abs(move.dx - 2.0) < 1e-9
+    assert abs(move.dy) < 1e-9
