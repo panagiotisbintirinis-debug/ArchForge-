@@ -170,7 +170,7 @@ def test_context_menu_registry_is_editable_and_view_aware():
         'properties', 'move', 'stretch', 'rotate', None, 'delete'
     ]
     assert [entry['id'] if entry else None for entry in pbr_wall] == [
-        'properties', 'move', None, 'delete'
+        'properties', 'move', 'rotate', None, 'delete'
     ]
     placements = {
         entry['id']: entry['placement']
@@ -273,4 +273,19 @@ def test_pbr_context_move_stays_in_3d_for_supported_entity():
     assert window.doc.selection == [wall.id]
     assert window.view is window.pbr_view
     assert window.pbr_view.active_tool == 'move'
+    window.close()
+
+
+def test_pbr_context_rotate_stays_in_3d_for_supported_entity():
+    window = MainWindow()
+    wall = _wall('pbr-rotate-wall', 0.0)
+    window.doc.add(wall)
+    window.tabs.setCurrentWidget(window.pbr_view)
+    window.view = window.pbr_view
+
+    window._handle_object_context_action(wall.id, 'rotate')
+
+    assert window.doc.selection == [wall.id]
+    assert window.view is window.pbr_view
+    assert window.pbr_view.active_tool == 'rotate'
     window.close()
