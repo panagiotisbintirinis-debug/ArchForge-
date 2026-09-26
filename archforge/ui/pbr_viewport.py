@@ -3,8 +3,7 @@ from __future__ import annotations
 import json
 
 from PySide6.QtCore import Qt, QUrl, Signal, Slot, QObject
-from PySide6.QtGui import QCursor
-from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget, QMenu
+from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 from PySide6.QtWebChannel import QWebChannel
 
 from archforge.geometry.incremental import IncrementalEvaluationCache
@@ -29,7 +28,35 @@ _PBR_HTML = r"""<!doctype html>
 <style>
 html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #d9dee5; }
 #stage { width: 100%; height: 100%; }
-#notice { position: absolute; left: 12px; bottom: 10px; font: 12px sans-serif; color: #4b5563; }
+#notice { position: absolute; left: 12px; bottom: 10px; font: 12px sans-serif; color: #4b5563; pointer-events: none; }
+#markingRoot {
+  position: fixed; inset: 0; display: none; z-index: 50; pointer-events: none;
+  font-family: "Segoe UI", sans-serif;
+}
+#markingCenter {
+  position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px;
+  border-radius: 50%; background: rgba(54, 124, 186, 0.95);
+  box-shadow: 0 0 0 4px rgba(255,255,255,0.72);
+}
+#radialMenu { position: absolute; width: 260px; height: 260px; transform: translate(-130px,-130px); }
+.markAction {
+  position: absolute; transform: translate(-50%,-50%); min-width: 74px; height: 34px;
+  padding: 0 12px; border: 1px solid rgba(35,45,58,0.72); border-radius: 18px;
+  background: rgba(244,247,250,0.96); color: #202935; font-size: 12px; font-weight: 600;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.22); pointer-events: auto; cursor: pointer;
+}
+.markAction:hover { background: #d9eaff; border-color: #2f75b5; }
+.markAction.danger:hover { background: #ffe0e0; border-color: #b63b3b; color: #8f2020; }
+#commandStrip {
+  position: absolute; display: flex; gap: 3px; transform: translate(-50%,-100%);
+  padding: 4px; border-radius: 7px; background: rgba(46,54,66,0.94);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.28); pointer-events: auto;
+}
+.stripAction {
+  border: 0; border-radius: 4px; background: transparent; color: #fff;
+  padding: 6px 9px; font-size: 11px; cursor: pointer;
+}
+.stripAction:hover { background: rgba(255,255,255,0.16); }
 </style>
 <script type="importmap">
 {
@@ -44,6 +71,11 @@ html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background:
 <body>
 <div id="stage"></div>
 <div id="notice">ArchForge PBR Preview · derived from authoritative geometry</div>
+<div id="markingRoot">
+  <div id="markingCenter"></div>
+  <div id="radialMenu"></div>
+  <div id="commandStrip"></div>
+</div>
 <script type="module">
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
@@ -68,8 +100,22 @@ container.appendChild(renderer.domElement);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
+controls.enableRotate = true;
+controls.enablePan = true;
+controls.enableZoom = true;
+// Inventor-style navigation: left drag = orbit, middle drag = pan,
+// wheel = zoom, right mouse is reserved for the marking menu.
+controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+controls.mouseButtons.MIDDLE = THREE.MOUSE.PAN;
+controls.mouseButtons.RIGHT = null;
 controls.target.set(0, 0, 1.4);
 controls.update();
+
+const markingRoot = document.getElementById("markingRoot");
+const markingCenter = document.getElementById("markingCenter");
+const radialMenu = document.getElementById("radialMenu");
+const commandStrip = document.getElementById("commandStrip");
+let markingEntityId = "";
 
 if (typeof QWebChannel !== "undefined" && typeof qt !== "undefined") {
   new QWebChannel(qt.webChannelTransport, function(channel) {
@@ -290,6 +336,69 @@ window.setActiveTool = function(tool) {
   if (!sculpting) controls.enabled = activeTool !== "sculpt";
 };
 
+function hideMarkingMenu() {
+  markingRoot.style.display = "none";
+  radialMenu.replaceChildren();
+  commandStrip.replaceChildren();
+  markingEntityId = "";
+}
+
+function dispatchMarkingAction(actionId) {
+  if (!bridge || !markingEntityId || !actionId) return;
+  const entityId = markingEntityId;
+  hideMarkingMenu();
+  bridge.contextAction(entityId, actionId);
+}
+
+window.showMarkingMenu = function(entityId, x, y, entries) {
+  hideMarkingMenu();
+  markingEntityId = entityId || "";
+  if (!markingEntityId) return;
+
+  const radial = (entries || []).filter((entry) => entry && entry.placement === "radial");
+  const panel = (entries || []).filter((entry) => entry && entry.placement === "panel");
+  const cx = Math.max(145, Math.min(window.innerWidth - 145, Number(x)));
+  const cy = Math.max(150, Math.min(window.innerHeight - 110, Number(y)));
+
+  markingRoot.style.display = "block";
+  markingCenter.style.left = cx + "px";
+  markingCenter.style.top = cy + "px";
+  radialMenu.style.left = cx + "px";
+  radialMenu.style.top = cy + "px";
+
+  const radius = 92;
+  radial.forEach((entry, index) => {
+    const angle = -Math.PI / 2 + index * (2 * Math.PI / Math.max(1, radial.length));
+    const button = document.createElement("button");
+    button.className = "markAction" + (entry.id === "delete" ? " danger" : "");
+    button.textContent = entry.label;
+    button.style.left = (130 + Math.cos(angle) * radius) + "px";
+    button.style.top = (130 + Math.sin(angle) * radius) + "px";
+    button.addEventListener("pointerdown", (event) => event.stopPropagation());
+    button.addEventListener("click", (event) => {
+      event.preventDefault(); event.stopPropagation();
+      dispatchMarkingAction(entry.id);
+    });
+    radialMenu.appendChild(button);
+  });
+
+  if (panel.length) {
+    commandStrip.style.left = cx + "px";
+    commandStrip.style.top = Math.max(42, cy - 116) + "px";
+    panel.forEach((entry) => {
+      const button = document.createElement("button");
+      button.className = "stripAction";
+      button.textContent = entry.label;
+      button.addEventListener("pointerdown", (event) => event.stopPropagation());
+      button.addEventListener("click", (event) => {
+        event.preventDefault(); event.stopPropagation();
+        dispatchMarkingAction(entry.id);
+      });
+      commandStrip.appendChild(button);
+    });
+  }
+};
+
 function pickModel(event) {
   const rect = renderer.domElement.getBoundingClientRect();
   const mouse = new THREE.Vector2(
@@ -304,6 +413,7 @@ function pickModel(event) {
 
 renderer.domElement.addEventListener("pointerdown", (event) => {
   if (!bridge) return;
+  if (event.button !== 2) hideMarkingMenu();
   const hit = pickModel(event);
   if (!hit || !hit.face) return;
 
@@ -353,10 +463,19 @@ renderer.domElement.addEventListener("contextmenu", (event) => {
   event.preventDefault();
   if (!bridge || sculpting) return;
   const hit = pickModel(event);
-  if (!hit || !hit.face) return;
-  bridge.showContextMenu(hit.object.userData.entityId || "");
+  if (!hit || !hit.face) { hideMarkingMenu(); return; }
+  bridge.showContextMenu(
+    hit.object.userData.entityId || "",
+    Number(event.clientX),
+    Number(event.clientY)
+  );
   event.stopPropagation();
 }, true);
+
+renderer.domElement.addEventListener("wheel", () => hideMarkingMenu(), {passive: true});
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") hideMarkingMenu();
+});
 
 renderer.domElement.addEventListener("pointermove", (event) => {
   if (!sculpting || !bridge) return;
@@ -413,9 +532,13 @@ class PBRInteractionBridge(QObject):
     def selectEntity(self, entity_id: str) -> None:
         self.viewport._select_entity_from_web(entity_id)
 
-    @Slot(str)
-    def showContextMenu(self, entity_id: str) -> None:
-        self.viewport._show_context_menu(entity_id)
+    @Slot(str, float, float)
+    def showContextMenu(self, entity_id: str, x: float, y: float) -> None:
+        self.viewport._show_context_menu(entity_id, x, y)
+
+    @Slot(str, str)
+    def contextAction(self, entity_id: str, action_id: str) -> None:
+        self.viewport.contextActionRequested.emit(str(entity_id), str(action_id))
 
     @Slot(str, str)
     def placeOpening(self, kind: str, payload_json: str) -> None:
@@ -544,7 +667,7 @@ class PBRViewport(QWidget):
             f"Selected {entity.name or entity.kind.title()} — press Delete to remove"
         )
 
-    def _show_context_menu(self, entity_id: str) -> None:
+    def _show_context_menu(self, entity_id: str, x: float, y: float) -> None:
         entity_id = str(entity_id)
         if entity_id not in self.doc.entities:
             return
@@ -553,18 +676,27 @@ class PBRViewport(QWidget):
         self.redraw(force_full=False)
 
         entity = self.doc.get(entity_id)
-        menu = QMenu(self)
-        action_map = {}
-        for spec in object_context_actions(entity.kind, 'pbr'):
-            if spec is None:
-                menu.addSeparator()
-                continue
-            action = menu.addAction(spec['label'])
-            action_map[action] = spec['id']
-
-        chosen = menu.exec(QCursor.pos())
-        if chosen in action_map:
-            self.contextActionRequested.emit(entity_id, action_map[chosen])
+        entries = [
+            entry
+            for entry in object_context_actions(entity.kind, 'pbr')
+            if entry is not None
+        ]
+        if self.web_view is not None:
+            script = (
+                "if (window.showMarkingMenu) window.showMarkingMenu("
+                + json.dumps(entity_id)
+                + ","
+                + json.dumps(float(x))
+                + ","
+                + json.dumps(float(y))
+                + ","
+                + json.dumps(entries, separators=(',', ':'))
+                + ");"
+            )
+            self.web_view.page().runJavaScript(script)
+        self.statusChanged.emit(
+            f"Context: {entity.name or entity.kind.title()} — choose an action"
+        )
 
     def _begin_sculpt_from_web(self, payload_json: str) -> None:
         if self.active_tool != "sculpt":
@@ -623,6 +755,13 @@ class PBRViewport(QWidget):
             self.statusChanged.emit(f"PBR sculpt commit error: {exc}")
             self.redraw(force_full=False)
 
+
+    def fit_camera(self) -> None:
+        if self.web_view is not None:
+            self.web_view.page().runJavaScript(
+                "if (typeof fitCamera === 'function') fitCamera();"
+            )
+        self.statusChanged.emit("PBR camera: fit")
 
     def set_camera_preset(self, mode: str) -> None:
         allowed = ("cutaway", "top", "front", "side", "iso30", "eye", "orbit")
