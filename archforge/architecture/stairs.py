@@ -310,13 +310,23 @@ def upper_floor_landing(doc, lower_z: float, point: Point2 | None = None):
     from archforge.architecture.rooms import room_slab_geometry
     matches = []
     for entity in doc.entities.values():
-        if entity.kind != 'room_floor':
+        if entity.kind == 'room_floor':
+            geom = room_slab_geometry(doc, entity)
+            if geom is None:
+                continue
+            slab_z = float(geom['z'])
+            slab_points = geom['points']
+            slab_thickness = float(geom['thickness'])
+        elif entity.kind == 'floor':
+            slab_z = float(entity.params['z'])
+            slab_points = entity.params['points']
+            slab_thickness = float(entity.params['thickness'])
+        else:
             continue
-        geom = room_slab_geometry(doc, entity)
-        if geom is None or abs(float(geom['z']) - float(level_z)) > 1e-5:
+        if abs(slab_z - float(level_z)) > 1e-5:
             continue
-        contains = bool(point is not None and _point_in_polygon(point, geom['points']))
-        matches.append((contains, float(geom['thickness']), entity.id))
+        contains = bool(point is not None and _point_in_polygon(point, slab_points))
+        matches.append((contains, slab_thickness, entity.id))
 
     if matches:
         containing = [item for item in matches if item[0]]
