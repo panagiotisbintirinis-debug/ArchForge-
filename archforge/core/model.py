@@ -216,6 +216,20 @@ SCHEMAS = {
         'turn_direction': _turn_direction,
         'opening_margin': _nonnegative,
     },
+    'ramp': {
+        'x': _finite,
+        'y': _finite,
+        'lower_z': _finite,
+        'upper_z': _finite,
+        'upper_floor_z': _finite,
+        'upper_slab_thickness': _nonnegative,
+        'angle_deg': _finite,
+        'width': _positive,
+        'slope_pct': _positive,
+        'run_length': _positive,
+        'thickness': _positive,
+        'opening_margin': _nonnegative,
+    },
     'mesh': {'vertices': _mesh_vertices, 'faces': _mesh_faces, 'matrix': _matrix16, 'metadata': _mesh_metadata},
     'arboreal_branch': {'core_id': _nonempty, 'elevation_z': _finite, 'azimuth_deg': _finite, 'length': _positive, 'slope_deg': _finite, 'root_radius': _positive, 'tip_radius': _positive, 'mounted_pod_id': _nonempty},
     'floor': {'points': _polygon, 'z': _finite, 'thickness': _positive},
@@ -261,6 +275,20 @@ def validate_params(kind, params):
         solved = float(out['riser_count']) * float(out['riser_height'])
         if abs(solved - height) > 1e-4:
             raise ValueError('stair riser count/height must match floor-to-floor height')
+    if kind == 'ramp':
+        required = {
+            'x', 'y', 'lower_z', 'upper_z', 'angle_deg', 'width',
+            'slope_pct', 'run_length', 'thickness', 'opening_margin',
+        }
+        missing = required - set(out)
+        if missing:
+            raise ValueError('ramp is missing required fields: ' + ', '.join(sorted(missing)))
+        rise = float(out['upper_z']) - float(out['lower_z'])
+        if rise <= 0:
+            raise ValueError('ramp upper_z must be above lower_z')
+        expected_run = rise / (float(out['slope_pct']) / 100.0)
+        if abs(float(out['run_length']) - expected_run) > 1e-4:
+            raise ValueError('ramp run_length must match rise and slope')
     return out
 
 
@@ -395,8 +423,8 @@ class Document:
                 related_id = entity.params.get(key)
                 if related_id in self.entities:
                     self.mark_dirty(str(related_id))
-        elif entity.kind == 'stair':
-            # Stair geometry semantically cuts the slab at its upper level.
+        elif entity.kind in ('stair', 'ramp'):
+            # Vertical circulation geometry can cut the slab at its upper level.
             # Keep both inferred room slabs and explicit floor slabs dirty so
             # the opening follows move/resize/delete operations.
             for related in self.entities.values():
