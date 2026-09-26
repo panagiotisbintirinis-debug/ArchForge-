@@ -60,6 +60,15 @@ class MainWindow(QMainWindow):
         if hasattr(self.view, 'set_tool'):
             self.view.set_tool(tool)
 
+    def _activate_sculpt_tool(self):
+        target = self.view if self.view in (self.view_3d, self.pbr_view) else self.view_3d
+        target.set_tool('sculpt')
+
+    def _configure_sculpt_views(self, **kwargs):
+        # Keep both 3D views on the same semantic brush settings.
+        self.view_3d.configure_sculpt(**kwargs)
+        self.pbr_view.configure_sculpt(**kwargs)
+
     def _build_toolbar(self):
         toolbar = QToolBar('Tools')
         toolbar.setMovable(False)
@@ -75,7 +84,7 @@ class MainWindow(QMainWindow):
             toolbar.addAction(action)
         sculpt = QAction('Sculpt 3D', self)
         sculpt.setShortcut(QKeySequence('C'))
-        sculpt.triggered.connect(lambda: self.view_3d.set_tool('sculpt'))
+        sculpt.triggered.connect(self._activate_sculpt_tool)
         toolbar.addAction(sculpt)
 
         self.sculpt_operation = QComboBox()
@@ -83,7 +92,7 @@ class MainWindow(QMainWindow):
             ['pull', 'push', 'inflate', 'recess', 'smooth', 'crease']
         )
         self.sculpt_operation.currentTextChanged.connect(
-            lambda value: self.view_3d.configure_sculpt(operation=value)
+            lambda value: self._configure_sculpt_views(operation=value)
         )
         toolbar.addWidget(QLabel(' Op '))
         toolbar.addWidget(self.sculpt_operation)
@@ -97,7 +106,7 @@ class MainWindow(QMainWindow):
             'Local brush diameter control: smaller values deform a tighter area around the picked point.'
         )
         self.sculpt_radius.valueChanged.connect(
-            lambda value: self.view_3d.configure_sculpt(
+            lambda value: self._configure_sculpt_views(
                 radius=value,
                 strength=1.0,
             )
