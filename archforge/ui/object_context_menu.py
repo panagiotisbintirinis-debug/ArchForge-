@@ -11,7 +11,7 @@ ACTIONS = {
     },
     'move': {
         'label': 'Move',
-        'views': {'plan'},
+        'views': {'plan', 'pbr'},
         'placement': 'radial',
     },
     'stretch': {
@@ -42,6 +42,7 @@ ENTITY_MENUS = {
     'room': ('properties', 'move', None, 'delete'),
     'room_floor': ('properties', None, 'delete'),
     'room_roof': ('properties', None, 'delete'),
+    'stair': ('properties', 'move', None, 'delete'),
     'mesh': ('properties', None, 'delete'),
 }
 
