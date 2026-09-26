@@ -170,8 +170,7 @@ def test_context_menu_registry_is_editable_and_view_aware():
         'properties', 'move', 'stretch', 'rotate', None, 'delete'
     ]
     assert [entry['id'] if entry else None for entry in pbr_wall] == [
-        'properties', None, 'delete',
-        'fit_view', 'orbit_view', 'top_view', 'front_view', 'side_view', 'iso_view'
+        'properties', None, 'delete'
     ]
     placements = {
         entry['id']: entry['placement']
@@ -180,10 +179,6 @@ def test_context_menu_registry_is_editable_and_view_aware():
     }
     assert placements['properties'] == 'radial'
     assert placements['delete'] == 'radial'
-    assert placements['fit_view'] == 'radial'
-    assert placements['orbit_view'] == 'radial'
-    assert placements['top_view'] == 'panel'
-    assert placements['front_view'] == 'panel'
 
 
 def test_context_menu_properties_and_plan_tool_actions_use_selected_entity():
@@ -204,26 +199,62 @@ def test_context_menu_properties_and_plan_tool_actions_use_selected_entity():
 
 
 
-def test_marking_menu_camera_actions_route_to_pbr_view(monkeypatch):
+def test_wall_dimension_properties_update_authoritative_geometry_and_undo():
     window = MainWindow()
-    wall = _wall('menu-camera-wall', 0.0)
+    wall = _wall('properties-wall', 0.0)
     window.doc.add(wall)
-    calls = []
 
-    monkeypatch.setattr(window.pbr_view, 'fit_camera', lambda: calls.append('fit'))
-    monkeypatch.setattr(
-        window.pbr_view,
-        'set_camera_preset',
-        lambda mode: calls.append(mode),
+    window._apply_object_properties(
+        wall.id,
+        {'length': 6.0, 'height': 3.2, 'thickness': 0.25},
     )
 
-    window._handle_object_context_action(wall.id, 'fit_view')
-    window._handle_object_context_action(wall.id, 'top_view')
-    window._handle_object_context_action(wall.id, 'front_view')
-    window._handle_object_context_action(wall.id, 'side_view')
-    window._handle_object_context_action(wall.id, 'iso_view')
-    window._handle_object_context_action(wall.id, 'orbit_view')
+    updated = window.doc.get(wall.id)
+    assert updated.params['x2'] == 6.0
+    assert updated.params['y2'] == 0.0
+    assert updated.params['height'] == 3.2
+    assert updated.params['thickness'] == 0.25
 
-    assert calls == ['fit', 'top', 'front', 'side', 'iso30', 'orbit']
-    assert window.view is window.pbr_view
+    window._undo()
+    restored = window.doc.get(wall.id)
+    assert restored.params['x2'] == 4.0
+    assert restored.params['height'] == 2.7
+    assert restored.params['thickness'] == 0.15
+    window.close()
+
+
+def test_window_dimension_properties_are_editable_and_validated_by_host():
+    window = MainWindow()
+    wall = _wall('host-wall', 0.0)
+    window.doc.add(wall)
+    opening = Entity(
+        'window',
+        {
+            'offset': 2.0,
+            'surface_u': 0.0,
+            'width': 1.0,
+            'height': 1.0,
+            'sill': 0.8,
+            'flat_margin': 0.25,
+        },
+        id='window-properties',
+        parent_id=wall.id,
+    )
+    window.doc.add(opening)
+
+    window._apply_object_properties(
+        opening.id,
+        {'width': 1.4, 'height': 1.2, 'sill': 0.9},
+    )
+
+    updated = window.doc.get(opening.id)
+    assert updated.params['width'] == 1.4
+    assert updated.params['height'] == 1.2
+    assert updated.params['sill'] == 0.9
+
+    window._undo()
+    restored = window.doc.get(opening.id)
+    assert restored.params['width'] == 1.0
+    assert restored.params['height'] == 1.0
+    assert restored.params['sill'] == 0.8
     window.close()
