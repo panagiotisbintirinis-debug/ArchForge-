@@ -487,15 +487,25 @@ class MainWindow(QMainWindow):
 
         if action_id in ('move', 'stretch', 'rotate'):
             entity = self.doc.get(entity_id)
-            if action_id == 'move' and self.view is self.pbr_view and entity.kind in {
-                'stair', 'ramp', 'wall', 'box', 'pod', 'floor', 'room', 'mechanical_part'
-            }:
-                self.pbr_view.set_tool('move')
-                self.statusBar().showMessage(
-                    f'Move {entity.name or entity.kind.title()}: click object, move pointer, click to place',
-                    4000,
-                )
-                return
+            if self.view is self.pbr_view:
+                if action_id == 'move' and entity.kind in {
+                    'stair', 'ramp', 'wall', 'box', 'pod', 'floor', 'room', 'mechanical_part'
+                }:
+                    self.pbr_view.set_tool('move')
+                    self.statusBar().showMessage(
+                        f'Move {entity.name or entity.kind.title()}: click object, move pointer, click to place',
+                        4000,
+                    )
+                    return
+                if action_id == 'rotate' and entity.kind in {
+                    'stair', 'ramp', 'wall', 'box', 'pod'
+                }:
+                    self.pbr_view.set_tool('rotate')
+                    self.statusBar().showMessage(
+                        f'Rotate {entity.name or entity.kind.title()}: click object, move pointer, click to place · Shift = free angle',
+                        4500,
+                    )
+                    return
             self.tabs.setCurrentWidget(self.plan_view)
             self.plan_view.set_tool(action_id)
             self.plan_view.controller.set_target(entity_id, None)
