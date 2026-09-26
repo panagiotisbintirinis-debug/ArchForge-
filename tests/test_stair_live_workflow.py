@@ -262,3 +262,72 @@ def test_move_ctrl_axis_constraint_keeps_stair_on_one_axis():
     assert move.axis_lock == 'x'
     assert abs(move.dx - 2.0) < 1e-9
     assert abs(move.dy) < 1e-9
+
+
+
+def test_moved_wall_snaps_its_endpoint_to_another_wall_centerline():
+    doc = Document()
+    doc.work_plane = WorkPlane(name='Ground', origin=(0.0, 0.0, 0.0))
+    moving = Entity(
+        'wall',
+        {
+            'x1': 0.0, 'y1': 0.0, 'x2': 1.0, 'y2': 0.0,
+            'z': 0.0, 'height': 2.7, 'thickness': 0.15,
+        },
+        id='moving-wall',
+    )
+    target = Entity(
+        'wall',
+        {
+            'x1': -5.0, 'y1': 2.0, 'x2': 5.0, 'y2': 2.0,
+            'z': 0.0, 'height': 2.7, 'thickness': 0.20,
+        },
+        id='target-wall',
+    )
+    doc.add(moving)
+    doc.add(target)
+    move = MoveTransaction(
+        doc,
+        CommandStack(doc),
+        [moving.id],
+        origin=(0.0, 0.0, 0.0),
+        snap_tol=0.15,
+    )
+
+    move.update_pointer(0.0, 1.92, snap=True)
+
+    assert move.last_snap_kind == 'wall'
+    assert abs(move.dy - 2.0) < 1e-9
+
+
+def test_stair_move_snaps_footprint_to_physical_wall_face():
+    doc = _two_level_document()
+    wall = Entity(
+        'wall',
+        {
+            'x1': -5.0, 'y1': 2.0, 'x2': 5.0, 'y2': 2.0,
+            'z': 0.0, 'height': 2.7, 'thickness': 0.20,
+        },
+        id='snap-wall',
+    )
+    doc.add(wall)
+    stack = CommandStack(doc)
+    stair_tx = StairPlaceTransaction(doc, stack, (0.0, 0.0))
+    stair_tx.update(5.0, 0.0)
+    stair_id = stair_tx.commit()
+
+    from archforge.architecture.stairs import candidate_from_params, stair_footprint
+    footprint = stair_footprint(candidate_from_params(doc.get(stair_id).params))
+    top_y = max(y for _, y in footprint)
+    desired_dy = (2.0 - 0.10) - top_y - 0.05
+
+    move = MoveTransaction(
+        doc,
+        stack,
+        [stair_id],
+        origin=(0.0, 0.0, 0.0),
+        snap_tol=0.15,
+    )
+    move.update_pointer(0.0, desired_dy, snap=True)
+
+    assert move.last_snap_kind == 'wall_face'
