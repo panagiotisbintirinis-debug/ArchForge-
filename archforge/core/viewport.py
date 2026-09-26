@@ -91,8 +91,9 @@ class PointerController:
     def pointer_move(self,ev):
         x,y=self._plan_xy(ev)
         if isinstance(self.active,WallDrawTransaction):
+            self.active.snap_enabled=self.snap_enabled and not ev.shift
             hud=self.active.update(x,y);sx,sy=self.active.start;ex,ey=self.active.end
-            sp=best_snap(self.doc,x,y,self.snap_tolerance,self.grid) if self.snap_enabled and not ev.shift else None
+            sp=best_snap(self.doc,x,y,self.snap_tolerance,self.grid) if self.active.snap_enabled else None
             self.preview=PreviewState('wall',{'x1':sx,'y1':sy,'x2':ex,'y2':ey,'z':self.active.z},hud.values,self._snap_dict(sp))
         elif isinstance(self.active,ConnectedWallEndpointStretchTransaction):
             hud=self.active.update(x,y);geom=copy.deepcopy(self.active.preview);geom['entities']=copy.deepcopy(self.active.previews);self.preview=PreviewState('stretch',geom,hud.values,None,self.active.eid)
