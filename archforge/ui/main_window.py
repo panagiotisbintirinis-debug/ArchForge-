@@ -13,7 +13,7 @@ from archforge.core.model import Document
 from archforge.core.commands import CommandStack, UpdateEntity, CreateRoomFloors, CreateRoomRoofs
 from .plan_view import PlanView
 from .ortho_view import OrthoView
-from .viewport_3d import Viewport3D
+from .pbr_viewport import PBRViewport
 
 
 class MainWindow(QMainWindow):
@@ -28,32 +28,41 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.plan_view = PlanView(self.doc, self.stack)
         self.front_view = OrthoView(self.doc, self.stack, 'XZ')
-        self.side_view = OrthoView(self.doc, self.stack, 'YZ')
-        self.view_3d = Viewport3D(self.doc, self.stack)
-        self.tabs.addTab(self.plan_view, 'XY PLAN')
-        self.tabs.addTab(self.front_view, 'XZ FRONT')
-        self.tabs.addTab(self.side_view, 'YZ SIDE')
-        self.tabs.addTab(self.view_3d, '3D PERSPECTIVE')
+        self.pbr_view = PBRViewport(self.doc, self.stack)
+        self.tabs.addTab(self.plan_view, 'FLOOR PLAN')
+        self.tabs.addTab(self.front_view, 'FRONT ELEVATION')
+        self.tabs.addTab(self.pbr_view, '3D STUDIO')
         self.setCentralWidget(self.tabs)
         self.view = self.plan_view
         self.setStatusBar(QStatusBar())
-        for view in (self.plan_view, self.front_view, self.side_view, self.view_3d):
+        for view in (self.plan_view, self.front_view, self.pbr_view):
             view.statusChanged.connect(self.statusBar().showMessage)
             view.selectionChangedByView.connect(self._selection_from_view)
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self._build_toolbar()
+        self._build_view_toolbar()
         self._build_inspector()
         self.refresh_inspector()
 
     def _on_tab_changed(self, idx):
-        widgets = [self.plan_view, self.front_view, self.side_view, self.view_3d]
+        widgets = [self.plan_view, self.front_view, self.pbr_view]
         if 0 <= idx < len(widgets):
             self.view = widgets[idx]
+        if self.view is self.pbr_view:
+            self.pbr_view.activate()
         self._redraw_views()
 
     def _set_active_tool(self, tool):
         if hasattr(self.view, 'set_tool'):
             self.view.set_tool(tool)
+
+    def _activate_sculpt_tool(self):
+        self.tabs.setCurrentWidget(self.pbr_view)
+        self.pbr_view.activate()
+        self.pbr_view.set_tool('sculpt')
+
+    def _configure_sculpt_views(self, **kwargs):
+        self.pbr_view.configure_sculpt(**kwargs)
 
     def _build_toolbar(self):
         toolbar = QToolBar('Tools')
@@ -70,7 +79,7 @@ class MainWindow(QMainWindow):
             toolbar.addAction(action)
         sculpt = QAction('Sculpt 3D', self)
         sculpt.setShortcut(QKeySequence('C'))
-        sculpt.triggered.connect(lambda: self.view_3d.set_tool('sculpt'))
+        sculpt.triggered.connect(self._activate_sculpt_tool)
         toolbar.addAction(sculpt)
 
         self.sculpt_operation = QComboBox()
@@ -78,7 +87,7 @@ class MainWindow(QMainWindow):
             ['pull', 'push', 'inflate', 'recess', 'smooth', 'crease']
         )
         self.sculpt_operation.currentTextChanged.connect(
-            lambda value: self.view_3d.configure_sculpt(operation=value)
+            lambda value: self._configure_sculpt_views(operation=value)
         )
         toolbar.addWidget(QLabel(' Op '))
         toolbar.addWidget(self.sculpt_operation)
@@ -87,18 +96,31 @@ class MainWindow(QMainWindow):
         self.sculpt_radius.setRange(0.10, 5.0)
         self.sculpt_radius.setDecimals(2)
         self.sculpt_radius.setSingleStep(0.05)
-        self.sculpt_radius.setValue(self.view_3d.sculpt_brush.radius)
+        self.sculpt_radius.setValue(self.pbr_view.sculpt_brush.radius)
         self.sculpt_radius.setToolTip(
             'Local brush diameter control: smaller values deform a tighter area around the picked point.'
         )
         self.sculpt_radius.valueChanged.connect(
-            lambda value: self.view_3d.configure_sculpt(
+            lambda value: self._configure_sculpt_views(
                 radius=value,
                 strength=1.0,
             )
         )
         toolbar.addWidget(QLabel(' Brush '))
         toolbar.addWidget(self.sculpt_radius)
+        toolbar.addSeparator()
+
+        self.render_technique = QComboBox()
+        self.render_technique.addItem('PBR', 'pbr')
+        self.render_technique.addItem('Technical', 'technical')
+        self.render_technique.addItem('Glass', 'glass')
+        self.render_technique.currentIndexChanged.connect(
+            lambda _index: self.pbr_view.set_render_technique(
+                self.render_technique.currentData()
+            )
+        )
+        toolbar.addWidget(QLabel(' Render '))
+        toolbar.addWidget(self.render_technique)
         toolbar.addSeparator()
         auto_floors = QAction('Auto Floors', self)
         auto_floors.triggered.connect(self._create_auto_floors)
@@ -132,6 +154,61 @@ class MainWindow(QMainWindow):
         stl_action = QAction('Export STL', self)
         stl_action.triggered.connect(self.export_stl)
         toolbar.addAction(stl_action)
+
+
+    def _build_view_toolbar(self):
+        self.addToolBarBreak()
+        toolbar = QToolBar('View')
+        toolbar.setMovable(False)
+        self.addToolBar(toolbar)
+
+        toolbar.addWidget(QLabel(' Camera '))
+        for text, mode in (
+            ('Cutaway', 'cutaway'),
+            ('Top', 'top'),
+            ('Front', 'front'),
+            ('Side', 'side'),
+            ('ISO 30°', 'iso30'),
+            ('Eye', 'eye'),
+            ('Orbit', 'orbit'),
+        ):
+            action = QAction(text, self)
+            action.triggered.connect(
+                lambda checked=False, m=mode: self._set_pbr_camera(m)
+            )
+            toolbar.addAction(action)
+
+        toolbar.addSeparator()
+
+        axes = QAction('Axes', self)
+        axes.setCheckable(True)
+        axes.setChecked(False)
+        axes.toggled.connect(self.pbr_view.set_axes_visible)
+        toolbar.addAction(axes)
+        self.axes_action = axes
+
+        cutaway = QAction('Cutaway', self)
+        cutaway.setCheckable(True)
+        cutaway.setChecked(False)
+        cutaway.toggled.connect(self.pbr_view.set_cutaway)
+        toolbar.addAction(cutaway)
+        self.cutaway_action = cutaway
+
+        auto_rotate = QAction('Auto Rotate', self)
+        auto_rotate.setCheckable(True)
+        auto_rotate.setChecked(False)
+        auto_rotate.toggled.connect(self.pbr_view.set_auto_rotate)
+        toolbar.addAction(auto_rotate)
+        self.auto_rotate_action = auto_rotate
+
+    def _set_pbr_camera(self, mode):
+        self.tabs.setCurrentWidget(self.pbr_view)
+        self.pbr_view.activate()
+        self.pbr_view.set_camera_preset(mode)
+        if hasattr(self, 'cutaway_action'):
+            self.cutaway_action.blockSignals(True)
+            self.cutaway_action.setChecked(mode == 'cutaway')
+            self.cutaway_action.blockSignals(False)
 
     def _build_inspector(self):
         self.dock = QDockWidget('Inspector', self)
@@ -246,15 +323,12 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, 'Flat Roof', str(exc))
 
     def _selection_from_view(self):
-        sender = self.sender()
-        if sender is self.view_3d:
-            self.view_3d.refresh_selection()
         self.refresh_inspector()
 
     def _redraw_views(self, *, all_views=False):
-        targets=(self.plan_view,self.front_view,self.side_view,self.view_3d) if all_views else (self.view,)
+        targets=(self.plan_view,self.front_view,self.pbr_view) if all_views else (self.view,)
         for view in targets:
-            if view is self.view_3d:
+            if view is self.pbr_view:
                 view.redraw(force_full=True)
             else:
                 view.redraw()
@@ -299,7 +373,7 @@ class MainWindow(QMainWindow):
     def _replace_project(self, doc, path=None):
         self.doc = doc
         self.stack = CommandStack(self.doc)
-        for view in (self.plan_view, self.front_view, self.side_view, self.view_3d):
+        for view in (self.plan_view, self.front_view, self.pbr_view):
             view.rebind(self.doc, self.stack)
         self.current_path = path
         self._mark_clean()

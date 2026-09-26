@@ -203,9 +203,9 @@ def test_sculpt_toolbar_controls_real_viewport_brush_and_flat_roof_action():
         window.sculpt_operation.setCurrentText('push')
         window.sculpt_radius.setValue(.40)
 
-        assert window.view_3d.sculpt_op == 'push'
-        assert window.view_3d.sculpt_brush.radius == pytest.approx(.40)
-        assert window.view_3d.sculpt_brush.strength == pytest.approx(1.0)
+        assert window.pbr_view.sculpt_op == 'push'
+        assert window.pbr_view.sculpt_brush.radius == pytest.approx(.40)
+        assert window.pbr_view.sculpt_brush.strength == pytest.approx(1.0)
 
         walls = [
             Entity('wall', {'x1':0,'y1':0,'x2':4,'y2':0,'z':0,'height':3,'thickness':.2}),
@@ -219,6 +219,6 @@ def test_sculpt_toolbar_controls_real_viewport_brush_and_flat_roof_action():
         window._create_flat_roofs()
         assert any(e.kind == 'room_roof' for e in window.doc.entities.values())
     finally:
-        window.view_3d.close()
+        window.pbr_view.close()
         window.close()
         app.processEvents()
