@@ -113,18 +113,20 @@ class StairPlaceTransaction:
         preferred_riser: float = 0.17,
         preferred_tread: float = 0.29,
     ):
-        from archforge.architecture.stairs import next_level_above
+        from archforge.architecture.stairs import upper_floor_landing
         self.doc,self.stack=doc,stack
         self.origin=(float(origin[0]),float(origin[1]))
         self.width=float(width)
         self.preferred_riser=float(preferred_riser)
         self.preferred_tread=float(preferred_tread)
         self.lower_z=float(doc.work_plane.origin[2])
-        next_level=next_level_above(doc,self.lower_z)
-        if next_level is None:
+        landing=upper_floor_landing(doc,self.lower_z,self.origin)
+        if landing is None:
             raise ValueError('Create an upper floor level before placing stairs')
-        self.upper_z=float(next_level[0])
-        self.upper_level_name=str(next_level[1])
+        self.upper_floor_z=float(landing['floor_z'])
+        self.upper_slab_thickness=float(landing['slab_thickness'])
+        self.upper_z=float(landing['landing_z'])
+        self.upper_level_name=str(landing['level_name'])
         self.pointer=self.origin
         self.candidates=()
         self.active_index=0
@@ -140,6 +142,8 @@ class StairPlaceTransaction:
             width=self.width,
             preferred_riser=self.preferred_riser,
             preferred_tread=self.preferred_tread,
+            upper_floor_z=self.upper_floor_z,
+            upper_slab_thickness=self.upper_slab_thickness,
         )
         if not self.candidates:
             raise ValueError('no stair solution available')
