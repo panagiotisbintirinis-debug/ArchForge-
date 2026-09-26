@@ -94,6 +94,24 @@ def _opening_segment(doc,e):
         if pod_opening_junction_conflict(doc,e.id) is not None:return None
         return pod_opening_plan_segment(host.params,{**e.params,'_kind':e.kind})
     return None
+def _entity_on_active_level(doc,e,tolerance=1e-5):
+    """Keep FLOOR PLAN focused on the active storey while 3D remains whole-building."""
+    z=float(doc.work_plane.origin[2]);p=e.params
+    if e.kind=='wall':return abs(float(p.get('z',0.0))-z)<=tolerance
+    if e.kind=='pod':return abs(float(p.get('floor_level',0.0))-z)<=tolerance
+    if e.kind in ('floor','room'):return abs(float(p.get('z',0.0))-z)<=tolerance
+    if e.kind in ('door','window'):
+        if not e.parent_id or e.parent_id not in doc.entities:return False
+        host=doc.get(e.parent_id);hp=host.params
+        if host.kind=='wall':return abs(float(hp.get('z',0.0))-z)<=tolerance
+        if host.kind=='pod':return abs(float(hp.get('floor_level',0.0))-z)<=tolerance
+        return False
+    if e.kind in ('room_floor','room_ceiling','room_foundation','room_roof'):
+        from archforge.architecture.rooms import room_slab_geometry
+        g=room_slab_geometry(doc,e,tolerance=tolerance)
+        return g is not None and abs(float(g['z'])-z)<=tolerance
+    return True
+
 def entity_primitive(doc,eid):
     e=doc.get(eid);p=e.params
     if not e.visible:return None
@@ -139,7 +157,7 @@ def selection_handles(doc):
     for eid in doc.selection:
         if eid not in doc.entities:continue
         e=doc.get(eid);p=e.params
-        if e.locked:continue
+        if e.locked or not _entity_on_active_level(doc,e):continue
         if e.kind=='wall':out.extend([Handle2D(p['x1'],p['y1'],eid,'endpoint1'),Handle2D(p['x2'],p['y2'],eid,'endpoint2')])
         elif e.kind=='box':out.extend(_box_handles(eid,p))
         elif e.kind=='pod':out.extend(_pod_handles(eid,p))
@@ -190,6 +208,8 @@ def build_plan_frame(doc,preview=None):
     except (ValueError,KeyError):
         pass
     for eid in doc.entities:
+        e=doc.get(eid)
+        if not _entity_on_active_level(doc,e):continue
         p=entity_primitive(doc,eid)
         if p:f.primitives.append(p)
     f.handles=selection_handles(doc)
