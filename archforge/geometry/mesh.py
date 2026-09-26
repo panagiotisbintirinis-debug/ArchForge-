@@ -341,21 +341,30 @@ def _subtract_rectangular_slab_hole(mesh,opening,z0,z1):
  sides=_rect_hole_side_mesh(xmin,xmax,ymin,ymax,float(z0),float(z1))
  return _combine_meshes((left,right,front,back,sides),1e-8)
 
+def _apply_stair_openings_to_slab(doc,mesh,points,slab_z,thickness):
+ from archforge.architecture.stairs import candidate_from_params,stair_opening_polygon
+ slab_z=float(slab_z);thickness=float(thickness)
+ for stair in doc.entities.values():
+  if stair.kind!='stair':continue
+  upper_floor_z=float(stair.params.get('upper_floor_z',stair.params['upper_z']))
+  if abs(upper_floor_z-slab_z)>1e-5:continue
+  opening=stair_opening_polygon(candidate_from_params(stair.params))
+  if opening and all(_point_in_polygon_xy(point,points) for point in opening):
+   mesh=_subtract_rectangular_slab_hole(mesh,opening,slab_z,slab_z+thickness)
+ return mesh
+
+def _floor_slab(doc,node):
+ p=node.params
+ mesh=_polygon_prism(p['points'],p['z'],p['thickness'])
+ return _apply_stair_openings_to_slab(doc,mesh,p['points'],p['z'],p['thickness'])
+
 def _room_slab(doc,node):
  from archforge.architecture.rooms import room_slab_geometry
  g=room_slab_geometry(doc,doc.get(node.entity_id))
  if g is None:raise ValueError('derived room element has no currently closed room')
  mesh=_polygon_prism(g['points'],g['z'],g['thickness'])
  if node.semantic_kind=='room_floor':
-  from archforge.architecture.stairs import candidate_from_params,stair_opening_polygon
-  slab_z=float(g['z'])
-  for stair in doc.entities.values():
-   if stair.kind!='stair':continue
-   upper_floor_z=float(stair.params.get('upper_floor_z',stair.params['upper_z']))
-   if abs(upper_floor_z-slab_z)>1e-5:continue
-   opening=stair_opening_polygon(candidate_from_params(stair.params))
-   if opening and all(_point_in_polygon_xy(point,g['points']) for point in opening):
-    mesh=_subtract_rectangular_slab_hole(mesh,opening,slab_z,slab_z+float(g['thickness']))
+  mesh=_apply_stair_openings_to_slab(doc,mesh,g['points'],g['z'],g['thickness'])
  return mesh
 def _organic_junction_mesh(doc,node):
  from archforge.organic.biospectre import junction_plane,junction_section_polygon
@@ -411,7 +420,7 @@ def _payload(doc,node):
  if k=='arboreal_branch':return _arboreal_branch_mesh(doc,node)
  if k=='organic_junction':return _organic_junction_mesh(doc,node)
  if k=='organic_opening_patch':return _organic_opening_patch_mesh(doc,node)
- if k=='floor':return _polygon_prism(p['points'],p['z'],p['thickness'])
+ if k=='floor':return _floor_slab(doc,node)
  if k in('room_floor','room_ceiling','room_foundation','room_roof'):return _room_slab(doc,node)
  raise ValueError(f'tessellation not implemented for {k}')
 class TessellatedPreviewBackend(GeometryBackend):
