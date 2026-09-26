@@ -31,6 +31,12 @@ PROPERTY_FIELDS = {
         {'id': 'height', 'label': 'Height', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
         {'id': 'shell_thickness', 'label': 'Shell Thickness', 'unit': 'm', 'minimum': 0.001, 'step': 0.01},
     ),
+    'ramp': (
+        {'id': 'width', 'label': 'Width', 'unit': 'm', 'minimum': 0.50, 'step': 0.05},
+        {'id': 'slope_pct', 'label': 'Slope', 'unit': '%', 'minimum': 0.10, 'step': 0.50},
+        {'id': 'run_length', 'label': 'Run Length', 'unit': 'm', 'minimum': 0.10, 'step': 0.10},
+        {'id': 'thickness', 'label': 'Ramp Thickness', 'unit': 'm', 'minimum': 0.03, 'step': 0.01},
+    ),
 }
 
 
@@ -60,6 +66,21 @@ def property_changes(entity, values: Dict[str, float]) -> Dict[str, float]:
         raise ValueError('unsupported property: ' + ', '.join(sorted(unknown)))
 
     p = entity.params
+    if entity.kind == 'ramp':
+        rise = float(p['upper_z']) - float(p['lower_z'])
+        if rise <= 0:
+            raise ValueError('ramp rise must stay positive')
+        if 'slope_pct' in requested:
+            slope = float(requested['slope_pct'])
+            if slope <= 0:
+                raise ValueError('ramp slope must be positive')
+            requested['run_length'] = rise / (slope / 100.0)
+        elif 'run_length' in requested:
+            run = float(requested['run_length'])
+            if run <= 0:
+                raise ValueError('ramp run length must be positive')
+            requested['slope_pct'] = rise / run * 100.0
+
     if entity.kind == 'wall' and 'length' in requested:
         length = requested['length']
         if length <= 0:
