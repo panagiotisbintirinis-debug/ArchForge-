@@ -85,12 +85,10 @@ def test_recovery_launcher_exists_and_main_window_constructs():
     app = QApplication.instance() or QApplication([])
     window = MainWindow()
     try:
-        assert window.tabs.count() == 5
+        assert window.tabs.count() == 3
         assert window.tabs.tabText(0) == 'FLOOR PLAN'
         assert window.tabs.tabText(1) == 'FRONT ELEVATION'
-        assert window.tabs.tabText(2) == 'SIDE ELEVATION'
-        assert window.tabs.tabText(3) == '3D EDIT'
-        assert window.tabs.tabText(4) == '3D STUDIO'
+        assert window.tabs.tabText(2) == '3D STUDIO'
         assert window.axes_action.isCheckable()
         assert window.cutaway_action.isCheckable()
         assert window.auto_rotate_action.isCheckable()
