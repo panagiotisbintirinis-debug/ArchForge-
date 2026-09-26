@@ -183,6 +183,21 @@ let sculpting = false;
 let sculptStartY = 0;
 let stairing = false;
 let stairPlaneZ = 0;
+let pendingStairPoint = null;
+let stairUpdateScheduled = false;
+
+function scheduleStairUpdate(point) {
+  pendingStairPoint = point;
+  if (stairUpdateScheduled) return;
+  stairUpdateScheduled = true;
+  requestAnimationFrame(() => {
+    stairUpdateScheduled = false;
+    if (!stairing || !bridge || !pendingStairPoint) return;
+    const point = pendingStairPoint;
+    pendingStairPoint = null;
+    bridge.updateStair(Number(point.x), Number(point.y));
+  });
+}
 
 function resize() {
   const w = Math.max(1, container.clientWidth);
@@ -507,6 +522,7 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     if (event.button === 2) {
       if (stairing) {
         stairing = false;
+        pendingStairPoint = null;
         controls.enabled = true;
         bridge.cancelStair();
       }
@@ -517,6 +533,9 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     if (event.button !== 0) return;
 
     if (stairing) {
+      const point = pointOnHorizontalPlane(event, stairPlaneZ);
+      if (point) bridge.updateStair(Number(point.x), Number(point.y));
+      pendingStairPoint = null;
       stairing = false;
       controls.enabled = true;
       bridge.endStair();
@@ -588,6 +607,7 @@ renderer.domElement.addEventListener("contextmenu", (event) => {
   if (activeTool === "stair") {
     if (stairing) {
       stairing = false;
+      pendingStairPoint = null;
       controls.enabled = true;
       bridge.cancelStair();
     }
@@ -628,7 +648,7 @@ renderer.domElement.addEventListener("pointermove", (event) => {
   if (!bridge) return;
   if (stairing) {
     const point = pointOnHorizontalPlane(event, stairPlaneZ);
-    if (point) bridge.updateStair(Number(point.x), Number(point.y));
+    if (point) scheduleStairUpdate(point);
     event.preventDefault();
     event.stopPropagation();
     return;
