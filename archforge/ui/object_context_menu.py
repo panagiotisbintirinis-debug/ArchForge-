@@ -21,7 +21,7 @@ ACTIONS = {
     },
     'rotate': {
         'label': 'Rotate',
-        'views': {'plan'},
+        'views': {'plan', 'pbr'},
         'placement': 'radial',
     },
     'delete': {
@@ -42,8 +42,8 @@ ENTITY_MENUS = {
     'room': ('properties', 'move', None, 'delete'),
     'room_floor': ('properties', None, 'delete'),
     'room_roof': ('properties', None, 'delete'),
-    'stair': ('properties', 'move', None, 'delete'),
-    'ramp': ('properties', 'move', None, 'delete'),
+    'stair': ('properties', 'move', 'rotate', None, 'delete'),
+    'ramp': ('properties', 'move', 'rotate', None, 'delete'),
     'mesh': ('properties', None, 'delete'),
 }
 
