@@ -72,3 +72,32 @@ def test_stair_requires_an_upper_floor_level():
         assert 'upper floor level' in str(exc)
     else:
         raise AssertionError('stair placement should require an upper level')
+
+
+
+def test_stair_candidate_cycle_changes_committed_layout():
+    doc = _two_level_document()
+    stack = CommandStack(doc)
+    tx = StairPlaceTransaction(doc, stack, (0.0, 0.0))
+
+    tx.update(5.0, 0.0)
+    first_layout = tx.active_candidate.layout
+    tx.cycle_candidate(1)
+    second_layout = tx.active_candidate.layout
+    assert tx.active_index == 1
+    assert second_layout != first_layout or tx.active_candidate.turn_direction != tx.candidates[0].turn_direction
+
+    stair_id = tx.commit()
+    assert doc.get(stair_id).params['layout'] == second_layout
+
+
+def test_stair_preview_tracks_active_index():
+    doc = _two_level_document()
+    stack = CommandStack(doc)
+    tx = StairPlaceTransaction(doc, stack, (0.0, 0.0))
+
+    tx.update(2.0, 0.0)
+    tx.cycle_candidate(1)
+
+    assert tx.preview['active_index'] == 1
+    assert tx.preview['chosen']['layout'] == tx.active_candidate.layout
