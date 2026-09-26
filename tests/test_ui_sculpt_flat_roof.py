@@ -12,7 +12,7 @@ from archforge.core.model import Document, Entity
 from archforge.core.plan_scene import build_plan_frame
 from archforge.geometry.mesh import TessellatedPreviewBackend
 from archforge.geometry.selection import BrushSpec, SurfaceHit
-from archforge.geometry.sculpt import SculptedPreviewBackend
+from archforge.geometry.sculpt import SculptedPreviewBackend, SCULPT_WALL_TARGET_STEP
 from archforge.geometry.sculpt_transaction import SculptTransaction
 from archforge.ui.main_window import MainWindow
 from archforge.ui.viewport_3d import Viewport3D
@@ -148,7 +148,7 @@ def test_sculpt_dense_preview_moves_only_local_wall_vertices():
 
     dense_base = SculptedPreviewBackend(
         dense_entity_ids={wall.id},
-        wall_target_step=.15,
+        wall_target_step=SCULPT_WALL_TARGET_STEP,
     ).evaluate(doc).body(wall.id).payload
 
     tx = SculptTransaction(
