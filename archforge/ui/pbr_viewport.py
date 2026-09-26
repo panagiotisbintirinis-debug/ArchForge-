@@ -13,6 +13,7 @@ from archforge.geometry.selection import BrushSpec, SurfaceHit
 from archforge.geometry.sculpt_transaction import SculptTransaction
 from archforge.core.interaction import OpeningPlaceTransaction
 from archforge.rendering.scene import build_pbr_scene_payload
+from archforge.ui.object_context_menu import object_context_actions
 
 try:
     from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -429,7 +430,7 @@ class PBRViewport(QWidget):
     """
 
     selectionChangedByView = Signal()
-    deleteRequested = Signal(str)
+    contextActionRequested = Signal(str, str)
     statusChanged = Signal(str)
 
     def __init__(self, doc, stack, parent=None):
@@ -553,10 +554,17 @@ class PBRViewport(QWidget):
 
         entity = self.doc.get(entity_id)
         menu = QMenu(self)
-        delete_action = menu.addAction(f"Delete {entity.name or entity.kind.title()}")
+        action_map = {}
+        for spec in object_context_actions(entity.kind, 'pbr'):
+            if spec is None:
+                menu.addSeparator()
+                continue
+            action = menu.addAction(spec['label'])
+            action_map[action] = spec['id']
+
         chosen = menu.exec(QCursor.pos())
-        if chosen is delete_action:
-            self.deleteRequested.emit(entity_id)
+        if chosen in action_map:
+            self.contextActionRequested.emit(entity_id, action_map[chosen])
 
     def _begin_sculpt_from_web(self, payload_json: str) -> None:
         if self.active_tool != "sculpt":
