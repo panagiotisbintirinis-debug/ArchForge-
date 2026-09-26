@@ -100,6 +100,8 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
     if e.kind=='wall':return abs(float(p.get('z',0.0))-z)<=tolerance
     if e.kind=='pod':return abs(float(p.get('floor_level',0.0))-z)<=tolerance
     if e.kind in ('floor','room'):return abs(float(p.get('z',0.0))-z)<=tolerance
+    if e.kind=='stair':
+        return abs(float(p.get('lower_z',0.0))-z)<=tolerance or abs(float(p.get('upper_z',0.0))-z)<=tolerance
     if e.kind in ('door','window'):
         if not e.parent_id or e.parent_id not in doc.entities:return False
         host=doc.get(e.parent_id);hp=host.params
@@ -117,6 +119,16 @@ def entity_primitive(doc,eid):
     if not e.visible:return None
     if e.kind=='wall':return Primitive2D('line',((p['x1'],p['y1']),(p['x2'],p['y2'])),entity_id=eid,meta=(('thickness',p['thickness']),))
     if e.kind=='box':return Primitive2D('polygon',tuple(_box_corners(p)),entity_id=eid)
+    if e.kind=='stair':
+        from archforge.architecture.stairs import candidate_from_params,stair_footprint
+        candidate=candidate_from_params(p)
+        return Primitive2D(
+            'polygon',
+            tuple(stair_footprint(candidate)),
+            entity_id=eid,
+            role='stair',
+            meta=(('semantic','stair'),('layout',candidate.layout),('risers',candidate.riser_count)),
+        )
     if e.kind=='pod':
         clipped=_pod_plan_polygon(doc,e)
         if clipped is not None:return Primitive2D('polygon',clipped,entity_id=eid,role='pod-junction-clipped',meta=(('semantic','pod'),('junction_clipped',True)))
@@ -175,6 +187,20 @@ def selection_handles(doc):
 def preview_primitives(preview):
     g=preview.geometry
     if preview.kind=='wall' and g:return [Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),entity_id=preview.entity_id or '',role='preview')]
+    if preview.kind=='stair' and g:
+        out=[]
+        for index,params in enumerate(g.get('candidates',())):
+            from archforge.architecture.stairs import candidate_from_params,stair_footprint
+            candidate=candidate_from_params(params)
+            out.append(
+                Primitive2D(
+                    'polygon',
+                    tuple(stair_footprint(candidate)),
+                    role='preview' if index==0 else 'stair-option',
+                    meta=(('semantic','stair-preview'),('layout',candidate.layout),('preferred',index==0)),
+                )
+            )
+        return out
     if preview.kind in ('opening','opening-edit') and {'x1','y1','x2','y2'}<=set(g):return [Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),entity_id=preview.entity_id or '',role='preview',meta=(('semantic',g.get('opening_kind','opening')),))]
     if preview.kind=='stretch' and 'entities' in g:
         out=[]
