@@ -624,6 +624,15 @@ window.setSnapEnabled = function(enabled) {
   snapEnabled = !!enabled;
 };
 
+window.setMoveGhostDelta = function(dx, dy, snapped) {
+  if (!moveGhost) return;
+  moveGhost.position.set(Number(dx), Number(dy), 0);
+  if (moveGhost.material) {
+    moveGhost.material.opacity = snapped ? 0.78 : 0.58;
+    moveGhost.material.needsUpdate = true;
+  }
+};
+
 function hideMarkingMenu() {
   markingRoot.style.display = "none";
   radialMenu.replaceChildren();
@@ -1643,6 +1652,16 @@ class PBRViewport(QWidget):
             if self._move_tx.axis_lock:
                 qualifiers.append(f"CTRL {self._move_tx.axis_lock.upper()}-axis")
             suffix = (" · " + " · ".join(qualifiers)) if qualifiers else ""
+            if self.web_view is not None:
+                self.web_view.page().runJavaScript(
+                    "if (window.setMoveGhostDelta) window.setMoveGhostDelta("
+                    + json.dumps(float(self._move_tx.dx))
+                    + ","
+                    + json.dumps(float(self._move_tx.dy))
+                    + ","
+                    + ("true" if bool(self._move_tx.last_snap_kind) else "false")
+                    + ");"
+                )
             self.statusChanged.emit(
                 f"Move ΔX {hud.values['dx']:.3f} m · ΔY {hud.values['dy']:.3f} m{suffix}"
             )
