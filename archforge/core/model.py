@@ -124,6 +124,27 @@ def _conduit_system_type(v):
     return value
 
 
+def _stair_layout(v):
+    value = str(v).lower()
+    if value not in ('straight', 'l', 'u', 'spiral', 'custom'):
+        raise ValueError('unsupported stair layout')
+    return value
+
+
+def _positive_int(v):
+    value = int(v)
+    if value <= 0:
+        raise ValueError('value must be a positive integer')
+    return value
+
+
+def _turn_direction(v):
+    value = int(v)
+    if value == 0:
+        raise ValueError('turn direction must be -1 or 1')
+    return 1 if value > 0 else -1
+
+
 def validate_conduit_spec(start_node, end_node, diameter, system_type, path_vertices):
     return {
         'start_node': _conduit_node(start_node),
@@ -178,6 +199,21 @@ SCHEMAS = {
     'box': {'x': _finite, 'y': _finite, 'z': _finite, 'width': _positive, 'depth': _positive, 'height': _positive, 'rotation': _finite},
     'wall': {'x1': _finite, 'y1': _finite, 'z': _finite, 'x2': _finite, 'y2': _finite, 'height': _positive, 'thickness': _positive},
     'pod': {'cx': _finite, 'cy': _finite, 'floor_level': _finite, 'diameter_x': _positive, 'diameter_y': _positive, 'height': _positive, 'shell_thickness': _positive, 'rotation': _finite},
+    'stair': {
+        'x': _finite,
+        'y': _finite,
+        'lower_z': _finite,
+        'upper_z': _finite,
+        'layout': _stair_layout,
+        'angle_deg': _finite,
+        'width': _positive,
+        'riser_count': _positive_int,
+        'riser_height': _positive,
+        'tread_depth': _positive,
+        'landing_depth': _positive,
+        'turn_direction': _turn_direction,
+        'opening_margin': _nonnegative,
+    },
     'mesh': {'vertices': _mesh_vertices, 'faces': _mesh_faces, 'matrix': _matrix16, 'metadata': _mesh_metadata},
     'arboreal_branch': {'core_id': _nonempty, 'elevation_z': _finite, 'azimuth_deg': _finite, 'length': _positive, 'slope_deg': _finite, 'root_radius': _positive, 'tip_radius': _positive, 'mounted_pod_id': _nonempty},
     'floor': {'points': _polygon, 'z': _finite, 'thickness': _positive},
