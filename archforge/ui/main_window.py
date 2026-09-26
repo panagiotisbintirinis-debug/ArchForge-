@@ -455,15 +455,19 @@ class MainWindow(QMainWindow):
             return
         active_name = str(getattr(self.doc.work_plane, 'name', '') or '')
         active_z = float(self.doc.work_plane.origin[2])
-        levels = sorted(
-            ((str(name), float(z)) for name, z in self.doc.levels.items()),
-            key=lambda item: (item[1], item[0]),
-        )
+        from archforge.architecture.stairs import discover_building_levels
+        levels = discover_building_levels(self.doc)
         self.floor_selector.blockSignals(True)
         self.floor_selector.clear()
         active_index = 0
-        for index, (name, elevation) in enumerate(levels):
-            self.floor_selector.addItem(f'{name}  ({elevation:.2f} m)', (name, elevation))
+        for index, item in enumerate(levels):
+            name = str(item['name'])
+            elevation = float(item['elevation'])
+            inferred = bool(item.get('inferred', False))
+            label = f'{name}  ({elevation:.2f} m)'
+            if inferred:
+                label += ' *'
+            self.floor_selector.addItem(label, (name, elevation, inferred))
             if name == active_name or abs(elevation - active_z) <= 1e-6:
                 active_index = index
         if levels:
@@ -476,7 +480,7 @@ class MainWindow(QMainWindow):
         data = self.floor_selector.itemData(index)
         if not data:
             return
-        name, elevation = data
+        name, elevation, inferred = data
         elevation = float(elevation)
         if (
             str(self.doc.work_plane.name) == str(name)
@@ -496,7 +500,9 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f'Active floor: {name} — {elevation:.2f} m', 3000)
 
     def _add_floor_level(self):
-        existing = sorted(float(z) for z in self.doc.levels.values())
+        from archforge.architecture.stairs import discover_building_levels
+        discovered = discover_building_levels(self.doc)
+        existing = sorted(float(item['elevation']) for item in discovered)
         default_elevation = (max(existing) if existing else 0.0) + 2.70
         elevation, accepted = QInputDialog.getDouble(
             self,
