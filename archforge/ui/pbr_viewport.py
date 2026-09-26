@@ -10,6 +10,7 @@ from archforge.geometry.incremental import IncrementalEvaluationCache
 from archforge.geometry.sculpt import SculptedPreviewBackend
 from archforge.geometry.selection import BrushSpec, SurfaceHit
 from archforge.geometry.sculpt_transaction import SculptTransaction
+from archforge.core.interaction import OpeningPlaceTransaction
 from archforge.rendering.scene import build_pbr_scene_payload
 
 try:
@@ -300,9 +301,24 @@ function pickModel(event) {
 }
 
 renderer.domElement.addEventListener("pointerdown", (event) => {
-  if (activeTool !== "sculpt" || !bridge) return;
+  if (!bridge) return;
   const hit = pickModel(event);
   if (!hit || !hit.face) return;
+
+  if (activeTool === "door" || activeTool === "window") {
+    const kind = hit.object.userData.kind || "";
+    if (kind !== "wall" && kind !== "pod") return;
+    const payload = {
+      entity_id: hit.object.userData.entityId,
+      point: [hit.point.x, hit.point.y, hit.point.z]
+    };
+    bridge.placeOpening(activeTool, JSON.stringify(payload));
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+
+  if (activeTool !== "sculpt") return;
   const roles = hit.object.userData.surfaceRoles || [];
   const surfaceRole = roles[hit.faceIndex] || hit.object.userData.kind || "default";
   const normal = hit.face.normal.clone();
@@ -372,6 +388,10 @@ class PBRInteractionBridge(QObject):
     @Slot()
     def endSculpt(self) -> None:
         self.viewport._finish_sculpt_from_web()
+
+    @Slot(str, str)
+    def placeOpening(self, kind: str, payload_json: str) -> None:
+        self.viewport._place_opening_from_web(kind, payload_json)
 
 
 class PBRViewport(QWidget):
@@ -581,6 +601,38 @@ class PBRViewport(QWidget):
                 + ("true" if self._cutaway else "false")
                 + ");"
             )
+
+
+    def _place_opening_from_web(self, kind: str, payload_json: str) -> None:
+        if kind not in ("door", "window"):
+            return
+        try:
+            payload = json.loads(payload_json)
+            entity_id = str(payload["entity_id"])
+            point = tuple(float(v) for v in payload["point"])
+            if entity_id not in self.doc.entities:
+                raise ValueError("clicked host no longer exists")
+            host = self.doc.get(entity_id)
+            if host.kind not in ("wall", "pod"):
+                raise ValueError("doors/windows require a wall or pod host")
+            tx = OpeningPlaceTransaction(
+                self.doc,
+                self.stack,
+                kind,
+                point[0],
+                point[1],
+                tolerance=max(0.5, float(host.params.get("thickness", 0.0)) + 0.25),
+            )
+            if tx.host_id != entity_id:
+                raise ValueError("opening placement resolved to a different nearby host")
+            opening_id = tx.commit()
+            self._evaluation_cache.clear()
+            self.doc.select([opening_id])
+            self.selectionChangedByView.emit()
+            self.redraw(force_full=False)
+            self.statusChanged.emit(f"Placed {kind} in 3D Studio")
+        except Exception as exc:
+            self.statusChanged.emit(f"Cannot place {kind} in 3D Studio: {exc}")
 
     def set_render_technique(self, technique: str) -> None:
         if technique not in ("pbr", "technical", "glass"):
