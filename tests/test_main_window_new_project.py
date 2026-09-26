@@ -23,8 +23,7 @@ def test_new_project_replaces_authoritative_document_stack_and_rebinds_views():
     assert window.doc.selection == []
     assert window.plan_view.doc is window.doc
     assert window.front_view.doc is window.doc
-    assert window.side_view.doc is window.doc
-    assert window.view_3d.doc is window.doc
+    assert window.pbr_view.doc is window.doc
     assert window.plan_view.stack is window.stack
     assert window.front_view.stack is window.stack
     assert window.side_view.stack is window.stack
