@@ -350,7 +350,9 @@ def _room_slab(doc,node):
   from archforge.architecture.stairs import candidate_from_params,stair_opening_polygon
   slab_z=float(g['z'])
   for stair in doc.entities.values():
-   if stair.kind!='stair' or abs(float(stair.params['upper_z'])-slab_z)>1e-5:continue
+   if stair.kind!='stair':continue
+   upper_floor_z=float(stair.params.get('upper_floor_z',stair.params['upper_z']))
+   if abs(upper_floor_z-slab_z)>1e-5:continue
    opening=stair_opening_polygon(candidate_from_params(stair.params))
    if opening and all(_point_in_polygon_xy(point,g['points']) for point in opening):
     mesh=_subtract_rectangular_slab_hole(mesh,opening,slab_z,slab_z+float(g['thickness']))
