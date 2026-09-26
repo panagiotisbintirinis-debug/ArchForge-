@@ -548,6 +548,44 @@ class SetWorkPlane(Command):
             doc.work_plane = copy.deepcopy(self.before)
 
 @dataclass
+class CreateFloorLevel(Command):
+    """Create one named storey elevation and activate it as the current work plane."""
+    name: str
+    elevation: float
+    before_levels: Optional[Dict[str, float]] = None
+    before_work_plane: Optional[WorkPlane] = None
+
+    def do(self, doc: Document):
+        name = str(self.name).strip()
+        if not name:
+            raise ValueError('floor level name must not be empty')
+        if self.before_levels is None:
+            if name in doc.levels:
+                raise ValueError(f"level '{name}' already exists")
+            self.before_levels = copy.deepcopy(doc.levels)
+            self.before_work_plane = copy.deepcopy(doc.work_plane)
+        elevation = float(self.elevation)
+        if any(abs(float(z) - elevation) <= 1e-6 for level_name, z in doc.levels.items() if level_name != name):
+            raise ValueError('another floor level already uses this elevation')
+        doc.levels[name] = elevation
+        wp = doc.work_plane
+        doc.work_plane = WorkPlane(
+            name=name,
+            origin=(float(wp.origin[0]), float(wp.origin[1]), elevation),
+            u=tuple(wp.u),
+            v=tuple(wp.v),
+        )
+        doc.selection = []
+
+    def undo(self, doc: Document):
+        if self.before_levels is None or self.before_work_plane is None:
+            return
+        doc.levels = copy.deepcopy(self.before_levels)
+        doc.work_plane = copy.deepcopy(self.before_work_plane)
+        doc.selection = []
+
+
+@dataclass
 class SetLevel(Command):
     name: str
     elevation: float
