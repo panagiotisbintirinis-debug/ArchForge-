@@ -57,6 +57,14 @@ html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background:
   padding: 6px 9px; font-size: 11px; cursor: pointer;
 }
 .stripAction:hover { background: rgba(255,255,255,0.16); }
+#stairHud {
+  position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%);
+  display: none; min-width: 300px; padding: 8px 12px; border-radius: 8px;
+  background: rgba(31,38,48,0.90); color: #fff; font: 12px "Segoe UI", sans-serif;
+  text-align: center; box-shadow: 0 4px 16px rgba(0,0,0,0.28); pointer-events: none;
+}
+#stairHud strong { font-size: 13px; margin-right: 8px; }
+#stairHud .hint { opacity: 0.72; margin-left: 8px; }
 </style>
 <script type="importmap">
 {
@@ -71,6 +79,7 @@ html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background:
 <body>
 <div id="stage"></div>
 <div id="notice">ArchForge PBR Preview · derived from authoritative geometry</div>
+<div id="stairHud"></div>
 <div id="markingRoot">
   <div id="markingCenter"></div>
   <div id="radialMenu"></div>
@@ -115,6 +124,7 @@ const markingRoot = document.getElementById("markingRoot");
 const markingCenter = document.getElementById("markingCenter");
 const radialMenu = document.getElementById("radialMenu");
 const commandStrip = document.getElementById("commandStrip");
+const stairHud = document.getElementById("stairHud");
 let markingEntityId = "";
 
 if (typeof QWebChannel !== "undefined" && typeof qt !== "undefined") {
@@ -196,31 +206,48 @@ function disposePreview() {
 
 window.setStairPreview = function(payload) {
   disposePreview();
-  const options = (payload && payload.options) || [];
-  options.forEach((item, index) => {
-    const positions = [];
-    for (const v of item.vertices) positions.push(v[0], v[1], v[2]);
-    const indices = [];
-    for (const t of item.triangles) indices.push(t[0], t[1], t[2]);
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-    geometry.setIndex(indices);
-    geometry.computeVertexNormals();
-    const preferred = index === 0;
-    const material = new THREE.MeshStandardMaterial({
-      color: preferred ? 0x4aa3ff : 0x9bbfe0,
-      roughness: 0.55,
-      metalness: 0.0,
-      transparent: true,
-      opacity: preferred ? 0.72 : 0.28,
-      depthWrite: preferred
-    });
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.userData.preview = true;
-    previewRoot.add(mesh);
-  });
-};
+  const item = payload && payload.active ? payload.active : null;
+  if (!item) {
+    stairHud.style.display = "none";
+    stairHud.textContent = "";
+    return;
+  }
 
+  const positions = [];
+  for (const v of item.vertices) positions.push(v[0], v[1], v[2]);
+  const indices = [];
+  for (const t of item.triangles) indices.push(t[0], t[1], t[2]);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+
+  const material = new THREE.MeshStandardMaterial({
+    color: 0x4aa3ff,
+    roughness: 0.52,
+    metalness: 0.0,
+    transparent: true,
+    opacity: 0.68,
+    depthWrite: true
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.userData.preview = true;
+  previewRoot.add(mesh);
+
+  const info = payload.info || {};
+  const label = String(info.layout || "STAIR").toUpperCase();
+  const optionText = info.option_count
+    ? ("Option " + String(info.option_index + 1) + "/" + String(info.option_count))
+    : "";
+  stairHud.innerHTML =
+    "<strong>" + label + "</strong>" +
+    optionText +
+    " · " + String(info.risers || "") + " risers" +
+    " · rise " + Number(info.riser || 0).toFixed(3) + " m" +
+    " · tread " + Number(info.tread || 0).toFixed(3) + " m" +
+    "<span class='hint'>Wheel = alternative</span>";
+  stairHud.style.display = "block";
+};
 
 function materialFor(spec) {
   return new THREE.MeshStandardMaterial({
@@ -526,7 +553,7 @@ renderer.domElement.addEventListener("dblclick", (event) => {
 
 renderer.domElement.addEventListener("contextmenu", (event) => {
   event.preventDefault();
-  if (!bridge || sculpting) return;
+  if (!bridge || sculpting || stairing) return;
   const hit = pickModel(event);
   if (!hit || !hit.face) { hideMarkingMenu(); return; }
   bridge.showContextMenu(
@@ -537,7 +564,14 @@ renderer.domElement.addEventListener("contextmenu", (event) => {
   event.stopPropagation();
 }, true);
 
-renderer.domElement.addEventListener("wheel", () => hideMarkingMenu(), {passive: true});
+renderer.domElement.addEventListener("wheel", (event) => {
+  hideMarkingMenu();
+  if (stairing && bridge) {
+    bridge.cycleStair(event.deltaY > 0 ? 1 : -1);
+    event.preventDefault();
+    event.stopPropagation();
+  }
+}, {passive: false});
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") hideMarkingMenu();
 });
@@ -638,6 +672,10 @@ class PBRInteractionBridge(QObject):
     @Slot()
     def endStair(self) -> None:
         self.viewport._finish_stair_from_web()
+
+    @Slot(int)
+    def cycleStair(self, step: int) -> None:
+        self.viewport._cycle_stair_from_web(step)
 
 
 class PBRViewport(QWidget):
@@ -854,37 +892,65 @@ class PBRViewport(QWidget):
             self.redraw(force_full=False)
 
 
-    def _set_stair_candidate_params(self, candidates) -> None:
-        options = []
+    def _set_stair_candidate_params(self, candidates, active_index=0) -> None:
+        candidates = list(candidates)
+        payload = {"active": None, "info": {}}
         try:
-            from archforge.geometry.mesh import _stair_mesh
-            for params in list(candidates)[:4]:
+            if candidates:
+                active_index = max(0, min(int(active_index), len(candidates) - 1))
+                params = candidates[active_index]
+                from archforge.geometry.mesh import _stair_mesh
                 mesh = _stair_mesh(params)
-                options.append({
-                    "vertices": [[float(x), float(y), float(z)] for x, y, z in mesh.vertices],
-                    "triangles": [[int(a), int(b), int(c)] for a, b, c in mesh.triangles],
-                })
+                payload = {
+                    "active": {
+                        "vertices": [[float(x), float(y), float(z)] for x, y, z in mesh.vertices],
+                        "triangles": [[int(a), int(b), int(c)] for a, b, c in mesh.triangles],
+                    },
+                    "info": {
+                        "layout": str(params.get("layout", "stair")),
+                        "risers": int(params.get("riser_count", 0)),
+                        "riser": float(params.get("riser_height", 0.0)),
+                        "tread": float(params.get("tread_depth", 0.0)),
+                        "option_index": active_index,
+                        "option_count": min(4, len(candidates)),
+                    },
+                }
         except Exception as exc:
             self.statusChanged.emit(f"Stair preview error: {exc}")
-            options = []
-        self._stair_preview_payload = {"options": options}
+            payload = {"active": None, "info": {}}
+        self._stair_preview_payload = payload
         self._push_stair_preview()
 
     def set_stair_preview(self, preview) -> None:
         candidates = ()
+        active_index = 0
         if preview is not None and getattr(preview, "kind", None) == "stair":
-            candidates = getattr(preview, "geometry", {}).get("candidates", ())
-        self._set_stair_candidate_params(candidates)
+            geometry = getattr(preview, "geometry", {})
+            candidates = geometry.get("candidates", ())
+            active_index = geometry.get("active_index", 0)
+        self._set_stair_candidate_params(candidates, active_index)
+
+    def _stair_status(self) -> None:
+        if self._stair_tx is None or not self._stair_tx.candidates:
+            return
+        active = self._stair_tx.active_candidate
+        note = active.suggestions[0] if active.suggestions else "valid layout"
+        self.statusChanged.emit(
+            f"Stair {active.layout.upper()} | option {self._stair_tx.active_index + 1}/"
+            f"{min(4, len(self._stair_tx.candidates))} | "
+            f"{active.riser_count} risers × {active.riser_height:.3f} m | "
+            f"tread {active.tread_depth:.3f} m | {note}"
+        )
 
     def _begin_stair_from_web(self, x: float, y: float) -> None:
         try:
             self._stair_tx = StairPlaceTransaction(self.doc, self.stack, (float(x), float(y)))
-            hud = self._stair_tx.update(float(x), float(y))
-            self._set_stair_candidate_params(self._stair_tx.preview.get("candidates", ()))
-            self.statusChanged.emit(
-                f"Stair preview: {int(hud.values['risers'])} risers, "
-                f"{hud.values['riser']:.3f} m rise, {hud.values['tread']:.3f} m tread"
+            self._stair_tx.update(float(x), float(y))
+            self._set_stair_candidate_params(
+                self._stair_tx.preview.get("candidates", ()),
+                self._stair_tx.active_index,
             )
+            self._stair_status()
         except Exception as exc:
             self._stair_tx = None
             self._set_stair_candidate_params(())
@@ -894,16 +960,27 @@ class PBRViewport(QWidget):
         if self._stair_tx is None:
             return
         try:
-            hud = self._stair_tx.update(float(x), float(y))
-            self._set_stair_candidate_params(self._stair_tx.preview.get("candidates", ()))
-            best = self._stair_tx.candidates[0]
-            note = best.suggestions[0] if best.suggestions else "valid layout"
-            self.statusChanged.emit(
-                f"Stair {best.layout.upper()} | {best.riser_count} risers × "
-                f"{best.riser_height:.3f} m | tread {best.tread_depth:.3f} m | {note}"
+            self._stair_tx.update(float(x), float(y))
+            self._set_stair_candidate_params(
+                self._stair_tx.preview.get("candidates", ()),
+                self._stair_tx.active_index,
             )
+            self._stair_status()
         except Exception as exc:
             self.statusChanged.emit(f"Stair preview error: {exc}")
+
+    def _cycle_stair_from_web(self, step: int) -> None:
+        if self._stair_tx is None:
+            return
+        try:
+            self._stair_tx.cycle_candidate(1 if int(step) >= 0 else -1)
+            self._set_stair_candidate_params(
+                self._stair_tx.preview.get("candidates", ()),
+                self._stair_tx.active_index,
+            )
+            self._stair_status()
+        except Exception as exc:
+            self.statusChanged.emit(f"Cannot change stair option: {exc}")
 
     def _finish_stair_from_web(self) -> None:
         if self._stair_tx is None:
@@ -911,13 +988,16 @@ class PBRViewport(QWidget):
         tx = self._stair_tx
         self._stair_tx = None
         try:
+            chosen = tx.active_candidate
             entity_id = tx.commit()
             self._evaluation_cache.clear()
             self._set_stair_candidate_params(())
             self.doc.select([entity_id])
             self.selectionChangedByView.emit()
             self.redraw(force_full=False)
-            self.statusChanged.emit("Stair committed with linked upper-floor opening — Undo is available")
+            self.statusChanged.emit(
+                f"Committed {chosen.layout.upper()} stair — Undo is available"
+            )
         except Exception as exc:
             self._set_stair_candidate_params(())
             self.statusChanged.emit(f"Cannot commit stair: {exc}")
