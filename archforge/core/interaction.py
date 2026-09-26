@@ -25,6 +25,8 @@ class MoveTransaction:
         self.dy = 0.0
         self.dz = 0.0
         self.cancelled = False
+        self.last_snap_kind = None
+        self.axis_lock = None
         self.before = {eid: doc.get(eid).params.copy() for eid in self.ids}
         self.preview = {eid: doc.get(eid).params.copy() for eid in self.ids}
 
@@ -35,17 +37,105 @@ class MoveTransaction:
         self._compute_preview()
         return HUD({'dx': self.dx, 'dy': self.dy, 'dz': self.dz})
 
-    def update_pointer(self, x: float, y: float, z: Optional[float] = None, snap: bool = True) -> HUD:
-        px, py = x, y
+    def update_pointer(
+        self,
+        x: float,
+        y: float,
+        z: Optional[float] = None,
+        snap: bool = True,
+        axis_lock: bool = False,
+    ) -> HUD:
+        px, py = float(x), float(y)
+        ox, oy = float(self.origin[0]), float(self.origin[1])
+        self.last_snap_kind = None
+        self.axis_lock = None
+
+        if axis_lock:
+            raw_dx, raw_dy = px - ox, py - oy
+            if abs(raw_dx) >= abs(raw_dy):
+                py = oy
+                self.axis_lock = 'x'
+            else:
+                px = ox
+                self.axis_lock = 'y'
+
+        proposed_dx, proposed_dy = px - ox, py - oy
+
         if snap:
-            sp = best_snap(self.doc, x, y, self.snap_tol, self.grid)
-            if sp:
-                px, py = sp.x, sp.y
-        self.dx = px - self.origin[0]
-        self.dy = py - self.origin[1]
+            # Stair/Ramp snapping is object-aware: snap the footprint to the
+            # physical face of a wall instead of snapping only the cursor.
+            from .snapping import snap_polygon_translation_to_wall_faces
+            object_snap = None
+            for eid in self.ids:
+                entity = self.doc.get(eid)
+                try:
+                    if entity.kind == 'stair':
+                        from archforge.architecture.stairs import candidate_from_params, stair_footprint
+                        polygon = stair_footprint(candidate_from_params(self.before[eid]))
+                    elif entity.kind == 'ramp':
+                        from archforge.architecture.ramps import candidate_from_params, ramp_footprint
+                        polygon = ramp_footprint(candidate_from_params(self.before[eid]))
+                    else:
+                        continue
+                    candidate_snap = snap_polygon_translation_to_wall_faces(
+                        self.doc,
+                        polygon,
+                        proposed_dx,
+                        proposed_dy,
+                        self.snap_tol,
+                        exclude=set(self.ids),
+                    )
+                    if candidate_snap is None:
+                        continue
+                    cx, cy = candidate_snap['correction']
+                    if self.axis_lock == 'x' and abs(cy) > 1e-8:
+                        continue
+                    if self.axis_lock == 'y' and abs(cx) > 1e-8:
+                        continue
+                    if object_snap is None or candidate_snap['distance'] < object_snap['distance']:
+                        object_snap = candidate_snap
+                except (KeyError, ValueError):
+                    continue
+
+            if object_snap is not None:
+                cx, cy = object_snap['correction']
+                proposed_dx += cx
+                proposed_dy += cy
+                px, py = ox + proposed_dx, oy + proposed_dy
+                self.last_snap_kind = object_snap['kind']
+            else:
+                sp = best_snap(
+                    self.doc,
+                    px,
+                    py,
+                    self.snap_tol,
+                    self.grid,
+                    exclude=set(self.ids),
+                )
+                if sp:
+                    if self.axis_lock == 'x':
+                        px = sp.x
+                        py = oy
+                    elif self.axis_lock == 'y':
+                        px = ox
+                        py = sp.y
+                    else:
+                        px, py = sp.x, sp.y
+                    self.last_snap_kind = sp.kind
+
+        self.dx = px - ox
+        self.dy = py - oy
         self.dz = (z - self.origin[2]) if z is not None else 0.0
         self._compute_preview()
-        return HUD({'dx': self.dx, 'dy': self.dy, 'dz': self.dz, 'x': px, 'y': py})
+        return HUD({
+            'dx': self.dx,
+            'dy': self.dy,
+            'dz': self.dz,
+            'x': px,
+            'y': py,
+            'snap': 1.0 if self.last_snap_kind else 0.0,
+            'axis_locked': 1.0 if self.axis_lock else 0.0,
+        })
 
     def _compute_preview(self):
         self.preview = {}
