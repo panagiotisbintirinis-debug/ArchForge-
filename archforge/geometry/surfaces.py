@@ -14,6 +14,7 @@ _KIND_ROLES:Dict[str,Tuple[Tuple[str,bool,bool,str],...]]={
  'pod':(('pod_shell',True,True,'curved pod shell'),('junction',True,True,'legacy generated flat pod junction'),('floor',True,True,'pod floor')),
  'mesh':(('mesh_surface',True,True,'authoritative free-form mesh surface'),),
  'stair':(('tread',False,False,'derived stair tread'),('riser',False,False,'derived stair riser'),('landing',False,False,'derived stair landing')),
+ 'ramp':(('ramp_surface',False,False,'derived inclined ramp surface'),('ramp_side',False,False,'derived ramp side')),
  'arboreal_branch':(('branch_shell',False,False,'preview-only arboreal branch shell'),('branch_root',False,False,'preview-only arboreal branch root cap'),('branch_tip',False,False,'preview-only arboreal branch tip cap')),
  'organic_junction':(('junction',False,False,'derived flat organic junction surface'),),
  'organic_opening_patch':(('opening_patch',False,False,'derived flat host surface for a conventional pod opening'),),
