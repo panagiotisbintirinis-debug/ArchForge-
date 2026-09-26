@@ -245,7 +245,7 @@ window.setStairPreview = function(payload) {
     " · " + String(info.risers || "") + " risers" +
     " · rise " + Number(info.riser || 0).toFixed(3) + " m" +
     " · tread " + Number(info.tread || 0).toFixed(3) + " m" +
-    "<span class='hint'>Wheel = alternative</span>";
+    "<span class='hint'>Move = adjust · Wheel = alternative · Left click = place · Right click/Esc = cancel</span>";
   stairHud.style.display = "block";
 };
 
@@ -494,19 +494,42 @@ function pointOnHorizontalPlane(event, z) {
 renderer.domElement.addEventListener("pointerdown", (event) => {
   if (!bridge) return;
   if (event.button !== 2) hideMarkingMenu();
-  const hit = pickModel(event);
-  if (!hit || !hit.face) return;
 
   if (activeTool === "stair") {
+    if (event.button === 2) {
+      if (stairing) {
+        stairing = false;
+        controls.enabled = true;
+        bridge.cancelStair();
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    if (event.button !== 0) return;
+
+    if (stairing) {
+      stairing = false;
+      controls.enabled = true;
+      bridge.endStair();
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    const hit = pickModel(event);
+    if (!hit || !hit.face) return;
     stairing = true;
     stairPlaneZ = Number(hit.point.z);
     controls.enabled = false;
-    if (renderer.domElement.setPointerCapture) renderer.domElement.setPointerCapture(event.pointerId);
     bridge.beginStair(Number(hit.point.x), Number(hit.point.y));
     event.preventDefault();
     event.stopPropagation();
     return;
   }
+
+  const hit = pickModel(event);
+  if (!hit || !hit.face) return;
 
   if (activeTool === "door" || activeTool === "window") {
     const kind = hit.object.userData.kind || "";
@@ -553,7 +576,14 @@ renderer.domElement.addEventListener("dblclick", (event) => {
 
 renderer.domElement.addEventListener("contextmenu", (event) => {
   event.preventDefault();
-  if (!bridge || sculpting || stairing) return;
+  if (!bridge || sculpting) return;
+  if (stairing) {
+    stairing = false;
+    controls.enabled = true;
+    bridge.cancelStair();
+    event.stopPropagation();
+    return;
+  }
   const hit = pickModel(event);
   if (!hit || !hit.face) { hideMarkingMenu(); return; }
   bridge.showContextMenu(
@@ -573,7 +603,15 @@ renderer.domElement.addEventListener("wheel", (event) => {
   }
 }, {passive: false});
 window.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") hideMarkingMenu();
+  if (event.key === "Escape") {
+    hideMarkingMenu();
+    if (stairing && bridge) {
+      stairing = false;
+      controls.enabled = true;
+      bridge.cancelStair();
+      event.preventDefault();
+    }
+  }
 });
 
 renderer.domElement.addEventListener("pointermove", (event) => {
@@ -594,14 +632,6 @@ renderer.domElement.addEventListener("pointermove", (event) => {
 
 renderer.domElement.addEventListener("pointerup", (event) => {
   if (!bridge) return;
-  if (stairing) {
-    stairing = false;
-    controls.enabled = activeTool !== "sculpt";
-    bridge.endStair();
-    event.preventDefault();
-    event.stopPropagation();
-    return;
-  }
   if (!sculpting) return;
   sculpting = false;
   controls.enabled = activeTool !== "sculpt";
@@ -676,6 +706,10 @@ class PBRInteractionBridge(QObject):
     @Slot(int)
     def cycleStair(self, step: int) -> None:
         self.viewport._cycle_stair_from_web(step)
+
+    @Slot()
+    def cancelStair(self) -> None:
+        self.viewport._cancel_stair_from_web()
 
 
 class PBRViewport(QWidget):
@@ -981,6 +1015,13 @@ class PBRViewport(QWidget):
             self._stair_status()
         except Exception as exc:
             self.statusChanged.emit(f"Cannot change stair option: {exc}")
+
+    def _cancel_stair_from_web(self) -> None:
+        if self._stair_tx is not None:
+            self._stair_tx.cancel()
+        self._stair_tx = None
+        self._set_stair_candidate_params(())
+        self.statusChanged.emit("Stair placement cancelled")
 
     def _finish_stair_from_web(self) -> None:
         if self._stair_tx is None:
