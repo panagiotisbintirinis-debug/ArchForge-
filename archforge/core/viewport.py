@@ -91,14 +91,16 @@ class PointerController:
     def pointer_move(self,ev):
         x,y=self._plan_xy(ev)
         if isinstance(self.active,WallDrawTransaction):
-            hud=self.active.update(x,y);sx,sy=self.active.start;ex,ey=self.active.end;sp=best_snap(self.doc,x,y,self.snap_tolerance,self.grid);self.preview=PreviewState('wall',{'x1':sx,'y1':sy,'x2':ex,'y2':ey,'z':self.active.z},hud.values,self._snap_dict(sp))
+            hud=self.active.update(x,y);sx,sy=self.active.start;ex,ey=self.active.end
+            sp=best_snap(self.doc,x,y,self.snap_tolerance,self.grid) if self.snap_enabled and not ev.shift else None
+            self.preview=PreviewState('wall',{'x1':sx,'y1':sy,'x2':ex,'y2':ey,'z':self.active.z},hud.values,self._snap_dict(sp))
         elif isinstance(self.active,ConnectedWallEndpointStretchTransaction):
             hud=self.active.update(x,y);geom=copy.deepcopy(self.active.preview);geom['entities']=copy.deepcopy(self.active.previews);self.preview=PreviewState('stretch',geom,hud.values,None,self.active.eid)
         elif isinstance(self.active,WallEndpointStretchTransaction):hud=self.active.update(x,y);self.preview=PreviewState('stretch',copy.deepcopy(self.active.preview),hud.values,None,self.active.eid)
         elif isinstance(self.active,BoxStretchTransaction):hud=self.active.update(x=x,y=y);self.preview=PreviewState('stretch',copy.deepcopy(self.active.preview),hud.values,None,self.active.eid)
         elif isinstance(self.active,PodStretchTransaction):
             hud=self.active.update(x=x) if self.active.handle in ('left','right') else self.active.update(y=y);self.preview=PreviewState('stretch',copy.deepcopy(self.active.preview),hud.values,None,self.active.eid)
-        elif isinstance(self.active,RotateTransaction):hud=self.active.update_pointer(x,y,self._rotate_start_angle,snap=not ev.shift);self.preview=PreviewState('rotate',copy.deepcopy(self.active.preview),hud.values,None,self.active.eid)
+        elif isinstance(self.active,RotateTransaction):hud=self.active.update_pointer(x,y,self._rotate_start_angle,snap=self.snap_enabled and not ev.shift);self.preview=PreviewState('rotate',copy.deepcopy(self.active.preview),hud.values,None,self.active.eid)
         elif isinstance(self.active,OpeningPlaceTransaction):
             hud=self.active.update(x,y);seg=self.active.preview_segment();geom={'opening_kind':self.active.kind,'host_id':self.active.host_id,'params':copy.deepcopy(self.active.preview)}
             if seg:geom.update({'x1':seg[0][0],'y1':seg[0][1],'x2':seg[1][0],'y2':seg[1][1]})
