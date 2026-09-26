@@ -505,7 +505,7 @@ class MainWindow(QMainWindow):
     def _replace_project(self, doc, path=None):
         self.doc = doc
         self.stack = CommandStack(self.doc)
-        for view in (self.plan_view, self.front_view, self.pbr_view):
+        for view in (self.plan_view, self.pbr_view):
             view.rebind(self.doc, self.stack)
         self.current_path = path
         self._mark_clean()
