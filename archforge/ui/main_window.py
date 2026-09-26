@@ -41,6 +41,7 @@ class MainWindow(QMainWindow):
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self._build_toolbar()
         self._build_view_toolbar()
+        self._build_view_menu()
         self._build_inspector()
         self.refresh_inspector()
 
@@ -65,9 +66,11 @@ class MainWindow(QMainWindow):
         self.pbr_view.configure_sculpt(**kwargs)
 
     def _build_toolbar(self):
-        toolbar = QToolBar('Tools')
-        toolbar.setMovable(False)
-        self.addToolBar(toolbar)
+        self.tools_toolbar = QToolBar('Tools')
+        self.tools_toolbar.setObjectName('tools_toolbar')
+        self.tools_toolbar.setMovable(False)
+        self.addToolBar(self.tools_toolbar)
+        toolbar = self.tools_toolbar
         for text, tool, key in [
             ('Select', 'select', 'S'), ('Wall', 'wall', 'W'), ('Door', 'door', 'D'),
             ('Window', 'window', 'N'), ('Move', 'move', 'G'), ('Stretch', 'stretch', 'T'),
@@ -155,6 +158,19 @@ class MainWindow(QMainWindow):
         stl_action.triggered.connect(self.export_stl)
         toolbar.addAction(stl_action)
 
+
+
+    def _build_view_menu(self):
+        view_menu = self.menuBar().addMenu('&View')
+
+        self.status_bar_action = QAction('Status Bar', self, checkable=True)
+        self.status_bar_action.setChecked(not self.statusBar().isHidden())
+        self.status_bar_action.toggled.connect(self.statusBar().setVisible)
+        view_menu.addAction(self.status_bar_action)
+
+        self.tools_toolbar_action = self.tools_toolbar.toggleViewAction()
+        self.tools_toolbar_action.setText('Tools Toolbar')
+        view_menu.addAction(self.tools_toolbar_action)
 
     def _build_view_toolbar(self):
         self.addToolBarBreak()
@@ -369,6 +385,13 @@ class MainWindow(QMainWindow):
         if choice == QMessageBox.StandardButton.Save:
             return self.save()
         return choice == QMessageBox.StandardButton.Discard
+
+
+    def closeEvent(self, event):
+        if self._confirm_destructive_action():
+            event.accept()
+        else:
+            event.ignore()
 
     def _replace_project(self, doc, path=None):
         self.doc = doc
