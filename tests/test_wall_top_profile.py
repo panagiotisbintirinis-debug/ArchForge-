@@ -75,3 +75,15 @@ def test_invalid_opening_is_rejected_before_mesh_generation():
     wall = _wall(start_height=2.0, end_height=4.0, _opening_intents=(opening,))
     with pytest.raises(ValueError, match='local wall height'):
         detailed_wall_geometry(wall)
+
+
+def test_hosted_opening_preserves_true_sloped_top_surface():
+    opening = {'kind': 'window', 'offset': 3.0, 'width': 1.0, 'sill': 0.8, 'height': 1.0}
+    wall = _wall(start_height=2.0, end_height=4.0, _opening_intents=(opening,))
+    top = _top_vertices(wall)
+    assert top
+    for x, _y, z in top:
+        local_u = x - wall['x1']
+        assert z == pytest.approx(wall['z'] + wall_height_at(wall, local_u), abs=1e-9)
+    assert min(z for _x, _y, z in top) == pytest.approx(2.4)
+    assert max(z for _x, _y, z in top) == pytest.approx(4.4)
