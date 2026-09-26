@@ -71,6 +71,10 @@ class MoveEntities(Command):
             elif e.kind=='pod':doc.update(i,{'cx':p['cx']+self.dx,'cy':p['cy']+self.dy,'floor_level':p['floor_level']+self.dz})
             elif e.kind in ('floor','room'):
                 doc.update(i,{'points':[(x+self.dx,y+self.dy) for x,y in p['points']], 'z':p['z']+self.dz})
+            elif e.kind=='stair':
+                if abs(float(self.dz))>1e-12:
+                    raise ValueError('stairs can only move in XY; floor elevations remain linked')
+                doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy})
         # Compatibility only: modern UV/local attachments are immutable semantic intent.
         # Old project files may still contain world-only sculpt centers, so translate those
         # until they can be migrated to an intrinsic surface frame.
