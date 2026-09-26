@@ -26,6 +26,23 @@ def wall_height_at(p,u,length=None):
     return start+(end-start)*t
 
 
+def opening_fits_wall_profile(p, opening, length=None):
+    """Validate an opening in the wall-local frame against the semantic top profile.
+
+    Because the top profile is linear, checking the two opening jamb positions is
+    sufficient: the lower available height across the opening occurs at one of them.
+    """
+    if length is None:
+        length=math.hypot(float(p['x2'])-float(p['x1']),float(p['y2'])-float(p['y1']))
+    width=float(opening.get('width',0.0));height=float(opening.get('height',0.0))
+    center=float(opening.get('offset',0.0));sill=float(opening.get('sill',0.0))
+    if width<=0 or height<=0 or sill<0:return False
+    u0=center-width/2.0;u1=center+width/2.0
+    if u0<0 or u1>length:return False
+    head=sill+height
+    return head<=min(wall_height_at(p,u0,length),wall_height_at(p,u1,length))+1e-9
+
+
 def _plain_wall_geometry(p,target_step:float):
     x1,y1,z,x2,y2=map(float,(p['x1'],p['y1'],p['z'],p['x2'],p['y2']))
     h0,h1=wall_top_heights(p);t=float(p['thickness'])
@@ -76,6 +93,8 @@ def _normalized_openings(p,length,height):
         z0=max(0.0,sill);z1=min(height,sill+opening_height)
         if u1-u0<=1e-9 or z1-z0<=1e-9:
             continue
+        if not opening_fits_wall_profile(p,raw,length):
+            raise ValueError('opening exceeds available local wall height')
         out.append((u0,u1,z0,z1))
     return tuple(out)
 
