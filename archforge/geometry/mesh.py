@@ -381,7 +381,17 @@ def _apply_vertical_openings_to_slab(doc,mesh,points,slab_z,thickness):
    opening=stair_opening_polygon(stair_candidate(entity.params))
   else:
    opening=ramp_opening_polygon(ramp_candidate(entity.params))
-  if opening and all(_point_in_polygon_xy(point,points) for point in opening):
+  if not opening:continue
+  # The opening may legitimately cross a room boundary. Requiring every
+  # envelope corner to sit inside one slab prevented any cut at all.
+  cx=sum(float(p[0]) for p in opening)/len(opening)
+  cy=sum(float(p[1]) for p in opening)/len(opening)
+  overlaps=(
+   _point_in_polygon_xy((cx,cy),points)
+   or any(_point_in_polygon_xy(point,points) for point in opening)
+   or any(_point_in_polygon_xy(point,opening) for point in points)
+  )
+  if overlaps:
    mesh=_subtract_rectangular_slab_hole(mesh,opening,slab_z,slab_z+thickness)
  return mesh
 
@@ -395,7 +405,7 @@ def _room_slab(doc,node):
  g=room_slab_geometry(doc,doc.get(node.entity_id))
  if g is None:raise ValueError('derived room element has no currently closed room')
  mesh=_polygon_prism(g['points'],g['z'],g['thickness'])
- if node.semantic_kind=='room_floor':
+ if node.semantic_kind in ('room_floor','room_ceiling','room_roof'):
   mesh=_apply_vertical_openings_to_slab(doc,mesh,g['points'],g['z'],g['thickness'])
  return mesh
 def _organic_junction_mesh(doc,node):
