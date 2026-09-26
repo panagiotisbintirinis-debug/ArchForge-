@@ -204,6 +204,8 @@ SCHEMAS = {
         'y': _finite,
         'lower_z': _finite,
         'upper_z': _finite,
+        'upper_floor_z': _finite,
+        'upper_slab_thickness': _nonnegative,
         'layout': _stair_layout,
         'angle_deg': _finite,
         'width': _positive,
