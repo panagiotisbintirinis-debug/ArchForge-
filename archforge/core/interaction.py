@@ -177,10 +177,10 @@ class MoveTransaction:
 
 
 class WallDrawTransaction:
-    def __init__(self,doc:Document,stack:CommandStack,start:Tuple[float,float],z=0.0,height=2.7,thickness=0.15,grid=0.1,snap_tol=0.15):
-        self.doc,self.stack=doc,stack;self.start=start;self.end=start;self.z=z;self.height=height;self.thickness=thickness;self.grid=grid;self.snap_tol=snap_tol;self.cancelled=False
+    def __init__(self,doc:Document,stack:CommandStack,start:Tuple[float,float],z=0.0,height=2.7,thickness=0.15,grid=0.1,snap_tol=0.15,snap_enabled=True):
+        self.doc,self.stack=doc,stack;self.start=start;self.end=start;self.z=z;self.height=height;self.thickness=thickness;self.grid=grid;self.snap_tol=snap_tol;self.snap_enabled=bool(snap_enabled);self.cancelled=False
     def update(self,x,y):
-        sp=best_snap(self.doc,x,y,self.snap_tol,self.grid)
+        sp=best_snap(self.doc,x,y,self.snap_tol,self.grid) if self.snap_enabled else None
         self.end=(sp.x,sp.y) if sp else (x,y)
         dx=self.end[0]-self.start[0];dy=self.end[1]-self.start[1]
         return HUD({'length':hypot(dx,dy),'angle_deg':degrees(atan2(dy,dx)),'x':self.end[0],'y':self.end[1],'z':self.z})
