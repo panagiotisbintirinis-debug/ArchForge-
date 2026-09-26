@@ -11,10 +11,9 @@ from PySide6.QtWidgets import (
 
 from archforge.core.model import Document
 from archforge.core.commands import CommandStack, UpdateEntity, CreateRoomFloors, CreateRoomRoofs
-from archforge.core.wall_profile_commands import SetWallTopEndpoint
 from .plan_view import PlanView
 from .ortho_view import OrthoView
-from .viewport_3d import Viewport3D
+from .pbr_viewport import PBRViewport
 
 
 class MainWindow(QMainWindow):
@@ -29,32 +28,41 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.plan_view = PlanView(self.doc, self.stack)
         self.front_view = OrthoView(self.doc, self.stack, 'XZ')
-        self.side_view = OrthoView(self.doc, self.stack, 'YZ')
-        self.view_3d = Viewport3D(self.doc, self.stack)
-        self.tabs.addTab(self.plan_view, 'XY PLAN')
-        self.tabs.addTab(self.front_view, 'XZ FRONT')
-        self.tabs.addTab(self.side_view, 'YZ SIDE')
-        self.tabs.addTab(self.view_3d, '3D PERSPECTIVE')
+        self.pbr_view = PBRViewport(self.doc, self.stack)
+        self.tabs.addTab(self.plan_view, 'FLOOR PLAN')
+        self.tabs.addTab(self.front_view, 'FRONT ELEVATION')
+        self.tabs.addTab(self.pbr_view, '3D STUDIO')
         self.setCentralWidget(self.tabs)
         self.view = self.plan_view
         self.setStatusBar(QStatusBar())
-        for view in (self.plan_view, self.front_view, self.side_view, self.view_3d):
+        for view in (self.plan_view, self.front_view, self.pbr_view):
             view.statusChanged.connect(self.statusBar().showMessage)
             view.selectionChangedByView.connect(self._selection_from_view)
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self._build_toolbar()
+        self._build_view_toolbar()
         self._build_inspector()
         self.refresh_inspector()
 
     def _on_tab_changed(self, idx):
-        widgets = [self.plan_view, self.front_view, self.side_view, self.view_3d]
+        widgets = [self.plan_view, self.front_view, self.pbr_view]
         if 0 <= idx < len(widgets):
             self.view = widgets[idx]
+        if self.view is self.pbr_view:
+            self.pbr_view.activate()
         self._redraw_views()
 
     def _set_active_tool(self, tool):
         if hasattr(self.view, 'set_tool'):
             self.view.set_tool(tool)
+
+    def _activate_sculpt_tool(self):
+        self.tabs.setCurrentWidget(self.pbr_view)
+        self.pbr_view.activate()
+        self.pbr_view.set_tool('sculpt')
+
+    def _configure_sculpt_views(self, **kwargs):
+        self.pbr_view.configure_sculpt(**kwargs)
 
     def _build_toolbar(self):
         toolbar = QToolBar('Tools')
@@ -71,7 +79,7 @@ class MainWindow(QMainWindow):
             toolbar.addAction(action)
         sculpt = QAction('Sculpt 3D', self)
         sculpt.setShortcut(QKeySequence('C'))
-        sculpt.triggered.connect(lambda: self.view_3d.set_tool('sculpt'))
+        sculpt.triggered.connect(self._activate_sculpt_tool)
         toolbar.addAction(sculpt)
 
         self.sculpt_operation = QComboBox()
@@ -79,7 +87,7 @@ class MainWindow(QMainWindow):
             ['pull', 'push', 'inflate', 'recess', 'smooth', 'crease']
         )
         self.sculpt_operation.currentTextChanged.connect(
-            lambda value: self.view_3d.configure_sculpt(operation=value)
+            lambda value: self._configure_sculpt_views(operation=value)
         )
         toolbar.addWidget(QLabel(' Op '))
         toolbar.addWidget(self.sculpt_operation)
@@ -88,18 +96,31 @@ class MainWindow(QMainWindow):
         self.sculpt_radius.setRange(0.10, 5.0)
         self.sculpt_radius.setDecimals(2)
         self.sculpt_radius.setSingleStep(0.05)
-        self.sculpt_radius.setValue(self.view_3d.sculpt_brush.radius)
+        self.sculpt_radius.setValue(self.pbr_view.sculpt_brush.radius)
         self.sculpt_radius.setToolTip(
             'Local brush diameter control: smaller values deform a tighter area around the picked point.'
         )
         self.sculpt_radius.valueChanged.connect(
-            lambda value: self.view_3d.configure_sculpt(
+            lambda value: self._configure_sculpt_views(
                 radius=value,
                 strength=1.0,
             )
         )
         toolbar.addWidget(QLabel(' Brush '))
         toolbar.addWidget(self.sculpt_radius)
+        toolbar.addSeparator()
+
+        self.render_technique = QComboBox()
+        self.render_technique.addItem('PBR', 'pbr')
+        self.render_technique.addItem('Technical', 'technical')
+        self.render_technique.addItem('Glass', 'glass')
+        self.render_technique.currentIndexChanged.connect(
+            lambda _index: self.pbr_view.set_render_technique(
+                self.render_technique.currentData()
+            )
+        )
+        toolbar.addWidget(QLabel(' Render '))
+        toolbar.addWidget(self.render_technique)
         toolbar.addSeparator()
         auto_floors = QAction('Auto Floors', self)
         auto_floors.triggered.connect(self._create_auto_floors)
@@ -134,6 +155,61 @@ class MainWindow(QMainWindow):
         stl_action.triggered.connect(self.export_stl)
         toolbar.addAction(stl_action)
 
+
+    def _build_view_toolbar(self):
+        self.addToolBarBreak()
+        toolbar = QToolBar('View')
+        toolbar.setMovable(False)
+        self.addToolBar(toolbar)
+
+        toolbar.addWidget(QLabel(' Camera '))
+        for text, mode in (
+            ('Cutaway', 'cutaway'),
+            ('Top', 'top'),
+            ('Front', 'front'),
+            ('Side', 'side'),
+            ('ISO 30°', 'iso30'),
+            ('Eye', 'eye'),
+            ('Orbit', 'orbit'),
+        ):
+            action = QAction(text, self)
+            action.triggered.connect(
+                lambda checked=False, m=mode: self._set_pbr_camera(m)
+            )
+            toolbar.addAction(action)
+
+        toolbar.addSeparator()
+
+        axes = QAction('Axes', self)
+        axes.setCheckable(True)
+        axes.setChecked(False)
+        axes.toggled.connect(self.pbr_view.set_axes_visible)
+        toolbar.addAction(axes)
+        self.axes_action = axes
+
+        cutaway = QAction('Cutaway', self)
+        cutaway.setCheckable(True)
+        cutaway.setChecked(False)
+        cutaway.toggled.connect(self.pbr_view.set_cutaway)
+        toolbar.addAction(cutaway)
+        self.cutaway_action = cutaway
+
+        auto_rotate = QAction('Auto Rotate', self)
+        auto_rotate.setCheckable(True)
+        auto_rotate.setChecked(False)
+        auto_rotate.toggled.connect(self.pbr_view.set_auto_rotate)
+        toolbar.addAction(auto_rotate)
+        self.auto_rotate_action = auto_rotate
+
+    def _set_pbr_camera(self, mode):
+        self.tabs.setCurrentWidget(self.pbr_view)
+        self.pbr_view.activate()
+        self.pbr_view.set_camera_preset(mode)
+        if hasattr(self, 'cutaway_action'):
+            self.cutaway_action.blockSignals(True)
+            self.cutaway_action.setChecked(mode == 'cutaway')
+            self.cutaway_action.blockSignals(False)
+
     def _build_inspector(self):
         self.dock = QDockWidget('Inspector', self)
         self.dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
@@ -145,22 +221,6 @@ class MainWindow(QMainWindow):
     def _clear_form(self):
         while self.form.rowCount():
             self.form.removeRow(0)
-
-    def _add_wall_top_endpoint_editor(self, eid, endpoint, value):
-        spin = QDoubleSpinBox()
-        spin.setDecimals(4)
-        spin.setRange(0.0001, 1e6)
-        spin.setValue(float(value))
-        spin.setSingleStep(.1)
-        spin.setToolTip(
-            f'Exact {endpoint} top height above the wall base; committed through the shared wall-profile command.'
-        )
-        spin.editingFinished.connect(
-            lambda wall_id=eid, which=endpoint, widget=spin: self._commit_wall_top_endpoint(
-                wall_id, which, widget.value()
-            )
-        )
-        self.form.addRow(f'{endpoint.title()} top height', spin)
 
     def refresh_inspector(self):
         self._clear_form()
@@ -174,17 +234,7 @@ class MainWindow(QMainWindow):
         if entity.parent_id and entity.parent_id in self.doc.entities:
             host = self.doc.get(entity.parent_id)
             self.form.addRow('Host', QLabel(host.name or f'{host.kind.title()} {host.id[:8]}'))
-        if entity.kind == 'wall':
-            legacy_height = float(entity.params['height'])
-            self._add_wall_top_endpoint_editor(
-                eid, 'start', entity.params.get('start_height', legacy_height)
-            )
-            self._add_wall_top_endpoint_editor(
-                eid, 'end', entity.params.get('end_height', legacy_height)
-            )
         for key, value in entity.params.items():
-            if entity.kind == 'wall' and key in ('start_height', 'end_height'):
-                continue
             if isinstance(value, (int, float)):
                 spin = QDoubleSpinBox()
                 spin.setDecimals(4)
@@ -197,15 +247,6 @@ class MainWindow(QMainWindow):
                 self.form.addRow(key, spin)
             elif entity.kind == 'room_floor' and key == 'room_signature':
                 self.form.addRow('Room', QLabel(str(value)))
-
-    def _commit_wall_top_endpoint(self, eid, endpoint, value):
-        try:
-            self.stack.execute(SetWallTopEndpoint(eid, endpoint, value))
-            self._redraw_views(all_views=True)
-            self.refresh_inspector()
-        except Exception as exc:
-            QMessageBox.warning(self, 'Invalid wall top', str(exc))
-            self.refresh_inspector()
 
     def _commit_property(self, eid, key, value):
         try:
@@ -282,90 +323,114 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, 'Flat Roof', str(exc))
 
     def _selection_from_view(self):
-        sender = self.sender()
-        if sender is self.view_3d:
-            self.view_3d.refresh_selection()
         self.refresh_inspector()
 
     def _redraw_views(self, *, all_views=False):
-        targets=(self.plan_view,self.front_view,self.side_view,self.view_3d) if all_views else (self.view,)
+        targets=(self.plan_view,self.front_view,self.pbr_view) if all_views else (self.view,)
         for view in targets:
-            if view is self.view_3d:
+            if view is self.pbr_view:
                 view.redraw(force_full=True)
             else:
                 view.redraw()
 
     def _undo(self):
-        self.stack.undo(); self._redraw_views(all_views=True); self.refresh_inspector()
+        self.stack.undo()
+        self._redraw_views()
+        self.refresh_inspector()
 
     def _redo(self):
-        self.stack.redo(); self._redraw_views(all_views=True); self.refresh_inspector()
+        self.stack.redo()
+        self._redraw_views()
+        self.refresh_inspector()
+
+    def _authoritative_state(self):
+        return self.doc.to_dict()
 
     def _is_dirty(self):
-        return self.doc.to_dict() != self._clean_state
+        return self._authoritative_state() != self._clean_state
 
-    def _confirm_discard_changes(self):
+    def _mark_clean(self):
+        self._clean_state = copy.deepcopy(self._authoritative_state())
+
+    def _confirm_destructive_action(self):
         if not self._is_dirty():
             return True
-        result = QMessageBox.question(
+        choice = QMessageBox.warning(
             self,
             'Unsaved changes',
-            'Discard unsaved changes?',
-            QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel,
-            QMessageBox.StandardButton.Cancel,
+            'The current project has unsaved changes. Save them before continuing?',
+            QMessageBox.StandardButton.Save
+            | QMessageBox.StandardButton.Discard
+            | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Save,
         )
-        return result == QMessageBox.StandardButton.Discard
+        if choice == QMessageBox.StandardButton.Cancel:
+            return False
+        if choice == QMessageBox.StandardButton.Save:
+            return self.save()
+        return choice == QMessageBox.StandardButton.Discard
 
-    def new_project(self):
-        if not self._confirm_discard_changes():
-            return
-        self.doc = Document()
+    def _replace_project(self, doc, path=None):
+        self.doc = doc
         self.stack = CommandStack(self.doc)
-        self.current_path = None
-        self._clean_state = copy.deepcopy(self.doc.to_dict())
-        for view in (self.plan_view, self.front_view, self.side_view, self.view_3d):
-            view.doc = self.doc
-            view.stack = self.stack
+        for view in (self.plan_view, self.front_view, self.pbr_view):
+            view.rebind(self.doc, self.stack)
+        self.current_path = path
+        self._mark_clean()
         self._redraw_views(all_views=True)
         self.refresh_inspector()
+
+    def new_project(self):
+        if not self._confirm_destructive_action():
+            return False
+        self._replace_project(Document())
+        self.statusBar().showMessage('New project', 3000)
+        return True
 
     def save(self):
         path = self.current_path
         if not path:
-            path, _ = QFileDialog.getSaveFileName(self, 'Save ArchForge Project', '', 'ArchForge Project (*.json)')
-            if not path:
-                return False
-        self.doc.save(path)
+            path, _ = QFileDialog.getSaveFileName(self, 'Save ArchForge Project', '', 'ArchForge Project (*.archforge)')
+        if not path:
+            return False
+        if not path.lower().endswith('.archforge'):
+            path += '.archforge'
+        try:
+            self.doc.save(path)
+        except Exception as exc:
+            QMessageBox.critical(self, 'Save failed', str(exc))
+            return False
         self.current_path = path
-        self._clean_state = copy.deepcopy(self.doc.to_dict())
+        self._mark_clean()
         self.statusBar().showMessage(f'Saved {os.path.basename(path)}', 3000)
         return True
 
     def open(self):
-        if not self._confirm_discard_changes():
-            return
-        path, _ = QFileDialog.getOpenFileName(self, 'Open ArchForge Project', '', 'ArchForge Project (*.json)')
+        path, _ = QFileDialog.getOpenFileName(self, 'Open ArchForge Project', '', 'ArchForge Project (*.archforge)')
         if not path:
-            return
-        self.doc = Document.load(path)
-        self.stack = CommandStack(self.doc)
-        self.current_path = path
-        self._clean_state = copy.deepcopy(self.doc.to_dict())
-        for view in (self.plan_view, self.front_view, self.side_view, self.view_3d):
-            view.doc = self.doc
-            view.stack = self.stack
-        self._redraw_views(all_views=True)
-        self.refresh_inspector()
+            return False
+        if not self._confirm_destructive_action():
+            return False
+        try:
+            doc = Document.load(path)
+        except Exception as exc:
+            QMessageBox.critical(self, 'Open failed', str(exc))
+            return False
+        self._replace_project(doc, path)
+        return True
 
     def export_stl(self):
-        path, _ = QFileDialog.getSaveFileName(self, 'Export STL', '', 'STL (*.stl)')
+        from archforge.geometry.fabrication import export_document_stl
+        path, _ = QFileDialog.getSaveFileName(
+            self, 'Export STL for Fabrication / 3D Printing', '', 'Stereolithography (*.stl)'
+        )
         if not path:
             return
-        self.doc.export_stl(path)
-        self.statusBar().showMessage(f'Exported {os.path.basename(path)}', 3000)
-
-    def closeEvent(self, event):
-        if self._confirm_discard_changes():
-            event.accept()
-        else:
-            event.ignore()
+        if not path.lower().endswith('.stl'):
+            path += '.stl'
+        try:
+            scope = list(self.doc.selection) if self.doc.selection else None
+            count = export_document_stl(self.doc, path, entity_ids=scope, binary=True)
+            self.statusBar().showMessage(f'Exported {count} triangles to {os.path.basename(path)}', 4000)
+        except Exception as exc:
+            QMessageBox.warning(self, 'Fabrication Gate Failed', f'Cannot export STL: {exc}')
