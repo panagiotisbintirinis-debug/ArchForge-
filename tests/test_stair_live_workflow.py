@@ -4,7 +4,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from archforge.architecture.stairs import discover_building_levels, solve_stair_candidates
 from archforge.core.commands import CommandStack
-from archforge.core.interaction import StairPlaceTransaction
+from archforge.core.interaction import MoveTransaction, StairPlaceTransaction
 from archforge.core.model import Document, Entity, WorkPlane
 from archforge.geometry.mesh import TessellatedPreviewBackend
 
@@ -200,3 +200,28 @@ def test_geometry_only_upper_walls_are_enough_to_resolve_a_stair_level():
     assert tx.upper_floor_z == 2.7
     assert tx.upper_slab_thickness == 0.0
     assert tx.upper_z == 2.7
+
+
+
+def test_stair_move_transaction_updates_xy_and_undo_restores_position():
+    doc = _two_level_document()
+    stack = CommandStack(doc)
+    stair_tx = StairPlaceTransaction(doc, stack, (0.0, 0.0))
+    stair_tx.update(5.0, 0.0)
+    stair_id = stair_tx.commit()
+    before = dict(doc.get(stair_id).params)
+
+    move = MoveTransaction(doc, stack, [stair_id], origin=(0.0, 0.0, 0.0))
+    move.update_pointer(1.25, -0.75, snap=False)
+    move.commit()
+
+    moved = doc.get(stair_id)
+    assert abs(moved.params['x'] - (before['x'] + 1.25)) < 1e-9
+    assert abs(moved.params['y'] - (before['y'] - 0.75)) < 1e-9
+    assert moved.params['lower_z'] == before['lower_z']
+    assert moved.params['upper_z'] == before['upper_z']
+
+    stack.undo()
+    restored = doc.get(stair_id)
+    assert restored.params['x'] == before['x']
+    assert restored.params['y'] == before['y']
