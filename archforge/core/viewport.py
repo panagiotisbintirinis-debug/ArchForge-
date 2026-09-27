@@ -4,7 +4,7 @@ from typing import Dict, Any, Optional, Tuple, List
 import copy
 from .model import Document
 from .commands import CommandStack
-from .interaction import MoveTransaction,WallDrawTransaction,WallEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction,OpeningPlaceTransaction,OpeningEditTransaction,StairPlaceTransaction,RampPlaceTransaction,MEPTerminalPlaceTransaction
+from .interaction import MoveTransaction,WallDrawTransaction,WallEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction,OpeningPlaceTransaction,OpeningEditTransaction,StairPlaceTransaction,RampPlaceTransaction,MEPTerminalPlaceTransaction,StructuralColumnPlaceTransaction,StructuralBeamDrawTransaction
 from .wall_junction import ConnectedWallEndpointStretchTransaction
 from .snapping import best_snap
 
@@ -101,6 +101,58 @@ class PointerController:
                 self._snap_dict(sp),
             )
             return self.preview
+        if self.tool in ('structural_column','structural_beam'):
+            active_z=float(self.doc.work_plane.origin[2])
+            level_name=str(self.doc.work_plane.name)
+            above=sorted(
+                (float(z),str(name))
+                for name,z in self.doc.levels.items()
+                if float(z)>active_z+1e-9
+            )
+            if above:
+                next_z,next_name=above[0]
+            else:
+                next_z,next_name=active_z+2.70,'Unassigned'
+
+            geometry_snap_enabled=self.snap_enabled and not ev.shift
+            sp=best_snap(self.doc,x,y,self.snap_tolerance,self.grid) if geometry_snap_enabled else None
+            sx,sy=(float(sp.x),float(sp.y)) if sp is not None else (x,y)
+
+            if self.tool=='structural_column':
+                height=max(0.05,next_z-active_z)
+                self.active=StructuralColumnPlaceTransaction(
+                    self.doc,self.stack,sx,sy,
+                    z=active_z,height=height,
+                    base_level=level_name,top_level=next_name,
+                    grid=(self.grid if geometry_snap_enabled else None),
+                    snap_tol=self.snap_tolerance,
+                )
+                hud=self.active.update(sx,sy)
+                self.preview=PreviewState(
+                    'structural-column',
+                    copy.deepcopy(self.active.preview),
+                    hud.values,
+                    self._snap_dict(self.active.last_snap),
+                )
+                return self.preview
+
+            beam_height=.30
+            beam_z=next_z-beam_height
+            self.active=StructuralBeamDrawTransaction(
+                self.doc,self.stack,(sx,sy),
+                z=beam_z,width=.20,height=beam_height,
+                level=next_name if next_name!='Unassigned' else level_name,
+                grid=(self.grid if geometry_snap_enabled else None),
+                snap_tol=self.snap_tolerance,
+                angle_increment=self.angle_increment,
+            )
+            self.preview=PreviewState(
+                'structural-beam',
+                copy.deepcopy(self.active.preview),
+                {'length':0.0,'z':beam_z,'width':.20,'height':beam_height},
+                self._snap_dict(sp),
+            )
+            return self.preview
         if self.tool in ('mep_hydraulic','mep_electrical','mep_hvac'):
             system_type=self.tool.replace('mep_','')
             self.active=MEPTerminalPlaceTransaction(
@@ -191,6 +243,26 @@ class PointerController:
         elif isinstance(self.active,PodStretchTransaction):
             hud=self.active.update(x=x) if self.active.handle in ('left','right') else self.active.update(y=y);self.preview=PreviewState('stretch',copy.deepcopy(self.active.preview),hud.values,None,self.active.eid)
         elif isinstance(self.active,RotateTransaction):hud=self.active.update_pointer(x,y,self._rotate_start_angle,snap=self.snap_enabled and not ev.shift);self.preview=PreviewState('rotate',copy.deepcopy(self.active.preview),hud.values,None,self.active.eid)
+        elif isinstance(self.active,StructuralColumnPlaceTransaction):
+            hud=self.active.update(x,y)
+            self.preview=PreviewState(
+                'structural-column',
+                copy.deepcopy(self.active.preview),
+                hud.values,
+                self._snap_dict(self.active.last_snap),
+            )
+        elif isinstance(self.active,StructuralBeamDrawTransaction):
+            hud=self.active.update(x,y)
+            sx,sy=self.active.start;ex,ey=self.active.end
+            snap_info=self._snap_dict(self.active.last_snap)
+            if snap_info is None and self.active.angle_snapped:
+                snap_info={'x':ex,'y':ey,'z':self.active.z,'kind':'angle','entity_id':''}
+            self.preview=PreviewState(
+                'structural-beam',
+                copy.deepcopy(self.active.preview),
+                hud.values,
+                snap_info,
+            )
         elif isinstance(self.active,MEPTerminalPlaceTransaction):
             self.active.snap_enabled=self.snap_enabled and not ev.shift
             hud=self.active.update(x,y)
@@ -227,6 +299,8 @@ class PointerController:
         self.pointer_move(ev);committed_id=None
         if isinstance(self.active,WallDrawTransaction):committed_id=self.active.commit((exact or {}).get('length'))
         elif isinstance(self.active,(ConnectedWallEndpointStretchTransaction,WallEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction,OpeningEditTransaction)):self.active.commit();committed_id=getattr(self.active,'eid',None)
+        elif isinstance(self.active,StructuralColumnPlaceTransaction):committed_id=self.active.commit()
+        elif isinstance(self.active,StructuralBeamDrawTransaction):committed_id=self.active.commit()
         elif isinstance(self.active,MEPTerminalPlaceTransaction):committed_id=self.active.commit()
         elif isinstance(self.active,OpeningPlaceTransaction):committed_id=self.active.commit()
         elif isinstance(self.active,StairPlaceTransaction):committed_id=self.active.commit()
