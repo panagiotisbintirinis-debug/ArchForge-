@@ -220,6 +220,7 @@ class WallDrawTransaction:
         snap_enabled=True,
         angle_increment=90.0,
         reference_angle_deg=0.0,
+        angle_enabled=True,
     ):
         self.doc,self.stack=doc,stack
         self.start=(float(start[0]),float(start[1]))
@@ -229,6 +230,7 @@ class WallDrawTransaction:
         self.snap_enabled=bool(snap_enabled)
         self.angle_increment=(None if angle_increment is None else float(angle_increment))
         self.reference_angle_deg=float(reference_angle_deg)
+        self.angle_enabled=bool(angle_enabled)
         self.last_snap=None
         self.angle_snapped=False
         self.cancelled=False
@@ -250,7 +252,7 @@ class WallDrawTransaction:
             dx,dy=x-sx,y-sy
             length=hypot(dx,dy)
             if (
-                self.snap_enabled
+                self.angle_enabled
                 and self.angle_increment is not None
                 and self.angle_increment>0
                 and length>1e-12
