@@ -2,7 +2,7 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from archforge.architecture.stairs import discover_building_levels, solve_stair_candidates, stair_footprint, stair_opening_polygon
+from archforge.architecture.stairs import discover_building_levels, solve_stair_candidates, stair_footprint, stair_opening_polygon, stair_opening_polygons
 from archforge.architecture.topology import room_faces
 from archforge.core.commands import CommandStack, CreateRoomFloors, CreateRoomRoofs
 from archforge.core.interaction import MoveTransaction, RotateTransaction, StairPlaceTransaction
@@ -442,3 +442,38 @@ def test_rotated_straight_stair_opening_preserves_rotation_in_slab_mesh():
     xs = {x for x, _ in unique_xy}
     ys = {y for _, y in unique_xy}
     assert len(xs) > 2 or len(ys) > 2
+
+
+
+def test_l_stair_opening_is_composed_from_multiple_flight_pieces():
+    candidates = solve_stair_candidates(
+        0.0,
+        2.85,
+        (0.0, 0.0),
+        (2.0, 0.0),
+        upper_floor_z=2.7,
+        upper_slab_thickness=0.15,
+    )
+    candidate = next(c for c in candidates if c.layout == 'l' and c.turn_direction == 1)
+
+    pieces = stair_opening_polygons(candidate)
+
+    assert len(pieces) >= 2
+    assert all(len(piece) == 4 for piece in pieces)
+
+
+def test_u_stair_opening_is_composed_from_multiple_flight_pieces():
+    candidates = solve_stair_candidates(
+        0.0,
+        2.85,
+        (0.0, 0.0),
+        (1.6, 0.0),
+        upper_floor_z=2.7,
+        upper_slab_thickness=0.15,
+    )
+    candidate = next(c for c in candidates if c.layout == 'u' and c.turn_direction == 1)
+
+    pieces = stair_opening_polygons(candidate)
+
+    assert len(pieces) >= 3
+    assert all(len(piece) == 4 for piece in pieces)
