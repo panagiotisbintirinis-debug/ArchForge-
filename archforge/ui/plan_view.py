@@ -292,6 +292,26 @@ class PlanView(QGraphicsView):
                 if p.role=='preview' or (p.entity_id and p.entity_id in structural_ids)
             ]
             frame.handles=[h for h in frame.handles if h.entity_id in structural_ids]
+            try:
+                from archforge.structure.graph import build_structural_graph
+                graph=build_structural_graph(self.doc)
+                visible_node_ids=set()
+                for member in graph.members:
+                    if member.entity_id in structural_ids:
+                        visible_node_ids.add(member.start_node)
+                        visible_node_ids.add(member.end_node)
+                for node in graph.nodes:
+                    if node.index not in visible_node_ids:
+                        continue
+                    x,y,z=node.point
+                    frame.primitives.append(
+                        Primitive2D(
+                            'ellipse',((x,y),),0.055,0.055,0.0,'','structural-node',
+                            meta=(('semantic','structural-node'),('node_index',node.index),('z',z)),
+                        )
+                    )
+            except (ValueError,KeyError):
+                pass
         for p in frame.primitives:self._draw_primitive(p)
         for h in frame.handles:self._draw_handle(h)
         if frame.snap:self._draw_snap(frame.snap)
