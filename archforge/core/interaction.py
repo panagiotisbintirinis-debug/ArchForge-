@@ -542,6 +542,36 @@ class WallEndpointStretchTransaction:
     def commit(self):self.stack.execute(UpdateEntity(self.eid,self.preview))
     def cancel(self):self.preview=self.before.copy()
 
+class StructuralBeamEndpointStretchTransaction:
+    """Stretch one beam endpoint while preserving its semantic section/elevation."""
+    def __init__(self,doc,stack,eid,endpoint,grid=0.1,snap_tol=0.10,snap_enabled=True):
+        if endpoint not in (1,2):raise ValueError('endpoint must be 1 or 2')
+        if eid not in doc.entities or doc.get(eid).kind!='structural_beam':
+            raise ValueError('beam endpoint stretch requires a structural_beam')
+        self.doc,self.stack,self.eid,self.endpoint=doc,stack,eid,endpoint
+        self.before=doc.get(eid).params.copy();self.preview=self.before.copy()
+        self.grid=grid;self.snap_tol=float(snap_tol);self.snap_enabled=bool(snap_enabled);self.last_snap=None
+
+    def update(self,x,y):
+        x,y=float(x),float(y);self.last_snap=None
+        if self.snap_enabled:
+            sp=best_snap(self.doc,x,y,self.snap_tol,self.grid,{self.eid})
+            if sp is not None:
+                x,y=float(sp.x),float(sp.y);self.last_snap=sp
+        p=self.before.copy();p[f'x{self.endpoint}']=x;p[f'y{self.endpoint}']=y
+        length=hypot(float(p['x2'])-float(p['x1']),float(p['y2'])-float(p['y1']))
+        if length<0.05:raise ValueError('beam must remain at least 0.05 m long')
+        self.preview=p
+        return HUD({
+            'length':length,
+            'angle_deg':degrees(atan2(float(p['y2'])-float(p['y1']),float(p['x2'])-float(p['x1']))),
+            'x':x,'y':y,'z':float(p['z']),
+        })
+
+    def commit(self):self.stack.execute(UpdateEntity(self.eid,self.preview))
+    def cancel(self):self.preview=self.before.copy()
+
+
 class PodStretchTransaction:
     def __init__(self,doc,stack,eid,handle):
         if handle not in ('left','right','top','bottom','height'):raise ValueError('invalid pod handle')
