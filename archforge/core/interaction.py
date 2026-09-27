@@ -172,20 +172,28 @@ class MoveTransaction:
         for eid in self.ids:
             p = self.before[eid].copy()
             e = self.doc.get(eid)
-            if e.kind in ('box', 'mechanical_part', 'structural_column'):
+            if e.kind in ('box', 'mechanical_part'):
                 p['x'] = p['x'] + self.dx
                 p['y'] = p['y'] + self.dy
                 p['z'] = p['z'] + self.dz
+            elif e.kind == 'structural_column':
+                p['x'] = p['x'] + self.dx
+                p['y'] = p['y'] + self.dy
             elif e.kind == 'mep_terminal':
                 p['x'] = p['x'] + self.dx
                 p['y'] = p['y'] + self.dy
                 p['elevation'] = p['elevation'] + self.dz
-            elif e.kind in ('wall', 'structural_beam'):
+            elif e.kind == 'wall':
                 p['x1'] = p['x1'] + self.dx
                 p['x2'] = p['x2'] + self.dx
                 p['y1'] = p['y1'] + self.dy
                 p['y2'] = p['y2'] + self.dy
                 p['z'] = p['z'] + self.dz
+            elif e.kind == 'structural_beam':
+                p['x1'] = p['x1'] + self.dx
+                p['x2'] = p['x2'] + self.dx
+                p['y1'] = p['y1'] + self.dy
+                p['y2'] = p['y2'] + self.dy
             elif e.kind == 'pod':
                 p['cx'] = p['cx'] + self.dx
                 p['cy'] = p['cy'] + self.dy
