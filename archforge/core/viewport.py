@@ -141,7 +141,11 @@ class PointerController:
             self.active=StructuralBeamDrawTransaction(
                 self.doc,self.stack,(sx,sy),
                 z=beam_z,width=.20,height=beam_height,
-                level=next_name,
+                # The beam physically sits under the next level, but belongs to
+                # the storey from which the human authored it. Keeping that
+                # ownership on the active level prevents a just-created beam
+                # from disappearing from the Structural plan.
+                level=level_name,
                 grid=(self.grid if geometry_snap_enabled else None),
                 snap_tol=self.snap_tolerance,
                 angle_increment=self.angle_increment,
