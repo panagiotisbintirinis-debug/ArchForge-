@@ -137,6 +137,9 @@ class PlanView(QGraphicsView):
         self.controller.set_wall_angle_increment(increment)
         label='Free' if increment is None else f'{float(increment):g}°'
         self.statusChanged.emit(f'Wall angle: {label}')
+    def set_wall_angle_reference(self, mode):
+        self.controller.set_wall_angle_reference(mode)
+        self.statusChanged.emit(f'Wall angle reference: {str(mode).title()}')
 
     def _hide_wall_angle_radial(self):
         for button in self._wall_angle_buttons:
@@ -152,24 +155,36 @@ class PlanView(QGraphicsView):
             self.redraw()
         self._hide_wall_angle_radial()
 
+    def _choose_wall_reference(self, mode):
+        self.set_wall_angle_reference(mode)
+        if self.controller.active is not None:
+            self.redraw()
+        self._hide_wall_angle_radial()
+
     def _show_wall_angle_radial(self, pos):
         self._hide_wall_angle_radial()
         options=(
-            ('90°',90.0,0,-58),
-            ('45°',45.0,62,0),
-            ('15°',15.0,0,58),
-            ('Free',None,-62,0),
+            ('90°','angle',90.0,0,-66),
+            ('45°','angle',45.0,62,-34),
+            ('15°','angle',15.0,62,34),
+            ('Free','angle',None,0,66),
+            ('Relative','reference','relative',-72,34),
+            ('Global','reference','global',-72,-34),
         )
         cx,cy=int(pos.x()),int(pos.y())
         current=self.controller.wall_angle_increment
-        for label,value,dx,dy in options:
+        current_ref=self.controller.wall_angle_reference
+        for label,kind,value,dx,dy in options:
             button=QToolButton(self.viewport())
             button.setText(label)
             button.setAutoRaise(False)
-            selected=(
-                (current is None and value is None)
-                or (current is not None and value is not None and abs(float(current)-float(value))<1e-9)
-            )
+            if kind=='angle':
+                selected=(
+                    (current is None and value is None)
+                    or (current is not None and value is not None and abs(float(current)-float(value))<1e-9)
+                )
+            else:
+                selected=(str(current_ref)==str(value))
             button.setStyleSheet(
                 'QToolButton {'
                 'background: %s; border: 1px solid #7c8792; border-radius: 15px;'
@@ -181,13 +196,16 @@ class PlanView(QGraphicsView):
             w=max(48,button.sizeHint().width());h=max(30,button.sizeHint().height())
             button.resize(w,h)
             button.move(cx+dx-w//2,cy+dy-h//2)
-            button.clicked.connect(lambda checked=False,v=value:self._choose_wall_angle(v))
+            if kind=='angle':
+                button.clicked.connect(lambda checked=False,v=value:self._choose_wall_angle(v))
+            else:
+                button.clicked.connect(lambda checked=False,v=value:self._choose_wall_reference(v))
             button.show()
             button.raise_()
             self._wall_angle_buttons.append(button)
         label='Free' if current is None else f'{float(current):g}°'
         self.statusChanged.emit(
-            f'Wall angle menu — current {label} · Shift = temporary Free'
+            f'Wall angle menu — {label} · {current_ref.title()} reference · Shift = temporary Free'
         )
 
     def redraw(self):
