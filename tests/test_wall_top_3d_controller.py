@@ -10,7 +10,7 @@ def _wall(doc):
         "x1": 1.0, "y1": 2.0, "x2": 5.0, "y2": 5.0,
         "z": 0.0, "height": 3.0, "thickness": 0.2,
     })
-    doc.select([wall.id])
+    doc.selection = [wall.id]
     return wall
 
 
@@ -58,7 +58,7 @@ def test_controller_rejects_handle_not_owned_by_current_selection():
     wall = _wall(doc)
     stack = CommandStack(doc)
     controller = WallTop3DController(doc, stack)
-    doc.select([])
+    doc.selection = []
 
     with pytest.raises(ValueError, match="current selection"):
         controller.begin(wall.id, "start")
