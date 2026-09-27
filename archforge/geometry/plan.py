@@ -9,7 +9,7 @@ from archforge.kinematics.evaluation import base_part_matrix, evaluate_assembly
 
 Matrix4 = Tuple[Tuple[float,float,float,float],Tuple[float,float,float,float],Tuple[float,float,float,float],Tuple[float,float,float,float]]
 
-NON_GEOMETRY_KINDS = {'mechanical_joint','mechanical_mount','door','window'}
+NON_GEOMETRY_KINDS = {'mechanical_joint','mechanical_mount','door','window','opening'}
 FABRICATION_KINDS = {'box','wall','pod','mesh','floor','room_floor','mechanical_part'}
 
 
@@ -85,7 +85,7 @@ def _opening_intents_for_host(doc,host_id:str)->List[Dict[str,Any]]:
     out=[]
     for oid in sorted(doc.opening_ids_for_host(host_id)):
         opening=doc.get(oid)
-        if opening.kind not in ('door','window') or opening.parent_id!=host_id:
+        if opening.kind not in ('door','window','opening') or opening.parent_id!=host_id:
             continue
         intent=copy.deepcopy(opening.params)
         intent['id']=opening.id
