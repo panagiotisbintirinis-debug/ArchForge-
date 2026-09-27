@@ -26,6 +26,37 @@ def points_for(doc:Document,eid:str)->List[SnapPoint]:
             out.append(SnapPoint(x,y,z,'vertex',eid));x2,y2=pts[(i+1)%len(pts)];out.append(SnapPoint((x+x2)/2,(y+y2)/2,z,'midpoint',eid))
     return out
 
+def _segment_intersection(a1,a2,b1,b2,tolerance=1e-12):
+    x1,y1=map(float,a1);x2,y2=map(float,a2);x3,y3=map(float,b1);x4,y4=map(float,b2)
+    den=(x1-x2)*(y3-y4)-(y1-y2)*(x3-x4)
+    if abs(den)<=tolerance:return None
+    t=((x1-x3)*(y3-y4)-(y1-y3)*(x3-x4))/den
+    u=-((x1-x2)*(y1-y3)-(y1-y2)*(x1-x3))/den
+    if t < -tolerance or t > 1.0+tolerance or u < -tolerance or u > 1.0+tolerance:
+        return None
+    return (x1+t*(x2-x1),y1+t*(y2-y1))
+
+def _best_wall_intersection(doc,x,y,tolerance,exclude,active_z):
+    walls=[]
+    for eid,e in doc.entities.items():
+        if eid in exclude or e.kind!='wall' or not e.visible:continue
+        p=e.params
+        if abs(float(p.get('z',0.0))-active_z)>1e-5:continue
+        walls.append((eid,p))
+    best=None;bestd=float(tolerance)
+    for i,(aid,a) in enumerate(walls):
+        for bid,b in walls[i+1:]:
+            point=_segment_intersection(
+                (a['x1'],a['y1']),(a['x2'],a['y2']),
+                (b['x1'],b['y1']),(b['x2'],b['y2']),
+            )
+            if point is None:continue
+            d=hypot(point[0]-x,point[1]-y)
+            if d<=bestd:
+                bestd=d
+                best=SnapPoint(point[0],point[1],active_z,'intersection',f'{aid}|{bid}')
+    return best
+
 def _wall_projection(eid,p,x,y,tolerance):
     dx=p['x2']-p['x1'];dy=p['y2']-p['y1'];ll=dx*dx+dy*dy
     if ll<=1e-18:return None
@@ -45,6 +76,9 @@ def best_snap(doc:Document,x:float,y:float,tolerance:float,grid:float|None=None,
             d=hypot(sp.x-x,sp.y-y)
             if d <= bestd:best,bestd=sp,d
     if best:return best
+    # True wall crossings come before arbitrary projection along a wall.
+    intersection=_best_wall_intersection(doc,x,y,tolerance,exclude,active_z)
+    if intersection is not None:return intersection
     # Then allow arbitrary projection to a wall centerline on the active storey.
     for eid,e in doc.entities.items():
         if eid in exclude or e.kind!='wall' or not e.visible:continue
