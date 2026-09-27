@@ -256,6 +256,15 @@ def selection_handles(doc):
         e=doc.get(eid);p=e.params
         if e.locked or not _entity_on_active_level(doc,e):continue
         if e.kind=='wall':out.extend([Handle2D(p['x1'],p['y1'],eid,'endpoint1'),Handle2D(p['x2'],p['y2'],eid,'endpoint2')])
+        elif e.kind=='structural_column':
+            out.append(Handle2D(float(p['x']),float(p['y']),eid,'move','move'))
+        elif e.kind=='structural_beam':
+            mx=(float(p['x1'])+float(p['x2']))/2.0;my=(float(p['y1'])+float(p['y2']))/2.0
+            out.extend([
+                Handle2D(float(p['x1']),float(p['y1']),eid,'endpoint1','stretch'),
+                Handle2D(float(p['x2']),float(p['y2']),eid,'endpoint2','stretch'),
+                Handle2D(mx,my,eid,'move','move'),
+            ])
         elif e.kind=='mep_terminal':out.append(Handle2D(float(p['x']),float(p['y']),eid,'move','move'))
         elif e.kind=='box':out.extend(_box_handles(eid,p))
         elif e.kind=='pod':out.extend(_pod_handles(eid,p))
