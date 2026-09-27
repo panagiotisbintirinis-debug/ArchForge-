@@ -24,6 +24,11 @@ ACTIONS = {
         'views': {'plan', 'pbr'},
         'placement': 'radial',
     },
+    'materials': {
+        'label': 'Materials',
+        'views': {'plan', 'pbr'},
+        'placement': 'radial',
+    },
     'delete': {
         'label': 'Delete',
         'views': {'plan', 'pbr'},
@@ -33,18 +38,20 @@ ACTIONS = {
 
 ENTITY_MENUS = {
     '*': ('properties', None, 'delete'),
-    'wall': ('properties', 'move', 'stretch', 'rotate', None, 'delete'),
-    'box': ('properties', 'move', 'stretch', 'rotate', None, 'delete'),
-    'pod': ('properties', 'move', 'stretch', 'rotate', None, 'delete'),
+    'wall': ('properties', 'materials', 'move', 'stretch', 'rotate', None, 'delete'),
+    'box': ('properties', 'materials', 'move', 'stretch', 'rotate', None, 'delete'),
+    'pod': ('properties', 'materials', 'move', 'stretch', 'rotate', None, 'delete'),
     'door': ('properties', 'move', 'stretch', None, 'delete'),
     'window': ('properties', 'move', 'stretch', None, 'delete'),
-    'floor': ('properties', 'move', None, 'delete'),
+    'floor': ('properties', 'materials', 'move', None, 'delete'),
     'room': ('properties', 'move', None, 'delete'),
-    'room_floor': ('properties', None, 'delete'),
-    'room_roof': ('properties', None, 'delete'),
-    'stair': ('properties', 'move', 'rotate', None, 'delete'),
-    'ramp': ('properties', 'move', 'rotate', None, 'delete'),
-    'mesh': ('properties', None, 'delete'),
+    'room_floor': ('properties', 'materials', None, 'delete'),
+    'room_roof': ('properties', 'materials', None, 'delete'),
+    'room_ceiling': ('properties', 'materials', None, 'delete'),
+    'room_foundation': ('properties', 'materials', None, 'delete'),
+    'stair': ('properties', 'materials', 'move', 'rotate', None, 'delete'),
+    'ramp': ('properties', 'materials', 'move', 'rotate', None, 'delete'),
+    'mesh': ('properties', 'materials', None, 'delete'),
 }
 
 
