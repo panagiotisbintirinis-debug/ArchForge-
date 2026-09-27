@@ -34,12 +34,14 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.plan_view = PlanView(self.doc, self.stack)
         self.pbr_view = PBRViewport(self.doc, self.stack)
+        self.structural_view = PlanView(self.doc, self.stack, structural_only=True)
         self.tabs.addTab(self.plan_view, 'FLOOR PLAN')
         self.tabs.addTab(self.pbr_view, '3D STUDIO')
+        self.tabs.addTab(self.structural_view, 'STRUCTURAL')
         self.setCentralWidget(self.tabs)
         self.view = self.plan_view
         self.setStatusBar(QStatusBar())
-        for view in (self.plan_view, self.pbr_view):
+        for view in (self.plan_view, self.pbr_view, self.structural_view):
             view.statusChanged.connect(self.statusBar().showMessage)
             view.selectionChangedByView.connect(self._selection_from_view)
             view.contextActionRequested.connect(self._handle_object_context_action)
@@ -54,14 +56,24 @@ class MainWindow(QMainWindow):
         self.refresh_inspector()
 
     def _on_tab_changed(self, idx):
-        widgets = [self.plan_view, self.pbr_view]
+        widgets = [self.plan_view, self.pbr_view, self.structural_view]
         if 0 <= idx < len(widgets):
             self.view = widgets[idx]
         if self.view is self.pbr_view:
             self.pbr_view.activate()
+        elif self.view is self.structural_view:
+            self.statusBar().showMessage(
+                'Structural View — authoritative structural members only; loads/results require validated analysis',
+                5000,
+            )
         self._redraw_views()
 
     def _set_active_tool(self, tool):
+        if self.view is self.structural_view and str(tool) not in (
+            'select','structural_column','structural_beam','move','rotate'
+        ):
+            self.tabs.setCurrentWidget(self.plan_view)
+            self.view = self.plan_view
         # Frame-free openings are currently authored in the authoritative Floor Plan.
         # The resulting wall cut is immediately visible in 3D. Direct wall-surface
         # drawing in 3D can be added later without changing the entity model.
@@ -1086,7 +1098,7 @@ class MainWindow(QMainWindow):
         self.refresh_inspector()
 
     def _redraw_views(self, *, all_views=False):
-        targets=(self.plan_view,self.pbr_view) if all_views else (self.view,)
+        targets=(self.plan_view,self.pbr_view,self.structural_view) if all_views else (self.view,)
         for view in targets:
             if view is self.pbr_view:
                 view.redraw(force_full=True)
