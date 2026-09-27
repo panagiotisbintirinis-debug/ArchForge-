@@ -26,6 +26,18 @@ PROPERTY_FIELDS = {
         {'id': 'sill', 'label': 'Bottom Height', 'unit': 'm', 'minimum': 0.0, 'step': 0.05},
         {'id': 'arch_rise', 'label': 'Arch Rise', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
     ),
+    'structural_column': (
+        {'id': 'width', 'label': 'Section Width', 'unit': 'm', 'minimum': 0.03, 'step': 0.01},
+        {'id': 'depth', 'label': 'Section Depth', 'unit': 'm', 'minimum': 0.03, 'step': 0.01},
+        {'id': 'height', 'label': 'Height', 'unit': 'm', 'minimum': 0.05, 'step': 0.05},
+        {'id': 'z', 'label': 'Base Elevation', 'unit': 'm', 'minimum': -20.0, 'maximum': 100.0, 'step': 0.05},
+    ),
+    'structural_beam': (
+        {'id': 'length', 'label': 'Length', 'unit': 'm', 'minimum': 0.05, 'step': 0.05},
+        {'id': 'width', 'label': 'Section Width', 'unit': 'm', 'minimum': 0.03, 'step': 0.01},
+        {'id': 'height', 'label': 'Section Height', 'unit': 'm', 'minimum': 0.03, 'step': 0.01},
+        {'id': 'z', 'label': 'Bottom Elevation', 'unit': 'm', 'minimum': -20.0, 'maximum': 100.0, 'step': 0.05},
+    ),
     'box': (
         {'id': 'width', 'label': 'Width', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
         {'id': 'depth', 'label': 'Depth', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
@@ -59,7 +71,7 @@ def property_values(entity) -> Dict[str, float]:
     values = {}
     for spec in property_fields(entity.kind):
         key = spec['id']
-        if entity.kind == 'wall' and key == 'length':
+        if entity.kind in ('wall','structural_beam') and key == 'length':
             values[key] = hypot(float(p['x2']) - float(p['x1']), float(p['y2']) - float(p['y1']))
         else:
             values[key] = float(p[key])
@@ -100,6 +112,19 @@ def property_changes(entity, values: Dict[str, float]) -> Dict[str, float]:
         old_length = hypot(dx, dy)
         if old_length <= 1e-12:
             raise ValueError('cannot resize a zero-length wall')
+        ux, uy = dx / old_length, dy / old_length
+        changes['x2'] = float(p['x1']) + ux * length
+        changes['y2'] = float(p['y1']) + uy * length
+
+    if entity.kind == 'structural_beam' and 'length' in requested:
+        length = requested['length']
+        if length <= 0:
+            raise ValueError('beam length must be positive')
+        dx = float(p['x2']) - float(p['x1'])
+        dy = float(p['y2']) - float(p['y1'])
+        old_length = hypot(dx, dy)
+        if old_length <= 1e-12:
+            raise ValueError('cannot resize a zero-length beam')
         ux, uy = dx / old_length, dy / old_length
         changes['x2'] = float(p['x1']) + ux * length
         changes['y2'] = float(p['y1']) + uy * length
