@@ -4,7 +4,7 @@ from typing import Dict, Any, Optional, Tuple, List
 import copy
 from .model import Document
 from .commands import CommandStack
-from .interaction import MoveTransaction,WallDrawTransaction,WallEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction,OpeningPlaceTransaction,OpeningEditTransaction,StairPlaceTransaction,RampPlaceTransaction,MEPTerminalPlaceTransaction,StructuralColumnPlaceTransaction,StructuralBeamDrawTransaction
+from .interaction import MoveTransaction,WallDrawTransaction,WallEndpointStretchTransaction,StructuralBeamEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction,OpeningPlaceTransaction,OpeningEditTransaction,StairPlaceTransaction,RampPlaceTransaction,MEPTerminalPlaceTransaction,StructuralColumnPlaceTransaction,StructuralBeamDrawTransaction
 from .wall_junction import ConnectedWallEndpointStretchTransaction
 from .snapping import best_snap
 
@@ -211,6 +211,18 @@ class PointerController:
             if e.kind=='wall':self.active=ConnectedWallEndpointStretchTransaction(self.doc,self.stack,e.id,1 if self.active_handle in ('1','start','endpoint1') else 2,self.grid,self.snap_tolerance)
             elif e.kind=='box':self.active=BoxStretchTransaction(self.doc,self.stack,e.id,self.active_handle or 'right')
             elif e.kind=='pod':self.active=PodStretchTransaction(self.doc,self.stack,e.id,self.active_handle or 'right')
+            elif e.kind=='structural_beam':
+                if self.active_handle in ('endpoint1','start','1'):endpoint=1
+                elif self.active_handle in ('endpoint2','end','2'):endpoint=2
+                else:
+                    d1=hypot(x-float(e.params['x1']),y-float(e.params['y1']))
+                    d2=hypot(x-float(e.params['x2']),y-float(e.params['y2']))
+                    endpoint=1 if d1<=d2 else 2
+                self.active=StructuralBeamEndpointStretchTransaction(
+                    self.doc,self.stack,e.id,endpoint,
+                    grid=self.grid,snap_tol=self.snap_tolerance,
+                    snap_enabled=self.snap_enabled and not ev.shift,
+                )
             elif e.kind in ('door','window','opening'):self.active=OpeningEditTransaction(self.doc,self.stack,e.id,self.active_handle or 'right')
             else:raise ValueError('stretch unsupported for entity kind')
             return self.pointer_move(ev)
@@ -239,6 +251,13 @@ class PointerController:
         elif isinstance(self.active,ConnectedWallEndpointStretchTransaction):
             hud=self.active.update(x,y);geom=copy.deepcopy(self.active.preview);geom['entities']=copy.deepcopy(self.active.previews);self.preview=PreviewState('stretch',geom,hud.values,None,self.active.eid)
         elif isinstance(self.active,WallEndpointStretchTransaction):hud=self.active.update(x,y);self.preview=PreviewState('stretch',copy.deepcopy(self.active.preview),hud.values,None,self.active.eid)
+        elif isinstance(self.active,StructuralBeamEndpointStretchTransaction):
+            self.active.snap_enabled=self.snap_enabled and not ev.shift
+            hud=self.active.update(x,y)
+            self.preview=PreviewState(
+                'stretch',copy.deepcopy(self.active.preview),hud.values,
+                self._snap_dict(self.active.last_snap),self.active.eid,
+            )
         elif isinstance(self.active,BoxStretchTransaction):hud=self.active.update(x=x,y=y);self.preview=PreviewState('stretch',copy.deepcopy(self.active.preview),hud.values,None,self.active.eid)
         elif isinstance(self.active,PodStretchTransaction):
             hud=self.active.update(x=x) if self.active.handle in ('left','right') else self.active.update(y=y);self.preview=PreviewState('stretch',copy.deepcopy(self.active.preview),hud.values,None,self.active.eid)
@@ -298,7 +317,7 @@ class PointerController:
         if self.active is None:return self.preview
         self.pointer_move(ev);committed_id=None
         if isinstance(self.active,WallDrawTransaction):committed_id=self.active.commit((exact or {}).get('length'))
-        elif isinstance(self.active,(ConnectedWallEndpointStretchTransaction,WallEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction,OpeningEditTransaction)):self.active.commit();committed_id=getattr(self.active,'eid',None)
+        elif isinstance(self.active,(ConnectedWallEndpointStretchTransaction,WallEndpointStretchTransaction,StructuralBeamEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction,OpeningEditTransaction)):self.active.commit();committed_id=getattr(self.active,'eid',None)
         elif isinstance(self.active,StructuralColumnPlaceTransaction):committed_id=self.active.commit()
         elif isinstance(self.active,StructuralBeamDrawTransaction):committed_id=self.active.commit()
         elif isinstance(self.active,MEPTerminalPlaceTransaction):committed_id=self.active.commit()
