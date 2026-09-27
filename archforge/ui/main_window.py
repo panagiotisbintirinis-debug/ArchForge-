@@ -69,6 +69,9 @@ class MainWindow(QMainWindow):
         self._redraw_views()
 
     def _set_active_tool(self, tool):
+        if str(tool).startswith('structural_') and self.view is self.pbr_view:
+            self.tabs.setCurrentWidget(self.structural_view)
+            self.view = self.structural_view
         if self.view is self.structural_view and str(tool) not in (
             'select','structural_column','structural_beam','move','rotate'
         ):
