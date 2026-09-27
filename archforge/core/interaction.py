@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from math import hypot,atan2,degrees
+from math import hypot,atan2,degrees,radians,cos,sin
 from typing import Optional,Tuple,Dict,Any,Sequence
 from .model import Document,Entity
 from .commands import CommandStack,AddEntity,UpdateEntity,MoveEntities,RotateEntities
