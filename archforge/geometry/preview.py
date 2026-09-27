@@ -70,6 +70,21 @@ def _payload(doc,node)->Optional[PreviewPayload]:
             angle=math.radians(float(p.get('rotation',0.0)));c,s=math.cos(angle),math.sin(angle);ox,oy,oz=float(p['x']),float(p['y']),float(p['z'])
             corners=[(ox+c*x-s*y,oy+s*x+c*y,oz+z) for x,y,z in corners]
         return PreviewPayload('box',_bounds(corners))
+    if kind=='structural_column':
+        cx,cy,z=map(float,(p['x'],p['y'],p['z']));w,d,h=map(float,(p['width'],p['depth'],p['height']))
+        angle=math.radians(float(p.get('rotation',0.0)));cr,sr=math.cos(angle),math.sin(angle);hw,hd=w/2.0,d/2.0
+        footprint=[
+            (cx+cr*x-sr*y,cy+sr*x+cr*y,z)
+            for x,y in ((-hw,-hd),(hw,-hd),(hw,hd),(-hw,hd))
+        ]
+        return PreviewPayload('structural_column',_bounds(footprint+[(x,y,z+h) for x,y,_ in footprint]))
+    if kind=='structural_beam':
+        x1,y1,x2,y2,z=map(float,(p['x1'],p['y1'],p['x2'],p['y2'],p['z']))
+        width,height=map(float,(p['width'],p['height']));dx,dy=x2-x1,y2-y1;length=math.hypot(dx,dy)
+        if length<=1e-12:raise ValueError('structural beam has zero length')
+        nx,ny=-dy/length*width/2.0,dx/length*width/2.0
+        footprint=[(x1+nx,y1+ny,z),(x1-nx,y1-ny,z),(x2+nx,y2+ny,z),(x2-nx,y2-ny,z)]
+        return PreviewPayload('structural_beam',_bounds(footprint+[(x,y,z+height) for x,y,_ in footprint]))
     if kind=='wall':
         x1,y1,z,x2,y2=map(float,(p['x1'],p['y1'],p['z'],p['x2'],p['y2']));h,t=float(p['height']),float(p['thickness']);dx,dy=x2-x1,y2-y1;length=math.hypot(dx,dy)
         if length<=1e-12:raise ValueError('wall has zero length')
