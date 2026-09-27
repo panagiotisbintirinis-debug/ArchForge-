@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QDockWidget, QWidget, QFormLayout, QDoubleSpinBox,
     QLabel, QTabWidget, QStatusBar, QFileDialog, QMessageBox, QComboBox, QInputDialog,
     QDialog, QDialogButtonBox, QVBoxLayout, QListWidget, QListWidgetItem,
+    QToolButton, QMenu,
 )
 
 from archforge.core.model import Document, WorkPlane
@@ -91,7 +92,37 @@ class MainWindow(QMainWindow):
         toolbar = self.tools_toolbar
         for text, tool, key in [
             ('Select', 'select', 'S'), ('Wall', 'wall', 'W'), ('Door', 'door', 'D'),
-            ('Window', 'window', 'N'), ('Stair', 'stair', 'A'), ('Ramp', 'ramp', 'P'),
+            ('Window', 'window', 'N'),
+        ]:
+            action = QAction(text, self)
+            action.setShortcut(QKeySequence(key))
+            action.triggered.connect(lambda checked=False, t=tool: self._set_active_tool(t))
+            toolbar.addAction(action)
+
+        circulation_menu = QMenu(self)
+        stair_action = QAction('Stair', self)
+        stair_action.setShortcut(QKeySequence('A'))
+        stair_action.triggered.connect(lambda checked=False: self._set_active_tool('stair'))
+        circulation_menu.addAction(stair_action)
+
+        ramp_action = QAction('Ramp', self)
+        ramp_action.setShortcut(QKeySequence('P'))
+        ramp_action.triggered.connect(lambda checked=False: self._set_active_tool('ramp'))
+        circulation_menu.addAction(ramp_action)
+
+        circulation = QToolButton(self)
+        circulation.setText('Stair / Ramp')
+        circulation.setToolTip('Vertical circulation: Stair or Ramp')
+        circulation.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        circulation.setMenu(circulation_menu)
+        circulation.setDefaultAction(stair_action)
+        circulation.setText('Stair / Ramp')
+        toolbar.addWidget(circulation)
+        self.circulation_button = circulation
+        self.stair_action = stair_action
+        self.ramp_action = ramp_action
+
+        for text, tool, key in [
             ('Move', 'move', 'G'), ('Stretch', 'stretch', 'T'), ('Rotate', 'rotate', 'R'),
         ]:
             action = QAction(text, self)
