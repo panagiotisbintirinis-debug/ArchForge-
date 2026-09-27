@@ -469,6 +469,8 @@ function materialFor(spec) {
     color: new THREE.Color(spec.color || "#bdc5ce"),
     roughness: Number(spec.roughness ?? 0.65),
     metalness: Number(spec.metalness ?? 0.02),
+    emissive: new THREE.Color(spec.emissive || "#000000"),
+    emissiveIntensity: Number(spec.emissiveIntensity ?? 0.0),
     side: THREE.DoubleSide
   });
 }
@@ -2019,6 +2021,7 @@ class PBRViewport(QWidget):
             evaluation,
             self.doc.selection,
             mesh_overrides=overrides,
+            doc=self.doc,
         )
         fit = "true" if force_full and self._sculpt_tx is None else "false"
         script = (
