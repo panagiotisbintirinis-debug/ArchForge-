@@ -66,7 +66,9 @@ class MainWindow(QMainWindow):
                 from archforge.structure.graph import build_structural_graph
                 graph=build_structural_graph(self.doc)
                 self.statusBar().showMessage(
-                    f'Structural View — {len(graph.members)} members / {len(graph.nodes)} nodes / {len(graph.supports)} supports · loads/results require validated analysis',
+                    f'Structural View — {len(graph.members)} members / {len(graph.nodes)} nodes / '
+                    f'{len(graph.supports)} supports / {len(graph.loads)} input loads · '
+                    'results require validated analysis',
                     5000,
                 )
             except Exception as exc:
