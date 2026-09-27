@@ -9,6 +9,7 @@ from archforge.core.commands import CommandStack
 from archforge.core.interaction import StructuralBeamEndpointStretchTransaction
 from archforge.core.model import Document, Entity
 from archforge.core.plan_scene import selection_handles
+from archforge.core.viewport import PointerController, PointerEvent
 from archforge.ui.object_context_menu import object_context_actions
 from archforge.ui.pbr_viewport import PBRViewport
 from archforge.ui.plan_view import PlanView
@@ -127,7 +128,7 @@ def _beam():
             "role": "structural",
             "construction": "reinforced_concrete",
             "section": "rectangular",
-            "level": "Upper",
+            "level": "Ground",
         },
         name="Beam",
     )
@@ -187,3 +188,24 @@ def test_structural_selection_handles_support_direct_beam_editing():
         if entry is not None
     ]
     assert "stretch" in action_ids
+
+
+def test_beam_authored_from_ground_stays_owned_by_ground_storey():
+    doc = Document()
+    doc.levels["First"] = 3.0
+    stack = CommandStack(doc)
+    controller = PointerController(doc, stack)
+    controller.set_tool("structural_beam")
+
+    controller.pointer_down(PointerEvent(0.0, 0.0))
+    controller.pointer_move(PointerEvent(3.0, 0.0))
+    result = controller.pointer_up(PointerEvent(3.0, 0.0))
+
+    beam = doc.get(result.entity_id)
+    assert beam.kind == "structural_beam"
+    assert beam.params["level"] == "Ground"
+    assert abs(float(beam.params["z"]) - 2.70) < 1e-9
+    assert abs(float(beam.params["z"]) + float(beam.params["height"]) - 3.0) < 1e-9
+
+    doc.select([beam.id])
+    assert selection_handles(doc)
