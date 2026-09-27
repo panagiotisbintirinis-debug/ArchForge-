@@ -346,28 +346,66 @@ def _point_in_polygon_xy(point,polygon):
  return inside
 
 
-def _rect_hole_side_mesh(xmin,xmax,ymin,ymax,z0,z1):
+def _oriented_hole_side_mesh(opening,z0,z1):
+ pts=[(float(x),float(y)) for x,y in opening]
+ if len(pts)<3:
+  return MeshPayload((),(),())
  verts=[];tris=[];roles=[]
- def quad(a,b,c,d):
-  base=len(verts);verts.extend((a,b,c,d));tris.extend(((base,base+1,base+2),(base,base+2,base+3)));roles.extend(('stair_opening_edge','stair_opening_edge'))
- quad((xmin,ymin,z0),(xmin,ymax,z0),(xmin,ymax,z1),(xmin,ymin,z1))
- quad((xmax,ymax,z0),(xmax,ymin,z0),(xmax,ymin,z1),(xmax,ymax,z1))
- quad((xmax,ymin,z0),(xmin,ymin,z0),(xmin,ymin,z1),(xmax,ymin,z1))
- quad((xmin,ymax,z0),(xmax,ymax,z0),(xmax,ymax,z1),(xmin,ymax,z1))
+ for i,a in enumerate(pts):
+  b=pts[(i+1)%len(pts)]
+  base=len(verts)
+  verts.extend((
+   (a[0],a[1],float(z0)),
+   (b[0],b[1],float(z0)),
+   (b[0],b[1],float(z1)),
+   (a[0],a[1],float(z1)),
+  ))
+  tris.extend(((base,base+1,base+2),(base,base+2,base+3)))
+  roles.extend(('stair_opening_edge','stair_opening_edge'))
  return MeshPayload(tuple(verts),tuple(tris),tuple(roles))
 
 
+def _polygon_signed_area_xy(points):
+ return .5*sum(
+  float(points[i][0])*float(points[(i+1)%len(points)][1])
+  - float(points[(i+1)%len(points)][0])*float(points[i][1])
+  for i in range(len(points))
+ )
+
+
+def _subtract_convex_slab_hole(mesh,opening,z0,z1):
+ """Subtract one convex XY polygon from a slab, preserving its orientation."""
+ pts=[(float(x),float(y)) for x,y in opening]
+ if len(pts)<3:return mesh
+ area=_polygon_signed_area_xy(pts)
+ if abs(area)<=1e-12:return mesh
+ # Normalize CCW so interior is consistently the left side of each edge.
+ if area<0:pts=list(reversed(pts))
+
+ # Outside of a convex polygon = union of outside half-spaces.
+ outside_parts=[]
+ current=mesh
+ for i,a in enumerate(pts):
+  b=pts[(i+1)%len(pts)]
+  dx,dy=b[0]-a[0],b[1]-a[1]
+  # Cross(edge, point-a) is positive inside for CCW polygon.
+  def scalar(v,ax=a[0],ay=a[1],dx=dx,dy=dy):
+   return dx*(v[1]-ay)-dy*(v[0]-ax)
+  outside=_clip_mesh_scalar(current,scalar,keep_positive=False)
+  if outside.triangles:
+   outside_parts.append(outside)
+  current=_clip_mesh_scalar(current,scalar,keep_positive=True)
+  if not current.triangles:
+   break
+
+ # current is the inside prism portion, intentionally discarded.
+ sides=_oriented_hole_side_mesh(pts,float(z0),float(z1))
+ return _combine_meshes(tuple(outside_parts)+(sides,),1e-8)
+
+
 def _subtract_rectangular_slab_hole(mesh,opening,z0,z1):
- xs=[float(p[0]) for p in opening];ys=[float(p[1]) for p in opening]
- xmin,xmax=min(xs),max(xs);ymin,ymax=min(ys),max(ys)
- left=_clip_mesh_scalar(mesh,lambda v:xmin-v[0],True)
- right=_clip_mesh_scalar(mesh,lambda v:v[0]-xmax,True)
- middle=_clip_mesh_scalar(mesh,lambda v:v[0]-xmin,True)
- middle=_clip_mesh_scalar(middle,lambda v:xmax-v[0],True)
- front=_clip_mesh_scalar(middle,lambda v:ymin-v[1],True)
- back=_clip_mesh_scalar(middle,lambda v:v[1]-ymax,True)
- sides=_rect_hole_side_mesh(xmin,xmax,ymin,ymax,float(z0),float(z1))
- return _combine_meshes((left,right,front,back,sides),1e-8)
+ # Backwards-compatible entry point: the opening may be rotated.
+ return _subtract_convex_slab_hole(mesh,opening,z0,z1)
 
 def _apply_vertical_openings_to_slab(doc,mesh,points,slab_z,thickness):
  from archforge.architecture.stairs import candidate_from_params as stair_candidate,stair_opening_polygon
