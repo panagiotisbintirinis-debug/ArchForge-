@@ -159,3 +159,35 @@ def test_wall_side_materials_render_independently_for_one_authoritative_wall():
     by_material = {obj['material']['material_id']: obj for obj in objects}
     assert by_material['wood_oak']['surfaces'] == ['exterior']
     assert by_material['stone_dark']['surfaces'] == ['interior']
+
+
+def test_structural_construction_sets_default_appearance_but_finish_overrides():
+    mesh = MeshPayload(
+        vertices=((0,0,0),(1,0,0),(0,1,0)),
+        triangles=((0,1,2),),
+        triangle_surfaces=("front",),
+    )
+    body = SimpleNamespace(entity_id="steel-beam", semantic_kind="structural_beam", payload=mesh)
+    evaluation = SimpleNamespace(bodies=(body,))
+
+    doc = Document()
+    beam = Entity(
+        'structural_beam',
+        {
+            'x1':0.0,'y1':0.0,'x2':1.0,'y2':0.0,
+            'z':2.7,'width':0.2,'height':0.3,
+            'role':'structural','construction':'steel',
+            'section':'rectangular','level':'Floor 2',
+        },
+        id='steel-beam',
+    )
+    doc.add(beam)
+
+    payload = build_pbr_scene_payload(evaluation, doc=doc)
+    material = payload['objects'][0]['material']
+    assert material['material_id'] == 'steel_brushed'
+
+    doc.update(beam.id, {'material_id':'wood_walnut'})
+    payload2 = build_pbr_scene_payload(evaluation, doc=doc)
+    material2 = payload2['objects'][0]['material']
+    assert material2['material_id'] == 'wood_walnut'
