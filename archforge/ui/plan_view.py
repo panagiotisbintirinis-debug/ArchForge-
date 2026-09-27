@@ -5,7 +5,7 @@ from typing import Optional, Dict
 
 from PySide6.QtCore import Qt, QPointF, Signal
 from PySide6.QtGui import QPen, QBrush, QColor, QPainter
-from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsTextItem, QMenu
+from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsTextItem, QMenu, QToolButton
 
 from archforge.core.model import Document
 from archforge.core.commands import CommandStack
@@ -18,7 +18,7 @@ class PlanView(QGraphicsView):
     def __init__(self,doc:Document,stack:CommandStack,parent=None):
         self._scene=QGraphicsScene();super().__init__(self._scene,parent);self.doc=doc;self.stack=stack;self.controller=PointerController(doc,stack)
         self.setRenderHint(QPainter.RenderHint.Antialiasing,True);self.setDragMode(QGraphicsView.DragMode.NoDrag);self.setMouseTracking(True);self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse);self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter);self.setBackgroundBrush(QColor(248,248,248))
-        self._mouse_down=False;self._handle_items={};self._entity_items={};self._active_handle=None;self._hud_item=None;self.scale(55.0,-55.0);self.redraw()
+        self._mouse_down=False;self._handle_items={};self._entity_items={};self._active_handle=None;self._hud_item=None;self._wall_angle_buttons=[];self.scale(55.0,-55.0);self.redraw()
     def rebind(self,doc,stack):self.doc=doc;self.stack=stack;self.controller=PointerController(doc,stack);self.redraw()
     def set_tool(self,tool):self.controller.set_tool(tool);self._active_handle=None;self.statusChanged.emit(f'Tool: {tool}');self.redraw()
     def _scene_to_plane(self,pos):p=self.mapToScene(pos);return PointerEvent(p.x(),p.y())
@@ -50,6 +50,10 @@ class PlanView(QGraphicsView):
         super().mouseDoubleClickEvent(event)
 
     def contextMenuEvent(self,event):
+        if self.controller.tool=='wall':
+            self._show_wall_angle_radial(event.pos())
+            event.accept()
+            return
         hit=self.itemAt(event.pos());eid=self._entity_items.get(hit)
         if not eid or eid not in self.doc.entities:
             super().contextMenuEvent(event);return
@@ -66,6 +70,8 @@ class PlanView(QGraphicsView):
         event.accept()
 
     def mousePressEvent(self,event):
+        if event.button()==Qt.MouseButton.LeftButton:
+            self._hide_wall_angle_radial()
         if event.button()!=Qt.MouseButton.LeftButton:super().mousePressEvent(event);return
         self._mouse_down=True;hit=self.itemAt(event.position().toPoint())
         if hit in self._handle_items:
@@ -131,6 +137,58 @@ class PlanView(QGraphicsView):
         self.controller.set_wall_angle_increment(increment)
         label='Free' if increment is None else f'{float(increment):g}°'
         self.statusChanged.emit(f'Wall angle: {label}')
+
+    def _hide_wall_angle_radial(self):
+        for button in self._wall_angle_buttons:
+            button.hide()
+            button.deleteLater()
+        self._wall_angle_buttons=[]
+
+    def _choose_wall_angle(self, increment):
+        self.set_wall_angle_increment(increment)
+        # If a wall is already being previewed, refresh it immediately using
+        # the new angle mode without committing/cancelling the transaction.
+        if self.controller.active is not None:
+            self.redraw()
+        self._hide_wall_angle_radial()
+
+    def _show_wall_angle_radial(self, pos):
+        self._hide_wall_angle_radial()
+        options=(
+            ('90°',90.0,0,-58),
+            ('45°',45.0,62,0),
+            ('15°',15.0,0,58),
+            ('Free',None,-62,0),
+        )
+        cx,cy=int(pos.x()),int(pos.y())
+        current=self.controller.wall_angle_increment
+        for label,value,dx,dy in options:
+            button=QToolButton(self.viewport())
+            button.setText(label)
+            button.setAutoRaise(False)
+            selected=(
+                (current is None and value is None)
+                or (current is not None and value is not None and abs(float(current)-float(value))<1e-9)
+            )
+            button.setStyleSheet(
+                'QToolButton {'
+                'background: %s; border: 1px solid #7c8792; border-radius: 15px;'
+                'padding: 4px 9px; font-weight: %s;'
+                '} QToolButton:hover { background: #d9ecff; }'
+                % ('#cfe7ff' if selected else '#f7f7f7','600' if selected else '400')
+            )
+            button.adjustSize()
+            w=max(48,button.sizeHint().width());h=max(30,button.sizeHint().height())
+            button.resize(w,h)
+            button.move(cx+dx-w//2,cy+dy-h//2)
+            button.clicked.connect(lambda checked=False,v=value:self._choose_wall_angle(v))
+            button.show()
+            button.raise_()
+            self._wall_angle_buttons.append(button)
+        label='Free' if current is None else f'{float(current):g}°'
+        self.statusChanged.emit(
+            f'Wall angle menu — current {label} · Shift = temporary Free'
+        )
 
     def redraw(self):
         self._scene.clear();self._handle_items.clear();self._entity_items.clear();self._draw_grid();frame=build_plan_frame(self.doc,self.controller.preview)
