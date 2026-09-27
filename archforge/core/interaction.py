@@ -172,7 +172,7 @@ class MoveTransaction:
         for eid in self.ids:
             p = self.before[eid].copy()
             e = self.doc.get(eid)
-            if e.kind in ('box', 'mechanical_part'):
+            if e.kind in ('box', 'mechanical_part', 'structural_column'):
                 p['x'] = p['x'] + self.dx
                 p['y'] = p['y'] + self.dy
                 p['z'] = p['z'] + self.dz
@@ -180,7 +180,7 @@ class MoveTransaction:
                 p['x'] = p['x'] + self.dx
                 p['y'] = p['y'] + self.dy
                 p['elevation'] = p['elevation'] + self.dz
-            elif e.kind == 'wall':
+            elif e.kind in ('wall', 'structural_beam'):
                 p['x1'] = p['x1'] + self.dx
                 p['x2'] = p['x2'] + self.dx
                 p['y1'] = p['y1'] + self.dy
@@ -490,9 +490,9 @@ class RotateTransaction:
     def __init__(self,doc,stack,eid,pivot=None,angle_increment=15.0):
         self.doc,self.stack,self.eid=doc,stack,eid;self.before=doc.get(eid).params.copy();self.preview=self.before.copy();self.angle_increment=float(angle_increment) if angle_increment else None;self.angle=0.0;e=doc.get(eid);p=e.params
         if pivot is not None:self.pivot=pivot
-        elif e.kind=='box':self.pivot=(p['x'],p['y'])
+        elif e.kind in ('box','structural_column'):self.pivot=(p['x'],p['y'])
         elif e.kind=='pod':self.pivot=(p['cx'],p['cy'])
-        elif e.kind=='wall':self.pivot=((p['x1']+p['x2'])/2,(p['y1']+p['y2'])/2)
+        elif e.kind in ('wall','structural_beam'):self.pivot=((p['x1']+p['x2'])/2,(p['y1']+p['y2'])/2)
         elif e.kind=='stair':
             from archforge.architecture.stairs import candidate_from_params,stair_footprint
             poly=stair_footprint(candidate_from_params(p))
@@ -508,8 +508,8 @@ class RotateTransaction:
         self.angle=a
         from math import radians,cos,sin
         r=radians(a);c,s=cos(r),sin(r);px,py=self.pivot;p=self.before.copy();e=self.doc.get(self.eid)
-        if e.kind=='box':p['rotation']=(p.get('rotation',0.0)+a)%360.0
-        elif e.kind=='wall':
+        if e.kind in ('box','structural_column'):p['rotation']=(p.get('rotation',0.0)+a)%360.0
+        elif e.kind in ('wall','structural_beam'):
             def rot(x,y):dx,dy=x-px,y-py;return px+dx*c-dy*s,py+dx*s+dy*c
             p['x1'],p['y1']=rot(p['x1'],p['y1']);p['x2'],p['y2']=rot(p['x2'],p['y2'])
         elif e.kind=='pod':p['rotation']=(p.get('rotation',0.0)+a)%360.0
