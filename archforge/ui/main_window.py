@@ -564,6 +564,39 @@ class MainWindow(QMainWindow):
                 shape_editor.setCurrentIndex(shape_idx)
             form.addRow('Shape', shape_editor)
 
+        role_editor = None
+        construction_editor = None
+        if entity.kind in ('structural_column','structural_beam'):
+            role_editor = QComboBox(dialog)
+            for label,value in (
+                ('Structural','structural'),
+                ('Pergola','pergola'),
+                ('Architectural / Decorative','architectural'),
+            ):
+                role_editor.addItem(label,value)
+            role_idx = role_editor.findData(str(entity.params.get('role','structural')))
+            if role_idx >= 0:
+                role_editor.setCurrentIndex(role_idx)
+            form.addRow('Role', role_editor)
+
+            construction_editor = QComboBox(dialog)
+            for label,value in (
+                ('Reinforced Concrete','reinforced_concrete'),
+                ('Steel','steel'),
+                ('Timber','timber'),
+                ('Aluminium','aluminium'),
+                ('Generic','generic'),
+            ):
+                construction_editor.addItem(label,value)
+            construction_idx = construction_editor.findData(str(entity.params.get('construction','generic')))
+            if construction_idx >= 0:
+                construction_editor.setCurrentIndex(construction_idx)
+            form.addRow('Construction', construction_editor)
+
+            section_label = QLabel('Rectangular', dialog)
+            section_label.setToolTip('Only rectangular structural sections are geometrically implemented in this build.')
+            form.addRow('Section', section_label)
+
         for spec in fields:
             spin = QDoubleSpinBox(dialog)
             spin.setDecimals(3)
@@ -593,9 +626,15 @@ class MainWindow(QMainWindow):
             return
 
         values = {key: editor.value() for key, editor in editors.items()}
-        extra_changes = None
+        extra_changes = {}
         if shape_editor is not None:
-            extra_changes = {'shape': str(shape_editor.currentData())}
+            extra_changes['shape'] = str(shape_editor.currentData())
+        if role_editor is not None:
+            extra_changes['role'] = str(role_editor.currentData())
+        if construction_editor is not None:
+            extra_changes['construction'] = str(construction_editor.currentData())
+        if not extra_changes:
+            extra_changes = None
         try:
             self._apply_object_properties(entity_id, values, extra_changes=extra_changes)
         except Exception as exc:
