@@ -684,21 +684,23 @@ class MainWindow(QMainWindow):
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
 
-        values = {key: editor.value() for key, editor in editors.items()}
-        extra_changes = {}
-        if shape_editor is not None:
-            extra_changes['shape'] = str(shape_editor.currentData())
-        if role_editor is not None:
-            extra_changes['role'] = str(role_editor.currentData())
-        if construction_editor is not None:
-            extra_changes['construction'] = str(construction_editor.currentData())
+        try:
+            values = {key: editor.value() for key, editor in editors.items()}
+            extra_changes = {}
+            if shape_editor is not None:
+                extra_changes['shape'] = str(shape_editor.currentData())
+            if role_editor is not None:
+                extra_changes['role'] = str(role_editor.currentData())
+            if construction_editor is not None:
+                extra_changes['construction'] = str(construction_editor.currentData())
 
-        if base_level_editor is not None:
-            base_name=str(base_level_editor.currentData())
-            top_name=str(top_level_editor.currentData()) if top_level_editor is not None else 'Unassigned'
-            extra_changes['base_level']=base_name
-            extra_changes['top_level']=top_name
-            if base_name in self.doc.levels:
+            if base_level_editor is not None:
+                base_name=str(base_level_editor.currentData())
+                top_name=str(top_level_editor.currentData()) if top_level_editor is not None else 'Unassigned'
+                extra_changes['base_level']=base_name
+                extra_changes['top_level']=top_name
+                if base_name not in self.doc.levels:
+                    raise ValueError('selected base level no longer exists')
                 base_z=float(self.doc.levels[base_name])
                 extra_changes['z']=base_z
                 if top_name!='Unassigned':
@@ -709,12 +711,14 @@ class MainWindow(QMainWindow):
                         raise ValueError('Column Top Level must be above Base Level')
                     values['height']=top_z-base_z
 
-        if beam_level_editor is not None:
-            extra_changes['level']=str(beam_level_editor.currentData())
+            if beam_level_editor is not None:
+                level_name=str(beam_level_editor.currentData())
+                if level_name not in self.doc.levels:
+                    raise ValueError('selected beam storey no longer exists')
+                extra_changes['level']=level_name
 
-        if not extra_changes:
-            extra_changes = None
-        try:
+            if not extra_changes:
+                extra_changes = None
             self._apply_object_properties(entity_id, values, extra_changes=extra_changes)
         except Exception as exc:
             QMessageBox.warning(dialog, 'Invalid dimensions', str(exc))
