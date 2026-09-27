@@ -488,12 +488,14 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, 'Invalid value', str(exc))
             self.refresh_inspector()
 
-    def _apply_object_properties(self, entity_id, values):
+    def _apply_object_properties(self, entity_id, values, extra_changes=None):
         entity_id = str(entity_id)
         if entity_id not in self.doc.entities:
             raise KeyError(entity_id)
         entity = self.doc.get(entity_id)
         changes = property_changes(entity, values)
+        if extra_changes:
+            changes.update(dict(extra_changes))
         self.stack.execute(UpdateEntity(entity_id, changes))
         self.doc.select([entity_id])
         self._redraw_views(all_views=True)
@@ -522,6 +524,16 @@ class MainWindow(QMainWindow):
 
         current = property_values(entity)
         editors = {}
+        shape_editor = None
+        if entity.kind == 'opening':
+            shape_editor = QComboBox(dialog)
+            shape_editor.addItem('Rectangle', 'rectangle')
+            shape_editor.addItem('Arch', 'arch')
+            shape_idx = shape_editor.findData(str(entity.params.get('shape', 'rectangle')))
+            if shape_idx >= 0:
+                shape_editor.setCurrentIndex(shape_idx)
+            form.addRow('Shape', shape_editor)
+
         for spec in fields:
             spin = QDoubleSpinBox(dialog)
             spin.setDecimals(3)
@@ -531,6 +543,12 @@ class MainWindow(QMainWindow):
             spin.setSuffix(f" {spec.get('unit', '')}" if spec.get('unit') else '')
             form.addRow(spec['label'], spin)
             editors[spec['id']] = spin
+
+        if shape_editor is not None and 'arch_rise' in editors:
+            def update_arch_rise_enabled(*_):
+                editors['arch_rise'].setEnabled(str(shape_editor.currentData()) == 'arch')
+            shape_editor.currentIndexChanged.connect(update_arch_rise_enabled)
+            update_arch_rise_enabled()
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok
@@ -545,8 +563,11 @@ class MainWindow(QMainWindow):
             return
 
         values = {key: editor.value() for key, editor in editors.items()}
+        extra_changes = None
+        if shape_editor is not None:
+            extra_changes = {'shape': str(shape_editor.currentData())}
         try:
-            self._apply_object_properties(entity_id, values)
+            self._apply_object_properties(entity_id, values, extra_changes=extra_changes)
         except Exception as exc:
             QMessageBox.warning(dialog, 'Invalid dimensions', str(exc))
             self.refresh_inspector()
