@@ -40,6 +40,8 @@ ENTITY_MENUS = {
     '*': ('properties', None, 'delete'),
     'wall': ('properties', 'materials', 'move', 'stretch', 'rotate', None, 'delete'),
     'box': ('properties', 'materials', 'move', 'stretch', 'rotate', None, 'delete'),
+    'structural_column': ('properties', 'materials', 'move', 'rotate', None, 'delete'),
+    'structural_beam': ('properties', 'materials', 'move', 'rotate', None, 'delete'),
     'pod': ('properties', 'materials', 'move', 'stretch', 'rotate', None, 'delete'),
     'door': ('properties', 'move', 'stretch', None, 'delete'),
     'window': ('properties', 'move', 'stretch', None, 'delete'),
