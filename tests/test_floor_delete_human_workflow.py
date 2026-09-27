@@ -167,10 +167,10 @@ def test_context_menu_registry_is_editable_and_view_aware():
     pbr_wall = object_context_actions('wall', 'pbr')
 
     assert [entry['id'] if entry else None for entry in plan_wall] == [
-        'properties', 'move', 'stretch', 'rotate', None, 'delete'
+        'properties', 'materials', 'move', 'stretch', 'rotate', None, 'delete'
     ]
     assert [entry['id'] if entry else None for entry in pbr_wall] == [
-        'properties', 'move', 'rotate', None, 'delete'
+        'properties', 'materials', 'move', 'rotate', None, 'delete'
     ]
     placements = {
         entry['id']: entry['placement']
@@ -178,6 +178,7 @@ def test_context_menu_registry_is_editable_and_view_aware():
         if entry is not None
     }
     assert placements['properties'] == 'radial'
+    assert placements['materials'] == 'radial'
     assert placements['delete'] == 'radial'
 
 
@@ -288,4 +289,20 @@ def test_pbr_context_rotate_stays_in_3d_for_supported_entity():
     assert window.doc.selection == [wall.id]
     assert window.view is window.pbr_view
     assert window.pbr_view.active_tool == 'rotate'
+    window.close()
+
+
+def test_material_assignment_is_authoritative_and_undoable():
+    window = MainWindow()
+    wall = _wall('material-wall', 0.0)
+    window.doc.add(wall)
+    window.doc.select([wall.id])
+
+    window.stack.execute(__import__('archforge.core.commands', fromlist=['UpdateEntity']).UpdateEntity(
+        wall.id, {'material_id': 'wood_oak'}
+    ))
+    assert window.doc.get(wall.id).params['material_id'] == 'wood_oak'
+
+    window._undo()
+    assert 'material_id' not in window.doc.get(wall.id).params
     window.close()
