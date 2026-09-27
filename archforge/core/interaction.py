@@ -207,13 +207,77 @@ class MoveTransaction:
 
 
 class WallDrawTransaction:
-    def __init__(self,doc:Document,stack:CommandStack,start:Tuple[float,float],z=0.0,height=2.7,thickness=0.15,grid=0.1,snap_tol=0.15,snap_enabled=True):
-        self.doc,self.stack=doc,stack;self.start=start;self.end=start;self.z=z;self.height=height;self.thickness=thickness;self.grid=grid;self.snap_tol=snap_tol;self.snap_enabled=bool(snap_enabled);self.cancelled=False
+    def __init__(
+        self,
+        doc:Document,
+        stack:CommandStack,
+        start:Tuple[float,float],
+        z=0.0,
+        height=2.7,
+        thickness=0.15,
+        grid=0.1,
+        snap_tol=0.15,
+        snap_enabled=True,
+        angle_increment=90.0,
+        reference_angle_deg=0.0,
+    ):
+        self.doc,self.stack=doc,stack
+        self.start=(float(start[0]),float(start[1]))
+        self.end=self.start
+        self.z=z;self.height=height;self.thickness=thickness
+        self.grid=grid;self.snap_tol=snap_tol
+        self.snap_enabled=bool(snap_enabled)
+        self.angle_increment=(None if angle_increment is None else float(angle_increment))
+        self.reference_angle_deg=float(reference_angle_deg)
+        self.last_snap=None
+        self.angle_snapped=False
+        self.cancelled=False
+
     def update(self,x,y):
-        sp=best_snap(self.doc,x,y,self.snap_tol,self.grid) if self.snap_enabled else None
-        self.end=(sp.x,sp.y) if sp else (x,y)
+        x=float(x);y=float(y)
+        self.last_snap=None
+        self.angle_snapped=False
+
+        # Exact semantic geometry always wins over an angle guide. Grid is kept
+        # out of this first pass so a nearby T-junction/endpoint cannot be
+        # displaced by a global angular constraint.
+        sp=best_snap(self.doc,x,y,self.snap_tol,grid=None) if self.snap_enabled else None
+        if sp is not None:
+            self.end=(sp.x,sp.y)
+            self.last_snap=sp
+        else:
+            sx,sy=self.start
+            dx,dy=x-sx,y-sy
+            length=hypot(dx,dy)
+            if (
+                self.snap_enabled
+                and self.angle_increment is not None
+                and self.angle_increment>0
+                and length>1e-12
+            ):
+                raw=degrees(atan2(dy,dx))
+                rel=raw-self.reference_angle_deg
+                snapped_rel=round(rel/self.angle_increment)*self.angle_increment
+                angle=self.reference_angle_deg+snapped_rel
+                a=radians(angle)
+                self.end=(sx+length*cos(a),sy+length*sin(a))
+                self.angle_snapped=True
+            elif self.snap_enabled and self.grid:
+                gx=round(x/self.grid)*self.grid
+                gy=round(y/self.grid)*self.grid
+                self.end=(gx,gy)
+            else:
+                self.end=(x,y)
+
         dx=self.end[0]-self.start[0];dy=self.end[1]-self.start[1]
-        return HUD({'length':hypot(dx,dy),'angle_deg':degrees(atan2(dy,dx)),'x':self.end[0],'y':self.end[1],'z':self.z})
+        return HUD({
+            'length':hypot(dx,dy),
+            'angle_deg':degrees(atan2(dy,dx)),
+            'x':self.end[0],
+            'y':self.end[1],
+            'z':self.z,
+            'angle_locked':1.0 if self.angle_snapped else 0.0,
+        })
     def commit(self,exact_length:Optional[float]=None)->str:
         if self.cancelled:raise RuntimeError('transaction cancelled')
         sx,sy=self.start;ex,ey=self.end;dx,dy=ex-sx,ey-sy;L=hypot(dx,dy)
