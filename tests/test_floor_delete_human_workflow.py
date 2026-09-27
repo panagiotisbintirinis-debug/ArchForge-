@@ -306,3 +306,44 @@ def test_material_assignment_is_authoritative_and_undoable():
     window._undo()
     assert 'material_id' not in window.doc.get(wall.id).params
     window.close()
+
+
+def test_wall_with_hosted_door_can_grow_10cm_and_redraw():
+    window = MainWindow()
+    wall = Entity(
+        'wall',
+        {
+            'x1': 0.0, 'y1': 0.0, 'x2': 4.0, 'y2': 0.0,
+            'z': 0.0, 'height': 2.7, 'thickness': 0.15,
+        },
+        id='resize-host-wall',
+    )
+    window.doc.add(wall)
+    door = Entity(
+        'door',
+        {
+            'offset': 2.0,
+            'surface_u': 0.0,
+            'width': 0.90,
+            'height': 2.10,
+            'sill': 0.0,
+            'flat_margin': 0.25,
+        },
+        id='resize-host-door',
+        parent_id=wall.id,
+    )
+    window.doc.add(door)
+
+    window._apply_object_properties(
+        wall.id,
+        {'length': 4.10, 'height': 2.7, 'thickness': 0.15},
+    )
+
+    updated = window.doc.get(wall.id)
+    assert abs(float(updated.params['x2']) - 4.10) < 1e-9
+    assert window.doc.get(door.id).parent_id == wall.id
+
+    # Exercise both derived views after the authoritative resize.
+    window.plan_view.redraw()
+    window.pbr_view.redraw(force_full=True)
+    window.close()
