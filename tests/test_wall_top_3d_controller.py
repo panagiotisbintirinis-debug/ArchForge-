@@ -1,16 +1,16 @@
 import pytest
 
 from archforge.core.commands import CommandStack
-from archforge.core.model import Document
+from archforge.core.model import Document, Entity
 from archforge.ui.wall_top_3d_controller import WallTop3DController
 
 
 def _wall(doc):
-    wall_id = doc.create_entity("wall", {
+    wall = Entity("wall", {
         "x1": 1.0, "y1": 2.0, "x2": 5.0, "y2": 5.0,
         "z": 0.0, "height": 3.0, "thickness": 0.2,
     })
-    wall = doc.get(wall_id)
+    doc.add(wall)
     doc.selection = [wall.id]
     return wall
 
