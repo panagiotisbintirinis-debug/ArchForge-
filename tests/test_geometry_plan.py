@@ -88,3 +88,28 @@ def test_invalid_multiple_parent_mechanism_fails_plan_compile():
     try:build_evaluation_plan(d)
     except ValueError as exc:assert 'multiple incoming' in str(exc)
     else:raise AssertionError('ambiguous mechanism must fail before geometry backend')
+
+
+def test_free_arch_opening_is_relationship_and_enters_wall_cut_intents():
+    d=Document();w=wall();d.add(w)
+    opening=Entity(
+        'opening',
+        {
+            'offset':2.0,'width':1.0,'height':2.2,'sill':0.0,
+            'flat_margin':0.0,'shape':'arch','arch_rise':0.5,
+        },
+        parent_id=w.id,
+    )
+    d.add(opening)
+
+    plan=build_evaluation_plan(d)
+    assert plan.node(opening.id).role=='relationship'
+    assert opening.id not in {n.entity_id for n in plan.geometry_nodes()}
+
+    host=plan.node(w.id)
+    intents=host.params['_opening_intents']
+    assert len(intents)==1
+    assert intents[0]['id']==opening.id
+    assert intents[0]['kind']=='opening'
+    assert intents[0]['shape']=='arch'
+    assert intents[0]['arch_rise']==0.5
