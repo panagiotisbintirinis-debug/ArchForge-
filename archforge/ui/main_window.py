@@ -62,6 +62,12 @@ class MainWindow(QMainWindow):
         self._redraw_views()
 
     def _set_active_tool(self, tool):
+        # Frame-free openings are currently authored in the authoritative Floor Plan.
+        # The resulting wall cut is immediately visible in 3D. Direct wall-surface
+        # drawing in 3D can be added later without changing the entity model.
+        if str(tool).startswith('opening_') and self.view is self.pbr_view:
+            self.tabs.setCurrentWidget(self.plan_view)
+            self.view = self.plan_view
         if hasattr(self.view, 'set_tool'):
             self.view.set_tool(tool)
 
