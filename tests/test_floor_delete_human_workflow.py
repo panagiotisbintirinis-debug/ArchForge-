@@ -441,7 +441,7 @@ def test_structural_role_and_construction_update_undoably():
 
     window._apply_object_properties(
         col.id,
-        {'width':0.20,'depth':0.20,'height':2.50,'z':0.0},
+        {'width':0.20,'depth':0.20,'height':2.50},
         extra_changes={'role':'pergola','construction':'timber'},
     )
     updated=window.doc.get(col.id)
