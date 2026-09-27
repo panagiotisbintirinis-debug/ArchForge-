@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 from archforge.geometry.mesh import MeshPayload
+from archforge.core.model import Document, Entity
 from archforge.rendering.scene import build_pbr_scene_payload
 
 
@@ -22,7 +23,13 @@ def test_pbr_scene_payload_uses_authoritative_mesh_and_identity():
             "vertices": [[0.0, 0.0, 0.0], [2.0, 0.0, 0.0], [0.0, 0.0, 3.0]],
             "triangles": [[0, 1, 2]],
             "surfaces": ["front"],
-            "material": {"color": "#46a6ff", "roughness": 0.42, "metalness": 0.06},
+            "material": {
+                "color": "#d8d2c7",
+                "roughness": 0.72,
+                "metalness": 0.02,
+                "emissive": "#1f5f93",
+                "emissiveIntensity": 0.28,
+            },
         }
     ]
 
@@ -54,3 +61,63 @@ def test_pbr_scene_payload_accepts_transient_mesh_override():
     )
 
     assert payload["objects"][0]["vertices"][2] == [0.0, 0.0, 1.5]
+
+
+def test_pbr_scene_payload_uses_authoritative_entity_material_assignment():
+    mesh = MeshPayload(
+        vertices=((0.0, 0.0, 0.0), (2.0, 0.0, 0.0), (0.0, 0.0, 3.0)),
+        triangles=((0, 1, 2),),
+        triangle_surfaces=("front",),
+    )
+    body = SimpleNamespace(entity_id="wall-material", semantic_kind="wall", payload=mesh)
+    evaluation = SimpleNamespace(bodies=(body,))
+    doc = Document()
+    doc.add(Entity(
+        'wall',
+        {
+            'x1': 0.0, 'y1': 0.0, 'x2': 2.0, 'y2': 0.0,
+            'z': 0.0, 'height': 3.0, 'thickness': 0.15,
+            'material_id': 'wood_oak',
+        },
+        id='wall-material',
+    ))
+
+    payload = build_pbr_scene_payload(evaluation, doc=doc)
+    material = payload['objects'][0]['material']
+
+    assert material['material_id'] == 'wood_oak'
+    assert material['material_name'] == 'Natural Oak'
+    assert material['color'] == '#b98755'
+    assert material['roughness'] == 0.64
+    assert material['metalness'] == 0.0
+
+
+def test_selected_material_keeps_surface_color_and_adds_highlight():
+    mesh = MeshPayload(
+        vertices=((0.0, 0.0, 0.0), (2.0, 0.0, 0.0), (0.0, 0.0, 3.0)),
+        triangles=((0, 1, 2),),
+        triangle_surfaces=("front",),
+    )
+    body = SimpleNamespace(entity_id="selected-material", semantic_kind="wall", payload=mesh)
+    evaluation = SimpleNamespace(bodies=(body,))
+    doc = Document()
+    doc.add(Entity(
+        'wall',
+        {
+            'x1': 0.0, 'y1': 0.0, 'x2': 2.0, 'y2': 0.0,
+            'z': 0.0, 'height': 3.0, 'thickness': 0.15,
+            'material_id': 'stone_dark',
+        },
+        id='selected-material',
+    ))
+
+    payload = build_pbr_scene_payload(
+        evaluation,
+        selected_ids={'selected-material'},
+        doc=doc,
+    )
+    material = payload['objects'][0]['material']
+
+    assert material['color'] == '#5b5c58'
+    assert material['emissive'] == '#1f5f93'
+    assert material['emissiveIntensity'] == 0.28
