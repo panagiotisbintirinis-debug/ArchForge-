@@ -1,12 +1,12 @@
 import pytest
 
-from archforge.core.model import Document
+from archforge.core.model import Document, Entity
 from archforge.core.wall_top_handles import wall_top_handle_payload
 
 
 def _wall_doc():
     doc = Document()
-    wall_id = doc.create_entity('wall', {
+    wall = Entity('wall', {
         'x1': 1.0, 'y1': 2.0,
         'x2': 5.0, 'y2': 6.0,
         'z': 0.4,
@@ -15,7 +15,8 @@ def _wall_doc():
         'end_height': 4.2,
         'thickness': 0.2,
     })
-    return doc, wall_id
+    doc.add(wall)
+    return doc, wall.id
 
 
 def test_3d_handle_payload_preserves_semantic_endpoint_identity_on_rotated_wall():
@@ -59,11 +60,13 @@ def test_3d_handle_preview_changes_only_active_endpoint_z_without_document_mutat
 
 def test_3d_handle_payload_is_selection_scoped_and_wall_only():
     doc, wall_id = _wall_doc()
-    floor_id = doc.create_entity('room_floor', {
+    floor = Entity('room_floor', {
         'room_signature': 'room-test-a',
-        'z': 0.0,
         'thickness': 0.2,
+        'offset_z': 0.0,
     })
+    doc.add(floor)
+    floor_id = floor.id
 
     assert wall_top_handle_payload(doc, []) == []
     assert wall_top_handle_payload(doc, [wall_id, floor_id]) == []
