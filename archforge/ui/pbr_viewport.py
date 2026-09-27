@@ -928,9 +928,15 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
   const hit = pickModel(event);
   if (!hit || !hit.face) return;
 
-  if (activeTool === "door" || activeTool === "window") {
+  if (
+    activeTool === "door" ||
+    activeTool === "window" ||
+    activeTool === "opening_rect" ||
+    activeTool === "opening_arch"
+  ) {
     const kind = hit.object.userData.kind || "";
-    if (kind !== "wall" && kind !== "pod") return;
+    const frameFree = activeTool === "opening_rect" || activeTool === "opening_arch";
+    if (frameFree ? kind !== "wall" : (kind !== "wall" && kind !== "pod")) return;
     const payload = {
       entity_id: hit.object.userData.entityId,
       point: [hit.point.x, hit.point.y, hit.point.z]
@@ -963,7 +969,7 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
 
 renderer.domElement.addEventListener("dblclick", (event) => {
   if (!bridge || sculpting || stairing || ramping || movingEntity || rotatingEntity) return;
-  if (activeTool === "door" || activeTool === "window" || activeTool === "sculpt" || activeTool === "stair" || activeTool === "ramp" || activeTool === "move" || activeTool === "rotate") return;
+  if (activeTool === "door" || activeTool === "window" || activeTool === "opening_rect" || activeTool === "opening_arch" || activeTool === "sculpt" || activeTool === "stair" || activeTool === "ramp" || activeTool === "move" || activeTool === "rotate") return;
   const hit = pickModel(event);
   if (!hit || !hit.face) return;
   bridge.selectEntity(hit.object.userData.entityId || "");
@@ -1961,7 +1967,14 @@ class PBRViewport(QWidget):
 
 
     def _place_opening_from_web(self, kind: str, payload_json: str) -> None:
-        if kind not in ("door", "window"):
+        tool_kind = str(kind)
+        if tool_kind in ("opening_rect", "opening_arch"):
+            semantic_kind = "opening"
+            shape = "arch" if tool_kind == "opening_arch" else "rectangle"
+        elif tool_kind in ("door", "window"):
+            semantic_kind = tool_kind
+            shape = "rectangle"
+        else:
             return
         try:
             payload = json.loads(payload_json)
@@ -1970,15 +1983,19 @@ class PBRViewport(QWidget):
             if entity_id not in self.doc.entities:
                 raise ValueError("clicked host no longer exists")
             host = self.doc.get(entity_id)
-            if host.kind not in ("wall", "pod"):
+            allowed_hosts = ("wall",) if semantic_kind == "opening" else ("wall", "pod")
+            if host.kind not in allowed_hosts:
+                if semantic_kind == "opening":
+                    raise ValueError("architectural openings require a wall host")
                 raise ValueError("doors/windows require a wall or pod host")
             tx = OpeningPlaceTransaction(
                 self.doc,
                 self.stack,
-                kind,
+                semantic_kind,
                 point[0],
                 point[1],
                 tolerance=max(0.5, float(host.params.get("thickness", 0.0)) + 0.25),
+                shape=shape,
             )
             if tx.host_id != entity_id:
                 raise ValueError("opening placement resolved to a different nearby host")
@@ -1987,9 +2004,12 @@ class PBRViewport(QWidget):
             self.doc.select([opening_id])
             self.selectionChangedByView.emit()
             self.redraw(force_full=False)
-            self.statusChanged.emit(f"Placed {kind} in 3D Studio")
+            label = "arch opening" if shape == "arch" else (
+                "rectangle opening" if semantic_kind == "opening" else semantic_kind
+            )
+            self.statusChanged.emit(f"Placed {label} in 3D Studio")
         except Exception as exc:
-            self.statusChanged.emit(f"Cannot place {kind} in 3D Studio: {exc}")
+            self.statusChanged.emit(f"Cannot place {tool_kind} in 3D Studio: {exc}")
 
     def set_render_technique(self, technique: str) -> None:
         if technique not in ("pbr", "technical", "glass"):
