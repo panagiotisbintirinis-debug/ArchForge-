@@ -176,6 +176,10 @@ class MoveTransaction:
                 p['x'] = p['x'] + self.dx
                 p['y'] = p['y'] + self.dy
                 p['z'] = p['z'] + self.dz
+            elif e.kind == 'mep_terminal':
+                p['x'] = p['x'] + self.dx
+                p['y'] = p['y'] + self.dy
+                p['elevation'] = p['elevation'] + self.dz
             elif e.kind == 'wall':
                 p['x1'] = p['x1'] + self.dx
                 p['x2'] = p['x2'] + self.dx
