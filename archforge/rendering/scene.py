@@ -24,6 +24,13 @@ _MATERIALS: Mapping[str, dict] = {
 }
 _DEFAULT_MATERIAL = {"color": "#bdc5ce", "roughness": 0.64, "metalness": 0.02}
 
+_STRUCTURAL_CONSTRUCTION_MATERIAL = {
+    "reinforced_concrete": "concrete_smooth",
+    "steel": "steel_brushed",
+    "timber": "wood_oak",
+    "aluminium": "aluminium",
+}
+
 
 def _surface_material_id(entity, surface_role: str | None = None):
     if entity is None:
@@ -38,6 +45,18 @@ def _surface_material_id(entity, surface_role: str | None = None):
 def _material(kind: str, selected: bool, entity=None, doc=None, surface_role: str | None = None) -> dict:
     spec = dict(_MATERIALS.get(kind, _DEFAULT_MATERIAL))
     material_id = _surface_material_id(entity, surface_role)
+
+    # Construction is semantic intent; it only supplies the default look.
+    # An explicit finish/material always wins.
+    if (
+        not material_id
+        and entity is not None
+        and kind in ("structural_column", "structural_beam")
+    ):
+        material_id = _STRUCTURAL_CONSTRUCTION_MATERIAL.get(
+            str(entity.params.get("construction", "generic"))
+        )
+
     custom = material_spec(material_id)
     if custom is not None:
         spec.update({
