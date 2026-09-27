@@ -20,6 +20,12 @@ PROPERTY_FIELDS = {
         {'id': 'height', 'label': 'Height', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
         {'id': 'sill', 'label': 'Sill Height', 'unit': 'm', 'minimum': 0.0, 'step': 0.05},
     ),
+    'opening': (
+        {'id': 'width', 'label': 'Opening Width', 'unit': 'm', 'minimum': 0.05, 'step': 0.05},
+        {'id': 'height', 'label': 'Opening Height', 'unit': 'm', 'minimum': 0.05, 'step': 0.05},
+        {'id': 'sill', 'label': 'Bottom Height', 'unit': 'm', 'minimum': 0.0, 'step': 0.05},
+        {'id': 'arch_rise', 'label': 'Arch Rise', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
+    ),
     'box': (
         {'id': 'width', 'label': 'Width', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
         {'id': 'depth', 'label': 'Depth', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
