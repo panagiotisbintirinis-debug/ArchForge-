@@ -684,7 +684,7 @@ class MainWindow(QMainWindow):
             entity = self.doc.get(entity_id)
             if self.view is self.pbr_view:
                 if action_id == 'move' and entity.kind in {
-                    'stair', 'ramp', 'wall', 'box', 'pod', 'structural_column', 'structural_beam', 'floor', 'room', 'mechanical_part', 'structural_column', 'structural_beam'
+                    'stair', 'ramp', 'wall', 'box', 'pod', 'structural_column', 'structural_beam', 'floor', 'room', 'mechanical_part'
                 }:
                     self.pbr_view.set_tool('move')
                     self.statusBar().showMessage(
@@ -693,7 +693,7 @@ class MainWindow(QMainWindow):
                     )
                     return
                 if action_id == 'rotate' and entity.kind in {
-                    'stair', 'ramp', 'wall', 'box', 'pod'
+                    'stair', 'ramp', 'wall', 'box', 'pod', 'structural_column', 'structural_beam'
                 }:
                     self.pbr_view.set_tool('rotate')
                     self.statusBar().showMessage(
@@ -701,10 +701,11 @@ class MainWindow(QMainWindow):
                         4500,
                     )
                     return
-            self.tabs.setCurrentWidget(self.plan_view)
-            self.plan_view.set_tool(action_id)
-            self.plan_view.controller.set_target(entity_id, None)
-            self.plan_view.redraw()
+            target_view = self.structural_view if self.view is self.structural_view else self.plan_view
+            self.tabs.setCurrentWidget(target_view)
+            target_view.set_tool(action_id)
+            target_view.controller.set_target(entity_id, None)
+            target_view.redraw()
             self.statusBar().showMessage(
                 f'{action_id.title()} {entity.name or entity.kind.title()}',
                 3000,
