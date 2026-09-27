@@ -29,3 +29,48 @@ def test_opening_plan_and_elevation_primitives():
 
 def test_opening_persists_roundtrip():
     d=Document();w=Entity('wall',{'x1':0,'y1':0,'z':0,'x2':5,'y2':0,'height':3,'thickness':.2});d.add(w);o=Entity('door',{'offset':2.5,'width':.9,'height':2.1,'sill':0},parent_id=w.id);d.add(o);d2=Document.from_dict(d.to_dict());assert d2.get(o.id).parent_id==w.id;assert o.id in d2.children[w.id];assert o.id in d2.dependencies[w.id]
+
+
+def test_frame_free_arch_opening_is_wall_hosted_and_persists():
+    d=Document()
+    w=Entity('wall',{'x1':0,'y1':0,'z':0,'x2':5,'y2':0,'height':3,'thickness':.2})
+    d.add(w)
+    o=Entity(
+        'opening',
+        {
+            'offset':2.5,'width':1.2,'height':2.3,'sill':0.0,
+            'flat_margin':0.0,'shape':'arch','arch_rise':0.6,
+        },
+        parent_id=w.id,
+    )
+    d.add(o)
+
+    assert o.id in d.children[w.id]
+    assert o.id in d.dependencies[w.id]
+    assert o.id in d.opening_ids_for_host(w.id)
+
+    d2=Document.from_dict(d.to_dict())
+    restored=d2.get(o.id)
+    assert restored.kind=='opening'
+    assert restored.parent_id==w.id
+    assert restored.params['shape']=='arch'
+    assert restored.params['arch_rise']==0.6
+
+
+def test_frame_free_opening_rejects_non_wall_host():
+    import pytest
+    d=Document()
+    pod=Entity('pod',{
+        'cx':0,'cy':0,'floor_level':0,'diameter_x':4,'diameter_y':4,
+        'height':3,'shell_thickness':.15,'rotation':0,
+    })
+    d.add(pod)
+    with pytest.raises(ValueError, match='wall'):
+        d.add(Entity(
+            'opening',
+            {
+                'offset':1.0,'width':1.0,'height':2.0,'sill':0.0,
+                'flat_margin':0.0,'shape':'arch','arch_rise':0.5,
+            },
+            parent_id=pod.id,
+        ))
