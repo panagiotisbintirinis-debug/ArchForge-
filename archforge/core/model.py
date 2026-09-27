@@ -152,6 +152,27 @@ def _opening_shape(v):
     return value
 
 
+def _structural_role(v):
+    value = str(v).lower()
+    if value not in ('structural', 'pergola', 'architectural'):
+        raise ValueError('role must be structural, pergola, or architectural')
+    return value
+
+
+def _construction_system(v):
+    value = str(v).lower()
+    if value not in ('reinforced_concrete', 'steel', 'timber', 'aluminium', 'generic'):
+        raise ValueError('unsupported construction system')
+    return value
+
+
+def _structural_section(v):
+    value = str(v).lower()
+    if value not in ('rectangular',):
+        raise ValueError('only rectangular structural sections are currently supported')
+    return value
+
+
 def validate_conduit_spec(start_node, end_node, diameter, system_type, path_vertices):
     return {
         'start_node': _conduit_node(start_node),
@@ -250,6 +271,24 @@ SCHEMAS = {
     'window': _OPENING,
     'opening': _ARCH_OPENING,
     'organic_opening_patch': {'opening_id': _nonempty, 'host_id': _nonempty, 'status': _nonempty},
+    'structural_column': {
+        'x': _finite, 'y': _finite, 'z': _finite,
+        'width': _positive, 'depth': _positive, 'height': _positive,
+        'rotation': _finite,
+        'role': _structural_role,
+        'construction': _construction_system,
+        'section': _structural_section,
+        'base_level': _nonempty,
+        'top_level': _nonempty,
+    },
+    'structural_beam': {
+        'x1': _finite, 'y1': _finite, 'x2': _finite, 'y2': _finite,
+        'z': _finite, 'width': _positive, 'height': _positive,
+        'role': _structural_role,
+        'construction': _construction_system,
+        'section': _structural_section,
+        'level': _nonempty,
+    },
     'mechanical_part': {'x': _finite, 'y': _finite, 'z': _finite, 'width': _positive, 'depth': _positive, 'height': _positive, 'rotation': _finite},
     'mep_terminal': {
         'x': _finite,
@@ -269,6 +308,24 @@ def validate_params(kind, params):
     for key, fn in SCHEMAS.get(kind, {}).items():
         if key in out:
             out[key] = fn(out[key])
+    if kind == 'structural_column':
+        required = {
+            'x','y','z','width','depth','height','rotation',
+            'role','construction','section','base_level','top_level',
+        }
+        missing = required - set(out)
+        if missing:
+            raise ValueError('structural column is missing required fields: ' + ', '.join(sorted(missing)))
+    if kind == 'structural_beam':
+        required = {
+            'x1','y1','x2','y2','z','width','height',
+            'role','construction','section','level',
+        }
+        missing = required - set(out)
+        if missing:
+            raise ValueError('structural beam is missing required fields: ' + ', '.join(sorted(missing)))
+        if math.hypot(float(out['x2'])-float(out['x1']), float(out['y2'])-float(out['y1'])) <= 1e-9:
+            raise ValueError('structural beam must have non-zero plan length')
     if kind == 'mesh':
         required = {'vertices', 'faces', 'matrix'}
         missing = required - set(out)
