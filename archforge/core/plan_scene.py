@@ -24,6 +24,18 @@ def _beam_corners(p):
         (x2-nx*half,y2-ny*half),(x1-nx*half,y1-ny*half),
     ]
 
+def _structural_support_point(doc,e):
+    if not e.parent_id or e.parent_id not in doc.entities:
+        return None
+    host=doc.get(e.parent_id);end=str(e.params.get('member_end','start'))
+    if host.kind=='structural_column':
+        return (float(host.params['x']),float(host.params['y']))
+    if host.kind=='structural_beam':
+        if end=='start':
+            return (float(host.params['x1']),float(host.params['y1']))
+        return (float(host.params['x2']),float(host.params['y2']))
+    return None
+
 def _box_handles(eid,p):
     pts=_box_corners(p);a=radians(p.get('rotation',0.));c,s=cos(a),sin(a);hw,hd=p['width']/2,p['depth']/2
     def world(lx,ly):return(p['x']+lx*c-ly*s,p['y']+lx*s+ly*c)
@@ -115,6 +127,9 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
         return str(p.get('base_level',''))==str(doc.work_plane.name) or abs(float(p.get('z',0.0))-z)<=tolerance
     if e.kind=='structural_beam':
         return str(p.get('level',''))==str(doc.work_plane.name)
+    if e.kind=='structural_support':
+        if not e.parent_id or e.parent_id not in doc.entities:return False
+        return _entity_on_active_level(doc,doc.get(e.parent_id),tolerance)
     if e.kind in ('stair','ramp'):
         return abs(float(p.get('lower_z',0.0))-z)<=tolerance or abs(float(p.get('upper_z',0.0))-z)<=tolerance
     if e.kind in ('door','window','opening'):
@@ -160,6 +175,14 @@ def entity_primitive(doc,eid):
         return Primitive2D(
             'polygon',tuple(_beam_corners(p)),entity_id=eid,role='structural-beam',
             meta=(('semantic','structural_beam'),('role',p.get('role','structural')),('construction',p.get('construction','generic'))),
+        )
+    if e.kind=='structural_support':
+        point=_structural_support_point(doc,e)
+        if point is None:return None
+        x,y=point;r=.16
+        return Primitive2D(
+            'polygon',((x-r,y-r),(x+r,y-r),(x,y+r)),entity_id=eid,role='structural-support',
+            meta=(('semantic','structural_support'),('support_type',p.get('support_type','fixed')),('member_end',p.get('member_end','start'))),
         )
     if e.kind=='box':return Primitive2D('polygon',tuple(_box_corners(p)),entity_id=eid)
     if e.kind=='stair':
