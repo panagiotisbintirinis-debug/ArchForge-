@@ -17,6 +17,19 @@ def points_for(doc:Document,eid:str)->List[SnapPoint]:
         a=radians(p.get('rotation',0));c,s=cos(a),sin(a);hw,hd=p['width']/2,p['depth']/2
         loc=[(-hw,-hd,'corner'),(hw,-hd,'corner'),(hw,hd,'corner'),(-hw,hd,'corner'),(0,-hd,'midpoint'),(hw,0,'midpoint'),(0,hd,'midpoint'),(-hw,0,'midpoint'),(0,0,'center')]
         for lx,ly,k in loc: out.append(SnapPoint(p['x']+lx*c-ly*s,p['y']+lx*s+ly*c,p['z'],k,eid))
+    elif e.kind=='structural_column':
+        a=radians(p.get('rotation',0));c,s=cos(a),sin(a);hw,hd=p['width']/2,p['depth']/2
+        loc=[(-hw,-hd,'corner'),(hw,-hd,'corner'),(hw,hd,'corner'),(-hw,hd,'corner'),(0,0,'center')]
+        for lx,ly,k in loc:
+            out.append(SnapPoint(p['x']+lx*c-ly*s,p['y']+lx*s+ly*c,p['z'],k,eid))
+    elif e.kind=='structural_beam':
+        z=float(p['z'])
+        pts=[
+            (p['x1'],p['y1'],'endpoint'),
+            (p['x2'],p['y2'],'endpoint'),
+            ((p['x1']+p['x2'])/2,(p['y1']+p['y2'])/2,'midpoint'),
+        ]
+        out=[SnapPoint(float(x),float(y),z,k,eid) for x,y,k in pts]
     elif e.kind=='pod':
         rx,ry=p['diameter_x']/2,p['diameter_y']/2;z=p['floor_level']
         out=[SnapPoint(p['cx'],p['cy'],z,'center',eid),SnapPoint(p['cx']+rx,p['cy'],z,'quadrant',eid),SnapPoint(p['cx']-rx,p['cy'],z,'quadrant',eid),SnapPoint(p['cx'],p['cy']+ry,z,'quadrant',eid),SnapPoint(p['cx'],p['cy']-ry,z,'quadrant',eid)]
