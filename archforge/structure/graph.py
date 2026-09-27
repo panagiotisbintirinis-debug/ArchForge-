@@ -32,9 +32,18 @@ class StructuralMember:
 
 
 @dataclass(frozen=True)
+class StructuralSupport:
+    entity_id: str
+    member_entity_id: str
+    node_index: int
+    support_type: str
+
+
+@dataclass(frozen=True)
 class StructuralGraph:
     nodes: Tuple[StructuralNode, ...]
     members: Tuple[StructuralMember, ...]
+    supports: Tuple[StructuralSupport, ...] = ()
 
     def member(self, entity_id: str) -> StructuralMember:
         for member in self.members:
@@ -110,5 +119,25 @@ def build_structural_graph(doc, tolerance: float = 1e-5) -> StructuralGraph:
             )
         )
 
+    member_by_id={member.entity_id:member for member in members}
+    supports: List[StructuralSupport] = []
+    for entity_id in sorted(doc.entities):
+        entity=doc.entities[entity_id]
+        if entity.kind!='structural_support' or not entity.parent_id:
+            continue
+        member=member_by_id.get(str(entity.parent_id))
+        if member is None:
+            continue
+        member_end=str(entity.params.get('member_end','start'))
+        node_index=member.start_node if member_end=='start' else member.end_node
+        supports.append(
+            StructuralSupport(
+                entity_id=str(entity_id),
+                member_entity_id=str(entity.parent_id),
+                node_index=node_index,
+                support_type=str(entity.params.get('support_type','fixed')),
+            )
+        )
+
     nodes = tuple(StructuralNode(index=i, point=point) for i, point in enumerate(points))
-    return StructuralGraph(nodes=nodes, members=tuple(members))
+    return StructuralGraph(nodes=nodes, members=tuple(members), supports=tuple(supports))
