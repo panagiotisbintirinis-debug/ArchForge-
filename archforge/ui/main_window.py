@@ -11,10 +11,10 @@ from PySide6.QtWidgets import (
     QToolButton, QMenu,
 )
 
-from archforge.core.model import Document, WorkPlane
+from archforge.core.model import Document, WorkPlane, Entity
 from archforge.core.commands import (
     CommandStack, UpdateEntity, CreateRoomFloors, CreateRoomRoofs,
-    DeleteEntities, CreateFloorLevel, SetWorkPlane, RouteAndConnectInfrastructure,
+    DeleteEntities, CreateFloorLevel, SetWorkPlane, RouteAndConnectInfrastructure, AddEntity,
 )
 from archforge.rendering.materials import MATERIAL_PRESETS, material_categories, materials_in_category
 from .plan_view import PlanView
@@ -735,6 +735,52 @@ class MainWindow(QMainWindow):
             3500,
         )
 
+    def _add_structural_support(self, entity_id):
+        entity_id=str(entity_id)
+        if entity_id not in self.doc.entities:
+            return
+        member=self.doc.get(entity_id)
+        if member.kind not in ('structural_column','structural_beam'):
+            self.statusBar().showMessage('Support requires a structural Column or Beam',3000)
+            return
+        if str(member.params.get('role','structural'))!='structural':
+            self.statusBar().showMessage('Only Structural-role members can receive supports',3500)
+            return
+
+        end_label,ok=QInputDialog.getItem(
+            self,'Add Structural Support','Member end',
+            ['Start','End'],0,False,
+        )
+        if not ok:
+            return
+        support_label,ok=QInputDialog.getItem(
+            self,'Add Structural Support','Support type',
+            ['Fixed','Pinned','Roller'],0,False,
+        )
+        if not ok:
+            return
+
+        support=Entity(
+            'structural_support',
+            {
+                'member_end':str(end_label).lower(),
+                'support_type':str(support_label).lower(),
+            },
+            name=f'{support_label} Support',
+            parent_id=entity_id,
+        )
+        try:
+            self.stack.execute(AddEntity(support))
+            self.doc.select([support.id])
+            self._redraw_views(all_views=True)
+            self.refresh_inspector()
+            self.statusBar().showMessage(
+                f'Added {support_label} support at {end_label} — Undo is available',
+                3500,
+            )
+        except Exception as exc:
+            QMessageBox.warning(self,'Support',str(exc))
+
     def _handle_object_context_action(self, entity_id, action_id):
         entity_id = str(entity_id)
         action_id = str(action_id)
@@ -750,6 +796,10 @@ class MainWindow(QMainWindow):
 
         if action_id == 'materials':
             self._open_materials(entity_id)
+            return
+
+        if action_id == 'support':
+            self._add_structural_support(entity_id)
             return
 
         if action_id == 'delete':
