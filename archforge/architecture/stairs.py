@@ -322,9 +322,26 @@ def stair_opening_polygon(
     if not upper_path:
         upper_path = path
 
+    half = float(candidate.width) / 2.0 + 0.05
+    if candidate.layout == 'straight' and len(upper_path) >= 2:
+        ax, ay = upper_path[0]
+        bx, by = upper_path[-1]
+        dx, dy = bx - ax, by - ay
+        length = hypot(dx, dy)
+        if length > 1e-12:
+            nx, ny = -dy / length, dx / length
+            return (
+                (ax - nx * half, ay - ny * half),
+                (bx - nx * half, by - ny * half),
+                (bx + nx * half, by + ny * half),
+                (ax + nx * half, ay + ny * half),
+            )
+
+    # Turning/spiral layouts still use a conservative envelope until the opening
+    # subsystem supports multi-segment unions. The slab cutter itself is oriented,
+    # so ramp and straight-stair openings retain their exact rotation.
     xs = [p[0] for p in upper_path]
     ys = [p[1] for p in upper_path]
-    half = float(candidate.width) / 2.0 + 0.05
     return (
         (min(xs) - half, min(ys) - half),
         (max(xs) + half, min(ys) - half),
