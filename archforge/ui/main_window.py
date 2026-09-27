@@ -7,7 +7,7 @@ from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QDockWidget, QWidget, QFormLayout, QDoubleSpinBox,
     QLabel, QTabWidget, QStatusBar, QFileDialog, QMessageBox, QComboBox, QInputDialog,
-    QDialog, QDialogButtonBox, QVBoxLayout,
+    QDialog, QDialogButtonBox, QVBoxLayout, QListWidget, QListWidgetItem,
 )
 
 from archforge.core.model import Document, WorkPlane
@@ -15,6 +15,7 @@ from archforge.core.commands import (
     CommandStack, UpdateEntity, CreateRoomFloors, CreateRoomRoofs,
     DeleteEntities, CreateFloorLevel, SetWorkPlane,
 )
+from archforge.rendering.materials import MATERIAL_PRESETS, material_categories, materials_in_category
 from .plan_view import PlanView
 from .pbr_viewport import PBRViewport
 from .object_properties import property_fields, property_values, property_changes
@@ -105,6 +106,12 @@ class MainWindow(QMainWindow):
         snap_action.toggled.connect(self._set_snap_enabled)
         toolbar.addAction(snap_action)
         self.snap_action = snap_action
+
+        materials_action = QAction('Materials', self)
+        materials_action.setToolTip('Assign a surface material to the selected object')
+        materials_action.triggered.connect(self._open_selected_materials)
+        toolbar.addAction(materials_action)
+        self.materials_action = materials_action
 
         delete_action = QAction('Delete', self)
         delete_action.setShortcut(QKeySequence(Qt.Key.Key_Delete))
@@ -481,6 +488,10 @@ class MainWindow(QMainWindow):
             self._open_object_properties(entity_id)
             return
 
+        if action_id == 'materials':
+            self._open_materials(entity_id)
+            return
+
         if action_id == 'delete':
             self._delete_selection()
             return
@@ -515,6 +526,121 @@ class MainWindow(QMainWindow):
                 3000,
             )
             return
+
+    def _open_selected_materials(self):
+        if len(self.doc.selection) != 1:
+            self.statusBar().showMessage('Select one object before choosing a material', 3000)
+            return
+        self._open_materials(self.doc.selection[0])
+
+    def _open_materials(self, entity_id):
+        entity_id = str(entity_id)
+        if entity_id not in self.doc.entities:
+            return
+        entity = self.doc.get(entity_id)
+        supported = {
+            'wall', 'floor', 'room_floor', 'room_roof', 'room_ceiling',
+            'room_foundation', 'box', 'pod', 'stair', 'ramp',
+            'mechanical_part', 'mesh',
+        }
+        if entity.kind not in supported:
+            self.statusBar().showMessage(
+                f'Materials are not available yet for {entity.kind}',
+                3000,
+            )
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f'Materials / Surfaces — {entity.name or entity.kind.title()}')
+        dialog.resize(430, 460)
+        layout = QVBoxLayout(dialog)
+
+        current_id = str(entity.params.get('material_id', '') or '')
+        current_spec = MATERIAL_PRESETS.get(current_id, {})
+        current_label = current_spec.get('name', 'Default by object type')
+        current = QLabel(f'Current: {current_label}')
+        layout.addWidget(current)
+
+        category = QComboBox(dialog)
+        for name in material_categories():
+            category.addItem(name)
+        layout.addWidget(category)
+
+        materials = QListWidget(dialog)
+        layout.addWidget(materials)
+
+        preview = QLabel('Surface preview')
+        preview.setMinimumHeight(52)
+        preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(preview)
+
+        state = {'material_id': current_id or None}
+
+        def fill_materials(category_name):
+            materials.clear()
+            for material_id, spec in materials_in_category(category_name):
+                item = QListWidgetItem(str(spec['name']))
+                item.setData(Qt.ItemDataRole.UserRole, material_id)
+                item.setToolTip(
+                    f"roughness {float(spec.get('roughness', 0.0)):.2f} · "
+                    f"metalness {float(spec.get('metalness', 0.0)):.2f}"
+                )
+                materials.addItem(item)
+                if material_id == current_id:
+                    materials.setCurrentItem(item)
+            if materials.currentItem() is None and materials.count():
+                materials.setCurrentRow(0)
+
+        def refresh_preview():
+            item = materials.currentItem()
+            if item is None:
+                return
+            material_id = str(item.data(Qt.ItemDataRole.UserRole))
+            state['material_id'] = material_id
+            spec = MATERIAL_PRESETS[material_id]
+            preview.setText(
+                f"{spec['name']}  ·  rough {float(spec['roughness']):.2f}  ·  metal {float(spec['metalness']):.2f}"
+            )
+            preview.setStyleSheet(
+                f"background: {spec['color']}; border: 1px solid #747b82; "
+                "padding: 8px; font-weight: 600;"
+            )
+
+        category.currentTextChanged.connect(fill_materials)
+        materials.currentItemChanged.connect(lambda *_: refresh_preview())
+
+        if current_spec:
+            current_category = str(current_spec.get('category', ''))
+            idx = category.findText(current_category)
+            if idx >= 0:
+                category.setCurrentIndex(idx)
+        fill_materials(category.currentText())
+        refresh_preview()
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok
+            | QDialogButtonBox.StandardButton.Cancel,
+            parent=dialog,
+        )
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        material_id = state.get('material_id')
+        if not material_id:
+            return
+
+        self.stack.execute(UpdateEntity(entity_id, {'material_id': str(material_id)}))
+        self.doc.select([entity_id])
+        self._redraw_views(all_views=True)
+        self.refresh_inspector()
+        spec = MATERIAL_PRESETS[str(material_id)]
+        self.statusBar().showMessage(
+            f"Applied {spec['name']} — Undo is available",
+            3500,
+        )
 
     def _delete_selection(self):
         ids = list(self.doc.selection)
