@@ -43,6 +43,7 @@ ENTITY_MENUS = {
     'pod': ('properties', 'materials', 'move', 'stretch', 'rotate', None, 'delete'),
     'door': ('properties', 'move', 'stretch', None, 'delete'),
     'window': ('properties', 'move', 'stretch', None, 'delete'),
+    'opening': ('properties', 'move', 'stretch', None, 'delete'),
     'floor': ('properties', 'materials', 'move', None, 'delete'),
     'room': ('properties', 'move', None, 'delete'),
     'room_floor': ('properties', 'materials', None, 'delete'),
