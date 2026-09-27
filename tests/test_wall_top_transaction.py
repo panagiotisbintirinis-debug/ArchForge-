@@ -36,7 +36,7 @@ def test_3d_transaction_commit_uses_shared_endpoint_command_and_undo():
     tx = WallTopEndpointTransaction(doc, stack, wall_id, 'end')
     height = tx.update_from_ray((8.0, 6.0, 5.0), (-1.0, 0.0, -0.25))
 
-    tx.commit()
+    assert tx.commit() is True
     assert doc.get(wall_id).params['end_height'] == pytest.approx(height)
     assert 'start_height' not in doc.get(wall_id).params
 
@@ -55,3 +55,27 @@ def test_3d_transaction_cancel_leaves_document_and_history_untouched():
     tx.cancel()
     assert doc.get(wall_id).params == before
     assert not stack.can_undo
+
+
+def test_3d_transaction_click_without_move_does_not_create_undo_step():
+    doc, wall_id = _wall_doc()
+    stack = CommandStack(doc)
+    tx = WallTopEndpointTransaction(doc, stack, wall_id, 'start')
+    before = dict(doc.get(wall_id).params)
+
+    assert tx.commit() is False
+    assert doc.get(wall_id).params == before
+    assert not stack.can_undo
+    assert 'start_height' not in doc.get(wall_id).params
+
+
+def test_3d_transaction_repeated_commit_without_new_move_is_history_neutral():
+    doc, wall_id = _wall_doc()
+    stack = CommandStack(doc)
+    tx = WallTopEndpointTransaction(doc, stack, wall_id, 'end')
+    tx.update_from_ray((8.0, 6.0, 5.0), (-1.0, 0.0, -0.25))
+
+    assert tx.commit() is True
+    assert len(stack.done) == 1
+    assert tx.commit() is False
+    assert len(stack.done) == 1
