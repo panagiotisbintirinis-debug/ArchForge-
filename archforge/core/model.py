@@ -187,6 +187,28 @@ def _member_end(v):
     return value
 
 
+def _structural_load_type(v):
+    value = str(v).lower()
+    if value not in ('point', 'distributed'):
+        raise ValueError('load type must be point or distributed')
+    return value
+
+
+def _unit_interval(v):
+    value = _finite(v)
+    if value < 0.0 or value > 1.0:
+        raise ValueError('position must be between 0 and 1')
+    return value
+
+
+def _load_direction(v):
+    vec = _vec3(v)
+    length = math.sqrt(sum(float(x) * float(x) for x in vec))
+    if length <= 1e-12:
+        raise ValueError('load direction must be non-zero')
+    return [float(x) / length for x in vec]
+
+
 def validate_conduit_spec(start_node, end_node, diameter, system_type, path_vertices):
     return {
         'start_node': _conduit_node(start_node),
@@ -306,6 +328,15 @@ SCHEMAS = {
     'structural_support': {
         'member_end': _member_end,
         'support_type': _structural_support_type,
+    },
+    'structural_load': {
+        'load_type': _structural_load_type,
+        'magnitude': _finite,
+        'direction': _load_direction,
+        'position': _unit_interval,
+        'load_case': _nonempty,
+        'unit': _nonempty,
+        'source': _nonempty,
     },
     'mechanical_part': {'x': _finite, 'y': _finite, 'z': _finite, 'width': _positive, 'depth': _positive, 'height': _positive, 'rotation': _finite},
     'mep_terminal': {
@@ -580,6 +611,14 @@ class Document:
                     and str(other.params.get('member_end')) == str(entity.params.get('member_end'))
                 ):
                     raise ValueError('that structural member end already has a support')
+        elif entity.kind == 'structural_load':
+            if not entity.parent_id or entity.parent_id not in self.entities:
+                raise ValueError('structural load must be attached to a Column or Beam')
+            host = self.entities[entity.parent_id]
+            if host.kind not in ('structural_column','structural_beam'):
+                raise ValueError('structural load host must be a Column or Beam')
+            if str(host.params.get('role','structural')) != 'structural':
+                raise ValueError('loads can only be attached to structural-role members')
         elif entity.kind == 'arboreal_branch':
             from archforge.organic.arboreal import validate_arboreal_branch
             validate_arboreal_branch(self, entity)
@@ -594,7 +633,7 @@ class Document:
         if entity.parent_id:
             self.children.setdefault(entity.parent_id, []).append(entity.id)
         self._index_entity(entity)
-        if entity.parent_id and entity.kind in ('door', 'window', 'opening', 'structural_support'):
+        if entity.parent_id and entity.kind in ('door', 'window', 'opening', 'structural_support', 'structural_load'):
             self.add_dependency(entity.parent_id, entity.id)
         if entity.kind == 'arboreal_branch':
             self.add_dependency(entity.params['core_id'], entity.id)
@@ -633,8 +672,16 @@ class Document:
         params = validate_params(entity.kind, params)
         candidate = entity.clone()
         candidate.params = params
-        if entity.kind in ('door', 'window', 'arboreal_branch', 'mechanical_joint', 'mechanical_mount'):
+        if entity.kind in ('door', 'window', 'opening', 'structural_support', 'structural_load', 'arboreal_branch', 'mechanical_joint', 'mechanical_mount'):
             self._validate_links(candidate)
+        elif entity.kind in ('structural_column','structural_beam'):
+            if str(params.get('role','structural')) != 'structural':
+                attached=[
+                    self.entities.get(cid) for cid in self.children.get(eid, ())
+                    if cid in self.entities
+                ]
+                if any(child and child.kind in ('structural_support','structural_load') for child in attached):
+                    raise ValueError('remove structural supports/loads before changing member Role away from Structural')
         elif entity.kind == 'wall':
             from archforge.architecture.openings import validate_opening
             for cid in self.children.get(eid, ()):
@@ -861,13 +908,13 @@ class Document:
         doc.room_bindings = copy.deepcopy(data.get('room_bindings', {}))
         deferred = []
         for raw in data.get('entities', []):
-            if raw.get('kind') in ('door', 'window', 'opening', 'structural_support', 'organic_opening_patch', 'mechanical_joint', 'mechanical_mount'):
+            if raw.get('kind') in ('door', 'window', 'opening', 'structural_support', 'structural_load', 'organic_opening_patch', 'mechanical_joint', 'mechanical_mount'):
                 deferred.append(raw)
             else:
                 doc.add(Entity(**raw))
-        for raw in [r for r in deferred if r.get('kind') in ('door', 'window', 'opening', 'structural_support')]:
+        for raw in [r for r in deferred if r.get('kind') in ('door', 'window', 'opening', 'structural_support', 'structural_load')]:
             doc.add(Entity(**raw))
-        for raw in [r for r in deferred if r.get('kind') not in ('door', 'window', 'opening', 'structural_support')]:
+        for raw in [r for r in deferred if r.get('kind') not in ('door', 'window', 'opening', 'structural_support', 'structural_load')]:
             doc.add(Entity(**raw))
         for source, deps in data.get('dependencies', {}).items():
             for dep in deps:
