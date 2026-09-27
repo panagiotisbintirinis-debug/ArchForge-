@@ -141,7 +141,7 @@ class PointerController:
             self.active=StructuralBeamDrawTransaction(
                 self.doc,self.stack,(sx,sy),
                 z=beam_z,width=.20,height=beam_height,
-                level=next_name if next_name!='Unassigned' else level_name,
+                level=level_name,
                 grid=(self.grid if geometry_snap_enabled else None),
                 snap_tol=self.snap_tolerance,
                 angle_increment=self.angle_increment,
