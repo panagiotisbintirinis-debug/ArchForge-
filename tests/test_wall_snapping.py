@@ -120,3 +120,40 @@ def test_wall_intersection_snap_beats_projection():
     assert s is not None
     assert s.kind=='intersection'
     assert abs(s.x)<1e-9 and abs(s.y)<1e-9
+
+
+def test_wall_draw_rejects_accidental_tiny_segment():
+    d=Document()
+    stack=CommandStack(d)
+    tx=WallDrawTransaction(
+        d,stack,(0.0,0.0),
+        grid=None,
+        snap_enabled=False,
+        angle_enabled=False,
+        min_length=0.05,
+    )
+    tx.update(0.024,0.0)
+
+    import pytest
+    with pytest.raises(ValueError, match='too short'):
+        tx.commit()
+
+    assert not d.entities
+
+
+def test_wall_draw_accepts_normal_short_architectural_segment():
+    d=Document()
+    stack=CommandStack(d)
+    tx=WallDrawTransaction(
+        d,stack,(0.0,0.0),
+        grid=None,
+        snap_enabled=False,
+        angle_enabled=False,
+        min_length=0.05,
+    )
+    tx.update(0.08,0.0)
+
+    eid=tx.commit()
+    assert eid in d.entities
+    p=d.get(eid).params
+    assert abs(float(p['x2'])-0.08)<1e-9
