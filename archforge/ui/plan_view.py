@@ -14,11 +14,11 @@ from archforge.core.plan_scene import build_plan_frame, Primitive2D, Handle2D
 from archforge.ui.object_context_menu import object_context_actions
 
 class PlanView(QGraphicsView):
-    selectionChangedByView=Signal();contextActionRequested=Signal(str,str);previewChanged=Signal(object);statusChanged=Signal(str)
+    selectionChangedByView=Signal();contextActionRequested=Signal(str,str);commandRequested=Signal(str);previewChanged=Signal(object);statusChanged=Signal(str)
     def __init__(self,doc:Document,stack:CommandStack,parent=None):
         self._scene=QGraphicsScene();super().__init__(self._scene,parent);self.doc=doc;self.stack=stack;self.controller=PointerController(doc,stack)
         self.setRenderHint(QPainter.RenderHint.Antialiasing,True);self.setDragMode(QGraphicsView.DragMode.NoDrag);self.setMouseTracking(True);self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse);self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter);self.setBackgroundBrush(QColor(248,248,248))
-        self._mouse_down=False;self._handle_items={};self._entity_items={};self._active_handle=None;self._hud_item=None;self._wall_angle_buttons=[];self.scale(55.0,-55.0);self.redraw()
+        self._mouse_down=False;self._handle_items={};self._entity_items={};self._active_handle=None;self._hud_item=None;self._wall_angle_buttons=[];self._wall_menu_target_entity=None;self.scale(55.0,-55.0);self.redraw()
     def rebind(self,doc,stack):self.doc=doc;self.stack=stack;self.controller=PointerController(doc,stack);self.redraw()
     def set_tool(self,tool):self.controller.set_tool(tool);self._active_handle=None;self.statusChanged.emit(f'Tool: {tool}');self.redraw()
     def _scene_to_plane(self,pos):p=self.mapToScene(pos);return PointerEvent(p.x(),p.y())
@@ -51,6 +51,19 @@ class PlanView(QGraphicsView):
 
     def contextMenuEvent(self,event):
         if self.controller.tool=='wall':
+            hit=self.itemAt(event.pos())
+            eid=self._entity_items.get(hit)
+            self._wall_menu_target_entity=None
+            if eid and eid in self.doc.entities and self.doc.get(eid).kind=='wall':
+                self._wall_menu_target_entity=eid
+            elif len(self.doc.selection)==1:
+                selected=self.doc.selection[0]
+                if selected in self.doc.entities and self.doc.get(selected).kind=='wall':
+                    self._wall_menu_target_entity=selected
+            else:
+                preview_id=getattr(self.controller.preview,'entity_id',None)
+                if preview_id and preview_id in self.doc.entities and self.doc.get(preview_id).kind=='wall':
+                    self._wall_menu_target_entity=preview_id
             self._show_wall_angle_radial(event.pos())
             event.accept()
             return
@@ -155,42 +168,99 @@ class PlanView(QGraphicsView):
             self.redraw()
         self._hide_wall_angle_radial()
 
-    def _choose_wall_reference(self, mode):
-        self.set_wall_angle_reference(mode)
-        if self.controller.active is not None:
-            self.redraw()
+    def _wall_radial_command(self, command):
+        command=str(command)
+        if command=='undo':
+            self.commandRequested.emit('undo')
+        elif command=='delete':
+            # During a live wall drag Delete means cancel this uncommitted segment.
+            if self.controller.active is not None and hasattr(self.controller.active,'start'):
+                self.controller.cancel()
+                self._mouse_down=False
+                self.statusChanged.emit('Current wall segment cancelled')
+                self.redraw()
+            else:
+                target=self._wall_menu_target_entity
+                if target and target in self.doc.entities:
+                    self.doc.select([target])
+                    self.controller.set_target(target,None)
+                    self.selectionChangedByView.emit()
+                    self.commandRequested.emit('delete')
+                else:
+                    self.statusChanged.emit('Nothing to delete at this wall corner')
         self._hide_wall_angle_radial()
+
+    def _wall_angle_anchor(self, pos):
+        # While a segment is live, its angle belongs to its start/joint.
+        active=self.controller.active
+        if active is not None and hasattr(active,'start'):
+            sx,sy=active.start
+            return self.mapFromScene(QPointF(float(sx),float(sy)))
+
+        click_scene=self.mapToScene(pos)
+
+        # After committing a segment, anchor the menu to the nearest end of that
+        # last wall instead of leaving the choices floating under the mouse.
+        preview=self.controller.preview
+        if getattr(preview,'kind','')=='wall':
+            geom=getattr(preview,'geometry',{}) or {}
+            if all(key in geom for key in ('x1','y1','x2','y2')):
+                candidates=((float(geom['x1']),float(geom['y1'])),(float(geom['x2']),float(geom['y2'])))
+                px,py=float(click_scene.x()),float(click_scene.y())
+                ax,ay=min(candidates,key=lambda p:(p[0]-px)**2+(p[1]-py)**2)
+                return self.mapFromScene(QPointF(ax,ay))
+
+        # If an existing wall is the context target, use its nearest endpoint.
+        target=self._wall_menu_target_entity
+        if target and target in self.doc.entities:
+            entity=self.doc.get(target)
+            if entity.kind=='wall':
+                p=entity.params
+                candidates=((float(p['x1']),float(p['y1'])),(float(p['x2']),float(p['y2'])))
+                px,py=float(click_scene.x()),float(click_scene.y())
+                ax,ay=min(candidates,key=lambda q:(q[0]-px)**2+(q[1]-py)**2)
+                return self.mapFromScene(QPointF(ax,ay))
+
+        return pos
 
     def _show_wall_angle_radial(self, pos):
         self._hide_wall_angle_radial()
+
+        # The menu belongs to the architectural corner, not to the cursor.
+        anchor=self._wall_angle_anchor(pos)
+        cx,cy=int(anchor.x()),int(anchor.y())
+
         options=(
-            ('90°','angle',90.0,0,-66),
-            ('45°','angle',45.0,62,-34),
-            ('15°','angle',15.0,62,34),
-            ('Free','angle',None,0,66),
-            ('Relative','reference','relative',-72,34),
-            ('Global','reference','global',-72,-34),
+            ('90°','angle',90.0,0,-72),
+            ('45°','angle',45.0,70,-36),
+            ('15°','angle',15.0,70,36),
+            ('Free','angle',None,0,72),
+            ('Undo','command','undo',-74,36),
+            ('Delete','command','delete',-74,-36),
         )
-        cx,cy=int(pos.x()),int(pos.y())
         current=self.controller.wall_angle_increment
-        current_ref=self.controller.wall_angle_reference
         for label,kind,value,dx,dy in options:
             button=QToolButton(self.viewport())
             button.setText(label)
             button.setAutoRaise(False)
+            selected=False
             if kind=='angle':
                 selected=(
                     (current is None and value is None)
                     or (current is not None and value is not None and abs(float(current)-float(value))<1e-9)
                 )
-            else:
-                selected=(str(current_ref)==str(value))
+            danger=(kind=='command' and value=='delete')
+            base='#ffe5e5' if danger else ('#cfe7ff' if selected else '#f7f7f7')
             button.setStyleSheet(
                 'QToolButton {'
                 'background: %s; border: 1px solid #7c8792; border-radius: 15px;'
                 'padding: 4px 9px; font-weight: %s;'
-                '} QToolButton:hover { background: #d9ecff; }'
-                % ('#cfe7ff' if selected else '#f7f7f7','600' if selected else '400')
+                '} QToolButton:hover { background: %s; }'
+                % (
+                    base,
+                    '600' if selected else '400',
+                    '#ffd0d0' if danger else '#d9ecff',
+                )
             )
             button.adjustSize()
             w=max(48,button.sizeHint().width());h=max(30,button.sizeHint().height())
@@ -199,13 +269,14 @@ class PlanView(QGraphicsView):
             if kind=='angle':
                 button.clicked.connect(lambda checked=False,v=value:self._choose_wall_angle(v))
             else:
-                button.clicked.connect(lambda checked=False,v=value:self._choose_wall_reference(v))
+                button.clicked.connect(lambda checked=False,v=value:self._wall_radial_command(v))
             button.show()
             button.raise_()
             self._wall_angle_buttons.append(button)
+
         label='Free' if current is None else f'{float(current):g}°'
         self.statusChanged.emit(
-            f'Wall angle menu — {label} · {current_ref.title()} reference · Shift = temporary Free'
+            f'Wall corner menu — {label} · Undo/Delete available · Shift = temporary Free'
         )
 
     def redraw(self):
