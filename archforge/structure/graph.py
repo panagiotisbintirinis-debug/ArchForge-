@@ -40,10 +40,24 @@ class StructuralSupport:
 
 
 @dataclass(frozen=True)
+class StructuralLoadInput:
+    entity_id: str
+    member_entity_id: str
+    load_type: str
+    magnitude: float
+    direction: Point3
+    position: float
+    load_case: str
+    unit: str
+    source: str
+
+
+@dataclass(frozen=True)
 class StructuralGraph:
     nodes: Tuple[StructuralNode, ...]
     members: Tuple[StructuralMember, ...]
     supports: Tuple[StructuralSupport, ...] = ()
+    loads: Tuple[StructuralLoadInput, ...] = ()
 
     def member(self, entity_id: str) -> StructuralMember:
         for member in self.members:
@@ -139,5 +153,28 @@ def build_structural_graph(doc, tolerance: float = 1e-5) -> StructuralGraph:
             )
         )
 
+    loads: List[StructuralLoadInput] = []
+    for entity_id in sorted(doc.entities):
+        entity=doc.entities[entity_id]
+        if entity.kind!='structural_load' or not entity.parent_id:
+            continue
+        member=member_by_id.get(str(entity.parent_id))
+        if member is None:
+            continue
+        p=entity.params
+        loads.append(
+            StructuralLoadInput(
+                entity_id=str(entity_id),
+                member_entity_id=str(entity.parent_id),
+                load_type=str(p.get('load_type','point')),
+                magnitude=float(p.get('magnitude',0.0)),
+                direction=tuple(float(v) for v in p.get('direction',(0.0,0.0,-1.0))),
+                position=float(p.get('position',0.5)),
+                load_case=str(p.get('load_case','')),
+                unit=str(p.get('unit','')),
+                source=str(p.get('source','')),
+            )
+        )
+
     nodes = tuple(StructuralNode(index=i, point=point) for i, point in enumerate(points))
-    return StructuralGraph(nodes=nodes, members=tuple(members), supports=tuple(supports))
+    return StructuralGraph(nodes=nodes, members=tuple(members), supports=tuple(supports), loads=tuple(loads))
