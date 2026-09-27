@@ -612,7 +612,6 @@ class MainWindow(QMainWindow):
             target.addItem('Side A', 'exterior')
             target.addItem('Side B', 'interior')
             target.addItem('Both Sides', 'both')
-            target.addItem('Whole Wall', 'whole')
             target.setToolTip(
                 'Wall finishes are face-specific. Side A and Side B are the two '
                 'sides of the wall; room-aware names will replace these labels later.'
@@ -643,8 +642,6 @@ class MainWindow(QMainWindow):
                 return str(entity.params.get('material_id', '') or '')
             mode = str(target.currentData())
             surface_map = entity.params.get('surface_materials') or {}
-            if mode == 'whole':
-                return str(entity.params.get('material_id', '') or '')
             if mode == 'both':
                 a = surface_map.get('exterior')
                 b = surface_map.get('interior')
@@ -731,19 +728,15 @@ class MainWindow(QMainWindow):
         target_label = entity.kind.title()
         if entity.kind == 'wall' and target is not None:
             mode = str(target.currentData())
-            if mode == 'whole':
-                changes['material_id'] = str(material_id)
-                target_label = 'whole wall'
+            surface_map = dict(entity.params.get('surface_materials') or {})
+            if mode == 'both':
+                surface_map['exterior'] = str(material_id)
+                surface_map['interior'] = str(material_id)
+                target_label = 'both wall sides'
             else:
-                surface_map = dict(entity.params.get('surface_materials') or {})
-                if mode == 'both':
-                    surface_map['exterior'] = str(material_id)
-                    surface_map['interior'] = str(material_id)
-                    target_label = 'both wall sides'
-                else:
-                    surface_map[mode] = str(material_id)
-                    target_label = 'Side A' if mode == 'exterior' else 'Side B'
-                changes['surface_materials'] = surface_map
+                surface_map[mode] = str(material_id)
+                target_label = 'Side A' if mode == 'exterior' else 'Side B'
+            changes['surface_materials'] = surface_map
         else:
             changes['material_id'] = str(material_id)
 
