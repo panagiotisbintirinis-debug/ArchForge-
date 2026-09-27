@@ -14,6 +14,16 @@ class PlanFrame:primitives:List[Primitive2D]=field(default_factory=list);handles
 
 def _box_corners(p):
     a=radians(p.get('rotation',0.));c,s=cos(a),sin(a);hw,hd=p['width']/2,p['depth']/2;return [(p['x']+lx*c-ly*s,p['y']+lx*s+ly*c) for lx,ly in [(-hw,-hd),(hw,-hd),(hw,hd),(-hw,hd)]]
+def _beam_corners(p):
+    x1,y1,x2,y2=map(float,(p['x1'],p['y1'],p['x2'],p['y2']))
+    dx,dy=x2-x1,y2-y1;length=(dx*dx+dy*dy)**0.5
+    if length<=1e-12:return [(x1,y1)]*4
+    nx,ny=-dy/length,dx/length;half=float(p['width'])/2.0
+    return [
+        (x1+nx*half,y1+ny*half),(x2+nx*half,y2+ny*half),
+        (x2-nx*half,y2-ny*half),(x1-nx*half,y1-ny*half),
+    ]
+
 def _box_handles(eid,p):
     pts=_box_corners(p);a=radians(p.get('rotation',0.));c,s=cos(a),sin(a);hw,hd=p['width']/2,p['depth']/2
     def world(lx,ly):return(p['x']+lx*c-ly*s,p['y']+lx*s+ly*c)
@@ -101,6 +111,10 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
     if e.kind=='pod':return abs(float(p.get('floor_level',0.0))-z)<=tolerance
     if e.kind in ('floor','room'):return abs(float(p.get('z',0.0))-z)<=tolerance
     if e.kind=='mep_terminal':return abs(float(p.get('level_z',0.0))-z)<=tolerance
+    if e.kind=='structural_column':
+        return str(p.get('base_level',''))==str(doc.work_plane.name) or abs(float(p.get('z',0.0))-z)<=tolerance
+    if e.kind=='structural_beam':
+        return str(p.get('level',''))==str(doc.work_plane.name)
     if e.kind in ('stair','ramp'):
         return abs(float(p.get('lower_z',0.0))-z)<=tolerance or abs(float(p.get('upper_z',0.0))-z)<=tolerance
     if e.kind in ('door','window','opening'):
@@ -137,6 +151,16 @@ def entity_primitive(doc,eid):
                 'polyline',points,entity_id=eid,role='mep-conduit',
                 meta=(('semantic','conduit'),('system_type',p.get('metadata',{}).get('system_type',''))),
             )
+    if e.kind=='structural_column':
+        return Primitive2D(
+            'polygon',tuple(_box_corners(p)),entity_id=eid,role='structural-column',
+            meta=(('semantic','structural_column'),('role',p.get('role','structural')),('construction',p.get('construction','generic'))),
+        )
+    if e.kind=='structural_beam':
+        return Primitive2D(
+            'polygon',tuple(_beam_corners(p)),entity_id=eid,role='structural-beam',
+            meta=(('semantic','structural_beam'),('role',p.get('role','structural')),('construction',p.get('construction','generic'))),
+        )
     if e.kind=='box':return Primitive2D('polygon',tuple(_box_corners(p)),entity_id=eid)
     if e.kind=='stair':
         from archforge.architecture.stairs import candidate_from_params,stair_footprint
@@ -217,6 +241,10 @@ def selection_handles(doc):
 def preview_primitives(preview):
     g=preview.geometry
     if preview.kind=='wall' and g:return [Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),entity_id=preview.entity_id or '',role='preview')]
+    if preview.kind=='structural-column' and g:
+        return [Primitive2D('polygon',tuple(_box_corners(g)),entity_id=preview.entity_id or '',role='preview',meta=(('semantic','structural-column-preview'),))]
+    if preview.kind=='structural-beam' and g:
+        return [Primitive2D('polygon',tuple(_beam_corners(g)),entity_id=preview.entity_id or '',role='preview',meta=(('semantic','structural-beam-preview'),))]
     if preview.kind=='mep-terminal' and g:
         radius=max(0.06,float(g.get('diameter',0.02))*1.5)
         return [Primitive2D('ellipse',((float(g['x']),float(g['y'])),),radius,radius,0.0,preview.entity_id or '','preview',meta=(('semantic','mep_terminal'),('system_type',g.get('system_type',''))))]
