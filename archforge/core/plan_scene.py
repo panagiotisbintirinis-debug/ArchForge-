@@ -102,7 +102,7 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
     if e.kind in ('floor','room'):return abs(float(p.get('z',0.0))-z)<=tolerance
     if e.kind in ('stair','ramp'):
         return abs(float(p.get('lower_z',0.0))-z)<=tolerance or abs(float(p.get('upper_z',0.0))-z)<=tolerance
-    if e.kind in ('door','window'):
+    if e.kind in ('door','window','opening'):
         if not e.parent_id or e.parent_id not in doc.entities:return False
         host=doc.get(e.parent_id);hp=host.params
         if host.kind=='wall':return abs(float(hp.get('z',0.0))-z)<=tolerance
@@ -165,7 +165,7 @@ def entity_primitive(doc,eid):
                 ('z',g['z']),
             ),
         )
-    if e.kind in ('door','window'):
+    if e.kind in ('door','window','opening'):
         seg=_opening_segment(doc,e)
         if seg is None:return None
         a,b=seg;return Primitive2D('line',(a,b),entity_id=eid,role='opening',meta=(('semantic',e.kind),('host',e.parent_id)))
@@ -188,7 +188,7 @@ def selection_handles(doc):
             geom=arboreal_branch_geometry(doc,eid)
             s,t=geom['start'],geom['end']
             out.extend([Handle2D(s[0],s[1],eid,'root','move'),Handle2D(t[0],t[1],eid,'tip','stretch')])
-        elif e.kind in ('door','window') and e.parent_id in doc.entities:
+        elif e.kind in ('door','window','opening') and e.parent_id in doc.entities:
             seg=_opening_segment(doc,e)
             if seg is None:continue
             a,b=seg;mx=(a[0]+b[0])/2;my=(a[1]+b[1])/2
