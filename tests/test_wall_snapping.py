@@ -157,3 +157,35 @@ def test_wall_draw_accepts_normal_short_architectural_segment():
     assert eid in d.entities
     p=d.get(eid).params
     assert abs(float(p['x2'])-0.08)<1e-9
+
+
+def test_structural_column_center_and_beam_endpoints_are_snap_points():
+    d=Document()
+    column=Entity(
+        'structural_column',
+        {
+            'x':2.0,'y':3.0,'z':0.0,'width':0.30,'depth':0.30,'height':2.70,
+            'rotation':0.0,'role':'structural','construction':'reinforced_concrete',
+            'section':'rectangular','base_level':'Ground','top_level':'Unassigned',
+        },
+    )
+    beam=Entity(
+        'structural_beam',
+        {
+            'x1':2.0,'y1':3.0,'x2':5.0,'y2':3.0,'z':2.40,
+            'width':0.20,'height':0.30,'role':'structural','construction':'steel',
+            'section':'rectangular','level':'Ground',
+        },
+    )
+    d.add(column);d.add(beam)
+
+    center=best_snap(d,2.02,3.01,0.10,grid=None)
+    assert center is not None
+    assert center.entity_id in {column.id,beam.id}
+    assert center.kind in {'center','endpoint'}
+    assert abs(center.x-2.0)<1e-9 and abs(center.y-3.0)<1e-9
+
+    endpoint=best_snap(d,5.03,3.01,0.10,grid=None)
+    assert endpoint is not None
+    assert endpoint.entity_id==beam.id
+    assert endpoint.kind=='endpoint'
