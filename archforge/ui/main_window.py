@@ -42,10 +42,12 @@ class MainWindow(QMainWindow):
             view.statusChanged.connect(self.statusBar().showMessage)
             view.selectionChangedByView.connect(self._selection_from_view)
             view.contextActionRequested.connect(self._handle_object_context_action)
+        self.plan_view.commandRequested.connect(self._handle_plan_command)
         self.plan_view.previewChanged.connect(self.pbr_view.set_stair_preview)
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self._build_toolbar()
         self._build_view_toolbar()
+        self._build_edit_menu()
         self._build_view_menu()
         self._build_inspector()
         self.refresh_inspector()
@@ -188,10 +190,12 @@ class MainWindow(QMainWindow):
         undo.setShortcut(QKeySequence.StandardKey.Undo)
         undo.triggered.connect(self._undo)
         toolbar.addAction(undo)
+        self.undo_action = undo
         redo = QAction('Redo', self)
         redo.setShortcut(QKeySequence.StandardKey.Redo)
         redo.triggered.connect(self._redo)
         toolbar.addAction(redo)
+        self.redo_action = redo
         toolbar.addSeparator()
         new_action = QAction('New', self)
         new_action.setShortcut(QKeySequence.StandardKey.New)
@@ -210,6 +214,20 @@ class MainWindow(QMainWindow):
         toolbar.addAction(stl_action)
 
 
+
+    def _build_edit_menu(self):
+        edit_menu = self.menuBar().addMenu('&Edit')
+        edit_menu.addAction(self.undo_action)
+        edit_menu.addAction(self.redo_action)
+        edit_menu.addSeparator()
+        edit_menu.addAction(self.delete_action)
+
+    def _handle_plan_command(self, command):
+        command = str(command)
+        if command == 'undo':
+            self._undo()
+        elif command == 'delete':
+            self._delete_selection()
 
     def _build_view_menu(self):
         view_menu = self.menuBar().addMenu('&View')
