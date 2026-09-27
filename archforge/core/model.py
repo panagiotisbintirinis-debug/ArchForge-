@@ -173,6 +173,20 @@ def _structural_section(v):
     return value
 
 
+def _structural_support_type(v):
+    value = str(v).lower()
+    if value not in ('fixed', 'pinned', 'roller'):
+        raise ValueError('support type must be fixed, pinned, or roller')
+    return value
+
+
+def _member_end(v):
+    value = str(v).lower()
+    if value not in ('start', 'end'):
+        raise ValueError('member end must be start or end')
+    return value
+
+
 def validate_conduit_spec(start_node, end_node, diameter, system_type, path_vertices):
     return {
         'start_node': _conduit_node(start_node),
@@ -288,6 +302,10 @@ SCHEMAS = {
         'construction': _construction_system,
         'section': _structural_section,
         'level': _nonempty,
+    },
+    'structural_support': {
+        'member_end': _member_end,
+        'support_type': _structural_support_type,
     },
     'mechanical_part': {'x': _finite, 'y': _finite, 'z': _finite, 'width': _positive, 'depth': _positive, 'height': _positive, 'rotation': _finite},
     'mep_terminal': {
@@ -545,6 +563,23 @@ class Document:
                 raise ValueError('free architectural opening must be attached to a wall')
             else:
                 raise ValueError('door/window host must be a wall or pod')
+        elif entity.kind == 'structural_support':
+            if not entity.parent_id or entity.parent_id not in self.entities:
+                raise ValueError('structural support must be attached to a Column or Beam')
+            host = self.entities[entity.parent_id]
+            if host.kind not in ('structural_column','structural_beam'):
+                raise ValueError('structural support host must be a Column or Beam')
+            if str(host.params.get('role','structural')) != 'structural':
+                raise ValueError('supports can only be attached to structural-role members')
+            for cid in self.children.get(entity.parent_id, ()):
+                other = self.entities.get(cid)
+                if (
+                    other is not None
+                    and other.kind == 'structural_support'
+                    and other.id != entity.id
+                    and str(other.params.get('member_end')) == str(entity.params.get('member_end'))
+                ):
+                    raise ValueError('that structural member end already has a support')
         elif entity.kind == 'arboreal_branch':
             from archforge.organic.arboreal import validate_arboreal_branch
             validate_arboreal_branch(self, entity)
@@ -559,7 +594,7 @@ class Document:
         if entity.parent_id:
             self.children.setdefault(entity.parent_id, []).append(entity.id)
         self._index_entity(entity)
-        if entity.parent_id and entity.kind in ('door', 'window', 'opening'):
+        if entity.parent_id and entity.kind in ('door', 'window', 'opening', 'structural_support'):
             self.add_dependency(entity.parent_id, entity.id)
         if entity.kind == 'arboreal_branch':
             self.add_dependency(entity.params['core_id'], entity.id)
@@ -826,13 +861,13 @@ class Document:
         doc.room_bindings = copy.deepcopy(data.get('room_bindings', {}))
         deferred = []
         for raw in data.get('entities', []):
-            if raw.get('kind') in ('door', 'window', 'opening', 'organic_opening_patch', 'mechanical_joint', 'mechanical_mount'):
+            if raw.get('kind') in ('door', 'window', 'opening', 'structural_support', 'organic_opening_patch', 'mechanical_joint', 'mechanical_mount'):
                 deferred.append(raw)
             else:
                 doc.add(Entity(**raw))
-        for raw in [r for r in deferred if r.get('kind') in ('door', 'window', 'opening')]:
+        for raw in [r for r in deferred if r.get('kind') in ('door', 'window', 'opening', 'structural_support')]:
             doc.add(Entity(**raw))
-        for raw in [r for r in deferred if r.get('kind') not in ('door', 'window', 'opening')]:
+        for raw in [r for r in deferred if r.get('kind') not in ('door', 'window', 'opening', 'structural_support')]:
             doc.add(Entity(**raw))
         for source, deps in data.get('dependencies', {}).items():
             for dep in deps:
