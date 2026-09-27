@@ -407,8 +407,18 @@ def _subtract_rectangular_slab_hole(mesh,opening,z0,z1):
  # Backwards-compatible entry point: the opening may be rotated.
  return _subtract_convex_slab_hole(mesh,opening,z0,z1)
 
+def _opening_overlaps_slab(opening,points):
+ if not opening:return False
+ cx=sum(float(p[0]) for p in opening)/len(opening)
+ cy=sum(float(p[1]) for p in opening)/len(opening)
+ return (
+  _point_in_polygon_xy((cx,cy),points)
+  or any(_point_in_polygon_xy(point,points) for point in opening)
+  or any(_point_in_polygon_xy(point,opening) for point in points)
+ )
+
 def _apply_vertical_openings_to_slab(doc,mesh,points,slab_z,thickness):
- from archforge.architecture.stairs import candidate_from_params as stair_candidate,stair_opening_polygon
+ from archforge.architecture.stairs import candidate_from_params as stair_candidate,stair_opening_polygons
  from archforge.architecture.ramps import candidate_from_params as ramp_candidate,ramp_opening_polygon
  slab_z=float(slab_z);thickness=float(thickness)
  for entity in doc.entities.values():
@@ -416,21 +426,13 @@ def _apply_vertical_openings_to_slab(doc,mesh,points,slab_z,thickness):
   upper_floor_z=float(entity.params.get('upper_floor_z',entity.params['upper_z']))
   if abs(upper_floor_z-slab_z)>1e-5:continue
   if entity.kind=='stair':
-   opening=stair_opening_polygon(stair_candidate(entity.params))
+   openings=stair_opening_polygons(stair_candidate(entity.params))
   else:
    opening=ramp_opening_polygon(ramp_candidate(entity.params))
-  if not opening:continue
-  # The opening may legitimately cross a room boundary. Requiring every
-  # envelope corner to sit inside one slab prevented any cut at all.
-  cx=sum(float(p[0]) for p in opening)/len(opening)
-  cy=sum(float(p[1]) for p in opening)/len(opening)
-  overlaps=(
-   _point_in_polygon_xy((cx,cy),points)
-   or any(_point_in_polygon_xy(point,points) for point in opening)
-   or any(_point_in_polygon_xy(point,opening) for point in points)
-  )
-  if overlaps:
-   mesh=_subtract_rectangular_slab_hole(mesh,opening,slab_z,slab_z+thickness)
+   openings=(opening,) if opening else ()
+  for opening in openings:
+   if _opening_overlaps_slab(opening,points):
+    mesh=_subtract_convex_slab_hole(mesh,opening,slab_z,slab_z+thickness)
  return mesh
 
 def _floor_slab(doc,node):
