@@ -100,6 +100,7 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
     if e.kind=='wall':return abs(float(p.get('z',0.0))-z)<=tolerance
     if e.kind=='pod':return abs(float(p.get('floor_level',0.0))-z)<=tolerance
     if e.kind in ('floor','room'):return abs(float(p.get('z',0.0))-z)<=tolerance
+    if e.kind=='mep_terminal':return abs(float(p.get('level_z',0.0))-z)<=tolerance
     if e.kind in ('stair','ramp'):
         return abs(float(p.get('lower_z',0.0))-z)<=tolerance or abs(float(p.get('upper_z',0.0))-z)<=tolerance
     if e.kind in ('door','window','opening'):
@@ -118,6 +119,24 @@ def entity_primitive(doc,eid):
     e=doc.get(eid);p=e.params
     if not e.visible:return None
     if e.kind=='wall':return Primitive2D('line',((p['x1'],p['y1']),(p['x2'],p['y2'])),entity_id=eid,meta=(('thickness',p['thickness']),))
+    if e.kind=='mep_terminal':
+        radius=max(0.06,float(p.get('diameter',0.02))*1.5)
+        return Primitive2D(
+            'ellipse',((float(p['x']),float(p['y'])),),
+            radius,radius,0.0,eid,'mep-terminal',
+            meta=(('semantic','mep_terminal'),('system_type',p.get('system_type',''))),
+        )
+    if e.kind=='mesh' and p.get('metadata',{}).get('semantic_type')=='conduit':
+        points=tuple(
+            (float(q[0]),float(q[1]))
+            for q in p.get('metadata',{}).get('source_path_vertices',())
+            if isinstance(q,(list,tuple)) and len(q)>=2
+        )
+        if len(points)>=2:
+            return Primitive2D(
+                'polyline',points,entity_id=eid,role='mep-conduit',
+                meta=(('semantic','conduit'),('system_type',p.get('metadata',{}).get('system_type',''))),
+            )
     if e.kind=='box':return Primitive2D('polygon',tuple(_box_corners(p)),entity_id=eid)
     if e.kind=='stair':
         from archforge.architecture.stairs import candidate_from_params,stair_footprint
@@ -181,6 +200,7 @@ def selection_handles(doc):
         e=doc.get(eid);p=e.params
         if e.locked or not _entity_on_active_level(doc,e):continue
         if e.kind=='wall':out.extend([Handle2D(p['x1'],p['y1'],eid,'endpoint1'),Handle2D(p['x2'],p['y2'],eid,'endpoint2')])
+        elif e.kind=='mep_terminal':out.append(Handle2D(float(p['x']),float(p['y']),eid,'move','move'))
         elif e.kind=='box':out.extend(_box_handles(eid,p))
         elif e.kind=='pod':out.extend(_pod_handles(eid,p))
         elif e.kind=='arboreal_branch':
@@ -197,6 +217,9 @@ def selection_handles(doc):
 def preview_primitives(preview):
     g=preview.geometry
     if preview.kind=='wall' and g:return [Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),entity_id=preview.entity_id or '',role='preview')]
+    if preview.kind=='mep-terminal' and g:
+        radius=max(0.06,float(g.get('diameter',0.02))*1.5)
+        return [Primitive2D('ellipse',((float(g['x']),float(g['y'])),),radius,radius,0.0,preview.entity_id or '','preview',meta=(('semantic','mep_terminal'),('system_type',g.get('system_type',''))))]
     if preview.kind=='stair' and g:
         candidates=list(g.get('candidates',()))
         if not candidates:return []
