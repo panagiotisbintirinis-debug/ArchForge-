@@ -32,7 +32,7 @@ class IncrementalViewportAdapter:
 
 class PointerController:
     def __init__(self,doc,stack):
-        self.doc=doc;self.stack=stack;self.tool='select';self.active=None;self.active_entity=None;self.active_handle=None;self.preview=PreviewState();self.construction_grid=.10;self.grid=self.construction_grid;self.snap_tolerance=.10;self.angle_increment=15.;self.wall_angle_increment=90.;self.snap_enabled=True
+        self.doc=doc;self.stack=stack;self.tool='select';self.active=None;self.active_entity=None;self.active_handle=None;self.preview=PreviewState();self.construction_grid=.10;self.grid=self.construction_grid;self.snap_tolerance=.10;self.angle_increment=15.;self.wall_angle_increment=90.;self.wall_angle_reference='relative';self.snap_enabled=True
     def set_tool(self,tool):
         if self.active is not None:self.cancel()
         self.tool=tool;self.preview=PreviewState()
@@ -42,6 +42,17 @@ class PointerController:
         self.wall_angle_increment=None if increment is None else float(increment)
         if isinstance(self.active,WallDrawTransaction):
             self.active.angle_increment=self.wall_angle_increment
+    def set_wall_angle_reference(self,mode):
+        mode=str(mode).lower()
+        if mode not in ('global','relative'):
+            raise ValueError('wall angle reference must be global or relative')
+        self.wall_angle_reference=mode
+        if isinstance(self.active,WallDrawTransaction):
+            if mode=='global':
+                self.active.reference_angle_deg=0.0
+            else:
+                # Keep the reference captured when the current wall started.
+                self.active.reference_angle_deg=float(getattr(self.active,'source_reference_angle_deg',self.active.reference_angle_deg))
     def set_target(self,entity_id,handle=None):self.active_entity=entity_id;self.active_handle=handle
     def _world(self,ev):return self.doc.work_plane.unproject(ev.a,ev.b)
     def _plan_xy(self,ev):x,y,_=self._world(ev);return x,y
@@ -74,13 +85,19 @@ class PointerController:
                 snap_tol=self.snap_tolerance,
                 snap_enabled=geometry_snap_enabled,
                 angle_increment=self.wall_angle_increment,
-                reference_angle_deg=reference_angle,
+                reference_angle_deg=(0.0 if self.wall_angle_reference=='global' else reference_angle),
                 angle_enabled=not ev.shift,
             )
+            self.active.source_reference_angle_deg=reference_angle
             self.preview=PreviewState(
                 'wall',
                 {'x1':sx,'y1':sy,'x2':sx,'y2':sy,'z':self.doc.work_plane.origin[2]},
-                {'reference_angle_deg':reference_angle},
+                {
+                    'reference_angle_deg':(
+                        0.0 if self.wall_angle_reference=='global' else reference_angle
+                    ),
+                    'angle_reference_relative':1.0 if self.wall_angle_reference=='relative' else 0.0,
+                },
                 self._snap_dict(sp),
             )
             return self.preview
