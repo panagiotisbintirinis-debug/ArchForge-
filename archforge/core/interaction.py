@@ -560,6 +560,71 @@ class VerticalStretchTransaction:
     def commit(self):self.stack.execute(UpdateEntity(self.eid,self.preview))
     def cancel(self):self.preview=self.before.copy()
 
+
+class MEPTerminalPlaceTransaction:
+    """Place one human-authored MEP connection point on the active storey."""
+    def __init__(self, doc, stack, system_type, x, y, *, level_z=0.0, elevation=0.50, diameter=None, grid=0.10, snap_tol=0.10, snap_enabled=True):
+        from archforge.core.router import nominal_diameter_for_system
+        self.doc,self.stack=doc,stack
+        self.system_type=str(system_type).lower()
+        self.level_z=float(level_z)
+        self.elevation=float(elevation)
+        self.diameter=float(diameter if diameter is not None else nominal_diameter_for_system(self.system_type))
+        self.grid=grid
+        self.snap_tol=float(snap_tol)
+        self.snap_enabled=bool(snap_enabled)
+        self.cancelled=False
+        self.last_snap=None
+        self.x=float(x);self.y=float(y)
+        self.update(x,y)
+
+    def update(self,x,y):
+        x=float(x);y=float(y)
+        self.last_snap=None
+        sp=best_snap(self.doc,x,y,self.snap_tol,self.grid) if self.snap_enabled else None
+        if sp is not None:
+            self.x,self.y=float(sp.x),float(sp.y)
+            self.last_snap=sp
+        else:
+            self.x,self.y=x,y
+        return HUD({
+            'x':self.x,
+            'y':self.y,
+            'level_z':self.level_z,
+            'elevation':self.elevation,
+            'diameter':self.diameter,
+        })
+
+    @property
+    def preview(self):
+        return {
+            'x':self.x,
+            'y':self.y,
+            'level_z':self.level_z,
+            'elevation':self.elevation,
+            'system_type':self.system_type,
+            'diameter':self.diameter,
+        }
+
+    def commit(self):
+        if self.cancelled:
+            raise RuntimeError('transaction cancelled')
+        labels={
+            'hydraulic':'Water Point',
+            'electrical':'Electrical Point',
+            'hvac':'HVAC Point',
+        }
+        e=Entity(
+            'mep_terminal',
+            dict(self.preview),
+            name=labels.get(self.system_type,'MEP Point'),
+        )
+        self.stack.execute(AddEntity(e))
+        return e.id
+
+    def cancel(self):
+        self.cancelled=True
+
 class OpeningPlaceTransaction:
     """Attach a door/window frame or a frame-free architectural opening."""
     def __init__(
