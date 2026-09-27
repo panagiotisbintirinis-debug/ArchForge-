@@ -4,7 +4,8 @@ from PySide6.QtCore import Qt,QPointF,Signal
 from PySide6.QtGui import QPen,QBrush,QColor,QPainter,QPolygonF,QPainterPath
 from PySide6.QtWidgets import QGraphicsView,QGraphicsScene
 from archforge.core.model import Document
-from archforge.core.commands import CommandStack,SetWallTopEndpoint
+from archforge.core.commands import CommandStack
+from archforge.core.wall_profile_commands import SetWallTopEndpoint
 from archforge.core.interaction import VerticalStretchTransaction
 from archforge.core.opening_vertical import OpeningVerticalEditTransaction,opening_elevation_handles
 from archforge.core.view_frame import build_view_frame,ViewPrimitive,elevation_top_handle
