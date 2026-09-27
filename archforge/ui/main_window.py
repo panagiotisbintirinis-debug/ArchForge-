@@ -84,10 +84,10 @@ class MainWindow(QMainWindow):
         ):
             self.tabs.setCurrentWidget(self.plan_view)
             self.view = self.plan_view
-        # Frame-free openings are currently authored in the authoritative Floor Plan.
-        # The resulting wall cut is immediately visible in 3D. Direct wall-surface
-        # drawing in 3D can be added later without changing the entity model.
-        if (str(tool).startswith('opening_') or str(tool).startswith('mep_')) and self.view is self.pbr_view:
+        # Keep frame-free openings in the active human view. PBR now routes
+        # Rectangle/Arch openings through the same authoritative OpeningPlaceTransaction
+        # used by Floor Plan; only MEP authoring still requires the plan workflow.
+        if str(tool).startswith('mep_') and self.view is self.pbr_view:
             self.tabs.setCurrentWidget(self.plan_view)
             self.view = self.plan_view
         if hasattr(self.view, 'set_tool'):
