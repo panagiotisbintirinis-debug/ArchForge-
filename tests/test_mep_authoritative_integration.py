@@ -204,3 +204,94 @@ def test_freeze_to_mesh_rejects_pod_with_semantic_children():
     with pytest.raises(ValueError, match='hosts child'):
         FreezeToMesh('pod-1').do(doc)
     assert doc.get('pod-1').kind == 'pod'
+
+
+def test_mep_terminal_pointer_placement_is_authoritative_and_undoable():
+    from archforge.core.viewport import PointerController, PointerEvent
+
+    doc=Document()
+    stack=CommandStack(doc)
+    controller=PointerController(doc,stack)
+    controller.grid=None
+    controller.set_tool('mep_hydraulic')
+
+    preview=controller.pointer_down(PointerEvent(1.2,2.3))
+    assert preview.kind=='mep-terminal'
+    result=controller.pointer_up(PointerEvent(1.2,2.3))
+
+    terminal=doc.get(result.entity_id)
+    assert terminal.kind=='mep_terminal'
+    assert terminal.params['system_type']=='hydraulic'
+    assert terminal.params['x']==pytest.approx(1.2)
+    assert terminal.params['y']==pytest.approx(2.3)
+    assert terminal.params['elevation']==pytest.approx(0.50)
+
+    stack.undo()
+    assert result.entity_id not in doc.entities
+
+
+def test_mep_terminal_is_semantic_relationship_and_has_plan_marker():
+    from archforge.geometry.plan import build_evaluation_plan
+    from archforge.core.plan_scene import entity_primitive
+
+    doc=Document()
+    terminal=Entity(
+        'mep_terminal',
+        {
+            'x':1.0,'y':2.0,'level_z':0.0,'elevation':0.45,
+            'system_type':'electrical','diameter':0.020,
+        },
+        id='socket-point',
+    )
+    doc.add(terminal)
+
+    plan=build_evaluation_plan(doc)
+    assert plan.node(terminal.id).role=='relationship'
+    assert terminal.id not in {node.entity_id for node in plan.geometry_nodes()}
+
+    primitive=entity_primitive(doc,terminal.id)
+    assert primitive.kind=='ellipse'
+    assert primitive.role=='mep-terminal'
+    assert primitive.points==((1.0,2.0),)
+
+
+def test_human_route_selected_connects_two_matching_mep_points():
+    from archforge.ui.main_window import MainWindow
+    from archforge.core.plan_scene import entity_primitive
+
+    window=MainWindow()
+    a=Entity(
+        'mep_terminal',
+        {
+            'x':0.0,'y':0.0,'level_z':0.0,'elevation':0.50,
+            'system_type':'hydraulic','diameter':0.025,
+        },
+        id='water-a',
+    )
+    b=Entity(
+        'mep_terminal',
+        {
+            'x':2.0,'y':0.0,'level_z':0.0,'elevation':0.50,
+            'system_type':'hydraulic','diameter':0.025,
+        },
+        id='water-b',
+    )
+    window.doc.add(a);window.doc.add(b)
+    window.doc.select([a.id,b.id])
+
+    window._route_selected_mep()
+
+    conduit_id='mep_water-a_water-b'
+    assert conduit_id in window.doc.entities
+    conduit=window.doc.get(conduit_id)
+    assert conduit.params['metadata']['semantic_type']=='conduit'
+    assert conduit.params['metadata']['system_type']=='hydraulic'
+
+    primitive=entity_primitive(window.doc,conduit_id)
+    assert primitive.kind=='polyline'
+    assert primitive.role=='mep-conduit'
+    assert len(primitive.points)>=2
+
+    window._undo()
+    assert conduit_id not in window.doc.entities
+    window.close()
