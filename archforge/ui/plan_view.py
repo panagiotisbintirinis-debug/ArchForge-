@@ -287,6 +287,11 @@ class PlanView(QGraphicsView):
                 if e.kind in ('structural_column','structural_beam')
                 and str(e.params.get('role','structural'))=='structural'
             }
+            structural_ids.update(
+                eid for eid,e in self.doc.entities.items()
+                if e.kind=='structural_support'
+                and e.parent_id in structural_ids
+            )
             frame.primitives=[
                 p for p in frame.primitives
                 if p.role=='preview' or (p.entity_id and p.entity_id in structural_ids)
