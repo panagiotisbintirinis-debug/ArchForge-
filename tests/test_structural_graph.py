@@ -135,3 +135,76 @@ def test_level_bound_structural_members_reject_vertical_move_but_allow_xy():
         stack.execute(MoveEntities([col.id],0.0,0.0,0.25))
 
     assert doc.get(col.id).params['z']==0.0
+
+
+def test_support_is_authoritative_child_but_maps_to_current_derived_node():
+    doc=Document()
+    col=_column('support-col')
+    beam=_beam('support-beam')
+    doc.add(col);doc.add(beam)
+
+    support=Entity(
+        'structural_support',
+        {'member_end':'start','support_type':'fixed'},
+        id='support-1',
+        parent_id=col.id,
+    )
+    doc.add(support)
+
+    assert support.id in doc.children[col.id]
+    assert support.id in doc.dependencies[col.id]
+
+    graph=build_structural_graph(doc)
+    assert len(graph.supports)==1
+    gs=graph.supports[0]
+    assert gs.entity_id==support.id
+    assert gs.member_entity_id==col.id
+    assert gs.support_type=='fixed'
+    assert graph.nodes[gs.node_index].point==(0.0,0.0,0.0)
+
+    # Move the authoritative member. The support follows the newly derived node;
+    # it does not retain a stale node index or world coordinate.
+    doc.update(col.id,{'x':1.0,'y':2.0})
+    graph2=build_structural_graph(doc)
+    gs2=graph2.supports[0]
+    assert graph2.nodes[gs2.node_index].point==(1.0,2.0,0.0)
+
+
+def test_duplicate_support_on_same_member_end_is_rejected():
+    import pytest
+    doc=Document()
+    col=_column('dup-support-col')
+    doc.add(col)
+    doc.add(Entity(
+        'structural_support',
+        {'member_end':'start','support_type':'pinned'},
+        parent_id=col.id,
+    ))
+
+    with pytest.raises(ValueError, match='already has a support'):
+        doc.add(Entity(
+            'structural_support',
+            {'member_end':'start','support_type':'roller'},
+            parent_id=col.id,
+        ))
+
+
+def test_support_roundtrip_and_member_delete_cascade():
+    doc=Document()
+    beam=_beam('cascade-beam')
+    doc.add(beam)
+    support=Entity(
+        'structural_support',
+        {'member_end':'end','support_type':'roller'},
+        parent_id=beam.id,
+    )
+    doc.add(support)
+
+    restored=Document.from_dict(doc.to_dict())
+    rs=restored.get(support.id)
+    assert rs.parent_id==beam.id
+    assert rs.params=={'member_end':'end','support_type':'roller'}
+
+    restored.remove(beam.id)
+    assert beam.id not in restored.entities
+    assert support.id not in restored.entities
