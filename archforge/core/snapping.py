@@ -56,7 +56,7 @@ def best_snap(doc:Document,x:float,y:float,tolerance:float,grid:float|None=None,
     if best:return best
     if grid:
         gx=round(x/grid)*grid;gy=round(y/grid)*grid
-        if hypot(gx-x,gy-y)<=tolerance:return SnapPoint(gx,gy,active_z,'grid','')
+        if hypot(gx-x,gy-y)<=tolerance:return SnapPoint(gx,gy,active_z,'construction_grid','')
     return None
 
 
