@@ -41,6 +41,39 @@ def _box_mesh(p,transform=None):
  quads=((0,1,5,4,'front'),(1,2,6,5,'right'),(2,3,7,6,'back'),(3,0,4,7,'left'),(4,5,6,7,'top'),(3,2,1,0,'bottom'));tris=[];roles=[]
  for a,b,c,d,r in quads:tris.extend(((a,b,c),(a,c,d)));roles.extend((r,r))
  return MeshPayload(tuple(v),tuple(tris),tuple(roles))
+def _structural_column_mesh(p):
+ w,d,h=map(float,(p['width'],p['depth'],p['height']))
+ a=math.radians(float(p.get('rotation',0.0)));cr,sr=math.cos(a),math.sin(a)
+ cx,cy,z=map(float,(p['x'],p['y'],p['z']));hw,hd=w/2.0,d/2.0
+ local=[(-hw,-hd,0),(hw,-hd,0),(hw,hd,0),(-hw,hd,0),(-hw,-hd,h),(hw,-hd,h),(hw,hd,h),(-hw,hd,h)]
+ v=[(cx+cr*x-sr*y,cy+sr*x+cr*y,z+zz) for x,y,zz in local]
+ quads=((0,1,5,4,'side_a'),(1,2,6,5,'side_b'),(2,3,7,6,'side_c'),(3,0,4,7,'side_d'),(4,5,6,7,'top'),(3,2,1,0,'bottom'))
+ tris=[];roles=[]
+ for a0,b0,c0,d0,role in quads:
+  tris.extend(((a0,b0,c0),(a0,c0,d0)));roles.extend((role,role))
+ return MeshPayload(tuple(v),tuple(tris),tuple(roles))
+
+
+def _structural_beam_mesh(p):
+ x1,y1,x2,y2,z=map(float,(p['x1'],p['y1'],p['x2'],p['y2'],p['z']))
+ width,height=map(float,(p['width'],p['height']))
+ dx,dy=x2-x1,y2-y1;length=math.hypot(dx,dy)
+ if length<=1e-12:raise ValueError('structural beam has zero length')
+ ux,uy=dx/length,dy/length;nx,ny=-uy,ux;hw=width/2.0
+ # z is the beam bottom elevation. Cross-section remains vertical.
+ v=(
+  (x1+nx*hw,y1+ny*hw,z),(x2+nx*hw,y2+ny*hw,z),
+  (x2-nx*hw,y2-ny*hw,z),(x1-nx*hw,y1-ny*hw,z),
+  (x1+nx*hw,y1+ny*hw,z+height),(x2+nx*hw,y2+ny*hw,z+height),
+  (x2-nx*hw,y2-ny*hw,z+height),(x1-nx*hw,y1-ny*hw,z+height),
+ )
+ quads=((0,1,5,4,'side_a'),(1,2,6,5,'end'),(2,3,7,6,'side_b'),(3,0,4,7,'start'),(4,5,6,7,'top'),(3,2,1,0,'bottom'))
+ tris=[];roles=[]
+ for a0,b0,c0,d0,role in quads:
+  tris.extend(((a0,b0,c0),(a0,c0,d0)));roles.extend((role,role))
+ return MeshPayload(tuple(v),tuple(tris),tuple(roles))
+
+
 def _polygon_prism(points,z,thickness):
  pts=[(float(x),float(y)) for x,y in points];z=float(z);thickness=float(thickness);top=_triangulate(pts);n=len(pts);verts=tuple((x,y,z) for x,y in pts)+tuple((x,y,z+thickness) for x,y in pts);tris=[];roles=[]
  for a,b,c in top:tris.extend(((a+n,b+n,c+n),(c,b,a)));roles.extend(('top','bottom'))
@@ -495,6 +528,8 @@ def _organic_opening_patch_mesh(doc,node):
 def _payload(doc,node):
  k,p=node.semantic_kind,node.params
  if k=='wall':return _wall_mesh(p)
+ if k=='structural_column':return _structural_column_mesh(p)
+ if k=='structural_beam':return _structural_beam_mesh(p)
  if k in('box','mechanical_part'):return _box_mesh(p,node.transform)
  if k=='pod':return _pod_mesh_for_node(doc,node)
  if k=='mesh':return _authoritative_mesh(p)
