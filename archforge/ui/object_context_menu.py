@@ -29,6 +29,11 @@ ACTIONS = {
         'views': {'plan', 'pbr'},
         'placement': 'radial',
     },
+    'support': {
+        'label': 'Add Support…',
+        'views': {'plan'},
+        'placement': 'radial',
+    },
     'delete': {
         'label': 'Delete',
         'views': {'plan', 'pbr'},
@@ -40,8 +45,8 @@ ENTITY_MENUS = {
     '*': ('properties', None, 'delete'),
     'wall': ('properties', 'materials', 'move', 'stretch', 'rotate', None, 'delete'),
     'box': ('properties', 'materials', 'move', 'stretch', 'rotate', None, 'delete'),
-    'structural_column': ('properties', 'materials', 'move', 'rotate', None, 'delete'),
-    'structural_beam': ('properties', 'materials', 'move', 'rotate', None, 'delete'),
+    'structural_column': ('properties', 'materials', 'support', 'move', 'rotate', None, 'delete'),
+    'structural_beam': ('properties', 'materials', 'support', 'move', 'rotate', None, 'delete'),
     'pod': ('properties', 'materials', 'move', 'stretch', 'rotate', None, 'delete'),
     'door': ('properties', 'move', 'stretch', None, 'delete'),
     'window': ('properties', 'move', 'stretch', None, 'delete'),
@@ -55,6 +60,7 @@ ENTITY_MENUS = {
     'room_foundation': ('properties', 'materials', None, 'delete'),
     'stair': ('properties', 'materials', 'move', 'rotate', None, 'delete'),
     'ramp': ('properties', 'materials', 'move', 'rotate', None, 'delete'),
+    'structural_support': (None, 'delete'),
     'mesh': ('properties', 'materials', None, 'delete'),
 }
 
