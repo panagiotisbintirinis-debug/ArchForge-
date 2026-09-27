@@ -32,7 +32,7 @@ class IncrementalViewportAdapter:
 
 class PointerController:
     def __init__(self,doc,stack):
-        self.doc=doc;self.stack=stack;self.tool='select';self.active=None;self.active_entity=None;self.active_handle=None;self.preview=PreviewState();self.grid=.1;self.snap_tolerance=.10;self.angle_increment=15.;self.wall_angle_increment=90.;self.snap_enabled=True
+        self.doc=doc;self.stack=stack;self.tool='select';self.active=None;self.active_entity=None;self.active_handle=None;self.preview=PreviewState();self.construction_grid=.10;self.grid=self.construction_grid;self.snap_tolerance=.10;self.angle_increment=15.;self.wall_angle_increment=90.;self.snap_enabled=True
     def set_tool(self,tool):
         if self.active is not None:self.cancel()
         self.tool=tool;self.preview=PreviewState()
@@ -40,6 +40,8 @@ class PointerController:
         self.snap_enabled=bool(enabled)
     def set_wall_angle_increment(self,increment):
         self.wall_angle_increment=None if increment is None else float(increment)
+        if isinstance(self.active,WallDrawTransaction):
+            self.active.angle_increment=self.wall_angle_increment
     def set_target(self,entity_id,handle=None):self.active_entity=entity_id;self.active_handle=handle
     def _world(self,ev):return self.doc.work_plane.unproject(ev.a,ev.b)
     def _plan_xy(self,ev):x,y,_=self._world(ev);return x,y
