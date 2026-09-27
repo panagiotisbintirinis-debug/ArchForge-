@@ -398,3 +398,47 @@ def test_stair_cuts_both_upper_room_floor_and_lower_room_roof():
     assert 'stair_opening_edge' in floor_body.payload.triangle_surfaces
     assert 'stair_opening_edge' in roof_body.payload.triangle_surfaces
     assert evaluation.body(stair_id).payload.triangles
+
+
+
+def test_rotated_straight_stair_opening_preserves_rotation_in_slab_mesh():
+    doc = Document()
+    doc.levels = {'Ground': 0.0, 'Floor 2': 2.7}
+    doc.work_plane = WorkPlane(name='Ground', origin=(0.0, 0.0, 0.0))
+
+    doc.add(Entity(
+        'floor',
+        {
+            'points': [(-8.0, -8.0), (8.0, -8.0), (8.0, 8.0), (-8.0, 8.0)],
+            'z': 2.7,
+            'thickness': 0.15,
+        },
+        id='rotated-upper-floor',
+    ))
+
+    stack = CommandStack(doc)
+    tx = StairPlaceTransaction(doc, stack, (0.0, 0.0))
+    tx.update(4.0, 4.0)
+    stair_id = tx.commit()
+
+    stair = doc.get(stair_id)
+    assert stair.params['layout'] == 'straight'
+    assert 40.0 < stair.params['angle_deg'] < 50.0
+
+    evaluation = TessellatedPreviewBackend().evaluate(doc)
+    slab = evaluation.body('rotated-upper-floor').payload
+
+    edge_vertices = []
+    for tri, role in zip(slab.triangles, slab.triangle_surfaces):
+        if role != 'stair_opening_edge':
+            continue
+        edge_vertices.extend(slab.vertices[index] for index in tri)
+
+    unique_xy = sorted({(round(v[0], 6), round(v[1], 6)) for v in edge_vertices})
+    assert len(unique_xy) >= 4
+
+    # An axis-aligned rectangle would have exactly two distinct Xs and Ys.
+    # A rotated opening must expose more than two in at least one axis.
+    xs = {x for x, _ in unique_xy}
+    ys = {y for _, y in unique_xy}
+    assert len(xs) > 2 or len(ys) > 2
