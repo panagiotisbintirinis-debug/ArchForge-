@@ -292,10 +292,28 @@ class PlanView(QGraphicsView):
                 if e.kind in ('structural_support','structural_load')
                 and e.parent_id in structural_ids
             )
-            frame.primitives=[
-                p for p in frame.primitives
-                if p.role=='preview' or (p.entity_id and p.entity_id in structural_ids)
-            ]
+            context_kinds={
+                'wall','pod','door','window','opening','stair','ramp',
+                'room_floor','room_foundation','room_roof',
+            }
+            structural_primitives=[]
+            for p in frame.primitives:
+                if p.role=='preview' or (p.entity_id and p.entity_id in structural_ids):
+                    structural_primitives.append(p)
+                    continue
+                if p.entity_id and p.entity_id in self.doc.entities:
+                    entity=self.doc.get(p.entity_id)
+                    if entity.kind in context_kinds:
+                        # Architectural geometry remains visible only as orientation
+                        # context. It has no entity id in this view, so Structural mode
+                        # cannot accidentally edit architectural objects.
+                        structural_primitives.append(
+                            Primitive2D(
+                                p.kind,p.points,p.radius_x,p.radius_y,p.rotation,'',
+                                'structural-context',p.meta,
+                            )
+                        )
+            frame.primitives=structural_primitives
             frame.handles=[h for h in frame.handles if h.entity_id in structural_ids]
             try:
                 from archforge.structure.graph import build_structural_graph
@@ -367,7 +385,13 @@ class PlanView(QGraphicsView):
         extent=100;pen=QPen(QColor(225,225,225));pen.setWidthF(0);axis=QPen(QColor(160,160,160));axis.setWidthF(0)
         for i in range(-extent,extent+1):self._scene.addLine(i,-extent,i,extent,axis if i==0 else pen).setZValue(-100);self._scene.addLine(-extent,i,extent,i,axis if i==0 else pen).setZValue(-100)
     def _draw_primitive(self,p:Primitive2D):
-        preview=p.role=='preview';opening=p.role=='opening';room=p.role=='derived-room';pen=QPen(QColor(180,90,20) if opening else (QColor(40,150,70) if preview else QColor(45,55,65)));pen.setWidthF(.06 if opening else (.04 if preview else .035));item=None
+        preview=p.role=='preview';opening=p.role=='opening';room=p.role=='derived-room';context=p.role=='structural-context'
+        pen=QPen(
+            QColor(150,150,150,150)
+            if context else
+            (QColor(180,90,20) if opening else (QColor(40,150,70) if preview else QColor(45,55,65)))
+        )
+        pen.setWidthF(.022 if context else (.06 if opening else (.04 if preview else .035)));item=None
         if p.kind=='line':a,b=p.points;item=self._scene.addLine(a[0],a[1],b[0],b[1],pen)
         elif p.kind=='polyline':
             if len(p.points)>=2:
@@ -377,15 +401,22 @@ class PlanView(QGraphicsView):
                 item=self._scene.addPath(path,pen)
         elif p.kind=='polygon':
             from PySide6.QtGui import QPolygonF
-            brush=QBrush(QColor(90,180,120,28) if room else QColor(80,160,220,40))
+            brush=QBrush(
+                QColor(160,160,160,18)
+                if context else
+                (QColor(90,180,120,28) if room else QColor(80,160,220,40))
+            )
             room_pen=QPen(QColor(110,150,120));room_pen.setWidthF(.015)
             item=self._scene.addPolygon(QPolygonF([QPointF(x,y) for x,y in p.points]),room_pen if room else pen,brush)
         elif p.kind=='ellipse':
-            cx,cy=p.points[0];item=self._scene.addEllipse(cx-p.radius_x,cy-p.radius_y,2*p.radius_x,2*p.radius_y,pen,QBrush(QColor(170,120,210,30)))
+            cx,cy=p.points[0];item=self._scene.addEllipse(
+                cx-p.radius_x,cy-p.radius_y,2*p.radius_x,2*p.radius_y,pen,
+                QBrush(QColor(160,160,160,14) if context else QColor(170,120,210,30))
+            )
         elif p.kind=='label':
             meta=dict(p.meta);text=str(meta.get('text',''));cx,cy=p.points[0];item=self._scene.addText(text);item.setDefaultTextColor(QColor(55,80,65));item.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations,True);item.setPos(cx,cy);item.setTransformOriginPoint(item.boundingRect().center());item.setScale(1.0);item.setZValue(8);return
         if item is not None:
-            item.setZValue(-10 if room else (10 if opening else (20 if preview else 0)))
+            item.setZValue(-20 if context else (-10 if room else (10 if opening else (20 if preview else 0))))
             if p.entity_id and not preview:self._entity_items[item]=p.entity_id
     def _draw_handle(self,h):
         r=.09;it=self._scene.addEllipse(h.x-r,h.y-r,2*r,2*r,QPen(QColor(20,90,180),0),QBrush(QColor(255,255,255)));it.setZValue(50);self._handle_items[it]=h
