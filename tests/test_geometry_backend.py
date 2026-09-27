@@ -56,3 +56,47 @@ def test_mechanical_part_uses_kinematic_transform_in_same_backend():
     lo,hi=result.body(part.id).payload.bounds
     assert lo == (5.0,6.0,1.0)
     assert hi == (7.0,7.0,2.0)
+
+
+def test_structural_column_preview_bounds_and_surfaces():
+    doc=Document()
+    col=Entity(
+        'structural_column',
+        {
+            'x':2.0,'y':3.0,'z':0.0,'width':0.30,'depth':0.40,'height':2.70,
+            'rotation':0.0,'role':'structural','construction':'reinforced_concrete',
+            'section':'rectangular','base_level':'Ground','top_level':'Floor 2',
+        },
+        id='preview-column',
+    )
+    doc.add(col)
+    result=PreviewBackend().evaluate(doc)
+    assert result.ok
+    body=result.body(col.id)
+    lo,hi=body.payload.bounds
+    assert lo==(1.85,2.8,0.0)
+    assert hi==(2.15,3.2,2.7)
+    assert f'{col.id}:top' in body.surface_keys
+    assert f'{col.id}:side_a' in body.surface_keys
+
+
+def test_structural_beam_preview_bounds_and_surfaces():
+    doc=Document()
+    beam=Entity(
+        'structural_beam',
+        {
+            'x1':0.0,'y1':0.0,'x2':4.0,'y2':0.0,'z':2.40,
+            'width':0.20,'height':0.30,'role':'structural','construction':'steel',
+            'section':'rectangular','level':'Ground',
+        },
+        id='preview-beam',
+    )
+    doc.add(beam)
+    result=PreviewBackend().evaluate(doc)
+    assert result.ok
+    body=result.body(beam.id)
+    lo,hi=body.payload.bounds
+    assert lo==(0.0,-0.1,2.4)
+    assert hi==(4.0,0.1,2.6999999999999997) or math.isclose(hi[2],2.7,abs_tol=1e-12)
+    assert f'{beam.id}:top' in body.surface_keys
+    assert f'{beam.id}:end' in body.surface_keys
