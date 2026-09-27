@@ -113,3 +113,36 @@ def test_free_arch_opening_is_relationship_and_enters_wall_cut_intents():
     assert intents[0]['kind']=='opening'
     assert intents[0]['shape']=='arch'
     assert intents[0]['arch_rise']==0.5
+
+
+def test_structural_column_and_beam_are_geometry_nodes_and_persist():
+    d=Document()
+    col=Entity(
+        'structural_column',
+        {
+            'x':1.0,'y':2.0,'z':0.0,'width':0.30,'depth':0.30,'height':2.70,
+            'rotation':0.0,'role':'structural','construction':'reinforced_concrete',
+            'section':'rectangular','base_level':'Ground','top_level':'Floor 2',
+        },
+        id='col-1',
+    )
+    beam=Entity(
+        'structural_beam',
+        {
+            'x1':1.0,'y1':2.0,'x2':4.0,'y2':2.0,'z':2.40,
+            'width':0.20,'height':0.30,'role':'structural',
+            'construction':'reinforced_concrete','section':'rectangular','level':'Ground',
+        },
+        id='beam-1',
+    )
+    d.add(col);d.add(beam)
+
+    plan=build_evaluation_plan(d)
+    assert plan.node(col.id).role=='geometry'
+    assert plan.node(beam.id).role=='geometry'
+    ids={node.entity_id for node in fabrication_candidates(plan)}
+    assert col.id in ids and beam.id in ids
+
+    restored=Document.from_dict(d.to_dict())
+    assert restored.get(col.id).params['construction']=='reinforced_concrete'
+    assert restored.get(beam.id).params['role']=='structural'
