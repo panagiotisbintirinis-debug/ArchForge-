@@ -15,6 +15,12 @@ from archforge.ui.object_context_menu import object_context_actions
 _APP = QApplication.instance() or QApplication([])
 
 
+def _close_clean(window):
+    """Close workflow-test windows without invoking the separately tested save guard."""
+    window._mark_clean()
+    window.close()
+
+
 def _wall(entity_id, z):
     return Entity(
         'wall',
@@ -60,7 +66,7 @@ def test_ui_removes_redundant_front_elevation_tab_but_keeps_pbr_front_camera():
         for action in toolbar.actions()
     }
     assert 'Front' in action_labels
-    window.close()
+    _close_clean(window)
 
 
 def test_add_floor_activates_storey_and_new_wall_uses_that_elevation(monkeypatch):
@@ -82,7 +88,7 @@ def test_add_floor_activates_storey_and_new_wall_uses_that_elevation(monkeypatch
     walls = [e for e in window.doc.entities.values() if e.kind == 'wall']
     assert len(walls) == 1
     assert walls[0].params['z'] == 2.7
-    window.close()
+    _close_clean(window)
 
 
 def test_floor_plan_only_shows_active_storey_walls():
@@ -116,7 +122,7 @@ def test_auto_floor_uses_active_second_storey_room():
     geometry = room_slab_geometry(window.doc, floors[0])
     assert geometry is not None
     assert geometry['z'] == 2.7
-    window.close()
+    _close_clean(window)
 
 
 def test_delete_selected_object_is_reversible():
@@ -130,7 +136,7 @@ def test_delete_selected_object_is_reversible():
 
     window._undo()
     assert wall.id in window.doc.entities
-    window.close()
+    _close_clean(window)
 
 
 def test_pbr_select_then_general_delete_removes_one_wall_and_undo_restores_it():
@@ -158,7 +164,7 @@ def test_pbr_select_then_general_delete_removes_one_wall_and_undo_restores_it():
     window._undo()
     assert 'wall-a' in window.doc.entities
     assert 'wall-b' in window.doc.entities
-    window.close()
+    _close_clean(window)
 
 
 
@@ -182,21 +188,23 @@ def test_context_menu_registry_is_editable_and_view_aware():
     assert placements['delete'] == 'radial'
 
 
-def test_context_menu_properties_and_plan_tool_actions_use_selected_entity():
+def test_context_menu_properties_and_plan_tool_actions_use_selected_entity(monkeypatch):
     window = MainWindow()
     wall = _wall('menu-wall', 0.0)
     window.doc.add(wall)
+    opened = []
+    monkeypatch.setattr(window, '_open_object_properties', opened.append)
 
     window._handle_object_context_action(wall.id, 'properties')
     assert window.doc.selection == [wall.id]
-    assert window.dock.isVisible() or not window.isVisible()
+    assert opened == [wall.id]
 
     window._handle_object_context_action(wall.id, 'rotate')
     assert window.doc.selection == [wall.id]
     assert window.view is window.plan_view
     assert window.plan_view.controller.tool == 'rotate'
     assert window.plan_view.controller.active_entity == wall.id
-    window.close()
+    _close_clean(window)
 
 
 
@@ -221,7 +229,7 @@ def test_wall_dimension_properties_update_authoritative_geometry_and_undo():
     assert restored.params['x2'] == 4.0
     assert restored.params['height'] == 2.7
     assert restored.params['thickness'] == 0.15
-    window.close()
+    _close_clean(window)
 
 
 def test_window_dimension_properties_are_editable_and_validated_by_host():
@@ -258,7 +266,7 @@ def test_window_dimension_properties_are_editable_and_validated_by_host():
     assert restored.params['width'] == 1.0
     assert restored.params['height'] == 1.0
     assert restored.params['sill'] == 0.8
-    window.close()
+    _close_clean(window)
 
 
 
@@ -274,7 +282,7 @@ def test_pbr_context_move_stays_in_3d_for_supported_entity():
     assert window.doc.selection == [wall.id]
     assert window.view is window.pbr_view
     assert window.pbr_view.active_tool == 'move'
-    window.close()
+    _close_clean(window)
 
 
 def test_pbr_context_rotate_stays_in_3d_for_supported_entity():
@@ -289,7 +297,7 @@ def test_pbr_context_rotate_stays_in_3d_for_supported_entity():
     assert window.doc.selection == [wall.id]
     assert window.view is window.pbr_view
     assert window.pbr_view.active_tool == 'rotate'
-    window.close()
+    _close_clean(window)
 
 
 def test_material_assignment_is_authoritative_and_undoable():
@@ -305,7 +313,7 @@ def test_material_assignment_is_authoritative_and_undoable():
 
     window._undo()
     assert 'material_id' not in window.doc.get(wall.id).params
-    window.close()
+    _close_clean(window)
 
 
 def test_wall_with_hosted_door_can_grow_10cm_and_redraw():
@@ -346,7 +354,7 @@ def test_wall_with_hosted_door_can_grow_10cm_and_redraw():
     # Exercise both derived views after the authoritative resize.
     window.plan_view.redraw()
     window.pbr_view.redraw(force_full=True)
-    window.close()
+    _close_clean(window)
 
 
 def test_structure_toolbar_and_shared_structural_tab_exist():
@@ -363,7 +371,7 @@ def test_structure_toolbar_and_shared_structural_tab_exist():
     # and legacy MEP is no longer a primary toolbar widget.
     assert window.structure_button.text()=='Structure'
     assert not hasattr(window,'mep_button')
-    window.close()
+    _close_clean(window)
 
 
 def test_human_can_place_column_and_beam_then_undo():
@@ -388,13 +396,13 @@ def test_human_can_place_column_and_beam_then_undo():
     result=controller.pointer_up(PointerEvent(4.0,1.0))
     beam=window.doc.get(result.entity_id)
     assert beam.kind=='structural_beam'
-    assert beam.params['level']=='Ground'
+    assert beam.params['level']=='Floor 2'
     assert abs(beam.params['z']-2.40)<1e-9
 
     window._undo()
     assert beam.id not in window.doc.entities
     assert column.id in window.doc.entities
-    window.close()
+    _close_clean(window)
 
 
 def test_structural_view_filters_out_pergola_members():
@@ -423,7 +431,7 @@ def test_structural_view_filters_out_pergola_members():
     visible_ids=set(window.structural_view._entity_items.values())
     assert 'structural-col' in visible_ids
     assert 'pergola-post' not in visible_ids
-    window.close()
+    _close_clean(window)
 
 
 def test_structural_role_and_construction_update_undoably():
@@ -452,4 +460,4 @@ def test_structural_role_and_construction_update_undoably():
     restored=window.doc.get(col.id)
     assert restored.params['role']=='structural'
     assert restored.params['construction']=='reinforced_concrete'
-    window.close()
+    _close_clean(window)

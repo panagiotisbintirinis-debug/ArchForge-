@@ -23,7 +23,9 @@ def points_for(doc:Document,eid:str)->List[SnapPoint]:
         for lx,ly,k in loc:
             out.append(SnapPoint(p['x']+lx*c-ly*s,p['y']+lx*s+ly*c,p['z'],k,eid))
     elif e.kind=='structural_beam':
-        z=float(p['z'])
+        # Plan snapping follows the beam's semantic storey, not the physical
+        # bottom elevation of its section near the storey above.
+        z=float(doc.levels.get(str(p.get('level','')),p['z']))
         pts=[
             (p['x1'],p['y1'],'endpoint'),
             (p['x2'],p['y2'],'endpoint'),
@@ -81,7 +83,12 @@ def _wall_projection(eid,p,x,y,tolerance):
 
 def best_snap(doc:Document,x:float,y:float,tolerance:float,grid:float|None=None,exclude:Set[str]|None=None):
     exclude=exclude or set();best=None;bestd=tolerance;active_z=float(doc.work_plane.origin[2])
-    # Explicit semantic snap points have highest priority, but only on the active storey.
+    # A true crossing is the strongest architectural target. Check it before
+    # coincident endpoint/midpoint candidates so the user receives the more
+    # specific intersection identity and feedback.
+    intersection=_best_wall_intersection(doc,x,y,tolerance,exclude,active_z)
+    if intersection is not None:return intersection
+    # Explicit semantic snap points are next, and only on the active storey.
     for eid in doc.entities:
         if eid in exclude:continue
         for sp in points_for(doc,eid):
@@ -89,9 +96,6 @@ def best_snap(doc:Document,x:float,y:float,tolerance:float,grid:float|None=None,
             d=hypot(sp.x-x,sp.y-y)
             if d <= bestd:best,bestd=sp,d
     if best:return best
-    # True wall crossings come before arbitrary projection along a wall.
-    intersection=_best_wall_intersection(doc,x,y,tolerance,exclude,active_z)
-    if intersection is not None:return intersection
     # Then allow arbitrary projection to a wall centerline on the active storey.
     for eid,e in doc.entities.items():
         if eid in exclude or e.kind!='wall' or not e.visible:continue

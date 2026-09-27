@@ -139,9 +139,18 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
         if host.kind=='pod':return abs(float(hp.get('floor_level',0.0))-z)<=tolerance
         return False
     if e.kind in ('room_floor','room_ceiling','room_foundation','room_roof'):
-        from archforge.architecture.rooms import room_slab_geometry
-        g=room_slab_geometry(doc,e,tolerance=tolerance)
-        return g is not None and abs(float(g['z'])-z)<=tolerance
+        from archforge.architecture.rooms import find_room_face,find_room_face_by_id
+        room_id=p.get('room_id')
+        found=(
+            find_room_face_by_id(doc,room_id,tolerance=tolerance)
+            if room_id
+            else find_room_face(doc,p.get('room_signature',''),tolerance=tolerance)
+        )
+        # A derived slab belongs to the storey of its semantic room even when
+        # its physical plane is offset above/below that work plane (ceiling,
+        # roof, or foundation). Filtering on the slab's rendered Z would hide
+        # those dependants from the plan that owns them.
+        return found is not None and abs(float(found[1])-z)<=tolerance
     return True
 
 def entity_primitive(doc,eid):

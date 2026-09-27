@@ -346,16 +346,19 @@ class MainWindow(QMainWindow):
             self._delete_selection()
 
     def _build_view_menu(self):
-        view_menu = self.menuBar().addMenu('&View')
+        # Retain the Python wrapper for the lifetime of the window. PySide can
+        # otherwise collect the local QMenu wrapper even though its QAction is
+        # still present in the native menu bar, leaving action.menu() dangling.
+        self.view_menu = self.menuBar().addMenu('&View')
 
         self.status_bar_action = QAction('Status Bar', self, checkable=True)
         self.status_bar_action.setChecked(not self.statusBar().isHidden())
         self.status_bar_action.toggled.connect(self.statusBar().setVisible)
-        view_menu.addAction(self.status_bar_action)
+        self.view_menu.addAction(self.status_bar_action)
 
         self.tools_toolbar_action = self.tools_toolbar.toggleViewAction()
         self.tools_toolbar_action.setText('Tools Toolbar')
-        view_menu.addAction(self.tools_toolbar_action)
+        self.view_menu.addAction(self.tools_toolbar_action)
 
     def _build_view_toolbar(self):
         self.addToolBarBreak()

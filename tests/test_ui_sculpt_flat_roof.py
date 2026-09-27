@@ -166,7 +166,6 @@ def test_sculpt_dense_preview_moves_only_local_wall_vertices():
 
     dense_base = SculptedPreviewBackend(
         dense_entity_ids={wall.id},
-        wall_target_step=.15,
     ).evaluate(doc).body(wall.id).payload
 
     tx = SculptTransaction(
@@ -220,5 +219,6 @@ def test_sculpt_toolbar_controls_real_viewport_brush_and_flat_roof_action():
         assert any(e.kind == 'room_roof' for e in window.doc.entities.values())
     finally:
         window.pbr_view.close()
+        window._mark_clean()
         window.close()
         app.processEvents()

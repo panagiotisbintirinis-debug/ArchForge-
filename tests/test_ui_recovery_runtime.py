@@ -87,12 +87,13 @@ def test_recovery_launcher_exists_and_main_window_constructs():
     try:
         assert window.tabs.count() == 3
         assert window.tabs.tabText(0) == 'FLOOR PLAN'
-        assert window.tabs.tabText(1) == 'FRONT ELEVATION'
-        assert window.tabs.tabText(2) == '3D STUDIO'
+        assert window.tabs.tabText(1) == '3D STUDIO'
+        assert window.tabs.tabText(2) == 'STRUCTURAL'
         assert window.axes_action.isCheckable()
         assert window.cutaway_action.isCheckable()
         assert window.auto_rotate_action.isCheckable()
     finally:
+        window._mark_clean()
         window.close()
         app.processEvents()
 
@@ -276,5 +277,6 @@ def test_pbr_view_can_place_window_on_clicked_wall_without_webengine_activation(
         assert abs(float(opening.params['offset']) - 2.0) < 1e-9
         assert window.stack.done
     finally:
+        window._mark_clean()
         window.close()
         app.processEvents()

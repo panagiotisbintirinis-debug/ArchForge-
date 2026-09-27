@@ -38,7 +38,7 @@ def test_snap_prefers_object_over_grid():
     d=Document();e=wall();d.add(e);sp=best_snap(d,4.04,.02,.1,1.0);assert sp.kind=='endpoint'
 
 def test_snap_exclusion():
-    d=Document();e=wall();d.add(e);assert best_snap(d,4,.0,.1,1.0,{e.id}) is None or best_snap(d,4,.0,.1,1.0,{e.id}).kind=='grid'
+    d=Document();e=wall();d.add(e);snap=best_snap(d,4,.0,.1,1.0,{e.id});assert snap is None or snap.kind=='construction_grid'
 
 def test_workplane_roundtrip():
     w=WorkPlane(origin=(1,2,3));p=w.unproject(4,5);assert p==(5,7,3) and w.project(p)==(4,5)
@@ -163,7 +163,7 @@ def test_pointer_controller_respects_offset_workplane_for_wall_start():
 
 def test_plan_scene_builds_semantic_primitives_and_handles():
     from archforge.core.plan_scene import build_plan_frame
-    d=Document();w=wall();b=box(8,2);p=pod(12);d.add(w);d.add(b);d.add(p);d.select([w.id,b.id,p.id])
+    d=Document();w=wall();b=box(8,2);p=pod(12);p.params['floor_level']=0;d.add(w);d.add(b);d.add(p);d.select([w.id,b.id,p.id])
     f=build_plan_frame(d);kinds=[x.kind for x in f.primitives]
     assert kinds.count('line')==1 and kinds.count('polygon')==1 and kinds.count('ellipse')==1
     hs={(h.entity_id,h.handle) for h in f.handles};assert (w.id,'endpoint1') in hs and (b.id,'right') in hs and (p.id,'top') in hs

@@ -266,7 +266,7 @@ def test_move_ctrl_axis_constraint_keeps_stair_on_one_axis():
 
 
 
-def test_moved_wall_snaps_its_endpoint_to_another_wall_centerline():
+def test_moved_wall_prefers_semantic_midpoint_on_another_wall_centerline():
     doc = Document()
     doc.work_plane = WorkPlane(name='Ground', origin=(0.0, 0.0, 0.0))
     moving = Entity(
@@ -297,7 +297,7 @@ def test_moved_wall_snaps_its_endpoint_to_another_wall_centerline():
 
     move.update_pointer(0.0, 1.92, snap=True)
 
-    assert move.last_snap_kind == 'wall'
+    assert move.last_snap_kind == 'midpoint'
     assert abs(move.dy - 2.0) < 1e-9
 
 

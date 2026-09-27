@@ -1,4 +1,9 @@
+import os
+
+os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+
 import pytest
+from PySide6.QtWidgets import QApplication
 
 from archforge.core.commands import (
     CommandStack,
@@ -10,6 +15,9 @@ from archforge.core.commands import (
 from archforge.core.model import Document, Entity
 from archforge.core.router import MEPPathRouter
 from archforge.geometry.mesh import TessellatedPreviewBackend
+
+
+_APP = QApplication.instance() or QApplication([])
 
 
 def _box(entity_id, x):
@@ -294,4 +302,5 @@ def test_human_route_selected_connects_two_matching_mep_points():
 
     window._undo()
     assert conduit_id not in window.doc.entities
+    window._mark_clean()
     window.close()

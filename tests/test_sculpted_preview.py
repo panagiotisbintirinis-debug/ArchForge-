@@ -27,7 +27,6 @@ def test_small_brush_deforms_local_region_not_whole_wall():
     # coarse-mesh vertex indices.
     dense_base=SculptedPreviewBackend(
         dense_entity_ids={w.id},
-        wall_target_step=.15,
     )
     d.remove_surface_modifier(mod.id)
     base=dense_base.evaluate(d).body(w.id).payload

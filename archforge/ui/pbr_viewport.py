@@ -17,7 +17,7 @@ from archforge.ui.object_context_menu import object_context_actions
 
 try:
     from PySide6.QtWebEngineWidgets import QWebEngineView
-except ModuleNotFoundError:  # pragma: no cover - depends on optional Qt module packaging
+except ImportError:  # pragma: no cover - optional module or native runtime dependency
     QWebEngineView = None
 
 

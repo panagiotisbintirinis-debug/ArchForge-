@@ -17,11 +17,17 @@ class AddEntity(Command):
 @dataclass
 class UpdateEntity(Command):
     eid:str; changes:Dict[str,Any]; before:Dict[str,Any]|None=None
+    before_state:Optional[Dict[str,Any]]=None
+    before_selection:Optional[List[str]]=None
     def do(self,doc):
-        if self.before is None:self.before=copy.deepcopy(doc.get(self.eid).params)
+        if self.before is None:
+            self.before=copy.deepcopy(doc.get(self.eid).params)
+            self.before_state=copy.deepcopy(doc.to_dict())
+            self.before_selection=list(doc.selection)
         doc.update(self.eid,self.changes)
     def undo(self,doc):
-        if self.before is not None:doc.update(self.eid,copy.deepcopy(self.before))
+        if self.before_state is not None:
+            _restore_document_state(doc,self.before_state,self.before_selection or [])
 
 @dataclass
 class UpdateEntities(Command):
@@ -175,7 +181,26 @@ class RotateEntities(Command):
 def _restore_document_state(doc:Document,state:Dict[str,Any],selection:List[str]):
     """Restore a serialized semantic snapshot without replacing the live Document object."""
     restored=Document.from_dict(copy.deepcopy(state))
-    doc.entities=restored.entities
+    # Preserve live Entity identities for objects that exist on both sides of
+    # the transaction. Views and interaction transactions retain entity
+    # references transiently, so swapping every instance during an ordinary
+    # property undo would leave those references on stale post-edit state.
+    current_entities=doc.entities
+    entities={}
+    for eid,snapshot in restored.entities.items():
+        current=current_entities.get(eid)
+        if current is None:
+            entities[eid]=snapshot
+            continue
+        current.kind=snapshot.kind
+        current.params=copy.deepcopy(snapshot.params)
+        current.name=snapshot.name
+        current.parent_id=snapshot.parent_id
+        current.locked=snapshot.locked
+        current.visible=snapshot.visible
+        current.revision=snapshot.revision
+        entities[eid]=current
+    doc.entities=entities
     doc.children=restored.children
     doc.dependencies=restored.dependencies
     doc.levels=restored.levels
