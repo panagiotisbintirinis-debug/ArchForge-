@@ -67,3 +67,71 @@ def test_structural_graph_is_rederived_after_manual_geometry_edit():
     after=build_structural_graph(doc)
 
     assert after.nodes[1].point==(5.0,0.0,3.0)
+
+
+def test_structural_entities_persist_role_construction_and_levels():
+    doc=Document()
+    doc.levels={'Ground':0.0,'Floor 2':3.0}
+    col=_column('persist-col','pergola')
+    beam=_beam('persist-beam','architectural')
+    beam.params['level']='Floor 2'
+    beam.params['z']=2.70
+    beam.params['construction']='timber'
+    doc.add(col);doc.add(beam)
+
+    restored=Document.from_dict(doc.to_dict())
+
+    rc=restored.get(col.id)
+    rb=restored.get(beam.id)
+    assert rc.params['role']=='pergola'
+    assert rc.params['construction']=='reinforced_concrete'
+    assert rc.params['base_level']=='Ground'
+    assert rc.params['top_level']=='Floor 2'
+    assert rb.params['role']=='architectural'
+    assert rb.params['construction']=='timber'
+    assert rb.params['level']=='Floor 2'
+
+
+def test_beam_placement_binds_top_face_to_next_level():
+    from archforge.core.commands import CommandStack
+    from archforge.core.viewport import PointerController, PointerEvent
+
+    doc=Document()
+    doc.levels={'Ground':0.0,'Floor 2':2.70}
+    doc.work_plane.name='Ground'
+    doc.work_plane.origin=(0.0,0.0,0.0)
+    stack=CommandStack(doc)
+    controller=PointerController(doc,stack)
+    controller.grid=None
+    controller.set_tool('structural_beam')
+
+    controller.pointer_down(PointerEvent(0.0,0.0))
+    result=controller.pointer_up(PointerEvent(4.0,0.0))
+    beam=doc.get(result.entity_id)
+
+    assert beam.kind=='structural_beam'
+    assert beam.params['level']=='Floor 2'
+    assert abs(float(beam.params['z'])-2.40)<1e-9
+    assert abs(float(beam.params['z'])+float(beam.params['height'])-2.70)<1e-9
+
+
+def test_level_bound_structural_members_reject_vertical_move_but_allow_xy():
+    import pytest
+    from archforge.core.commands import CommandStack, MoveEntities
+
+    doc=Document()
+    col=_column('move-col')
+    beam=_beam('move-beam')
+    doc.add(col);doc.add(beam)
+    stack=CommandStack(doc)
+
+    stack.execute(MoveEntities([col.id,beam.id],1.0,2.0,0.0))
+    assert doc.get(col.id).params['x']==1.0
+    assert doc.get(col.id).params['y']==2.0
+    assert doc.get(beam.id).params['x1']==1.0
+    assert doc.get(beam.id).params['y1']==2.0
+
+    with pytest.raises(ValueError, match='level-driven'):
+        stack.execute(MoveEntities([col.id],0.0,0.0,0.25))
+
+    assert doc.get(col.id).params['z']==0.0
