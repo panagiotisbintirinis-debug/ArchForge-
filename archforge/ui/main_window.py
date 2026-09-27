@@ -104,11 +104,13 @@ class MainWindow(QMainWindow):
         stair_action.setShortcut(QKeySequence('A'))
         stair_action.triggered.connect(lambda checked=False: self._set_active_tool('stair'))
         circulation_menu.addAction(stair_action)
+        self.addAction(stair_action)
 
         ramp_action = QAction('Ramp', self)
         ramp_action.setShortcut(QKeySequence('P'))
         ramp_action.triggered.connect(lambda checked=False: self._set_active_tool('ramp'))
         circulation_menu.addAction(ramp_action)
+        self.addAction(ramp_action)
 
         circulation = QToolButton(self)
         circulation.setText('Stair / Ramp')
