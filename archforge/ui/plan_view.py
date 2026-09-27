@@ -4,7 +4,7 @@ import copy
 from typing import Optional, Dict
 
 from PySide6.QtCore import Qt, QPointF, Signal
-from PySide6.QtGui import QPen, QBrush, QColor, QPainter
+from PySide6.QtGui import QPen, QBrush, QColor, QPainter, QPainterPath
 from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsTextItem, QMenu, QToolButton
 
 from archforge.core.model import Document
@@ -293,6 +293,12 @@ class PlanView(QGraphicsView):
     def _draw_primitive(self,p:Primitive2D):
         preview=p.role=='preview';opening=p.role=='opening';room=p.role=='derived-room';pen=QPen(QColor(180,90,20) if opening else (QColor(40,150,70) if preview else QColor(45,55,65)));pen.setWidthF(.06 if opening else (.04 if preview else .035));item=None
         if p.kind=='line':a,b=p.points;item=self._scene.addLine(a[0],a[1],b[0],b[1],pen)
+        elif p.kind=='polyline':
+            if len(p.points)>=2:
+                path=QPainterPath(QPointF(p.points[0][0],p.points[0][1]))
+                for x,y in p.points[1:]:
+                    path.lineTo(float(x),float(y))
+                item=self._scene.addPath(path,pen)
         elif p.kind=='polygon':
             from PySide6.QtGui import QPolygonF
             brush=QBrush(QColor(90,180,120,28) if room else QColor(80,160,220,40))
