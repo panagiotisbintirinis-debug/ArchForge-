@@ -15,8 +15,8 @@ from archforge.ui.object_context_menu import object_context_actions
 
 class PlanView(QGraphicsView):
     selectionChangedByView=Signal();contextActionRequested=Signal(str,str);commandRequested=Signal(str);previewChanged=Signal(object);statusChanged=Signal(str)
-    def __init__(self,doc:Document,stack:CommandStack,parent=None):
-        self._scene=QGraphicsScene();super().__init__(self._scene,parent);self.doc=doc;self.stack=stack;self.controller=PointerController(doc,stack)
+    def __init__(self,doc:Document,stack:CommandStack,parent=None,structural_only=False):
+        self._scene=QGraphicsScene();super().__init__(self._scene,parent);self.doc=doc;self.stack=stack;self.controller=PointerController(doc,stack);self.structural_only=bool(structural_only)
         self.setRenderHint(QPainter.RenderHint.Antialiasing,True);self.setDragMode(QGraphicsView.DragMode.NoDrag);self.setMouseTracking(True);self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse);self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter);self.setBackgroundBrush(QColor(248,248,248))
         self._mouse_down=False;self._handle_items={};self._entity_items={};self._active_handle=None;self._hud_item=None;self._wall_angle_buttons=[];self._wall_menu_target_entity=None;self.scale(55.0,-55.0);self.redraw()
     def rebind(self,doc,stack):self.doc=doc;self.stack=stack;self.controller=PointerController(doc,stack);self.redraw()
@@ -281,6 +281,17 @@ class PlanView(QGraphicsView):
 
     def redraw(self):
         self._scene.clear();self._handle_items.clear();self._entity_items.clear();self._draw_grid();frame=build_plan_frame(self.doc,self.controller.preview)
+        if self.structural_only:
+            structural_ids={
+                eid for eid,e in self.doc.entities.items()
+                if e.kind in ('structural_column','structural_beam')
+                and str(e.params.get('role','structural'))=='structural'
+            }
+            frame.primitives=[
+                p for p in frame.primitives
+                if p.role=='preview' or (p.entity_id and p.entity_id in structural_ids)
+            ]
+            frame.handles=[h for h in frame.handles if h.entity_id in structural_ids]
         for p in frame.primitives:self._draw_primitive(p)
         for h in frame.handles:self._draw_handle(h)
         if frame.snap:self._draw_snap(frame.snap)
