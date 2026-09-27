@@ -52,7 +52,7 @@ def _closed_room(doc, prefix, z):
 def test_ui_removes_redundant_front_elevation_tab_but_keeps_pbr_front_camera():
     window = MainWindow()
     labels = [window.tabs.tabText(i) for i in range(window.tabs.count())]
-    assert labels == ['FLOOR PLAN', '3D STUDIO']
+    assert labels == ['FLOOR PLAN', '3D STUDIO', 'STRUCTURAL']
 
     action_labels = {
         action.text()
