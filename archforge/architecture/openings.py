@@ -115,6 +115,27 @@ def elevation_rect(wall_params, opening_params, axis="XZ"):
     z0=wall_params["z"]+float(opening_params.get("sill",0.0)); z1=z0+float(opening_params["height"]); return ((lo,z0),(hi,z0),(hi,z1),(lo,z1))
 
 
+def elevation_profile(wall_params, opening_params, axis="XZ", samples=12):
+    """Return the visible opening outline in an orthographic wall elevation."""
+    rect=elevation_rect(wall_params,opening_params,axis)
+    if str(opening_params.get('shape','rectangle')).lower()!='arch':
+        return rect
+    lo,z0=rect[0];hi,_=rect[1];_,z1=rect[2]
+    rise=max(1e-9,min(float(opening_params.get('arch_rise',(hi-lo)/2.0)),z1-z0))
+    spring=z1-rise
+    n=max(4,int(samples))
+    pts=[(lo,z0),(hi,z0),(hi,spring)]
+    center=(lo+hi)/2.0;half=max((hi-lo)/2.0,1e-12)
+    # Right spring -> crown -> left spring.
+    for i in range(n+1):
+        x=hi-(hi-lo)*i/n
+        rel=(x-center)/half
+        z=spring+rise*sqrt(max(0.0,1.0-rel*rel))
+        pts.append((x,z))
+    pts.append((lo,spring))
+    return tuple(pts)
+
+
 def project_to_wall(wall_params, x, y):
     """Project an XY point to a wall centerline and return (offset, px, py, distance)."""
     x1=float(wall_params["x1"]); y1=float(wall_params["y1"]); x2=float(wall_params["x2"]); y2=float(wall_params["y2"])
