@@ -183,14 +183,14 @@ def entity_view_primitives(doc: Document, eid: str, axis: str, override_params: 
         if section is None:return []
         pts=tuple((pt[0] if axis=='XZ' else pt[1],pt[2]) for pt in section)
         return [ViewPrimitive('polygon',pts,entity_id=eid,role='organic-junction',meta=(('semantic','organic_junction'),('component_a',a_id),('component_b',b_id)))]
-    if e.kind in ('door','window'):
+    if e.kind in ('door','window','opening'):
         if not e.parent_id or e.parent_id not in doc.entities:return []
         host=doc.get(e.parent_id)
         if host.kind=='wall':
-            from archforge.architecture.openings import plan_segment,elevation_rect
+            from archforge.architecture.openings import plan_segment,elevation_rect,elevation_profile
             if axis=='XY':
                 a,b=plan_segment(host.params,p);return [ViewPrimitive('line',(a,b),entity_id=eid,role='opening',meta=(('semantic',e.kind),('host',e.parent_id)))]
-            rect=elevation_rect(host.params,p,axis);return [ViewPrimitive('polygon',tuple(rect),entity_id=eid,role='opening',meta=(('semantic',e.kind),('host',e.parent_id)))]
+            outline=elevation_profile(host.params,p,axis) if e.kind=='opening' else elevation_rect(host.params,p,axis);return [ViewPrimitive('polygon',tuple(outline),entity_id=eid,role='opening',meta=(('semantic',e.kind),('host',e.parent_id)))]
         if host.kind=='pod':
             from archforge.architecture.openings import pod_opening_plan_segment,pod_opening_junction_conflict
             if pod_opening_junction_conflict(doc,eid) is not None:return []
