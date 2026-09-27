@@ -208,3 +208,103 @@ def test_support_roundtrip_and_member_delete_cascade():
     restored.remove(beam.id)
     assert beam.id not in restored.entities
     assert support.id not in restored.entities
+
+
+def test_structural_load_is_authoritative_input_and_enters_graph():
+    doc=Document()
+    beam=_beam('load-beam')
+    doc.add(beam)
+    load=Entity(
+        'structural_load',
+        {
+            'load_type':'point',
+            'magnitude':12.5,
+            'direction':[0.0,0.0,-1.0],
+            'position':0.25,
+            'load_case':'User Load',
+            'unit':'kN',
+            'source':'User input',
+        },
+        id='load-1',
+        parent_id=beam.id,
+    )
+    doc.add(load)
+
+    graph=build_structural_graph(doc)
+    assert len(graph.loads)==1
+    g=graph.loads[0]
+    assert g.entity_id==load.id
+    assert g.member_entity_id==beam.id
+    assert g.magnitude==12.5
+    assert g.direction==(0.0,0.0,-1.0)
+    assert g.position==0.25
+    assert g.load_case=='User Load'
+    assert g.unit=='kN'
+    assert g.source=='User input'
+
+
+def test_structural_load_roundtrip_preserves_provenance():
+    doc=Document()
+    beam=_beam('load-persist-beam')
+    doc.add(beam)
+    load=Entity(
+        'structural_load',
+        {
+            'load_type':'distributed',
+            'magnitude':4.0,
+            'direction':[0.0,0.0,-1.0],
+            'position':0.5,
+            'load_case':'Roof Live',
+            'unit':'kN/m',
+            'source':'User input',
+        },
+        id='load-persist',
+        parent_id=beam.id,
+    )
+    doc.add(load)
+
+    restored=Document.from_dict(doc.to_dict())
+    r=restored.get(load.id)
+    assert r.parent_id==beam.id
+    assert r.params['load_case']=='Roof Live'
+    assert r.params['unit']=='kN/m'
+    assert r.params['source']=='User input'
+
+
+def test_member_role_cannot_leave_structural_while_support_or_load_attached():
+    import pytest
+    doc=Document()
+    beam=_beam('guard-beam')
+    doc.add(beam)
+    doc.add(Entity(
+        'structural_support',
+        {'member_end':'start','support_type':'fixed'},
+        parent_id=beam.id,
+    ))
+    with pytest.raises(ValueError, match='remove structural supports/loads'):
+        doc.update(beam.id,{'role':'pergola'})
+
+    doc2=Document()
+    beam2=_beam('guard-load-beam')
+    doc2.add(beam2)
+    doc2.add(Entity(
+        'structural_load',
+        {
+            'load_type':'point','magnitude':1.0,
+            'direction':[0.0,0.0,-1.0],'position':0.5,
+            'load_case':'User Load','unit':'kN','source':'User input',
+        },
+        parent_id=beam2.id,
+    ))
+    with pytest.raises(ValueError, match='remove structural supports/loads'):
+        doc2.update(beam2.id,{'role':'architectural'})
+
+
+def test_structural_view_shares_authoritative_document_with_other_views():
+    from archforge.ui.main_window import MainWindow
+    window=MainWindow()
+    assert window.structural_view.doc is window.doc
+    assert window.plan_view.doc is window.doc
+    assert window.pbr_view.doc is window.doc
+    assert window.structural_view.stack is window.stack
+    window.close()
