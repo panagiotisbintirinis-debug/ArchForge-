@@ -99,6 +99,31 @@ class MainWindow(QMainWindow):
             action.triggered.connect(lambda checked=False, t=tool: self._set_active_tool(t))
             toolbar.addAction(action)
 
+        opening_menu = QMenu(self)
+        opening_rect_action = QAction('Rectangle Opening', self)
+        opening_rect_action.triggered.connect(
+            lambda checked=False: self._set_active_tool('opening_rect')
+        )
+        opening_menu.addAction(opening_rect_action)
+
+        opening_arch_action = QAction('Arch Opening', self)
+        opening_arch_action.triggered.connect(
+            lambda checked=False: self._set_active_tool('opening_arch')
+        )
+        opening_menu.addAction(opening_arch_action)
+
+        opening_button = QToolButton(self)
+        opening_button.setText('Opening')
+        opening_button.setToolTip('Frame-free wall opening: Rectangle or Arch')
+        opening_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        opening_button.setMenu(opening_menu)
+        opening_button.setDefaultAction(opening_rect_action)
+        opening_button.setText('Opening')
+        toolbar.addWidget(opening_button)
+        self.opening_button = opening_button
+        self.opening_rect_action = opening_rect_action
+        self.opening_arch_action = opening_arch_action
+
         circulation_menu = QMenu(self)
         stair_action = QAction('Stair', self)
         stair_action.setShortcut(QKeySequence('A'))
