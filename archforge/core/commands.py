@@ -66,9 +66,9 @@ class MoveEntities(Command):
             self.before_modifiers={mid:copy.deepcopy(m) for mid,m in doc.surface_modifiers.items() if m.target.owner_id in self.ids and _legacy_world_modifier(m)}
         for i in self.ids:
             e=doc.get(i); p=e.params
-            if e.kind in ('box','mechanical_part'):doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy,'z':p['z']+self.dz})
+            if e.kind in ('box','mechanical_part','structural_column'):doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy,'z':p['z']+self.dz})
             elif e.kind=='mep_terminal':doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy,'elevation':p['elevation']+self.dz})
-            elif e.kind=='wall':doc.update(i,{'x1':p['x1']+self.dx,'x2':p['x2']+self.dx,'y1':p['y1']+self.dy,'y2':p['y2']+self.dy,'z':p['z']+self.dz})
+            elif e.kind in ('wall','structural_beam'):doc.update(i,{'x1':p['x1']+self.dx,'x2':p['x2']+self.dx,'y1':p['y1']+self.dy,'y2':p['y2']+self.dy,'z':p['z']+self.dz})
             elif e.kind=='pod':doc.update(i,{'cx':p['cx']+self.dx,'cy':p['cy']+self.dy,'floor_level':p['floor_level']+self.dz})
             elif e.kind in ('floor','room'):
                 doc.update(i,{'points':[(x+self.dx,y+self.dy) for x,y in p['points']], 'z':p['z']+self.dz})
@@ -124,6 +124,14 @@ class RotateEntities(Command):
                     doc.update(i, {'x': nx, 'y': ny, 'rotation': (p.get('rotation', 0.0) + self.angle) % 360.0})
                 else:
                     doc.update(i, {'rotation': (p.get('rotation', 0.0) + self.angle) % 360.0})
+            elif e.kind == 'structural_column':
+                px, py = self.pivot if self.pivot is not None else (p['x'], p['y'])
+                dx, dy = float(p['x']) - px, float(p['y']) - py
+                nx, ny = px + dx * c - dy * s, py + dx * s + dy * c
+                doc.update(i, {
+                    'x': nx, 'y': ny,
+                    'rotation': (float(p.get('rotation', 0.0)) + self.angle) % 360.0,
+                })
             elif e.kind == 'wall':
                 px, py = self.pivot if self.pivot is not None else ((p['x1'] + p['x2']) / 2, (p['y1'] + p['y2']) / 2)
                 def rot(x, y):
@@ -131,6 +139,17 @@ class RotateEntities(Command):
                     return px + dx * c - dy * s, py + dx * s + dy * c
                 nx1, ny1 = rot(p['x1'], p['y1'])
                 nx2, ny2 = rot(p['x2'], p['y2'])
+                doc.update(i, {'x1': nx1, 'y1': ny1, 'x2': nx2, 'y2': ny2})
+            elif e.kind == 'structural_beam':
+                px, py = self.pivot if self.pivot is not None else (
+                    (float(p['x1']) + float(p['x2'])) / 2.0,
+                    (float(p['y1']) + float(p['y2'])) / 2.0,
+                )
+                def rot_beam(x, y):
+                    dx, dy = float(x) - px, float(y) - py
+                    return px + dx * c - dy * s, py + dx * s + dy * c
+                nx1, ny1 = rot_beam(p['x1'], p['y1'])
+                nx2, ny2 = rot_beam(p['x2'], p['y2'])
                 doc.update(i, {'x1': nx1, 'y1': ny1, 'x2': nx2, 'y2': ny2})
             elif e.kind in ('stair', 'ramp'):
                 px, py = self.pivot if self.pivot is not None else (p['x'], p['y'])
