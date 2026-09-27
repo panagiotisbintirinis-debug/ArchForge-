@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Iterable, Mapping
 
 from archforge.geometry.mesh import MeshPayload
+from archforge.rendering.materials import material_spec
 
 
 _MATERIALS: Mapping[str, dict] = {
@@ -20,14 +21,31 @@ _MATERIALS: Mapping[str, dict] = {
     "ramp": {"color": "#b8c2c9", "roughness": 0.74, "metalness": 0.01},
 }
 _DEFAULT_MATERIAL = {"color": "#bdc5ce", "roughness": 0.64, "metalness": 0.02}
-_SELECTED_MATERIAL = {"color": "#46a6ff", "roughness": 0.42, "metalness": 0.06}
 
 
-def _material(kind: str, selected: bool) -> dict:
-    return dict(_SELECTED_MATERIAL if selected else _MATERIALS.get(kind, _DEFAULT_MATERIAL))
+def _material(kind: str, selected: bool, entity=None, doc=None) -> dict:
+    spec = dict(_MATERIALS.get(kind, _DEFAULT_MATERIAL))
+    material_id = None
+    if entity is not None:
+        material_id = entity.params.get("material_id")
+    custom = material_spec(material_id)
+    if custom is not None:
+        spec.update({
+            "color": custom.get("color", spec.get("color")),
+            "roughness": custom.get("roughness", spec.get("roughness", 0.65)),
+            "metalness": custom.get("metalness", spec.get("metalness", 0.02)),
+            "material_id": str(material_id),
+            "material_name": str(custom.get("name", material_id)),
+        })
+    if selected:
+        # Keep the real surface visible while selected; use a subtle emissive
+        # accent instead of replacing the material with selection blue.
+        spec["emissive"] = "#1f5f93"
+        spec["emissiveIntensity"] = 0.28
+    return spec
 
 
-def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_overrides=None) -> dict:
+def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_overrides=None, doc=None) -> dict:
     """Serialize evaluated MeshPayloads for the derived WebGL renderer.
 
     The returned structure contains no authoritative state and is safe to discard at any
@@ -47,7 +65,12 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                 "vertices": [[float(x), float(y), float(z)] for x, y, z in mesh.vertices],
                 "triangles": [[int(a), int(b), int(c)] for a, b, c in mesh.triangles],
                 "surfaces": [str(role) for role in mesh.triangle_surfaces],
-                "material": _material(body.semantic_kind, body.entity_id in selected),
+                "material": _material(
+                    body.semantic_kind,
+                    body.entity_id in selected,
+                    entity=(doc.entities.get(body.entity_id) if doc is not None else None),
+                    doc=doc,
+                ),
             }
         )
     return {"objects": objects}
