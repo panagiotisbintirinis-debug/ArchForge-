@@ -46,7 +46,7 @@ def _plain_wall_geometry(p,target_step:float):
 def _normalized_openings(p,length,height):
     out=[]
     for raw in p.get('_opening_intents',()) or ():
-        if raw.get('kind') not in ('door','window'):
+        if raw.get('kind') not in ('door','window','opening'):
             continue
         width=float(raw.get('width',0.0));opening_height=float(raw.get('height',0.0))
         center=float(raw.get('offset',0.0));sill=float(raw.get('sill',0.0))
@@ -56,9 +56,41 @@ def _normalized_openings(p,length,height):
         z0=max(0.0,sill);z1=min(height,sill+opening_height)
         if u1-u0<=1e-9 or z1-z0<=1e-9:
             continue
-        out.append((u0,u1,z0,z1))
+        shape='rectangle'
+        arch_rise=0.0
+        if raw.get('kind')=='opening':
+            shape=str(raw.get('shape','rectangle')).lower()
+            if shape=='arch':
+                arch_rise=max(1e-6,min(float(raw.get('arch_rise',width/2.0)),z1-z0))
+        out.append({
+            'u0':u0,'u1':u1,'z0':z0,'z1':z1,
+            'shape':shape,'arch_rise':arch_rise,
+        })
     return tuple(out)
 
+
+def _opening_contains(opening,u,z):
+    u0,u1=float(opening['u0']),float(opening['u1'])
+    z0,z1=float(opening['z0']),float(opening['z1'])
+    if not (u0<u<u1 and z0<z<z1):
+        return False
+    if opening.get('shape')!='arch':
+        return True
+    rise=float(opening.get('arch_rise',0.0))
+    if rise<=1e-9:
+        return True
+    spring=z1-rise
+    if z<=spring:
+        return True
+    half=(u1-u0)/2.0
+    if half<=1e-12:
+        return False
+    center=(u0+u1)/2.0
+    x=(u-center)/half
+    if abs(x)>=1.0:
+        return False
+    cap=spring+rise*math.sqrt(max(0.0,1.0-x*x))
+    return z<cap
 
 def _wall_with_openings(p,target_step:float):
     x1,y1,zbase,x2,y2=map(float,(p['x1'],p['y1'],p['z'],p['x2'],p['y2']))
@@ -74,12 +106,26 @@ def _wall_with_openings(p,target_step:float):
     nu=max(1,int(math.ceil(length/step)));nv=max(1,int(math.ceil(height/step)))
     ubreaks={length*i/nu for i in range(nu+1)}
     zbreaks={height*j/nv for j in range(nv+1)}
-    for u0,u1,z0,z1 in openings:
+    for opening in openings:
+        u0,u1,z0,z1=(opening['u0'],opening['u1'],opening['z0'],opening['z1'])
         ubreaks.update((u0,u1));zbreaks.update((z0,z1))
+        if opening.get('shape')=='arch':
+            rise=float(opening.get('arch_rise',0.0))
+            spring=z1-rise
+            zbreaks.add(spring)
+            # Add local profile samples so the mesh follows the arch rather
+            # than collapsing it to one rectangular cut.
+            steps=max(6,int(math.ceil((u1-u0)/max(target_step/2.0,0.08))))
+            center=(u0+u1)/2.0;half=(u1-u0)/2.0
+            for k in range(1,steps):
+                u=u0+(u1-u0)*k/steps
+                ubreaks.add(u)
+                x=(u-center)/max(half,1e-12)
+                zbreaks.add(spring+rise*math.sqrt(max(0.0,1.0-x*x)))
     us=sorted(ubreaks);zs=sorted(zbreaks)
 
     def is_void(u,z):
-        return any(u0<u<u1 and z0<z<z1 for u0,u1,z0,z1 in openings)
+        return any(_opening_contains(opening,u,z) for opening in openings)
 
     solid=[]
     for i in range(len(us)-1):
