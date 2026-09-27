@@ -34,6 +34,11 @@ ACTIONS = {
         'views': {'plan'},
         'placement': 'radial',
     },
+    'load': {
+        'label': 'Add Load…',
+        'views': {'plan'},
+        'placement': 'radial',
+    },
     'delete': {
         'label': 'Delete',
         'views': {'plan', 'pbr'},
@@ -45,8 +50,8 @@ ENTITY_MENUS = {
     '*': ('properties', None, 'delete'),
     'wall': ('properties', 'materials', 'move', 'stretch', 'rotate', None, 'delete'),
     'box': ('properties', 'materials', 'move', 'stretch', 'rotate', None, 'delete'),
-    'structural_column': ('properties', 'materials', 'support', 'move', 'rotate', None, 'delete'),
-    'structural_beam': ('properties', 'materials', 'support', 'move', 'rotate', None, 'delete'),
+    'structural_column': ('properties', 'materials', 'support', 'load', 'move', 'rotate', None, 'delete'),
+    'structural_beam': ('properties', 'materials', 'support', 'load', 'move', 'rotate', None, 'delete'),
     'pod': ('properties', 'materials', 'move', 'stretch', 'rotate', None, 'delete'),
     'door': ('properties', 'move', 'stretch', None, 'delete'),
     'window': ('properties', 'move', 'stretch', None, 'delete'),
@@ -61,6 +66,7 @@ ENTITY_MENUS = {
     'stair': ('properties', 'materials', 'move', 'rotate', None, 'delete'),
     'ramp': ('properties', 'materials', 'move', 'rotate', None, 'delete'),
     'structural_support': (None, 'delete'),
+    'structural_load': (None, 'delete'),
     'mesh': ('properties', 'materials', None, 'delete'),
 }
 
