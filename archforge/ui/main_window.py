@@ -617,6 +617,39 @@ class MainWindow(QMainWindow):
             section_label.setToolTip('Only rectangular structural sections are geometrically implemented in this build.')
             form.addRow('Section', section_label)
 
+        base_level_editor = None
+        top_level_editor = None
+        beam_level_editor = None
+        if entity.kind == 'structural_column':
+            ordered_levels=sorted(self.doc.levels.items(),key=lambda item:float(item[1]))
+
+            base_level_editor=QComboBox(dialog)
+            for name,z in ordered_levels:
+                base_level_editor.addItem(f'{name} ({float(z):.2f} m)', str(name))
+            base_idx=base_level_editor.findData(str(entity.params.get('base_level',self.doc.work_plane.name)))
+            if base_idx >= 0:
+                base_level_editor.setCurrentIndex(base_idx)
+            form.addRow('Base Level',base_level_editor)
+
+            top_level_editor=QComboBox(dialog)
+            top_level_editor.addItem('Unassigned','Unassigned')
+            for name,z in ordered_levels:
+                top_level_editor.addItem(f'{name} ({float(z):.2f} m)', str(name))
+            top_idx=top_level_editor.findData(str(entity.params.get('top_level','Unassigned')))
+            if top_idx >= 0:
+                top_level_editor.setCurrentIndex(top_idx)
+            form.addRow('Top Level',top_level_editor)
+
+        elif entity.kind == 'structural_beam':
+            ordered_levels=sorted(self.doc.levels.items(),key=lambda item:float(item[1]))
+            beam_level_editor=QComboBox(dialog)
+            for name,z in ordered_levels:
+                beam_level_editor.addItem(f'{name} ({float(z):.2f} m)', str(name))
+            level_idx=beam_level_editor.findData(str(entity.params.get('level',self.doc.work_plane.name)))
+            if level_idx >= 0:
+                beam_level_editor.setCurrentIndex(level_idx)
+            form.addRow('Storey',beam_level_editor)
+
         for spec in fields:
             spin = QDoubleSpinBox(dialog)
             spin.setDecimals(3)
@@ -632,6 +665,12 @@ class MainWindow(QMainWindow):
                 editors['arch_rise'].setEnabled(str(shape_editor.currentData()) == 'arch')
             shape_editor.currentIndexChanged.connect(update_arch_rise_enabled)
             update_arch_rise_enabled()
+
+        if top_level_editor is not None and 'height' in editors:
+            def update_column_height_enabled(*_):
+                editors['height'].setEnabled(str(top_level_editor.currentData()) == 'Unassigned')
+            top_level_editor.currentIndexChanged.connect(update_column_height_enabled)
+            update_column_height_enabled()
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok
@@ -653,6 +692,26 @@ class MainWindow(QMainWindow):
             extra_changes['role'] = str(role_editor.currentData())
         if construction_editor is not None:
             extra_changes['construction'] = str(construction_editor.currentData())
+
+        if base_level_editor is not None:
+            base_name=str(base_level_editor.currentData())
+            top_name=str(top_level_editor.currentData()) if top_level_editor is not None else 'Unassigned'
+            extra_changes['base_level']=base_name
+            extra_changes['top_level']=top_name
+            if base_name in self.doc.levels:
+                base_z=float(self.doc.levels[base_name])
+                extra_changes['z']=base_z
+                if top_name!='Unassigned':
+                    if top_name not in self.doc.levels:
+                        raise ValueError('selected top level no longer exists')
+                    top_z=float(self.doc.levels[top_name])
+                    if top_z<=base_z:
+                        raise ValueError('Column Top Level must be above Base Level')
+                    values['height']=top_z-base_z
+
+        if beam_level_editor is not None:
+            extra_changes['level']=str(beam_level_editor.currentData())
+
         if not extra_changes:
             extra_changes = None
         try:
