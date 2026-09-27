@@ -716,6 +716,11 @@ class MainWindow(QMainWindow):
                 if level_name not in self.doc.levels:
                     raise ValueError('selected beam storey no longer exists')
                 extra_changes['level']=level_name
+                # Beam level is the structural plane at the beam top face.
+                # Keep the physical solid and derived analysis node aligned.
+                level_z=float(self.doc.levels[level_name])
+                beam_height=float(values.get('height', entity.params['height']))
+                extra_changes['z']=level_z-beam_height
 
             if not extra_changes:
                 extra_changes = None
