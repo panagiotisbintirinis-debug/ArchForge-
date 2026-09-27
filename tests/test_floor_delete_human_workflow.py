@@ -347,3 +347,109 @@ def test_wall_with_hosted_door_can_grow_10cm_and_redraw():
     window.plan_view.redraw()
     window.pbr_view.redraw(force_full=True)
     window.close()
+
+
+def test_structure_toolbar_and_shared_structural_tab_exist():
+    window=MainWindow()
+    labels=[window.tabs.tabText(i) for i in range(window.tabs.count())]
+    assert labels==['FLOOR PLAN','3D STUDIO','STRUCTURAL']
+
+    toolbar_texts=[
+        action.text()
+        for toolbar in window.findChildren(QToolBar)
+        for action in toolbar.actions()
+    ]
+    # Structure is a QToolButton widget, not a QAction; ensure the button exists
+    # and legacy MEP is no longer a primary toolbar widget.
+    assert window.structure_button.text()=='Structure'
+    assert not hasattr(window,'mep_button')
+    window.close()
+
+
+def test_human_can_place_column_and_beam_then_undo():
+    from archforge.core.viewport import PointerEvent
+
+    window=MainWindow()
+    window.doc.levels['Floor 2']=2.70
+    window._refresh_floor_selector()
+
+    controller=window.structural_view.controller
+    controller.set_tool('structural_column')
+    controller.pointer_down(PointerEvent(1.0,1.0))
+    result=controller.pointer_up(PointerEvent(1.0,1.0))
+    column=window.doc.get(result.entity_id)
+    assert column.kind=='structural_column'
+    assert column.params['height']==2.70
+    assert column.params['role']=='structural'
+
+    controller.set_tool('structural_beam')
+    controller.pointer_down(PointerEvent(1.0,1.0))
+    controller.pointer_move(PointerEvent(4.0,1.0))
+    result=controller.pointer_up(PointerEvent(4.0,1.0))
+    beam=window.doc.get(result.entity_id)
+    assert beam.kind=='structural_beam'
+    assert beam.params['level']=='Ground'
+    assert abs(beam.params['z']-2.40)<1e-9
+
+    window._undo()
+    assert beam.id not in window.doc.entities
+    assert column.id in window.doc.entities
+    window.close()
+
+
+def test_structural_view_filters_out_pergola_members():
+    window=MainWindow()
+    structural=Entity(
+        'structural_column',
+        {
+            'x':0.0,'y':0.0,'z':0.0,'width':0.25,'depth':0.25,'height':2.70,
+            'rotation':0.0,'role':'structural','construction':'steel',
+            'section':'rectangular','base_level':'Ground','top_level':'Unassigned',
+        },
+        id='structural-col',
+    )
+    pergola=Entity(
+        'structural_column',
+        {
+            'x':2.0,'y':0.0,'z':0.0,'width':0.12,'depth':0.12,'height':2.40,
+            'rotation':0.0,'role':'pergola','construction':'timber',
+            'section':'rectangular','base_level':'Ground','top_level':'Unassigned',
+        },
+        id='pergola-post',
+    )
+    window.doc.add(structural);window.doc.add(pergola)
+    window.structural_view.redraw()
+
+    visible_ids=set(window.structural_view._entity_items.values())
+    assert 'structural-col' in visible_ids
+    assert 'pergola-post' not in visible_ids
+    window.close()
+
+
+def test_structural_role_and_construction_update_undoably():
+    window=MainWindow()
+    col=Entity(
+        'structural_column',
+        {
+            'x':0.0,'y':0.0,'z':0.0,'width':0.25,'depth':0.25,'height':2.70,
+            'rotation':0.0,'role':'structural','construction':'reinforced_concrete',
+            'section':'rectangular','base_level':'Ground','top_level':'Unassigned',
+        },
+        id='role-col',
+    )
+    window.doc.add(col)
+
+    window._apply_object_properties(
+        col.id,
+        {'width':0.20,'depth':0.20,'height':2.50,'z':0.0},
+        extra_changes={'role':'pergola','construction':'timber'},
+    )
+    updated=window.doc.get(col.id)
+    assert updated.params['role']=='pergola'
+    assert updated.params['construction']=='timber'
+
+    window._undo()
+    restored=window.doc.get(col.id)
+    assert restored.params['role']=='structural'
+    assert restored.params['construction']=='reinforced_concrete'
+    window.close()
