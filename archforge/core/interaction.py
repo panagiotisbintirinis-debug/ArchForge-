@@ -561,51 +561,97 @@ class VerticalStretchTransaction:
     def cancel(self):self.preview=self.before.copy()
 
 class OpeningPlaceTransaction:
-    """Attach a conventional door/window to the nearest wall or organic pod shell."""
-    def __init__(self,doc,stack,kind,x,y,tolerance=0.35,width=None,height=None,sill=None,flat_margin=0.25):
-        if kind not in ('door','window'):raise ValueError('opening kind must be door or window')
-        self.doc,self.stack,self.kind=doc,stack,kind;self.tolerance=float(tolerance);self.cancelled=False;self.width=float(width if width is not None else (.9 if kind=='door' else 1.2));self.height=float(height if height is not None else (2.1 if kind=='door' else 1.2));self.sill=float(sill if sill is not None else (0.0 if kind=='door' else .9));self.flat_margin=float(flat_margin);self.host_id=None;self.host_kind=None;self.preview={};self.update(x,y)
+    """Attach a door/window frame or a frame-free architectural opening."""
+    def __init__(
+        self,doc,stack,kind,x,y,tolerance=0.35,width=None,height=None,sill=None,
+        flat_margin=0.25,shape='rectangle',arch_rise=None,
+    ):
+        if kind not in ('door','window','opening'):
+            raise ValueError('opening kind must be door, window, or opening')
+        self.doc,self.stack,self.kind=doc,stack,kind
+        self.tolerance=float(tolerance);self.cancelled=False
+        self.width=float(width if width is not None else (.9 if kind=='door' else (1.2 if kind=='window' else 1.0)))
+        self.height=float(height if height is not None else (2.1 if kind=='door' else (1.2 if kind=='window' else 2.2)))
+        self.sill=float(sill if sill is not None else (0.0 if kind in ('door','opening') else .9))
+        self.flat_margin=float(flat_margin)
+        self.shape=str(shape).lower() if kind=='opening' else 'rectangle'
+        self.arch_rise=float(
+            arch_rise if arch_rise is not None else min(self.width/2.0,self.height)
+        )
+        self.host_id=None;self.host_kind=None;self.preview={}
+        self.update(x,y)
+
     def update(self,x,y):
         from archforge.architecture.openings import nearest_opening_host,validate_opening,validate_pod_opening
         hit=nearest_opening_host(self.doc,x,y,self.tolerance)
-        if hit is None:self.host_id=None;self.host_kind=None;self.preview={};return HUD({'valid':0.0})
-        host=self.doc.get(hit['host_id']);self.host_id=hit['host_id'];self.host_kind=hit['host_kind']
+        if hit is None:
+            self.host_id=None;self.host_kind=None;self.preview={}
+            return HUD({'valid':0.0})
+        host=self.doc.get(hit['host_id'])
+
+        # Frame-free architectural openings are currently wall-only by design.
+        if self.kind=='opening' and host.kind!='wall':
+            self.host_id=None;self.host_kind=None;self.preview={}
+            return HUD({'valid':0.0})
+
+        self.host_id=hit['host_id'];self.host_kind=hit['host_kind']
         if host.kind=='wall':
             p={'offset':hit['offset'],'width':self.width,'height':self.height,'sill':self.sill}
-            try:validate_opening(host.params,p,self.kind);valid=1.0
-            except ValueError:valid=0.0
-            self.preview=p;return HUD({'offset':p['offset'],'width':p['width'],'height':p['height'],'sill':p['sill'],'distance':hit['distance'],'valid':valid})
+            if self.kind=='opening':
+                p.update({'shape':self.shape,'arch_rise':self.arch_rise,'flat_margin':0.0})
+            try:
+                validate_opening(host.params,p,self.kind);valid=1.0
+            except ValueError:
+                valid=0.0
+            self.preview=p
+            hud={'offset':p['offset'],'width':p['width'],'height':p['height'],'sill':p['sill'],'distance':hit['distance'],'valid':valid}
+            if self.kind=='opening':
+                hud['arch_rise']=p['arch_rise'] if p['shape']=='arch' else 0.0
+            return HUD(hud)
+
         p={'surface_u':hit['surface_u'],'width':self.width,'height':self.height,'sill':self.sill,'flat_margin':self.flat_margin}
-        try:validate_pod_opening(host.params,p,self.kind);valid=1.0
-        except ValueError:valid=0.0
-        self.preview=p;return HUD({'surface_u':p['surface_u'],'width':p['width'],'height':p['height'],'sill':p['sill'],'distance':hit['distance'],'valid':valid})
+        try:
+            validate_pod_opening(host.params,p,self.kind);valid=1.0
+        except ValueError:
+            valid=0.0
+        self.preview=p
+        return HUD({'surface_u':p['surface_u'],'width':p['width'],'height':p['height'],'sill':p['sill'],'distance':hit['distance'],'valid':valid})
+
     def preview_segment(self):
         if not self.host_id or not self.preview:return None
         from archforge.architecture.openings import plan_segment,pod_opening_plan_segment
         host=self.doc.get(self.host_id)
         return plan_segment(host.params,self.preview) if host.kind=='wall' else pod_opening_plan_segment(host.params,{**self.preview,'_kind':self.kind})
+
     def commit(self):
         if self.cancelled:raise RuntimeError('transaction cancelled')
-        if not self.host_id or not self.preview:raise ValueError('opening must be placed on a wall or pod')
+        if not self.host_id or not self.preview:raise ValueError('opening must be placed on a valid host')
         host=self.doc.get(self.host_id)
         from archforge.architecture.openings import validate_opening,validate_pod_opening
-        if host.kind=='wall':validate_opening(host.params,self.preview,self.kind)
-        elif host.kind=='pod':validate_pod_opening(host.params,self.preview,self.kind)
-        else:raise ValueError('opening host must be a wall or pod')
-        e=Entity(self.kind,dict(self.preview),name=self.kind.title(),parent_id=self.host_id)
+        if host.kind=='wall':
+            validate_opening(host.params,self.preview,self.kind)
+        elif host.kind=='pod' and self.kind in ('door','window'):
+            validate_pod_opening(host.params,self.preview,self.kind)
+        else:
+            raise ValueError('free architectural opening must be placed on a wall')
+        name={'door':'Door','window':'Window','opening':'Opening'}[self.kind]
+        e=Entity(self.kind,dict(self.preview),name=name,parent_id=self.host_id)
         if host.kind=='pod':
             from .opening_commands import AddOpeningEntity
             self.stack.execute(AddOpeningEntity(e))
-        else:self.stack.execute(AddEntity(e))
+        else:
+            self.stack.execute(AddEntity(e))
         return e.id
+
     def cancel(self):self.cancelled=True
 
 class OpeningEditTransaction:
     """Move/stretch an opening in its host's semantic frame."""
     def __init__(self,doc,stack,eid,handle='move'):
         e=doc.get(eid)
-        if e.kind not in ('door','window'):raise ValueError('opening edit requires door/window')
+        if e.kind not in ('door','window','opening'):raise ValueError('opening edit requires door/window/opening')
         if not e.parent_id or e.parent_id not in doc.entities or doc.get(e.parent_id).kind not in ('wall','pod'):raise ValueError('opening has no valid wall/pod host')
+        if e.kind=='opening' and doc.get(e.parent_id).kind!='wall':raise ValueError('free architectural opening requires wall host')
         if handle not in ('move','left','right'):raise ValueError('opening handle must be move, left or right')
         self.doc,self.stack,self.eid,self.handle=doc,stack,eid,handle
         self.kind=e.kind;self.host_id=e.parent_id;self.before=e.params.copy();self.preview=e.params.copy();self.cancelled=False
