@@ -60,7 +60,7 @@ def test_3d_handle_preview_changes_only_active_endpoint_z_without_document_mutat
 def test_3d_handle_payload_is_selection_scoped_and_wall_only():
     doc, wall_id = _wall_doc()
     floor_id = doc.create_entity('room_floor', {
-        'room_signature': 'room-a',
+        'room_signature': 'room-test-a',
         'z': 0.0,
         'thickness': 0.2,
     })
