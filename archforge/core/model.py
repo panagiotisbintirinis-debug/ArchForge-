@@ -251,6 +251,14 @@ SCHEMAS = {
     'opening': _ARCH_OPENING,
     'organic_opening_patch': {'opening_id': _nonempty, 'host_id': _nonempty, 'status': _nonempty},
     'mechanical_part': {'x': _finite, 'y': _finite, 'z': _finite, 'width': _positive, 'depth': _positive, 'height': _positive, 'rotation': _finite},
+    'mep_terminal': {
+        'x': _finite,
+        'y': _finite,
+        'level_z': _finite,
+        'elevation': _finite,
+        'system_type': _conduit_system_type,
+        'diameter': _conduit_diameter,
+    },
     'mechanical_joint': {'joint_type': _nonempty, 'parent_part': _nonempty, 'child_part': _nonempty, 'anchor': _vec3, 'axis': _vec3, 'min_value': _finite, 'max_value': _finite, 'value': _finite},
     'mechanical_mount': {'host_id': _nonempty, 'part_id': _nonempty, 'surface_role': _nonempty, 'clearance': _nonnegative, 'embed_depth': _nonnegative},
 }
