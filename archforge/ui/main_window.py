@@ -671,7 +671,7 @@ class MainWindow(QMainWindow):
             entity = self.doc.get(entity_id)
             if self.view is self.pbr_view:
                 if action_id == 'move' and entity.kind in {
-                    'stair', 'ramp', 'wall', 'box', 'pod', 'floor', 'room', 'mechanical_part'
+                    'stair', 'ramp', 'wall', 'box', 'pod', 'structural_column', 'structural_beam', 'floor', 'room', 'mechanical_part', 'structural_column', 'structural_beam'
                 }:
                     self.pbr_view.set_tool('move')
                     self.statusBar().showMessage(
@@ -761,6 +761,7 @@ class MainWindow(QMainWindow):
         supported = {
             'wall', 'floor', 'room_floor', 'room_roof', 'room_ceiling',
             'room_foundation', 'box', 'pod', 'stair', 'ramp',
+            'structural_column', 'structural_beam',
             'mechanical_part', 'mesh',
         }
         if entity.kind not in supported:
