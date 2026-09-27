@@ -565,6 +565,89 @@ class VerticalStretchTransaction:
     def cancel(self):self.preview=self.before.copy()
 
 
+class StructuralColumnPlaceTransaction:
+    """Place one semantic vertical Column/Post on the active storey."""
+    def __init__(
+        self,doc,stack,x,y,*,z,height,width=.25,depth=.25,rotation=0.0,
+        role='structural',construction='reinforced_concrete',section='rectangular',
+        base_level='Ground',top_level='Unassigned',grid=.10,snap_tol=.10,
+    ):
+        self.doc,self.stack=doc,stack
+        self.z=float(z);self.height=float(height);self.width=float(width);self.depth=float(depth)
+        self.rotation=float(rotation);self.role=str(role);self.construction=str(construction);self.section=str(section)
+        self.base_level=str(base_level);self.top_level=str(top_level)
+        self.grid=grid;self.snap_tol=float(snap_tol);self.cancelled=False;self.last_snap=None
+        self.x=float(x);self.y=float(y);self.preview={}
+        self.update(x,y)
+
+    def update(self,x,y):
+        sp=best_snap(self.doc,float(x),float(y),self.snap_tol,self.grid)
+        if sp is not None:
+            self.x,self.y=float(sp.x),float(sp.y);self.last_snap=sp
+        else:
+            self.x,self.y=float(x),float(y);self.last_snap=None
+        self.preview={
+            'x':self.x,'y':self.y,'z':self.z,
+            'width':self.width,'depth':self.depth,'height':self.height,
+            'rotation':self.rotation,'role':self.role,'construction':self.construction,
+            'section':self.section,'base_level':self.base_level,'top_level':self.top_level,
+        }
+        return HUD({'x':self.x,'y':self.y,'z':self.z,'height':self.height,'width':self.width,'depth':self.depth})
+
+    def commit(self):
+        if self.cancelled:raise RuntimeError('transaction cancelled')
+        e=Entity('structural_column',dict(self.preview),name='Column')
+        self.stack.execute(AddEntity(e));return e.id
+
+    def cancel(self):self.cancelled=True
+
+
+class StructuralBeamDrawTransaction:
+    """Draw one horizontal semantic Beam between two plan points."""
+    def __init__(
+        self,doc,stack,start,*,z,width=.20,height=.30,
+        role='structural',construction='reinforced_concrete',section='rectangular',
+        level='Ground',grid=.10,snap_tol=.10,angle_increment=15.0,
+    ):
+        self.doc,self.stack=doc,stack
+        self.start=(float(start[0]),float(start[1]));self.end=self.start
+        self.z=float(z);self.width=float(width);self.height=float(height)
+        self.role=str(role);self.construction=str(construction);self.section=str(section);self.level=str(level)
+        self.grid=grid;self.snap_tol=float(snap_tol)
+        self.angle_increment=(None if angle_increment is None else float(angle_increment))
+        self.cancelled=False;self.last_snap=None;self.angle_snapped=False
+        self.preview={}
+        self.update(*self.start)
+
+    def update(self,x,y):
+        x=float(x);y=float(y);self.last_snap=None;self.angle_snapped=False
+        sp=best_snap(self.doc,x,y,self.snap_tol,self.grid)
+        if sp is not None and hypot(float(sp.x)-self.start[0],float(sp.y)-self.start[1])>1e-9:
+            self.end=(float(sp.x),float(sp.y));self.last_snap=sp
+        else:
+            sx,sy=self.start;dx,dy=x-sx,y-sy;length=hypot(dx,dy)
+            if self.angle_increment is not None and self.angle_increment>0 and length>1e-12:
+                raw=degrees(atan2(dy,dx));angle=round(raw/self.angle_increment)*self.angle_increment
+                a=radians(angle);self.end=(sx+length*cos(a),sy+length*sin(a));self.angle_snapped=True
+            else:self.end=(x,y)
+        sx,sy=self.start;ex,ey=self.end
+        self.preview={
+            'x1':sx,'y1':sy,'x2':ex,'y2':ey,'z':self.z,
+            'width':self.width,'height':self.height,
+            'role':self.role,'construction':self.construction,'section':self.section,'level':self.level,
+        }
+        return HUD({'length':hypot(ex-sx,ey-sy),'x':ex,'y':ey,'z':self.z,'width':self.width,'height':self.height})
+
+    def commit(self):
+        if self.cancelled:raise RuntimeError('transaction cancelled')
+        sx,sy=self.start;ex,ey=self.end
+        if hypot(ex-sx,ey-sy)<0.05:raise ValueError('beam drag is too short; move at least 0.05 m')
+        e=Entity('structural_beam',dict(self.preview),name='Beam')
+        self.stack.execute(AddEntity(e));return e.id
+
+    def cancel(self):self.cancelled=True
+
+
 class MEPTerminalPlaceTransaction:
     """Place one human-authored MEP connection point on the active storey."""
     def __init__(self, doc, stack, system_type, x, y, *, level_z=0.0, elevation=0.50, diameter=None, grid=0.10, snap_tol=0.10, snap_enabled=True):
