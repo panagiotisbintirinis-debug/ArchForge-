@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
 from archforge.core.model import Document, WorkPlane
 from archforge.core.commands import (
     CommandStack, UpdateEntity, CreateRoomFloors, CreateRoomRoofs,
-    DeleteEntities, CreateFloorLevel, SetWorkPlane,
+    DeleteEntities, CreateFloorLevel, SetWorkPlane, RouteAndConnectInfrastructure,
 )
 from archforge.rendering.materials import MATERIAL_PRESETS, material_categories, materials_in_category
 from .plan_view import PlanView
@@ -65,7 +65,7 @@ class MainWindow(QMainWindow):
         # Frame-free openings are currently authored in the authoritative Floor Plan.
         # The resulting wall cut is immediately visible in 3D. Direct wall-surface
         # drawing in 3D can be added later without changing the entity model.
-        if str(tool).startswith('opening_') and self.view is self.pbr_view:
+        if (str(tool).startswith('opening_') or str(tool).startswith('mep_')) and self.view is self.pbr_view:
             self.tabs.setCurrentWidget(self.plan_view)
             self.view = self.plan_view
         if hasattr(self.view, 'set_tool'):
@@ -154,6 +154,36 @@ class MainWindow(QMainWindow):
         self.circulation_button = circulation
         self.stair_action = stair_action
         self.ramp_action = ramp_action
+
+        mep_menu = QMenu(self)
+        water_point = QAction('Water Point', self)
+        water_point.triggered.connect(lambda checked=False: self._set_active_tool('mep_hydraulic'))
+        mep_menu.addAction(water_point)
+
+        electrical_point = QAction('Electrical Point', self)
+        electrical_point.triggered.connect(lambda checked=False: self._set_active_tool('mep_electrical'))
+        mep_menu.addAction(electrical_point)
+
+        hvac_point = QAction('HVAC Point', self)
+        hvac_point.triggered.connect(lambda checked=False: self._set_active_tool('mep_hvac'))
+        mep_menu.addAction(hvac_point)
+
+        mep_menu.addSeparator()
+        route_selected = QAction('Route Selected', self)
+        route_selected.triggered.connect(self._route_selected_mep)
+        mep_menu.addAction(route_selected)
+
+        mep_button = QToolButton(self)
+        mep_button.setText('MEP')
+        mep_button.setToolTip('Place MEP connection points and route between two selected points')
+        mep_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        mep_button.setMenu(mep_menu)
+        toolbar.addWidget(mep_button)
+        self.mep_button = mep_button
+        self.mep_water_action = water_point
+        self.mep_electrical_action = electrical_point
+        self.mep_hvac_action = hvac_point
+        self.mep_route_action = route_selected
 
         for text, tool, key in [
             ('Move', 'move', 'G'), ('Stretch', 'stretch', 'T'), ('Rotate', 'rotate', 'R'),
@@ -629,6 +659,55 @@ class MainWindow(QMainWindow):
                 3000,
             )
             return
+
+    def _route_selected_mep(self):
+        ids=[eid for eid in self.doc.selection if eid in self.doc.entities]
+        if len(ids)!=2:
+            QMessageBox.warning(
+                self,
+                'MEP Route',
+                'Select exactly two MEP points with Ctrl, then choose Route Selected.',
+            )
+            return
+        endpoints=[self.doc.get(eid) for eid in ids]
+        if any(e.kind!='mep_terminal' for e in endpoints):
+            QMessageBox.warning(
+                self,
+                'MEP Route',
+                'Route Selected currently connects two MEP points, not arbitrary objects.',
+            )
+            return
+        systems={str(e.params.get('system_type','')).lower() for e in endpoints}
+        if len(systems)!=1:
+            QMessageBox.warning(
+                self,
+                'MEP Route',
+                'The two MEP points belong to different systems.',
+            )
+            return
+        diameters=[float(e.params.get('diameter',0.0)) for e in endpoints]
+        if abs(diameters[0]-diameters[1])>1e-9:
+            QMessageBox.warning(
+                self,
+                'MEP Route',
+                'The two MEP points have different diameters. A reducer fitting is required and is not added automatically yet.',
+            )
+            return
+        system=next(iter(systems))
+        try:
+            command=RouteAndConnectInfrastructure(
+                ids[0],ids[1],diameters[0],system,grid_resolution=0.05,
+            )
+            self.stack.execute(command)
+            self.doc.select([command.generated_id])
+            self._redraw_views(all_views=True)
+            self.refresh_inspector()
+            self.statusBar().showMessage(
+                f'Routed {system} connection — Undo is available',
+                4000,
+            )
+        except Exception as exc:
+            QMessageBox.warning(self,'MEP Route',str(exc))
 
     def _open_selected_materials(self):
         if len(self.doc.selection) != 1:
