@@ -62,10 +62,15 @@ class MainWindow(QMainWindow):
         if self.view is self.pbr_view:
             self.pbr_view.activate()
         elif self.view is self.structural_view:
-            self.statusBar().showMessage(
-                'Structural View — authoritative structural members only; loads/results require validated analysis',
-                5000,
-            )
+            try:
+                from archforge.structure.graph import build_structural_graph
+                graph=build_structural_graph(self.doc)
+                self.statusBar().showMessage(
+                    f'Structural View — {len(graph.members)} members / {len(graph.nodes)} nodes · loads/results require validated analysis',
+                    5000,
+                )
+            except Exception as exc:
+                self.statusBar().showMessage(f'Structural View — graph issue: {exc}',5000)
         self._redraw_views()
 
     def _set_active_tool(self, tool):
