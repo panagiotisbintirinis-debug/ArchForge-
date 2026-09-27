@@ -111,14 +111,27 @@ class PointerController:
             hud=self.active.update(x,y)
             self.preview=PreviewState('ramp',copy.deepcopy(self.active.preview),hud.values,None)
             return self.preview
-        if self.tool in ('door','window'):
-            self.active=OpeningPlaceTransaction(self.doc,self.stack,self.tool,x,y,tolerance=max(self.snap_tolerance,.35));hud=self.active.update(x,y);seg=self.active.preview_segment();geom={'opening_kind':self.tool,'host_id':self.active.host_id,'params':copy.deepcopy(self.active.preview)}
+        if self.tool in ('door','window','opening_rect','opening_arch'):
+            opening_kind='opening' if self.tool.startswith('opening_') else self.tool
+            opening_shape='arch' if self.tool=='opening_arch' else 'rectangle'
+            self.active=OpeningPlaceTransaction(
+                self.doc,self.stack,opening_kind,x,y,
+                tolerance=max(self.snap_tolerance,.35),
+                shape=opening_shape,
+            )
+            hud=self.active.update(x,y);seg=self.active.preview_segment()
+            geom={
+                'opening_kind':opening_kind,
+                'opening_shape':opening_shape,
+                'host_id':self.active.host_id,
+                'params':copy.deepcopy(self.active.preview),
+            }
             if seg:geom.update({'x1':seg[0][0],'y1':seg[0][1],'x2':seg[1][0],'y2':seg[1][1]})
             self.preview=PreviewState('opening',geom,hud.values,None);return self.preview
         if self.tool=='move':
             ids=list(self.doc.selection)
             if not ids:return self.preview
-            if len(ids)==1 and self.doc.get(ids[0]).kind in ('door','window'):
+            if len(ids)==1 and self.doc.get(ids[0]).kind in ('door','window','opening'):
                 self.active=OpeningEditTransaction(self.doc,self.stack,ids[0],'move')
                 hud=self.active.update(x,y);seg=self.active.preview_segment();geom={'opening_kind':self.active.kind,'host_id':self.active.host_id,'params':copy.deepcopy(self.active.preview),'x1':seg[0][0],'y1':seg[0][1],'x2':seg[1][0],'y2':seg[1][1]};self.preview=PreviewState('opening-edit',geom,hud.values,None,ids[0]);return self.preview
             self.active=MoveTransaction(self.doc,self.stack,ids,origin=(x,y,self.doc.work_plane.origin[2]),grid=self.grid,snap_tol=self.snap_tolerance);self.preview=PreviewState('move',{'entities':copy.deepcopy(self.active.preview)},{'dx':0.,'dy':0.,'distance':0.},None);return self.preview
@@ -128,7 +141,7 @@ class PointerController:
             if e.kind=='wall':self.active=ConnectedWallEndpointStretchTransaction(self.doc,self.stack,e.id,1 if self.active_handle in ('1','start','endpoint1') else 2,self.grid,self.snap_tolerance)
             elif e.kind=='box':self.active=BoxStretchTransaction(self.doc,self.stack,e.id,self.active_handle or 'right')
             elif e.kind=='pod':self.active=PodStretchTransaction(self.doc,self.stack,e.id,self.active_handle or 'right')
-            elif e.kind in ('door','window'):self.active=OpeningEditTransaction(self.doc,self.stack,e.id,self.active_handle or 'right')
+            elif e.kind in ('door','window','opening'):self.active=OpeningEditTransaction(self.doc,self.stack,e.id,self.active_handle or 'right')
             else:raise ValueError('stretch unsupported for entity kind')
             return self.pointer_move(ev)
         if self.tool=='rotate':
