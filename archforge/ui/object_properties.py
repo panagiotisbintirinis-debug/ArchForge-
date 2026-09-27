@@ -30,7 +30,6 @@ PROPERTY_FIELDS = {
         {'id': 'width', 'label': 'Section Width', 'unit': 'm', 'minimum': 0.03, 'step': 0.01},
         {'id': 'depth', 'label': 'Section Depth', 'unit': 'm', 'minimum': 0.03, 'step': 0.01},
         {'id': 'height', 'label': 'Height', 'unit': 'm', 'minimum': 0.05, 'step': 0.05},
-        {'id': 'z', 'label': 'Base Elevation', 'unit': 'm', 'minimum': -20.0, 'maximum': 100.0, 'step': 0.05},
     ),
     'structural_beam': (
         {'id': 'length', 'label': 'Length', 'unit': 'm', 'minimum': 0.05, 'step': 0.05},
