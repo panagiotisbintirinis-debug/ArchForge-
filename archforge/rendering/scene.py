@@ -23,11 +23,19 @@ _MATERIALS: Mapping[str, dict] = {
 _DEFAULT_MATERIAL = {"color": "#bdc5ce", "roughness": 0.64, "metalness": 0.02}
 
 
-def _material(kind: str, selected: bool, entity=None, doc=None) -> dict:
+def _surface_material_id(entity, surface_role: str | None = None):
+    if entity is None:
+        return None
+    if surface_role:
+        overrides = entity.params.get("surface_materials") or {}
+        if isinstance(overrides, dict) and surface_role in overrides:
+            return overrides.get(surface_role)
+    return entity.params.get("material_id")
+
+
+def _material(kind: str, selected: bool, entity=None, doc=None, surface_role: str | None = None) -> dict:
     spec = dict(_MATERIALS.get(kind, _DEFAULT_MATERIAL))
-    material_id = None
-    if entity is not None:
-        material_id = entity.params.get("material_id")
+    material_id = _surface_material_id(entity, surface_role)
     custom = material_spec(material_id)
     if custom is not None:
         spec.update({
@@ -58,17 +66,53 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
         mesh = overrides.get(body.entity_id, body.payload)
         if not isinstance(mesh, MeshPayload):
             continue
+        entity = doc.entities.get(body.entity_id) if doc is not None else None
+        vertices = [[float(x), float(y), float(z)] for x, y, z in mesh.vertices]
+
+        # Walls can carry independent finish materials on semantic faces. Group
+        # triangles by resolved material so one authoritative wall may render as
+        # multiple derived WebGL meshes while retaining one entity identity.
+        if body.semantic_kind == "wall" and entity is not None:
+            groups = {}
+            for tri, role in zip(mesh.triangles, mesh.triangle_surfaces):
+                role = str(role)
+                material_id = _surface_material_id(entity, role)
+                key = str(material_id) if material_id else "__default__"
+                group = groups.setdefault(key, {"triangles": [], "surfaces": [], "role": role})
+                group["triangles"].append([int(tri[0]), int(tri[1]), int(tri[2])])
+                group["surfaces"].append(role)
+            for key, group in groups.items():
+                representative_role = group["role"]
+                objects.append(
+                    {
+                        "id": str(body.entity_id),
+                        "render_part": f"{body.entity_id}:{key}",
+                        "kind": str(body.semantic_kind),
+                        "vertices": vertices,
+                        "triangles": group["triangles"],
+                        "surfaces": group["surfaces"],
+                        "material": _material(
+                            body.semantic_kind,
+                            body.entity_id in selected,
+                            entity=entity,
+                            doc=doc,
+                            surface_role=representative_role,
+                        ),
+                    }
+                )
+            continue
+
         objects.append(
             {
                 "id": str(body.entity_id),
                 "kind": str(body.semantic_kind),
-                "vertices": [[float(x), float(y), float(z)] for x, y, z in mesh.vertices],
+                "vertices": vertices,
                 "triangles": [[int(a), int(b), int(c)] for a, b, c in mesh.triangles],
                 "surfaces": [str(role) for role in mesh.triangle_surfaces],
                 "material": _material(
                     body.semantic_kind,
                     body.entity_id in selected,
-                    entity=(doc.entities.get(body.entity_id) if doc is not None else None),
+                    entity=entity,
                     doc=doc,
                 ),
             }
