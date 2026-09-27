@@ -12,12 +12,12 @@ PROPERTY_FIELDS = {
         {'id': 'thickness', 'label': 'Thickness', 'unit': 'm', 'minimum': 0.01, 'step': 0.01},
     ),
     'door': (
-        {'id': 'width', 'label': 'Width', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
-        {'id': 'height', 'label': 'Height', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
+        {'id': 'width', 'label': 'Frame Width', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
+        {'id': 'height', 'label': 'Frame Height', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
     ),
     'window': (
-        {'id': 'width', 'label': 'Width', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
-        {'id': 'height', 'label': 'Height', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
+        {'id': 'width', 'label': 'Frame Width', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
+        {'id': 'height', 'label': 'Frame Height', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
         {'id': 'sill', 'label': 'Sill Height', 'unit': 'm', 'minimum': 0.0, 'step': 0.05},
     ),
     'opening': (
