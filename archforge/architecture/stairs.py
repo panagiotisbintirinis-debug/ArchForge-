@@ -299,16 +299,44 @@ def _polyline_tail_from_fraction(path: Sequence[Point2], fraction: float) -> Tup
     return (pts[-1],)
 
 
-def stair_opening_polygon(
+def _corridor_rectangle(a: Point2, b: Point2, half_width: float) -> Tuple[Point2, ...]:
+    ax, ay = map(float, a)
+    bx, by = map(float, b)
+    dx, dy = bx - ax, by - ay
+    length = hypot(dx, dy)
+    if length <= 1e-12:
+        return ()
+    nx, ny = -dy / length, dx / length
+    half = float(half_width)
+    return (
+        (ax - nx * half, ay - ny * half),
+        (bx - nx * half, by - ny * half),
+        (bx + nx * half, by + ny * half),
+        (ax + nx * half, ay + ny * half),
+    )
+
+
+def _junction_pad(point: Point2, half_width: float) -> Tuple[Point2, ...]:
+    x, y = map(float, point)
+    half = float(half_width)
+    return (
+        (x - half, y - half),
+        (x + half, y - half),
+        (x + half, y + half),
+        (x - half, y + half),
+    )
+
+
+def stair_opening_polygons(
     candidate: StairCandidate,
     headroom: float = 2.0,
-) -> Tuple[Point2, ...]:
-    """Opening envelope for the upper part of the stair that needs headroom.
+) -> Tuple[Tuple[Point2, ...], ...]:
+    """Convex opening pieces following only the upper stair/headroom path.
 
-    The previous implementation used the complete stair footprint, so a stair
-    beginning outside a room could prevent *any* slab opening. Here the opening
-    begins where the tread elevation enters the required headroom zone below the
-    upper slab and follows only the remaining upper path.
+    Straight stairs produce one oriented rectangle. L/U stairs produce one
+    corridor per remaining flight plus small junction pads so the union follows
+    the actual turn instead of cutting one oversized bounding box. Spiral stairs
+    are approximated by short oriented corridor pieces around their polyline.
     """
     path = stair_centerline(candidate)
     total_rise = max(1e-9, float(candidate.upper_z) - float(candidate.lower_z))
@@ -319,34 +347,49 @@ def stair_opening_polygon(
     )
     fraction = (start_elevation - float(candidate.lower_z)) / total_rise
     upper_path = _polyline_tail_from_fraction(path, fraction)
-    if not upper_path:
+    if len(upper_path) < 2:
         upper_path = path
+    if len(upper_path) < 2:
+        return ()
 
     half = float(candidate.width) / 2.0 + 0.05
-    if candidate.layout == 'straight' and len(upper_path) >= 2:
-        ax, ay = upper_path[0]
-        bx, by = upper_path[-1]
-        dx, dy = bx - ax, by - ay
-        length = hypot(dx, dy)
-        if length > 1e-12:
-            nx, ny = -dy / length, dx / length
-            return (
-                (ax - nx * half, ay - ny * half),
-                (bx - nx * half, by - ny * half),
-                (bx + nx * half, by + ny * half),
-                (ax + nx * half, ay + ny * half),
-            )
+    pieces = []
+    for i in range(len(upper_path) - 1):
+        rect = _corridor_rectangle(upper_path[i], upper_path[i + 1], half)
+        if rect:
+            pieces.append(rect)
 
-    # Turning/spiral layouts still use a conservative envelope until the opening
-    # subsystem supports multi-segment unions. The slab cutter itself is oriented,
-    # so ramp and straight-stair openings retain their exact rotation.
-    xs = [p[0] for p in upper_path]
-    ys = [p[1] for p in upper_path]
+    # Fill joints between differently directed corridor rectangles. A square pad
+    # is rotation-invariant and avoids tiny uncut wedges at L/U/spiral bends.
+    if len(upper_path) > 2:
+        for point in upper_path[1:-1]:
+            pieces.append(_junction_pad(point, half))
+
+    return tuple(pieces)
+
+
+def stair_opening_polygon(
+    candidate: StairCandidate,
+    headroom: float = 2.0,
+) -> Tuple[Point2, ...]:
+    """Compatibility envelope for callers that still require one polygon.
+
+    Geometry cutting uses :func:`stair_opening_polygons` so turning stairs are
+    no longer reduced to this bounding envelope.
+    """
+    pieces = stair_opening_polygons(candidate, headroom=headroom)
+    if not pieces:
+        return ()
+    if len(pieces) == 1:
+        return pieces[0]
+    points = [point for polygon in pieces for point in polygon]
+    xs = [p[0] for p in points]
+    ys = [p[1] for p in points]
     return (
-        (min(xs) - half, min(ys) - half),
-        (max(xs) + half, min(ys) - half),
-        (max(xs) + half, max(ys) + half),
-        (min(xs) - half, max(ys) + half),
+        (min(xs), min(ys)),
+        (max(xs), min(ys)),
+        (max(xs), max(ys)),
+        (min(xs), max(ys)),
     )
 
 
