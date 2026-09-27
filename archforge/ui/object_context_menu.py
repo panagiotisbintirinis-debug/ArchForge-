@@ -44,6 +44,7 @@ ENTITY_MENUS = {
     'door': ('properties', 'move', 'stretch', None, 'delete'),
     'window': ('properties', 'move', 'stretch', None, 'delete'),
     'opening': ('properties', 'move', 'stretch', None, 'delete'),
+    'mep_terminal': ('properties', 'move', None, 'delete'),
     'floor': ('properties', 'materials', 'move', None, 'delete'),
     'room': ('properties', 'move', None, 'delete'),
     'room_floor': ('properties', 'materials', None, 'delete'),
