@@ -155,35 +155,34 @@ class MainWindow(QMainWindow):
         self.stair_action = stair_action
         self.ramp_action = ramp_action
 
-        mep_menu = QMenu(self)
-        water_point = QAction('Water Point', self)
-        water_point.triggered.connect(lambda checked=False: self._set_active_tool('mep_hydraulic'))
-        mep_menu.addAction(water_point)
+        structure_menu = QMenu(self)
 
-        electrical_point = QAction('Electrical Point', self)
-        electrical_point.triggered.connect(lambda checked=False: self._set_active_tool('mep_electrical'))
-        mep_menu.addAction(electrical_point)
+        column_action = QAction('Column / Pillar', self)
+        column_action.setToolTip('Place a semantic Column/Post; Role and Construction remain editable.')
+        column_action.triggered.connect(
+            lambda checked=False: self._set_active_tool('structural_column')
+        )
+        structure_menu.addAction(column_action)
 
-        hvac_point = QAction('HVAC Point', self)
-        hvac_point.triggered.connect(lambda checked=False: self._set_active_tool('mep_hvac'))
-        mep_menu.addAction(hvac_point)
+        beam_action = QAction('Beam', self)
+        beam_action.setToolTip('Draw a semantic Beam between two plan points.')
+        beam_action.triggered.connect(
+            lambda checked=False: self._set_active_tool('structural_beam')
+        )
+        structure_menu.addAction(beam_action)
 
-        mep_menu.addSeparator()
-        route_selected = QAction('Route Selected', self)
-        route_selected.triggered.connect(self._route_selected_mep)
-        mep_menu.addAction(route_selected)
+        structure_button = QToolButton(self)
+        structure_button.setText('Structure')
+        structure_button.setToolTip('Columns and Beams — structural, pergola, or architectural roles')
+        structure_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        structure_button.setMenu(structure_menu)
+        structure_button.setDefaultAction(column_action)
+        structure_button.setText('Structure')
+        toolbar.addWidget(structure_button)
 
-        mep_button = QToolButton(self)
-        mep_button.setText('MEP')
-        mep_button.setToolTip('Place MEP connection points and route between two selected points')
-        mep_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        mep_button.setMenu(mep_menu)
-        toolbar.addWidget(mep_button)
-        self.mep_button = mep_button
-        self.mep_water_action = water_point
-        self.mep_electrical_action = electrical_point
-        self.mep_hvac_action = hvac_point
-        self.mep_route_action = route_selected
+        self.structure_button = structure_button
+        self.structural_column_action = column_action
+        self.structural_beam_action = beam_action
 
         for text, tool, key in [
             ('Move', 'move', 'G'), ('Stretch', 'stretch', 'T'), ('Rotate', 'rotate', 'R'),
