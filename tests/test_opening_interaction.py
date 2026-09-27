@@ -18,3 +18,20 @@ def test_window_place_transaction_preview_and_commit():
 
 def test_pointer_controller_door_drag_commits_attached_door():
     d=Document();w=wall(d);s=CommandStack(d);c=PointerController(d,s);c.set_tool('door');p=c.pointer_down(PointerEvent(2,.1));assert p.kind=='opening' and p.hud['valid']==1.;c.pointer_move(PointerEvent(3,.05));r=c.pointer_up(PointerEvent(3,.05));assert r.entity_id in d.entities and d.get(r.entity_id).parent_id==w.id and d.get(r.entity_id).kind=='door'
+
+
+def test_pointer_controller_arch_opening_commits_frame_free_wall_cut():
+    d=Document();w=wall(d);s=CommandStack(d);c=PointerController(d,s)
+    c.set_tool('opening_arch')
+    p=c.pointer_down(PointerEvent(2.5,.1))
+    assert p.kind=='opening'
+    assert p.hud['valid']==1.0
+    assert p.geometry['opening_kind']=='opening'
+    assert p.geometry['opening_shape']=='arch'
+
+    result=c.pointer_up(PointerEvent(2.5,.1))
+    opening=d.get(result.entity_id)
+    assert opening.kind=='opening'
+    assert opening.parent_id==w.id
+    assert opening.params['shape']=='arch'
+    assert opening.params['arch_rise']>0
