@@ -1611,7 +1611,7 @@ class PBRViewport(QWidget):
             self.statusChanged.emit("Move target no longer exists")
             return
         entity = self.doc.get(entity_id)
-        supported = {"stair", "ramp", "wall", "box", "pod", "floor", "room", "mechanical_part"}
+        supported = {"stair", "ramp", "wall", "box", "pod", "floor", "room", "mechanical_part", "structural_column", "structural_beam"}
         if entity.kind not in supported:
             self.statusChanged.emit(f"Move in 3D is not supported for {entity.kind}")
             return
@@ -1709,7 +1709,7 @@ class PBRViewport(QWidget):
             self.statusChanged.emit("Rotate target no longer exists")
             return
         entity = self.doc.get(entity_id)
-        supported = {"stair", "ramp", "wall", "box", "pod"}
+        supported = {"stair", "ramp", "wall", "box", "pod", "structural_column", "structural_beam"}
         if entity.kind not in supported:
             self.statusChanged.emit(f"Rotate in 3D is not supported for {entity.kind}")
             return
