@@ -66,9 +66,13 @@ class MoveEntities(Command):
             self.before_modifiers={mid:copy.deepcopy(m) for mid,m in doc.surface_modifiers.items() if m.target.owner_id in self.ids and _legacy_world_modifier(m)}
         for i in self.ids:
             e=doc.get(i); p=e.params
-            if e.kind in ('box','mechanical_part','structural_column'):doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy,'z':p['z']+self.dz})
+            if e.kind in ('structural_column','structural_beam') and abs(float(self.dz))>1e-12:
+                raise ValueError(f'{e.kind} vertical position is level-driven; change its level instead')
+            if e.kind in ('box','mechanical_part'):doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy,'z':p['z']+self.dz})
+            elif e.kind=='structural_column':doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy})
             elif e.kind=='mep_terminal':doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy,'elevation':p['elevation']+self.dz})
-            elif e.kind in ('wall','structural_beam'):doc.update(i,{'x1':p['x1']+self.dx,'x2':p['x2']+self.dx,'y1':p['y1']+self.dy,'y2':p['y2']+self.dy,'z':p['z']+self.dz})
+            elif e.kind=='wall':doc.update(i,{'x1':p['x1']+self.dx,'x2':p['x2']+self.dx,'y1':p['y1']+self.dy,'y2':p['y2']+self.dy,'z':p['z']+self.dz})
+            elif e.kind=='structural_beam':doc.update(i,{'x1':p['x1']+self.dx,'x2':p['x2']+self.dx,'y1':p['y1']+self.dy,'y2':p['y2']+self.dy})
             elif e.kind=='pod':doc.update(i,{'cx':p['cx']+self.dx,'cy':p['cy']+self.dy,'floor_level':p['floor_level']+self.dz})
             elif e.kind in ('floor','room'):
                 doc.update(i,{'points':[(x+self.dx,y+self.dy) for x,y in p['points']], 'z':p['z']+self.dz})
