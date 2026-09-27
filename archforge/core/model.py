@@ -145,6 +145,13 @@ def _turn_direction(v):
     return 1 if value > 0 else -1
 
 
+def _opening_shape(v):
+    value = str(v).lower()
+    if value not in ('rectangle', 'arch'):
+        raise ValueError('opening shape must be rectangle or arch')
+    return value
+
+
 def validate_conduit_spec(start_node, end_node, diameter, system_type, path_vertices):
     return {
         'start_node': _conduit_node(start_node),
@@ -195,6 +202,7 @@ class Entity:
 
 _ROOM_SLAB = {'room_signature': _room_signature, 'thickness': _positive, 'offset_z': _finite}
 _OPENING = {'offset': _finite, 'surface_u': _finite, 'width': _positive, 'height': _positive, 'sill': _finite, 'flat_margin': _nonnegative}
+_ARCH_OPENING = {**_OPENING, 'shape': _opening_shape, 'arch_rise': _positive}
 SCHEMAS = {
     'box': {'x': _finite, 'y': _finite, 'z': _finite, 'width': _positive, 'depth': _positive, 'height': _positive, 'rotation': _finite},
     'wall': {'x1': _finite, 'y1': _finite, 'z': _finite, 'x2': _finite, 'y2': _finite, 'height': _positive, 'thickness': _positive},
@@ -240,6 +248,7 @@ SCHEMAS = {
     'room_roof': {**_ROOM_SLAB, 'roof_type': _nonempty},
     'door': _OPENING,
     'window': _OPENING,
+    'opening': _ARCH_OPENING,
     'organic_opening_patch': {'opening_id': _nonempty, 'host_id': _nonempty, 'status': _nonempty},
     'mechanical_part': {'x': _finite, 'y': _finite, 'z': _finite, 'width': _positive, 'depth': _positive, 'height': _positive, 'rotation': _finite},
     'mechanical_joint': {'joint_type': _nonempty, 'parent_part': _nonempty, 'child_part': _nonempty, 'anchor': _vec3, 'axis': _vec3, 'min_value': _finite, 'max_value': _finite, 'value': _finite},
@@ -303,7 +312,7 @@ class Document:
         self._entities = value
         self._openings_by_host.clear()
         for entity_id, entity in value.items():
-            if entity.kind in ('door', 'window') and entity.parent_id:
+            if entity.kind in ('door', 'window', 'opening') and entity.parent_id:
                 self._openings_by_host.setdefault(entity.parent_id, []).append(entity_id)
         if hasattr(self, '_change_serial') and hasattr(self, 'dirty'):
             self._change_serial += 1
@@ -363,13 +372,13 @@ class Document:
         return int(self._dirty_generation.get(entity_id, 0))
 
     def _index_entity(self, entity: Entity) -> None:
-        if entity.kind in ('door', 'window') and entity.parent_id:
+        if entity.kind in ('door', 'window', 'opening') and entity.parent_id:
             ids = self._openings_by_host.setdefault(entity.parent_id, [])
             if entity.id not in ids:
                 ids.append(entity.id)
 
     def _deindex_entity(self, entity: Entity) -> None:
-        if entity.kind in ('door', 'window') and entity.parent_id:
+        if entity.kind in ('door', 'window', 'opening') and entity.parent_id:
             ids = self._openings_by_host.get(entity.parent_id)
             if ids is not None:
                 try:
@@ -402,7 +411,7 @@ class Document:
             self._modifiers_by_owner.pop(owner_id, None)
 
     def _mark_related_geometry_dirty(self, entity: Entity) -> None:
-        if entity.kind in ('door', 'window') and entity.parent_id:
+        if entity.kind in ('door', 'window', 'opening') and entity.parent_id:
             self.mark_dirty(entity.parent_id)
         elif entity.kind == 'organic_opening_patch':
             host_id = entity.params.get('host_id')
@@ -443,7 +452,7 @@ class Document:
             if cid == entity.id:
                 continue
             other = self.entities.get(cid)
-            if not other or other.kind not in ('door', 'window'):
+            if not other or other.kind not in ('door', 'window', 'opening'):
                 continue
             q = other.params
             v0 = float(q['offset']) - float(q['width']) / 2.0
@@ -456,17 +465,19 @@ class Document:
                 raise ValueError('wall openings must not overlap')
 
     def _validate_links(self, entity):
-        if entity.kind in ('door', 'window'):
+        if entity.kind in ('door', 'window', 'opening'):
             if not entity.parent_id or entity.parent_id not in self.entities:
-                raise ValueError('door/window must be attached to an existing wall or pod')
+                raise ValueError('opening object must be attached to an existing host')
             host = self.entities[entity.parent_id]
             if host.kind == 'wall':
                 from archforge.architecture.openings import validate_opening
                 validate_opening(host.params, entity.params, entity.kind)
                 self._validate_wall_opening_conflicts(entity)
-            elif host.kind == 'pod':
+            elif host.kind == 'pod' and entity.kind in ('door', 'window'):
                 from archforge.architecture.openings import validate_pod_opening
                 validate_pod_opening(host.params, entity.params, entity.kind)
+            elif entity.kind == 'opening':
+                raise ValueError('free architectural opening must be attached to a wall')
             else:
                 raise ValueError('door/window host must be a wall or pod')
         elif entity.kind == 'arboreal_branch':
@@ -483,7 +494,7 @@ class Document:
         if entity.parent_id:
             self.children.setdefault(entity.parent_id, []).append(entity.id)
         self._index_entity(entity)
-        if entity.parent_id and entity.kind in ('door', 'window'):
+        if entity.parent_id and entity.kind in ('door', 'window', 'opening'):
             self.add_dependency(entity.parent_id, entity.id)
         if entity.kind == 'arboreal_branch':
             self.add_dependency(entity.params['core_id'], entity.id)
@@ -528,7 +539,7 @@ class Document:
             from archforge.architecture.openings import validate_opening
             for cid in self.children.get(eid, ()):
                 child = self.entities.get(cid)
-                if child and child.kind in ('door', 'window'):
+                if child and child.kind in ('door', 'window', 'opening'):
                     validate_opening(params, child.params, child.kind)
         elif entity.kind == 'pod':
             from archforge.architecture.openings import validate_pod_opening
@@ -750,13 +761,13 @@ class Document:
         doc.room_bindings = copy.deepcopy(data.get('room_bindings', {}))
         deferred = []
         for raw in data.get('entities', []):
-            if raw.get('kind') in ('door', 'window', 'organic_opening_patch', 'mechanical_joint', 'mechanical_mount'):
+            if raw.get('kind') in ('door', 'window', 'opening', 'organic_opening_patch', 'mechanical_joint', 'mechanical_mount'):
                 deferred.append(raw)
             else:
                 doc.add(Entity(**raw))
-        for raw in [r for r in deferred if r.get('kind') in ('door', 'window')]:
+        for raw in [r for r in deferred if r.get('kind') in ('door', 'window', 'opening')]:
             doc.add(Entity(**raw))
-        for raw in [r for r in deferred if r.get('kind') not in ('door', 'window')]:
+        for raw in [r for r in deferred if r.get('kind') not in ('door', 'window', 'opening')]:
             doc.add(Entity(**raw))
         for source, deps in data.get('dependencies', {}).items():
             for dep in deps:
