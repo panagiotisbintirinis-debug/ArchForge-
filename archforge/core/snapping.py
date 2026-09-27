@@ -90,7 +90,12 @@ def best_snap(doc:Document,x:float,y:float,tolerance:float,grid:float|None=None,
     if best:return best
     if grid:
         gx=round(x/grid)*grid;gy=round(y/grid)*grid
-        if hypot(gx-x,gy-y)<=tolerance:return SnapPoint(gx,gy,active_z,'construction_grid','')
+        # Construction grid is a soft magnet, not a quantizer. With a 0.10 m
+        # step, using the full semantic snap tolerance would capture virtually
+        # every pointer position. Limit grid capture to 20% of the step.
+        grid_tolerance=min(float(tolerance),abs(float(grid))*0.20)
+        if hypot(gx-x,gy-y)<=grid_tolerance:
+            return SnapPoint(gx,gy,active_z,'construction_grid','')
     return None
 
 
