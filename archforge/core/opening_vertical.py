@@ -7,7 +7,7 @@ def opening_elevation_handles(doc,eid,axis,override_params=None):
     """Return [(handle, x_or_y, z), ...] for a selected opening in XZ/YZ."""
     if axis not in ('XZ','YZ'): raise ValueError('axis must be XZ or YZ')
     e=doc.get(eid)
-    if e.kind not in ('door','window') or not e.parent_id or e.parent_id not in doc.entities:return []
+    if e.kind not in ('door','window','opening') or not e.parent_id or e.parent_id not in doc.entities:return []
     p=override_params if override_params is not None else e.params
     host=doc.get(e.parent_id).params
     from archforge.architecture.openings import elevation_rect
@@ -15,7 +15,7 @@ def opening_elevation_handles(doc,eid,axis,override_params=None):
     xs=[q[0] for q in rect];mid=(min(xs)+max(xs))/2
     base=float(host['z']);bottom=base+float(p.get('sill',0.0));top=bottom+float(p['height'])
     out=[('top',mid,top)]
-    if e.kind=='window':out.append(('bottom',mid,bottom))
+    if e.kind in ('window','opening'):out.append(('bottom',mid,bottom))
     return out
 
 
@@ -27,8 +27,8 @@ class OpeningVerticalEditTransaction:
     """
     def __init__(self, doc, stack, eid, handle='top'):
         e=doc.get(eid)
-        if e.kind not in ('door','window'):
-            raise ValueError('vertical opening edit requires door/window')
+        if e.kind not in ('door','window','opening'):
+            raise ValueError('vertical opening edit requires door/window/opening')
         if handle not in ('top','bottom'):
             raise ValueError('opening elevation handle must be top or bottom')
         if e.kind=='door' and handle=='bottom':
