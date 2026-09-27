@@ -121,3 +121,41 @@ def test_selected_material_keeps_surface_color_and_adds_highlight():
     assert material['color'] == '#5b5c58'
     assert material['emissive'] == '#1f5f93'
     assert material['emissiveIntensity'] == 0.28
+
+
+def test_wall_side_materials_render_independently_for_one_authoritative_wall():
+    mesh = MeshPayload(
+        vertices=(
+            (0.0, 0.0, 0.0), (2.0, 0.0, 0.0), (0.0, 0.0, 3.0),
+            (0.0, 0.15, 0.0), (2.0, 0.15, 0.0), (0.0, 0.15, 3.0),
+        ),
+        triangles=((0, 1, 2), (3, 5, 4)),
+        triangle_surfaces=("exterior", "interior"),
+    )
+    body = SimpleNamespace(entity_id="two-sided-wall", semantic_kind="wall", payload=mesh)
+    evaluation = SimpleNamespace(bodies=(body,))
+    doc = Document()
+    doc.add(Entity(
+        'wall',
+        {
+            'x1': 0.0, 'y1': 0.0, 'x2': 2.0, 'y2': 0.0,
+            'z': 0.0, 'height': 3.0, 'thickness': 0.15,
+            'surface_materials': {
+                'exterior': 'wood_oak',
+                'interior': 'stone_dark',
+            },
+        },
+        id='two-sided-wall',
+    ))
+
+    payload = build_pbr_scene_payload(evaluation, doc=doc)
+    objects = payload['objects']
+
+    assert len(objects) == 2
+    assert {obj['id'] for obj in objects} == {'two-sided-wall'}
+    materials = {obj['material'].get('material_id') for obj in objects}
+    assert materials == {'wood_oak', 'stone_dark'}
+
+    by_material = {obj['material']['material_id']: obj for obj in objects}
+    assert by_material['wood_oak']['surfaces'] == ['exterior']
+    assert by_material['stone_dark']['surfaces'] == ['interior']
