@@ -74,3 +74,35 @@ def test_frame_free_opening_rejects_non_wall_host():
             },
             parent_id=pod.id,
         ))
+
+
+def test_arch_opening_elevation_profile_is_not_rectangular():
+    from archforge.architecture.openings import elevation_profile
+    wall_params={'x1':0,'y1':0,'x2':5,'y2':0,'z':0,'height':3,'thickness':.2}
+    opening_params={
+        'offset':2.5,'width':1.2,'height':2.4,'sill':0.0,
+        'shape':'arch','arch_rise':0.6,
+    }
+    profile=elevation_profile(wall_params,opening_params,'XZ',samples=12)
+
+    assert len(profile)>4
+    z_values=[p[1] for p in profile]
+    assert max(z_values)==2.4
+    spring=2.4-0.6
+    # Both spring points exist below the crown, proving this is not a rectangle.
+    assert any(abs(z-spring)<1e-9 for z in z_values)
+
+
+def test_arch_shape_keeps_upper_corners_solid():
+    from archforge.geometry.wall_detail import _opening_contains
+    opening={
+        'u0':2.0,'u1':3.0,'z0':0.0,'z1':2.5,
+        'shape':'arch','arch_rise':0.5,
+    }
+
+    # Below the spring line the passage is fully open.
+    assert _opening_contains(opening,2.05,1.9)
+    # Near the crown center it is also open.
+    assert _opening_contains(opening,2.5,2.45)
+    # Upper corner lies outside the curved arch and must remain wall.
+    assert not _opening_contains(opening,2.05,2.45)
