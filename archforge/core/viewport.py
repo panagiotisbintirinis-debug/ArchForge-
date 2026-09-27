@@ -4,7 +4,7 @@ from typing import Dict, Any, Optional, Tuple, List
 import copy
 from .model import Document
 from .commands import CommandStack
-from .interaction import MoveTransaction,WallDrawTransaction,WallEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction,OpeningPlaceTransaction,OpeningEditTransaction,StairPlaceTransaction,RampPlaceTransaction
+from .interaction import MoveTransaction,WallDrawTransaction,WallEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction,OpeningPlaceTransaction,OpeningEditTransaction,StairPlaceTransaction,RampPlaceTransaction,MEPTerminalPlaceTransaction
 from .wall_junction import ConnectedWallEndpointStretchTransaction
 from .snapping import best_snap
 
@@ -101,6 +101,24 @@ class PointerController:
                 self._snap_dict(sp),
             )
             return self.preview
+        if self.tool in ('mep_hydraulic','mep_electrical','mep_hvac'):
+            system_type=self.tool.replace('mep_','')
+            self.active=MEPTerminalPlaceTransaction(
+                self.doc,self.stack,system_type,x,y,
+                level_z=self.doc.work_plane.origin[2],
+                elevation=0.50,
+                grid=self.grid,
+                snap_tol=self.snap_tolerance,
+                snap_enabled=self.snap_enabled and not ev.shift,
+            )
+            hud=self.active.update(x,y)
+            self.preview=PreviewState(
+                'mep-terminal',
+                copy.deepcopy(self.active.preview),
+                hud.values,
+                self._snap_dict(self.active.last_snap),
+            )
+            return self.preview
         if self.tool=='stair':
             self.active=StairPlaceTransaction(self.doc,self.stack,(x,y))
             hud=self.active.update(x,y)
@@ -173,6 +191,15 @@ class PointerController:
         elif isinstance(self.active,PodStretchTransaction):
             hud=self.active.update(x=x) if self.active.handle in ('left','right') else self.active.update(y=y);self.preview=PreviewState('stretch',copy.deepcopy(self.active.preview),hud.values,None,self.active.eid)
         elif isinstance(self.active,RotateTransaction):hud=self.active.update_pointer(x,y,self._rotate_start_angle,snap=self.snap_enabled and not ev.shift);self.preview=PreviewState('rotate',copy.deepcopy(self.active.preview),hud.values,None,self.active.eid)
+        elif isinstance(self.active,MEPTerminalPlaceTransaction):
+            self.active.snap_enabled=self.snap_enabled and not ev.shift
+            hud=self.active.update(x,y)
+            self.preview=PreviewState(
+                'mep-terminal',
+                copy.deepcopy(self.active.preview),
+                hud.values,
+                self._snap_dict(self.active.last_snap),
+            )
         elif isinstance(self.active,OpeningPlaceTransaction):
             hud=self.active.update(x,y);seg=self.active.preview_segment();geom={'opening_kind':self.active.kind,'host_id':self.active.host_id,'params':copy.deepcopy(self.active.preview)}
             if seg:geom.update({'x1':seg[0][0],'y1':seg[0][1],'x2':seg[1][0],'y2':seg[1][1]})
@@ -200,6 +227,7 @@ class PointerController:
         self.pointer_move(ev);committed_id=None
         if isinstance(self.active,WallDrawTransaction):committed_id=self.active.commit((exact or {}).get('length'))
         elif isinstance(self.active,(ConnectedWallEndpointStretchTransaction,WallEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction,OpeningEditTransaction)):self.active.commit();committed_id=getattr(self.active,'eid',None)
+        elif isinstance(self.active,MEPTerminalPlaceTransaction):committed_id=self.active.commit()
         elif isinstance(self.active,OpeningPlaceTransaction):committed_id=self.active.commit()
         elif isinstance(self.active,StairPlaceTransaction):committed_id=self.active.commit()
         elif isinstance(self.active,RampPlaceTransaction):committed_id=self.active.commit()
