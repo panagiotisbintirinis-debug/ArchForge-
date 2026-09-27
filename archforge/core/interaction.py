@@ -221,6 +221,7 @@ class WallDrawTransaction:
         angle_increment=90.0,
         reference_angle_deg=0.0,
         angle_enabled=True,
+        min_length=0.05,
     ):
         self.doc,self.stack=doc,stack
         self.start=(float(start[0]),float(start[1]))
@@ -231,6 +232,7 @@ class WallDrawTransaction:
         self.angle_increment=(None if angle_increment is None else float(angle_increment))
         self.reference_angle_deg=float(reference_angle_deg)
         self.angle_enabled=bool(angle_enabled)
+        self.min_length=max(0.0,float(min_length))
         self.last_snap=None
         self.angle_snapped=False
         self.cancelled=False
@@ -287,7 +289,10 @@ class WallDrawTransaction:
             if exact_length<=0:raise ValueError('length must be > 0')
             if L==0:raise ValueError('cannot set exact length for zero direction')
             ex=sx+dx/L*exact_length;ey=sy+dy/L*exact_length;L=exact_length
-        if L==0:raise ValueError('zero-length wall')
+        if L < self.min_length:
+            raise ValueError(
+                f'wall drag is too short ({L:.3f} m); move at least {self.min_length:.2f} m'
+            )
         e=Entity('wall',{'x1':sx,'y1':sy,'x2':ex,'y2':ey,'z':self.z,'height':self.height,'thickness':self.thickness},name='Wall')
         self.stack.execute(AddEntity(e));return e.id
     def cancel(self):self.cancelled=True
