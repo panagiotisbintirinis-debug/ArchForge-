@@ -513,6 +513,12 @@ class MEPPathRouter:
 
         if entity.kind in ('box', 'mechanical_part'):
             return (float(p['x']), float(p['y']), float(p['z']) + float(p['height']) / 2.0)
+        if entity.kind == 'mep_terminal':
+            return (
+                float(p['x']),
+                float(p['y']),
+                float(p['level_z']) + float(p['elevation']),
+            )
         if entity.kind == 'wall':
             return (
                 (float(p['x1']) + float(p['x2'])) / 2.0,
