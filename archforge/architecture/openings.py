@@ -18,9 +18,10 @@ def validate_opening(wall_params, opening_params, kind="window"):
         shape=str(opening_params.get("shape","rectangle")).lower()
         if shape not in ("rectangle","arch"):
             raise ValueError("opening shape must be rectangle or arch")
-        rise=float(opening_params.get("arch_rise",min(width/2.0,height)))
-        if rise <= 0 or rise > height:
-            raise ValueError("arch rise must be > 0 and no greater than opening height")
+        if shape=="arch":
+            rise=float(opening_params.get("arch_rise",min(width/2.0,height)))
+            if rise <= 0 or rise > height:
+                raise ValueError("arch rise must be > 0 and no greater than opening height")
     return True
 
 
