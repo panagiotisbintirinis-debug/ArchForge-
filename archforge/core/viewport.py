@@ -32,12 +32,14 @@ class IncrementalViewportAdapter:
 
 class PointerController:
     def __init__(self,doc,stack):
-        self.doc=doc;self.stack=stack;self.tool='select';self.active=None;self.active_entity=None;self.active_handle=None;self.preview=PreviewState();self.grid=.1;self.snap_tolerance=.10;self.angle_increment=15.;self.snap_enabled=True
+        self.doc=doc;self.stack=stack;self.tool='select';self.active=None;self.active_entity=None;self.active_handle=None;self.preview=PreviewState();self.grid=.1;self.snap_tolerance=.10;self.angle_increment=15.;self.wall_angle_increment=90.;self.snap_enabled=True
     def set_tool(self,tool):
         if self.active is not None:self.cancel()
         self.tool=tool;self.preview=PreviewState()
     def set_snap_enabled(self,enabled):
         self.snap_enabled=bool(enabled)
+    def set_wall_angle_increment(self,increment):
+        self.wall_angle_increment=None if increment is None else float(increment)
     def set_target(self,entity_id,handle=None):self.active_entity=entity_id;self.active_handle=handle
     def _world(self,ev):return self.doc.work_plane.unproject(ev.a,ev.b)
     def _plan_xy(self,ev):x,y,_=self._world(ev);return x,y
@@ -50,10 +52,36 @@ class PointerController:
     def pointer_down(self,ev):
         x,y=self._plan_xy(ev)
         if self.tool=='wall':
-            sp=best_snap(self.doc,x,y,self.snap_tolerance,self.grid) if self.snap_enabled and not ev.shift else None
+            geometry_snap_enabled=self.snap_enabled and not ev.shift
+            sp=best_snap(self.doc,x,y,self.snap_tolerance,self.grid) if geometry_snap_enabled else None
             sx,sy=(sp.x,sp.y) if sp else (x,y)
-            self.active=WallDrawTransaction(self.doc,self.stack,(sx,sy),z=self.doc.work_plane.origin[2],grid=self.grid,snap_tol=self.snap_tolerance,snap_enabled=self.snap_enabled and not ev.shift)
-            self.preview=PreviewState('wall',{'x1':sx,'y1':sy,'x2':sx,'y2':sy,'z':self.doc.work_plane.origin[2]}, {}, self._snap_dict(sp));return self.preview
+            reference_angle=0.0
+            if sp is not None and sp.entity_id and sp.entity_id in self.doc.entities:
+                ref=self.doc.get(sp.entity_id)
+                if ref.kind=='wall':
+                    import math
+                    rp=ref.params
+                    reference_angle=math.degrees(math.atan2(
+                        float(rp['y2'])-float(rp['y1']),
+                        float(rp['x2'])-float(rp['x1']),
+                    ))
+            self.active=WallDrawTransaction(
+                self.doc,self.stack,(sx,sy),
+                z=self.doc.work_plane.origin[2],
+                grid=self.grid,
+                snap_tol=self.snap_tolerance,
+                snap_enabled=geometry_snap_enabled,
+                angle_increment=self.wall_angle_increment,
+                reference_angle_deg=reference_angle,
+                angle_enabled=not ev.shift,
+            )
+            self.preview=PreviewState(
+                'wall',
+                {'x1':sx,'y1':sy,'x2':sx,'y2':sy,'z':self.doc.work_plane.origin[2]},
+                {'reference_angle_deg':reference_angle},
+                self._snap_dict(sp),
+            )
+            return self.preview
         if self.tool=='stair':
             self.active=StairPlaceTransaction(self.doc,self.stack,(x,y))
             hud=self.active.update(x,y)
@@ -92,9 +120,20 @@ class PointerController:
         x,y=self._plan_xy(ev)
         if isinstance(self.active,WallDrawTransaction):
             self.active.snap_enabled=self.snap_enabled and not ev.shift
+            self.active.angle_enabled=not ev.shift
             hud=self.active.update(x,y);sx,sy=self.active.start;ex,ey=self.active.end
-            sp=best_snap(self.doc,x,y,self.snap_tolerance,self.grid) if self.active.snap_enabled else None
-            self.preview=PreviewState('wall',{'x1':sx,'y1':sy,'x2':ex,'y2':ey,'z':self.active.z},hud.values,self._snap_dict(sp))
+            snap_info=self._snap_dict(self.active.last_snap)
+            if snap_info is None and self.active.angle_snapped:
+                snap_info={
+                    'x':ex,'y':ey,'z':self.active.z,
+                    'kind':'angle','entity_id':'',
+                }
+            self.preview=PreviewState(
+                'wall',
+                {'x1':sx,'y1':sy,'x2':ex,'y2':ey,'z':self.active.z},
+                hud.values,
+                snap_info,
+            )
         elif isinstance(self.active,ConnectedWallEndpointStretchTransaction):
             hud=self.active.update(x,y);geom=copy.deepcopy(self.active.preview);geom['entities']=copy.deepcopy(self.active.previews);self.preview=PreviewState('stretch',geom,hud.values,None,self.active.eid)
         elif isinstance(self.active,WallEndpointStretchTransaction):hud=self.active.update(x,y);self.preview=PreviewState('stretch',copy.deepcopy(self.active.preview),hud.values,None,self.active.eid)
