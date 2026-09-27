@@ -7,27 +7,12 @@ def wall_length(wall_params):
     return hypot(wall_params["x2"]-wall_params["x1"], wall_params["y2"]-wall_params["y1"])
 
 
-def _wall_height_at(wall_params, offset, length):
-    """Return available wall height at host-local offset, preserving legacy walls."""
-    legacy=float(wall_params["height"])
-    start=float(wall_params.get("start_height", legacy)); end=float(wall_params.get("end_height", legacy))
-    if not all(isfinite(v) and v > 0 for v in (start, end)):
-        raise ValueError("wall endpoint heights must be finite and positive")
-    if length <= 1e-12:
-        raise ValueError("host wall has zero length")
-    t=max(0.0,min(1.0,float(offset)/float(length)))
-    return start+(end-start)*t
-
-
 def validate_opening(wall_params, opening_params, kind="window"):
     length=wall_length(wall_params)
     width=float(opening_params["width"]); height=float(opening_params["height"]); offset=float(opening_params["offset"]); sill=float(opening_params.get("sill",0.0))
     if width <= 0 or height <= 0: raise ValueError("opening width/height must be positive")
-    u0=offset-width/2;u1=offset+width/2
-    if u0 < 0 or u1 > length: raise ValueError("opening must fit within host wall")
-    # A linear semantic wall top reaches its minimum over the opening at one jamb.
-    available=min(_wall_height_at(wall_params,u0,length),_wall_height_at(wall_params,u1,length))
-    if sill < 0 or sill+height > available+1e-9: raise ValueError("opening must fit within local wall height")
+    if offset-width/2 < 0 or offset+width/2 > length: raise ValueError("opening must fit within host wall")
+    if sill < 0 or sill+height > wall_params["height"]: raise ValueError("opening must fit within wall height")
     if kind=="door" and abs(sill)>1e-12: raise ValueError("door sill must be zero")
     return True
 
@@ -143,3 +128,87 @@ def nearest_wall_projection(doc, x, y, tolerance=0.35):
         if dist <= tolerance and (best is None or dist < best["distance"]):
             best={"wall_id":eid,"offset":off,"x":px,"y":py,"distance":dist}
     return best
+
+
+def pod_opening_patch_geometry(doc, opening_id):
+    """Derive the live local flat patch used to receive a conventional pod opening."""
+    if opening_id not in doc.entities:return None
+    opening=doc.get(opening_id)
+    if opening.kind not in ('door','window') or not opening.parent_id or opening.parent_id not in doc.entities:return None
+    pod=doc.get(opening.parent_id)
+    if pod.kind!='pod':return None
+    params=dict(opening.params);params['_kind']=opening.kind;validate_pod_opening(pod.params,params,opening.kind)
+    plane=pod_opening_plane(pod.params,params);margin=float(params.get('flat_margin',0.25));patch_width=float(params['width'])+2.0*margin
+    floor=float(pod.params['floor_level']);top=floor+float(pod.params['height']);opening_z0=floor+float(params.get('sill',0.0));opening_z1=opening_z0+float(params['height'])
+    z0=max(floor,opening_z0-(0.0 if opening.kind=='door' else margin));z1=min(top,opening_z1+margin)
+    px,py=plane['point'];tx,ty=plane['tangent'];half=patch_width/2.0
+    points=((px-tx*half,py-ty*half,z0),(px+tx*half,py+ty*half,z0),(px+tx*half,py+ty*half,z1),(px-tx*half,py-ty*half,z1))
+    return {'opening_id':opening.id,'host_id':pod.id,'plane':plane,'points':points,'patch_width':patch_width,'patch_height':z1-z0,'z0':z0,'z1':z1}
+
+
+def pod_opening_junction_conflict(doc, opening_id, tolerance=1e-9):
+    """Return the active junction id whose cut removes any of a pod opening patch.
+
+    The opening and its semantic patch remain persistent. This function only answers
+    whether the current evaluated host shell can physically carry that patch. A later
+    separation of the pods therefore restores the same opening/patch identity.
+    """
+    geom=pod_opening_patch_geometry(doc,opening_id)
+    if geom is None:return None
+    host_id=geom['host_id']
+    if host_id not in doc.entities or doc.get(host_id).kind!='pod':return None
+    host=doc.get(host_id)
+    from archforge.organic.biospectre import junction_plane
+    for entity in doc.entities.values():
+        if entity.kind!='organic_junction' or entity.params.get('status')!='active':continue
+        a_id=entity.params.get('component_a');b_id=entity.params.get('component_b')
+        if host_id not in (a_id,b_id) or a_id not in doc.entities or b_id not in doc.entities:continue
+        a,b=doc.get(a_id),doc.get(b_id)
+        if a.kind!='pod' or b.kind!='pod':continue
+        plane=junction_plane(a.params,b.params)
+        if plane is None:continue
+        # A bounded junction removes host shell only where the vertical bands overlap.
+        if min(float(geom['z1']),float(plane['z1']))-max(float(geom['z0']),float(plane['z0']))<=tolerance:continue
+        px,py=map(float,plane['point']);nx,ny=map(float,plane['normal'])
+        cx,cy=float(host.params['cx']),float(host.params['cy'])
+        center_signed=(cx-px)*nx+(cy-py)*ny
+        if abs(center_signed)<=tolerance:continue
+        keep_sign=1.0 if center_signed>0 else -1.0
+        # Any footprint portion on the discarded side makes the flat patch ambiguous;
+        # suppress the whole derived patch rather than render a detached/partial panel.
+        for x,y,_ in geom['points']:
+            signed=((float(x)-px)*nx+(float(y)-py)*ny)*keep_sign
+            if signed < -tolerance:return entity.id
+    return None
+
+
+@dataclass(frozen=True)
+class OpeningPatchIntentResult:
+    active_ids: tuple[str,...]
+    created_ids: tuple[str,...]
+    dormant_ids: tuple[str,...]
+
+
+def infer_organic_opening_patches(doc):
+    """Reconcile pod-hosted doors/windows into persistent local planar patch entities."""
+    candidates=[e for e in doc.entities.values() if e.kind in ('door','window') and e.parent_id in doc.entities and doc.get(e.parent_id).kind=='pod']
+    existing={e.params.get('opening_id'):e for e in doc.entities.values() if e.kind=='organic_opening_patch'}
+    active=[];created=[]
+    for opening in sorted(candidates,key=lambda e:e.id):
+        geom=pod_opening_patch_geometry(doc,opening.id)
+        if geom is None:continue
+        patch=existing.get(opening.id);params={'opening_id':opening.id,'host_id':opening.parent_id,'status':'active','auto_inferred':True}
+        if patch is None:
+            from archforge.core.model import Entity
+            patch=Entity('organic_opening_patch',params,name='Auto Organic Opening Patch',parent_id=opening.id);doc.add(patch);created.append(patch.id)
+        else:
+            changes={k:v for k,v in params.items() if patch.params.get(k)!=v}
+            if changes:doc.update(patch.id,changes)
+        for deps in doc.dependencies.values():deps.discard(patch.id)
+        doc.add_dependency(opening.parent_id,patch.id);doc.add_dependency(opening.id,patch.id);active.append(patch.id)
+    active_set=set(active);dormant=[]
+    for patch in list(doc.entities.values()):
+        if patch.kind!='organic_opening_patch' or patch.id in active_set:continue
+        if patch.params.get('status')!='dormant':doc.update(patch.id,{'status':'dormant'})
+        dormant.append(patch.id)
+    return OpeningPatchIntentResult(tuple(active),tuple(created),tuple(sorted(dormant)))
