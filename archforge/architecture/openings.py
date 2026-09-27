@@ -14,6 +14,13 @@ def validate_opening(wall_params, opening_params, kind="window"):
     if offset-width/2 < 0 or offset+width/2 > length: raise ValueError("opening must fit within host wall")
     if sill < 0 or sill+height > wall_params["height"]: raise ValueError("opening must fit within wall height")
     if kind=="door" and abs(sill)>1e-12: raise ValueError("door sill must be zero")
+    if kind=="opening":
+        shape=str(opening_params.get("shape","rectangle")).lower()
+        if shape not in ("rectangle","arch"):
+            raise ValueError("opening shape must be rectangle or arch")
+        rise=float(opening_params.get("arch_rise",min(width/2.0,height)))
+        if rise <= 0 or rise > height:
+            raise ValueError("arch rise must be > 0 and no greater than opening height")
     return True
 
 
