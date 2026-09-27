@@ -603,13 +603,24 @@ class MainWindow(QMainWindow):
 
         dialog = QDialog(self)
         dialog.setWindowTitle(f'Materials / Surfaces — {entity.name or entity.kind.title()}')
-        dialog.resize(430, 460)
+        dialog.resize(450, 500)
         layout = QVBoxLayout(dialog)
 
-        current_id = str(entity.params.get('material_id', '') or '')
-        current_spec = MATERIAL_PRESETS.get(current_id, {})
-        current_label = current_spec.get('name', 'Default by object type')
-        current = QLabel(f'Current: {current_label}')
+        target = None
+        if entity.kind == 'wall':
+            target = QComboBox(dialog)
+            target.addItem('Side A', 'exterior')
+            target.addItem('Side B', 'interior')
+            target.addItem('Both Sides', 'both')
+            target.addItem('Whole Wall', 'whole')
+            target.setToolTip(
+                'Wall finishes are face-specific. Side A and Side B are the two '
+                'sides of the wall; room-aware names will replace these labels later.'
+            )
+            layout.addWidget(QLabel('Apply to'))
+            layout.addWidget(target)
+
+        current = QLabel()
         layout.addWidget(current)
 
         category = QComboBox(dialog)
@@ -625,9 +636,36 @@ class MainWindow(QMainWindow):
         preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(preview)
 
-        state = {'material_id': current_id or None}
+        state = {'material_id': None}
+
+        def current_material_id():
+            if entity.kind != 'wall' or target is None:
+                return str(entity.params.get('material_id', '') or '')
+            mode = str(target.currentData())
+            surface_map = entity.params.get('surface_materials') or {}
+            if mode == 'whole':
+                return str(entity.params.get('material_id', '') or '')
+            if mode == 'both':
+                a = surface_map.get('exterior')
+                b = surface_map.get('interior')
+                if a and a == b:
+                    return str(a)
+                return ''
+            return str(
+                surface_map.get(mode)
+                or entity.params.get('material_id', '')
+                or ''
+            )
+
+        def update_current_label():
+            material_id = current_material_id()
+            spec = MATERIAL_PRESETS.get(material_id, {})
+            current_label = spec.get('name', 'Default by object type')
+            current.setText(f'Current: {current_label}')
+            return material_id
 
         def fill_materials(category_name):
+            selected_id = current_material_id()
             materials.clear()
             for material_id, spec in materials_in_category(category_name):
                 item = QListWidgetItem(str(spec['name']))
@@ -637,7 +675,7 @@ class MainWindow(QMainWindow):
                     f"metalness {float(spec.get('metalness', 0.0)):.2f}"
                 )
                 materials.addItem(item)
-                if material_id == current_id:
+                if material_id == selected_id:
                     materials.setCurrentItem(item)
             if materials.currentItem() is None and materials.count():
                 materials.setCurrentRow(0)
@@ -657,16 +695,22 @@ class MainWindow(QMainWindow):
                 "padding: 8px; font-weight: 600;"
             )
 
+        def refresh_for_target():
+            selected_id = update_current_label()
+            selected_spec = MATERIAL_PRESETS.get(selected_id, {})
+            if selected_spec:
+                idx = category.findText(str(selected_spec.get('category', '')))
+                if idx >= 0:
+                    category.setCurrentIndex(idx)
+            fill_materials(category.currentText())
+            refresh_preview()
+
         category.currentTextChanged.connect(fill_materials)
         materials.currentItemChanged.connect(lambda *_: refresh_preview())
+        if target is not None:
+            target.currentIndexChanged.connect(lambda *_: refresh_for_target())
 
-        if current_spec:
-            current_category = str(current_spec.get('category', ''))
-            idx = category.findText(current_category)
-            if idx >= 0:
-                category.setCurrentIndex(idx)
-        fill_materials(category.currentText())
-        refresh_preview()
+        refresh_for_target()
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok
@@ -683,13 +727,33 @@ class MainWindow(QMainWindow):
         if not material_id:
             return
 
-        self.stack.execute(UpdateEntity(entity_id, {'material_id': str(material_id)}))
+        changes = {}
+        target_label = entity.kind.title()
+        if entity.kind == 'wall' and target is not None:
+            mode = str(target.currentData())
+            if mode == 'whole':
+                changes['material_id'] = str(material_id)
+                target_label = 'whole wall'
+            else:
+                surface_map = dict(entity.params.get('surface_materials') or {})
+                if mode == 'both':
+                    surface_map['exterior'] = str(material_id)
+                    surface_map['interior'] = str(material_id)
+                    target_label = 'both wall sides'
+                else:
+                    surface_map[mode] = str(material_id)
+                    target_label = 'Side A' if mode == 'exterior' else 'Side B'
+                changes['surface_materials'] = surface_map
+        else:
+            changes['material_id'] = str(material_id)
+
+        self.stack.execute(UpdateEntity(entity_id, changes))
         self.doc.select([entity_id])
         self._redraw_views(all_views=True)
         self.refresh_inspector()
         spec = MATERIAL_PRESETS[str(material_id)]
         self.statusBar().showMessage(
-            f"Applied {spec['name']} — Undo is available",
+            f"Applied {spec['name']} to {target_label} — Undo is available",
             3500,
         )
 
