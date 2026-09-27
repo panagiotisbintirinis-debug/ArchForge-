@@ -585,7 +585,17 @@ class MEPTerminalPlaceTransaction:
     def update(self,x,y):
         x=float(x);y=float(y)
         self.last_snap=None
-        sp=best_snap(self.doc,x,y,self.snap_tol,self.grid) if self.snap_enabled else None
+        # MEP terminals intentionally do not snap to wall centerlines yet.
+        # Until wall-face ports exist, only the soft construction grid is safe:
+        # snapping to a wall centre can start an A* route inside a structural obstacle.
+        sp=None
+        if self.snap_enabled and self.grid:
+            gx=round(x/self.grid)*self.grid
+            gy=round(y/self.grid)*self.grid
+            grid_tolerance=min(self.snap_tol,abs(float(self.grid))*0.20)
+            if hypot(gx-x,gy-y)<=grid_tolerance:
+                from .snapping import SnapPoint
+                sp=SnapPoint(gx,gy,self.level_z,'construction_grid','')
         if sp is not None:
             self.x,self.y=float(sp.x),float(sp.y)
             self.last_snap=sp
