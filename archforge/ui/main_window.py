@@ -87,6 +87,7 @@ class MainWindow(QMainWindow):
         enabled = bool(enabled)
         self.plan_view.set_snap_enabled(enabled)
         self.pbr_view.set_snap_enabled(enabled)
+        self.structural_view.set_snap_enabled(enabled)
         self.statusBar().showMessage(
             'Snap ON — wall faces/endpoints/midpoints | Shift = Free | Ctrl = X/Y constraint'
             if enabled
@@ -1152,7 +1153,7 @@ class MainWindow(QMainWindow):
     def _replace_project(self, doc, path=None):
         self.doc = doc
         self.stack = CommandStack(self.doc)
-        for view in (self.plan_view, self.pbr_view):
+        for view in (self.plan_view, self.pbr_view, self.structural_view):
             view.rebind(self.doc, self.stack)
         self.current_path = path
         self._mark_clean()
