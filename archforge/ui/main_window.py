@@ -781,6 +781,95 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             QMessageBox.warning(self,'Support',str(exc))
 
+    def _add_structural_load(self, entity_id):
+        entity_id=str(entity_id)
+        if entity_id not in self.doc.entities:
+            return
+        member=self.doc.get(entity_id)
+        if member.kind not in ('structural_column','structural_beam'):
+            self.statusBar().showMessage('Load requires a structural Column or Beam',3000)
+            return
+        if str(member.params.get('role','structural'))!='structural':
+            self.statusBar().showMessage('Only Structural-role members can receive loads',3500)
+            return
+
+        load_label,ok=QInputDialog.getItem(
+            self,'Add Structural Load','Load type',
+            ['Point','Distributed'],0,False,
+        )
+        if not ok:
+            return
+        load_type=str(load_label).lower()
+        magnitude,ok=QInputDialog.getDouble(
+            self,'Add Structural Load',
+            'Magnitude (kN)' if load_type=='point' else 'Magnitude (kN/m)',
+            1.0,0.0,1e9,3,
+        )
+        if not ok:
+            return
+
+        direction_label,ok=QInputDialog.getItem(
+            self,'Add Structural Load','Direction',
+            ['Down (-Z)','Up (+Z)','+X','-X','+Y','-Y'],0,False,
+        )
+        if not ok:
+            return
+        directions={
+            'Down (-Z)':(0.0,0.0,-1.0),
+            'Up (+Z)':(0.0,0.0,1.0),
+            '+X':(1.0,0.0,0.0),'-X':(-1.0,0.0,0.0),
+            '+Y':(0.0,1.0,0.0),'-Y':(0.0,-1.0,0.0),
+        }
+        direction=directions[str(direction_label)]
+
+        position=0.5
+        if load_type=='point':
+            pct,ok=QInputDialog.getDouble(
+                self,'Add Structural Load','Position along member (%)',
+                50.0,0.0,100.0,1,
+            )
+            if not ok:
+                return
+            position=float(pct)/100.0
+
+        load_case,ok=QInputDialog.getText(
+            self,'Add Structural Load','Load case',text='User Load'
+        )
+        if not ok or not str(load_case).strip():
+            return
+        source,ok=QInputDialog.getText(
+            self,'Add Structural Load','Source / note',text='User input'
+        )
+        if not ok or not str(source).strip():
+            return
+
+        unit='kN' if load_type=='point' else 'kN/m'
+        load=Entity(
+            'structural_load',
+            {
+                'load_type':load_type,
+                'magnitude':float(magnitude),
+                'direction':list(direction),
+                'position':float(position),
+                'load_case':str(load_case).strip(),
+                'unit':unit,
+                'source':str(source).strip(),
+            },
+            name=f'{load_label} Load',
+            parent_id=entity_id,
+        )
+        try:
+            self.stack.execute(AddEntity(load))
+            self.doc.select([load.id])
+            self._redraw_views(all_views=True)
+            self.refresh_inspector()
+            self.statusBar().showMessage(
+                f'Added {float(magnitude):g} {unit} {load_label.lower()} — input only, no analysis run',
+                4500,
+            )
+        except Exception as exc:
+            QMessageBox.warning(self,'Structural Load',str(exc))
+
     def _handle_object_context_action(self, entity_id, action_id):
         entity_id = str(entity_id)
         action_id = str(action_id)
@@ -800,6 +889,10 @@ class MainWindow(QMainWindow):
 
         if action_id == 'support':
             self._add_structural_support(entity_id)
+            return
+
+        if action_id == 'load':
+            self._add_structural_load(entity_id)
             return
 
         if action_id == 'delete':
