@@ -11,6 +11,8 @@ _KIND_ROLES:Dict[str,Tuple[Tuple[str,bool,bool,str],...]]={
  'wall':(('exterior',True,True,'wall exterior face'),('interior',True,True,'wall interior face'),('top',True,True,'wall top'),('start',True,True,'wall start return'),('end',True,True,'wall end return'),('bottom',False,True,'wall bottom')),
  'box':tuple((r,True,True,f'box {r} face') for r in('top','bottom','left','right','front','back')),
  'mechanical_part':tuple((r,True,True,f'mechanical part {r} face') for r in('top','bottom','left','right','front','back')),
+ 'structural_column':tuple((r,True,True,f'column {r} face') for r in('side_a','side_b','side_c','side_d','top','bottom')),
+ 'structural_beam':tuple((r,True,True,f'beam {r} face') for r in('side_a','side_b','start','end','top','bottom')),
  'pod':(('pod_shell',True,True,'curved pod shell'),('junction',True,True,'legacy generated flat pod junction'),('floor',True,True,'pod floor')),
  'mesh':(('mesh_surface',True,True,'authoritative free-form mesh surface'),),
  'stair':(('tread',False,False,'derived stair tread'),('riser',False,False,'derived stair riser'),('landing',False,False,'derived stair landing')),
