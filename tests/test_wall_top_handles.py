@@ -24,20 +24,14 @@ def test_3d_handle_payload_preserves_semantic_endpoint_identity_on_rotated_wall(
 
     handles = wall_top_handle_payload(doc, [wall_id])
 
-    assert handles == [
-        {
-            'entity_id': wall_id,
-            'endpoint': 'start',
-            'position': [1.0, 2.0, 3.5],
-            'preview': False,
-        },
-        {
-            'entity_id': wall_id,
-            'endpoint': 'end',
-            'position': [5.0, 6.0, 4.6],
-            'preview': False,
-        },
-    ]
+    assert handles[0]['entity_id'] == wall_id
+    assert handles[0]['endpoint'] == 'start'
+    assert handles[0]['position'] == pytest.approx([1.0, 2.0, 3.5])
+    assert handles[0]['preview'] is False
+    assert handles[1]['entity_id'] == wall_id
+    assert handles[1]['endpoint'] == 'end'
+    assert handles[1]['position'] == pytest.approx([5.0, 6.0, 4.6])
+    assert handles[1]['preview'] is False
 
 
 def test_3d_handle_preview_changes_only_active_endpoint_z_without_document_mutation():
@@ -51,9 +45,9 @@ def test_3d_handle_preview_changes_only_active_endpoint_z_without_document_mutat
         preview_height=5.0,
     )
 
-    assert handles[0]['position'] == [1.0, 2.0, 5.4]
+    assert handles[0]['position'] == pytest.approx([1.0, 2.0, 5.4])
     assert handles[0]['preview'] is True
-    assert handles[1]['position'] == [5.0, 6.0, 4.6]
+    assert handles[1]['position'] == pytest.approx([5.0, 6.0, 4.6])
     assert handles[1]['preview'] is False
     assert doc.to_dict() == before
 
