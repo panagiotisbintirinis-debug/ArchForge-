@@ -289,7 +289,7 @@ class PlanView(QGraphicsView):
             }
             structural_ids.update(
                 eid for eid,e in self.doc.entities.items()
-                if e.kind=='structural_support'
+                if e.kind in ('structural_support','structural_load')
                 and e.parent_id in structural_ids
             )
             frame.primitives=[
@@ -301,6 +301,7 @@ class PlanView(QGraphicsView):
                 from archforge.structure.graph import build_structural_graph
                 graph=build_structural_graph(self.doc)
                 visible_node_ids=set()
+                member_map={member.entity_id:member for member in graph.members}
                 for member in graph.members:
                     if member.entity_id in structural_ids:
                         visible_node_ids.add(member.start_node)
@@ -313,6 +314,45 @@ class PlanView(QGraphicsView):
                         Primitive2D(
                             'ellipse',((x,y),),0.055,0.055,0.0,'','structural-node',
                             meta=(('semantic','structural-node'),('node_index',node.index),('z',z)),
+                        )
+                    )
+
+                for load in graph.loads:
+                    member=member_map.get(load.member_entity_id)
+                    if member is None or member.entity_id not in structural_ids:
+                        continue
+                    a=graph.nodes[member.start_node].point
+                    b=graph.nodes[member.end_node].point
+                    t=max(0.0,min(1.0,float(load.position)))
+                    x=float(a[0])+(float(b[0])-float(a[0]))*t
+                    y=float(a[1])+(float(b[1])-float(a[1]))*t
+                    dx,dy,dz=(float(v) for v in load.direction)
+                    scale=0.55
+                    if abs(dx)+abs(dy)>1e-9:
+                        mag=(dx*dx+dy*dy)**0.5
+                        ux,uy=dx/mag,dy/mag
+                        frame.primitives.append(
+                            Primitive2D(
+                                'line',((x-ux*scale,y-uy*scale),(x,y)),
+                                entity_id=load.entity_id,role='structural-load',
+                                meta=(('semantic','structural-load'),('input_only',True)),
+                            )
+                        )
+                    else:
+                        frame.primitives.append(
+                            Primitive2D(
+                                'ellipse',((x,y),),0.07,0.07,0.0,
+                                load.entity_id,'structural-load',
+                                meta=(('semantic','structural-load'),('input_only',True)),
+                            )
+                        )
+                    arrow='↓' if dz<0 else ('↑' if dz>0 else '→')
+                    label=f'INPUT {arrow} {load.magnitude:g} {load.unit} · {load.load_case}'
+                    frame.primitives.append(
+                        Primitive2D(
+                            'label',((x+0.08,y+0.08),),
+                            entity_id=load.entity_id,role='structural-load-label',
+                            meta=(('semantic','structural-load'),('text',label),('source',load.source)),
                         )
                     )
             except (ValueError,KeyError):
