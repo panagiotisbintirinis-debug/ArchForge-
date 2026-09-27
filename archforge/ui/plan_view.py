@@ -127,6 +127,10 @@ class PlanView(QGraphicsView):
     def set_snap_enabled(self, enabled):
         self.controller.set_snap_enabled(enabled)
         self.statusChanged.emit('Snap ON' if enabled else 'Snap OFF — Free mode')
+    def set_wall_angle_increment(self, increment):
+        self.controller.set_wall_angle_increment(increment)
+        label='Free' if increment is None else f'{float(increment):g}°'
+        self.statusChanged.emit(f'Wall angle: {label}')
 
     def redraw(self):
         self._scene.clear();self._handle_items.clear();self._entity_items.clear();self._draw_grid();frame=build_plan_frame(self.doc,self.controller.preview)
@@ -156,6 +160,12 @@ class PlanView(QGraphicsView):
             if p.entity_id and not preview:self._entity_items[item]=p.entity_id
     def _draw_handle(self,h):
         r=.09;it=self._scene.addEllipse(h.x-r,h.y-r,2*r,2*r,QPen(QColor(20,90,180),0),QBrush(QColor(255,255,255)));it.setZValue(50);self._handle_items[it]=h
-    def _draw_snap(self,s):r=.08;self._scene.addEllipse(s['x']-r,s['y']-r,2*r,2*r,QPen(QColor(220,80,40),0)).setZValue(70)
+    def _draw_snap(self,s):
+        r=.08
+        angle_lock=str(s.get('kind','')).startswith('angle')
+        color=QColor(50,110,220) if angle_lock else QColor(220,80,40)
+        self._scene.addEllipse(
+            s['x']-r,s['y']-r,2*r,2*r,QPen(color,0)
+        ).setZValue(70)
     def _draw_hud(self,hud):
         text='  '.join(f'{k}: {v:.3f}' for k,v in hud.items() if isinstance(v,(int,float)));it=self._scene.addText(text);it.setDefaultTextColor(QColor(20,20,20));it.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations,True);it.setPos(self.mapToScene(self.viewport().rect().topLeft()));it.setZValue(100)
