@@ -37,6 +37,10 @@ PROPERTY_FIELDS = {
         {'id': 'height', 'label': 'Height', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
         {'id': 'shell_thickness', 'label': 'Shell Thickness', 'unit': 'm', 'minimum': 0.001, 'step': 0.01},
     ),
+    'mep_terminal': (
+        {'id': 'elevation', 'label': 'Elevation Above Floor', 'unit': 'm', 'minimum': -5.0, 'maximum': 20.0, 'step': 0.05},
+        {'id': 'diameter', 'label': 'Nominal Diameter', 'unit': 'm', 'minimum': 0.005, 'maximum': 0.50, 'step': 0.005},
+    ),
     'ramp': (
         {'id': 'width', 'label': 'Width', 'unit': 'm', 'minimum': 0.50, 'step': 0.05},
         {'id': 'slope_pct', 'label': 'Slope', 'unit': '%', 'minimum': 0.10, 'step': 0.50},
