@@ -17,11 +17,25 @@ class WallTopWebInteraction:
     def __init__(self, doc, stack):
         self.controller = WallTop3DController(doc, stack)
 
+    @property
+    def active(self) -> bool:
+        """Whether a transient wall-top pointer transaction is currently active."""
+        return self.controller.active
+
     def rebind(self, doc, stack) -> None:
         self.controller.rebind(doc, stack)
 
+    def handles(self):
+        """Return view-only semantic handles for direct renderer consumption.
+
+        The WebGL viewport can use this typed payload when it already owns the Python
+        object, while ``handles_json`` remains the serialization boundary used by JS.
+        Neither form creates or mutates authoritative design state.
+        """
+        return self.controller.handles()
+
     def handles_json(self) -> str:
-        return json.dumps(self.controller.handles(), separators=(",", ":"))
+        return json.dumps(self.handles(), separators=(",", ":"))
 
     def begin_json(self, payload_json: str) -> None:
         payload = self._object(payload_json)
