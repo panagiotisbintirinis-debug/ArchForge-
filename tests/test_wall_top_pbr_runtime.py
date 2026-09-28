@@ -1,3 +1,5 @@
+import json
+
 from archforge.core.commands import CommandStack
 from archforge.core.model import Document, Entity
 from archforge.ui.wall_top_pbr_runtime import PBRWallTopRuntime
@@ -41,6 +43,24 @@ def test_runtime_derives_two_pickable_handles_without_mutating_document():
     assert handles[1]["center"] == [5.0, 4.0, 3.0]
     assert wall.params == before
     assert not runtime.active
+
+
+def test_runtime_serializes_handles_as_separate_view_payload():
+    doc, wall = _wall_doc()
+    stack = CommandStack(doc)
+    before = dict(wall.params)
+
+    runtime = PBRWallTopRuntime(doc, stack)
+    payload = json.loads(runtime.scene_payload_json())
+
+    assert set(payload) == {"wall_top_handles"}
+    assert [item["handle_id"] for item in payload["wall_top_handles"]] == [
+        "wall-top:wall-1:start",
+        "wall-top:wall-1:end",
+    ]
+    assert all("entity_id" not in item for item in payload["wall_top_handles"])
+    assert wall.params == before
+    assert stack.undo_stack == []
 
 
 def test_runtime_drag_preview_is_transient_and_finish_uses_commandstack():
