@@ -89,6 +89,28 @@ def test_web_adapter_ray_preview_is_transient_then_commits_through_command_stack
     assert "start_height" not in wall.params
 
 
+def test_typed_and_json_ray_updates_share_the_same_semantic_path():
+    origin = [1.0, -8.0, 6.0]
+    direction = [0.0, 1.0, -0.2]
+
+    _, wall_a, _, typed = _adapter()
+    typed.begin_handle(f"wall-top:{wall_a.id}:start")
+    typed_height = typed.update_ray(origin, direction)
+
+    _, wall_b, _, serialized = _adapter()
+    serialized.begin_handle(f"wall-top:{wall_b.id}:start")
+    json_height = serialized.update_ray_json(json.dumps({
+        "origin": origin,
+        "direction": direction,
+    }))
+
+    assert typed_height == pytest.approx(json_height)
+    assert "start_height" not in wall_a.params
+    assert "start_height" not in wall_b.params
+    typed.cancel()
+    serialized.cancel()
+
+
 def test_web_adapter_cancel_and_malformed_ray_do_not_mutate_document():
     _, wall, stack, adapter = _adapter()
     adapter.begin_json(json.dumps({"entity_id": wall.id, "endpoint": "end"}))
