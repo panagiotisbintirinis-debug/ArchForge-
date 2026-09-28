@@ -50,11 +50,12 @@ def create_room_floor(doc, signature: str, thickness: float = 0.15, offset_z: fl
     return e
 
 
-def _flat_roof_outer_polygon(doc, face, tolerance: float):
-    """Offset each room boundary edge to its wall's exterior face and miter corners."""
+def _flat_roof_outer_polygon(doc, face, tolerance: float, edge_offsets=None):
+    """Offset room edges to wall exterior faces plus semantic per-wall roof offsets."""
     polygon=[tuple(q) for q in face.polygon]
     if len(polygon)<3:
         return polygon
+    edge_offsets=dict(edge_offsets or {})
     signed_area=.5*sum(
         polygon[i][0]*polygon[(i+1)%len(polygon)][1]
         - polygon[(i+1)%len(polygon)][0]*polygon[i][1]
@@ -83,9 +84,13 @@ def _flat_roof_outer_polygon(doc, face, tolerance: float):
                 wall=candidate;break
         if wall is None:
             return polygon
+        # Wall identity is stable when topology polygon ordering/orientation changes, so it
+        # is the semantic key for an independently editable roof boundary.
+        extra=float(edge_offsets.get(wall.id,0.0))
         half=.5*float(wall.params.get('thickness',0.0))
         nx=orientation*dy/length;ny=-orientation*dx/length
-        lines.append(((a[0]+nx*half,a[1]+ny*half),(dx,dy)))
+        distance=half+extra
+        lines.append(((a[0]+nx*distance,a[1]+ny*distance),(dx,dy)))
 
     out=[]
     for i in range(len(lines)):
@@ -112,7 +117,7 @@ def room_slab_geometry(doc, slab_entity: Entity, tolerance: float = 1e-5) -> Opt
     z=base_z+float(p.get('offset_z',0.0))
     points=[tuple(q) for q in face.polygon]
     if slab_entity.kind=='room_roof' and p.get('roof_type','flat')=='flat':
-        points=_flat_roof_outer_polygon(doc,face,tolerance)
+        points=_flat_roof_outer_polygon(doc,face,tolerance,p.get('edge_offsets'))
     return {'points':points,
             'z':z,
             'thickness':float(p['thickness']),
