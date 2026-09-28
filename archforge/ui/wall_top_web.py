@@ -37,6 +37,19 @@ class WallTopWebInteraction:
     def handles_json(self) -> str:
         return json.dumps(self.handles(), separators=(",", ":"))
 
+    def begin_handle(self, handle_id: str) -> None:
+        """Begin from the stable renderer identity attached to a picked handle mesh.
+
+        The renderer does not get to invent entity/endpoint semantics. A handle id is
+        accepted only when present in the currently derived handle payload; this also
+        rejects stale meshes after selection or model changes.
+        """
+        handle_id = str(handle_id)
+        handle = next((item for item in self.handles() if item["handle_id"] == handle_id), None)
+        if handle is None:
+            raise ValueError("wall-top handle is stale or not currently selectable")
+        self.controller.begin(str(handle["entity_id"]), str(handle["endpoint"]))
+
     def begin_json(self, payload_json: str) -> None:
         payload = self._object(payload_json)
         self.controller.begin(str(payload["entity_id"]), str(payload["endpoint"]))
