@@ -41,8 +41,27 @@ class PBRWallTopRuntime:
     def begin(self, handle_id: str) -> None:
         self.web.begin_handle(handle_id)
 
+    def begin_json(self, payload_json: str) -> None:
+        """Begin a drag from the renderer-owned handle identity only.
+
+        JavaScript is allowed to return the stable ``handle_id`` attached to the
+        picked view mesh, but it does not send entity or endpoint semantics.  Those
+        are resolved again from the currently derived handles in Python so stale
+        renderer meshes cannot mutate the authoritative model.
+        """
+        payload = self._object(payload_json)
+        handle_id = payload.get("handle_id")
+        if not isinstance(handle_id, str) or not handle_id:
+            raise ValueError("wall-top PBR begin payload requires handle_id")
+        self.begin(handle_id)
+
     def update_ray(self, origin: Iterable[float], direction: Iterable[float]) -> float:
         return self.web.update_ray(origin, direction)
+
+    def update_ray_json(self, payload_json: str) -> float:
+        """Update transient preview from a camera ray supplied by Three.js."""
+        payload = self._object(payload_json)
+        return self.update_ray(payload.get("origin"), payload.get("direction"))
 
     def finish(self) -> bool:
         return self.web.finish()
@@ -63,3 +82,10 @@ class PBRWallTopRuntime:
         sharing the normal scene update path.
         """
         return json.dumps(self.scene_payload(), separators=(",", ":"))
+
+    @staticmethod
+    def _object(payload_json: str) -> Mapping[str, Any]:
+        payload = json.loads(payload_json)
+        if not isinstance(payload, dict):
+            raise ValueError("wall-top PBR payload must be an object")
+        return payload
