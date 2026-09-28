@@ -6,9 +6,8 @@ from archforge.ui.wall_top_pbr_runtime import PBRWallTopRuntime
 def _wall_doc():
     doc = Document()
     wall = Entity(
-        "wall-1",
-        "wall",
-        {
+        kind="wall",
+        params={
             "x1": 1.0,
             "y1": 2.0,
             "z": 0.0,
@@ -17,6 +16,7 @@ def _wall_doc():
             "height": 3.0,
             "thickness": 0.2,
         },
+        id="wall-1",
     )
     doc.add(wall)
     doc.select([wall.id])
