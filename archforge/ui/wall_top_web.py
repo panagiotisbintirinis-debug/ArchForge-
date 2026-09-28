@@ -54,11 +54,21 @@ class WallTopWebInteraction:
         payload = self._object(payload_json)
         self.controller.begin(str(payload["entity_id"]), str(payload["endpoint"]))
 
+    def update_ray(self, origin, direction) -> float:
+        """Update the transient preview from a typed camera ray.
+
+        The live Qt/WebGL bridge can validate JSON once at its boundary and then call
+        this method directly.  Keeping the controller API typed avoids a second JSON
+        round-trip inside Python while preserving the same semantic transaction.
+        """
+        return self.controller.update_from_ray(
+            self._vec3(origin, "origin"),
+            self._vec3(direction, "direction"),
+        )
+
     def update_ray_json(self, payload_json: str) -> float:
         payload = self._object(payload_json)
-        origin = self._vec3(payload.get("origin"), "origin")
-        direction = self._vec3(payload.get("direction"), "direction")
-        return self.controller.update_from_ray(origin, direction)
+        return self.update_ray(payload.get("origin"), payload.get("direction"))
 
     def finish(self) -> bool:
         return self.controller.finish()
