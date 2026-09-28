@@ -60,7 +60,8 @@ def test_runtime_serializes_handles_as_separate_view_payload():
     ]
     assert all("entity_id" not in item for item in payload["wall_top_handles"])
     assert wall.params == before
-    assert stack.undo_stack == []
+    assert not stack.can_undo
+    assert not stack.can_redo
 
 
 def test_runtime_drag_preview_is_transient_and_finish_uses_commandstack():
