@@ -16,7 +16,9 @@ def wall_top_handle_payload(
 
     The descriptors are derived from the authoritative wall parameters.  A drag
     preview may replace only the Z coordinate of the active endpoint; it never
-    mutates the Document and never changes endpoint XY identity.
+    mutates the Document and never changes endpoint XY identity. ``handle_id`` is
+    a stable view identity that renderers may attach to pickable handle meshes;
+    it is derived from semantic identity and is never stored in the Document.
     """
     selected = list(selection)
     if len(selected) != 1:
@@ -43,6 +45,7 @@ def wall_top_handle_payload(
                 raise ValueError('wall top preview must remain above base')
             z = base_z + height
         handles.append({
+            'handle_id': f'wall-top:{entity_id}:{endpoint}',
             'entity_id': entity_id,
             'endpoint': endpoint,
             'position': [x, y, z],
