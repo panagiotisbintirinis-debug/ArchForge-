@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from archforge.core.commands import CommandStack
 from archforge.core.model import Document, Entity
 from archforge.ui.wall_top_pbr_runtime import PBRWallTopRuntime
@@ -89,6 +91,41 @@ def test_runtime_drag_preview_is_transient_and_finish_uses_commandstack():
     assert "start_height" not in wall.params
     stack.redo()
     assert wall.params["start_height"] == 4.0
+
+
+def test_runtime_json_boundary_resolves_handle_identity_and_camera_ray():
+    doc, wall = _wall_doc()
+    stack = CommandStack(doc)
+    runtime = PBRWallTopRuntime(doc, stack)
+
+    runtime.begin_json(json.dumps({"handle_id": "wall-top:wall-1:start"}))
+    height = runtime.update_ray_json(
+        json.dumps({
+            "origin": [1.0, 0.0, 2.0],
+            "direction": [0.0, 1.0, 1.0],
+        })
+    )
+
+    assert height == 4.0
+    assert "start_height" not in wall.params
+    assert runtime.finish() is True
+    assert wall.params["start_height"] == 4.0
+    assert stack.can_undo
+
+
+def test_runtime_json_boundary_rejects_missing_or_stale_handle_without_history():
+    doc, wall = _wall_doc()
+    stack = CommandStack(doc)
+    runtime = PBRWallTopRuntime(doc, stack)
+
+    with pytest.raises(ValueError, match="requires handle_id"):
+        runtime.begin_json("{}")
+    with pytest.raises(ValueError, match="stale or not currently selectable"):
+        runtime.begin_json(json.dumps({"handle_id": "wall-top:wall-1:missing"}))
+
+    assert wall.params["height"] == 3.0
+    assert not stack.can_undo
+    assert not runtime.active
 
 
 def test_runtime_rebind_cancels_transient_drag_without_touching_old_document():
