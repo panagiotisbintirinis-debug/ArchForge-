@@ -1,0 +1,84 @@
+import pytest
+
+from archforge.core.model import Document, Entity
+from archforge.core.wall_top_handles import wall_top_handle_payload
+
+
+def _wall_doc():
+    doc = Document()
+    wall = Entity('wall', {
+        'x1': 1.0, 'y1': 2.0,
+        'x2': 5.0, 'y2': 6.0,
+        'z': 0.4,
+        'height': 2.8,
+        'start_height': 3.1,
+        'end_height': 4.2,
+        'thickness': 0.2,
+    })
+    doc.add(wall)
+    return doc, wall.id
+
+
+def test_3d_handle_payload_preserves_semantic_endpoint_identity_on_rotated_wall():
+    doc, wall_id = _wall_doc()
+
+    handles = wall_top_handle_payload(doc, [wall_id])
+
+    assert handles[0]['entity_id'] == wall_id
+    assert handles[0]['endpoint'] == 'start'
+    assert handles[0]['position'] == pytest.approx([1.0, 2.0, 3.5])
+    assert handles[0]['preview'] is False
+    assert handles[1]['entity_id'] == wall_id
+    assert handles[1]['endpoint'] == 'end'
+    assert handles[1]['position'] == pytest.approx([5.0, 6.0, 4.6])
+    assert handles[1]['preview'] is False
+
+
+def test_3d_handle_preview_changes_only_active_endpoint_z_without_document_mutation():
+    doc, wall_id = _wall_doc()
+    before = doc.to_dict()
+
+    handles = wall_top_handle_payload(
+        doc,
+        [wall_id],
+        preview_endpoint='start',
+        preview_height=5.0,
+    )
+
+    assert handles[0]['position'] == pytest.approx([1.0, 2.0, 5.4])
+    assert handles[0]['preview'] is True
+    assert handles[1]['position'] == pytest.approx([5.0, 6.0, 4.6])
+    assert handles[1]['preview'] is False
+    assert doc.to_dict() == before
+
+
+def test_3d_handle_payload_is_selection_scoped_and_wall_only():
+    doc, wall_id = _wall_doc()
+    floor = Entity('room_floor', {
+        'room_signature': 'room-test-a',
+        'thickness': 0.2,
+        'offset_z': 0.0,
+    })
+    doc.add(floor)
+    floor_id = floor.id
+
+    assert wall_top_handle_payload(doc, []) == []
+    assert wall_top_handle_payload(doc, [wall_id, floor_id]) == []
+    assert wall_top_handle_payload(doc, [floor_id]) == []
+    assert wall_top_handle_payload(doc, ['missing']) == []
+
+
+def test_3d_handle_preview_rejects_invalid_semantics():
+    doc, wall_id = _wall_doc()
+
+    with pytest.raises(ValueError, match='preview_endpoint'):
+        wall_top_handle_payload(doc, [wall_id], preview_endpoint='middle')
+    with pytest.raises(ValueError, match='requires preview_endpoint'):
+        wall_top_handle_payload(doc, [wall_id], preview_height=3.0)
+    with pytest.raises(ValueError, match='above base'):
+        wall_top_handle_payload(
+            doc,
+            [wall_id],
+            preview_endpoint='end',
+            preview_height=0.0,
+        )
