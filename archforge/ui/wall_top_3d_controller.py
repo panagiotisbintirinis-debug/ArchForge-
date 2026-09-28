@@ -25,9 +25,17 @@ class WallTop3DController:
         return self._transaction is not None
 
     def handles(self, selection: Optional[Sequence[str]] = None):
-        selection = self.doc.selection if selection is None else selection
         if self._transaction is None:
+            selection = self.doc.selection if selection is None else selection
             return wall_top_handle_payload(self.doc, selection)
+
+        # A captured pointer transaction owns one semantic wall endpoint until finish
+        # or cancel.  Do not let an incidental selection change retarget the transient
+        # preview to another wall while the pointer is still captured by the renderer.
+        # Explicit selection remains available to callers that intentionally want to
+        # inspect another selection, but the normal renderer path stays locked to the
+        # transaction's stable semantic identity.
+        selection = [self._transaction.wall_id] if selection is None else selection
         return wall_top_handle_payload(
             self.doc,
             selection,
