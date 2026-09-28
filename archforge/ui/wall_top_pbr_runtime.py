@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Iterable, Mapping, Any
 
 from .wall_top_pbr import wall_top_pbr_handles
@@ -52,3 +53,13 @@ class PBRWallTopRuntime:
     def scene_payload(self) -> Mapping[str, Any]:
         """Renderer payload kept separate from authoritative model geometry."""
         return {"wall_top_handles": self.handles()}
+
+    def scene_payload_json(self) -> str:
+        """Serialize only view-owned handles for the WebGL handle root.
+
+        The active PBR viewport can inject this payload independently of the model
+        scene payload. Keeping the serialization boundary separate makes it impossible
+        for handle meshes to be mistaken for authoritative model entities merely by
+        sharing the normal scene update path.
+        """
+        return json.dumps(self.scene_payload(), separators=(",", ":"))
