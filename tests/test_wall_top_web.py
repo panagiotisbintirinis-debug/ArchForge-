@@ -28,9 +28,27 @@ def test_web_adapter_exposes_selected_semantic_handles_without_model_state():
     assert [(h["entity_id"], h["endpoint"]) for h in handles] == [
         (wall.id, "start"), (wall.id, "end")
     ]
+    assert [h["handle_id"] for h in handles] == [
+        f"wall-top:{wall.id}:start", f"wall-top:{wall.id}:end"
+    ]
     assert adapter.active is False
     assert "start_height" not in wall.params
     assert "end_height" not in wall.params
+
+
+def test_web_handle_identity_survives_transient_preview():
+    _, wall, _, adapter = _adapter()
+    before = {h["endpoint"]: h["handle_id"] for h in adapter.handles()}
+
+    adapter.begin_json(json.dumps({"entity_id": wall.id, "endpoint": "start"}))
+    adapter.update_ray_json(json.dumps({
+        "origin": [1.0, -8.0, 6.0],
+        "direction": [0.0, 1.0, -0.2],
+    }))
+
+    after = {h["endpoint"]: h["handle_id"] for h in adapter.handles()}
+    assert after == before
+    adapter.cancel()
 
 
 def test_web_adapter_ray_preview_is_transient_then_commits_through_command_stack():
