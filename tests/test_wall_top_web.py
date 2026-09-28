@@ -51,6 +51,21 @@ def test_web_handle_identity_survives_transient_preview():
     adapter.cancel()
 
 
+def test_web_adapter_can_begin_from_current_stable_handle_identity():
+    doc, wall, stack, adapter = _adapter()
+    handle_id = f"wall-top:{wall.id}:end"
+
+    adapter.begin_handle(handle_id)
+    assert adapter.active is True
+    adapter.cancel()
+    assert adapter.active is False
+    assert stack.can_undo is False
+
+    doc.select([])
+    with pytest.raises(ValueError, match="stale or not currently selectable"):
+        adapter.begin_handle(handle_id)
+
+
 def test_web_adapter_ray_preview_is_transient_then_commits_through_command_stack():
     _, wall, stack, adapter = _adapter()
     adapter.begin_json(json.dumps({"entity_id": wall.id, "endpoint": "start"}))
