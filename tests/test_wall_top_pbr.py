@@ -1,3 +1,5 @@
+import math
+
 import pytest
 
 from archforge.ui.wall_top_pbr import wall_top_pbr_handles
@@ -54,3 +56,20 @@ def test_pbr_handle_contract_rejects_duplicate_renderer_identity():
 def test_pbr_handle_contract_rejects_nonpositive_radius():
     with pytest.raises(ValueError, match="> 0"):
         wall_top_pbr_handles([], radius=0.0)
+
+
+@pytest.mark.parametrize("bad_radius", [math.nan, math.inf, -math.inf])
+def test_pbr_handle_contract_rejects_nonfinite_radius(bad_radius):
+    with pytest.raises(ValueError, match="finite"):
+        wall_top_pbr_handles([], radius=bad_radius)
+
+
+@pytest.mark.parametrize(
+    "bad_position",
+    ([math.nan, 0.0, 2.4], [0.0, math.inf, 2.4], [0.0, 0.0, -math.inf]),
+)
+def test_pbr_handle_contract_rejects_nonfinite_world_center(bad_position):
+    with pytest.raises(ValueError, match="position must be finite"):
+        wall_top_pbr_handles(
+            [{"handle_id": "wall-top:wall-7:start", "position": bad_position}]
+        )
