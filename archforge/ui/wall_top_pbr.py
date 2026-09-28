@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import Iterable, Mapping, Any
 
 
@@ -12,8 +13,8 @@ def wall_top_pbr_handles(handles: Iterable[Mapping[str, Any]], *, radius: float 
     order, screen axes, or tessellation indices.
     """
     radius = float(radius)
-    if radius <= 0.0:
-        raise ValueError("wall-top PBR handle radius must be > 0")
+    if not math.isfinite(radius) or radius <= 0.0:
+        raise ValueError("wall-top PBR handle radius must be finite and > 0")
 
     rendered = []
     seen = set()
@@ -26,11 +27,14 @@ def wall_top_pbr_handles(handles: Iterable[Mapping[str, Any]], *, radius: float 
         position = handle["position"]
         if not isinstance(position, (list, tuple)) or len(position) != 3:
             raise ValueError("wall-top PBR handle position must contain three coordinates")
+        center = [float(value) for value in position]
+        if not all(math.isfinite(value) for value in center):
+            raise ValueError("wall-top PBR handle position must be finite")
 
         rendered.append(
             {
                 "handle_id": handle_id,
-                "center": [float(value) for value in position],
+                "center": center,
                 "radius": radius,
                 "preview": bool(handle.get("preview", False)),
                 "pickable": True,
