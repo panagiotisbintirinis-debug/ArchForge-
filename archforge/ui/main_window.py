@@ -487,7 +487,18 @@ class MainWindow(QMainWindow):
             button.clicked.connect(lambda checked=False, m=mode: self._set_pbr_camera(m))
             views_layout.addWidget(button)
         views_layout.addWidget(QLabel('Render'))
-        views_layout.addWidget(self.render_technique)
+        # Keep the compact toolbar selector and expose the same authoritative
+        # render modes clearly in the mockup workspace.
+        self.render_style_buttons = []
+        for label, mode in (('PBR', 'pbr'), ('Technical', 'technical'), ('Glass', 'glass')):
+            button = QPushButton(label, views)
+            button.setCheckable(True)
+            button.setChecked(self.render_technique.currentData() == mode)
+            button.clicked.connect(
+                lambda checked=False, m=mode: self._set_render_style_from_workspace(m)
+            )
+            views_layout.addWidget(button)
+            self.render_style_buttons.append((button, mode))
         views_layout.addStretch(1)
 
         specs = (
@@ -505,6 +516,13 @@ class MainWindow(QMainWindow):
         self.tabifyDockWidget(self.workspace_docks[0], self.workspace_docks[1])
         self.workspace_docks[0].raise_()
         add_workspace_toggles(self.view_menu, self.workspace_docks)
+
+    def _set_render_style_from_workspace(self, mode):
+        index=self.render_technique.findData(str(mode))
+        if index >= 0:
+            self.render_technique.setCurrentIndex(index)
+        for button, button_mode in getattr(self,'render_style_buttons',()):
+            button.setChecked(button_mode == str(mode))
 
     def _clear_form(self):
         while self.form.rowCount():
