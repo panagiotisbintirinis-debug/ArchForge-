@@ -8,7 +8,8 @@ from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QDockWidget, QWidget, QFormLayout, QDoubleSpinBox,
     QLabel, QTabWidget, QStatusBar, QFileDialog, QMessageBox, QComboBox, QInputDialog,
     QDialog, QDialogButtonBox, QVBoxLayout, QListWidget, QListWidgetItem,
-    QToolButton, QMenu,
+    QToolButton, QMenu, QSplitter, QTreeWidget, QTreeWidgetItem,
+    QLineEdit, QPushButton, QHBoxLayout, QGroupBox,
 )
 
 from archforge.core.model import Document, WorkPlane, Entity
@@ -20,6 +21,7 @@ from archforge.rendering.materials import MATERIAL_PRESETS, material_categories,
 from .plan_view import PlanView
 from .pbr_viewport import PBRViewport
 from .object_properties import property_fields, property_values, property_changes
+from .workspace_docks import WorkspaceDockSpec, install_workspace_dock, add_workspace_toggles
 
 
 class MainWindow(QMainWindow):
@@ -38,7 +40,16 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.plan_view, 'FLOOR PLAN')
         self.tabs.addTab(self.pbr_view, '3D STUDIO')
         self.tabs.addTab(self.structural_view, 'STRUCTURAL')
-        self.setCentralWidget(self.tabs)
+
+        # Approved mockup shell: the authoritative 14 views remain the real
+        # editors; the shell only reorganises presentation around them.
+        self.workspace_splitter = QSplitter(Qt.Orientation.Horizontal, self)
+        self.workspace_splitter.setObjectName('design_workspace_splitter')
+        self.workspace_splitter.addWidget(self.plan_view)
+        self.workspace_splitter.addWidget(self.pbr_view)
+        self.workspace_splitter.setStretchFactor(0, 1)
+        self.workspace_splitter.setStretchFactor(1, 1)
+        self.setCentralWidget(self.workspace_splitter)
         self.view = self.plan_view
         self.setStatusBar(QStatusBar())
         for view in (self.plan_view, self.pbr_view, self.structural_view):
@@ -53,6 +64,7 @@ class MainWindow(QMainWindow):
         self._build_edit_menu()
         self._build_view_menu()
         self._build_inspector()
+        self._build_mockup_workspace()
         self.refresh_inspector()
 
     def _on_tab_changed(self, idx):
@@ -421,6 +433,80 @@ class MainWindow(QMainWindow):
         self.form = QFormLayout(self.inspector)
         self.dock.setWidget(self.inspector)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dock)
+
+    def _build_mockup_workspace(self):
+        """Install the approved mockup regions as real dockable Qt widgets."""
+        self.workspace_docks = []
+
+        project = QWidget(self)
+        project_layout = QVBoxLayout(project)
+        project_layout.setContentsMargins(6, 6, 6, 6)
+        project_layout.addWidget(QLabel('PROJECT'))
+        self.project_tree = QTreeWidget(project)
+        self.project_tree.setHeaderHidden(True)
+        root = QTreeWidgetItem(['Project'])
+        root.addChild(QTreeWidgetItem(['Levels']))
+        root.addChild(QTreeWidgetItem(['Materials']))
+        self.project_tree.addTopLevelItem(root)
+        root.setExpanded(True)
+        project_layout.addWidget(self.project_tree)
+        project_layout.addWidget(QLabel('Active level'))
+        project_layout.addWidget(self.floor_selector)
+        project_layout.addWidget(QLabel('Materials are applied to the selected semantic object.'))
+
+        library = QWidget(self)
+        library_layout = QVBoxLayout(library)
+        library_layout.setContentsMargins(6, 6, 6, 6)
+        library_layout.addWidget(QLabel('LIBRARY'))
+        self.library_search = QLineEdit(library)
+        self.library_search.setPlaceholderText('Search library…')
+        library_layout.addWidget(self.library_search)
+        self.library_list = QListWidget(library)
+        for label in ('Doors', 'Windows', 'Openings', 'Stairs / Ramps', 'Structure', 'Furniture', 'Kitchen'):
+            self.library_list.addItem(label)
+        library_layout.addWidget(self.library_list)
+
+        ai = QWidget(self)
+        ai_layout = QVBoxLayout(ai)
+        ai_layout.setContentsMargins(6, 6, 6, 6)
+        ai_layout.addWidget(QLabel('AI ASSISTANT'))
+        ai_layout.addWidget(QLabel('Optional assistant — human editing remains authoritative.'))
+        self.ai_prompt = QLineEdit(ai)
+        self.ai_prompt.setPlaceholderText('Describe an optional command…')
+        ai_layout.addWidget(self.ai_prompt)
+        self.ai_apply = QPushButton('Apply through CommandStack', ai)
+        self.ai_apply.setEnabled(False)
+        self.ai_apply.setToolTip('Reserved for optional AI commands using the same authoritative command path.')
+        ai_layout.addWidget(self.ai_apply)
+        ai_layout.addStretch(1)
+
+        views = QWidget(self)
+        views_layout = QHBoxLayout(views)
+        views_layout.setContentsMargins(6, 6, 6, 6)
+        views_layout.addWidget(QLabel('VIEWS / RENDERING STYLE'))
+        for label, mode in (('Top', 'top'), ('Front', 'front'), ('Side', 'side'), ('ISO', 'iso30'), ('Eye', 'eye')):
+            button = QPushButton(label, views)
+            button.clicked.connect(lambda checked=False, m=mode: self._set_pbr_camera(m))
+            views_layout.addWidget(button)
+        views_layout.addWidget(QLabel('Render'))
+        views_layout.addWidget(self.render_technique)
+        views_layout.addStretch(1)
+
+        specs = (
+            (WorkspaceDockSpec('project', 'Project / Levels / Materials', Qt.DockWidgetArea.LeftDockWidgetArea), project),
+            (WorkspaceDockSpec('library', 'Library', Qt.DockWidgetArea.LeftDockWidgetArea), library),
+            (WorkspaceDockSpec('ai', 'AI', Qt.DockWidgetArea.RightDockWidgetArea), ai),
+            (WorkspaceDockSpec('views', 'Views / Rendering Style', Qt.DockWidgetArea.BottomDockWidgetArea), views),
+        )
+        for spec, widget in specs:
+            self.workspace_docks.append(install_workspace_dock(self, spec, widget))
+
+        self.dock.setWindowTitle('Properties')
+        self.dock.setObjectName('workspace_dock_properties')
+        self.workspace_docks.append(self.dock)
+        self.tabifyDockWidget(self.workspace_docks[0], self.workspace_docks[1])
+        self.workspace_docks[0].raise_()
+        add_workspace_toggles(self.view_menu, self.workspace_docks)
 
     def _clear_form(self):
         while self.form.rowCount():
