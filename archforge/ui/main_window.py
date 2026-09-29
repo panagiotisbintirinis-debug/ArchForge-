@@ -1285,6 +1285,12 @@ class MainWindow(QMainWindow):
             return
         try:
             self.stack.execute(DeleteEntities(ids))
+            # Deleting the object that owned an in-progress PBR gesture must
+            # release any stale WebGL pointer/orbit state before redrawing.
+            if self.pbr_view.web_view is not None:
+                self.pbr_view.web_view.page().runJavaScript(
+                    "if (window.archforgeResetInteraction) window.archforgeResetInteraction();"
+                )
             self._redraw_views(all_views=True)
             self.refresh_inspector()
             self.statusBar().showMessage(f'Deleted {len(ids)} object(s) — Undo is available', 3500)
