@@ -354,6 +354,12 @@ SCHEMAS = {
 
 def validate_params(kind, params):
     out = copy.deepcopy(params)
+    # Structural columns created before section/top-level semantics were added
+    # remain valid. Normalize only the two fields that did not exist in the
+    # legacy schema; explicitly supplied values still pass through validators.
+    if kind == 'structural_column':
+        out.setdefault('section', 'rectangular')
+        out.setdefault('top_level', 'Unassigned')
     for key, fn in SCHEMAS.get(kind, {}).items():
         if key in out:
             out[key] = fn(out[key])
