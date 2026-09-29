@@ -83,7 +83,10 @@ class MainWindow(QMainWindow):
         self._redraw_views()
 
     def _set_active_tool(self, tool):
-        if str(tool).startswith('structural_') and self.view is self.pbr_view:
+        # Structural authoring always belongs to the dedicated structural view.
+        # This restores the visible/interactive structural workflow regardless
+        # of which mockup workspace tab was active when the command was chosen.
+        if str(tool).startswith('structural_') and self.view is not self.structural_view:
             self.tabs.setCurrentWidget(self.structural_view)
             self.view = self.structural_view
         if self.view is self.structural_view and str(tool) not in (
@@ -1351,7 +1354,9 @@ class MainWindow(QMainWindow):
             return
         try:
             self.stack.execute(CreateRoomFloors(signatures))
-            self._redraw_views()
+            # Floors affect the shared building model, so refresh every live
+            # representation (2D, PBR 3D and Structural), not only the active tab.
+            self._redraw_views(all_views=True)
             self.refresh_inspector()
             self.statusBar().showMessage(f'Created {len(signatures)} automatic floor(s)', 4000)
         except Exception as exc:
