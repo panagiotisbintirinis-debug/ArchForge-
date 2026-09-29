@@ -11,7 +11,7 @@ from archforge.geometry.incremental import IncrementalEvaluationCache
 from archforge.geometry.sculpt import SculptedPreviewBackend
 from archforge.geometry.selection import BrushSpec, SurfaceHit
 from archforge.geometry.sculpt_transaction import SculptTransaction
-from archforge.core.interaction import OpeningPlaceTransaction, StairPlaceTransaction, RampPlaceTransaction, MoveTransaction, RotateTransaction, StructuralColumnPlaceTransaction
+from archforge.core.interaction import OpeningPlaceTransaction, StairPlaceTransaction, RampPlaceTransaction, MoveTransaction, RotateTransaction, StructuralColumnPlaceTransaction, StructuralBeamDrawTransaction
 from archforge.rendering.scene import build_pbr_scene_payload
 from archforge.ui.object_context_menu import object_context_actions
 
@@ -888,6 +888,27 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     return;
   }
 
+  if (activeTool === "structural_beam") {
+    if (event.button === 2) {
+      bridge.cancelStructuralBeam();
+      event.preventDefault(); event.stopPropagation(); return;
+    }
+    if (event.button !== 0) return;
+    const hit = pickModel(event);
+    if (!hit || !hit.face) return;
+    const point = hit.point;
+    if (!window.__archforgeBeamStart) {
+      window.__archforgeBeamStart = true;
+      controls.enabled = false;
+      bridge.beginStructuralBeam(Number(point.x), Number(point.y));
+    } else {
+      window.__archforgeBeamStart = false;
+      controls.enabled = true;
+      bridge.finishStructuralBeam(Number(point.x), Number(point.y));
+    }
+    event.preventDefault(); event.stopPropagation(); return;
+  }
+
   if (activeTool === "stair") {
     if (event.button === 2) {
       if (stairing) {
@@ -1237,6 +1258,18 @@ class PBRInteractionBridge(QObject):
         self.viewport._place_structural_column_from_web(x, y)
 
     @Slot(float, float)
+    def beginStructuralBeam(self, x: float, y: float) -> None:
+        self.viewport._begin_structural_beam_from_web(x, y)
+
+    @Slot(float, float)
+    def finishStructuralBeam(self, x: float, y: float) -> None:
+        self.viewport._finish_structural_beam_from_web(x, y)
+
+    @Slot()
+    def cancelStructuralBeam(self) -> None:
+        self.viewport._cancel_structural_beam_from_web()
+
+    @Slot(float, float)
     def beginStair(self, x: float, y: float) -> None:
         self.viewport._begin_stair_from_web(x, y)
 
@@ -1347,6 +1380,7 @@ class PBRViewport(QWidget):
         self.sculpt_op = "pull"
         self._sculpt_tx = None
         self._stair_preview_payload = {"options": []}
+        self._structural_beam_tx = None
         self._stair_tx = None
         self._ramp_preview_payload = {"active": None, "info": {}}
         self._ramp_tx = None
@@ -1633,6 +1667,52 @@ class PBRViewport(QWidget):
             self.statusChanged.emit("Placed structural column — Undo is available")
         except Exception as exc:
             self.statusChanged.emit(f"Cannot place structural column: {exc}")
+
+    def _begin_structural_beam_from_web(self, x: float, y: float) -> None:
+        try:
+            active_z = float(self.doc.work_plane.origin[2])
+            level_name = str(self.doc.work_plane.name)
+            above = sorted(
+                (float(z), str(name)) for name, z in self.doc.levels.items()
+                if float(z) > active_z + 1e-9
+            )
+            next_z = above[0][0] if above else active_z + 2.70
+            beam_height = 0.30
+            self._structural_beam_tx = StructuralBeamDrawTransaction(
+                self.doc, self.stack, (float(x), float(y)),
+                z=next_z-beam_height, width=0.20, height=beam_height,
+                level=level_name, grid=(0.10 if self._snap_enabled else None),
+                snap_tol=0.10, angle_increment=15.0,
+            )
+            self.statusChanged.emit("Beam start set — click the end point")
+        except Exception as exc:
+            self._structural_beam_tx = None
+            self.statusChanged.emit(f"Cannot start structural beam: {exc}")
+
+    def _finish_structural_beam_from_web(self, x: float, y: float) -> None:
+        if self._structural_beam_tx is None:
+            self.statusChanged.emit("Beam has no start point")
+            return
+        tx = self._structural_beam_tx
+        self._structural_beam_tx = None
+        try:
+            tx.update(float(x), float(y))
+            entity_id = tx.commit()
+            self._evaluation_cache.clear()
+            self.doc.select([entity_id])
+            self.selectionChangedByView.emit()
+            self.redraw(force_full=False)
+            self.statusChanged.emit("Placed structural beam — Undo is available")
+        except Exception as exc:
+            self.statusChanged.emit(f"Cannot commit structural beam: {exc}")
+
+    def _cancel_structural_beam_from_web(self) -> None:
+        if self._structural_beam_tx is not None:
+            self._structural_beam_tx.cancel()
+        self._structural_beam_tx = None
+        if self.web_view is not None:
+            self.web_view.page().runJavaScript("window.__archforgeBeamStart = false; controls.enabled = true;")
+        self.statusChanged.emit("Beam placement cancelled")
 
     def _begin_stair_from_web(self, x: float, y: float) -> None:
         try:
