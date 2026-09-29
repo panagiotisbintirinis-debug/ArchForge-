@@ -280,7 +280,7 @@ class PlanView(QGraphicsView):
         )
 
     def redraw(self):
-        self._scene.clear();self._handle_items.clear();self._entity_items.clear();self._draw_grid();frame=build_plan_frame(self.doc,self.controller.preview)
+        self._scene.clear();self._handle_items.clear();self._entity_items.clear();self._draw_grid();frame=build_plan_frame(self.doc,self.controller.preview,include_lower_underlay=not self.structural_only)
         if self.structural_only:
             structural_ids={
                 eid for eid,e in self.doc.entities.items()
@@ -385,13 +385,17 @@ class PlanView(QGraphicsView):
         extent=100;pen=QPen(QColor(225,225,225));pen.setWidthF(0);axis=QPen(QColor(160,160,160));axis.setWidthF(0)
         for i in range(-extent,extent+1):self._scene.addLine(i,-extent,i,extent,axis if i==0 else pen).setZValue(-100);self._scene.addLine(-extent,i,extent,i,axis if i==0 else pen).setZValue(-100)
     def _draw_primitive(self,p:Primitive2D):
-        preview=p.role=='preview';opening=p.role=='opening';room=p.role=='derived-room';context=p.role=='structural-context'
+        preview=p.role=='preview';opening=p.role=='opening';room=p.role=='derived-room';context=p.role=='structural-context';underlay=p.role=='floor-underlay'
         pen=QPen(
-            QColor(150,150,150,150)
+            QColor(170,170,170,105)
+            if underlay else
+            (QColor(150,150,150,150)
             if context else
-            (QColor(180,90,20) if opening else (QColor(40,150,70) if preview else QColor(45,55,65)))
+            (QColor(180,90,20) if opening else (QColor(40,150,70) if preview else QColor(45,55,65))))
         )
-        pen.setWidthF(.022 if context else (.06 if opening else (.04 if preview else .035)));item=None
+        if underlay:
+            pen.setStyle(Qt.PenStyle.DashLine)
+        pen.setWidthF(.018 if underlay else (.022 if context else (.06 if opening else (.04 if preview else .035))));item=None
         if p.kind=='line':a,b=p.points;item=self._scene.addLine(a[0],a[1],b[0],b[1],pen)
         elif p.kind=='polyline':
             if len(p.points)>=2:
