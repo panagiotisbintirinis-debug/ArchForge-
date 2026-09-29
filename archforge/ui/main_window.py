@@ -115,10 +115,15 @@ class MainWindow(QMainWindow):
             4500,
         )
 
-    def _activate_sculpt_tool(self):
-        self.tabs.setCurrentWidget(self.pbr_view)
-        self.pbr_view.activate()
-        self.pbr_view.set_tool('sculpt')
+    def _activate_sculpt_tool(self, enabled=True):
+        if enabled:
+            self.tabs.setCurrentWidget(self.pbr_view)
+            self.pbr_view.activate()
+            self.pbr_view.set_tool('sculpt')
+            self.statusBar().showMessage('Sculpt 3D ON', 2000)
+        else:
+            self.pbr_view.set_tool('orbit')
+            self.statusBar().showMessage('Sculpt 3D OFF — camera navigation restored', 2000)
 
     def _configure_sculpt_views(self, **kwargs):
         self.pbr_view.configure_sculpt(**kwargs)
@@ -249,8 +254,12 @@ class MainWindow(QMainWindow):
 
         sculpt = QAction('Sculpt 3D', self)
         sculpt.setShortcut(QKeySequence('C'))
-        sculpt.triggered.connect(self._activate_sculpt_tool)
+        sculpt.setCheckable(True)
+        sculpt.setChecked(False)
+        sculpt.setToolTip('Toggle Sculpt 3D on/off. Highlighted = active.')
+        sculpt.toggled.connect(self._activate_sculpt_tool)
         toolbar.addAction(sculpt)
+        self.sculpt_action = sculpt
 
         self.sculpt_operation = QComboBox()
         self.sculpt_operation.addItems(
