@@ -615,8 +615,29 @@ window.setCutaway = function(enabled) {
   });
 };
 
+function resetTransientInteraction() {
+  sculpting = false;
+  stairing = false;
+  ramping = false;
+  movingEntity = false;
+  rotatingEntity = false;
+  pendingMovePoint = null;
+  pendingRotatePoint = null;
+  pendingStairPoint = null;
+  pendingRampPoint = null;
+  clearMoveGhost();
+  clearRotateGhost();
+  controls.enabled = activeTool !== "sculpt";
+}
+
+window.archforgeResetInteraction = function() {
+  resetTransientInteraction();
+};
+
 window.setActiveTool = function(tool) {
   activeTool = tool || "orbit";
+  // A tool change is a hard interaction boundary. Do not let a deleted or
+  // cancelled object leave OrbitControls captured/disabled.
   if (!sculpting && !stairing && !ramping && !movingEntity && !rotatingEntity) {
     controls.enabled = activeTool !== "sculpt";
   }
@@ -1113,14 +1134,34 @@ renderer.domElement.addEventListener("pointermove", (event) => {
   event.stopPropagation();
 }, true);
 
+function finishSculptPointer(event, commit=true) {
+  if (!sculpting) return;
+  sculpting = false;
+  if (renderer.domElement.releasePointerCapture && renderer.domElement.hasPointerCapture &&
+      renderer.domElement.hasPointerCapture(event.pointerId)) {
+    renderer.domElement.releasePointerCapture(event.pointerId);
+  }
+  controls.enabled = activeTool !== "sculpt";
+  if (bridge && commit) bridge.endSculpt();
+  event.preventDefault();
+  event.stopPropagation();
+}
+
 renderer.domElement.addEventListener("pointerup", (event) => {
-  if (!bridge) return;
+  if (!bridge || !sculpting) return;
+  finishSculptPointer(event, true);
+}, true);
+
+renderer.domElement.addEventListener("pointercancel", (event) => {
+  if (!sculpting) return;
+  finishSculptPointer(event, true);
+}, true);
+
+renderer.domElement.addEventListener("lostpointercapture", (event) => {
   if (!sculpting) return;
   sculpting = false;
   controls.enabled = activeTool !== "sculpt";
-  bridge.endSculpt();
-  event.preventDefault();
-  event.stopPropagation();
+  if (bridge) bridge.endSculpt();
 }, true);
 
 if (window.__archforgePendingTechnique) window.setTechnique(window.__archforgePendingTechnique);
