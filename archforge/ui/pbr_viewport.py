@@ -1316,10 +1316,11 @@ class PBRViewport(QWidget):
     contextActionRequested = Signal(str, str)
     statusChanged = Signal(str)
 
-    def __init__(self, doc, stack, parent=None):
+    def __init__(self, doc, stack, parent=None, structural_only=False):
         super().__init__(parent)
         self.doc = doc
         self.stack = stack
+        self.structural_only = bool(structural_only)
         self._evaluation_cache = IncrementalEvaluationCache(SculptedPreviewBackend())
         self._technique = "pbr"
         self._camera_preset = "orbit"
@@ -2089,6 +2090,18 @@ class PBRViewport(QWidget):
             mesh_overrides=overrides,
             doc=self.doc,
         )
+        if self.structural_only:
+            # Structural is a derived 3D view of the same authoritative model.
+            # Keep semantic structural members plus slabs/foundations; do not
+            # create a second structural model or expose tessellation wireframe.
+            structural_kinds = {
+                "structural_column", "structural_beam",
+                "floor", "room_floor", "room_foundation",
+            }
+            payload["objects"] = [
+                item for item in payload.get("objects", ())
+                if item.get("kind") in structural_kinds
+            ]
         fit = "true" if force_full and self._sculpt_tx is None else "false"
         script = (
             "window.__archforgePendingScene = "
