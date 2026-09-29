@@ -482,7 +482,10 @@ function applyTechnique() {
   renderer.shadowMap.enabled = !technical;
   modelRoot.traverse((obj) => {
     if (!obj.isMesh) return;
-    obj.material.wireframe = technical;
+    // Technical mode is a solid architectural/structural view.  The
+    // triangles in MeshPayload are tessellation, not design edges, so never
+    // expose them as Three.js wireframe lines.
+    obj.material.wireframe = false;
     obj.material.transparent = glass;
     obj.material.opacity = glass ? 0.34 : 1.0;
     obj.material.depthWrite = !glass;
