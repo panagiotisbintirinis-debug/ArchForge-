@@ -36,7 +36,7 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.plan_view = PlanView(self.doc, self.stack)
         self.pbr_view = PBRViewport(self.doc, self.stack)
-        self.structural_view = PlanView(self.doc, self.stack, structural_only=True)
+        self.structural_view = PBRViewport(self.doc, self.stack, structural_only=True)
         self.tabs.addTab(self.plan_view, 'FLOOR PLAN')
         self.tabs.addTab(self.pbr_view, '3D STUDIO')
         self.tabs.addTab(self.structural_view, 'STRUCTURAL')
@@ -69,6 +69,8 @@ class MainWindow(QMainWindow):
         if self.view is self.pbr_view:
             self.pbr_view.activate()
         elif self.view is self.structural_view:
+            self.structural_view.activate()
+            self.structural_view.set_render_technique('technical')
             try:
                 from archforge.structure.graph import build_structural_graph
                 graph=build_structural_graph(self.doc)
@@ -1463,7 +1465,7 @@ class MainWindow(QMainWindow):
     def _redraw_views(self, *, all_views=False):
         targets=(self.plan_view,self.pbr_view,self.structural_view) if all_views else (self.view,)
         for view in targets:
-            if view is self.pbr_view:
+            if isinstance(view, PBRViewport):
                 view.redraw(force_full=True)
             else:
                 view.redraw()
