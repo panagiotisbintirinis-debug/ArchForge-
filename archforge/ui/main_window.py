@@ -309,11 +309,19 @@ class MainWindow(QMainWindow):
         toolbar.addAction(auto_floors)
         self.auto_floors_action = auto_floors
 
+        # Preserve the historical ArchForge Flat Roof action, but keep it
+        # reachable when the mockup toolbar is narrower than its contents.
         flat_roof = QAction('Flat Roof', self)
         flat_roof.triggered.connect(self._create_flat_roofs)
         toolbar.addAction(flat_roof)
         self.flat_roof_action = flat_roof
         toolbar.addSeparator()
+
+        self.roof_toolbar = QToolBar('Roof', self)
+        self.roof_toolbar.setObjectName('roof_toolbar')
+        self.roof_toolbar.setMovable(False)
+        self.roof_toolbar.addAction(self.flat_roof_action)
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.roof_toolbar)
         undo = QAction('Undo', self)
         undo.setShortcut(QKeySequence.StandardKey.Undo)
         undo.triggered.connect(self._undo)
