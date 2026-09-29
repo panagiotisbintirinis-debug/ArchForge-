@@ -350,37 +350,8 @@ def preview_primitives(preview):
             elif {'cx','cy','diameter_x','diameter_y'}<=set(p):out.append(Primitive2D('ellipse',((p['cx'],p['cy']),),p['diameter_x']/2,p['diameter_y']/2,p.get('rotation',0.),eid,'preview'))
         return out
     return []
-def build_plan_frame(doc,preview=None,include_lower_underlay=False):
+def build_plan_frame(doc,preview=None):
     f=PlanFrame()
-    active_z=float(doc.work_plane.origin[2])
-    if include_lower_underlay:
-        # Draw lower storeys as non-interactive reference geometry. The active
-        # storey remains the only editable plan layer.
-        underlay_kinds={'wall','pod','door','window','opening','stair','ramp','room_floor'}
-        for eid in doc.entities:
-            e=doc.get(eid)
-            if e.kind not in underlay_kinds or _entity_on_active_level(doc,e):
-                continue
-            p=e.params
-            if e.kind=='wall':
-                entity_z=float(p.get('z',0.0))
-            elif e.kind=='pod':
-                entity_z=float(p.get('floor_level',0.0))
-            elif e.kind in ('door','window','opening') and e.parent_id in doc.entities:
-                host=doc.get(e.parent_id)
-                entity_z=float(host.params.get('z',host.params.get('floor_level',0.0)))
-            elif e.kind in ('stair','ramp'):
-                entity_z=float(p.get('lower_z',0.0))
-            else:
-                entity_z=float(p.get('z',0.0))
-            if entity_z >= active_z-1e-5:
-                continue
-            primitive=entity_primitive(doc,eid)
-            if primitive:
-                f.primitives.append(Primitive2D(
-                    primitive.kind,primitive.points,primitive.radius_x,primitive.radius_y,
-                    primitive.rotation,'','floor-underlay',primitive.meta,
-                ))
     try:
         from archforge.architecture.topology import room_metrics
         for index,face in enumerate(doc.active_room_faces(),start=1):
@@ -393,8 +364,6 @@ def build_plan_frame(doc,preview=None,include_lower_underlay=False):
     except (ValueError,KeyError):
         pass
     for eid in doc.entities:
-        e=doc.get(eid)
-        if not _entity_on_active_level(doc,e):continue
         p=entity_primitive(doc,eid)
         if p:f.primitives.append(p)
     f.handles=selection_handles(doc)
