@@ -506,7 +506,7 @@ function setCameraPreset(mode) {
   if (!bounds) return;
   const {center, radius} = bounds;
   activeCameraPreset = mode;
-  controls.enabled = activeTool !== "sculpt";
+  controls.enabled = true;
   camera.up.set(0, 0, 1);
   camera.near = Math.max(0.02, radius / 500.0);
   camera.far = Math.max(200.0, radius * 40.0);
@@ -627,7 +627,7 @@ function resetTransientInteraction() {
   pendingRampPoint = null;
   clearMoveGhost();
   clearRotateGhost();
-  controls.enabled = activeTool !== "sculpt";
+  controls.enabled = true;
 }
 
 window.archforgeResetInteraction = function() {
@@ -639,7 +639,9 @@ window.setActiveTool = function(tool) {
   // A tool change is a hard interaction boundary. Do not let a deleted or
   // cancelled object leave OrbitControls captured/disabled.
   if (!sculpting && !stairing && !ramping && !movingEntity && !rotatingEntity) {
-    controls.enabled = activeTool !== "sculpt";
+    // Sculpt captures the pointer only after an actual surface press.
+    // Merely choosing Sculpt must never freeze camera navigation.
+    controls.enabled = true;
   }
 };
 
@@ -1141,7 +1143,7 @@ function finishSculptPointer(event, commit=true) {
       renderer.domElement.hasPointerCapture(event.pointerId)) {
     renderer.domElement.releasePointerCapture(event.pointerId);
   }
-  controls.enabled = activeTool !== "sculpt";
+  controls.enabled = true;
   if (bridge && commit) bridge.endSculpt();
   event.preventDefault();
   event.stopPropagation();
@@ -1160,7 +1162,7 @@ renderer.domElement.addEventListener("pointercancel", (event) => {
 renderer.domElement.addEventListener("lostpointercapture", (event) => {
   if (!sculpting) return;
   sculpting = false;
-  controls.enabled = activeTool !== "sculpt";
+  controls.enabled = true;
   if (bridge) bridge.endSculpt();
 }, true);
 
