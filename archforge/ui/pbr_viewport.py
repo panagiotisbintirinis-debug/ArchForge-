@@ -11,7 +11,7 @@ from archforge.geometry.incremental import IncrementalEvaluationCache
 from archforge.geometry.sculpt import SculptedPreviewBackend
 from archforge.geometry.selection import BrushSpec, SurfaceHit
 from archforge.geometry.sculpt_transaction import SculptTransaction
-from archforge.core.interaction import OpeningPlaceTransaction, StairPlaceTransaction, RampPlaceTransaction, MoveTransaction, RotateTransaction
+from archforge.core.interaction import OpeningPlaceTransaction, StairPlaceTransaction, RampPlaceTransaction, MoveTransaction, RotateTransaction, StructuralColumnPlaceTransaction
 from archforge.rendering.scene import build_pbr_scene_payload
 from archforge.ui.object_context_menu import object_context_actions
 
@@ -877,6 +877,17 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     return;
   }
 
+  if (activeTool === "structural_column") {
+    if (event.button !== 0) return;
+    const hit = pickModel(event);
+    if (!hit || !hit.face) return;
+    const point = hit.point;
+    bridge.placeStructuralColumn(Number(point.x), Number(point.y));
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+
   if (activeTool === "stair") {
     if (event.button === 2) {
       if (stairing) {
@@ -1220,6 +1231,10 @@ class PBRInteractionBridge(QObject):
     @Slot(str, str)
     def placeOpening(self, kind: str, payload_json: str) -> None:
         self.viewport._place_opening_from_web(kind, payload_json)
+
+    @Slot(float, float)
+    def placeStructuralColumn(self, x: float, y: float) -> None:
+        self.viewport._place_structural_column_from_web(x, y)
 
     @Slot(float, float)
     def beginStair(self, x: float, y: float) -> None:
@@ -1590,6 +1605,34 @@ class PBRViewport(QWidget):
             f"{active.riser_count} risers × {active.riser_height:.3f} m | "
             f"tread {active.tread_depth:.3f} m | {note}"
         )
+
+    def _place_structural_column_from_web(self, x: float, y: float) -> None:
+        try:
+            active_z = float(self.doc.work_plane.origin[2])
+            level_name = str(self.doc.work_plane.name)
+            above = sorted(
+                (float(z), str(name))
+                for name, z in self.doc.levels.items()
+                if float(z) > active_z + 1e-9
+            )
+            if above:
+                next_z, next_name = above[0]
+            else:
+                next_z, next_name = active_z + 2.70, "Unassigned"
+            tx = StructuralColumnPlaceTransaction(
+                self.doc, self.stack, float(x), float(y),
+                z=active_z, height=max(0.05, next_z-active_z),
+                base_level=level_name, top_level=next_name,
+                grid=(0.10 if self._snap_enabled else None), snap_tol=0.10,
+            )
+            entity_id = tx.commit()
+            self._evaluation_cache.clear()
+            self.doc.select([entity_id])
+            self.selectionChangedByView.emit()
+            self.redraw(force_full=False)
+            self.statusChanged.emit("Placed structural column — Undo is available")
+        except Exception as exc:
+            self.statusChanged.emit(f"Cannot place structural column: {exc}")
 
     def _begin_stair_from_web(self, x: float, y: float) -> None:
         try:
