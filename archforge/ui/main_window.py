@@ -307,10 +307,12 @@ class MainWindow(QMainWindow):
         auto_floors = QAction('Auto Floors', self)
         auto_floors.triggered.connect(self._create_auto_floors)
         toolbar.addAction(auto_floors)
+        self.auto_floors_action = auto_floors
 
         flat_roof = QAction('Flat Roof', self)
         flat_roof.triggered.connect(self._create_flat_roofs)
         toolbar.addAction(flat_roof)
+        self.flat_roof_action = flat_roof
         toolbar.addSeparator()
         undo = QAction('Undo', self)
         undo.setShortcut(QKeySequence.StandardKey.Undo)
@@ -451,6 +453,14 @@ class MainWindow(QMainWindow):
         project_layout.addWidget(QLabel('Active level'))
         project_layout.addWidget(self.floor_selector)
         project_layout.addWidget(QLabel('Materials are applied to the selected semantic object.'))
+        building_actions = QHBoxLayout()
+        auto_floor_button = QPushButton('Auto Floors', project)
+        auto_floor_button.clicked.connect(self._create_auto_floors)
+        flat_roof_button = QPushButton('Flat Roof', project)
+        flat_roof_button.clicked.connect(self._create_flat_roofs)
+        building_actions.addWidget(auto_floor_button)
+        building_actions.addWidget(flat_roof_button)
+        project_layout.addLayout(building_actions)
 
         library = QWidget(self)
         library_layout = QVBoxLayout(library)
