@@ -41,15 +41,10 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.pbr_view, '3D STUDIO')
         self.tabs.addTab(self.structural_view, 'STRUCTURAL')
 
-        # Approved mockup shell: the authoritative 14 views remain the real
-        # editors; the shell only reorganises presentation around them.
-        self.workspace_splitter = QSplitter(Qt.Orientation.Horizontal, self)
-        self.workspace_splitter.setObjectName('design_workspace_splitter')
-        self.workspace_splitter.addWidget(self.plan_view)
-        self.workspace_splitter.addWidget(self.pbr_view)
-        self.workspace_splitter.setStretchFactor(0, 1)
-        self.workspace_splitter.setStretchFactor(1, 1)
-        self.setCentralWidget(self.workspace_splitter)
+        # Preserve the proven ArchForge 14 editor ownership/runtime.
+        # The approved mockup docks surround these real editors; they must not
+        # reparent PlanView/PBRViewport away from the tab widget.
+        self.setCentralWidget(self.tabs)
         self.view = self.plan_view
         self.setStatusBar(QStatusBar())
         for view in (self.plan_view, self.pbr_view, self.structural_view):
