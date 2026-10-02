@@ -92,6 +92,10 @@ def install_approved_mockup_shell(window):
         ribbon.addAction(a)
     # Reuse the proven Sculpt controls from the original toolbar. Hiding the
     # legacy toolbar must not hide access to brush operation/radius.
+    # Reuse the isolated semantic Kitchen command already owned by MainWindow.
+    # Do not duplicate generation logic in the mockup shell.
+    if hasattr(window, "kitchen_action"):
+        ribbon.addAction(window.kitchen_action)
     ribbon.addSeparator()
     ribbon.addWidget(QLabel("Sculpt Op:"))
     ribbon.addWidget(window.sculpt_operation)
