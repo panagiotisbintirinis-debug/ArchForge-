@@ -262,9 +262,6 @@ _OPENING = {'offset': _finite, 'surface_u': _finite, 'width': _positive, 'height
 _ARCH_OPENING = {**_OPENING, 'shape': _opening_shape, 'arch_rise': _positive}
 SCHEMAS = {
     'box': {'x': _finite, 'y': _finite, 'z': _finite, 'width': _positive, 'depth': _positive, 'height': _positive, 'rotation': _finite},
-    # Editable semantic kitchen components. Geometry uses metres internally;
-    # the generator converts the supplied millimetre design parameters.
-    'kitchen_part': {'x': _finite, 'y': _finite, 'z': _finite, 'width': _positive, 'depth': _positive, 'height': _positive, 'rotation': _finite, 'role': _nonempty, 'run_id': _nonempty},
     'wall': {'x1': _finite, 'y1': _finite, 'z': _finite, 'x2': _finite, 'y2': _finite, 'height': _positive, 'thickness': _positive},
     'pod': {'cx': _finite, 'cy': _finite, 'floor_level': _finite, 'diameter_x': _positive, 'diameter_y': _positive, 'height': _positive, 'shell_thickness': _positive, 'rotation': _finite},
     'stair': {
