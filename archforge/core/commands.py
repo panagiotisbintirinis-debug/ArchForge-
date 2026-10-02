@@ -15,6 +15,23 @@ class AddEntity(Command):
     def undo(self,doc): doc.remove(self.entity.id)
 
 @dataclass
+class AddEntities(Command):
+    """Add a generated semantic assembly as one undoable command."""
+    entities: List[Entity]
+    def do(self,doc):
+        added=[]
+        try:
+            for entity in self.entities:
+                doc.add(entity.clone()); added.append(entity.id)
+        except Exception:
+            for eid in reversed(added):
+                if eid in doc.entities: doc.remove(eid)
+            raise
+    def undo(self,doc):
+        for entity in reversed(self.entities):
+            if entity.id in doc.entities: doc.remove(entity.id)
+
+@dataclass
 class UpdateEntity(Command):
     eid:str; changes:Dict[str,Any]; before:Dict[str,Any]|None=None
     before_state:Optional[Dict[str,Any]]=None
