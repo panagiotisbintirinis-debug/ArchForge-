@@ -107,26 +107,48 @@ def install_approved_mockup_shell(window):
     window.tabs=right_tabs
     right_tabs.currentChanged.connect(window._on_tab_changed)
 
-    # Keep the real 2D editor alive in its own visible pane.  A QDockWidget
-    # used as a child inside a splitter can collapse/reparent badly; the actual
-    # PlanView/PBRViewport stay ordinary central widgets here.
+    # Default workflow: one large central editor, as requested. 2D is the
+    # default; 3D and Structural are one click away. No functionality is lost.
     plan_card=_card("Κάτοψη - Ισόγειο",window.plan_view)
-    center_views=QSplitter(Qt.Horizontal)
-    center_views.addWidget(plan_card)
-    center_views.addWidget(right_tabs)
-    center_views.setCollapsible(0,False)
-    center_views.setCollapsible(1,False)
-    center_views.setSizes([430,650])
-    plan_card.setMinimumWidth(320)
+    central_tabs=QTabWidget()
+    central_tabs.addTab(plan_card,"2D Σχεδίαση")
+    central_tabs.addTab(right_tabs,"3D / Structural")
+    central_tabs.setCurrentIndex(0)
 
     strips=QHBoxLayout(); strips.setSpacing(6)
     views=_thumb_strip(("3D Προοπτική","Top","Front","Side","Εσωτερική Όψη","Render (PBR)","Walkthrough"))
     styles=_thumb_strip(("Ρεαλιστικό","Φυσικό φως","Βραδινό","Clay","Sketch"))
-    strips.addWidget(_card("Προβολές",views),6); strips.addWidget(_card("Στυλ Rendering",styles),4)
-    center=QWidget(); cv=QVBoxLayout(center); cv.setContentsMargins(0,0,0,0); cv.setSpacing(6); cv.addWidget(center_views,1); cv.addLayout(strips)
 
-    # Central area is ONLY the real simultaneous 2D + 3D editor.
+    center=QWidget(); cv=QVBoxLayout(center); cv.setContentsMargins(0,0,0,0); cv.setSpacing(6)
+    cv.addWidget(central_tabs,1)
     window.setCentralWidget(center)
+
+    # Optional simultaneous mode remains available. It is deliberately not
+    # the default. The same real widgets are reparented; no duplicate model.
+    def set_simultaneous(enabled):
+        enabled=bool(enabled)
+        if enabled:
+            if central_tabs.indexOf(plan_card)>=0: central_tabs.removeTab(central_tabs.indexOf(plan_card))
+            if central_tabs.indexOf(right_tabs)>=0: central_tabs.removeTab(central_tabs.indexOf(right_tabs))
+            split=QSplitter(Qt.Horizontal)
+            split.addWidget(plan_card); split.addWidget(right_tabs)
+            split.setCollapsible(0,False); split.setCollapsible(1,False); split.setSizes([430,650])
+            central_tabs.addTab(split,"2D + 3D")
+            central_tabs.setCurrentWidget(split)
+            window._mockup_center_split=split
+        else:
+            split=getattr(window,"_mockup_center_split",None)
+            if split is not None:
+                plan_card.setParent(None); right_tabs.setParent(None)
+                idx=central_tabs.indexOf(split)
+                if idx>=0: central_tabs.removeTab(idx)
+                split.deleteLater()
+            if central_tabs.indexOf(plan_card)<0: central_tabs.insertTab(0,plan_card,"2D Σχεδίαση")
+            if central_tabs.indexOf(right_tabs)<0: central_tabs.insertTab(1,right_tabs,"3D / Structural")
+            central_tabs.setCurrentWidget(plan_card)
+            window._mockup_center_split=None
+        window.view=window.plan_view if not enabled else window.plan_view
+    window._set_simultaneous_views=set_simultaneous
 
     # All surrounding mockup regions are genuine closable/restorable docks.
     # Their toggleViewAction entries live in Προβολή, so a closed panel is
@@ -167,6 +189,14 @@ def install_approved_mockup_shell(window):
     window.resizeDocks([window.dock],[280],Qt.Horizontal)
     window.resizeDocks([views_dock],[120],Qt.Vertical)
     window.view=window.plan_view
-    window._mockup_center_split=center_views
     window._mockup_right_tabs=right_tabs
     window._approved_docks=(project_dock,window.dock,views_dock)
+    window._central_tabs=central_tabs
+
+    simultaneous=QAction("Ταυτόχρονα 2D + 3D",window)
+    simultaneous.setCheckable(True)
+    simultaneous.setChecked(False)
+    simultaneous.toggled.connect(set_simultaneous)
+    view_menu.addSeparator()
+    view_menu.addAction(simultaneous)
+    window._simultaneous_action=simultaneous
