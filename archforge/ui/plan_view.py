@@ -50,32 +50,23 @@ class PlanView(QGraphicsView):
         super().mouseDoubleClickEvent(event)
 
     def contextMenuEvent(self,event):
-        hit=self.itemAt(event.pos())
-        eid=self._entity_items.get(hit)
-        scene_pos=self.mapToScene(event.pos())
-        self._context_scene_point=(float(scene_pos.x()),float(scene_pos.y()))
-
         if self.controller.tool=='wall':
-            # Right-clicking an EXISTING wall is object interaction, not a
-            # drawing-angle request. This makes Trim available directly under
-            # the mouse while preserving the 90/45/15/Free radial on empty
-            # drawing space.
-            if not (eid and eid in self.doc.entities and self.doc.get(eid).kind=='wall'):
-                self._wall_menu_target_entity=None
-                if len(self.doc.selection)==1:
-                    selected=self.doc.selection[0]
-                    if selected in self.doc.entities and self.doc.get(selected).kind=='wall':
-                        self._wall_menu_target_entity=selected
-                else:
-                    preview_id=getattr(self.controller.preview,'entity_id',None)
-                    if preview_id and preview_id in self.doc.entities and self.doc.get(preview_id).kind=='wall':
-                        self._wall_menu_target_entity=preview_id
-                self._show_wall_angle_radial(event.pos())
-                event.accept()
-                return
-
-        # Existing object under the mouse: show its object menu (including
-        # Trim for walls) regardless of whether Wall tool is active.
+            hit=self.itemAt(event.pos())
+            eid=self._entity_items.get(hit)
+            self._wall_menu_target_entity=None
+            if eid and eid in self.doc.entities and self.doc.get(eid).kind=='wall':
+                self._wall_menu_target_entity=eid
+            elif len(self.doc.selection)==1:
+                selected=self.doc.selection[0]
+                if selected in self.doc.entities and self.doc.get(selected).kind=='wall':
+                    self._wall_menu_target_entity=selected
+            else:
+                preview_id=getattr(self.controller.preview,'entity_id',None)
+                if preview_id and preview_id in self.doc.entities and self.doc.get(preview_id).kind=='wall':
+                    self._wall_menu_target_entity=preview_id
+            self._show_wall_angle_radial(event.pos())
+            event.accept()
+            return
         hit=self.itemAt(event.pos());eid=self._entity_items.get(hit)
         if not eid or eid not in self.doc.entities:
             super().contextMenuEvent(event);return
