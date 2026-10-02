@@ -19,6 +19,11 @@ ACTIONS = {
         'views': {'plan'},
         'placement': 'radial',
     },
+    'trim': {
+        'label': 'Trim',
+        'views': {'plan'},
+        'placement': 'radial',
+    },
     'rotate': {
         'label': 'Rotate',
         'views': {'plan', 'pbr'},
@@ -48,7 +53,7 @@ ACTIONS = {
 
 ENTITY_MENUS = {
     '*': ('properties', None, 'delete'),
-    'wall': ('properties', 'materials', 'move', 'stretch', 'rotate', None, 'delete'),
+    'wall': ('properties', 'materials', 'move', 'stretch', 'trim', 'rotate', None, 'delete'),
     'box': ('properties', 'materials', 'move', 'stretch', 'rotate', None, 'delete'),
     'structural_column': ('properties', 'materials', 'support', 'load', 'move', 'rotate', None, 'delete'),
     'structural_beam': ('properties', 'materials', 'support', 'load', 'move', 'stretch', 'rotate', None, 'delete'),
