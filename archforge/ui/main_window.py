@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 from archforge.core.model import Document, WorkPlane, Entity
 from archforge.core.commands import (
     CommandStack, UpdateEntity, CreateRoomFloors, CreateRoomRoofs,
-    DeleteEntities, CreateFloorLevel, SetWorkPlane, RouteAndConnectInfrastructure, AddEntity, AddEntities,
+    DeleteEntities, CreateFloorLevel, SetWorkPlane, RouteAndConnectInfrastructure, AddEntity,
 )
 from archforge.rendering.materials import MATERIAL_PRESETS, material_categories, materials_in_category
 from .plan_view import PlanView
@@ -1455,54 +1455,6 @@ class MainWindow(QMainWindow):
             f'Created and activated {name} at {float(elevation):.2f} m',
             3500,
         )
-
-    def _generate_kitchen_run(self):
-        """Generate the supplied parametric straight kitchen as semantic parts."""
-        import uuid
-        length, ok = QInputDialog.getDouble(self, 'Kitchen Generator', 'Total length (m):', 3.60, 0.60, 20.0, 2)
-        if not ok: return
-        modules, ok = QInputDialog.getInt(self, 'Kitchen Generator', 'Base / wall modules:', 6, 1, 30, 1)
-        if not ok: return
-
-        # Source design values converted from mm to ArchForge metres.
-        D_base=.600; H_base=.720; H_plinth=.100; T_top=.040
-        O_top=.020; H_splash=.600; H_wall=.720; D_wall=.350; T=.018
-        run_id=str(uuid.uuid4()); z0=float(self.doc.work_plane.origin[2])
-        module_w=length/float(modules); parts=[]
-
-        def part(role,name,x,y,z,w,d,h):
-            parts.append(Entity('kitchen_part',name,{
-                'x':float(x),'y':float(y),'z':float(z),'width':float(w),
-                'depth':float(d),'height':float(h),'rotation':0.0,
-                'role':role,'run_id':run_id,
-            }))
-
-        # Plinth, matching the supplied 50 mm front recess.
-        part('plinth','Kitchen Plinth',0,.050,z0,length,D_base-.050,H_plinth)
-        for i in range(modules):
-            x=i*module_w
-            part('base_carcass',f'Base Cabinet {i+1}',x+.001,0,z0+H_plinth,module_w-.002,D_base,H_base)
-            part('base_door',f'Base Door {i+1}',x+.002,-T,z0+H_plinth+.002,module_w-.004,T,H_base-.004)
-            part('handle',f'Handle {i+1}',x+module_w/2-.080,-T-.020,z0+H_plinth+H_base-.060,.160,.015,.015)
-
-        z_counter=z0+H_plinth+H_base
-        part('countertop','Countertop',-.005,-O_top,z_counter,length+.010,D_base+O_top,T_top)
-
-        z_wall=z_counter+T_top+H_splash
-        y_wall=D_base-D_wall
-        for i in range(modules):
-            x=i*module_w
-            part('wall_carcass',f'Wall Cabinet {i+1}',x+.001,y_wall,z_wall,module_w-.002,D_wall,H_wall)
-            part('wall_door',f'Wall Door {i+1}',x+.002,y_wall-T,z_wall+.002,module_w-.004,T,H_wall-.004)
-
-        try:
-            self.stack.execute(AddEntities(parts))
-            self.doc.select([parts[0].id] if parts else [])
-            self._redraw_views(all_views=True)
-            self.refresh_inspector()
-            self.statusBar().showMessage(f'Kitchen generated: {length:.2f} m · {modules} modules · {len(parts)} editable parts',5000)
-        except Exception as exc:
-            QMessageBox.warning(self,'Kitchen Generator',str(exc))
 
     def _create_auto_floors(self):
         faces = self.doc.active_room_faces()
