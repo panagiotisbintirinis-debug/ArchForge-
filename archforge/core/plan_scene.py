@@ -282,6 +282,8 @@ def selection_handles(doc):
 def preview_primitives(preview):
     g=preview.geometry
     if preview.kind=='wall' and g:return [Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),entity_id=preview.entity_id or '',role='preview')]
+    if preview.kind=='component' and g:
+        return [Primitive2D('polygon',tuple(_box_corners(g)),entity_id=preview.entity_id or '',role='preview',meta=(('semantic','component-preview'),))]
     if preview.kind=='structural-column' and g:
         return [Primitive2D('polygon',tuple(_box_corners(g)),entity_id=preview.entity_id or '',role='preview',meta=(('semantic','structural-column-preview'),))]
     if preview.kind=='structural-beam' and g:
