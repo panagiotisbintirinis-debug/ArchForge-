@@ -38,18 +38,6 @@ def _nonempty(v):
     return v
 
 
-def _boolean(v):
-    if isinstance(v, bool):
-        return v
-    raise ValueError('value must be boolean')
-
-
-def _optional_id(v):
-    if v is None or v == '':
-        return ''
-    return _nonempty(v)
-
-
 def _vec3(v):
     if not isinstance(v, (list, tuple)) or len(v) != 3:
         raise ValueError('value must be a 3-vector')
@@ -339,9 +327,6 @@ SCHEMAS = {
         'section': _structural_section,
         'base_level': _nonempty,
         'top_level': _nonempty,
-        'embedded': _boolean,
-        'host_wall_id': _optional_id,
-        'host_u': _unit_interval,
     },
     'structural_beam': {
         'x1': _finite, 'y1': _finite, 'x2': _finite, 'y2': _finite,
@@ -397,9 +382,6 @@ def validate_params(kind, params):
     if kind == 'structural_column':
         out.setdefault('section', 'rectangular')
         out.setdefault('top_level', 'Unassigned')
-        out.setdefault('embedded', False)
-        out.setdefault('host_wall_id', '')
-        out.setdefault('host_u', 0.0)
     for key, fn in SCHEMAS.get(kind, {}).items():
         if key in out:
             out[key] = fn(out[key])
