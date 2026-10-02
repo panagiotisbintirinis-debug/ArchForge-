@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QLabel, QTabWidget, QStatusBar, QFileDialog, QMessageBox, QComboBox, QInputDialog,
     QDialog, QDialogButtonBox, QVBoxLayout, QListWidget, QListWidgetItem,
     QToolButton, QMenu, QSplitter, QTreeWidget, QTreeWidgetItem,
-    QLineEdit, QPushButton, QHBoxLayout, QGroupBox, QCheckBox,
+    QLineEdit, QPushButton, QHBoxLayout, QGroupBox,
 )
 
 from archforge.core.model import Document, WorkPlane, Entity
@@ -803,24 +803,6 @@ class MainWindow(QMainWindow):
             section_label.setToolTip('Only rectangular structural sections are geometrically implemented in this build.')
             form.addRow('Section', section_label)
 
-        embedded_editor = None
-        host_wall_editor = None
-        if entity.kind == 'structural_column':
-            embedded_editor = QCheckBox('Embedded in wall', dialog)
-            embedded_editor.setChecked(bool(entity.params.get('embedded', False)))
-            form.addRow('Wall Integration', embedded_editor)
-            host_wall_editor = QComboBox(dialog)
-            host_wall_editor.addItem('Auto-detect intersecting wall', '')
-            for wall in self.doc.entities.values():
-                if wall.kind == 'wall':
-                    host_wall_editor.addItem(wall.name or f'Wall {wall.id[:8]}', wall.id)
-            host_idx = host_wall_editor.findData(str(entity.params.get('host_wall_id', '')))
-            if host_idx >= 0:
-                host_wall_editor.setCurrentIndex(host_idx)
-            host_wall_editor.setEnabled(embedded_editor.isChecked())
-            embedded_editor.toggled.connect(host_wall_editor.setEnabled)
-            form.addRow('Host Wall', host_wall_editor)
-
         base_level_editor = None
         top_level_editor = None
         beam_level_editor = None
@@ -897,34 +879,6 @@ class MainWindow(QMainWindow):
                 extra_changes['role'] = str(role_editor.currentData())
             if construction_editor is not None:
                 extra_changes['construction'] = str(construction_editor.currentData())
-
-            if embedded_editor is not None:
-                extra_changes['embedded'] = bool(embedded_editor.isChecked())
-                extra_changes['host_wall_id'] = (
-                    str(host_wall_editor.currentData()) if embedded_editor.isChecked() else ''
-                )
-                if embedded_editor.isChecked():
-                    col = entity.params
-                    candidates = []
-                    from archforge.structure.column_wall import _projection_interval
-                    for wall in self.doc.entities.values():
-                        if wall.kind != 'wall':
-                            continue
-                        if extra_changes['host_wall_id'] and wall.id != extra_changes['host_wall_id']:
-                            continue
-                        interval = _projection_interval(col, wall.params)
-                        if interval is not None:
-                            dx=float(wall.params['x2'])-float(wall.params['x1'])
-                            dy=float(wall.params['y2'])-float(wall.params['y1'])
-                            length=(dx*dx+dy*dy)**0.5
-                            ux,uy=dx/length,dy/length
-                            s=(float(col['x'])-float(wall.params['x1']))*ux+(float(col['y'])-float(wall.params['y1']))*uy
-                            candidates.append((abs(s-max(0.0,min(length,s))),wall,max(0.0,min(1.0,s/length))))
-                    if not candidates:
-                        raise ValueError('Embedded column does not intersect the selected/any wall')
-                    _, host_wall, host_u = min(candidates, key=lambda item:item[0])
-                    extra_changes['host_wall_id'] = host_wall.id
-                    extra_changes['host_u'] = host_u
 
             if base_level_editor is not None:
                 base_name=str(base_level_editor.currentData())
