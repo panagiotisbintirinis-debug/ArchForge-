@@ -354,6 +354,12 @@ SCHEMAS = {
 
 def validate_params(kind, params):
     out = copy.deepcopy(params)
+    # Backward compatibility: columns authored before structural section and
+    # top-level semantics were introduced must remain loadable/editable.
+    # Explicit values are still validated by the normal schema below.
+    if kind == 'structural_column':
+        out.setdefault('section', 'rectangular')
+        out.setdefault('top_level', 'Unassigned')
     for key, fn in SCHEMAS.get(kind, {}).items():
         if key in out:
             out[key] = fn(out[key])

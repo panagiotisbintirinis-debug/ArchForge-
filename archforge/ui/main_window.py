@@ -8,7 +8,8 @@ from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QDockWidget, QWidget, QFormLayout, QDoubleSpinBox,
     QLabel, QTabWidget, QStatusBar, QFileDialog, QMessageBox, QComboBox, QInputDialog,
     QDialog, QDialogButtonBox, QVBoxLayout, QListWidget, QListWidgetItem,
-    QToolButton, QMenu,
+    QToolButton, QMenu, QSplitter, QTreeWidget, QTreeWidgetItem,
+    QLineEdit, QPushButton, QHBoxLayout, QGroupBox,
 )
 
 from archforge.core.model import Document, WorkPlane, Entity
@@ -20,6 +21,8 @@ from archforge.rendering.materials import MATERIAL_PRESETS, material_categories,
 from .plan_view import PlanView
 from .pbr_viewport import PBRViewport
 from .object_properties import property_fields, property_values, property_changes
+from .workspace_docks import WorkspaceDockSpec, install_workspace_dock, add_workspace_toggles
+from .approved_mockup_shell import install_approved_mockup_shell
 
 
 class MainWindow(QMainWindow):
@@ -34,10 +37,14 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.plan_view = PlanView(self.doc, self.stack)
         self.pbr_view = PBRViewport(self.doc, self.stack)
-        self.structural_view = PlanView(self.doc, self.stack, structural_only=True)
+        self.structural_view = PBRViewport(self.doc, self.stack, structural_only=True)
         self.tabs.addTab(self.plan_view, 'FLOOR PLAN')
         self.tabs.addTab(self.pbr_view, '3D STUDIO')
         self.tabs.addTab(self.structural_view, 'STRUCTURAL')
+
+        # Preserve the proven ArchForge 14 editor ownership/runtime.
+        # The approved mockup docks surround these real editors; they must not
+        # reparent PlanView/PBRViewport away from the tab widget.
         self.setCentralWidget(self.tabs)
         self.view = self.plan_view
         self.setStatusBar(QStatusBar())
@@ -53,15 +60,22 @@ class MainWindow(QMainWindow):
         self._build_edit_menu()
         self._build_view_menu()
         self._build_inspector()
+        install_approved_mockup_shell(self)
         self.refresh_inspector()
 
     def _on_tab_changed(self, idx):
-        widgets = [self.plan_view, self.pbr_view, self.structural_view]
-        if 0 <= idx < len(widgets):
-            self.view = widgets[idx]
+        # In the approved mockup the plan is permanently visible on the left
+        # and this tab widget owns the real 3D / Structural pane on the right.
+        current = self.tabs.currentWidget() if hasattr(self, 'tabs') else None
+        if current is self.pbr_view:
+            self.view = self.pbr_view
+        elif current is self.structural_view:
+            self.view = self.structural_view
         if self.view is self.pbr_view:
             self.pbr_view.activate()
         elif self.view is self.structural_view:
+            self.structural_view.activate()
+            self.structural_view.set_render_technique('technical')
             try:
                 from archforge.structure.graph import build_structural_graph
                 graph=build_structural_graph(self.doc)
@@ -76,19 +90,31 @@ class MainWindow(QMainWindow):
         self._redraw_views()
 
     def _set_active_tool(self, tool):
-        if str(tool).startswith('structural_') and self.view is self.pbr_view:
+        tool = str(tool)
+        # The approved shell defaults ordinary architectural authoring to the
+        # real central PlanView. Switching tabs must never leave Wall/Door/etc.
+        # routed to an invisible 3D widget.
+        plan_tools = {'select','wall','door','window','opening_rect','opening_arch','stair','ramp','move','stretch','rotate'}
+        central = getattr(self, '_central_tabs', None)
+        if tool in plan_tools and central is not None and not getattr(self, '_simultaneous_action', None).isChecked():
+            central.setCurrentIndex(0)
+            self.view = self.plan_view
+        # Structural authoring belongs to the real structural view.
+        if tool.startswith('structural_') and self.view is not self.structural_view:
+            if central is not None:
+                central.setCurrentIndex(1)
             self.tabs.setCurrentWidget(self.structural_view)
             self.view = self.structural_view
         if self.view is self.structural_view and str(tool) not in (
             'select','structural_column','structural_beam','move','rotate'
         ):
-            self.tabs.setCurrentWidget(self.plan_view)
+            # PlanView is simultaneously visible in the approved split shell;
+            # it is no longer a tab that needs to be selected.
             self.view = self.plan_view
         # Keep frame-free openings in the active human view. PBR now routes
         # Rectangle/Arch openings through the same authoritative OpeningPlaceTransaction
         # used by Floor Plan; only MEP authoring still requires the plan workflow.
         if str(tool).startswith('mep_') and self.view is self.pbr_view:
-            self.tabs.setCurrentWidget(self.plan_view)
             self.view = self.plan_view
         if hasattr(self.view, 'set_tool'):
             self.view.set_tool(tool)
@@ -105,10 +131,15 @@ class MainWindow(QMainWindow):
             4500,
         )
 
-    def _activate_sculpt_tool(self):
-        self.tabs.setCurrentWidget(self.pbr_view)
-        self.pbr_view.activate()
-        self.pbr_view.set_tool('sculpt')
+    def _activate_sculpt_tool(self, enabled=True):
+        if enabled:
+            self.tabs.setCurrentWidget(self.pbr_view)
+            self.pbr_view.activate()
+            self.pbr_view.set_tool('sculpt')
+            self.statusBar().showMessage('Sculpt 3D ON', 2000)
+        else:
+            self.pbr_view.set_tool('orbit')
+            self.statusBar().showMessage('Sculpt 3D OFF — camera navigation restored', 2000)
 
     def _configure_sculpt_views(self, **kwargs):
         self.pbr_view.configure_sculpt(**kwargs)
@@ -239,8 +270,12 @@ class MainWindow(QMainWindow):
 
         sculpt = QAction('Sculpt 3D', self)
         sculpt.setShortcut(QKeySequence('C'))
-        sculpt.triggered.connect(self._activate_sculpt_tool)
+        sculpt.setCheckable(True)
+        sculpt.setChecked(False)
+        sculpt.setToolTip('Toggle Sculpt 3D on/off. Highlighted = active.')
+        sculpt.toggled.connect(self._activate_sculpt_tool)
         toolbar.addAction(sculpt)
+        self.sculpt_action = sculpt
 
         self.sculpt_operation = QComboBox()
         self.sculpt_operation.addItems(
@@ -297,11 +332,21 @@ class MainWindow(QMainWindow):
         auto_floors = QAction('Auto Floors', self)
         auto_floors.triggered.connect(self._create_auto_floors)
         toolbar.addAction(auto_floors)
+        self.auto_floors_action = auto_floors
 
+        # Preserve the historical ArchForge Flat Roof action, but keep it
+        # reachable when the mockup toolbar is narrower than its contents.
         flat_roof = QAction('Flat Roof', self)
         flat_roof.triggered.connect(self._create_flat_roofs)
         toolbar.addAction(flat_roof)
+        self.flat_roof_action = flat_roof
         toolbar.addSeparator()
+
+        self.roof_toolbar = QToolBar('Roof', self)
+        self.roof_toolbar.setObjectName('roof_toolbar')
+        self.roof_toolbar.setMovable(False)
+        self.roof_toolbar.addAction(self.flat_roof_action)
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.roof_toolbar)
         undo = QAction('Undo', self)
         undo.setShortcut(QKeySequence.StandardKey.Undo)
         undo.triggered.connect(self._undo)
@@ -421,6 +466,106 @@ class MainWindow(QMainWindow):
         self.form = QFormLayout(self.inspector)
         self.dock.setWidget(self.inspector)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dock)
+
+    def _build_mockup_workspace(self):
+        """Install the approved mockup regions as real dockable Qt widgets."""
+        self.workspace_docks = []
+
+        project = QWidget(self)
+        project_layout = QVBoxLayout(project)
+        project_layout.setContentsMargins(6, 6, 6, 6)
+        project_layout.addWidget(QLabel('PROJECT'))
+        self.project_tree = QTreeWidget(project)
+        self.project_tree.setHeaderHidden(True)
+        root = QTreeWidgetItem(['Project'])
+        root.addChild(QTreeWidgetItem(['Levels']))
+        root.addChild(QTreeWidgetItem(['Materials']))
+        self.project_tree.addTopLevelItem(root)
+        root.setExpanded(True)
+        project_layout.addWidget(self.project_tree)
+        project_layout.addWidget(QLabel('Active level'))
+        project_layout.addWidget(self.floor_selector)
+        project_layout.addWidget(QLabel('Materials are applied to the selected semantic object.'))
+        building_actions = QHBoxLayout()
+        auto_floor_button = QPushButton('Auto Floors', project)
+        auto_floor_button.clicked.connect(self._create_auto_floors)
+        flat_roof_button = QPushButton('Flat Roof', project)
+        flat_roof_button.clicked.connect(self._create_flat_roofs)
+        building_actions.addWidget(auto_floor_button)
+        building_actions.addWidget(flat_roof_button)
+        project_layout.addLayout(building_actions)
+
+        library = QWidget(self)
+        library_layout = QVBoxLayout(library)
+        library_layout.setContentsMargins(6, 6, 6, 6)
+        library_layout.addWidget(QLabel('LIBRARY'))
+        self.library_search = QLineEdit(library)
+        self.library_search.setPlaceholderText('Search library…')
+        library_layout.addWidget(self.library_search)
+        self.library_list = QListWidget(library)
+        for label in ('Doors', 'Windows', 'Openings', 'Stairs / Ramps', 'Structure', 'Furniture', 'Kitchen'):
+            self.library_list.addItem(label)
+        library_layout.addWidget(self.library_list)
+
+        ai = QWidget(self)
+        ai_layout = QVBoxLayout(ai)
+        ai_layout.setContentsMargins(6, 6, 6, 6)
+        ai_layout.addWidget(QLabel('AI ASSISTANT'))
+        ai_layout.addWidget(QLabel('Optional assistant — human editing remains authoritative.'))
+        self.ai_prompt = QLineEdit(ai)
+        self.ai_prompt.setPlaceholderText('Describe an optional command…')
+        ai_layout.addWidget(self.ai_prompt)
+        self.ai_apply = QPushButton('Apply through CommandStack', ai)
+        self.ai_apply.setEnabled(False)
+        self.ai_apply.setToolTip('Reserved for optional AI commands using the same authoritative command path.')
+        ai_layout.addWidget(self.ai_apply)
+        ai_layout.addStretch(1)
+
+        views = QWidget(self)
+        views_layout = QHBoxLayout(views)
+        views_layout.setContentsMargins(6, 6, 6, 6)
+        views_layout.addWidget(QLabel('VIEWS / RENDERING STYLE'))
+        for label, mode in (('Top', 'top'), ('Front', 'front'), ('Side', 'side'), ('ISO', 'iso30'), ('Eye', 'eye')):
+            button = QPushButton(label, views)
+            button.clicked.connect(lambda checked=False, m=mode: self._set_pbr_camera(m))
+            views_layout.addWidget(button)
+        views_layout.addWidget(QLabel('Render'))
+        # Keep the compact toolbar selector and expose the same authoritative
+        # render modes clearly in the mockup workspace.
+        self.render_style_buttons = []
+        for label, mode in (('PBR', 'pbr'), ('Technical', 'technical'), ('Glass', 'glass')):
+            button = QPushButton(label, views)
+            button.setCheckable(True)
+            button.setChecked(self.render_technique.currentData() == mode)
+            button.clicked.connect(
+                lambda checked=False, m=mode: self._set_render_style_from_workspace(m)
+            )
+            views_layout.addWidget(button)
+            self.render_style_buttons.append((button, mode))
+        views_layout.addStretch(1)
+
+        specs = (
+            (WorkspaceDockSpec('project', 'Project / Levels / Materials', Qt.DockWidgetArea.LeftDockWidgetArea), project),
+            (WorkspaceDockSpec('library', 'Library', Qt.DockWidgetArea.LeftDockWidgetArea), library),
+            (WorkspaceDockSpec('ai', 'AI', Qt.DockWidgetArea.RightDockWidgetArea), ai),
+            (WorkspaceDockSpec('views', 'Views / Rendering Style', Qt.DockWidgetArea.BottomDockWidgetArea), views),
+        )
+        for spec, widget in specs:
+            self.workspace_docks.append(install_workspace_dock(self, spec, widget))
+
+        self.dock.setWindowTitle('Properties')
+        self.dock.setObjectName('workspace_dock_properties')
+        self.workspace_docks.append(self.dock)
+        self.tabifyDockWidget(self.workspace_docks[0], self.workspace_docks[1])
+        self.workspace_docks[0].raise_()
+        add_workspace_toggles(self.view_menu, self.workspace_docks)
+
+    def _set_render_style_from_workspace(self, mode):
+        index=self.render_technique.findData(str(mode))
+        if index >= 0:
+            self.render_technique.setCurrentIndex(index)
+        for button, button_mode in getattr(self,'render_style_buttons',()):
+            button.setChecked(button_mode == str(mode))
 
     def _clear_form(self):
         while self.form.rowCount():
@@ -1165,6 +1310,12 @@ class MainWindow(QMainWindow):
             return
         try:
             self.stack.execute(DeleteEntities(ids))
+            # Deleting the object that owned an in-progress PBR gesture must
+            # release any stale WebGL pointer/orbit state before redrawing.
+            if self.pbr_view.web_view is not None:
+                self.pbr_view.web_view.page().runJavaScript(
+                    "if (window.archforgeResetInteraction) window.archforgeResetInteraction();"
+                )
             self._redraw_views(all_views=True)
             self.refresh_inspector()
             self.statusBar().showMessage(f'Deleted {len(ids)} object(s) — Undo is available', 3500)
@@ -1270,7 +1421,9 @@ class MainWindow(QMainWindow):
             return
         try:
             self.stack.execute(CreateRoomFloors(signatures))
-            self._redraw_views()
+            # Floors affect the shared building model, so refresh every live
+            # representation (2D, PBR 3D and Structural), not only the active tab.
+            self._redraw_views(all_views=True)
             self.refresh_inspector()
             self.statusBar().showMessage(f'Created {len(signatures)} automatic floor(s)', 4000)
         except Exception as exc:
@@ -1323,11 +1476,13 @@ class MainWindow(QMainWindow):
     def _selection_from_view(self):
         self.refresh_inspector()
 
-    def _redraw_views(self, *, all_views=False):
+    def _redraw_views(self, *, all_views=False, fit_camera=False):
         targets=(self.plan_view,self.pbr_view,self.structural_view) if all_views else (self.view,)
         for view in targets:
-            if view is self.pbr_view:
-                view.redraw(force_full=True)
+            if isinstance(view, PBRViewport):
+                # A normal redraw must preserve the human's orbit/zoom.
+                # Camera fitting is explicit only (initial load / Fit command).
+                view.redraw(force_full=bool(fit_camera))
             else:
                 view.redraw()
 

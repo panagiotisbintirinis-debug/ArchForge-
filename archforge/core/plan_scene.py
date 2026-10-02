@@ -364,8 +364,6 @@ def build_plan_frame(doc,preview=None):
     except (ValueError,KeyError):
         pass
     for eid in doc.entities:
-        e=doc.get(eid)
-        if not _entity_on_active_level(doc,e):continue
         p=entity_primitive(doc,eid)
         if p:f.primitives.append(p)
     f.handles=selection_handles(doc)

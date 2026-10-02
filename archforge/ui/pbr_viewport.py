@@ -11,7 +11,7 @@ from archforge.geometry.incremental import IncrementalEvaluationCache
 from archforge.geometry.sculpt import SculptedPreviewBackend
 from archforge.geometry.selection import BrushSpec, SurfaceHit
 from archforge.geometry.sculpt_transaction import SculptTransaction
-from archforge.core.interaction import OpeningPlaceTransaction, StairPlaceTransaction, RampPlaceTransaction, MoveTransaction, RotateTransaction
+from archforge.core.interaction import OpeningPlaceTransaction, StairPlaceTransaction, RampPlaceTransaction, MoveTransaction, RotateTransaction, StructuralColumnPlaceTransaction, StructuralBeamDrawTransaction
 from archforge.rendering.scene import build_pbr_scene_payload
 from archforge.ui.object_context_menu import object_context_actions
 
@@ -110,20 +110,6 @@ container.appendChild(renderer.domElement);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
-controls.enableRotate = true;
-controls.enablePan = true;
-controls.enableZoom = true;
-// Tuned for architectural work: deliberate movement instead of twitchy CAD navigation.
-// Keep these together so they can later become user preferences without touching
-// the interaction state machine.
-controls.rotateSpeed = 0.42;
-controls.panSpeed = 0.52;
-controls.zoomSpeed = 0.62;
-// Inventor-style navigation: left drag = orbit, middle drag = pan,
-// wheel = zoom, right mouse is reserved for the marking menu.
-controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
-controls.mouseButtons.MIDDLE = THREE.MOUSE.PAN;
-controls.mouseButtons.RIGHT = null;
 controls.target.set(0, 0, 1.4);
 controls.update();
 
@@ -482,7 +468,10 @@ function applyTechnique() {
   renderer.shadowMap.enabled = !technical;
   modelRoot.traverse((obj) => {
     if (!obj.isMesh) return;
-    obj.material.wireframe = technical;
+    // Technical mode is a solid architectural/structural view.  The
+    // triangles in MeshPayload are tessellation, not design edges, so never
+    // expose them as Three.js wireframe lines.
+    obj.material.wireframe = false;
     obj.material.transparent = glass;
     obj.material.opacity = glass ? 0.34 : 1.0;
     obj.material.depthWrite = !glass;
@@ -506,7 +495,7 @@ function setCameraPreset(mode) {
   if (!bounds) return;
   const {center, radius} = bounds;
   activeCameraPreset = mode;
-  controls.enabled = activeTool !== "sculpt";
+  controls.enabled = true;
   camera.up.set(0, 0, 1);
   camera.near = Math.max(0.02, radius / 500.0);
   camera.far = Math.max(200.0, radius * 40.0);
@@ -615,10 +604,33 @@ window.setCutaway = function(enabled) {
   });
 };
 
+function resetTransientInteraction() {
+  sculpting = false;
+  stairing = false;
+  ramping = false;
+  movingEntity = false;
+  rotatingEntity = false;
+  pendingMovePoint = null;
+  pendingRotatePoint = null;
+  pendingStairPoint = null;
+  pendingRampPoint = null;
+  clearMoveGhost();
+  clearRotateGhost();
+  controls.enabled = true;
+}
+
+window.archforgeResetInteraction = function() {
+  resetTransientInteraction();
+};
+
 window.setActiveTool = function(tool) {
   activeTool = tool || "orbit";
+  // A tool change is a hard interaction boundary. Do not let a deleted or
+  // cancelled object leave OrbitControls captured/disabled.
   if (!sculpting && !stairing && !ramping && !movingEntity && !rotatingEntity) {
-    controls.enabled = activeTool !== "sculpt";
+    // Sculpt captures the pointer only after an actual surface press.
+    // Merely choosing Sculpt must never freeze camera navigation.
+    controls.enabled = true;
   }
 };
 
@@ -849,6 +861,38 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     event.preventDefault();
     event.stopPropagation();
     return;
+  }
+
+  if (activeTool === "structural_column") {
+    if (event.button !== 0) return;
+    const hit = pickModel(event);
+    if (!hit || !hit.face) return;
+    const point = hit.point;
+    bridge.placeStructuralColumn(Number(point.x), Number(point.y));
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+
+  if (activeTool === "structural_beam") {
+    if (event.button === 2) {
+      bridge.cancelStructuralBeam();
+      event.preventDefault(); event.stopPropagation(); return;
+    }
+    if (event.button !== 0) return;
+    const hit = pickModel(event);
+    if (!hit || !hit.face) return;
+    const point = hit.point;
+    if (!window.__archforgeBeamStart) {
+      window.__archforgeBeamStart = true;
+      controls.enabled = false;
+      bridge.beginStructuralBeam(Number(point.x), Number(point.y));
+    } else {
+      window.__archforgeBeamStart = false;
+      controls.enabled = true;
+      bridge.finishStructuralBeam(Number(point.x), Number(point.y));
+    }
+    event.preventDefault(); event.stopPropagation(); return;
   }
 
   if (activeTool === "stair") {
@@ -1113,14 +1157,34 @@ renderer.domElement.addEventListener("pointermove", (event) => {
   event.stopPropagation();
 }, true);
 
-renderer.domElement.addEventListener("pointerup", (event) => {
-  if (!bridge) return;
+function finishSculptPointer(event, commit=true) {
   if (!sculpting) return;
   sculpting = false;
-  controls.enabled = activeTool !== "sculpt";
-  bridge.endSculpt();
+  if (renderer.domElement.releasePointerCapture && renderer.domElement.hasPointerCapture &&
+      renderer.domElement.hasPointerCapture(event.pointerId)) {
+    renderer.domElement.releasePointerCapture(event.pointerId);
+  }
+  controls.enabled = true;
+  if (bridge && commit) bridge.endSculpt();
   event.preventDefault();
   event.stopPropagation();
+}
+
+renderer.domElement.addEventListener("pointerup", (event) => {
+  if (!bridge || !sculpting) return;
+  finishSculptPointer(event, true);
+}, true);
+
+renderer.domElement.addEventListener("pointercancel", (event) => {
+  if (!sculpting) return;
+  finishSculptPointer(event, true);
+}, true);
+
+renderer.domElement.addEventListener("lostpointercapture", (event) => {
+  if (!sculpting) return;
+  sculpting = false;
+  controls.enabled = true;
+  if (bridge) bridge.endSculpt();
 }, true);
 
 if (window.__archforgePendingTechnique) window.setTechnique(window.__archforgePendingTechnique);
@@ -1174,6 +1238,22 @@ class PBRInteractionBridge(QObject):
     @Slot(str, str)
     def placeOpening(self, kind: str, payload_json: str) -> None:
         self.viewport._place_opening_from_web(kind, payload_json)
+
+    @Slot(float, float)
+    def placeStructuralColumn(self, x: float, y: float) -> None:
+        self.viewport._place_structural_column_from_web(x, y)
+
+    @Slot(float, float)
+    def beginStructuralBeam(self, x: float, y: float) -> None:
+        self.viewport._begin_structural_beam_from_web(x, y)
+
+    @Slot(float, float)
+    def finishStructuralBeam(self, x: float, y: float) -> None:
+        self.viewport._finish_structural_beam_from_web(x, y)
+
+    @Slot()
+    def cancelStructuralBeam(self) -> None:
+        self.viewport._cancel_structural_beam_from_web()
 
     @Slot(float, float)
     def beginStair(self, x: float, y: float) -> None:
@@ -1270,10 +1350,11 @@ class PBRViewport(QWidget):
     contextActionRequested = Signal(str, str)
     statusChanged = Signal(str)
 
-    def __init__(self, doc, stack, parent=None):
+    def __init__(self, doc, stack, parent=None, structural_only=False):
         super().__init__(parent)
         self.doc = doc
         self.stack = stack
+        self.structural_only = bool(structural_only)
         self._evaluation_cache = IncrementalEvaluationCache(SculptedPreviewBackend())
         self._technique = "pbr"
         self._camera_preset = "orbit"
@@ -1285,6 +1366,7 @@ class PBRViewport(QWidget):
         self.sculpt_op = "pull"
         self._sculpt_tx = None
         self._stair_preview_payload = {"options": []}
+        self._structural_beam_tx = None
         self._stair_tx = None
         self._ramp_preview_payload = {"active": None, "info": {}}
         self._ramp_tx = None
@@ -1543,6 +1625,80 @@ class PBRViewport(QWidget):
             f"{active.riser_count} risers × {active.riser_height:.3f} m | "
             f"tread {active.tread_depth:.3f} m | {note}"
         )
+
+    def _place_structural_column_from_web(self, x: float, y: float) -> None:
+        try:
+            active_z = float(self.doc.work_plane.origin[2])
+            level_name = str(self.doc.work_plane.name)
+            above = sorted(
+                (float(z), str(name))
+                for name, z in self.doc.levels.items()
+                if float(z) > active_z + 1e-9
+            )
+            if above:
+                next_z, next_name = above[0]
+            else:
+                next_z, next_name = active_z + 2.70, "Unassigned"
+            tx = StructuralColumnPlaceTransaction(
+                self.doc, self.stack, float(x), float(y),
+                z=active_z, height=max(0.05, next_z-active_z),
+                base_level=level_name, top_level=next_name,
+                grid=(0.10 if self._snap_enabled else None), snap_tol=0.10,
+            )
+            entity_id = tx.commit()
+            self._evaluation_cache.clear()
+            self.doc.select([entity_id])
+            self.selectionChangedByView.emit()
+            self.redraw(force_full=False)
+            self.statusChanged.emit("Placed structural column — Undo is available")
+        except Exception as exc:
+            self.statusChanged.emit(f"Cannot place structural column: {exc}")
+
+    def _begin_structural_beam_from_web(self, x: float, y: float) -> None:
+        try:
+            active_z = float(self.doc.work_plane.origin[2])
+            level_name = str(self.doc.work_plane.name)
+            above = sorted(
+                (float(z), str(name)) for name, z in self.doc.levels.items()
+                if float(z) > active_z + 1e-9
+            )
+            next_z = above[0][0] if above else active_z + 2.70
+            beam_height = 0.30
+            self._structural_beam_tx = StructuralBeamDrawTransaction(
+                self.doc, self.stack, (float(x), float(y)),
+                z=next_z-beam_height, width=0.20, height=beam_height,
+                level=level_name, grid=(0.10 if self._snap_enabled else None),
+                snap_tol=0.10, angle_increment=15.0,
+            )
+            self.statusChanged.emit("Beam start set — click the end point")
+        except Exception as exc:
+            self._structural_beam_tx = None
+            self.statusChanged.emit(f"Cannot start structural beam: {exc}")
+
+    def _finish_structural_beam_from_web(self, x: float, y: float) -> None:
+        if self._structural_beam_tx is None:
+            self.statusChanged.emit("Beam has no start point")
+            return
+        tx = self._structural_beam_tx
+        self._structural_beam_tx = None
+        try:
+            tx.update(float(x), float(y))
+            entity_id = tx.commit()
+            self._evaluation_cache.clear()
+            self.doc.select([entity_id])
+            self.selectionChangedByView.emit()
+            self.redraw(force_full=False)
+            self.statusChanged.emit("Placed structural beam — Undo is available")
+        except Exception as exc:
+            self.statusChanged.emit(f"Cannot commit structural beam: {exc}")
+
+    def _cancel_structural_beam_from_web(self) -> None:
+        if self._structural_beam_tx is not None:
+            self._structural_beam_tx.cancel()
+        self._structural_beam_tx = None
+        if self.web_view is not None:
+            self.web_view.page().runJavaScript("window.__archforgeBeamStart = false; controls.enabled = true;")
+        self.statusChanged.emit("Beam placement cancelled")
 
     def _begin_stair_from_web(self, x: float, y: float) -> None:
         try:
@@ -2043,6 +2199,18 @@ class PBRViewport(QWidget):
             mesh_overrides=overrides,
             doc=self.doc,
         )
+        if self.structural_only:
+            # Structural is a derived 3D view of the same authoritative model.
+            # Keep semantic structural members plus slabs/foundations; do not
+            # create a second structural model or expose tessellation wireframe.
+            structural_kinds = {
+                "structural_column", "structural_beam",
+                "floor", "room_floor", "room_foundation",
+            }
+            payload["objects"] = [
+                item for item in payload.get("objects", ())
+                if item.get("kind") in structural_kinds
+            ]
         fit = "true" if force_full and self._sculpt_tx is None else "false"
         script = (
             "window.__archforgePendingScene = "
