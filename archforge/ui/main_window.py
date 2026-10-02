@@ -1049,57 +1049,6 @@ class MainWindow(QMainWindow):
             self._delete_selection()
             return
 
-        if action_id == 'trim':
-            entity = self.doc.get(entity_id)
-            if entity.kind != 'wall':
-                return
-            p = entity.params
-            a = (float(p['x1']), float(p['y1']))
-            b = (float(p['x2']), float(p['y2']))
-            click = getattr(self.plan_view, '_context_scene_point', None)
-            if click is None:
-                click = a
-            trim_start = ((click[0]-a[0])**2 + (click[1]-a[1])**2) <= ((click[0]-b[0])**2 + (click[1]-b[1])**2)
-
-            def segment_hit(a0, a1, c0, c1, eps=1e-9):
-                rx, ry = a1[0]-a0[0], a1[1]-a0[1]
-                sx, sy = c1[0]-c0[0], c1[1]-c0[1]
-                den = rx*sy - ry*sx
-                if abs(den) <= eps:
-                    return None
-                qx, qy = c0[0]-a0[0], c0[1]-a0[1]
-                t = (qx*sy-qy*sx)/den
-                u = (qx*ry-qy*rx)/den
-                if eps < t < 1.0-eps and -eps <= u <= 1.0+eps:
-                    return (a0[0]+t*rx, a0[1]+t*ry, t)
-                return None
-
-            hits = []
-            z = float(p.get('z', 0.0))
-            for other_id, other in self.doc.entities.items():
-                if other_id == entity_id or other.kind != 'wall' or not other.visible:
-                    continue
-                q = other.params
-                if abs(float(q.get('z',0.0))-z) > 1e-6:
-                    continue
-                hit = segment_hit(
-                    a, b,
-                    (float(q['x1']),float(q['y1'])),
-                    (float(q['x2']),float(q['y2'])),
-                )
-                if hit is not None:
-                    hits.append(hit)
-            if not hits:
-                self.statusBar().showMessage('Trim: no wall intersection found', 3500)
-                return
-            hit = min(hits, key=lambda h: h[2] if trim_start else 1.0-h[2])
-            changes = {'x1':hit[0], 'y1':hit[1]} if trim_start else {'x2':hit[0], 'y2':hit[1]}
-            self.stack.execute(UpdateEntity(entity_id, changes))
-            self._redraw_views(all_views=True)
-            self.refresh_inspector()
-            self.statusBar().showMessage('Wall trimmed to nearest intersection', 3000)
-            return
-
         if action_id in ('move', 'stretch', 'rotate'):
             entity = self.doc.get(entity_id)
             if self.view is self.pbr_view:
