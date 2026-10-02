@@ -95,7 +95,7 @@ class MainWindow(QMainWindow):
         # The approved shell defaults ordinary architectural authoring to the
         # real central PlanView. Switching tabs must never leave Wall/Door/etc.
         # routed to an invisible 3D widget.
-        plan_tools = {'select','wall','door','window','opening_rect','opening_arch','stair','ramp','move','stretch','rotate'}
+        plan_tools = {'select','wall','door','window','opening_rect','opening_arch','stair','ramp','move','stretch','rotate','component'}
         central = getattr(self, '_central_tabs', None)
         if tool in plan_tools and central is not None and not getattr(self, '_simultaneous_action', None).isChecked():
             central.setCurrentIndex(0)
