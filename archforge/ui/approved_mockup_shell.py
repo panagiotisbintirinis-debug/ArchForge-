@@ -91,6 +91,8 @@ def install_approved_mockup_shell(window):
     window._mockup_auto_floor_action=auto_floor
     window._mockup_flat_roof_action=flat_roof
     spacer=QWidget(); spacer.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Preferred); ribbon.addWidget(spacer)
+    add_floor=QAction("+ Όροφος",window); add_floor.triggered.connect(window._add_floor_level); ribbon.addAction(add_floor)
+    window._mockup_add_floor_action=add_floor
     ribbon.addWidget(QLabel("Όροφος: ")); ribbon.addWidget(window.floor_selector)
     ribbon.addWidget(QLabel("  Απεικόνιση: ")); ribbon.addWidget(window.render_technique)
     window.addToolBar(Qt.TopToolBarArea,ribbon)
