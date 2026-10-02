@@ -15,8 +15,9 @@ from PySide6.QtWidgets import (
 from archforge.core.model import Document, WorkPlane, Entity
 from archforge.core.commands import (
     CommandStack, UpdateEntity, CreateRoomFloors, CreateRoomRoofs,
-    DeleteEntities, CreateFloorLevel, SetWorkPlane, RouteAndConnectInfrastructure, AddEntity,
+    DeleteEntities, CreateFloorLevel, SetWorkPlane, RouteAndConnectInfrastructure, AddEntity, AddEntities,
 )
+from archforge.kitchen import build_straight_kitchen
 from archforge.rendering.materials import MATERIAL_PRESETS, material_categories, materials_in_category
 from .plan_view import PlanView
 from .pbr_viewport import PBRViewport
@@ -238,6 +239,12 @@ class MainWindow(QMainWindow):
         self.structural_column_action = column_action
         self.structural_beam_action = beam_action
 
+        kitchen_action = QAction('Kitchen Run', self)
+        kitchen_action.setToolTip('Create an undoable semantic straight kitchen run')
+        kitchen_action.triggered.connect(self._create_straight_kitchen)
+        toolbar.addAction(kitchen_action)
+        self.kitchen_action = kitchen_action
+
         for text, tool, key in [
             ('Move', 'move', 'G'), ('Stretch', 'stretch', 'T'), ('Rotate', 'rotate', 'R'),
         ]:
@@ -375,6 +382,35 @@ class MainWindow(QMainWindow):
         toolbar.addAction(stl_action)
 
 
+
+    def _create_straight_kitchen(self):
+        length, ok = QInputDialog.getDouble(
+            self, 'Kitchen Run', 'Length (m):', 3.60, 0.60, 30.0, 2
+        )
+        if not ok:
+            return
+        modules, ok = QInputDialog.getInt(
+            self, 'Kitchen Run', 'Base modules:', 6, 1, 30, 1
+        )
+        if not ok:
+            return
+        origin = getattr(self.doc.work_plane, 'origin', (0.0, 0.0, 0.0))
+        entities = build_straight_kitchen(
+            run_id='Kitchen',
+            total_length=float(length) * 1000.0,
+            num_base_modules=int(modules),
+            num_wall_modules=int(modules),
+            origin_x=float(origin[0]),
+            origin_y=float(origin[1]),
+            origin_z=float(origin[2]),
+        )
+        self.stack.execute(AddEntities(entities))
+        self.doc.selection = [entities[0].id] if entities else []
+        self._redraw_views(all_views=True)
+        self.refresh_inspector()
+        self.statusBar().showMessage(
+            f'Kitchen Run created — {length:.2f} m / {modules} modules', 4000
+        )
 
     def _build_edit_menu(self):
         edit_menu = self.menuBar().addMenu('&Edit')
