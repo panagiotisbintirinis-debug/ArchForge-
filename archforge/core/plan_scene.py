@@ -364,23 +364,6 @@ def build_plan_frame(doc,preview=None):
     except (ValueError,KeyError):
         pass
     for eid in doc.entities:
-        entity=doc.get(eid)
-        if entity.kind=='wall':
-            from archforge.structure.column_wall import wall_visible_intervals
-            intervals=wall_visible_intervals(
-                entity,
-                [e for e in doc.entities.values() if e.kind=='structural_column'],
-            )
-            wp=entity.params
-            dx=float(wp['x2'])-float(wp['x1']);dy=float(wp['y2'])-float(wp['y1'])
-            length=math.hypot(dx,dy)
-            if length>1e-9:
-                ux,uy=dx/length,dy/length
-                for s0,s1 in intervals:
-                    a=(float(wp['x1'])+ux*s0,float(wp['y1'])+uy*s0)
-                    b=(float(wp['x1'])+ux*s1,float(wp['y1'])+uy*s1)
-                    f.primitives.append(Primitive2D('line',(a,b),entity_id=eid,meta=(('thickness',wp['thickness']),)))
-            continue
         p=entity_primitive(doc,eid)
         if p:f.primitives.append(p)
     f.handles=selection_handles(doc)
