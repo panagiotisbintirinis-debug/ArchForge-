@@ -3,7 +3,7 @@ from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtWidgets import (
     QWidget, QLabel, QLineEdit, QListWidget, QListWidgetItem, QTreeWidget,
     QTreeWidgetItem, QTabWidget, QVBoxLayout, QHBoxLayout, QSplitter, QToolBar,
-    QToolButton, QCheckBox, QComboBox, QFrame, QSizePolicy
+    QToolButton, QCheckBox, QComboBox, QFrame, QSizePolicy, QDockWidget
 )
 
 STYLE = """
@@ -107,10 +107,17 @@ def install_approved_mockup_shell(window):
     window.tabs=right_tabs
     right_tabs.currentChanged.connect(window._on_tab_changed)
 
+    # Keep the real 2D editor alive in its own visible pane.  A QDockWidget
+    # used as a child inside a splitter can collapse/reparent badly; the actual
+    # PlanView/PBRViewport stay ordinary central widgets here.
+    plan_card=_card("Κάτοψη - Ισόγειο",window.plan_view)
     center_views=QSplitter(Qt.Horizontal)
-    center_views.addWidget(_card("Κάτοψη - Ισόγειο",window.plan_view))
+    center_views.addWidget(plan_card)
     center_views.addWidget(right_tabs)
-    center_views.setSizes([390,690])
+    center_views.setCollapsible(0,False)
+    center_views.setCollapsible(1,False)
+    center_views.setSizes([430,650])
+    plan_card.setMinimumWidth(320)
 
     strips=QHBoxLayout(); strips.setSpacing(6)
     views=_thumb_strip(("3D Προοπτική","Top","Front","Side","Εσωτερική Όψη","Render (PBR)","Walkthrough"))
@@ -118,15 +125,48 @@ def install_approved_mockup_shell(window):
     strips.addWidget(_card("Προβολές",views),6); strips.addWidget(_card("Στυλ Rendering",styles),4)
     center=QWidget(); cv=QVBoxLayout(center); cv.setContentsMargins(0,0,0,0); cv.setSpacing(6); cv.addWidget(center_views,1); cv.addLayout(strips)
 
-    # Reuse the real live ArchForge inspector, not a fake properties panel.
-    window.removeDockWidget(window.dock)
-    window.dock.setFeatures(QFrame.NoFrame if False else window.dock.features())
-    window.dock.setWindowTitle("Ιδιότητες")
+    # Central area is ONLY the real simultaneous 2D + 3D editor.
+    window.setCentralWidget(center)
+
+    # All surrounding mockup regions are genuine closable/restorable docks.
+    # Their toggleViewAction entries live in Προβολή, so a closed panel is
+    # always recoverable from the appropriate menu.
     left=_project_panel(window)
-    main=QSplitter(Qt.Horizontal); main.addWidget(left); main.addWidget(center); main.addWidget(window.dock)
-    main.setSizes([270,980,280]); main.setStretchFactor(1,1)
-    root=QWidget(); rl=QHBoxLayout(root); rl.setContentsMargins(6,6,6,6); rl.setSpacing(6); rl.addWidget(main)
-    window.setCentralWidget(root)
+    project_dock=QDockWidget("Έργο / Βιβλιοθήκη",window)
+    project_dock.setObjectName("approved_project_library")
+    project_dock.setWidget(left)
+    project_dock.setAllowedAreas(Qt.LeftDockWidgetArea|Qt.RightDockWidgetArea)
+    window.addDockWidget(Qt.LeftDockWidgetArea,project_dock)
+
+    window.dock.setWindowTitle("Ιδιότητες")
+    window.dock.setObjectName("approved_properties")
+    window.addDockWidget(Qt.RightDockWidgetArea,window.dock)
+
+    bottom=QWidget(); bv=QHBoxLayout(bottom); bv.setContentsMargins(0,0,0,0); bv.setSpacing(6)
+    bv.addWidget(_card("Προβολές",views),6); bv.addWidget(_card("Στυλ Rendering",styles),4)
+    views_dock=QDockWidget("Προβολές / Στυλ Rendering",window)
+    views_dock.setObjectName("approved_views_rendering")
+    views_dock.setWidget(bottom)
+    views_dock.setAllowedAreas(Qt.BottomDockWidgetArea|Qt.TopDockWidgetArea)
+    window.addDockWidget(Qt.BottomDockWidgetArea,views_dock)
+
+    for d in (project_dock,window.dock,views_dock):
+        d.setFeatures(QDockWidget.DockWidgetClosable|QDockWidget.DockWidgetMovable|QDockWidget.DockWidgetFloatable)
+
+    # Restore buttons/menu: Προβολή -> Παράθυρα.
+    view_menu=None
+    for action in mb.actions():
+        if action.text()=="Προβολή":
+            view_menu=action.menu(); break
+    if view_menu is None: view_menu=mb.addMenu("Προβολή")
+    panels=view_menu.addMenu("Παράθυρα")
+    for d in (project_dock,window.dock,views_dock):
+        panels.addAction(d.toggleViewAction())
+
+    window.resizeDocks([project_dock],[270],Qt.Horizontal)
+    window.resizeDocks([window.dock],[280],Qt.Horizontal)
+    window.resizeDocks([views_dock],[120],Qt.Vertical)
     window.view=window.plan_view
     window._mockup_center_split=center_views
     window._mockup_right_tabs=right_tabs
+    window._approved_docks=(project_dock,window.dock,views_dock)
