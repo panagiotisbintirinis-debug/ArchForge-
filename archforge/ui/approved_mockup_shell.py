@@ -115,6 +115,16 @@ def install_approved_mockup_shell(window):
     # Default workflow: one large central editor, as requested. 2D is the
     # default; 3D and Structural are one click away. No functionality is lost.
     plan_card=_card("Κάτοψη - Ισόγειο",window.plan_view)
+    # PlanView came from the old QTabWidget. Qt can preserve the hidden state
+    # of a page when it is reparented; explicitly restore the real interactive
+    # QGraphicsView and its viewport after mounting it in the approved shell.
+    window.plan_view.setEnabled(True)
+    window.plan_view.setVisible(True)
+    window.plan_view.show()
+    window.plan_view.viewport().setVisible(True)
+    window.plan_view.viewport().show()
+    window.plan_view.redraw()
+    window.plan_view.viewport().update()
     central_tabs=QTabWidget()
     central_tabs.addTab(plan_card,"2D Σχεδίαση")
     central_tabs.addTab(right_tabs,"3D / Structural")
@@ -123,6 +133,10 @@ def install_approved_mockup_shell(window):
     def central_changed(index):
         if index==0:
             window.view=window.plan_view
+            window.plan_view.setVisible(True)
+            window.plan_view.viewport().setVisible(True)
+            window.plan_view.redraw()
+            window.plan_view.viewport().update()
             if hasattr(window.plan_view,"setFocus"): window.plan_view.setFocus()
         else:
             current=right_tabs.currentWidget()
