@@ -1476,11 +1476,13 @@ class MainWindow(QMainWindow):
     def _selection_from_view(self):
         self.refresh_inspector()
 
-    def _redraw_views(self, *, all_views=False):
+    def _redraw_views(self, *, all_views=False, fit_camera=False):
         targets=(self.plan_view,self.pbr_view,self.structural_view) if all_views else (self.view,)
         for view in targets:
             if isinstance(view, PBRViewport):
-                view.redraw(force_full=True)
+                # A normal redraw must preserve the human's orbit/zoom.
+                # Camera fitting is explicit only (initial load / Fit command).
+                view.redraw(force_full=bool(fit_camera))
             else:
                 view.redraw()
 
