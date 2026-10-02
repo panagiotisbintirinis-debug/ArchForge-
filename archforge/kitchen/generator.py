@@ -4,6 +4,7 @@ Source dimensions are millimetres; generated ArchForge entities use metres.
 Every panel/front/worktop remains an independent semantic kitchen_part.
 """
 from typing import List
+import math
 from archforge.core.model import Entity
 
 MM=0.001
@@ -24,7 +25,8 @@ def build_straight_kitchen(run_id="Kitchen-1", total_length=3600.0,
                            countertop_thick=40.0,countertop_overhang=20.0,
                            backsplash_height=600.0,wall_height=720.0,
                            wall_depth=350.0,carcass_thick=18.0,
-                           door_thick=18.0,door_gap=2.0,back_thick=8.0)->List[Entity]:
+                           door_thick=18.0,door_gap=2.0,back_thick=8.0,
+                           origin_x=0.0,origin_y=0.0,origin_z=0.0,rotation_deg=0.0)->List[Entity]:
     vals=(total_length,depth_base,height_base,plinth_height,countertop_thick,
           wall_height,wall_depth,carcass_thick,door_thick,back_thick)
     if any(float(v)<=0 for v in vals): raise ValueError("kitchen dimensions must be positive")
@@ -62,4 +64,11 @@ def build_straight_kitchen(run_id="Kitchen-1", total_length=3600.0,
             x=i*ww; carcass("Wall",i+1,x,yw,zw,ww,wall_depth,wall_height)
             add("wall_door",f"Wall_{i+1}_Door",x+door_gap,yw-door_thick,zw+door_gap,
                 ww-2*door_gap,door_thick,wall_height-2*door_gap,.3)
+    angle=math.radians(float(rotation_deg)); ca=math.cos(angle); sa=math.sin(angle)
+    for entity in out:
+        p=entity.params; x=float(p["x"]); y=float(p["y"])
+        p["x"]=float(origin_x)+x*ca-y*sa
+        p["y"]=float(origin_y)+x*sa+y*ca
+        p["z"]=float(origin_z)+float(p["z"])
+        p["rotation"]=float(p.get("rotation",0.0))+angle
     return out
