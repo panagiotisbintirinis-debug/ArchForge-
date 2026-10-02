@@ -48,7 +48,26 @@ def _project_panel(window):
     lib=QTabWidget(); page=QWidget(); v=QVBoxLayout(page); v.setContentsMargins(8,8,8,8)
     search=QLineEdit(); search.setPlaceholderText("Αναζήτηση κουζίνας..."); v.addWidget(search)
     items=QListWidget()
-    for n in ("Κάτω ντουλάπι","Συρτάρια","Ντουλάπι νεροχύτη","Κρεμαστό ντουλάπι","Ψηλό ντουλάπι","Νησίδα","Εστία","Φούρνος","Ψυγείο","Πλυντήριο πιάτων"): items.addItem(n)
+    kitchen_defs={
+        "Κάτω ντουλάπι": dict(name="Base Cabinet 600",role="base_cabinet",width=.60,depth=.60,height=.82,library_id="kitchen.base.600"),
+        "Συρτάρια": dict(name="Drawer Cabinet 600",role="drawer_cabinet",width=.60,depth=.60,height=.82,library_id="kitchen.drawers.600"),
+        "Ντουλάπι νεροχύτη": dict(name="Sink Cabinet 800",role="sink_cabinet",width=.80,depth=.60,height=.82,library_id="kitchen.sink.800"),
+        "Κρεμαστό ντουλάπι": dict(name="Wall Cabinet 600",role="wall_cabinet",width=.60,depth=.35,height=.72,library_id="kitchen.wall.600"),
+        "Ψηλό ντουλάπι": dict(name="Tall Cabinet 600",role="tall_cabinet",width=.60,depth=.60,height=2.10,library_id="kitchen.tall.600"),
+        "Νησίδα": dict(name="Island Module 900",role="island",width=.90,depth=.90,height=.90,library_id="kitchen.island.900"),
+        "Εστία": dict(name="Hob 600",role="hob",width=.60,depth=.52,height=.05,library_id="kitchen.hob.600"),
+        "Φούρνος": dict(name="Oven 600",role="oven",width=.60,depth=.57,height=.60,library_id="kitchen.oven.600"),
+        "Ψυγείο": dict(name="Fridge 600",role="fridge",width=.60,depth=.65,height=2.00,library_id="kitchen.fridge.600"),
+        "Πλυντήριο πιάτων": dict(name="Dishwasher 600",role="dishwasher",width=.60,depth=.57,height=.82,library_id="kitchen.dishwasher.600"),
+    }
+    for n in kitchen_defs: items.addItem(n)
+    def place_kitchen_component(item):
+        definition=kitchen_defs.get(item.text())
+        if not definition:return
+        window.plan_view.controller.set_component_definition(definition)
+        window._set_active_tool("component")
+        window.statusBar().showMessage(f'{item.text()}: μετακίνησε το ποντίκι και κάνε click για τοποθέτηση',5000)
+    items.itemDoubleClicked.connect(place_kitchen_component)
     search.textChanged.connect(lambda t:[items.item(i).setHidden(t.lower() not in items.item(i).text().lower()) for i in range(items.count())])
     v.addWidget(items)
     lib.addTab(QWidget(),"Δομικά"); lib.addTab(QWidget(),"Έπιπλα"); lib.addTab(page,"Κουζίνα"); lib.addTab(QWidget(),"Υλικά"); lib.setCurrentIndex(2)
@@ -94,8 +113,6 @@ def install_approved_mockup_shell(window):
     # legacy toolbar must not hide access to brush operation/radius.
     # Reuse the isolated semantic Kitchen command already owned by MainWindow.
     # Do not duplicate generation logic in the mockup shell.
-    if hasattr(window, "kitchen_action"):
-        ribbon.addAction(window.kitchen_action)
     ribbon.addSeparator()
     ribbon.addWidget(QLabel("Sculpt Op:"))
     ribbon.addWidget(window.sculpt_operation)
