@@ -98,6 +98,8 @@ def install_approved_mockup_shell(window):
     ribbon.addWidget(QLabel("Brush Size:"))
     ribbon.addWidget(window.sculpt_radius)
     ribbon.addSeparator()
+    kitchen_gen=QAction("Generate Kitchen",window); kitchen_gen.triggered.connect(window._generate_kitchen_run); ribbon.addAction(kitchen_gen)
+    window._mockup_kitchen_generate_action=kitchen_gen
     auto_floor=QAction("Auto Floor",window); auto_floor.triggered.connect(window._create_auto_floors); ribbon.addAction(auto_floor)
     flat_roof=QAction("Flat / Auto Roof",window); flat_roof.triggered.connect(window._create_flat_roofs); ribbon.addAction(flat_roof)
     window._mockup_auto_floor_action=auto_floor
