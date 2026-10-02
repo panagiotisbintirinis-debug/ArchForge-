@@ -530,7 +530,7 @@ def _payload(doc,node):
  if k=='wall':return _wall_mesh(p)
  if k=='structural_column':return _structural_column_mesh(p)
  if k=='structural_beam':return _structural_beam_mesh(p)
- if k in('box','mechanical_part'):return _box_mesh(p,node.transform)
+ if k in('box','mechanical_part','kitchen_part'):return _box_mesh(p,node.transform)
  if k=='pod':return _pod_mesh_for_node(doc,node)
  if k=='mesh':return _authoritative_mesh(p)
  if k=='stair':return _stair_mesh(p)
