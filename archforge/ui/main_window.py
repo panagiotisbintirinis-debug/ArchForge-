@@ -22,7 +22,7 @@ from .plan_view import PlanView
 from .pbr_viewport import PBRViewport
 from .object_properties import property_fields, property_values, property_changes
 from .workspace_docks import WorkspaceDockSpec, install_workspace_dock, add_workspace_toggles
-from .mockup_theme import apply_approved_mockup_theme
+from .approved_mockup_shell import install_approved_mockup_shell
 
 
 class MainWindow(QMainWindow):
@@ -60,14 +60,17 @@ class MainWindow(QMainWindow):
         self._build_edit_menu()
         self._build_view_menu()
         self._build_inspector()
-        self._build_mockup_workspace()
-        apply_approved_mockup_theme(self)
+        install_approved_mockup_shell(self)
         self.refresh_inspector()
 
     def _on_tab_changed(self, idx):
-        widgets = [self.plan_view, self.pbr_view, self.structural_view]
-        if 0 <= idx < len(widgets):
-            self.view = widgets[idx]
+        # In the approved mockup the plan is permanently visible on the left
+        # and this tab widget owns the real 3D / Structural pane on the right.
+        current = self.tabs.currentWidget() if hasattr(self, 'tabs') else None
+        if current is self.pbr_view:
+            self.view = self.pbr_view
+        elif current is self.structural_view:
+            self.view = self.structural_view
         if self.view is self.pbr_view:
             self.pbr_view.activate()
         elif self.view is self.structural_view:
@@ -96,13 +99,13 @@ class MainWindow(QMainWindow):
         if self.view is self.structural_view and str(tool) not in (
             'select','structural_column','structural_beam','move','rotate'
         ):
-            self.tabs.setCurrentWidget(self.plan_view)
+            # PlanView is simultaneously visible in the approved split shell;
+            # it is no longer a tab that needs to be selected.
             self.view = self.plan_view
         # Keep frame-free openings in the active human view. PBR now routes
         # Rectangle/Arch openings through the same authoritative OpeningPlaceTransaction
         # used by Floor Plan; only MEP authoring still requires the plan workflow.
         if str(tool).startswith('mep_') and self.view is self.pbr_view:
-            self.tabs.setCurrentWidget(self.plan_view)
             self.view = self.plan_view
         if hasattr(self.view, 'set_tool'):
             self.view.set_tool(tool)
