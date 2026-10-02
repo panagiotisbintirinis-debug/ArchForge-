@@ -85,6 +85,11 @@ def install_approved_mockup_shell(window):
         elif tool=="materials": a.triggered.connect(window._open_selected_materials)
         else: a.triggered.connect(lambda _=False,t=tool: window._set_active_tool(t))
         ribbon.addAction(a)
+    ribbon.addSeparator()
+    auto_floor=QAction("Auto Floor",window); auto_floor.triggered.connect(window._create_auto_floors); ribbon.addAction(auto_floor)
+    flat_roof=QAction("Flat / Auto Roof",window); flat_roof.triggered.connect(window._create_flat_roofs); ribbon.addAction(flat_roof)
+    window._mockup_auto_floor_action=auto_floor
+    window._mockup_flat_roof_action=flat_roof
     spacer=QWidget(); spacer.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Preferred); ribbon.addWidget(spacer)
     ribbon.addWidget(QLabel("Όροφος: ")); ribbon.addWidget(window.floor_selector)
     ribbon.addWidget(QLabel("  Απεικόνιση: ")); ribbon.addWidget(window.render_technique)
@@ -114,6 +119,17 @@ def install_approved_mockup_shell(window):
     central_tabs.addTab(plan_card,"2D Σχεδίαση")
     central_tabs.addTab(right_tabs,"3D / Structural")
     central_tabs.setCurrentIndex(0)
+
+    def central_changed(index):
+        if index==0:
+            window.view=window.plan_view
+            if hasattr(window.plan_view,"setFocus"): window.plan_view.setFocus()
+        else:
+            current=right_tabs.currentWidget()
+            window.view=current if current in (window.pbr_view,window.structural_view) else window.pbr_view
+            if window.view is window.pbr_view: window.pbr_view.activate()
+            elif window.view is window.structural_view: window.structural_view.activate()
+    central_tabs.currentChanged.connect(central_changed)
 
     strips=QHBoxLayout(); strips.setSpacing(6)
     views=_thumb_strip(("3D Προοπτική","Top","Front","Side","Εσωτερική Όψη","Render (PBR)","Walkthrough"))
