@@ -70,13 +70,18 @@ def install_approved_mockup_shell(window):
     mb=window.menuBar(); mb.clear()
     for name in MENUS: mb.addMenu(name)
 
-    # Existing development toolbars remain as command owners, but are hidden.
-    for tb in window.findChildren(QToolBar): tb.hide()
+    # Existing development toolbars remain command owners only. Keep them
+    # hidden and also hide their View-menu toggle actions so controls do not
+    # appear twice above/below the approved ribbon.
+    for tb in window.findChildren(QToolBar):
+        tb.hide()
+        tb.toggleViewAction().setVisible(False)
 
     ribbon=QToolBar("Mockup Ribbon",window); ribbon.setMovable(False); ribbon.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
     tool_specs=(
         ("Επιλογή","select"),("Τοίχος","wall"),("Πόρτα","door"),("Παράθυρο","window"),
-        ("Άνοιγμα","opening_rect"),("Κλίμακα","stair"),("Δομικά","structural_column"),
+        ("Άνοιγμα","opening_rect"),("Κλίμακα","stair"),
+        ("Κολώνα","structural_column"),("Δοκός","structural_beam"),
         ("Sculpt","sculpt"),("Υλικά","materials")
     )
     for label,tool in tool_specs:
