@@ -15,6 +15,7 @@ _MATERIALS: Mapping[str, dict] = {
     "room_roof": {"color": "#8f979f", "roughness": 0.68, "metalness": 0.02},
     "pod": {"color": "#c7cbd0", "roughness": 0.55, "metalness": 0.02},
     "box": {"color": "#bfc7cf", "roughness": 0.58, "metalness": 0.03},
+    "kitchen_part": {"color": "#ded7ca", "roughness": 0.48, "metalness": 0.02},
     "structural_column": {"color": "#b9b2a6", "roughness": 0.72, "metalness": 0.02},
     "structural_beam": {"color": "#aeb5bb", "roughness": 0.62, "metalness": 0.05},
     "mechanical_part": {"color": "#9da7b1", "roughness": 0.38, "metalness": 0.42},
