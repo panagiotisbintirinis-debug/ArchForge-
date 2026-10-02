@@ -85,6 +85,13 @@ def install_approved_mockup_shell(window):
         elif tool=="materials": a.triggered.connect(window._open_selected_materials)
         else: a.triggered.connect(lambda _=False,t=tool: window._set_active_tool(t))
         ribbon.addAction(a)
+    # Reuse the proven Sculpt controls from the original toolbar. Hiding the
+    # legacy toolbar must not hide access to brush operation/radius.
+    ribbon.addSeparator()
+    ribbon.addWidget(QLabel("Sculpt Op:"))
+    ribbon.addWidget(window.sculpt_operation)
+    ribbon.addWidget(QLabel("Brush Size:"))
+    ribbon.addWidget(window.sculpt_radius)
     ribbon.addSeparator()
     auto_floor=QAction("Auto Floor",window); auto_floor.triggered.connect(window._create_auto_floors); ribbon.addAction(auto_floor)
     flat_roof=QAction("Flat / Auto Roof",window); flat_roof.triggered.connect(window._create_flat_roofs); ribbon.addAction(flat_roof)
