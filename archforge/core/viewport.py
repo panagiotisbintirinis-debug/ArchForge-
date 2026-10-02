@@ -32,10 +32,13 @@ class IncrementalViewportAdapter:
 
 class PointerController:
     def __init__(self,doc,stack):
-        self.doc=doc;self.stack=stack;self.tool='select';self.active=None;self.active_entity=None;self.active_handle=None;self.preview=PreviewState();self.construction_grid=.10;self.grid=self.construction_grid;self.snap_tolerance=.10;self.angle_increment=15.;self.wall_angle_increment=90.;self.wall_angle_reference='relative';self.snap_enabled=True
+        self.doc=doc;self.stack=stack;self.tool='select';self.active=None;self.component_definition=None;self.active_entity=None;self.active_handle=None;self.preview=PreviewState();self.construction_grid=.10;self.grid=self.construction_grid;self.snap_tolerance=.10;self.angle_increment=15.;self.wall_angle_increment=90.;self.wall_angle_reference='relative';self.snap_enabled=True
     def set_tool(self,tool):
         if self.active is not None:self.cancel()
         self.tool=tool;self.preview=PreviewState()
+    def set_component_definition(self,definition):
+        self.component_definition=None if definition is None else dict(definition)
+
     def set_snap_enabled(self,enabled):
         self.snap_enabled=bool(enabled)
     def set_wall_angle_increment(self,increment):
@@ -101,7 +104,16 @@ class PointerController:
                 self._snap_dict(sp),
             )
             return self.preview
-        if self.tool in ('structural_column','structural_beam'):
+        if self.tool=='component':
+            if not self.component_definition:return self.preview
+            from archforge.components.placement import ComponentPlaceTransaction
+            self.active=ComponentPlaceTransaction(
+                self.doc,self.stack,x,y,self.component_definition,
+                z=float(self.doc.work_plane.origin[2]),grid=self.grid,snap_tol=self.snap_tolerance,
+            )
+            self.preview=PreviewState('component',copy.deepcopy(self.active.preview),{},self._snap_dict(self.active.last_snap))
+            return self.preview
+                if self.tool in ('structural_column','structural_beam'):
             active_z=float(self.doc.work_plane.origin[2])
             level_name=str(self.doc.work_plane.name)
             above=sorted(
@@ -266,6 +278,9 @@ class PointerController:
         elif isinstance(self.active,PodStretchTransaction):
             hud=self.active.update(x=x) if self.active.handle in ('left','right') else self.active.update(y=y);self.preview=PreviewState('stretch',copy.deepcopy(self.active.preview),hud.values,None,self.active.eid)
         elif isinstance(self.active,RotateTransaction):hud=self.active.update_pointer(x,y,self._rotate_start_angle,snap=self.snap_enabled and not ev.shift);self.preview=PreviewState('rotate',copy.deepcopy(self.active.preview),hud.values,None,self.active.eid)
+        elif self.active.__class__.__name__=='ComponentPlaceTransaction':
+            self.active.update(x,y)
+            self.preview=PreviewState('component',copy.deepcopy(self.active.preview),{},self._snap_dict(self.active.last_snap))
         elif isinstance(self.active,StructuralColumnPlaceTransaction):
             hud=self.active.update(x,y)
             self.preview=PreviewState(
@@ -322,6 +337,7 @@ class PointerController:
         self.pointer_move(ev);committed_id=None
         if isinstance(self.active,WallDrawTransaction):committed_id=self.active.commit((exact or {}).get('length'))
         elif isinstance(self.active,(ConnectedWallEndpointStretchTransaction,WallEndpointStretchTransaction,StructuralBeamEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction,OpeningEditTransaction)):self.active.commit();committed_id=getattr(self.active,'eid',None)
+        elif self.active.__class__.__name__=='ComponentPlaceTransaction':committed_id=self.active.commit()
         elif isinstance(self.active,StructuralColumnPlaceTransaction):committed_id=self.active.commit()
         elif isinstance(self.active,StructuralBeamDrawTransaction):committed_id=self.active.commit()
         elif isinstance(self.active,MEPTerminalPlaceTransaction):committed_id=self.active.commit()
