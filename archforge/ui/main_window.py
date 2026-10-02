@@ -90,10 +90,19 @@ class MainWindow(QMainWindow):
         self._redraw_views()
 
     def _set_active_tool(self, tool):
-        # Structural authoring always belongs to the dedicated structural view.
-        # This restores the visible/interactive structural workflow regardless
-        # of which mockup workspace tab was active when the command was chosen.
-        if str(tool).startswith('structural_') and self.view is not self.structural_view:
+        tool = str(tool)
+        # The approved shell defaults ordinary architectural authoring to the
+        # real central PlanView. Switching tabs must never leave Wall/Door/etc.
+        # routed to an invisible 3D widget.
+        plan_tools = {'select','wall','door','window','opening_rect','opening_arch','stair','ramp','move','stretch','rotate'}
+        central = getattr(self, '_central_tabs', None)
+        if tool in plan_tools and central is not None and not getattr(self, '_simultaneous_action', None).isChecked():
+            central.setCurrentIndex(0)
+            self.view = self.plan_view
+        # Structural authoring belongs to the real structural view.
+        if tool.startswith('structural_') and self.view is not self.structural_view:
+            if central is not None:
+                central.setCurrentIndex(1)
             self.tabs.setCurrentWidget(self.structural_view)
             self.view = self.structural_view
         if self.view is self.structural_view and str(tool) not in (
