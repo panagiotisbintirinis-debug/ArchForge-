@@ -68,6 +68,8 @@ class PlanView(QGraphicsView):
             event.accept()
             return
         hit=self.itemAt(event.pos());eid=self._entity_items.get(hit)
+        scene_pos=self.mapToScene(event.pos())
+        self._context_scene_point=(float(scene_pos.x()),float(scene_pos.y()))
         if not eid or eid not in self.doc.entities:
             super().contextMenuEvent(event);return
         self.doc.select([eid]);self.controller.set_target(eid,None)
