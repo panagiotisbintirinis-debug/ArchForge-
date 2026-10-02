@@ -22,6 +22,7 @@ from .plan_view import PlanView
 from .pbr_viewport import PBRViewport
 from .object_properties import property_fields, property_values, property_changes
 from .workspace_docks import WorkspaceDockSpec, install_workspace_dock, add_workspace_toggles
+from .mockup_theme import apply_approved_mockup_theme
 
 
 class MainWindow(QMainWindow):
@@ -60,6 +61,7 @@ class MainWindow(QMainWindow):
         self._build_view_menu()
         self._build_inspector()
         self._build_mockup_workspace()
+        apply_approved_mockup_theme(self)
         self.refresh_inspector()
 
     def _on_tab_changed(self, idx):
