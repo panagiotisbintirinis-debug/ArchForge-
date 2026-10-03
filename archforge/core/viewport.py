@@ -113,7 +113,7 @@ class PointerController:
             )
             self.preview=PreviewState('component',copy.deepcopy(self.active.preview),{},self._snap_dict(self.active.last_snap))
             return self.preview
-                if self.tool in ('structural_column','structural_beam'):
+        if self.tool in ('structural_column','structural_beam'):
             active_z=float(self.doc.work_plane.origin[2])
             level_name=str(self.doc.work_plane.name)
             above=sorted(
