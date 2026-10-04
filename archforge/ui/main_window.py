@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import os
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QDockWidget, QWidget, QFormLayout, QDoubleSpinBox,
     QLabel, QTabWidget, QStatusBar, QFileDialog, QMessageBox, QComboBox, QInputDialog,
@@ -57,6 +57,10 @@ class MainWindow(QMainWindow):
         self.plan_view.commandRequested.connect(self._handle_plan_command)
         self.plan_view.previewChanged.connect(self.pbr_view.set_stair_preview)
         self.plan_view.viewLineRequested.connect(self._apply_view_line)
+        # Esc always cancels what is in progress, in 2D and 3D alike.
+        self._escape_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
+        self._escape_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
+        self._escape_shortcut.activated.connect(self._cancel_interactions)
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self._build_toolbar()
         self._build_view_toolbar()
@@ -545,6 +549,15 @@ class MainWindow(QMainWindow):
         auto_rotate.toggled.connect(self.pbr_view.set_auto_rotate)
         toolbar.addAction(auto_rotate)
         self.auto_rotate_action = auto_rotate
+
+    def _cancel_interactions(self):
+        self.plan_view.controller.cancel()
+        self.plan_view._mouse_down = False
+        self.plan_view._view_drag = None
+        self.plan_view.redraw()
+        for view in (self.pbr_view, self.structural_view):
+            view.cancel_interaction()
+        self.statusBar().showMessage('Ακυρώθηκε', 2000)
 
     def _show_3d_view(self):
         """Bring the 3D Scene forward (unless 2D + 3D are side by side)."""

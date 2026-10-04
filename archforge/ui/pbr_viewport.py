@@ -55,7 +55,8 @@ _PBR_HTML = r"""<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #d9dee5; }
+html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #d9dee5;
+  user-select: none; -webkit-user-select: none; }
 #stage { width: 100%; height: 100%; }
 #notice { position: absolute; left: 12px; bottom: 10px; font: 12px sans-serif; color: #4b5563; pointer-events: none; }
 #markingRoot {
@@ -198,6 +199,16 @@ let activeCameraPreset = "orbit";
 let cutawayEnabled = false;
 let activeTool = "orbit";
 let bridge = null;
+// Elevation of the active storey: Stair/Ramp may start on empty ground
+// (e.g. an external stair) where no model surface is under the pointer.
+let workPlaneZ = 0;
+window.setWorkPlaneZ = function(z) { workPlaneZ = Number(z) || 0; };
+function placementPoint(event) {
+  const hit = pickModel(event);
+  if (hit && hit.face) return {x: Number(hit.point.x), y: Number(hit.point.y)};
+  const p = pointOnHorizontalPlane(event, workPlaneZ);
+  return p ? {x: Number(p.x), y: Number(p.y)} : null;
+}
 let sculpting = false;
 let sculptStartY = 0;
 let stairing = false;
@@ -596,8 +607,9 @@ function applyViewLine(line) {
     const along = ux * (center.x - line.x1) + uy * (center.y - line.y1);
     const tx = center.x - ux * along, ty = center.y - uy * along;
     const distance = radius / Math.tan((10 * Math.PI / 180) / 2) * 0.75;
-    camera.near = Math.max(0.05, distance - radius * 3.0);
-    camera.far = distance + radius * 6.0;
+    // Generous depth range: orbiting a section must not clip the building.
+    camera.near = Math.max(0.05, distance * 0.02);
+    camera.far = distance + radius * 40.0;
     camera.position.set(tx - ux * distance, ty - uy * distance, center.z);
     controls.target.set(tx, ty, center.z);
   }
@@ -610,6 +622,25 @@ function applyViewLine(line) {
 window.setViewLine = function(line) {
   applyViewLine(line);
 };
+
+// Mouse wheel in a Section moves the cut forward/back along the view; the
+// camera stays put so the cut can be scanned through the building.
+function moveSection(step) {
+  if (!activeViewLine || activeViewLine.kind !== "section") return false;
+  const dx = activeViewLine.x2 - activeViewLine.x1, dy = activeViewLine.y2 - activeViewLine.y1;
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-6) return false;
+  const ux = dx / len, uy = dy / len;
+  activeViewLine.x1 += ux * step; activeViewLine.y1 += uy * step;
+  activeViewLine.x2 += ux * step; activeViewLine.y2 += uy * step;
+  activeViewLine.offset = (activeViewLine.offset || 0) + step;
+  sectionPlane = new THREE.Plane(new THREE.Vector3(ux, uy, 0), -(ux * activeViewLine.x1 + uy * activeViewLine.y1));
+  applyViewState();
+  if (bridge && bridge.reportStatus) {
+    bridge.reportStatus("Τομή: μετατόπιση " + activeViewLine.offset.toFixed(2) + " m (ρόδα = μπρος/πίσω)");
+  }
+  return true;
+}
 
 function setCameraPreset(mode) {
   const bounds = sceneBounds();
@@ -1045,11 +1076,12 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     }
 
     const hit = pickModel(event);
-    if (!hit || !hit.face) return;
+    const start = placementPoint(event);
+    if (!start) return;
     stairing = true;
-    stairPlaneZ = Number(hit.point.z);
+    stairPlaneZ = workPlaneZ;
     controls.enabled = false;
-    bridge.beginStair(Number(hit.point.x), Number(hit.point.y));
+    bridge.beginStair(start.x, start.y);
     event.preventDefault();
     event.stopPropagation();
     return;
@@ -1081,12 +1113,12 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
       return;
     }
 
-    const hit = pickModel(event);
-    if (!hit || !hit.face) return;
+    const start = placementPoint(event);
+    if (!start) return;
     ramping = true;
-    rampPlaneZ = Number(hit.point.z);
+    rampPlaneZ = workPlaneZ;
     controls.enabled = false;
-    bridge.beginRamp(Number(hit.point.x), Number(hit.point.y));
+    bridge.beginRamp(start.x, start.y);
     event.preventDefault();
     event.stopPropagation();
     return;
@@ -1201,6 +1233,15 @@ renderer.domElement.addEventListener("contextmenu", (event) => {
 let lastOptionWheel = 0;
 renderer.domElement.addEventListener("wheel", (event) => {
   hideMarkingMenu();
+  if (!stairing && !ramping && activeViewLine && activeViewLine.kind === "section") {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const now = performance.now();
+    if (now - lastOptionWheel < 60) return;
+    lastOptionWheel = now;
+    moveSection(event.deltaY > 0 ? 0.10 : -0.10);
+    return;
+  }
   if ((stairing || ramping) && bridge) {
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -1575,7 +1616,9 @@ class PBRViewport(QWidget):
         self.active_tool = str(tool)
         if self.web_view is not None:
             script = (
-                "if (window.setActiveTool) window.setActiveTool("
+                "if (window.setWorkPlaneZ) window.setWorkPlaneZ("
+                + json.dumps(float(self.doc.work_plane.origin[2]))
+                + "); if (window.setActiveTool) window.setActiveTool("
                 + json.dumps(self.active_tool)
                 + ");"
             )
@@ -1740,7 +1783,23 @@ class PBRViewport(QWidget):
         self._stair_preview_payload = payload
         self._push_stair_preview()
 
+    def cancel_interaction(self) -> None:
+        """Esc: drop any Stair/Ramp/Move/Rotate in progress in this view."""
+        if self._stair_tx is not None:
+            self._cancel_stair_from_web()
+        if getattr(self, '_ramp_tx', None) is not None:
+            self._cancel_ramp_from_web()
+        self._set_stair_candidate_params(())
+        if self.web_view is not None:
+            self.web_view.page().runJavaScript(
+                "if (window.archforgeResetInteraction) window.archforgeResetInteraction();"
+            )
+
     def set_stair_preview(self, preview) -> None:
+        # A Stair being placed in this 3D view owns the preview; the plan's
+        # (empty) preview must not wipe it.
+        if self._stair_tx is not None:
+            return
         candidates = ()
         active_index = 0
         if preview is not None and getattr(preview, "kind", None) == "stair":

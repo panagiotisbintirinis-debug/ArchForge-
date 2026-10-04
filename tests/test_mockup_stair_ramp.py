@@ -120,3 +120,37 @@ def test_roof_overhang_is_editable_in_properties_even_for_older_roofs():
     window._commit_property(roof.id, 'overhang', 0.4)
     assert window.doc.get(roof.id).params['overhang'] == 0.4
     _close(app, window)
+
+
+def test_escape_cancels_a_stair_in_progress_in_2d_and_3d():
+    from archforge.core.commands import AddEntity, CreateRoomRoofs
+    from archforge.core.model import Entity
+
+    app, window = _window()
+    window.doc.levels['Floor 2'] = 2.70
+    window._refresh_floor_selector()
+    window._set_active_tool('stair')
+    controller = window.plan_view.controller
+    controller.pointer_down(PointerEvent(1.0, 1.0))
+    controller.pointer_move(PointerEvent(4.0, 1.0))
+    assert controller.active is not None
+    window.pbr_view._begin_stair_from_web(6.0, 6.0)
+    assert window.pbr_view._stair_tx is not None
+
+    window._escape_shortcut.activated.emit()
+    assert controller.active is None
+    assert window.pbr_view._stair_tx is None
+    assert not [e for e in window.doc.entities.values() if e.kind == 'stair']
+    _close(app, window)
+
+
+def test_plan_redraw_does_not_wipe_a_3d_stair_preview():
+    app, window = _window()
+    window.doc.levels['Floor 2'] = 2.70
+    window.pbr_view._begin_stair_from_web(1.0, 1.0)
+    window.pbr_view._update_stair_from_web(5.0, 1.0)
+    calls = []
+    window.pbr_view._set_stair_candidate_params = lambda *a, **k: calls.append(a)
+    window.plan_view.redraw()          # emits an empty plan preview
+    assert calls == []
+    _close(app, window)
