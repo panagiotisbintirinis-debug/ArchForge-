@@ -91,8 +91,43 @@ class MainWindow(QMainWindow):
                 self.statusBar().showMessage(f'Structural View — graph issue: {exc}',5000)
         self._redraw_views()
 
+    def _ensure_upper_level_for(self, tool):
+        """Stair/Ramp need a storey above; offer to create it instead of failing."""
+        from archforge.architecture.stairs import discover_building_levels
+        active_z = float(self.doc.work_plane.origin[2])
+        if any(float(item['elevation']) > active_z + 1e-6 for item in discover_building_levels(self.doc)):
+            return True
+        number = 2
+        while f'Floor {number}' in self.doc.levels:
+            number += 1
+        name = f'Floor {number}'
+        elevation = active_z + 2.70
+        what = 'Η σκάλα' if tool == 'stair' else 'Η ράμπα'
+        answer = QMessageBox.question(
+            self, 'Σκάλα / Ράμπα',
+            f'{what} χρειάζεται όροφο από πάνω, αλλά δεν υπάρχει.\n\n'
+            f'Να δημιουργηθεί «{name}» στα {elevation:.2f} m;',
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            self.statusBar().showMessage('Πρόσθεσε όροφο (+ Όροφος) για να βάλεις σκάλα ή ράμπα', 5000)
+            return False
+        before = copy.deepcopy(self.doc.work_plane)
+        try:
+            self.stack.execute(CreateFloorLevel(name, elevation))
+            # Keep drawing on the storey the human was on.
+            self.stack.execute(SetWorkPlane(before))
+        except Exception as exc:
+            QMessageBox.warning(self, 'Σκάλα / Ράμπα', str(exc))
+            return False
+        self._refresh_floor_selector()
+        self._redraw_views(all_views=True)
+        self.statusBar().showMessage(f'Δημιουργήθηκε {name} στα {elevation:.2f} m — σχεδίασε τη σκάλα/ράμπα', 5000)
+        return True
+
     def _set_active_tool(self, tool):
         tool = str(tool)
+        if tool in ('stair', 'ramp') and not self._ensure_upper_level_for(tool):
+            return
         # The approved shell defaults ordinary architectural authoring to the
         # real central PlanView. Switching tabs must never leave Wall/Door/etc.
         # routed to an invisible 3D widget.

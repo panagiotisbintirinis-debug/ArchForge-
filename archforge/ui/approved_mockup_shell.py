@@ -3,7 +3,7 @@ from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtWidgets import (
     QWidget, QLabel, QLineEdit, QListWidget, QListWidgetItem, QTreeWidget,
     QTreeWidgetItem, QTabWidget, QVBoxLayout, QHBoxLayout, QSplitter, QToolBar,
-    QToolButton, QCheckBox, QComboBox, QFrame, QSizePolicy, QDockWidget
+    QToolButton, QCheckBox, QComboBox, QFrame, QSizePolicy, QDockWidget, QMenu
 )
 
 STYLE = """
@@ -131,11 +131,21 @@ def install_approved_mockup_shell(window):
     ribbon=QToolBar("Mockup Ribbon",window); ribbon.setMovable(False); ribbon.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
     tool_specs=(
         ("Επιλογή","select"),("Τοίχος","wall"),("Πόρτα","door"),("Παράθυρο","window"),
-        ("Άνοιγμα","opening_rect"),("Κλίμακα","stair"),
+        ("Άνοιγμα","opening_rect"),("Σκάλα / Ράμπα","circulation"),
         ("Κολώνα","structural_column"),("Δοκός","structural_beam"),
         ("Sculpt","sculpt"),("Υλικά","materials")
     )
     for label,tool in tool_specs:
+        if tool=="circulation":
+            # One grouped vertical-circulation tool, as in the legacy toolbar.
+            menu=QMenu(window)
+            for text,t in (("Σκάλα","stair"),("Ράμπα","ramp")):
+                item=QAction(text,menu); item.triggered.connect(lambda _=False,t=t: window._set_active_tool(t)); menu.addAction(item)
+            button=QToolButton(ribbon); button.setText(label); button.setToolTip("Σκάλα ή Ράμπα")
+            button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup); button.setMenu(menu)
+            button.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+            ribbon.addWidget(button); window._mockup_circulation_button=button
+            continue
         a=QAction(label,window)
         if tool=="sculpt": a.triggered.connect(lambda _=False: window.sculpt_action.toggle())
         elif tool=="materials": a.triggered.connect(window._open_selected_materials)
