@@ -274,35 +274,52 @@ def _line_intersection(p,u,q,v):
     return (p[0]+t*u[0],p[1]+t*u[1])
 
 
-def _corner_placement(P,wall_a,wall_b,polys,width,depth):
+def _corner_placement(P,arm_a,arm_b,polys,width,depth):
     """Column centre/rotation whose outer corner meets the walls' outer corner.
 
-    The column's outer faces are flush with the outer faces of both walls;
-    when the column is thicker than a wall the extra shows on the inside.
-    Rooms decide which side is outside (so inner/reflex corners work); with
-    no rooms the convex side between the two walls is treated as inside.
+    ``arm_a``/``arm_b`` are (unit direction away from P, thickness, length)
+    for the two walls forming the corner. The column's outer faces are flush
+    with the outer faces of both walls; when the column is thicker than a
+    wall the extra shows on the inside. Rooms decide which side is outside
+    (so inner/reflex corners work); with no rooms the convex side between
+    the two walls is treated as inside.
     """
-    def far_end(p):
-        a=(float(p['x1']),float(p['y1']));b=(float(p['x2']),float(p['y2']))
-        return b if hypot(a[0]-P[0],a[1]-P[1])<=hypot(b[0]-P[0],b[1]-P[1]) else a
-    ea=far_end(wall_a);eb=far_end(wall_b)
-    uA=_unit(ea[0]-P[0],ea[1]-P[1]);uB=_unit(eb[0]-P[0],eb[1]-P[1])
-    if uA is None or uB is None or abs(uA[0]*uB[1]-uA[1]*uB[0])<1e-6:return None
-    tA=float(wall_a['thickness']);tB=float(wall_b['thickness'])
+    uA,tA,lenA=arm_a;uB,tB,lenB=arm_b
+    if abs(uA[0]*uB[1]-uA[1]*uB[0])<1e-6:return None
     bis=(uA[0]+uB[0],uA[1]+uB[1])
     def outward(u,t,length):
         perp=(-u[1],u[0]);probe=min(0.30,length/2.0)
         side=_outward_side((P[0]+u[0]*probe,P[1]+u[1]*probe),u,perp,t,polys)
         if side is None:side=-1.0 if perp[0]*bis[0]+perp[1]*bis[1]>0 else 1.0
         return (perp[0]*side,perp[1]*side)
-    nA=outward(uA,tA,hypot(ea[0]-P[0],ea[1]-P[1]))
-    nB=outward(uB,tB,hypot(eb[0]-P[0],eb[1]-P[1]))
+    nA=outward(uA,tA,lenA);nB=outward(uB,tB,lenB)
     O=_line_intersection((P[0]+nA[0]*tA/2,P[1]+nA[1]*tA/2),uA,(P[0]+nB[0]*tB/2,P[1]+nB[1]*tB/2),uB)
     if O is None:return None
     sigma=-1.0 if -(nB[0]*uA[0]+nB[1]*uA[1])<0 else 1.0
     cx=O[0]-nA[0]*depth/2+sigma*uA[0]*width/2
     cy=O[1]-nA[1]*depth/2+sigma*uA[1]*width/2
     return (cx,cy),_angle(uA)
+
+
+def _arms_at(P,walls,tolerance=5e-4):
+    """Wall directions leaving junction P: one per ending wall, two per wall
+    that passes through P (e.g. a wall drawn past the corner)."""
+    arms=[]
+    for eid,p in walls:
+        a=(float(p['x1']),float(p['y1']));b=(float(p['x2']),float(p['y2']));t=float(p['thickness'])
+        da=hypot(a[0]-P[0],a[1]-P[1]);db=hypot(b[0]-P[0],b[1]-P[1])
+        if da<=tolerance or db<=tolerance:
+            far,length=(b,db) if da<=db else (a,da)
+            u=_unit(far[0]-P[0],far[1]-P[1])
+            if u is not None:arms.append((eid,(u,t,length)))
+            continue
+        u=_unit(b[0]-a[0],b[1]-a[1])
+        if u is None:continue
+        along=(P[0]-a[0])*u[0]+(P[1]-a[1])*u[1]
+        off=abs((P[0]-a[0])*u[1]-(P[1]-a[1])*u[0])
+        if off<=tolerance and tolerance<along<hypot(b[0]-a[0],b[1]-a[1])-tolerance:
+            arms.append((eid,((-u[0],-u[1]),t,da)));arms.append((eid,(u,t,db)))
+    return arms
 
 
 def _slab_corner_placement(poly,i,width,depth):
@@ -339,16 +356,31 @@ def column_snap(doc:Document,x:float,y:float,tolerance:float=COLUMN_SNAP_TOLERAN
     if crossing is not None:junctions.append((hypot(crossing.x-x,crossing.y-y),(crossing.x,crossing.y)))
     if junctions:
         _,P=min(junctions,key=lambda item:item[0])
-        at=[(eid,p) for eid,p in walls
-            if hypot(float(p['x1'])-P[0],float(p['y1'])-P[1])<1e-6 or hypot(float(p['x2'])-P[0],float(p['y2'])-P[1])<1e-6]
-        if len(at)==2:
-            placed=_corner_placement(P,at[0][1],at[1][1],rooms(),width,depth)
+        arms=_arms_at(P,walls)
+        pairs=[(i,j) for i in range(len(arms)) for j in range(i+1,len(arms))
+               if arms[i][0]!=arms[j][0]
+               and abs(arms[i][1][0][0]*arms[j][1][0][1]-arms[i][1][0][1]*arms[j][1][0][0])>1e-6]
+        chosen=None
+        if len(arms)==2 and pairs:
+            chosen=pairs[0]
+        elif pairs and rooms():
+            # A wall passing through the corner: the real corner is the
+            # pair of arms whose sector holds the room.
+            inside=[]
+            for i,j in pairs:
+                ui=arms[i][1][0];uj=arms[j][1][0];b=_unit(ui[0]+uj[0],ui[1]+uj[1])
+                if b is None:continue
+                q=(P[0]+b[0]*0.2,P[1]+b[1]*0.2)
+                if any(_point_in_polygon(q,poly) for poly in rooms()):inside.append((i,j))
+            if len(inside)==1:chosen=inside[0]
+        if chosen is not None:
+            i,j=chosen
+            placed=_corner_placement(P,arms[i][1],arms[j][1],rooms(),width,depth)
             if placed is not None:
                 (cx,cy),rot=placed
-                return SnapPoint(cx,cy,active_z,'wall_corner',f'{at[0][0]}|{at[1][0]}'),rot
-        if len(at)==1:
-            p=at[0][1];u=_unit(float(p['x2'])-float(p['x1']),float(p['y2'])-float(p['y1']))
-            return SnapPoint(P[0],P[1],active_z,'endpoint',at[0][0]),(_angle(u) if u else None)
+                return SnapPoint(cx,cy,active_z,'wall_corner',f'{arms[i][0]}|{arms[j][0]}'),rot
+        if len(arms)==1:
+            return SnapPoint(P[0],P[1],active_z,'endpoint',arms[0][0]),_angle(arms[0][1][0])
         return SnapPoint(P[0],P[1],active_z,'intersection',''),None
     # 2) Floor slab corners (no wall corner nearby).
     best=None;bestd=float(tolerance)

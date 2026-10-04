@@ -116,3 +116,25 @@ def test_shift_places_a_free_column_exactly_where_clicked():
     column = _place_column(doc, 3.96, 2.97, shift=True)
     assert (column.params['x'], column.params['y']) == (3.96, 2.97)
     assert column.params['rotation'] == 0.0
+
+
+def test_corner_where_one_wall_overshoots_still_gets_a_flush_column():
+    # The top wall runs past the corner (as drawn in the owner's plan).
+    doc = Document()
+    for a, b in (((0, 0), (4, 0)), ((4, 0), (4, 3)), ((4, 3), (-1, 3)), ((0, 3), (0, 0))):
+        doc.add(_wall(a[0], a[1], b[0], b[1]))
+    assert doc.active_room_faces(), 'the overshooting wall still closes the room'
+    column = _place_column(doc, 0.1, 2.85)
+    xmin, xmax, ymin, ymax = _footprint(column)
+    assert _close(xmin, -0.1) and _close(ymax, 3.1)
+    assert _close(xmax, 0.15) and _close(ymin, 2.85)
+    assert abs(column.params['rotation'] % 90.0) < 1e-9
+
+
+def test_corner_tolerates_a_wall_end_a_fraction_of_a_millimetre_off_the_other_wall():
+    doc = Document()
+    for a, b in (((0, 0), (4, 0)), ((4, 0), (4, 3)), ((4, 3), (-1, 3)), ((0, 3.0002), (0, 0))):
+        doc.add(_wall(a[0], a[1], b[0], b[1]))
+    assert doc.active_room_faces()
+    xmin, _, _, ymax = _footprint(_place_column(doc, 0.1, 2.85))
+    assert abs(xmin + 0.1) < 1e-3 and abs(ymax - 3.1) < 1e-3
