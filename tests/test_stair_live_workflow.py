@@ -477,3 +477,45 @@ def test_u_stair_opening_is_composed_from_multiple_flight_pieces():
 
     assert len(pieces) >= 3
     assert all(len(piece) == 4 for piece in pieces)
+
+
+def test_stair_options_offer_every_layout_and_keep_the_chosen_one_while_moving():
+    doc = _two_level_document()
+    tx = StairPlaceTransaction(doc, CommandStack(doc), (0.0, 0.0))
+    for pointer in ((5.0, 0.0), (2.0, 0.0)):
+        tx.update(*pointer)
+        offered = [c.layout for c in tx.candidates[:4]]
+        assert sorted(offered) == ['l', 'spiral', 'straight', 'u']
+
+    tx.update(5.0, 0.0)
+    while tx.active_candidate.layout != 'spiral':
+        tx.cycle_candidate(1)
+    for pointer in ((4.0, 0.5), (2.0, 0.0), (5.5, 0.0)):
+        tx.update(*pointer)
+        assert tx.active_candidate.layout == 'spiral'
+
+
+def test_stair_layout_can_be_chosen_explicitly_before_placing():
+    doc = _two_level_document()
+    stack = CommandStack(doc)
+    tx = StairPlaceTransaction(doc, stack, (0.0, 0.0), layout='u')
+    tx.update(5.0, 0.0)
+    assert tx.active_candidate.layout == 'u'
+    stair_id = tx.commit()
+    assert doc.get(stair_id).params['layout'] == 'u'
+
+
+def test_plan_pointer_stair_uses_the_chosen_layout_and_tab_cycles():
+    from archforge.core.viewport import PointerController, PointerEvent
+
+    doc = _two_level_document()
+    controller = PointerController(doc, CommandStack(doc))
+    controller.stair_layout = 'l'
+    controller.set_tool('stair')
+    controller.pointer_down(PointerEvent(0.0, 0.0))
+    controller.pointer_move(PointerEvent(5.0, 0.0))
+    assert controller.active.active_candidate.layout == 'l'
+    controller.cycle_option(1)
+    assert controller.active.active_candidate.layout != 'l'
+    result = controller.pointer_up(PointerEvent(5.0, 0.0))
+    assert doc.get(result.entity_id).params['layout'] != 'l'

@@ -124,10 +124,19 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f'Δημιουργήθηκε {name} στα {elevation:.2f} m — σχεδίασε τη σκάλα/ράμπα', 5000)
         return True
 
+    def _choose_stair_layout(self, layout):
+        """Stair type picked from the ribbon: None = best fit for the drag."""
+        self._stair_layout = layout
+        self._set_active_tool('stair')
+
     def _set_active_tool(self, tool):
         tool = str(tool)
         if tool in ('stair', 'ramp') and not self._ensure_upper_level_for(tool):
             return
+        if tool == 'stair':
+            layout = getattr(self, '_stair_layout', None)
+            self.plan_view.controller.stair_layout = layout
+            self.pbr_view.stair_layout = layout
         # The approved shell defaults ordinary architectural authoring to the
         # real central PlanView. Switching tabs must never leave Wall/Door/etc.
         # routed to an invisible 3D widget.

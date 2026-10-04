@@ -31,7 +31,8 @@ def test_ribbon_has_one_stair_ramp_button_with_both_tools():
     buttons = [b for b in window.findChildren(QToolButton) if b.text() == 'Σκάλα / Ράμπα' and b.isVisible()]
     assert len(buttons) == 1
     labels = [a.text() for a in buttons[0].menu().actions()]
-    assert labels == ['Σκάλα', 'Ράμπα']
+    assert labels[:2] == ['Σκάλα', 'Ράμπα']
+    assert 'Τύπος σκάλας' in labels
     _close(app, window)
 
 
@@ -61,4 +62,21 @@ def test_ramp_without_upper_floor_can_be_declined(monkeypatch):
     window._set_active_tool('ramp')
     assert set(window.doc.levels) == {'Ground'}
     assert window.plan_view.controller.tool != 'ramp'
+    _close(app, window)
+
+
+def test_ribbon_stair_type_menu_places_the_chosen_layout():
+    app, window = _window()
+    window.doc.levels['Floor 2'] = 2.70
+    window._refresh_floor_selector()
+    types = window._mockup_stair_type_menu
+    assert [a.text() for a in types.actions()] == ['Αυτόματη', 'Ευθεία', 'Γ (L)', 'Π (U)', 'Σπιράλ']
+    next(a for a in types.actions() if a.text() == 'Σπιράλ').trigger()
+
+    controller = window.plan_view.controller
+    assert controller.tool == 'stair'
+    controller.pointer_down(PointerEvent(1.0, 1.0))
+    controller.pointer_move(PointerEvent(6.0, 1.0))
+    result = controller.pointer_up(PointerEvent(6.0, 1.0))
+    assert window.doc.get(result.entity_id).params['layout'] == 'spiral'
     _close(app, window)

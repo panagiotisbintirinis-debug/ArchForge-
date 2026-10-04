@@ -141,6 +141,13 @@ def install_approved_mockup_shell(window):
             menu=QMenu(window)
             for text,t in (("Σκάλα","stair"),("Ράμπα","ramp")):
                 item=QAction(text,menu); item.triggered.connect(lambda _=False,t=t: window._set_active_tool(t)); menu.addAction(item)
+            # Explicit stair type; the wheel/Tab still switch while placing.
+            types=QMenu("Τύπος σκάλας",menu); menu.addMenu(types)
+            window._mockup_circulation_menu=menu; window._mockup_stair_type_menu=types
+            for text,layout in (("Αυτόματη",None),("Ευθεία","straight"),("Γ (L)","l"),("Π (U)","u"),("Σπιράλ","spiral")):
+                item=QAction(text,types)
+                item.triggered.connect(lambda _=False,l=layout: window._choose_stair_layout(l))
+                types.addAction(item)
             button=QToolButton(ribbon); button.setText(label); button.setToolTip("Σκάλα ή Ράμπα")
             button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup); button.setMenu(menu)
             button.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)

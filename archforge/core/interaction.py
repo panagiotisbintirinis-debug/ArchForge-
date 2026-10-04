@@ -320,9 +320,12 @@ class StairPlaceTransaction:
         width: float = 1.0,
         preferred_riser: float = 0.17,
         preferred_tread: float = 0.29,
+        layout: Optional[str] = None,
     ):
         from archforge.architecture.stairs import upper_floor_landing
         self.doc,self.stack=doc,stack
+        # Human-chosen stair type (straight/l/u/spiral); None = best fit.
+        self.layout=str(layout) if layout else None
         self.origin=(float(origin[0]),float(origin[1]))
         self.width=float(width)
         self.preferred_riser=float(preferred_riser)
@@ -355,6 +358,16 @@ class StairPlaceTransaction:
         )
         if not self.candidates:
             raise ValueError('no stair solution available')
+        # The four offered options are the best candidate of each distinct
+        # layout, so straight, L, U and spiral are all reachable.
+        firsts=[];rest=[];seen=set()
+        for candidate in self.candidates:
+            (rest if candidate.layout in seen else firsts).append(candidate);seen.add(candidate.layout)
+        self.candidates=tuple(firsts+rest)
+        if self.layout is not None:
+            # Keep the chosen type while the pointer moves.
+            chosen=next((i for i,c in enumerate(self.candidates[:4]) if c.layout==self.layout),None)
+            if chosen is not None:self.active_index=chosen
         self.active_index=min(self.active_index,max(0,min(3,len(self.candidates)-1)))
         active=self.candidates[self.active_index]
         self.preview={
@@ -385,6 +398,7 @@ class StairPlaceTransaction:
             return self.preview
         count=min(4,len(self.candidates))
         self.active_index=(self.active_index+int(step))%count
+        self.layout=self.candidates[self.active_index].layout
         return self.update(*self.pointer)
 
     def commit(self):

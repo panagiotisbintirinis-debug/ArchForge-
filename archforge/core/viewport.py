@@ -33,6 +33,15 @@ class IncrementalViewportAdapter:
 class PointerController:
     def __init__(self,doc,stack):
         self.doc=doc;self.stack=stack;self.tool='select';self.active=None;self.component_definition=None;self.active_entity=None;self.active_handle=None;self.preview=PreviewState();self.construction_grid=.10;self.grid=self.construction_grid;self.snap_tolerance=.10;self.angle_increment=15.;self.wall_angle_increment=90.;self.wall_angle_reference='relative';self.snap_enabled=True
+    def cycle_option(self,step=1):
+        # Tab / wheel during a live Stair or Ramp placement: next option.
+        if isinstance(self.active,(StairPlaceTransaction,RampPlaceTransaction)):
+            hud=self.active.cycle_candidate(step)
+            kind='stair' if isinstance(self.active,StairPlaceTransaction) else 'ramp'
+            values=getattr(hud,'values',None) or self.preview.hud
+            self.preview=PreviewState(kind,copy.deepcopy(self.active.preview),values,None)
+            return True
+        return False
     def set_tool(self,tool):
         if self.active is not None:self.cancel()
         self.tool=tool;self.preview=PreviewState()
@@ -189,7 +198,7 @@ class PointerController:
             )
             return self.preview
         if self.tool=='stair':
-            self.active=StairPlaceTransaction(self.doc,self.stack,(x,y))
+            self.active=StairPlaceTransaction(self.doc,self.stack,(x,y),layout=getattr(self,'stair_layout',None))
             hud=self.active.update(x,y)
             self.preview=PreviewState('stair',copy.deepcopy(self.active.preview),hud.values,None)
             return self.preview

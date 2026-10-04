@@ -432,7 +432,7 @@ window.setStairPreview = function(payload) {
     " · tread " + Number(info.tread || 0).toFixed(3) + " m" +
     " · landing " + Number(info.landing_z || 0).toFixed(3) + " m" +
     " · slab " + Number(info.slab_thickness || 0).toFixed(3) + " m" +
-    "<span class='hint'>Move = adjust · Wheel = alternative · Left click = place · Right click/Esc = cancel</span>";
+    "<span class='hint'>Move = adjust · Wheel/Tab = next type · Left click = place · Right click/Esc = cancel</span>";
   stairHud.style.display = "block";
 };
 
@@ -1102,20 +1102,28 @@ renderer.domElement.addEventListener("contextmenu", (event) => {
   event.stopPropagation();
 }, true);
 
+// Capture phase + stopImmediatePropagation: the wheel must pick the next
+// Stair/Ramp option and never reach OrbitControls' zoom. A touchpad sends a
+// burst of small wheel events, so one option change per gesture step.
+let lastOptionWheel = 0;
 renderer.domElement.addEventListener("wheel", (event) => {
   hideMarkingMenu();
-  if (stairing && bridge) {
-    bridge.cycleStair(event.deltaY > 0 ? 1 : -1);
+  if ((stairing || ramping) && bridge) {
     event.preventDefault();
-    event.stopPropagation();
+    event.stopImmediatePropagation();
+    const now = performance.now();
+    if (now - lastOptionWheel < 180) return;
+    lastOptionWheel = now;
+    const step = event.deltaY > 0 ? 1 : -1;
+    if (stairing) bridge.cycleStair(step); else bridge.cycleRamp(step);
   }
-  if (ramping && bridge) {
-    bridge.cycleRamp(event.deltaY > 0 ? 1 : -1);
-    event.preventDefault();
-    event.stopPropagation();
-  }
-}, {passive: false});
+}, {passive: false, capture: true});
 window.addEventListener("keydown", (event) => {
+  if ((stairing || ramping) && bridge && (event.key === "Tab" || event.key === " ")) {
+    event.preventDefault();
+    if (stairing) bridge.cycleStair(1); else bridge.cycleRamp(1);
+    return;
+  }
   if (event.key === "Escape") {
     hideMarkingMenu();
     if (movingEntity && bridge) {
@@ -1733,7 +1741,9 @@ class PBRViewport(QWidget):
 
     def _begin_stair_from_web(self, x: float, y: float) -> None:
         try:
-            self._stair_tx = StairPlaceTransaction(self.doc, self.stack, (float(x), float(y)))
+            self._stair_tx = StairPlaceTransaction(
+                self.doc, self.stack, (float(x), float(y)), layout=getattr(self, 'stair_layout', None),
+            )
             self._stair_tx.update(float(x), float(y))
             self._set_stair_candidate_params(
                 self._stair_tx.preview.get("candidates", ()),

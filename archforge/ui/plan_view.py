@@ -40,7 +40,11 @@ class PlanView(QGraphicsView):
         self.controller.set_target(eid,None)
         self.selectionChangedByView.emit()
         return eid is not None
-    def wheelEvent(self,event):self.scale(1.15 if event.angleDelta().y()>0 else 1/1.15,1.15 if event.angleDelta().y()>0 else 1/1.15)
+    def wheelEvent(self,event):
+        # During a live Stair/Ramp placement the wheel picks the next option.
+        if self.controller.cycle_option(-1 if event.angleDelta().y()>0 else 1):
+            self.redraw();event.accept();return
+        self.scale(1.15 if event.angleDelta().y()>0 else 1/1.15,1.15 if event.angleDelta().y()>0 else 1/1.15)
     def mouseDoubleClickEvent(self,event):
         if event.button()==Qt.MouseButton.LeftButton:
             hit=self.itemAt(event.position().toPoint());eid=self._entity_items.get(hit)
@@ -140,8 +144,14 @@ class PlanView(QGraphicsView):
                 except ValueError as exc:self.statusChanged.emit(str(exc));self.controller.cancel()
                 self._active_handle=None;self.redraw();return
         super().mouseReleaseEvent(event)
+    def focusNextPrevChild(self,next):
+        # Tab cycles Stair/Ramp options instead of moving keyboard focus.
+        if self.controller.tool in ('stair','ramp') and self.controller.active is not None:return False
+        return super().focusNextPrevChild(next)
     def keyPressEvent(self,event):
         if event.key()==Qt.Key.Key_Escape:self.controller.cancel();self._mouse_down=False;self.redraw();return
+        if event.key() in (Qt.Key.Key_Tab,Qt.Key.Key_Space) and self.controller.cycle_option(1):
+            self.redraw();event.accept();return
         super().keyPressEvent(event)
     def set_snap_enabled(self, enabled):
         self.controller.set_snap_enabled(enabled)
