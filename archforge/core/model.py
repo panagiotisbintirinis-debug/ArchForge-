@@ -201,6 +201,13 @@ def _unit_interval(v):
     return value
 
 
+def _plant_species(v):
+    value = str(v).strip().lower()
+    if value not in ('tree', 'shrub'):
+        raise ValueError("plant species must be 'tree' or 'shrub'")
+    return value
+
+
 def _terrain_points(v):
     out = []
     for item in v or ():
@@ -386,6 +393,10 @@ SCHEMAS = {
         'x0': _finite, 'y0': _finite, 'x1': _finite, 'y1': _finite,
         'elevation': _finite, 'slope_x': _finite, 'slope_y': _finite, 'thickness': _positive,
         'points': _terrain_points, 'blend_radius': _positive,
+    },
+    'plant': {
+        'x': _finite, 'y': _finite, 'z': _finite, 'height': _positive, 'canopy': _positive,
+        'species': _plant_species,
     },
     'kitchen_part': {
         'x': _finite, 'y': _finite, 'z': _finite,
@@ -601,6 +612,11 @@ class Document:
                 related_id = entity.params.get(key)
                 if related_id in self.entities:
                     self.mark_dirty(str(related_id))
+        elif entity.kind == 'terrain':
+            # Plants (and other site elements) stand on the ground surface.
+            for related in self.entities.values():
+                if related.kind in ('plant', 'site_path'):
+                    self.mark_dirty(related.id)
         elif entity.kind in ('stair', 'ramp'):
             # Vertical circulation geometry can cut any slab occupying the
             # upper-floor plane. In legacy/current projects this may include

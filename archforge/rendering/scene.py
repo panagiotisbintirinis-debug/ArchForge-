@@ -11,6 +11,8 @@ _MATERIALS: Mapping[str, dict] = {
     "floor": {"color": "#aeb6bd", "roughness": 0.82, "metalness": 0.01},
     "room_floor": {"color": "#b9b4aa", "roughness": 0.82, "metalness": 0.01},
     "terrain": {"color": "#7d9a5a", "roughness": 0.95, "metalness": 0.0},
+    "plant_trunk": {"color": "#6b4a2f", "roughness": 0.9, "metalness": 0.0},
+    "plant_canopy": {"color": "#4f7a3a", "roughness": 0.85, "metalness": 0.0},
     "room_ceiling": {"color": "#dedbd2", "roughness": 0.78, "metalness": 0.01},
     "room_foundation": {"color": "#9ea4aa", "roughness": 0.9, "metalness": 0.0},
     "room_roof": {"color": "#8f979f", "roughness": 0.68, "metalness": 0.02},
@@ -94,6 +96,22 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
         # Walls can carry independent finish materials on semantic faces. Group
         # triangles by resolved material so one authoritative wall may render as
         # multiple derived WebGL meshes while retaining one entity identity.
+        if body.semantic_kind == "plant":
+            # Bark and foliage are two derived meshes of one plant entity.
+            for role in ("trunk", "canopy"):
+                picked = [(tri, r) for tri, r in zip(mesh.triangles, mesh.triangle_surfaces) if r == role]
+                if not picked:
+                    continue
+                objects.append({
+                    "id": str(body.entity_id),
+                    "render_part": f"{body.entity_id}:{role}",
+                    "kind": "plant",
+                    "vertices": vertices,
+                    "triangles": [[int(t[0]), int(t[1]), int(t[2])] for t, _ in picked],
+                    "surfaces": [r for _, r in picked],
+                    "material": _material(f"plant_{role}", body.entity_id in selected, entity=entity, doc=doc),
+                })
+            continue
         if body.semantic_kind == "wall" and entity is not None:
             groups = {}
             for tri, role in zip(mesh.triangles, mesh.triangle_surfaces):

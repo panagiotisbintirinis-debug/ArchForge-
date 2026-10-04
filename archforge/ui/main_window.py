@@ -602,6 +602,18 @@ class MainWindow(QMainWindow):
 
     def _place_site_point(self, tool, x, y):
         from archforge.site.terrain import terrain_contains, terrain_height
+        if tool in ('plant_tree', 'plant_shrub'):
+            from archforge.site.plants import SPECIES
+            species = 'tree' if tool == 'plant_tree' else 'shrub'
+            plant = Entity('plant', {
+                'x': float(x), 'y': float(y), 'z': float(self.doc.work_plane.origin[2]),
+                'species': species, **SPECIES[species],
+            }, name='Δέντρο' if species == 'tree' else 'Θάμνος')
+            self.stack.execute(AddEntity(plant))
+            self._redraw_views(all_views=True)
+            self.statusBar().showMessage(
+                f'{plant.name}: ύψος/κόμη στις Ιδιότητες — κλικ για επόμενο, Esc για τέλος', 5000)
+            return
         if tool == 'terrain_point':
             terrain = self._terrain_entity()
             if terrain is None:

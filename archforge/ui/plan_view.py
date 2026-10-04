@@ -20,7 +20,7 @@ class PlanView(QGraphicsView):
     VIEW_LINE_TOOLS={'view_section':'section','view_camera':'camera'}
     # Single-click site tools: (tool, x, y) handled by the main window.
     sitePointRequested=Signal(str,float,float)
-    SITE_POINT_TOOLS=('terrain_point',)
+    SITE_POINT_TOOLS=('terrain_point','plant_tree','plant_shrub')
     def begin_view_line(self,x,y):self._view_drag=[(float(x),float(y)),(float(x),float(y))];self.redraw()
     def move_view_line(self,x,y):
         if getattr(self,'_view_drag',None):self._view_drag[1]=(float(x),float(y));self.redraw()
@@ -430,7 +430,7 @@ class PlanView(QGraphicsView):
         extent=100;pen=QPen(QColor(225,225,225));pen.setWidthF(0);axis=QPen(QColor(160,160,160));axis.setWidthF(0)
         for i in range(-extent,extent+1):self._scene.addLine(i,-extent,i,extent,axis if i==0 else pen).setZValue(-100);self._scene.addLine(-extent,i,extent,i,axis if i==0 else pen).setZValue(-100)
     def _draw_primitive(self,p:Primitive2D):
-        preview=p.role=='preview';opening=p.role=='opening';room=p.role=='derived-room';terrain=p.role=='terrain'
+        preview=p.role=='preview';opening=p.role=='opening';room=p.role=='derived-room';terrain=p.role in ('terrain','plant')
         # The storey below is drawn like structural context: faint grey.
         context=p.role in ('structural-context','floor-underlay')
         pen=QPen(

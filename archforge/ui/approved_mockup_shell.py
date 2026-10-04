@@ -127,6 +127,11 @@ def install_approved_mockup_shell(window):
         (None,None),
         ("Υψομετρικά σημεία",lambda: window._start_site_tool(
             "terrain_point","Κλικ στην κάτοψη και δώσε υψόμετρο — Esc για τέλος")),
+        (None,None),
+        ("Φυτό: Δέντρο",lambda: window._start_site_tool(
+            "plant_tree","Κλικ στην κάτοψη για δέντρο — Esc για τέλος")),
+        ("Φυτό: Θάμνος",lambda: window._start_site_tool(
+            "plant_shrub","Κλικ στην κάτοψη για θάμνο — Esc για τέλος")),
     ):
         if text is None:terrain_menu.addSeparator();continue
         a=QAction(text,window); a.triggered.connect(lambda _=False,r=run: r()); terrain_menu.addAction(a)

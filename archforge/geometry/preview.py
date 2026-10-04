@@ -104,6 +104,10 @@ def _payload(doc,node)->Optional[PreviewPayload]:
         return PreviewPayload('polygon_prism' if kind=='floor' else 'room_volume',_bounds(pts+[(x,y,top) for x,y,_ in pts]))
     if kind in ('room_floor','room_ceiling','room_foundation','room_roof'):
         return _room_slab_payload(doc,node)
+    if kind=='plant':
+        from archforge.site.plants import plant_base_z
+        z=plant_base_z(doc,p);r=float(p['canopy'])/2.0;x,y=float(p['x']),float(p['y'])
+        return PreviewPayload('plant',((x-r,y-r,z),(x+r,y+r,z+float(p['height']))))
     if kind=='terrain':
         from archforge.site.terrain import terrain_height
         pts=[(float(p[a]),float(p[b])) for a,b in (('x0','y0'),('x1','y0'),('x1','y1'),('x0','y1'))]

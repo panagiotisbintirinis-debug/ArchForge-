@@ -22,6 +22,7 @@ _KIND_ROLES:Dict[str,Tuple[Tuple[str,bool,bool,str],...]]={
  'organic_opening_patch':(('opening_patch',False,False,'derived flat host surface for a conventional pod opening'),),
  'floor':_slab('floor'),'room_floor':_slab('derived room floor'),'room_ceiling':_slab('derived room ceiling'),'room_foundation':_slab('derived foundation'),'room_roof':_slab('derived roof'),
  'room':(('ceiling',True,False,'generated room ceiling'),('floor_boundary',False,False,'room floor boundary')),
+ 'plant':(('trunk',False,False,'plant trunk'),('canopy',False,False,'plant crown')),
  'terrain':(('top',False,False,'site ground surface'),('bottom',False,False,'site ground underside'),('side',False,False,'site ground edge'))}
 def surface_catalog(doc,owner_id):
  if owner_id not in doc.entities:raise ValueError('surface owner does not exist')

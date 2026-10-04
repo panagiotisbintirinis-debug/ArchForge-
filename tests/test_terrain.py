@@ -155,7 +155,7 @@ def test_terrain_menu_and_clicking_elevation_points_in_the_plan(monkeypatch):
     app = QApplication.instance() or QApplication([])
     window = MainWindow()
     labels = [a.text() for a in window._mockup_terrain_menu.actions() if a.text()]
-    assert labels == ['Δημιουργία εδάφους', 'Προδιαγραφές εδάφους…', 'Διαγραφή εδάφους', 'Υψομετρικά σημεία']
+    assert labels[:4] == ['Δημιουργία εδάφους', 'Προδιαγραφές εδάφους…', 'Διαγραφή εδάφους', 'Υψομετρικά σημεία']
     next(a for a in window._mockup_terrain_menu.actions() if a.text() == 'Υψομετρικά σημεία').trigger()
     assert window.plan_view.controller.tool == 'terrain_point'
     monkeypatch.setattr(QInputDialog, 'getDouble', lambda *a, **k: (0.8, True))
