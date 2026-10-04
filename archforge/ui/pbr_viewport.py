@@ -15,6 +15,33 @@ from archforge.core.interaction import OpeningPlaceTransaction, StairPlaceTransa
 from archforge.rendering.scene import build_pbr_scene_payload
 from archforge.ui.object_context_menu import object_context_actions
 
+
+STRUCTURAL_VIEW_KINDS = frozenset({
+    "structural_column", "structural_beam",
+    "floor", "room_floor", "room_foundation",
+})
+
+
+def structural_payload_objects(objects, doc):
+    """Objects the Structural tab shows from the shared PBR scene payload.
+
+    Structural is a derived 3D view of the same authoritative model. Keep
+    load-bearing members (role 'structural') plus slabs/foundations; pergola
+    and other non-structural members stay out. Do not create a second
+    structural model or expose tessellation wireframe.
+    """
+    out = []
+    for item in objects:
+        kind = item.get("kind")
+        if kind not in STRUCTURAL_VIEW_KINDS:
+            continue
+        if kind in ("structural_column", "structural_beam"):
+            entity = doc.entities.get(item.get("id"))
+            if entity is None or entity.params.get("role", "structural") != "structural":
+                continue
+        out.append(item)
+    return out
+
 try:
     from PySide6.QtWebEngineWidgets import QWebEngineView
 except ImportError:  # pragma: no cover - optional module or native runtime dependency
@@ -2200,17 +2227,7 @@ class PBRViewport(QWidget):
             doc=self.doc,
         )
         if self.structural_only:
-            # Structural is a derived 3D view of the same authoritative model.
-            # Keep semantic structural members plus slabs/foundations; do not
-            # create a second structural model or expose tessellation wireframe.
-            structural_kinds = {
-                "structural_column", "structural_beam",
-                "floor", "room_floor", "room_foundation",
-            }
-            payload["objects"] = [
-                item for item in payload.get("objects", ())
-                if item.get("kind") in structural_kinds
-            ]
+            payload["objects"] = structural_payload_objects(payload.get("objects", ()), self.doc)
         fit = "true" if force_full and self._sculpt_tx is None else "false"
         script = (
             "window.__archforgePendingScene = "
