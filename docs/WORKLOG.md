@@ -1,0 +1,93 @@
+# ArchForge — Αρχείο εργασιών (Worklog)
+
+Branch: `claude/new-session-l1o9gl` · Δοκιμή στα Windows:
+
+```
+cd C:\Users\User\ArchForge-test
+git pull
+py -m pytest -q
+py run_app.py
+```
+
+Κανόνας: κάθε στοιχείο εκτελείται με τη σειρά, με test, commit και push.
+Αν βρεθεί λάθος, ψάχνουμε εδώ το commit και τα αρχεία του στοιχείου.
+
+Κατάσταση: ✅ έγινε (tests περνούν) · 🔎 θέλει έλεγχο στα Windows από τον ιδιοκτήτη ·
+⏳ σε αναμονή · ❌ αναφέρθηκε λάθος
+
+---
+
+## Ολοκληρωμένα
+
+| # | Στοιχείο | Commit | Κύρια αρχεία | Κατάσταση |
+|---|---|---|---|---|
+| 1 | Όροφος δοκών/κολονών σωστός σε νέο έργο (`XY` → `Ground`) | 92dd753 | core/model.py (`active_level_name`), core/viewport.py | ✅ |
+| 2 | Η καρτέλα Structural δεν δείχνει πέργκολες | cc4b943 | ui/pbr_viewport.py (`structural_payload_objects`) | ✅ |
+| 3 | Κάτοψη: μόνο ο ενεργός όροφος και οι σκάλες του | 386e1c7 | core/plan_scene.py | ✅ |
+| 4 | Ενσωμάτωση `ai-panel-current`, ρόλοι μηχανικών βάσεων, ελληνικά μενού με πραγματικές εντολές | 810b7b9 | core/model.py, ui/approved_mockup_shell.py | ✅ |
+| 5 | Ταυτόχρονα 2D + 3D: δεν μένει λευκό | d17e818 | ui/approved_mockup_shell.py | 🔎 |
+| 6 | Το 3D ανανεώνεται αμέσως μετά από αλλαγή στο 2D · Κολόνα/Δοκός μένουν στο 2D | c3e6ca4 | core/commands.py (listeners), ui/main_window.py | ✅ (επιβεβαιώθηκε) |
+| 7 | Κολόνα: snap σε γωνίες τοίχων/πλάκας, πάνω σε τοίχο, Shift = ελεύθερη | a05f83b | core/snapping.py (`column_snap`) | ✅ |
+| 8 | Κολόνα γωνίας ίσια με την εξωτερική γωνία, προεξέχει προς τα μέσα | 4daafbe, 0a68ff5, 3994ee1 | core/snapping.py | 🔎 |
+| 9 | Snap/Grid και επιλογείς Όροφος/Απεικόνιση/Sculpt ορατοί (2η σειρά) | 9aba0c2 | ui/approved_mockup_shell.py | ✅ (επιβεβαιώθηκε) |
+| 10 | Σκάλα / Ράμπα: κουμπί με μενού, προσφορά δημιουργίας ορόφου | 5924b3c | ui/main_window.py (`_ensure_upper_level_for`) | ✅ |
+| 11 | Στέγη: χωρίς spike σε οξείες γωνίες (miter limit) | 8847f3d | architecture/rooms.py | 🔎 |
+| 12 | Επιλογή τύπου σκάλας (Ευθεία/Γ/Π/Σπιράλ), τροχός/Tab | b92f75d | core/interaction.py, ui/pbr_viewport.py | 🔎 |
+| 13 | Σκάλα προς ταράτσα χωρίς 2ο όροφο | cb6f9de | architecture/stairs.py (`roof_terrace_landing`) | ✅ |
+| 14 | Στέγες γειτονικών δωματίων κουμπώνουν στον κοινό τοίχο · πεδίο `overhang` | 917745b | architecture/rooms.py, core/commands.py | 🔎 |
+| 15 | Ο κάτω όροφος αχνά (γκρι) όταν σχεδιάζουμε πάνω όροφο · snap στις γωνίες του | 9ac45db | core/plan_scene.py, core/snapping.py | 🔎 |
+| 16 | Προβολές: Doll House, Ορθογραφική, Τομή, Εσωτερική Όψη | e33d240 | ui/pbr_viewport.py (JS), ui/plan_view.py | 🔎 |
+| 17 | Πόρτα/Παράθυρο/Άνοιγμα κατευθείαν στο 3D | c6ba965 | ui/main_window.py (`_set_active_tool`) | 🔎 |
+| 18 | Λείο τοξωτό άνοιγμα (χωρίς «δοντάκια») | 74da57c | geometry/wall_detail.py | 🔎 |
+| 19 | Σκάλα από κενό έδαφος στο 3D · Esc ακυρώνει πάντα · τροχός μετακινεί την τομή | 7aaaa54 | ui/pbr_viewport.py, ui/main_window.py | 🔎 |
+| 20 | Έδαφος (terrain) με κλίση · εξωτερική σκάλα ξεκινά από το έδαφος | fce14a4 | site/terrain.py | 🔎 |
+| 21 | Μενού «Έδαφος» · υψομετρικά σημεία | 9cfaf04 | site/terrain.py, ui/approved_mockup_shell.py | 🔎 |
+| 22 | Φυτά: Δέντρο / Θάμνος πάνω στο έδαφος | 3d3a5f8 | site/plants.py | 🔎 |
+
+## Ουρά (με τη σειρά)
+
+Από το μενού **Terrain** του Home Designer:
+
+1. ⏳ Δρόμος / Πεζοδρόμιο / Μονοπάτι (Road and Sidewalk)
+2. ⏳ Παρτέρι (Garden Bed)
+3. ⏳ Πισίνα / Στοιχείο νερού (Water Feature)
+4. ⏳ Πατητές πέτρες (Stepping Stone)
+5. ⏳ Τοιχία και κράσπεδα εδάφους (Terrain Wall and Curb)
+6. ⏳ Υπερυψωμένο σπίτι: βάση/θεμέλιο ως το έδαφος + σκαλάκια εισόδου
+7. ⏳ Περίγραμμα εδάφους από σχέδιο (Create Terrain Perimeter) αντί για ορθογώνιο
+
+Από το μενού **Build** του Home Designer:
+
+8. ⏳ Κάγκελα και Deck (Railing and Deck)
+9. ⏳ Περίφραξη / Μάντρα (Fencing)
+10. ⏳ Ελεύθερη πλάκα (Slab)
+11. ⏳ Σκελετός (Framing) + Framing Overview — εργαλεία στέγης: Rafter (μεμονωμένα ζευκτά/δοκάρια στέγης), Roof Blocking, Roof Truss, Roof Beam
+12. ⏳ Περιθώρια/Κορνίζες (Trim)
+13. ⏳ Ηλεκτρολογικά (Electrical)
+13α. ⏳ Ντουλάπια (Cabinet): Base Cabinet, Wall Cabinet, Full Height, Soffit, Ράφι (Shelf), Χώρισμα (Partition), Πάγκος (Custom Countertop), Backsplash — να δένουν με την υπάρχουσα «Κουζίνα»
+14. ⏳ Εικόνα/Υπόβαθρο (Image) στην κάτοψη
+
+**Βιβλιοθήκη** (Library Browser του Home Designer):
+
+15. ⏳ Βιβλιοθήκη αντικειμένων με κατηγορίες (Exterior Arbors and Planters, Exterior Structures, Grouped Bathrooms/Bedrooms/Furniture…)
+
+Από τις προβολές:
+
+16. ⏳ Wall Elevation (όψη ενός τοίχου) και Back Clipped Section
+17. ⏳ Γέμισμα των κομμένων μερών στην Τομή
+
+## Γνωστά ανοιχτά θέματα
+
+- **Τομή:** ο ιδιοκτήτης ανέφερε «δεν δουλεύει σωστά». Μετά τις διορθώσεις στο #19 θέλει νέο έλεγχο. Ανοιχτό ερώτημα: να κόβει κατά μήκος της γραμμής (τομή Α-Α) αντί για «βέλος κάμερας»;
+- **Πόρτες/παράθυρα:** αναφέρθηκε ότι «δεν κάνουν ανοίγματα όπως πριν». Δεν αναπαράχθηκε (tests: τα ανοίγματα κόβουν τον τοίχο). Χρειάζεται αρχείο `.archforge` αν ξανασυμβεί.
+- **Tests UI στο cloud:** τρέχουν με `QTWEBENGINE_DISABLE_SANDBOX=1 QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu --single-process"`.
+
+## Ιστορικό αναφορών λαθών
+
+| Ημερομηνία | Αναφορά | Αιτία | Διόρθωση |
+|---|---|---|---|
+| 2026-10-04 | 28 tests αποτυγχάνουν | αυστηροί ρόλοι mount, παλιά tests UI | 810b7b9 |
+| 2026-10-04 | Κολόνα μισή έξω στη γωνία | τοίχος περνούσε τη γωνία / μικρός τοίχος κλεισίματος 11 cm | 0a68ff5, 3994ee1 |
+| 2026-10-04 | Spike στη στέγη | αμέτρητο miter σε οξεία γωνία | 8847f3d |
+| 2026-10-04 | Δεν φαίνεται το Snap | γραμμή εργαλείων στην ίδια σειρά, κρυφές ενέργειες | 9aba0c2 |
+| 2026-10-04 | Σκάλα: δεν αλλάζει τύπος / Esc δεν ακυρώνει | κλικ σε κενό έδαφος αγνοούνταν · μόνο 4 πρώτες επιλογές | b92f75d, 7aaaa54 |
