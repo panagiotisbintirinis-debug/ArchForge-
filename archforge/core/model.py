@@ -321,7 +321,7 @@ SCHEMAS = {
     'room_floor': _ROOM_SLAB,
     'room_ceiling': _ROOM_SLAB,
     'room_foundation': _ROOM_SLAB,
-    'room_roof': {**_ROOM_SLAB, 'roof_type': _nonempty},
+    'room_roof': {**_ROOM_SLAB, 'roof_type': _nonempty, 'overhang': _nonnegative},
     'door': _OPENING,
     'window': _OPENING,
     'opening': _ARCH_OPENING,

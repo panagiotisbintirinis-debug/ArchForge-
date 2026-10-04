@@ -666,7 +666,11 @@ class MainWindow(QMainWindow):
         if entity.parent_id and entity.parent_id in self.doc.entities:
             host = self.doc.get(entity.parent_id)
             self.form.addRow('Host', QLabel(host.name or f'{host.kind.title()} {host.id[:8]}'))
-        for key, value in entity.params.items():
+        params = dict(entity.params)
+        if entity.kind == 'room_roof':
+            # Roofs saved before the overhang field still get the editor.
+            params.setdefault('overhang', 0.0)
+        for key, value in params.items():
             if isinstance(value, (int, float)):
                 spin = QDoubleSpinBox()
                 spin.setDecimals(4)

@@ -107,3 +107,56 @@ def test_flat_roof_has_no_spike_at_a_very_sharp_corner():
     assert max(p[0] for p in points) <= 6.5
     assert min(p[1] for p in points) >= -0.5
     assert max(p[1] for p in points) <= 0.8
+
+
+def _two_rooms_sharing_a_wall():
+    # Two 4 x 3 rooms side by side; the wall at x = 4 is shared (interior).
+    doc = Document()
+    for a, b in (((0, 0), (4, 0)), ((4, 0), (8, 0)), ((8, 0), (8, 3)), ((8, 3), (4, 3)),
+                 ((4, 3), (0, 3)), ((0, 3), (0, 0)), ((4, 0), (4, 3))):
+        doc.add(Entity('wall', {'x1': a[0], 'y1': a[1], 'x2': b[0], 'y2': b[1],
+                                'z': 0, 'height': 3, 'thickness': .2}))
+    stack = CommandStack(doc)
+    stack.execute(CreateRoomRoofs([f.signature for f in doc.active_room_faces()], thickness=.20))
+    return doc, stack
+
+
+def _roof_extents(doc):
+    out = []
+    for roof in (e for e in doc.entities.values() if e.kind == 'room_roof'):
+        pts = room_slab_geometry(doc, roof)['points']
+        out.append((min(p[0] for p in pts), max(p[0] for p in pts),
+                    min(p[1] for p in pts), max(p[1] for p in pts)))
+    return sorted(out)
+
+
+def test_roofs_of_adjacent_rooms_meet_on_the_shared_wall_without_overlap():
+    doc, _ = _two_rooms_sharing_a_wall()
+    left, right = _roof_extents(doc)
+    assert left[0] == pytest.approx(-0.1) and right[1] == pytest.approx(8.1)
+    # Shared wall: both roofs stop at its centreline.
+    assert left[1] == pytest.approx(4.0) and right[0] == pytest.approx(4.0)
+    # Outer walls keep the full outer-face coverage.
+    assert left[2] == pytest.approx(-0.1) and left[3] == pytest.approx(3.1)
+
+
+def test_roof_overhang_property_extends_only_the_outer_edges_and_undoes():
+    doc, stack = _two_rooms_sharing_a_wall()
+    roofs = [e for e in doc.entities.values() if e.kind == 'room_roof']
+    assert all(r.params['overhang'] == 0.0 for r in roofs)
+    for roof in roofs:
+        stack.execute(UpdateEntity(roof.id, {'overhang': 0.5}))
+    left, right = _roof_extents(doc)
+    assert left[0] == pytest.approx(-0.6) and right[1] == pytest.approx(8.6)
+    assert left[2] == pytest.approx(-0.6) and left[3] == pytest.approx(3.6)
+    assert left[1] == pytest.approx(4.0) and right[0] == pytest.approx(4.0)
+    stack.undo(); stack.undo()
+    left, _ = _roof_extents(doc)
+    assert left[0] == pytest.approx(-0.1)
+
+
+def test_negative_roof_overhang_is_rejected():
+    doc, stack = _two_rooms_sharing_a_wall()
+    roof = next(e for e in doc.entities.values() if e.kind == 'room_roof')
+    with pytest.raises(ValueError):
+        stack.execute(UpdateEntity(roof.id, {'overhang': -0.2}))

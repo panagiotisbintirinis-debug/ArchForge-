@@ -342,6 +342,8 @@ class CreateRoomRoofs(Command):
                         'thickness':self.thickness,
                         'offset_z':offset_z,
                         'roof_type':'flat',
+                        # Extra eave beyond the outer wall faces (Properties).
+                        'overhang':0.0,
                     }
                     if room_id is not None:
                         params['room_id']=room_id

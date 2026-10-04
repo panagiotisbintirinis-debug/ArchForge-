@@ -55,8 +55,25 @@ def create_room_floor(doc, signature: str, thickness: float = 0.15, offset_z: fl
 MITER_LIMIT=4.0
 
 
-def _flat_roof_outer_polygon(doc, face, tolerance: float, edge_offsets=None):
-    """Offset room edges to wall exterior faces plus semantic per-wall roof offsets."""
+def _on_any_edge(point, polygons, tolerance=1e-4):
+    for poly in polygons:
+        n=len(poly)
+        for i in range(n):
+            c=poly[i];d=poly[(i+1)%n]
+            dx=d[0]-c[0];dy=d[1]-c[1];ll=dx*dx+dy*dy
+            if ll<=1e-18:continue
+            t=max(0.0,min(1.0,((point[0]-c[0])*dx+(point[1]-c[1])*dy)/ll))
+            if hypot(point[0]-(c[0]+t*dx),point[1]-(c[1]+t*dy))<=tolerance:return True
+    return False
+
+
+def _flat_roof_outer_polygon(doc, face, tolerance: float, edge_offsets=None, overhang=0.0, neighbours=()):
+    """Offset room edges to wall exterior faces plus semantic per-wall roof offsets.
+
+    An edge shared with a neighbouring room (interior wall) stops at the wall
+    centreline so adjacent roofs meet without overlapping; ``overhang`` and
+    per-wall offsets apply to outer edges only.
+    """
     polygon=[tuple(q) for q in face.polygon]
     if len(polygon)<3:
         return polygon
@@ -94,7 +111,9 @@ def _flat_roof_outer_polygon(doc, face, tolerance: float, edge_offsets=None):
         extra=float(edge_offsets.get(wall.id,0.0))
         half=.5*float(wall.params.get('thickness',0.0))
         nx=orientation*dy/length;ny=-orientation*dx/length
-        distance=half+extra
+        distance=half+extra+float(overhang)
+        if neighbours and _on_any_edge(((a[0]+b[0])/2,(a[1]+b[1])/2),neighbours):
+            distance=0.0
         lines.append(((a[0]+nx*distance,a[1]+ny*distance),(dx,dy),(nx,ny),distance))
 
     out=[]
@@ -137,7 +156,8 @@ def room_slab_geometry(doc, slab_entity: Entity, tolerance: float = 1e-5) -> Opt
     z=base_z+float(p.get('offset_z',0.0))
     points=[tuple(q) for q in face.polygon]
     if slab_entity.kind=='room_roof' and p.get('roof_type','flat')=='flat':
-        points=_flat_roof_outer_polygon(doc,face,tolerance,p.get('edge_offsets'))
+        neighbours=[tuple(f.polygon) for f in doc.active_room_faces(z=base_z,tolerance=tolerance) if f.signature!=face.signature]
+        points=_flat_roof_outer_polygon(doc,face,tolerance,p.get('edge_offsets'),float(p.get('overhang',0.0)),neighbours)
     return {'points':points,
             'z':z,
             'thickness':float(p['thickness']),

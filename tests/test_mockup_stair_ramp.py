@@ -98,3 +98,25 @@ def test_stair_to_a_roof_terrace_does_not_ask_for_a_new_floor(monkeypatch):
     assert window.plan_view.controller.tool == 'stair'
     assert set(window.doc.levels) == {'Ground'}
     _close(app, window)
+
+
+def test_roof_overhang_is_editable_in_properties_even_for_older_roofs():
+    from PySide6.QtWidgets import QDoubleSpinBox
+    from archforge.core.commands import AddEntity, CreateRoomRoofs
+    from archforge.core.model import Entity
+
+    app, window = _window()
+    for a, b in (((0, 0), (4, 0)), ((4, 0), (4, 3)), ((4, 3), (0, 3)), ((0, 3), (0, 0))):
+        window.stack.execute(AddEntity(Entity('wall', {'x1': a[0], 'y1': a[1], 'x2': b[0], 'y2': b[1],
+                                                       'z': 0.0, 'height': 2.7, 'thickness': 0.2})))
+    window.stack.execute(CreateRoomRoofs([window.doc.active_room_faces()[0].signature]))
+    roof = next(e for e in window.doc.entities.values() if e.kind == 'room_roof')
+    roof.params.pop('overhang')  # as saved by an older build
+    window.doc.select([roof.id])
+    window.refresh_inspector()
+    labels = [window.form.itemAt(i, window.form.ItemRole.LabelRole) for i in range(window.form.rowCount())]
+    names = [w.widget().text() for w in labels if w is not None and w.widget() is not None]
+    assert 'overhang' in names
+    window._commit_property(roof.id, 'overhang', 0.4)
+    assert window.doc.get(roof.id).params['overhang'] == 0.4
+    _close(app, window)
