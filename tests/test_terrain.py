@@ -120,3 +120,53 @@ def test_terrain_button_creates_one_site_and_is_undoable():
     window._undo()
     assert not [e for e in window.doc.entities.values() if e.kind == 'terrain']
     window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_elevation_points_shape_the_ground_locally_and_exactly():
+    doc = _house()
+    stack = CommandStack(doc)
+    terrain = Entity('terrain', default_terrain_params(doc), name='Έδαφος')
+    stack.execute(AddEntity(terrain))
+    stack.execute(UpdateEntity(terrain.id, {'points': [[-3.0, 2.0, 1.2]]}))
+    assert terrain_height_at(doc, -3.0, 2.0) == pytest.approx(1.2)
+    near = terrain_height_at(doc, -2.0, 2.0)
+    assert -0.15 < near < 1.2
+    assert terrain_height_at(doc, 9.0, 2.0) == pytest.approx(-0.15)   # beyond 6 m
+    verts, tris, roles = terrain_mesh(doc.get(terrain.id).params)
+    assert validate_mesh(MeshPayload(verts, tris, roles)).watertight
+    assert max(v[2] for v in verts) == pytest.approx(1.2, abs=0.05)
+    stack.undo()
+    assert terrain_height_at(doc, -3.0, 2.0) == pytest.approx(-0.15)
+
+
+def test_bad_elevation_point_is_rejected():
+    doc = _house()
+    with pytest.raises(ValueError):
+        doc.add(Entity('terrain', dict(default_terrain_params(doc), points=[[1.0, 2.0]])))
+
+
+def test_terrain_menu_and_clicking_elevation_points_in_the_plan(monkeypatch):
+    import os
+    os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+    from PySide6.QtWidgets import QApplication, QInputDialog
+    from archforge.core.plan_scene import build_plan_frame
+    from archforge.ui.main_window import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    labels = [a.text() for a in window._mockup_terrain_menu.actions() if a.text()]
+    assert labels == ['Δημιουργία εδάφους', 'Προδιαγραφές εδάφους…', 'Διαγραφή εδάφους', 'Υψομετρικά σημεία']
+    next(a for a in window._mockup_terrain_menu.actions() if a.text() == 'Υψομετρικά σημεία').trigger()
+    assert window.plan_view.controller.tool == 'terrain_point'
+    monkeypatch.setattr(QInputDialog, 'getDouble', lambda *a, **k: (0.8, True))
+    window.plan_view.sitePointRequested.emit('terrain_point', 2.0, 3.0)
+    terrain = window._terrain_entity()
+    assert terrain is not None
+    assert terrain.params['points'] == [[2.0, 3.0, 0.8]]
+    frame = build_plan_frame(window.doc)
+    assert any(p.role == 'terrain-label' and dict(p.meta)['text'] == '+0.80' for p in frame.primitives)
+    window._undo()
+    assert not window._terrain_entity().params.get('points')
+    next(a for a in window._mockup_terrain_menu.actions() if a.text() == 'Διαγραφή εδάφους').trigger()
+    assert window._terrain_entity() is None
+    window._mark_clean(); window.close(); app.processEvents()

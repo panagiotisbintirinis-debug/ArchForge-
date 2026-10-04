@@ -18,6 +18,9 @@ class PlanView(QGraphicsView):
     # (kind, x1, y1, x2, y2): a Section or Camera line dragged in the plan.
     viewLineRequested=Signal(str,float,float,float,float)
     VIEW_LINE_TOOLS={'view_section':'section','view_camera':'camera'}
+    # Single-click site tools: (tool, x, y) handled by the main window.
+    sitePointRequested=Signal(str,float,float)
+    SITE_POINT_TOOLS=('terrain_point',)
     def begin_view_line(self,x,y):self._view_drag=[(float(x),float(y)),(float(x),float(y))];self.redraw()
     def move_view_line(self,x,y):
         if getattr(self,'_view_drag',None):self._view_drag[1]=(float(x),float(y));self.redraw()
@@ -105,6 +108,9 @@ class PlanView(QGraphicsView):
         if event.button()==Qt.MouseButton.LeftButton:
             self._hide_wall_angle_radial()
         if event.button()!=Qt.MouseButton.LeftButton:super().mousePressEvent(event);return
+        if self.controller.tool in self.SITE_POINT_TOOLS:
+            ev=self._scene_to_plane(event.position().toPoint())
+            self.sitePointRequested.emit(self.controller.tool,float(ev.a),float(ev.b));event.accept();return
         if self.controller.tool in self.VIEW_LINE_TOOLS:
             ev=self._scene_to_plane(event.position().toPoint());self._mouse_down=True
             self.begin_view_line(ev.a,ev.b);event.accept();return

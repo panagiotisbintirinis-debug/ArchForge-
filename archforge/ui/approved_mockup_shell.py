@@ -26,7 +26,7 @@ QStatusBar { background:#FFFFFF; border-top:1px solid #D8DEE8; }
 QSplitter::handle { background:#F1F4F8; }
 """
 
-MENUS=("Αρχείο","Επεξεργασία","Προβολή","Σχεδίαση","Κατασκευή","Δομικά","Υλικά","Sculpt","Κουζίνα","Μηχανολογικά","AI","Rendering","Βοήθεια")
+MENUS=("Αρχείο","Επεξεργασία","Προβολή","Σχεδίαση","Κατασκευή","Έδαφος","Δομικά","Υλικά","Sculpt","Κουζίνα","Μηχανολογικά","AI","Rendering","Βοήθεια")
 
 def _card(title, widget):
     f=QFrame(); f.setObjectName("card")
@@ -118,6 +118,19 @@ def install_approved_mockup_shell(window):
     window._mockup_menus=menus
     site_action=QAction("Έδαφος (οικόπεδο)",window); site_action.triggered.connect(window._create_terrain)
     menus["Κατασκευή"].addAction(site_action)
+    # Έδαφος menu, modelled on Home Designer's Terrain menu.
+    terrain_menu=menus["Έδαφος"]
+    for text,run in (
+        ("Δημιουργία εδάφους",window._create_terrain),
+        ("Προδιαγραφές εδάφους…",window._show_terrain_specification),
+        ("Διαγραφή εδάφους",window._delete_terrain),
+        (None,None),
+        ("Υψομετρικά σημεία",lambda: window._start_site_tool(
+            "terrain_point","Κλικ στην κάτοψη και δώσε υψόμετρο — Esc για τέλος")),
+    ):
+        if text is None:terrain_menu.addSeparator();continue
+        a=QAction(text,window); a.triggered.connect(lambda _=False,r=run: r()); terrain_menu.addAction(a)
+    window._mockup_terrain_menu=terrain_menu
     # Keep keyboard shortcuts live although their toolbars are hidden.
     for a in (window.new_action,window.open_action,window.save_action,
               window.undo_action,window.redo_action,window.delete_action):

@@ -57,6 +57,7 @@ class MainWindow(QMainWindow):
         self.plan_view.commandRequested.connect(self._handle_plan_command)
         self.plan_view.previewChanged.connect(self.pbr_view.set_stair_preview)
         self.plan_view.viewLineRequested.connect(self._apply_view_line)
+        self.plan_view.sitePointRequested.connect(self._place_site_point)
         # Esc always cancels what is in progress, in 2D and 3D alike.
         self._escape_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
         self._escape_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
@@ -565,6 +566,60 @@ class MainWindow(QMainWindow):
         self.refresh_inspector()
         self.statusBar().showMessage(message, 6000)
         return existing.id
+
+    def _terrain_entity(self):
+        return next((e for e in self.doc.entities.values() if e.kind == 'terrain'), None)
+
+    def _show_terrain_specification(self):
+        terrain = self._terrain_entity()
+        if terrain is None:
+            self._create_terrain()
+            return
+        self.doc.select([terrain.id])
+        self.refresh_inspector()
+        self._redraw_views(all_views=True)
+        self.statusBar().showMessage(
+            'Προδιαγραφές εδάφους στις Ιδιότητες: elevation, slope_x/slope_y %, thickness, όρια, blend_radius', 6000)
+
+    def _delete_terrain(self):
+        terrain = self._terrain_entity()
+        if terrain is None:
+            self.statusBar().showMessage('Δεν υπάρχει έδαφος', 3000)
+            return
+        self.stack.execute(DeleteEntities([terrain.id]))
+        self._redraw_views(all_views=True)
+        self.refresh_inspector()
+        self.statusBar().showMessage('Το έδαφος διαγράφηκε (Ctrl+Z για αναίρεση)', 4000)
+
+    def _start_site_tool(self, tool, message):
+        central = getattr(self, '_central_tabs', None)
+        simultaneous = getattr(self, '_simultaneous_action', None)
+        if central is not None and not (simultaneous is not None and simultaneous.isChecked()):
+            central.setCurrentIndex(0)
+        self.view = self.plan_view
+        self.plan_view.controller.set_tool(tool)
+        self.statusBar().showMessage(message, 8000)
+
+    def _place_site_point(self, tool, x, y):
+        from archforge.site.terrain import terrain_contains, terrain_height
+        if tool == 'terrain_point':
+            terrain = self._terrain_entity()
+            if terrain is None:
+                self._create_terrain()
+                terrain = self._terrain_entity()
+            if not terrain_contains(terrain.params, x, y):
+                self.statusBar().showMessage('Το σημείο είναι έξω από το έδαφος', 4000)
+                return
+            current = terrain_height(terrain.params, x, y)
+            z, ok = QInputDialog.getDouble(
+                self, 'Υψομετρικό σημείο', f'Υψόμετρο εδάφους στο ({x:.2f}, {y:.2f}) σε m:',
+                round(current, 3), -1000.0, 1000.0, 3)
+            if not ok:
+                return
+            points = [list(p) for p in terrain.params.get('points') or ()] + [[float(x), float(y), float(z)]]
+            self.stack.execute(UpdateEntity(terrain.id, {'points': points}))
+            self._redraw_views(all_views=True)
+            self.statusBar().showMessage(f'Υψομετρικό σημείο {z:+.2f} m — Esc για τέλος', 5000)
 
     def _cancel_interactions(self):
         self.plan_view.controller.cancel()

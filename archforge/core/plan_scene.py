@@ -412,6 +412,12 @@ def build_plan_frame(doc,preview=None):
             cx,cy=m['centroid'];f.primitives.append(Primitive2D('label',((cx,cy),),role='derived-room-label',meta=(('signature',face.signature),('text',label))))
     except (ValueError,KeyError):
         pass
+    for eid,e in doc.entities.items():
+        if e.kind!='terrain' or not e.visible or not _entity_on_active_level(doc,e):continue
+        for px,py,pz in e.params.get('points') or ():
+            f.primitives.append(Primitive2D('ellipse',((float(px),float(py)),),.12,.12,0.,eid,'terrain'))
+            f.primitives.append(Primitive2D('label',((float(px)+.15,float(py)+.15),),role='terrain-label',
+                                            meta=(('text',f'{float(pz):+.2f}'),)))
     for eid in doc.entities:
         # FLOOR PLAN shows the active storey only; a stair/ramp touching it
         # (e.g. the flight down from an upper storey) stays visible.

@@ -201,6 +201,15 @@ def _unit_interval(v):
     return value
 
 
+def _terrain_points(v):
+    out = []
+    for item in v or ():
+        if len(item) != 3:
+            raise ValueError('terrain elevation point must be [x, y, z]')
+        out.append([_finite(item[0]), _finite(item[1]), _finite(item[2])])
+    return out
+
+
 def _wall_surface_role(v):
     # Wall-hosted MEP mounts use the signed-offset roles; mechanical mounts
     # keep using the semantic surface catalog roles (interior, exterior, ...).
@@ -376,6 +385,7 @@ SCHEMAS = {
     'terrain': {
         'x0': _finite, 'y0': _finite, 'x1': _finite, 'y1': _finite,
         'elevation': _finite, 'slope_x': _finite, 'slope_y': _finite, 'thickness': _positive,
+        'points': _terrain_points, 'blend_radius': _positive,
     },
     'kitchen_part': {
         'x': _finite, 'y': _finite, 'z': _finite,
