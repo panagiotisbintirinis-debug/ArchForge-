@@ -105,6 +105,18 @@ def best_snap(doc:Document,x:float,y:float,tolerance:float,grid:float|None=None,
         d=hypot(sp.x-x,sp.y-y)
         if d<=bestd:best,bestd=sp,d
     if best:return best
+    # Tracing an upper storey: corners/ends of the walls on the storey
+    # directly below snap too (projected onto the active work plane).
+    lower=[(float(e.params.get('z',0.0)),e.params) for eid,e in doc.entities.items()
+           if eid not in exclude and e.kind=='wall' and e.visible and float(e.params.get('z',0.0))<active_z-1e-5]
+    if lower:
+        below=max(z for z,_ in lower)
+        for z,p in lower:
+            if abs(z-below)>1e-5:continue
+            for px,py in ((float(p['x1']),float(p['y1'])),(float(p['x2']),float(p['y2']))):
+                d=hypot(px-x,py-y)
+                if d<=bestd:best,bestd=SnapPoint(px,py,active_z,'underlay_endpoint',''),d
+        if best:return best
     if grid:
         gx=round(x/grid)*grid;gy=round(y/grid)*grid
         # Construction grid is a soft magnet, not a quantizer. With a 0.10 m

@@ -1560,7 +1560,15 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             QMessageBox.warning(self, 'Flat Roof', str(exc))
 
+    def _update_plan_title(self):
+        label = getattr(self, '_plan_title', None)
+        if label is None:
+            return
+        name = self.doc.active_level_name()
+        label.setText('Κάτοψη - ' + ('Ισόγειο' if name in ('Ground', 'XY') else name))
+
     def _on_document_changed(self):
+        self._update_plan_title()
         # Refresh every editor the human can currently see (e.g. 2D + 3D side
         # by side) so a committed edit appears without switching tabs. Hidden
         # editors refresh when they are shown.

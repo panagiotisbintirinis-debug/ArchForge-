@@ -203,6 +203,7 @@ def install_approved_mockup_shell(window):
     # Default workflow: one large central editor, as requested. 2D is the
     # default; 3D and Structural are one click away. No functionality is lost.
     plan_card=_card("Κάτοψη - Ισόγειο",window.plan_view)
+    window._plan_title=plan_card.findChild(QLabel,"cardTitle")
     # PlanView came from the old QTabWidget. Qt can preserve the hidden state
     # of a page when it is reparented; explicitly restore the real interactive
     # QGraphicsView and its viewport after mounting it in the approved shell.
@@ -325,6 +326,7 @@ def install_approved_mockup_shell(window):
     window._mockup_right_tabs=right_tabs
     window._approved_docks=(project_dock,window.dock,views_dock)
     window._central_tabs=central_tabs
+    window._update_plan_title()
 
     simultaneous=QAction("Ταυτόχρονα 2D + 3D",window)
     simultaneous.setCheckable(True)

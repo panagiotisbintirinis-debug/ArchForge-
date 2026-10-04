@@ -488,3 +488,29 @@ def test_structural_role_and_construction_update_undoably():
     assert restored.params['role']=='structural'
     assert restored.params['construction']=='reinforced_concrete'
     _close_clean(window)
+
+
+def test_upper_floor_plan_shows_the_floor_below_as_grey_non_editable_underlay():
+    doc = Document()
+    doc.levels['Floor 2'] = 2.7
+    doc.add(_wall('ground-wall', 0.0))
+    doc.add(_wall('upper-wall', 2.7))
+    doc.work_plane = WorkPlane(name='Floor 2', origin=(0.0, 0.0, 2.7))
+    frame = build_plan_frame(doc)
+    underlay = [p for p in frame.primitives if p.role == 'floor-underlay']
+    assert len(underlay) == 1 and underlay[0].kind == 'line'
+    assert underlay[0].entity_id == ''          # cannot be picked or edited
+    assert underlay[0].points == ((0.0, 0.0), (4.0, 0.0))
+    # Ground floor plan has nothing below it.
+    doc.work_plane = WorkPlane(name='Ground', origin=(0.0, 0.0, 0.0))
+    assert not [p for p in build_plan_frame(doc).primitives if p.role == 'floor-underlay']
+
+
+def test_plan_title_follows_the_active_floor():
+    window = MainWindow()
+    assert window._plan_title.text() == 'Κάτοψη - Ισόγειο'
+    window.stack.execute(CreateFloorLevel('Floor 2', 2.7))
+    assert window._plan_title.text() == 'Κάτοψη - Floor 2'
+    window._undo()
+    assert window._plan_title.text() == 'Κάτοψη - Ισόγειο'
+    _close_clean(window)

@@ -189,3 +189,18 @@ def test_structural_column_center_and_beam_endpoints_are_snap_points():
     assert endpoint is not None
     assert endpoint.entity_id==beam.id
     assert endpoint.kind=='endpoint'
+
+
+def test_upper_storey_wall_snaps_to_the_corner_of_the_wall_below():
+    from archforge.core.model import Document, Entity, WorkPlane
+    from archforge.core.snapping import best_snap
+
+    doc = Document()
+    doc.levels['Floor 2'] = 2.7
+    doc.add(Entity('wall', {'x1': 0.0, 'y1': 0.0, 'x2': 4.0, 'y2': 0.0, 'z': 0.0,
+                            'height': 2.7, 'thickness': 0.2}))
+    doc.work_plane = WorkPlane(name='Floor 2', origin=(0.0, 0.0, 2.7))
+    sp = best_snap(doc, 3.96, 0.04, 0.10, 0.10)
+    assert (sp.x, sp.y, sp.z, sp.kind) == (4.0, 0.0, 2.7, 'underlay_endpoint')
+    doc.work_plane = WorkPlane(name='Ground', origin=(0.0, 0.0, 0.0))
+    assert best_snap(doc, 3.96, 0.04, 0.10, 0.10).kind == 'endpoint'

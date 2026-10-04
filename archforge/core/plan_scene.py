@@ -352,8 +352,47 @@ def preview_primitives(preview):
             elif {'cx','cy','diameter_x','diameter_y'}<=set(p):out.append(Primitive2D('ellipse',((p['cx'],p['cy']),),p['diameter_x']/2,p['diameter_y']/2,p.get('rotation',0.),eid,'preview'))
         return out
     return []
+def _storey_z(doc,e):
+    p=e.params
+    if e.kind=='wall':return float(p.get('z',0.0))
+    if e.kind=='pod':return float(p.get('floor_level',0.0))
+    if e.kind in ('door','window','opening'):
+        if not e.parent_id or e.parent_id not in doc.entities:return None
+        hp=doc.get(e.parent_id).params
+        return float(hp.get('z',hp.get('floor_level',0.0)))
+    if e.kind in ('structural_column',):return float(p.get('z',0.0))
+    if e.kind in ('floor','room'):return float(p.get('z',0.0))
+    return None
+
+
+def _lower_storey_underlay(doc,f,tolerance=1e-5):
+    """Grey, non-editable reference of the storey directly below.
+
+    Drawing an upper floor needs the lower walls to trace over; they carry no
+    entity id, so they cannot be picked, selected or edited from here.
+    """
+    active_z=float(doc.work_plane.origin[2])
+    kinds=('wall','pod','door','window','opening','structural_column','floor','room')
+    below=[]
+    for eid,e in doc.entities.items():
+        if e.kind not in kinds or not e.visible:continue
+        z=_storey_z(doc,e)
+        if z is not None and z<active_z-tolerance:below.append((z,eid))
+    if not below:return
+    target=max(z for z,_ in below)
+    for z,eid in below:
+        if abs(z-target)>tolerance:continue
+        primitive=entity_primitive(doc,eid)
+        if primitive is None or primitive.kind=='label':continue
+        f.primitives.append(Primitive2D(
+            primitive.kind,primitive.points,primitive.radius_x,primitive.radius_y,
+            primitive.rotation,'','floor-underlay',primitive.meta,
+        ))
+
+
 def build_plan_frame(doc,preview=None):
     f=PlanFrame()
+    _lower_storey_underlay(doc,f)
     try:
         from archforge.architecture.topology import room_metrics
         for index,face in enumerate(doc.active_room_faces(),start=1):
