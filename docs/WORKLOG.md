@@ -43,6 +43,7 @@ py run_app.py
 | 20 | Έδαφος (terrain) με κλίση · εξωτερική σκάλα ξεκινά από το έδαφος | fce14a4 | site/terrain.py | 🔎 |
 | 21 | Μενού «Έδαφος» · υψομετρικά σημεία | 9cfaf04 | site/terrain.py, ui/approved_mockup_shell.py | 🔎 |
 | 22 | Φυτά: Δέντρο / Θάμνος πάνω στο έδαφος | 3d3a5f8 | site/plants.py | 🔎 |
+| 27 | Πόρτες/παράθυρα στο 3D: κάσες, τζάμια, φύλλα πόρτας | 2f961c2 | rendering/fixtures.py, rendering/scene.py | 🔎 |
 | 26 | Ουρανός και ήλιος ανά ώρα/μήνα (Rendering → Ήλιος & ουρανός) | 79223ae | rendering/sun.py, ui/pbr_viewport.py (JS) | 🔎 |
 | 25 | Το 3D δουλεύει χωρίς internet (three.js μέσα στην εφαρμογή) | 8016e44 | ui/vendor/three_bundle.js, ui/pbr_viewport.py | 🔎 |
 | 24 | Καλύτερο rendering: φωτισμός περιβάλλοντος (IBL), σκιές επαφής (GTAO), καθαρότερες σκιές ήλιου · Rendering → Σκιές επαφής | 95b9b1e | ui/pbr_viewport.py (JS) | 🔎 |
@@ -73,13 +74,14 @@ py run_app.py
 
 **Βιβλιοθήκη** (Library Browser του Home Designer):
 
+15α. ⏳ Εισαγωγή 3D αντικειμένων (OBJ / glTF / DAE / 3DS) στη Βιβλιοθήκη — για μοντέλα που εξάγει ο χρήστης από Home Designer ή δωρεάν βιβλιοθήκες (προσοχή στις άδειες των καταλόγων του HD)
 15. ⏳ Βιβλιοθήκη αντικειμένων με κατηγορίες (Exterior Arbors and Planters, Exterior Structures, Grouped Bathrooms/Bedrooms/Furniture…)
 
 **Ρεαλισμός** (ο ιδιοκτήτης: «πάντα πιο ρεαλιστικό»):
 
 R1. ✅ Ουρανός με ήλιο ανά ώρα/μήνα — βλ. #26 (προσανατολισμός βορρά & γεωγραφικό πλάτος έργου: αργότερα)
 R2. ⏳ Υφές υλικών (τούβλο, σοβάς, ξύλο, πλακάκι, γρασίδι, άσφαλτος) — παραγόμενες μέσα στην εφαρμογή, χωρίς internet
-R3. ⏳ Τζάμια/κάσες σε παράθυρα και φύλλα πόρτας στο 3D
+R3. ✅ Τζάμια/κάσες σε παράθυρα και φύλλα πόρτας στο 3D — βλ. #27
 R4. ⏳ «Φωτορεαλιστικό Render» μέσα στο ArchForge: progressive path tracing (GPU) → PNG, χωρίς internet
 R6. ⏳ Εξαγωγή glTF (με υλικά) για Blender/Cycles, D5, Twinmotion — η γρηγορότερη διαδρομή σε ποιότητα στούντιο
 R7. ⏳ Φωτισμένα εσωτερικά τη νύχτα (φώτα δωματίων)
