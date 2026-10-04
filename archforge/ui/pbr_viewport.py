@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+from pathlib import Path
 from math import atan2, degrees
 
 from PySide6.QtCore import Qt, QUrl, Signal, Slot, QObject
@@ -96,14 +97,7 @@ html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background:
 #stairHud strong { font-size: 13px; margin-right: 8px; }
 #stairHud .hint { opacity: 0.72; margin-left: 8px; }
 </style>
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
-  }
-}
-</script>
+<script>/*__ARCHFORGE_THREE_BUNDLE__*/</script>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 </head>
 <body>
@@ -116,13 +110,11 @@ html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background:
   <div id="commandStrip"></div>
 </div>
 <script type="module">
-import * as THREE from "three";
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
-import { GTAOPass } from "three/addons/postprocessing/GTAOPass.js";
-import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+// three.js ships inside ArchForge (archforge/ui/vendor/three_bundle.js) so
+// the desktop 3D Scene works offline; no CDN.
+const {
+  THREE, OrbitControls, RoomEnvironment, EffectComposer, RenderPass, GTAOPass, OutputPass,
+} = window.__ARCHFORGE_THREE;
 
 const container = document.getElementById("stage");
 const scene = new THREE.Scene();
@@ -1425,6 +1417,15 @@ animate();
 """
 
 
+
+_THREE_BUNDLE_PATH = Path(__file__).with_name("vendor") / "three_bundle.js"
+
+
+def pbr_page_html() -> str:
+    """The 3D Scene page with the bundled three.js inlined (offline desktop)."""
+    bundle = _THREE_BUNDLE_PATH.read_text(encoding="utf-8")
+    return _PBR_HTML.replace("/*__ARCHFORGE_THREE_BUNDLE__*/", bundle, 1)
+
 class PBRInteractionBridge(QObject):
     """WebGL pointer bridge into ArchForge's existing semantic sculpt transaction."""
 
@@ -1625,7 +1626,7 @@ class PBRViewport(QWidget):
         self.channel.registerObject("renderBridge", self.bridge)
         self.web_view.page().setWebChannel(self.channel)
         self.web_view.loadFinished.connect(self._on_load_finished)
-        self.web_view.setHtml(_PBR_HTML, QUrl("https://cdn.jsdelivr.net/"))
+        self.web_view.setHtml(pbr_page_html(), QUrl("https://archforge.local/"))
 
     def _on_load_finished(self, ok: bool) -> None:
         if not ok:
