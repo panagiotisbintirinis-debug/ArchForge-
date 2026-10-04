@@ -121,3 +121,21 @@ def test_rendering_menu_toggles_ambient_occlusion():
     window._mockup_ao_action.setChecked(True)
     assert window.pbr_view._ambient_occlusion is True
     _close(app, window)
+
+
+def test_rendering_menu_sets_sun_and_sky(monkeypatch):
+    from PySide6.QtWidgets import QInputDialog
+    app, window = _window()
+    labels = [a.text() for a in window._mockup_sun_menu.actions() if a.text()]
+    assert labels[:5] == ['Πρωί (09:00)', 'Μεσημέρι (11:00)', 'Απόγευμα (17:00)', 'Δειλινό (19:00)', 'Χωρίς ουρανό (στούντιο)']
+    next(a for a in window._mockup_sun_menu.actions() if a.text() == 'Πρωί (09:00)').trigger()
+    el, az = window.pbr_view.sun_angles()
+    assert el > 20 and 60 < az < 130
+    next(a for a in window._mockup_sun_menu.actions() if a.text() == 'Χωρίς ουρανό (στούντιο)').trigger()
+    assert window.pbr_view.sun_angles() is None
+    monkeypatch.setattr(QInputDialog, 'getDouble', lambda *a, **k: (12.0, True))
+    monkeypatch.setattr(QInputDialog, 'getInt', lambda *a, **k: (12, True))
+    window._choose_sun_time()
+    el, az = window.pbr_view.sun_angles()
+    assert el == pytest.approx(90 - 38 - 23.3, abs=1.0) and az == pytest.approx(180, abs=1)
+    _close(app, window)

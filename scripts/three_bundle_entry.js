@@ -10,7 +10,8 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { Sky } from 'three/addons/objects/Sky.js';
 
 window.__ARCHFORGE_THREE = {
-  THREE, OrbitControls, RoomEnvironment, EffectComposer, RenderPass, GTAOPass, OutputPass,
+  THREE, OrbitControls, RoomEnvironment, EffectComposer, RenderPass, GTAOPass, OutputPass, Sky,
 };

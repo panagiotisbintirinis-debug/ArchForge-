@@ -647,6 +647,18 @@ class MainWindow(QMainWindow):
             self._redraw_views(all_views=True)
             self.statusBar().showMessage(f'Υψομετρικό σημείο {z:+.2f} m — Esc για τέλος', 5000)
 
+    def _choose_sun_time(self):
+        current = self.pbr_view._sun or (11.0, 6)
+        hour, ok = QInputDialog.getDouble(self, 'Ήλιος', 'Ώρα (ηλιακή, 0–24):', current[0], 0.0, 24.0, 2)
+        if not ok:
+            return
+        month, ok = QInputDialog.getInt(self, 'Ήλιος', 'Μήνας (1–12):', current[1], 1, 12, 1)
+        if not ok:
+            return
+        self.pbr_view.set_sun(hour, month)
+        el, az = self.pbr_view.sun_angles()
+        self.statusBar().showMessage(f'Ήλιος: ύψος {el:.1f}°, αζιμούθιο {az:.0f}°', 5000)
+
     def _cancel_interactions(self):
         self.plan_view.controller.cancel()
         self.plan_view._mouse_down = False

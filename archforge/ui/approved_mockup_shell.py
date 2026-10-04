@@ -144,6 +144,15 @@ def install_approved_mockup_shell(window):
     ao.toggled.connect(window.pbr_view.set_ambient_occlusion)
     menus["Rendering"].addAction(ao)
     window._mockup_ao_action=ao
+    sun_menu=QMenu("Ήλιος & ουρανός",menus["Rendering"]); menus["Rendering"].addMenu(sun_menu)
+    sun_group=QActionGroup(sun_menu); sun_group.setExclusive(True)
+    for text,hour in (("Πρωί (09:00)",9.0),("Μεσημέρι (11:00)",11.0),("Απόγευμα (17:00)",17.0),
+                      ("Δειλινό (19:00)",19.0),("Χωρίς ουρανό (στούντιο)",None)):
+        a=QAction(text,sun_menu); a.setCheckable(True); a.setChecked(hour==11.0)
+        a.triggered.connect(lambda _=False,h=hour: window.pbr_view.set_sun(h)); sun_group.addAction(a); sun_menu.addAction(a)
+    sun_menu.addSeparator()
+    custom=QAction("Ώρα και μήνας…",sun_menu); custom.triggered.connect(window._choose_sun_time); sun_menu.addAction(custom)
+    window._mockup_sun_menu=sun_menu
     # Keep keyboard shortcuts live although their toolbars are hidden.
     for a in (window.new_action,window.open_action,window.save_action,
               window.undo_action,window.redo_action,window.delete_action):

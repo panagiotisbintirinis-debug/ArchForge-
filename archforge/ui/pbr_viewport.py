@@ -113,7 +113,7 @@ html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background:
 // three.js ships inside ArchForge (archforge/ui/vendor/three_bundle.js) so
 // the desktop 3D Scene works offline; no CDN.
 const {
-  THREE, OrbitControls, RoomEnvironment, EffectComposer, RenderPass, GTAOPass, OutputPass,
+  THREE, OrbitControls, RoomEnvironment, EffectComposer, RenderPass, GTAOPass, OutputPass, Sky,
 } = window.__ARCHFORGE_THREE;
 
 const container = document.getElementById("stage");
@@ -164,6 +164,63 @@ scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 scene.environmentIntensity = 0.25;
 const ambient = new THREE.AmbientLight(0xffffff, 0.12);
 scene.add(ambient);
+const studioEnvironment = scene.environment;
+
+// Physical sky + sun (Preetham). ArchForge is z-up; the stock shader is
+// y-up, so 'up' is set to +z and the two hard-coded y terms are rewritten.
+const sky = new Sky();
+sky.scale.setScalar(5000);
+sky.material.uniforms.up.value.set(0, 0, 1);
+sky.material.vertexShader = sky.material.vertexShader.replace("sunPosition.y", "dot( sunPosition, up )");
+sky.material.fragmentShader = sky.material.fragmentShader.replace("acos( direction.y )", "acos( dot( direction, up ) )");
+sky.material.uniforms.turbidity.value = 4.0;
+sky.material.uniforms.rayleigh.value = 1.2;
+sky.material.uniforms.mieCoefficient.value = 0.004;
+sky.material.uniforms.mieDirectionalG.value = 0.8;
+sky.visible = false;
+scene.add(sky);
+let sunState = null;          // {elevation, azimuth} when the sky is on
+let skyEnvironment = null;
+
+function sunVector(elevation, azimuth) {
+  const e = elevation * Math.PI / 180, a = azimuth * Math.PI / 180;
+  return new THREE.Vector3(Math.cos(e) * Math.sin(a), Math.cos(e) * Math.cos(a), Math.sin(e));
+}
+
+window.setSun = function(elevation, azimuth) {
+  if (elevation === null || elevation === undefined) {
+    sunState = null;
+  } else {
+    sunState = {elevation: Number(elevation), azimuth: Number(azimuth)};
+    const dir = sunVector(sunState.elevation, sunState.azimuth);
+    sky.material.uniforms.sunPosition.value.copy(dir);
+    // Reflections/ambient from this sky (prefiltered once per sun change).
+    const envScene = new THREE.Scene();
+    const skyCopy = new Sky();
+    skyCopy.material = sky.material;
+    skyCopy.scale.setScalar(5000);
+    envScene.add(skyCopy);
+    if (skyEnvironment) skyEnvironment.dispose();
+    skyEnvironment = pmrem.fromScene(envScene, 0.0).texture;
+  }
+  applySunAndSky();
+  fitSunShadow();
+};
+
+function applySunAndSky() {
+  const useSky = !!sunState && activeTechnique === "pbr";
+  sky.visible = useSky;
+  scene.environment = useSky && skyEnvironment ? skyEnvironment : studioEnvironment;
+  scene.environmentIntensity = useSky ? 0.45 : 0.25;
+  if (useSky) {
+    // Low sun: warmer and weaker; below the horizon: no direct light.
+    const h = Math.max(0.0, Math.sin(sunState.elevation * Math.PI / 180));
+    key.color.setHSL(0.09, 0.55 * (1.0 - h) + 0.15, 0.62 + 0.25 * h);
+    key.intensity = sunState.elevation <= 0 ? 0.0 : 0.6 + 2.8 * Math.pow(h, 0.6);
+  } else {
+    key.color.set(0xfff4df); key.intensity = 3.2;
+  }
+}
 const key = new THREE.DirectionalLight(0xfff4df, 3.2);
 key.position.set(9, -11, 15);
 key.castShadow = true;
@@ -529,6 +586,7 @@ function applyTechnique() {
   const technical = activeTechnique === "technical";
   const glass = activeTechnique === "glass";
   scene.background.set(technical ? 0xf4f5f7 : 0xd9dee5);
+  if (typeof applySunAndSky === "function" && sky) applySunAndSky();
   renderer.shadowMap.enabled = !technical;
   modelRoot.traverse((obj) => {
     if (!obj.isMesh) return;
@@ -727,7 +785,9 @@ function fitSunShadow() {
   const bounds = sceneBounds();
   if (!bounds) return;
   const {center, radius} = bounds;
-  const dir = new THREE.Vector3(9, -11, 15).normalize();
+  const dir = sunState && activeTechnique === "pbr"
+    ? sunVector(Math.max(2.0, sunState.elevation), sunState.azimuth)
+    : new THREE.Vector3(9, -11, 15).normalize();
   key.position.copy(center).addScaledVector(dir, radius * 2.5);
   key.target.position.copy(center);
   key.target.updateMatrixWorld();
@@ -1582,6 +1642,9 @@ class PBRViewport(QWidget):
         self._camera_preset = "orbit"
         self._view_line = None
         self._ambient_occlusion = True
+        # Sun & sky (render state): solar hour and month, or None = studio light.
+        import datetime as _dt
+        self._sun = (11.0, _dt.date.today().month)
         self._axes_visible = False
         self._auto_rotate = False
         self._cutaway = False
@@ -1639,6 +1702,7 @@ class PBRViewport(QWidget):
         self.set_cutaway(self._cutaway)
         self.redraw(force_full=True)
         self.set_ambient_occlusion(self._ambient_occlusion)
+        self._push_sun()
         pending_line = self._view_line
         self.set_camera_preset(self._camera_preset)
         self._view_line = pending_line
@@ -2343,6 +2407,29 @@ class PBRViewport(QWidget):
                 + ");"
             )
         self.statusChanged.emit(f"PBR camera: {mode}")
+
+    def set_sun(self, hour, month=None) -> None:
+        """Physical sky with the sun at solar ``hour`` of ``month`` (38° N);
+        ``hour=None`` returns to the neutral studio light."""
+        if hour is None:
+            self._sun = None
+        else:
+            month = int(month if month is not None else (self._sun[1] if self._sun else 6))
+            if not 1 <= month <= 12:
+                raise ValueError("month must be 1..12")
+            self._sun = (float(hour), month)
+        self._push_sun()
+
+    def sun_angles(self):
+        from archforge.rendering.sun import sun_position
+        return None if self._sun is None else sun_position(*self._sun)
+
+    def _push_sun(self) -> None:
+        if self.web_view is None:
+            return
+        angles = self.sun_angles()
+        args = "null, null" if angles is None else f"{angles[0]:.4f}, {angles[1]:.4f}"
+        self.web_view.page().runJavaScript("if (window.setSun) window.setSun(" + args + ");")
 
     def set_ambient_occlusion(self, enabled: bool) -> None:
         """Contact shadows (GTAO) in the PBR look; off for slow GPUs."""
