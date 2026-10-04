@@ -1674,6 +1674,7 @@ class PBRViewport(QWidget):
                 z=active_z, height=max(0.05, next_z-active_z),
                 base_level=level_name, top_level=next_name,
                 grid=(0.10 if self._snap_enabled else None), snap_tol=0.10,
+                snap_enabled=self._snap_enabled,
             )
             entity_id = tx.commit()
             self._evaluation_cache.clear()

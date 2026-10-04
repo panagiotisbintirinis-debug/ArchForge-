@@ -608,22 +608,31 @@ class StructuralColumnPlaceTransaction:
     def __init__(
         self,doc,stack,x,y,*,z,height,width=.25,depth=.25,rotation=0.0,
         role='structural',construction='reinforced_concrete',section='rectangular',
-        base_level='Ground',top_level='Unassigned',grid=.10,snap_tol=.10,
+        base_level='Ground',top_level='Unassigned',grid=.10,snap_tol=.10,snap_enabled=True,
     ):
         self.doc,self.stack=doc,stack
         self.z=float(z);self.height=float(height);self.width=float(width);self.depth=float(depth)
         self.rotation=float(rotation);self.role=str(role);self.construction=str(construction);self.section=str(section)
         self.base_level=str(base_level);self.top_level=str(top_level)
         self.grid=grid;self.snap_tol=float(snap_tol);self.cancelled=False;self.last_snap=None
+        self.snap_enabled=bool(snap_enabled);self._free_rotation=float(rotation)
         self.x=float(x);self.y=float(y);self.preview={}
         self.update(x,y)
 
     def update(self,x,y):
-        sp=best_snap(self.doc,float(x),float(y),self.snap_tol,self.grid)
+        # Snap ON: wall corners, slab corners, then a wall axis (aligned to the
+        # wall), then the construction grid. Snap OFF / Shift: exactly here.
+        from .snapping import COLUMN_SNAP_TOLERANCE,column_snap
+        sp=None;rotation=None
+        if self.snap_enabled:
+            sp,rotation=column_snap(self.doc,float(x),float(y),max(self.snap_tol,COLUMN_SNAP_TOLERANCE))
+            if sp is None and self.grid:
+                sp=best_snap(self.doc,float(x),float(y),self.snap_tol,self.grid)
         if sp is not None:
             self.x,self.y=float(sp.x),float(sp.y);self.last_snap=sp
         else:
             self.x,self.y=float(x),float(y);self.last_snap=None
+        self.rotation=float(rotation)%360.0 if rotation is not None else self._free_rotation
         self.preview={
             'x':self.x,'y':self.y,'z':self.z,
             'width':self.width,'depth':self.depth,'height':self.height,

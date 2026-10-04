@@ -133,13 +133,14 @@ class PointerController:
             if self.tool=='structural_column':
                 height=max(0.05,next_z-active_z)
                 self.active=StructuralColumnPlaceTransaction(
-                    self.doc,self.stack,sx,sy,
+                    self.doc,self.stack,x,y,
                     z=active_z,height=height,
                     base_level=level_name,top_level=next_name,
                     grid=(self.grid if geometry_snap_enabled else None),
                     snap_tol=self.snap_tolerance,
+                    snap_enabled=geometry_snap_enabled,
                 )
-                hud=self.active.update(sx,sy)
+                hud=self.active.update(x,y)
                 self.preview=PreviewState(
                     'structural-column',
                     copy.deepcopy(self.active.preview),
@@ -282,6 +283,8 @@ class PointerController:
             self.active.update(x,y)
             self.preview=PreviewState('component',copy.deepcopy(self.active.preview),{},self._snap_dict(self.active.last_snap))
         elif isinstance(self.active,StructuralColumnPlaceTransaction):
+            self.active.snap_enabled=self.snap_enabled and not ev.shift
+            self.active.grid=self.grid if self.active.snap_enabled else None
             hud=self.active.update(x,y)
             self.preview=PreviewState(
                 'structural-column',

@@ -205,3 +205,67 @@ def snap_translation_points(
                 'distance':d,
             }
     return best
+
+
+COLUMN_SNAP_TOLERANCE=0.30
+
+
+def _slab_vertices(doc,active_z,tolerance=1e-5):
+    """Corners of floor slabs on the active storey (authored and room floors)."""
+    out=[]
+    for eid,e in doc.entities.items():
+        if not e.visible:continue
+        if e.kind in ('floor','room'):
+            if abs(float(e.params.get('z',0.0))-active_z)>tolerance:continue
+            pts=e.params.get('points',())
+        elif e.kind=='room_floor':
+            from archforge.architecture.rooms import room_slab_geometry,find_room_face,find_room_face_by_id
+            p=e.params;room_id=p.get('room_id')
+            found=(find_room_face_by_id(doc,room_id,tolerance=tolerance) if room_id
+                   else find_room_face(doc,p.get('room_signature',''),tolerance=tolerance))
+            if found is None or abs(float(found[1])-active_z)>tolerance:continue
+            geom=room_slab_geometry(doc,e,tolerance=tolerance)
+            pts=geom['points'] if geom else ()
+        else:
+            continue
+        out.extend(SnapPoint(float(x),float(y),active_z,'slab_corner',eid) for x,y in pts)
+    return out
+
+
+def _wall_angle(p):
+    from math import atan2,degrees
+    return degrees(atan2(float(p['y2'])-float(p['y1']),float(p['x2'])-float(p['x1'])))
+
+
+def column_snap(doc:Document,x:float,y:float,tolerance:float=COLUMN_SNAP_TOLERANCE):
+    """Snap a column centre to wall corners, slab corners, or a wall axis.
+
+    Returns (SnapPoint, rotation_degrees_or_None) or (None, None). Corners win
+    over a wall axis; on a wall the rotation follows the wall direction.
+    """
+    active_z=float(doc.work_plane.origin[2])
+    walls=[(eid,e.params) for eid,e in doc.entities.items()
+           if e.kind=='wall' and e.visible and abs(float(e.params.get('z',0.0))-active_z)<=1e-5]
+    corners=[]
+    hit=_best_wall_intersection(doc,x,y,tolerance,set(),active_z)
+    if hit is not None:corners.append(hit)
+    for eid,p in walls:
+        corners.append(SnapPoint(float(p['x1']),float(p['y1']),active_z,'endpoint',eid))
+        corners.append(SnapPoint(float(p['x2']),float(p['y2']),active_z,'endpoint',eid))
+    corners.extend(_slab_vertices(doc,active_z))
+    best=None;bestd=float(tolerance)
+    for sp in corners:
+        d=hypot(sp.x-x,sp.y-y)
+        if d<bestd-1e-12:best,bestd=sp,d
+    if best is not None:
+        host=next((p for eid,p in walls if eid==best.entity_id.split('|')[0]),None)
+        return best,(_wall_angle(host) if host is not None else None)
+    for eid,p in walls:
+        sp=_wall_projection(eid,p,x,y,tolerance)
+        if sp is None:continue
+        d=hypot(sp.x-x,sp.y-y)
+        if d<bestd:best,bestd=SnapPoint(sp.x,sp.y,active_z,'wall',eid),d
+    if best is not None:
+        host=next(p for eid,p in walls if eid==best.entity_id)
+        return best,_wall_angle(host)
+    return None,None
