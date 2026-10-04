@@ -80,3 +80,21 @@ def test_ribbon_stair_type_menu_places_the_chosen_layout():
     result = controller.pointer_up(PointerEvent(6.0, 1.0))
     assert window.doc.get(result.entity_id).params['layout'] == 'spiral'
     _close(app, window)
+
+
+def test_stair_to_a_roof_terrace_does_not_ask_for_a_new_floor(monkeypatch):
+    from archforge.core.commands import AddEntity, CreateRoomRoofs
+    from archforge.core.model import Entity
+
+    app, window = _window()
+    for a, b in (((0, 0), (4, 0)), ((4, 0), (4, 3)), ((4, 3), (0, 3)), ((0, 3), (0, 0))):
+        window.stack.execute(AddEntity(Entity('wall', {'x1': a[0], 'y1': a[1], 'x2': b[0], 'y2': b[1],
+                                                       'z': 0.0, 'height': 2.7, 'thickness': 0.2})))
+    window.stack.execute(CreateRoomRoofs([window.doc.active_room_faces()[0].signature]))
+    asked = []
+    monkeypatch.setattr(QMessageBox, 'question', lambda *a, **k: asked.append(a) or QMessageBox.StandardButton.No)
+    window._set_active_tool('stair')
+    assert not asked
+    assert window.plan_view.controller.tool == 'stair'
+    assert set(window.doc.levels) == {'Ground'}
+    _close(app, window)

@@ -1,3 +1,4 @@
+import pytest
 import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -519,3 +520,36 @@ def test_plan_pointer_stair_uses_the_chosen_layout_and_tab_cycles():
     assert controller.active.active_candidate.layout != 'l'
     result = controller.pointer_up(PointerEvent(5.0, 0.0))
     assert doc.get(result.entity_id).params['layout'] != 'l'
+
+
+def _ground_room_with_flat_roof():
+    doc = Document()
+    for a, b in (((0, 0), (4, 0)), ((4, 0), (4, 3)), ((4, 3), (0, 3)), ((0, 3), (0, 0))):
+        doc.add(Entity('wall', {'x1': a[0], 'y1': a[1], 'x2': b[0], 'y2': b[1], 'z': 0.0,
+                                'height': 2.7, 'thickness': 0.2}))
+    stack = CommandStack(doc)
+    stack.execute(CreateRoomRoofs([doc.active_room_faces()[0].signature], thickness=0.20))
+    return doc, stack
+
+
+def test_external_stair_climbs_to_the_roof_terrace_without_a_second_floor():
+    doc, stack = _ground_room_with_flat_roof()
+    assert set(doc.levels) == {'Ground'}
+    roof = next(e for e in doc.entities.values() if e.kind == 'room_roof')
+    from archforge.architecture.rooms import room_slab_geometry
+    geom = room_slab_geometry(doc, roof)
+    roof_top = float(geom['z']) + float(geom['thickness'])
+
+    # Outside the building, running along the east wall.
+    tx = StairPlaceTransaction(doc, stack, (4.8, -2.0))
+    tx.update(4.8, 3.0)
+    stair_id = tx.commit()
+    stair = doc.get(stair_id)
+    assert abs(stair.params['upper_z'] - roof_top) < 1e-9
+    assert abs(stair.params['riser_count'] * stair.params['riser_height'] - roof_top) < 1e-6
+
+
+def test_stair_still_needs_a_target_without_floor_or_roof():
+    doc = Document()
+    with pytest.raises(ValueError):
+        StairPlaceTransaction(doc, CommandStack(doc), (0.0, 0.0))

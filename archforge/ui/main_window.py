@@ -93,9 +93,10 @@ class MainWindow(QMainWindow):
 
     def _ensure_upper_level_for(self, tool):
         """Stair/Ramp need a storey above; offer to create it instead of failing."""
-        from archforge.architecture.stairs import discover_building_levels
+        from archforge.architecture.stairs import upper_floor_landing
         active_z = float(self.doc.work_plane.origin[2])
-        if any(float(item['elevation']) > active_z + 1e-6 for item in discover_building_levels(self.doc)):
+        # A storey above, or a flat roof terrace, is a valid destination.
+        if upper_floor_landing(self.doc, active_z) is not None:
             return True
         number = 2
         while f'Floor {number}' in self.doc.levels:
@@ -105,7 +106,8 @@ class MainWindow(QMainWindow):
         what = 'Η σκάλα' if tool == 'stair' else 'Η ράμπα'
         answer = QMessageBox.question(
             self, 'Σκάλα / Ράμπα',
-            f'{what} χρειάζεται όροφο από πάνω, αλλά δεν υπάρχει.\n\n'
+            f'{what} χρειάζεται όροφο ή ταράτσα από πάνω, αλλά δεν υπάρχει.\n'
+            f'(Για σκάλα προς ταράτσα, φτιάξε πρώτα Flat / Auto Roof.)\n\n'
             f'Να δημιουργηθεί «{name}» στα {elevation:.2f} m;',
         )
         if answer != QMessageBox.StandardButton.Yes:

@@ -474,7 +474,9 @@ def upper_floor_landing(doc, lower_z: float, point: Point2 | None = None):
     """
     next_level = next_level_above(doc, lower_z)
     if next_level is None:
-        return None
+        # No storey above: a stair may still climb to a flat roof terrace
+        # (e.g. an external stair to a roof with a pergola).
+        return roof_terrace_landing(doc, lower_z, point)
     level_z, level_name = next_level
 
     from archforge.architecture.rooms import room_slab_geometry
@@ -512,6 +514,35 @@ def upper_floor_landing(doc, lower_z: float, point: Point2 | None = None):
         'floor_z': float(level_z),
         'slab_thickness': float(thickness),
         'landing_z': float(level_z) + float(thickness),
+    }
+
+
+def roof_terrace_landing(doc, lower_z: float, point: Point2 | None = None):
+    """Landing on top of the nearest flat roof above ``lower_z``, or None.
+
+    Prefers the roof containing ``point``; otherwise the lowest roof above.
+    """
+    from archforge.architecture.rooms import room_slab_geometry
+    roofs = []
+    for entity in doc.entities.values():
+        if entity.kind != 'room_roof' or entity.params.get('roof_type', 'flat') != 'flat':
+            continue
+        geom = room_slab_geometry(doc, entity)
+        if geom is None:
+            continue
+        base = float(geom['z'])
+        if base <= float(lower_z) + 1e-6:
+            continue
+        contains = bool(point is not None and _point_in_polygon(point, geom['points']))
+        roofs.append((not contains, base, float(geom['thickness'])))
+    if not roofs:
+        return None
+    _, base, thickness = min(roofs)
+    return {
+        'level_name': 'Ταράτσα',
+        'floor_z': base,
+        'slab_thickness': thickness,
+        'landing_z': base + thickness,
     }
 
 
