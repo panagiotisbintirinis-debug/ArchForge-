@@ -81,6 +81,21 @@ def _thumb_strip(names):
     for n in names: w.addItem(QListWidgetItem(n))
     return w
 
+def _adopt(toolbar, widget):
+    """Move a widget from a hidden legacy toolbar into ``toolbar``.
+
+    The widget is hidden at this point (its legacy toolbar is hidden), and
+    QToolBar.addWidget then creates an invisible action for it, so the
+    selector never appeared in the ribbon. Make the new action visible.
+    """
+    for old in widget.window().findChildren(QToolBar):
+        if old is toolbar:continue
+        for action in list(old.actions()):
+            if old.widgetForAction(action) is widget:
+                old.removeAction(action)
+    toolbar.addWidget(widget).setVisible(True)
+
+
 def install_approved_mockup_shell(window):
     """Use the supplied mockup structure, but mount the real ArchForge editors."""
     window.setWindowTitle("ArchForge"); window.resize(1536,1000); window.setStyleSheet(STYLE)
@@ -132,28 +147,32 @@ def install_approved_mockup_shell(window):
     # Do not duplicate generation logic in the mockup shell.
     ribbon.addSeparator()
     ribbon.addWidget(QLabel("Sculpt Op:"))
-    ribbon.addWidget(window.sculpt_operation)
+    _adopt(ribbon,window.sculpt_operation)
     ribbon.addWidget(QLabel("Brush Size:"))
-    ribbon.addWidget(window.sculpt_radius)
+    _adopt(ribbon,window.sculpt_radius)
     ribbon.addSeparator()
     auto_floor=QAction("Auto Floor",window); auto_floor.triggered.connect(window._create_auto_floors); ribbon.addAction(auto_floor)
     flat_roof=QAction("Flat / Auto Roof",window); flat_roof.triggered.connect(window._create_flat_roofs); ribbon.addAction(flat_roof)
     window._mockup_auto_floor_action=auto_floor
     window._mockup_flat_roof_action=flat_roof
-    spacer=QWidget(); spacer.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Preferred); ribbon.addWidget(spacer)
-    add_floor=QAction("+ Όροφος",window); add_floor.triggered.connect(window._add_floor_level); ribbon.addAction(add_floor)
-    window._mockup_add_floor_action=add_floor
-    ribbon.addWidget(QLabel("Όροφος: ")); ribbon.addWidget(window.floor_selector)
-    ribbon.addWidget(QLabel("  Απεικόνιση: ")); ribbon.addWidget(window.render_technique)
     window.addToolBar(Qt.TopToolBarArea,ribbon)
 
-    camera=QToolBar("Mockup Camera",window); camera.setMovable(False); camera.addWidget(QLabel("Κάμερα: "))
+    # Second row: storey/display, camera and snapping. A single row needs
+    # ~1700 px, so on a laptop these controls fell into the hidden overflow.
+    camera=QToolBar("Mockup Camera",window); camera.setMovable(False)
+    add_floor=QAction("+ Όροφος",window); add_floor.triggered.connect(window._add_floor_level); camera.addAction(add_floor)
+    window._mockup_add_floor_action=add_floor
+    camera.addWidget(QLabel("Όροφος: ")); _adopt(camera,window.floor_selector)
+    camera.addWidget(QLabel("  Απεικόνιση: ")); _adopt(camera,window.render_technique)
+    camera.addSeparator(); camera.addWidget(QLabel("Κάμερα: "))
     for label,mode in (("Top","top"),("Front","front"),("Side","side"),("3D","orbit")):
         a=QAction(label,window); a.triggered.connect(lambda _=False,m=mode: window._set_pbr_camera(m)); camera.addAction(a)
     camera.addSeparator()
     grid=QCheckBox("Grid"); grid.setChecked(True); camera.addWidget(grid)
-    snap=QCheckBox("Snap"); snap.setChecked(window.snap_action.isChecked()); snap.toggled.connect(window.snap_action.setChecked); camera.addWidget(snap)
+    snap=QCheckBox("Snap"); snap.setChecked(window.snap_action.isChecked()); snap.toggled.connect(window.snap_action.setChecked); window.snap_action.toggled.connect(snap.setChecked); camera.addWidget(snap)
     snap_size=QComboBox(); snap_size.addItems(("0.10 m","0.05 m","0.25 m","0.50 m")); camera.addWidget(QLabel("  Snap: ")); camera.addWidget(snap_size)
+    # Own row: sharing the ribbon row squeezed Grid/Snap into the overflow.
+    window.addToolBarBreak(Qt.TopToolBarArea)
     window.addToolBar(Qt.TopToolBarArea,camera)
 
     # The real editors are mounted simultaneously, exactly where the supplied

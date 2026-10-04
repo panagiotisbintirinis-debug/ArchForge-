@@ -90,3 +90,24 @@ def test_committed_2d_edit_redraws_the_visible_3d_view_without_tab_switching():
     window._mark_clean()
     window.close()
     app.processEvents()
+
+
+def test_ribbon_selectors_and_camera_snap_controls_are_visible_on_a_laptop_width():
+    from PySide6.QtWidgets import QCheckBox
+
+    app = _app()
+    window = MainWindow()
+    window.resize(1280, 1000)
+    window.show()
+    app.processEvents()
+
+    for name in ('floor_selector', 'render_technique', 'sculpt_operation', 'sculpt_radius'):
+        assert getattr(window, name).isVisible(), name
+    boxes = {cb.text(): cb for cb in window.findChildren(QCheckBox)}
+    assert boxes['Snap'].isVisible()
+    assert boxes['Grid'].isVisible()
+    assert boxes['Snap'].isChecked() == window.snap_action.isChecked()
+
+    window._mark_clean()
+    window.close()
+    app.processEvents()
