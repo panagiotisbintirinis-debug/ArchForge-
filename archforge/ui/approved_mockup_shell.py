@@ -207,6 +207,12 @@ def install_approved_mockup_shell(window):
 
     # Optional simultaneous mode remains available. It is deliberately not
     # the default. The same real widgets are reparented; no duplicate model.
+    def _show_plan():
+        window.plan_view.setVisible(True)
+        window.plan_view.viewport().setVisible(True)
+        window.plan_view.redraw()
+        window.plan_view.viewport().update()
+
     def set_simultaneous(enabled):
         enabled=bool(enabled)
         if enabled:
@@ -218,6 +224,13 @@ def install_approved_mockup_shell(window):
             central_tabs.addTab(split,"2D + 3D")
             central_tabs.setCurrentWidget(split)
             window._mockup_center_split=split
+            # removeTab() leaves the former pages hidden and Qt keeps that
+            # state when they are reparented into the splitter.
+            plan_card.show(); right_tabs.show()
+            _show_plan()
+            current=right_tabs.currentWidget()
+            if current is window.pbr_view: window.pbr_view.activate()
+            elif current is window.structural_view: window.structural_view.activate()
         else:
             split=getattr(window,"_mockup_center_split",None)
             if split is not None:
@@ -229,6 +242,7 @@ def install_approved_mockup_shell(window):
             if central_tabs.indexOf(right_tabs)<0: central_tabs.insertTab(1,right_tabs,"3D / Structural")
             central_tabs.setCurrentWidget(plan_card)
             window._mockup_center_split=None
+            _show_plan()
         window.view=window.plan_view if not enabled else window.plan_view
     window._set_simultaneous_views=set_simultaneous
 
