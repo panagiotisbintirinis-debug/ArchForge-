@@ -104,6 +104,10 @@ def _payload(doc,node)->Optional[PreviewPayload]:
         return PreviewPayload('polygon_prism' if kind=='floor' else 'room_volume',_bounds(pts+[(x,y,top) for x,y,_ in pts]))
     if kind in ('room_floor','room_ceiling','room_foundation','room_roof'):
         return _room_slab_payload(doc,node)
+    if kind=='site_path':
+        from archforge.site.paths import path_outline,path_top
+        pts=path_outline(p);tops=[path_top(doc,p,x,y) for x,y in pts]
+        return PreviewPayload('site_path',_bounds([(x,y,z) for (x,y),z in zip(pts,tops)]+[(x,y,z-float(p['thickness'])) for (x,y),z in zip(pts,tops)]))
     if kind=='plant':
         from archforge.site.plants import plant_base_z
         z=plant_base_z(doc,p);r=float(p['canopy'])/2.0;x,y=float(p['x']),float(p['y'])

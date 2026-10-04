@@ -540,6 +540,9 @@ def _payload(doc,node):
  if k=='organic_opening_patch':return _organic_opening_patch_mesh(doc,node)
  if k=='floor':return _floor_slab(doc,node)
  if k in('room_floor','room_ceiling','room_foundation','room_roof'):return _room_slab(doc,node)
+ if k=='site_path':
+  from archforge.site.paths import path_mesh
+  v,t,r=path_mesh(doc,p);return MeshPayload(v,t,r)
  if k=='plant':
   from archforge.site.plants import plant_base_z,plant_mesh
   v,t,r=plant_mesh(p,plant_base_z(doc,p));return MeshPayload(v,t,r)

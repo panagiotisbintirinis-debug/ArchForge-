@@ -11,6 +11,7 @@ _MATERIALS: Mapping[str, dict] = {
     "floor": {"color": "#aeb6bd", "roughness": 0.82, "metalness": 0.01},
     "room_floor": {"color": "#b9b4aa", "roughness": 0.82, "metalness": 0.01},
     "terrain": {"color": "#7d9a5a", "roughness": 0.95, "metalness": 0.0},
+    "site_path": {"color": "#a9a39a", "roughness": 0.9, "metalness": 0.0},
     "plant_trunk": {"color": "#6b4a2f", "roughness": 0.9, "metalness": 0.0},
     "plant_canopy": {"color": "#4f7a3a", "roughness": 0.85, "metalness": 0.0},
     "room_ceiling": {"color": "#dedbd2", "roughness": 0.78, "metalness": 0.01},

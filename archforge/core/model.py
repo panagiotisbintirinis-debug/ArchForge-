@@ -201,6 +201,13 @@ def _unit_interval(v):
     return value
 
 
+def _path_style(v):
+    value = str(v).strip().lower()
+    if value not in ('path', 'sidewalk', 'road'):
+        raise ValueError("path style must be 'path', 'sidewalk' or 'road'")
+    return value
+
+
 def _plant_species(v):
     value = str(v).strip().lower()
     if value not in ('tree', 'shrub'):
@@ -393,6 +400,10 @@ SCHEMAS = {
         'x0': _finite, 'y0': _finite, 'x1': _finite, 'y1': _finite,
         'elevation': _finite, 'slope_x': _finite, 'slope_y': _finite, 'thickness': _positive,
         'points': _terrain_points, 'blend_radius': _positive,
+    },
+    'site_path': {
+        'x1': _finite, 'y1': _finite, 'x2': _finite, 'y2': _finite, 'z': _finite,
+        'width': _positive, 'thickness': _positive, 'style': _path_style,
     },
     'plant': {
         'x': _finite, 'y': _finite, 'z': _finite, 'height': _positive, 'canopy': _positive,

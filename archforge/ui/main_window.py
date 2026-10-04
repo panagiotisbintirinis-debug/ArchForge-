@@ -58,6 +58,7 @@ class MainWindow(QMainWindow):
         self.plan_view.previewChanged.connect(self.pbr_view.set_stair_preview)
         self.plan_view.viewLineRequested.connect(self._apply_view_line)
         self.plan_view.sitePointRequested.connect(self._place_site_point)
+        self.plan_view.siteLineRequested.connect(self._place_site_line)
         # Esc always cancels what is in progress, in 2D and 3D alike.
         self._escape_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
         self._escape_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
@@ -599,6 +600,19 @@ class MainWindow(QMainWindow):
         self.view = self.plan_view
         self.plan_view.controller.set_tool(tool)
         self.statusBar().showMessage(message, 8000)
+
+    def _place_site_line(self, tool, x1, y1, x2, y2):
+        from archforge.site.paths import STYLES
+        style = tool.split('_', 1)[1]
+        spec = STYLES[style]
+        path = Entity('site_path', {
+            'x1': float(x1), 'y1': float(y1), 'x2': float(x2), 'y2': float(y2),
+            'z': float(self.doc.work_plane.origin[2]), 'style': style,
+            'width': spec['width'], 'thickness': spec['thickness'],
+        }, name=spec['name'])
+        self.stack.execute(AddEntity(path))
+        self._redraw_views(all_views=True)
+        self.statusBar().showMessage(f"{spec['name']}: πλάτος στις Ιδιότητες — σύρε για επόμενο, Esc για τέλος", 5000)
 
     def _place_site_point(self, tool, x, y):
         from archforge.site.terrain import terrain_contains, terrain_height
