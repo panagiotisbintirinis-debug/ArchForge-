@@ -12,6 +12,10 @@ _MATERIALS: Mapping[str, dict] = {
     "room_floor": {"color": "#b9b4aa", "roughness": 0.82, "metalness": 0.01},
     "terrain": {"color": "#7d9a5a", "roughness": 0.95, "metalness": 0.0},
     "site_path": {"color": "#a9a39a", "roughness": 0.9, "metalness": 0.0},
+    "window_frame": {"color": "#3d4247", "roughness": 0.38, "metalness": 0.55},
+    "door_frame": {"color": "#5a4636", "roughness": 0.6, "metalness": 0.0},
+    "door_leaf": {"color": "#7a5c43", "roughness": 0.55, "metalness": 0.0},
+    "window_glass": {"color": "#a9c3d2", "roughness": 0.03, "metalness": 0.1, "opacity": 0.28},
     "plant_trunk": {"color": "#6b4a2f", "roughness": 0.9, "metalness": 0.0},
     "plant_canopy": {"color": "#4f7a3a", "roughness": 0.85, "metalness": 0.0},
     "room_ceiling": {"color": "#dedbd2", "roughness": 0.78, "metalness": 0.01},
@@ -158,4 +162,24 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                 ),
             }
         )
+    if doc is not None:
+        # Door/window fixtures fill the wall holes (render only, see fixtures.py).
+        from archforge.rendering.fixtures import opening_fixture_parts
+        for entity in list(doc.entities.values()):
+            if entity.kind not in ("door", "window") or not entity.visible:
+                continue
+            try:
+                parts = opening_fixture_parts(doc, entity)
+            except (KeyError, ValueError, TypeError):
+                continue
+            for key, verts, tris in parts:
+                objects.append({
+                    "id": str(entity.id),
+                    "render_part": f"{entity.id}:{key}",
+                    "kind": str(entity.kind),
+                    "vertices": [[float(x), float(y), float(z)] for x, y, z in verts],
+                    "triangles": [[int(a), int(b), int(c)] for a, b, c in tris],
+                    "surfaces": [key] * len(tris),
+                    "material": _material(key, entity.id in selected, entity=None, doc=doc),
+                })
     return {"objects": objects}

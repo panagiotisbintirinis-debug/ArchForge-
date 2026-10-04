@@ -572,7 +572,8 @@ window.setRampPreview = function(payload) {
 };
 
 function materialFor(spec) {
-  return new THREE.MeshStandardMaterial({
+  const opacity = Number(spec.opacity ?? 1.0);
+  const material = new THREE.MeshStandardMaterial({
     color: new THREE.Color(spec.color || "#bdc5ce"),
     roughness: Number(spec.roughness ?? 0.65),
     metalness: Number(spec.metalness ?? 0.02),
@@ -580,6 +581,15 @@ function materialFor(spec) {
     emissiveIntensity: Number(spec.emissiveIntensity ?? 0.0),
     side: THREE.DoubleSide
   });
+  // Glass: see-through but still reflects the sky/environment.
+  material.userData.baseOpacity = opacity;
+  if (opacity < 1.0) {
+    material.transparent = true;
+    material.opacity = opacity;
+    material.depthWrite = false;
+    material.envMapIntensity = 1.6;
+  }
+  return material;
 }
 
 function applyTechnique() {
@@ -594,10 +604,12 @@ function applyTechnique() {
     // triangles in MeshPayload are tessellation, not design edges, so never
     // expose them as Three.js wireframe lines.
     obj.material.wireframe = false;
-    obj.material.transparent = glass;
-    obj.material.opacity = glass ? 0.34 : 1.0;
-    obj.material.depthWrite = !glass;
-    obj.castShadow = !technical && !glass;
+    const base = Number(obj.material.userData.baseOpacity ?? 1.0);
+    const see = glass || base < 1.0;
+    obj.material.transparent = see;
+    obj.material.opacity = glass ? Math.min(base, 0.34) : base;
+    obj.material.depthWrite = !see;
+    obj.castShadow = !technical && !see;
     // A section reads like a drawing: even light, no roof shadow inside.
     obj.receiveShadow = !technical && !sectionPlane;
     obj.material.needsUpdate = true;
