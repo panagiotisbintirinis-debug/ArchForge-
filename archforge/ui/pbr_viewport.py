@@ -118,6 +118,11 @@ html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background:
 <script type="module">
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { GTAOPass } from "three/addons/postprocessing/GTAOPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 
 const container = document.getElementById("stage");
 const scene = new THREE.Scene();
@@ -132,7 +137,7 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 0.95;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.localClippingEnabled = true;
 container.appendChild(renderer.domElement);
@@ -159,7 +164,14 @@ if (typeof QWebChannel !== "undefined" && typeof qt !== "undefined") {
   });
 }
 
-scene.add(new THREE.AmbientLight(0xffffff, 0.42));
+// Image-based lighting: a prefiltered (PMREM) studio environment gives
+// every PBR material real diffuse + specular ambient light and reflections,
+// so the flat ambient term can stay low.
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.25;
+const ambient = new THREE.AmbientLight(0xffffff, 0.12);
+scene.add(ambient);
 const key = new THREE.DirectionalLight(0xfff4df, 3.2);
 key.position.set(9, -11, 15);
 key.castShadow = true;
@@ -376,12 +388,29 @@ function scheduleRotateUpdate(point, event) {
   });
 }
 
+// Ground-truth ambient occlusion (contact shadows where walls meet floors,
+// columns and frames). Only in the PBR look and never in a Section (its
+// depth/normal pass does not honour clipping planes).
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const gtao = new GTAOPass(scene, camera, 1, 1);
+gtao.updateGtaoMaterial({radius: 0.6, distanceExponent: 1.0, thickness: 1.0, scale: 1.0});
+gtao.blendIntensity = 1.0;
+composer.addPass(gtao);
+composer.addPass(new OutputPass());
+let ambientOcclusion = true;
+window.setAmbientOcclusion = function(enabled) { ambientOcclusion = !!enabled; };
+function useComposer() {
+  return ambientOcclusion && activeTechnique === "pbr" && !sectionPlane;
+}
+
 function resize() {
   const w = Math.max(1, container.clientWidth);
   const h = Math.max(1, container.clientHeight);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   renderer.setSize(w, h, false);
+  composer.setSize(w, h);
 }
 window.addEventListener("resize", resize);
 resize();
@@ -700,6 +729,23 @@ function fitCamera() {
   setCameraPreset(activeCameraPreset || "orbit");
 }
 
+// The sun's shadow frustum hugs the model so shadows stay crisp for a small
+// house and still cover a large site.
+function fitSunShadow() {
+  const bounds = sceneBounds();
+  if (!bounds) return;
+  const {center, radius} = bounds;
+  const dir = new THREE.Vector3(9, -11, 15).normalize();
+  key.position.copy(center).addScaledVector(dir, radius * 2.5);
+  key.target.position.copy(center);
+  key.target.updateMatrixWorld();
+  const cam = key.shadow.camera;
+  cam.left = -radius; cam.right = radius; cam.top = radius; cam.bottom = -radius;
+  cam.near = 0.1; cam.far = radius * 5.0;
+  cam.updateProjectionMatrix();
+  key.shadow.needsUpdate = true;
+}
+
 window.archforgeSetScene = function(payload, fit = true) {
   disposeModel();
   const objects = (payload && payload.objects) || [];
@@ -726,6 +772,7 @@ window.archforgeSetScene = function(payload, fit = true) {
   }
   // A real site terrain replaces the decorative ground plane.
   ground.visible = !objects.some((item) => item.kind === "terrain");
+  fitSunShadow();
   applyTechnique();
   if (fit) fitCamera();
 };
@@ -1368,7 +1415,7 @@ if (window.__archforgePendingRampPreview) window.setRampPreview(window.__archfor
 
 function animate() {
   controls.update();
-  renderer.render(scene, camera);
+  if (useComposer()) composer.render(); else renderer.render(scene, camera);
   requestAnimationFrame(animate);
 }
 animate();
@@ -1533,6 +1580,7 @@ class PBRViewport(QWidget):
         self._technique = "pbr"
         self._camera_preset = "orbit"
         self._view_line = None
+        self._ambient_occlusion = True
         self._axes_visible = False
         self._auto_rotate = False
         self._cutaway = False
@@ -1589,6 +1637,7 @@ class PBRViewport(QWidget):
         self.set_auto_rotate(self._auto_rotate)
         self.set_cutaway(self._cutaway)
         self.redraw(force_full=True)
+        self.set_ambient_occlusion(self._ambient_occlusion)
         pending_line = self._view_line
         self.set_camera_preset(self._camera_preset)
         self._view_line = pending_line
@@ -2293,6 +2342,15 @@ class PBRViewport(QWidget):
                 + ");"
             )
         self.statusChanged.emit(f"PBR camera: {mode}")
+
+    def set_ambient_occlusion(self, enabled: bool) -> None:
+        """Contact shadows (GTAO) in the PBR look; off for slow GPUs."""
+        self._ambient_occlusion = bool(enabled)
+        if self.web_view is not None:
+            self.web_view.page().runJavaScript(
+                "if (window.setAmbientOcclusion) window.setAmbientOcclusion("
+                + ("true" if self._ambient_occlusion else "false") + ");"
+            )
 
     def set_view_line(self, kind: str, x1: float, y1: float, x2: float, y2: float, z: float = 0.0) -> None:
         """Section ('section') or eye-level camera ('camera') from a 2D drag."""

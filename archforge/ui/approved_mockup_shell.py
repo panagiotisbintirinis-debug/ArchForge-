@@ -140,6 +140,10 @@ def install_approved_mockup_shell(window):
         if text is None:terrain_menu.addSeparator();continue
         a=QAction(text,window); a.triggered.connect(lambda _=False,r=run: r()); terrain_menu.addAction(a)
     window._mockup_terrain_menu=terrain_menu
+    ao=QAction("Σκιές επαφής (Ambient Occlusion)",window); ao.setCheckable(True); ao.setChecked(True)
+    ao.toggled.connect(window.pbr_view.set_ambient_occlusion)
+    menus["Rendering"].addAction(ao)
+    window._mockup_ao_action=ao
     # Keep keyboard shortcuts live although their toolbars are hidden.
     for a in (window.new_action,window.open_action,window.save_action,
               window.undo_action,window.redo_action,window.delete_action):

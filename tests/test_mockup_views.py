@@ -111,3 +111,13 @@ def test_door_placed_from_the_3d_scene_cuts_its_wall():
     doors = [e for e in window.doc.entities.values() if e.kind == 'door']
     assert len(doors) == 1 and doors[0].parent_id == wall.id
     _close(app, window)
+
+
+def test_rendering_menu_toggles_ambient_occlusion():
+    app, window = _window()
+    assert window._mockup_ao_action.isChecked()
+    window._mockup_ao_action.setChecked(False)
+    assert window.pbr_view._ambient_occlusion is False
+    window._mockup_ao_action.setChecked(True)
+    assert window.pbr_view._ambient_occlusion is True
+    _close(app, window)
