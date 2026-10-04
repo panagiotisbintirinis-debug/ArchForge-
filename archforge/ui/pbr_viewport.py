@@ -139,6 +139,9 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.target.set(0, 0, 1.4);
 controls.update();
+window.__archforgeSetControlsEnabled = (enabled) => {
+  controls.enabled = !!enabled;
+};
 
 const markingRoot = document.getElementById("markingRoot");
 const markingCenter = document.getElementById("markingCenter");
@@ -1724,7 +1727,7 @@ class PBRViewport(QWidget):
             self._structural_beam_tx.cancel()
         self._structural_beam_tx = None
         if self.web_view is not None:
-            self.web_view.page().runJavaScript("window.__archforgeBeamStart = false; controls.enabled = true;")
+            self.web_view.page().runJavaScript("window.__archforgeBeamStart = false; window.__archforgeSetControlsEnabled?.(true);")
         self.statusChanged.emit("Beam placement cancelled")
 
     def _begin_stair_from_web(self, x: float, y: float) -> None:

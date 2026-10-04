@@ -201,6 +201,25 @@ def _unit_interval(v):
     return value
 
 
+def _wall_surface_role(v):
+    # Wall-hosted MEP mounts use the signed-offset roles; mechanical mounts
+    # keep using the semantic surface catalog roles (interior, exterior, ...).
+    # The host-specific check stays with the surface catalog.
+    from archforge.geometry.surfaces import _KIND_ROLES
+    value = str(v).lower().strip()
+    catalog = {role for roles in _KIND_ROLES.values() for role, *_ in roles}
+    if value not in ('positive_face', 'negative_face', 'centerline') and value not in catalog:
+        raise ValueError(
+            'mount surface role must be positive_face, negative_face, centerline, '
+            'or a semantic surface role'
+        )
+    return value
+
+
+def _kitchen_role(v):
+    return _nonempty(v)
+
+
 def _load_direction(v):
     vec = _vec3(v)
     length = math.sqrt(sum(float(x) * float(x) for x in vec))
@@ -348,7 +367,18 @@ SCHEMAS = {
         'diameter': _conduit_diameter,
     },
     'mechanical_joint': {'joint_type': _nonempty, 'parent_part': _nonempty, 'child_part': _nonempty, 'anchor': _vec3, 'axis': _vec3, 'min_value': _finite, 'max_value': _finite, 'value': _finite},
-    'mechanical_mount': {'host_id': _nonempty, 'part_id': _nonempty, 'surface_role': _nonempty, 'clearance': _nonnegative, 'embed_depth': _nonnegative},
+    'mechanical_mount': {
+        'host_id': _nonempty, 'part_id': _nonempty,
+        'surface_u': _unit_interval, 'elevation': _finite,
+        'surface_role': _wall_surface_role, 'normal_offset': _finite,
+        'clearance': _nonnegative, 'embed_depth': _nonnegative,
+    },
+    'kitchen_part': {
+        'x': _finite, 'y': _finite, 'z': _finite,
+        'width': _positive, 'depth': _positive, 'height': _positive,
+        'rotation': _finite, 'role': _kitchen_role, 'run_id': _nonempty,
+        'roughness': _unit_interval, 'metallic': _unit_interval,
+    },
 }
 
 

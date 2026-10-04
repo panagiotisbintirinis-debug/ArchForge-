@@ -15,6 +15,18 @@ class AddEntity(Command):
     def undo(self,doc): doc.remove(self.entity.id)
 
 @dataclass
+class AddEntities(Command):
+    """Add a group of semantic entities as one undo/redo step."""
+    entities: List[Entity]
+    def do(self, doc):
+        for entity in self.entities:
+            doc.add(entity.clone())
+    def undo(self, doc):
+        for entity in reversed(self.entities):
+            if entity.id in doc.entities:
+                doc.remove(entity.id)
+
+@dataclass
 class UpdateEntity(Command):
     eid:str; changes:Dict[str,Any]; before:Dict[str,Any]|None=None
     before_state:Optional[Dict[str,Any]]=None

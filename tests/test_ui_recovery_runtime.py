@@ -85,10 +85,14 @@ def test_recovery_launcher_exists_and_main_window_constructs():
     app = QApplication.instance() or QApplication([])
     window = MainWindow()
     try:
-        assert window.tabs.count() == 3
-        assert window.tabs.tabText(0) == 'FLOOR PLAN'
-        assert window.tabs.tabText(1) == '3D STUDIO'
-        assert window.tabs.tabText(2) == 'STRUCTURAL'
+        # Approved mockup shell: 2D plan is the central default editor; the
+        # 3D and Structural editors share the second central tab.
+        central = window._central_tabs
+        assert [central.tabText(i) for i in range(central.count())] == ['2D Σχεδίαση', '3D / Structural']
+        assert central.widget(0).isAncestorOf(window.plan_view)
+        assert [window.tabs.tabText(i) for i in range(window.tabs.count())] == ['3D Σκηνή', 'Structural']
+        assert window.tabs.widget(0) is window.pbr_view
+        assert window.tabs.widget(1) is window.structural_view
         assert window.axes_action.isCheckable()
         assert window.cutaway_action.isCheckable()
         assert window.auto_rotate_action.isCheckable()

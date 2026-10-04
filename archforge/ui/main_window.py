@@ -15,13 +15,15 @@ from PySide6.QtWidgets import (
 from archforge.core.model import Document, WorkPlane, Entity
 from archforge.core.commands import (
     CommandStack, UpdateEntity, CreateRoomFloors, CreateRoomRoofs,
-    DeleteEntities, CreateFloorLevel, SetWorkPlane, RouteAndConnectInfrastructure, AddEntity,
+    DeleteEntities, CreateFloorLevel, SetWorkPlane, RouteAndConnectInfrastructure, AddEntity, AddEntities,
 )
+from archforge.kitchen import build_straight_kitchen
 from archforge.rendering.materials import MATERIAL_PRESETS, material_categories, materials_in_category
 from .plan_view import PlanView
 from .pbr_viewport import PBRViewport
 from .object_properties import property_fields, property_values, property_changes
 from .workspace_docks import WorkspaceDockSpec, install_workspace_dock, add_workspace_toggles
+from .approved_mockup_shell import install_approved_mockup_shell
 
 
 class MainWindow(QMainWindow):
@@ -59,13 +61,17 @@ class MainWindow(QMainWindow):
         self._build_edit_menu()
         self._build_view_menu()
         self._build_inspector()
-        self._build_mockup_workspace()
+        install_approved_mockup_shell(self)
         self.refresh_inspector()
 
     def _on_tab_changed(self, idx):
-        widgets = [self.plan_view, self.pbr_view, self.structural_view]
-        if 0 <= idx < len(widgets):
-            self.view = widgets[idx]
+        # In the approved mockup the plan is permanently visible on the left
+        # and this tab widget owns the real 3D / Structural pane on the right.
+        current = self.tabs.currentWidget() if hasattr(self, 'tabs') else None
+        if current is self.pbr_view:
+            self.view = self.pbr_view
+        elif current is self.structural_view:
+            self.view = self.structural_view
         if self.view is self.pbr_view:
             self.pbr_view.activate()
         elif self.view is self.structural_view:
@@ -85,22 +91,31 @@ class MainWindow(QMainWindow):
         self._redraw_views()
 
     def _set_active_tool(self, tool):
-        # Structural authoring always belongs to the dedicated structural view.
-        # This restores the visible/interactive structural workflow regardless
-        # of which mockup workspace tab was active when the command was chosen.
-        if str(tool).startswith('structural_') and self.view is not self.structural_view:
+        tool = str(tool)
+        # The approved shell defaults ordinary architectural authoring to the
+        # real central PlanView. Switching tabs must never leave Wall/Door/etc.
+        # routed to an invisible 3D widget.
+        plan_tools = {'select','wall','door','window','opening_rect','opening_arch','stair','ramp','move','stretch','rotate','component'}
+        central = getattr(self, '_central_tabs', None)
+        if tool in plan_tools and central is not None and not getattr(self, '_simultaneous_action', None).isChecked():
+            central.setCurrentIndex(0)
+            self.view = self.plan_view
+        # Structural authoring belongs to the real structural view.
+        if tool.startswith('structural_') and self.view is not self.structural_view:
+            if central is not None:
+                central.setCurrentIndex(1)
             self.tabs.setCurrentWidget(self.structural_view)
             self.view = self.structural_view
         if self.view is self.structural_view and str(tool) not in (
             'select','structural_column','structural_beam','move','rotate'
         ):
-            self.tabs.setCurrentWidget(self.plan_view)
+            # PlanView is simultaneously visible in the approved split shell;
+            # it is no longer a tab that needs to be selected.
             self.view = self.plan_view
         # Keep frame-free openings in the active human view. PBR now routes
         # Rectangle/Arch openings through the same authoritative OpeningPlaceTransaction
         # used by Floor Plan; only MEP authoring still requires the plan workflow.
         if str(tool).startswith('mep_') and self.view is self.pbr_view:
-            self.tabs.setCurrentWidget(self.plan_view)
             self.view = self.plan_view
         if hasattr(self.view, 'set_tool'):
             self.view.set_tool(tool)
@@ -223,6 +238,12 @@ class MainWindow(QMainWindow):
         self.structure_button = structure_button
         self.structural_column_action = column_action
         self.structural_beam_action = beam_action
+
+        kitchen_action = QAction('Kitchen Run', self)
+        kitchen_action.setToolTip('Create an undoable semantic straight kitchen run')
+        kitchen_action.triggered.connect(self._create_straight_kitchen)
+        toolbar.addAction(kitchen_action)
+        self.kitchen_action = kitchen_action
 
         for text, tool, key in [
             ('Move', 'move', 'G'), ('Stretch', 'stretch', 'T'), ('Rotate', 'rotate', 'R'),
@@ -348,19 +369,52 @@ class MainWindow(QMainWindow):
         new_action.setShortcut(QKeySequence.StandardKey.New)
         new_action.triggered.connect(self.new_project)
         toolbar.addAction(new_action)
+        self.new_action = new_action
         save = QAction('Save', self)
         save.setShortcut(QKeySequence.StandardKey.Save)
         save.triggered.connect(self.save)
         toolbar.addAction(save)
+        self.save_action = save
         open_action = QAction('Open', self)
         open_action.setShortcut(QKeySequence.StandardKey.Open)
         open_action.triggered.connect(self.open)
         toolbar.addAction(open_action)
+        self.open_action = open_action
         stl_action = QAction('Export STL', self)
         stl_action.triggered.connect(self.export_stl)
         toolbar.addAction(stl_action)
+        self.export_stl_action = stl_action
 
 
+
+    def _create_straight_kitchen(self):
+        length, ok = QInputDialog.getDouble(
+            self, 'Kitchen Run', 'Length (m):', 3.60, 0.60, 30.0, 2
+        )
+        if not ok:
+            return
+        modules, ok = QInputDialog.getInt(
+            self, 'Kitchen Run', 'Base modules:', 6, 1, 30, 1
+        )
+        if not ok:
+            return
+        origin = getattr(self.doc.work_plane, 'origin', (0.0, 0.0, 0.0))
+        entities = build_straight_kitchen(
+            run_id='Kitchen',
+            total_length=float(length) * 1000.0,
+            num_base_modules=int(modules),
+            num_wall_modules=int(modules),
+            origin_x=float(origin[0]),
+            origin_y=float(origin[1]),
+            origin_z=float(origin[2]),
+        )
+        self.stack.execute(AddEntities(entities))
+        self.doc.selection = [entities[0].id] if entities else []
+        self._redraw_views(all_views=True)
+        self.refresh_inspector()
+        self.statusBar().showMessage(
+            f'Kitchen Run created — {length:.2f} m / {modules} modules', 4000
+        )
 
     def _build_edit_menu(self):
         edit_menu = self.menuBar().addMenu('&Edit')
@@ -1462,11 +1516,13 @@ class MainWindow(QMainWindow):
     def _selection_from_view(self):
         self.refresh_inspector()
 
-    def _redraw_views(self, *, all_views=False):
+    def _redraw_views(self, *, all_views=False, fit_camera=False):
         targets=(self.plan_view,self.pbr_view,self.structural_view) if all_views else (self.view,)
         for view in targets:
             if isinstance(view, PBRViewport):
-                view.redraw(force_full=True)
+                # A normal redraw must preserve the human's orbit/zoom.
+                # Camera fitting is explicit only (initial load / Fit command).
+                view.redraw(force_full=bool(fit_camera))
             else:
                 view.redraw()
 
