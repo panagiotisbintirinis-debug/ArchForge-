@@ -108,6 +108,25 @@ def test_floor_plan_only_shows_active_storey_walls():
     assert wall_ids == {'upper-wall'}
 
 
+def test_upper_floor_plan_keeps_the_stair_down_but_hides_ground_walls():
+    from archforge.core.commands import CommandStack
+    from archforge.core.interaction import StairPlaceTransaction
+
+    doc = Document()
+    doc.levels = {'Ground': 0.0, 'Floor 2': 2.7}
+    doc.add(_wall('ground-wall', 0.0))
+    doc.add(_wall('upper-wall', 2.7))
+    stair_tx = StairPlaceTransaction(doc, CommandStack(doc), (0.0, 1.0))
+    stair_tx.update(5.0, 1.0)
+    stair_id = stair_tx.commit()
+
+    doc.work_plane = WorkPlane(name='Floor 2', origin=(0.0, 0.0, 2.7))
+    visible = {p.entity_id for p in build_plan_frame(doc).primitives if p.entity_id}
+    assert 'upper-wall' in visible
+    assert stair_id in visible
+    assert 'ground-wall' not in visible
+
+
 def test_auto_floor_uses_active_second_storey_room():
     window = MainWindow()
     _closed_room(window.doc, 'ground', 0.0)

@@ -364,6 +364,9 @@ def build_plan_frame(doc,preview=None):
     except (ValueError,KeyError):
         pass
     for eid in doc.entities:
+        # FLOOR PLAN shows the active storey only; a stair/ramp touching it
+        # (e.g. the flight down from an upper storey) stays visible.
+        if not _entity_on_active_level(doc,doc.get(eid)):continue
         p=entity_primitive(doc,eid)
         if p:f.primitives.append(p)
     f.handles=selection_handles(doc)
