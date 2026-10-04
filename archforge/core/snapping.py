@@ -208,6 +208,9 @@ def snap_translation_points(
 
 
 COLUMN_SNAP_TOLERANCE=0.30
+# Two walls meeting at less than ~11.5 deg off straight are a continuation
+# (e.g. a short closing segment), not a corner to anchor a column on.
+CORNER_MIN_SIN=0.2
 
 
 def _slab_vertices(doc,active_z,tolerance=1e-5):
@@ -285,7 +288,7 @@ def _corner_placement(P,arm_a,arm_b,polys,width,depth):
     the two walls is treated as inside.
     """
     uA,tA,lenA=arm_a;uB,tB,lenB=arm_b
-    if abs(uA[0]*uB[1]-uA[1]*uB[0])<1e-6:return None
+    if abs(uA[0]*uB[1]-uA[1]*uB[0])<CORNER_MIN_SIN:return None
     bis=(uA[0]+uB[0],uA[1]+uB[1])
     def outward(u,t,length):
         perp=(-u[1],u[0]);probe=min(0.30,length/2.0)
@@ -354,14 +357,13 @@ def column_snap(doc:Document,x:float,y:float,tolerance:float=COLUMN_SNAP_TOLERAN
             if d<tolerance:junctions.append((d,P))
     crossing=_best_wall_intersection(doc,x,y,tolerance,set(),active_z)
     if crossing is not None:junctions.append((hypot(crossing.x-x,crossing.y-y),(crossing.x,crossing.y)))
-    if junctions:
-        _,P=min(junctions,key=lambda item:item[0])
+    def corner_at(P):
         arms=_arms_at(P,walls)
         pairs=[(i,j) for i in range(len(arms)) for j in range(i+1,len(arms))
                if arms[i][0]!=arms[j][0]
-               and abs(arms[i][1][0][0]*arms[j][1][0][1]-arms[i][1][0][1]*arms[j][1][0][0])>1e-6]
+               and abs(arms[i][1][0][0]*arms[j][1][0][1]-arms[i][1][0][1]*arms[j][1][0][0])>=CORNER_MIN_SIN]
         chosen=None
-        if len(arms)==2 and pairs:
+        if len(pairs)==1 and len(arms)==2:
             chosen=pairs[0]
         elif pairs and rooms():
             # A wall passing through the corner: the real corner is the
@@ -373,15 +375,27 @@ def column_snap(doc:Document,x:float,y:float,tolerance:float=COLUMN_SNAP_TOLERAN
                 q=(P[0]+b[0]*0.2,P[1]+b[1]*0.2)
                 if any(_point_in_polygon(q,poly) for poly in rooms()):inside.append((i,j))
             if len(inside)==1:chosen=inside[0]
-        if chosen is not None:
-            i,j=chosen
-            placed=_corner_placement(P,arms[i][1],arms[j][1],rooms(),width,depth)
-            if placed is not None:
-                (cx,cy),rot=placed
-                return SnapPoint(cx,cy,active_z,'wall_corner',f'{arms[i][0]}|{arms[j][0]}'),rot
+        if chosen is None:return None,arms
+        i,j=chosen
+        placed=_corner_placement(P,arms[i][1],arms[j][1],rooms(),width,depth)
+        if placed is None:return None,arms
+        (cx,cy),rot=placed
+        return (SnapPoint(cx,cy,active_z,'wall_corner',f'{arms[i][0]}|{arms[j][0]}'),rot),arms
+    if junctions:
+        junctions.sort(key=lambda item:item[0])
+        # The nearest real corner wins; a near-straight junction (short
+        # closing wall) is skipped in favour of the corner next to it.
+        for _,P in junctions:
+            placed,_arms=corner_at(P)
+            if placed is not None:return placed
+        _,P=junctions[0]
+        arms=_arms_at(P,walls)
         if len(arms)==1:
             return SnapPoint(P[0],P[1],active_z,'endpoint',arms[0][0]),_angle(arms[0][1][0])
-        return SnapPoint(P[0],P[1],active_z,'intersection',''),None
+        if len(arms)==2 and abs(arms[0][1][0][0]*arms[1][1][0][1]-arms[0][1][0][1]*arms[1][1][0][0])<CORNER_MIN_SIN:
+            pass  # near-straight continuation: place on the wall below
+        else:
+            return SnapPoint(P[0],P[1],active_z,'intersection',''),None
     # 2) Floor slab corners (no wall corner nearby).
     best=None;bestd=float(tolerance)
     for sp in _slab_vertices(doc,active_z):

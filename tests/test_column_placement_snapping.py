@@ -138,3 +138,21 @@ def test_corner_tolerates_a_wall_end_a_fraction_of_a_millimetre_off_the_other_wa
     assert doc.active_room_faces()
     xmin, _, _, ymax = _footprint(_place_column(doc, 0.1, 2.85))
     assert abs(xmin + 0.1) < 1e-3 and abs(ymax - 3.1) < 1e-3
+
+
+def test_owner_project_short_closing_wall_uses_the_real_corner():
+    # Walls from the owner's project: the loop was closed by an 11 cm wall
+    # that is almost collinear with the top wall.
+    doc = Document()
+    for a, b in (((-4.545454545454545, 2.4727272727272727), (-0.2180290324909846, 2.4727272727272727)),
+                 ((-0.2180290324909846, 2.4727272727272727), (-0.2180290324909846, -0.89213)),
+                 ((-0.2180290324909846, -0.89213), (-4.65512, -0.89213)),
+                 ((-4.65512, -0.89213), (-4.65512, 2.47584)),
+                 ((-4.545454545454545, 2.4727272727272727), (-4.65512, 2.47584))):
+        doc.add(_wall(a[0], a[1], b[0], b[1], thickness=0.15))
+    assert doc.active_room_faces()
+    for click in ((-4.5, 2.4), (-4.6, 2.4)):
+        xmin, xmax, ymin, ymax = _footprint(_place_column(doc, *click))
+        # Flush with the left wall's outer face (x = -4.65512 - 0.075).
+        assert abs(xmin - (-4.73012)) < 5e-3
+        assert ymax <= 2.47584 + 0.075 + 5e-3
