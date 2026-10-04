@@ -235,7 +235,24 @@ def install_approved_mockup_shell(window):
     central_tabs.currentChanged.connect(central_changed)
 
     strips=QHBoxLayout(); strips.setSpacing(6)
-    views=_thumb_strip(("3D Προοπτική","Top","Front","Side","Εσωτερική Όψη","Render (PBR)","Walkthrough"))
+    # Every view is live: camera presets, Doll House / Ortho overviews, and the
+    # Section / Interior views that are dragged as a line in the 2D plan.
+    view_specs=(
+        ("3D Προοπτική",lambda: window._set_pbr_camera("orbit")),
+        ("Top",lambda: window._set_pbr_camera("top")),
+        ("Front",lambda: window._set_pbr_camera("front")),
+        ("Side",lambda: window._set_pbr_camera("side")),
+        ("Doll House",lambda: window._set_pbr_camera("dollhouse")),
+        ("Ορθογραφική",lambda: window._set_pbr_camera("ortho")),
+        ("Τομή",lambda: window._start_view_line_tool("section")),
+        ("Εσωτερική Όψη",lambda: window._start_view_line_tool("camera")),
+        ("Render (PBR)",lambda: (window._set_render_style_from_workspace("pbr"),window._set_pbr_camera("orbit"))),
+        ("Walkthrough",lambda: window._set_pbr_camera("eye")),
+    )
+    views=_thumb_strip(tuple(label for label,_ in view_specs))
+    view_actions=dict(view_specs)
+    views.itemClicked.connect(lambda item: view_actions[item.text()]())
+    window._mockup_view_actions=view_actions
     styles=_thumb_strip(("Ρεαλιστικό","Φυσικό φως","Βραδινό","Clay","Sketch"))
 
     center=QWidget(); cv=QVBoxLayout(center); cv.setContentsMargins(0,0,0,0); cv.setSpacing(6)
@@ -327,6 +344,11 @@ def install_approved_mockup_shell(window):
     window._approved_docks=(project_dock,window.dock,views_dock)
     window._central_tabs=central_tabs
     window._update_plan_title()
+
+    views_menu=QMenu("3D Προβολές",window.view_menu); window.view_menu.addMenu(views_menu)
+    for label,run in view_specs:
+        a=QAction(label,views_menu); a.triggered.connect(lambda _=False,r=run: r()); views_menu.addAction(a)
+    window._mockup_views_menu=views_menu
 
     simultaneous=QAction("Ταυτόχρονα 2D + 3D",window)
     simultaneous.setCheckable(True)

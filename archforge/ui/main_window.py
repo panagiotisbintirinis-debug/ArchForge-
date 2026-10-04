@@ -56,6 +56,7 @@ class MainWindow(QMainWindow):
             view.contextActionRequested.connect(self._handle_object_context_action)
         self.plan_view.commandRequested.connect(self._handle_plan_command)
         self.plan_view.previewChanged.connect(self.pbr_view.set_stair_preview)
+        self.plan_view.viewLineRequested.connect(self._apply_view_line)
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self._build_toolbar()
         self._build_view_toolbar()
@@ -533,9 +534,41 @@ class MainWindow(QMainWindow):
         toolbar.addAction(auto_rotate)
         self.auto_rotate_action = auto_rotate
 
-    def _set_pbr_camera(self, mode):
+    def _show_3d_view(self):
+        """Bring the 3D Scene forward (unless 2D + 3D are side by side)."""
+        central = getattr(self, '_central_tabs', None)
+        simultaneous = getattr(self, '_simultaneous_action', None)
+        if central is not None and not (simultaneous is not None and simultaneous.isChecked()):
+            if central.count() > 1:
+                central.setCurrentIndex(1)
         self.tabs.setCurrentWidget(self.pbr_view)
         self.pbr_view.activate()
+
+    def _start_view_line_tool(self, kind):
+        """Section / interior camera: drag a line in the 2D plan."""
+        central = getattr(self, '_central_tabs', None)
+        simultaneous = getattr(self, '_simultaneous_action', None)
+        if central is not None and not (simultaneous is not None and simultaneous.isChecked()):
+            central.setCurrentIndex(0)
+        self.view = self.plan_view
+        tool = 'view_section' if kind == 'section' else 'view_camera'
+        self.plan_view.controller.set_tool(tool)
+        self.statusBar().showMessage(
+            'Τομή: τράβηξε γραμμή στην κάτοψη, από το σημείο κοπής προς την κατεύθυνση θέασης'
+            if kind == 'section' else
+            'Εσωτερική όψη: τράβηξε από το σημείο που στέκεσαι προς την κατεύθυνση που κοιτάς',
+            8000,
+        )
+
+    def _apply_view_line(self, kind, x1, y1, x2, y2):
+        try:
+            self._show_3d_view()
+            self.pbr_view.set_view_line(kind, x1, y1, x2, y2, z=float(self.doc.work_plane.origin[2]))
+        except ValueError as exc:
+            self.statusBar().showMessage(str(exc), 5000)
+
+    def _set_pbr_camera(self, mode):
+        self._show_3d_view()
         self.pbr_view.set_camera_preset(mode)
         if hasattr(self, 'cutaway_action'):
             self.cutaway_action.blockSignals(True)

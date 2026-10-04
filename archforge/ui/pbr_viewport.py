@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from math import atan2, degrees
 
 from PySide6.QtCore import Qt, QUrl, Signal, Slot, QObject
@@ -132,6 +133,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.localClippingEnabled = true;
 container.appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -506,7 +508,8 @@ function applyTechnique() {
     obj.material.opacity = glass ? 0.34 : 1.0;
     obj.material.depthWrite = !glass;
     obj.castShadow = !technical && !glass;
-    obj.receiveShadow = !technical;
+    // A section reads like a drawing: even light, no roof shadow inside.
+    obj.receiveShadow = !technical && !sectionPlane;
     obj.material.needsUpdate = true;
   });
 }
@@ -520,11 +523,103 @@ function sceneBounds() {
   return {box, center, size, radius};
 }
 
+// --- Home-Designer-style views -------------------------------------------
+// Doll House hides roofs/ceilings; Ortho uses a long telephoto lens so it
+// reads as orthographic while keeping one camera (picking/orbit unchanged);
+// a Section clips the model with a vertical plane drawn in the 2D plan.
+let hiddenKinds = new Set();
+let sectionPlane = null;
+let activeViewLine = null;
+
+function meshShouldShow(mesh) {
+  const kind = (mesh.userData && mesh.userData.kind) || "";
+  if (hiddenKinds.has(kind)) return false;
+  if (cutawayEnabled && kind === "room_roof") return false;
+  return true;
+}
+
+function applyViewState() {
+  modelRoot.children.forEach((mesh) => {
+    mesh.visible = meshShouldShow(mesh);
+    if (mesh.material) {
+      mesh.material.clippingPlanes = sectionPlane ? [sectionPlane] : [];
+      mesh.material.clipShadows = true;
+      mesh.material.needsUpdate = true;
+    }
+  });
+  applyTechnique();
+}
+
+function setLens(fov) {
+  camera.fov = fov;
+  camera.updateProjectionMatrix();
+}
+
+function placeIsoCamera(center, distance, elevationDeg) {
+  const elev = elevationDeg * Math.PI / 180;
+  const horizontal = distance * Math.cos(elev);
+  camera.position.set(
+    center.x + horizontal * Math.cos(Math.PI / 4),
+    center.y - horizontal * Math.sin(Math.PI / 4),
+    center.z + distance * Math.sin(elev)
+  );
+  controls.target.set(center.x, center.y, center.z);
+}
+
+function applyViewLine(line) {
+  const bounds = sceneBounds();
+  if (!bounds || !line) return;
+  const {center, radius} = bounds;
+  const dx = line.x2 - line.x1, dy = line.y2 - line.y1;
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-6) return;
+  const ux = dx / len, uy = dy / len;
+  activeViewLine = line;
+  activeCameraPreset = "line";
+  controls.enabled = true;
+  camera.up.set(0, 0, 1);
+  if (line.kind === "camera") {
+    // Interior view: stand at the drag start, look along the drag.
+    sectionPlane = null;
+    hiddenKinds = new Set();
+    setLens(60);
+    const eye = Number(line.z || 0) + 1.6;
+    camera.near = 0.05;
+    camera.far = Math.max(200.0, radius * 40.0);
+    camera.position.set(line.x1, line.y1, eye);
+    controls.target.set(line.x1 + ux * 2.0, line.y1 + uy * 2.0, eye);
+  } else {
+    // Section: keep what lies ahead of the drag start, look along the drag.
+    sectionPlane = new THREE.Plane(new THREE.Vector3(ux, uy, 0), -(ux * line.x1 + uy * line.y1));
+    hiddenKinds = new Set();
+    setLens(10);
+    const along = ux * (center.x - line.x1) + uy * (center.y - line.y1);
+    const tx = center.x - ux * along, ty = center.y - uy * along;
+    const distance = radius / Math.tan((10 * Math.PI / 180) / 2) * 0.75;
+    camera.near = Math.max(0.05, distance - radius * 3.0);
+    camera.far = distance + radius * 6.0;
+    camera.position.set(tx - ux * distance, ty - uy * distance, center.z);
+    controls.target.set(tx, ty, center.z);
+  }
+  camera.updateProjectionMatrix();
+  camera.lookAt(controls.target);
+  controls.update();
+  applyViewState();
+}
+
+window.setViewLine = function(line) {
+  applyViewLine(line);
+};
+
 function setCameraPreset(mode) {
   const bounds = sceneBounds();
   if (!bounds) return;
   const {center, radius} = bounds;
   activeCameraPreset = mode;
+  activeViewLine = null;
+  sectionPlane = null;
+  hiddenKinds = mode === "dollhouse" ? new Set(["room_roof", "room_ceiling"]) : new Set();
+  setLens(mode === "ortho" ? 8 : 48);
   controls.enabled = true;
   camera.up.set(0, 0, 1);
   camera.near = Math.max(0.02, radius / 500.0);
@@ -552,6 +647,13 @@ function setCameraPreset(mode) {
   } else if (mode === "eye") {
     camera.position.set(center.x, center.y - radius * 1.7, 1.7);
     controls.target.set(center.x, center.y, Math.min(center.z + 0.3, 1.7));
+  } else if (mode === "dollhouse") {
+    placeIsoCamera(center, radius * 1.9, 55);
+  } else if (mode === "ortho") {
+    const distance = radius / Math.tan((8 * Math.PI / 180) / 2) * 0.62;
+    placeIsoCamera(center, distance, 35);
+    camera.near = Math.max(0.05, distance - radius * 3.0);
+    camera.far = distance + radius * 6.0;
   } else {
     camera.position.set(center.x + radius, center.y - radius * 1.25, center.z + radius * 0.85);
     controls.target.copy(center);
@@ -559,9 +661,11 @@ function setCameraPreset(mode) {
   camera.updateProjectionMatrix();
   camera.lookAt(controls.target);
   controls.update();
+  applyViewState();
 }
 
 function fitCamera() {
+  if (activeViewLine) { applyViewLine(activeViewLine); return; }
   setCameraPreset(activeCameraPreset || "orbit");
 }
 
@@ -583,7 +687,8 @@ window.archforgeSetScene = function(payload, fit = true) {
     mesh.userData.entityId = item.id || "";
     mesh.userData.kind = item.kind || "";
     mesh.userData.surfaceRoles = item.surfaces || [];
-    mesh.visible = !(cutawayEnabled && item.kind === "room_roof");
+    mesh.visible = meshShouldShow(mesh);
+    mesh.material.clippingPlanes = sectionPlane ? [sectionPlane] : [];
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     modelRoot.add(mesh);
@@ -602,17 +707,9 @@ window.setTechnique = function(mode) {
 
 
 window.setCameraPreset = function(mode) {
-  const allowed = ["cutaway", "top", "front", "side", "iso30", "eye", "orbit"];
+  const allowed = ["cutaway", "top", "front", "side", "iso30", "eye", "orbit", "dollhouse", "ortho"];
   if (!allowed.includes(mode)) return;
-  if (mode === "cutaway") {
-    cutawayEnabled = true;
-    modelRoot.children.forEach((mesh) => {
-      if (mesh.userData && mesh.userData.kind === "room_roof") mesh.visible = false;
-    });
-  } else {
-    cutawayEnabled = false;
-    modelRoot.children.forEach((mesh) => mesh.visible = true);
-  }
+  cutawayEnabled = mode === "cutaway";
   setCameraPreset(mode);
 };
 
@@ -627,11 +724,7 @@ window.setAutoRotate = function(enabled) {
 
 window.setCutaway = function(enabled) {
   cutawayEnabled = !!enabled;
-  modelRoot.children.forEach((mesh) => {
-    if (mesh.userData && mesh.userData.kind === "room_roof") {
-      mesh.visible = !cutawayEnabled;
-    }
-  });
+  applyViewState();
 };
 
 function resetTransientInteraction() {
@@ -1396,6 +1489,7 @@ class PBRViewport(QWidget):
         self._evaluation_cache = IncrementalEvaluationCache(SculptedPreviewBackend())
         self._technique = "pbr"
         self._camera_preset = "orbit"
+        self._view_line = None
         self._axes_visible = False
         self._auto_rotate = False
         self._cutaway = False
@@ -1452,10 +1546,13 @@ class PBRViewport(QWidget):
         self.set_auto_rotate(self._auto_rotate)
         self.set_cutaway(self._cutaway)
         self.redraw(force_full=True)
+        pending_line = self._view_line
         self.set_camera_preset(self._camera_preset)
+        self._view_line = pending_line
         self._push_stair_preview()
         self._push_ramp_preview()
         self.set_snap_enabled(self._snap_enabled)
+        self._push_view_line()
 
     def rebind(self, doc, stack) -> None:
         self.doc = doc
@@ -2118,8 +2215,9 @@ class PBRViewport(QWidget):
         self.statusChanged.emit("PBR camera: fit")
 
     def set_camera_preset(self, mode: str) -> None:
-        allowed = ("cutaway", "top", "front", "side", "iso30", "eye", "orbit")
+        allowed = ("cutaway", "top", "front", "side", "iso30", "eye", "orbit", "dollhouse", "ortho")
         mode = str(mode)
+        self._view_line = None
         if mode not in allowed:
             raise ValueError(f"unsupported camera preset: {mode}")
         self._camera_preset = mode
@@ -2134,6 +2232,30 @@ class PBRViewport(QWidget):
                 + ");"
             )
         self.statusChanged.emit(f"PBR camera: {mode}")
+
+    def set_view_line(self, kind: str, x1: float, y1: float, x2: float, y2: float, z: float = 0.0) -> None:
+        """Section ('section') or eye-level camera ('camera') from a 2D drag."""
+        if kind not in ("section", "camera"):
+            raise ValueError(f"unsupported view line: {kind}")
+        if math.hypot(float(x2) - float(x1), float(y2) - float(y1)) < 0.05:
+            raise ValueError("drag a longer line to set the view direction")
+        self._view_line = {
+            "kind": kind, "x1": float(x1), "y1": float(y1),
+            "x2": float(x2), "y2": float(y2), "z": float(z),
+        }
+        self._cutaway = False
+        self._push_view_line()
+        self.statusChanged.emit(
+            "Τομή: το 3D δείχνει ό,τι βρίσκεται μπροστά από τη γραμμή"
+            if kind == "section" else "Εσωτερική όψη από το σημείο της κάτοψης"
+        )
+
+    def _push_view_line(self) -> None:
+        if self.web_view is None or not getattr(self, "_view_line", None):
+            return
+        self.web_view.page().runJavaScript(
+            "if (window.setViewLine) window.setViewLine(" + json.dumps(self._view_line) + ");"
+        )
 
     def set_axes_visible(self, enabled: bool) -> None:
         self._axes_visible = bool(enabled)

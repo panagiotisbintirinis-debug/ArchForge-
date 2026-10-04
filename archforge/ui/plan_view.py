@@ -15,6 +15,21 @@ from archforge.ui.object_context_menu import object_context_actions
 
 class PlanView(QGraphicsView):
     selectionChangedByView=Signal();contextActionRequested=Signal(str,str);commandRequested=Signal(str);previewChanged=Signal(object);statusChanged=Signal(str)
+    # (kind, x1, y1, x2, y2): a Section or Camera line dragged in the plan.
+    viewLineRequested=Signal(str,float,float,float,float)
+    VIEW_LINE_TOOLS={'view_section':'section','view_camera':'camera'}
+    def begin_view_line(self,x,y):self._view_drag=[(float(x),float(y)),(float(x),float(y))];self.redraw()
+    def move_view_line(self,x,y):
+        if getattr(self,'_view_drag',None):self._view_drag[1]=(float(x),float(y));self.redraw()
+    def end_view_line(self,x,y):
+        drag=getattr(self,'_view_drag',None);self._view_drag=None
+        if not drag:return
+        (x1,y1),_=drag;kind=self.VIEW_LINE_TOOLS.get(self.controller.tool)
+        self.redraw()
+        if kind is None:return
+        if math.hypot(float(x)-x1,float(y)-y1)<0.05:
+            self.statusChanged.emit('Τράβηξε γραμμή: από το σημείο θέασης προς την κατεύθυνση που κοιτάς');return
+        self.viewLineRequested.emit(kind,x1,y1,float(x),float(y))
     def __init__(self,doc:Document,stack:CommandStack,parent=None,structural_only=False):
         self._scene=QGraphicsScene();super().__init__(self._scene,parent);self.doc=doc;self.stack=stack;self.controller=PointerController(doc,stack);self.structural_only=bool(structural_only)
         self.setRenderHint(QPainter.RenderHint.Antialiasing,True);self.setDragMode(QGraphicsView.DragMode.NoDrag);self.setMouseTracking(True);self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse);self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter);self.setBackgroundBrush(QColor(248,248,248))
@@ -90,6 +105,9 @@ class PlanView(QGraphicsView):
         if event.button()==Qt.MouseButton.LeftButton:
             self._hide_wall_angle_radial()
         if event.button()!=Qt.MouseButton.LeftButton:super().mousePressEvent(event);return
+        if self.controller.tool in self.VIEW_LINE_TOOLS:
+            ev=self._scene_to_plane(event.position().toPoint());self._mouse_down=True
+            self.begin_view_line(ev.a,ev.b);event.accept();return
         self._mouse_down=True;hit=self.itemAt(event.position().toPoint())
         if hit in self._handle_items:
             h=self._handle_items[hit];self._active_handle=h
@@ -124,6 +142,8 @@ class PlanView(QGraphicsView):
             return
         self.redraw()
     def mouseMoveEvent(self,event):
+        if self._mouse_down and getattr(self,'_view_drag',None):
+            ev=self._scene_to_plane(event.position().toPoint());self.move_view_line(ev.a,ev.b);return
         if self._mouse_down and self.controller.active is not None:
             ev=self._scene_to_plane(event.position().toPoint())
             ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
@@ -134,6 +154,9 @@ class PlanView(QGraphicsView):
             p=self.mapToScene(event.position().toPoint());self.statusChanged.emit(f'X {p.x():.3f}   Y {p.y():.3f}')
         super().mouseMoveEvent(event)
     def mouseReleaseEvent(self,event):
+        if event.button()==Qt.MouseButton.LeftButton and self._mouse_down and getattr(self,'_view_drag',None):
+            self._mouse_down=False;ev=self._scene_to_plane(event.position().toPoint())
+            self.end_view_line(ev.a,ev.b);event.accept();return
         if event.button()==Qt.MouseButton.LeftButton and self._mouse_down:
             self._mouse_down=False
             if self.controller.active is not None:
@@ -389,6 +412,12 @@ class PlanView(QGraphicsView):
         for h in frame.handles:self._draw_handle(h)
         if frame.snap:self._draw_snap(frame.snap)
         if frame.hud:self._draw_hud(frame.hud)
+        drag=getattr(self,'_view_drag',None)
+        if drag:
+            # Section/camera line: dashed from the eye point along the view.
+            pen=QPen(QColor(200,60,40));pen.setWidthF(.05);pen.setStyle(Qt.PenStyle.DashLine)
+            (ax,ay),(bx,by)=drag;self._scene.addLine(ax,ay,bx,by,pen).setZValue(30)
+            dot=QPen(QColor(200,60,40));dot.setWidthF(.05);self._scene.addEllipse(ax-.12,ay-.12,.24,.24,dot,QBrush(QColor(200,60,40))).setZValue(30)
         r=self.mapToScene(self.viewport().rect()).boundingRect();self._scene.setSceneRect(r.adjusted(-5,-5,5,5))
         self.previewChanged.emit(copy.deepcopy(self.controller.preview))
     def _draw_grid(self):
