@@ -550,6 +550,22 @@ class MainWindow(QMainWindow):
         toolbar.addAction(auto_rotate)
         self.auto_rotate_action = auto_rotate
 
+    def _create_terrain(self):
+        """Έδαφος: one site terrain around the building (select it if present)."""
+        from archforge.site.terrain import default_terrain_params
+        existing = next((e for e in self.doc.entities.values() if e.kind == 'terrain'), None)
+        if existing is None:
+            existing = Entity('terrain', default_terrain_params(self.doc), name='Έδαφος')
+            self.stack.execute(AddEntity(existing))
+            message = 'Έδαφος: άλλαξε υψόμετρο, κλίση (slope_x / slope_y %) και όρια στις Ιδιότητες'
+        else:
+            message = 'Το έδαφος υπάρχει ήδη — επιλέχθηκε για επεξεργασία'
+        self.doc.select([existing.id])
+        self._redraw_views(all_views=True)
+        self.refresh_inspector()
+        self.statusBar().showMessage(message, 6000)
+        return existing.id
+
     def _cancel_interactions(self):
         self.plan_view.controller.cancel()
         self.plan_view._mouse_down = False

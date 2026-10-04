@@ -104,6 +104,12 @@ def _payload(doc,node)->Optional[PreviewPayload]:
         return PreviewPayload('polygon_prism' if kind=='floor' else 'room_volume',_bounds(pts+[(x,y,top) for x,y,_ in pts]))
     if kind in ('room_floor','room_ceiling','room_foundation','room_roof'):
         return _room_slab_payload(doc,node)
+    if kind=='terrain':
+        from archforge.site.terrain import terrain_height
+        pts=[(float(p[a]),float(p[b])) for a,b in (('x0','y0'),('x1','y0'),('x1','y1'),('x0','y1'))]
+        tops=[terrain_height(p,x,y) for x,y in pts]
+        low=min(tops)-float(p.get('thickness',0.5))
+        return PreviewPayload('terrain',_bounds([(x,y,z) for (x,y),z in zip(pts,tops)]+[(x,y,low) for x,y in pts]))
     raise ValueError(f'preview backend does not support {kind}')
 
 class PreviewBackend(GeometryBackend):

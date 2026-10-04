@@ -116,6 +116,8 @@ def install_approved_mockup_shell(window):
     window.status_bar_action.setText("Γραμμή κατάστασης")
     window.view_menu.addAction(window.status_bar_action)
     window._mockup_menus=menus
+    site_action=QAction("Έδαφος (οικόπεδο)",window); site_action.triggered.connect(window._create_terrain)
+    menus["Κατασκευή"].addAction(site_action)
     # Keep keyboard shortcuts live although their toolbars are hidden.
     for a in (window.new_action,window.open_action,window.save_action,
               window.undo_action,window.redo_action,window.delete_action):
@@ -171,6 +173,8 @@ def install_approved_mockup_shell(window):
     auto_floor=QAction("Auto Floor",window); auto_floor.triggered.connect(window._create_auto_floors); ribbon.addAction(auto_floor)
     flat_roof=QAction("Flat / Auto Roof",window); flat_roof.triggered.connect(window._create_flat_roofs); ribbon.addAction(flat_roof)
     window._mockup_auto_floor_action=auto_floor
+    terrain=QAction("Έδαφος",window); terrain.triggered.connect(window._create_terrain); ribbon.addAction(terrain)
+    window._mockup_terrain_action=terrain
     window._mockup_flat_roof_action=flat_roof
     window.addToolBar(Qt.TopToolBarArea,ribbon)
 

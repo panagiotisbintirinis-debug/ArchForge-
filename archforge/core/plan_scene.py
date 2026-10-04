@@ -151,12 +151,20 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
         # roof, or foundation). Filtering on the slab's rendered Z would hide
         # those dependants from the plan that owns them.
         return found is not None and abs(float(found[1])-z)<=tolerance
+    if e.kind=='terrain':
+        # The site belongs to the lowest storey's plan only.
+        lowest=min([float(v) for v in doc.levels.values()]+[0.0])
+        return z<=lowest+tolerance
     return True
 
 def entity_primitive(doc,eid):
     e=doc.get(eid);p=e.params
     if not e.visible:return None
     if e.kind=='wall':return Primitive2D('line',((p['x1'],p['y1']),(p['x2'],p['y2'])),entity_id=eid,meta=(('thickness',p['thickness']),))
+    if e.kind=='terrain':
+        x0,y0,x1,y1=(float(p[k]) for k in ('x0','y0','x1','y1'))
+        # Outline only: clicking inside the site must still hit the model.
+        return Primitive2D('polyline',((x0,y0),(x1,y0),(x1,y1),(x0,y1),(x0,y0)),entity_id=eid,role='terrain')
     if e.kind=='mep_terminal':
         radius=max(0.06,float(p.get('diameter',0.02))*1.5)
         return Primitive2D(

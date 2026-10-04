@@ -10,6 +10,7 @@ _MATERIALS: Mapping[str, dict] = {
     "wall": {"color": "#d8d2c7", "roughness": 0.72, "metalness": 0.02},
     "floor": {"color": "#aeb6bd", "roughness": 0.82, "metalness": 0.01},
     "room_floor": {"color": "#b9b4aa", "roughness": 0.82, "metalness": 0.01},
+    "terrain": {"color": "#7d9a5a", "roughness": 0.95, "metalness": 0.0},
     "room_ceiling": {"color": "#dedbd2", "roughness": 0.78, "metalness": 0.01},
     "room_foundation": {"color": "#9ea4aa", "roughness": 0.9, "metalness": 0.0},
     "room_roof": {"color": "#8f979f", "roughness": 0.68, "metalness": 0.02},

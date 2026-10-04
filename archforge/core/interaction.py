@@ -309,6 +309,25 @@ class WallDrawTransaction:
         self.stack.execute(AddEntity(e));return e.id
     def cancel(self):self.cancelled=True
 
+def _terrain_start_z(doc,origin,storey_z):
+    from archforge.site.terrain import terrain_height_at
+    from archforge.architecture.topology import room_faces
+    lowest=min([float(v) for v in doc.levels.values()]+[0.0])
+    if storey_z>lowest+1e-6:return None
+    ground=terrain_height_at(doc,origin[0],origin[1])
+    if ground is None:return None
+    def inside(poly):
+        x,y=origin;hit=False;n=len(poly)
+        for i in range(n):
+            (x1,y1),(x2,y2)=poly[i],poly[(i+1)%n]
+            if (y1>y)!=(y2>y) and x<(x2-x1)*(y-y1)/(y2-y1)+x1:hit=not hit
+        return hit
+    try:faces=doc.active_room_faces()
+    except Exception:faces=[]
+    if any(inside(f.polygon) for f in faces):return None
+    return ground
+
+
 class StairPlaceTransaction:
     """Live adaptive stair placement between the active level and the next level above."""
     def __init__(
@@ -338,6 +357,9 @@ class StairPlaceTransaction:
         self.upper_slab_thickness=float(landing['slab_thickness'])
         self.upper_z=float(landing['landing_z'])
         self.upper_level_name=str(landing['level_name'])
+        # An external stair (outside every room) starts on the site terrain.
+        ground=_terrain_start_z(doc,self.origin,self.lower_z)
+        if ground is not None and ground<self.upper_z:self.lower_z=ground
         self.pointer=self.origin
         self.candidates=()
         self.active_index=0

@@ -373,6 +373,10 @@ SCHEMAS = {
         'surface_role': _wall_surface_role, 'normal_offset': _finite,
         'clearance': _nonnegative, 'embed_depth': _nonnegative,
     },
+    'terrain': {
+        'x0': _finite, 'y0': _finite, 'x1': _finite, 'y1': _finite,
+        'elevation': _finite, 'slope_x': _finite, 'slope_y': _finite, 'thickness': _positive,
+    },
     'kitchen_part': {
         'x': _finite, 'y': _finite, 'z': _finite,
         'width': _positive, 'depth': _positive, 'height': _positive,
@@ -393,6 +397,11 @@ def validate_params(kind, params):
     for key, fn in SCHEMAS.get(kind, {}).items():
         if key in out:
             out[key] = fn(out[key])
+    if kind == 'terrain':
+        if float(out.get('x1', 0)) - float(out.get('x0', 0)) <= 1e-6 or float(out.get('y1', 0)) - float(out.get('y0', 0)) <= 1e-6:
+            raise ValueError('terrain extent must be positive (x1 > x0, y1 > y0)')
+        if abs(float(out.get('slope_x', 0))) > 100 or abs(float(out.get('slope_y', 0))) > 100:
+            raise ValueError('terrain slope must be within ±100 %')
     if kind == 'structural_column':
         required = {
             'x','y','z','width','depth','height','rotation',

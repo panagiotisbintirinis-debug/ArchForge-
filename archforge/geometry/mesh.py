@@ -540,6 +540,9 @@ def _payload(doc,node):
  if k=='organic_opening_patch':return _organic_opening_patch_mesh(doc,node)
  if k=='floor':return _floor_slab(doc,node)
  if k in('room_floor','room_ceiling','room_foundation','room_roof'):return _room_slab(doc,node)
+ if k=='terrain':
+  from archforge.site.terrain import terrain_mesh
+  v,t,r=terrain_mesh(p);return MeshPayload(v,t,r)
  raise ValueError(f'tessellation not implemented for {k}')
 class TessellatedPreviewBackend(GeometryBackend):
  name='tessellated-preview'

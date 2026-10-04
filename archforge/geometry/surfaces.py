@@ -21,7 +21,8 @@ _KIND_ROLES:Dict[str,Tuple[Tuple[str,bool,bool,str],...]]={
  'organic_junction':(('junction',False,False,'derived flat organic junction surface'),),
  'organic_opening_patch':(('opening_patch',False,False,'derived flat host surface for a conventional pod opening'),),
  'floor':_slab('floor'),'room_floor':_slab('derived room floor'),'room_ceiling':_slab('derived room ceiling'),'room_foundation':_slab('derived foundation'),'room_roof':_slab('derived roof'),
- 'room':(('ceiling',True,False,'generated room ceiling'),('floor_boundary',False,False,'room floor boundary'))}
+ 'room':(('ceiling',True,False,'generated room ceiling'),('floor_boundary',False,False,'room floor boundary')),
+ 'terrain':(('top',False,False,'site ground surface'),('bottom',False,False,'site ground underside'),('side',False,False,'site ground edge'))}
 def surface_catalog(doc,owner_id):
  if owner_id not in doc.entities:raise ValueError('surface owner does not exist')
  e=doc.entities[owner_id];return tuple(SurfaceDescriptor(owner_id,*r) for r in _KIND_ROLES.get(e.kind,()))

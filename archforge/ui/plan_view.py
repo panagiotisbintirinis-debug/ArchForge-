@@ -424,13 +424,13 @@ class PlanView(QGraphicsView):
         extent=100;pen=QPen(QColor(225,225,225));pen.setWidthF(0);axis=QPen(QColor(160,160,160));axis.setWidthF(0)
         for i in range(-extent,extent+1):self._scene.addLine(i,-extent,i,extent,axis if i==0 else pen).setZValue(-100);self._scene.addLine(-extent,i,extent,i,axis if i==0 else pen).setZValue(-100)
     def _draw_primitive(self,p:Primitive2D):
-        preview=p.role=='preview';opening=p.role=='opening';room=p.role=='derived-room'
+        preview=p.role=='preview';opening=p.role=='opening';room=p.role=='derived-room';terrain=p.role=='terrain'
         # The storey below is drawn like structural context: faint grey.
         context=p.role in ('structural-context','floor-underlay')
         pen=QPen(
             QColor(150,150,150,150)
             if context else
-            (QColor(180,90,20) if opening else (QColor(40,150,70) if preview else QColor(45,55,65)))
+            (QColor(180,90,20) if opening else (QColor(40,150,70) if preview else (QColor(95,140,60) if terrain else QColor(45,55,65))))
         )
         pen.setWidthF(.022 if context else (.06 if opening else (.04 if preview else .035)));item=None
         if p.kind=='line':a,b=p.points;item=self._scene.addLine(a[0],a[1],b[0],b[1],pen)

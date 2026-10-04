@@ -724,6 +724,8 @@ window.archforgeSetScene = function(payload, fit = true) {
     mesh.receiveShadow = true;
     modelRoot.add(mesh);
   }
+  // A real site terrain replaces the decorative ground plane.
+  ground.visible = !objects.some((item) => item.kind === "terrain");
   applyTechnique();
   if (fit) fitCamera();
 };
