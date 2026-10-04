@@ -625,7 +625,10 @@ class StructuralColumnPlaceTransaction:
         from .snapping import COLUMN_SNAP_TOLERANCE,column_snap
         sp=None;rotation=None
         if self.snap_enabled:
-            sp,rotation=column_snap(self.doc,float(x),float(y),max(self.snap_tol,COLUMN_SNAP_TOLERANCE))
+            sp,rotation=column_snap(
+                self.doc,float(x),float(y),max(self.snap_tol,COLUMN_SNAP_TOLERANCE),
+                width=self.width,depth=self.depth,
+            )
             if sp is None and self.grid:
                 sp=best_snap(self.doc,float(x),float(y),self.snap_tol,self.grid)
         if sp is not None:

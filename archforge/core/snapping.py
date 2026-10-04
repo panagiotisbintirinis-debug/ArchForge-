@@ -232,40 +232,156 @@ def _slab_vertices(doc,active_z,tolerance=1e-5):
     return out
 
 
-def _wall_angle(p):
+def _unit(dx,dy):
+    l=hypot(dx,dy)
+    return (dx/l,dy/l) if l>1e-12 else None
+
+
+def _angle(u):
     from math import atan2,degrees
-    return degrees(atan2(float(p['y2'])-float(p['y1']),float(p['x2'])-float(p['x1'])))
+    return degrees(atan2(u[1],u[0]))
 
 
-def column_snap(doc:Document,x:float,y:float,tolerance:float=COLUMN_SNAP_TOLERANCE):
-    """Snap a column centre to wall corners, slab corners, or a wall axis.
+def _point_in_polygon(pt,poly):
+    x,y=pt;inside=False;n=len(poly)
+    for i in range(n):
+        x1,y1=poly[i];x2,y2=poly[(i+1)%n]
+        if (y1>y)!=(y2>y) and x<(x2-x1)*(y-y1)/(y2-y1)+x1:inside=not inside
+    return inside
 
-    Returns (SnapPoint, rotation_degrees_or_None) or (None, None). Corners win
-    over a wall axis; on a wall the rotation follows the wall direction.
+
+def _room_polygons(doc):
+    try:return [tuple(face.polygon) for face in doc.active_room_faces()]
+    except Exception:return []
+
+
+def _outward_side(base,u,perp,thickness,polys):
+    """+1/-1 for the perp side that faces away from the rooms, or None."""
+    if not polys:return None
+    off=thickness/2.0+0.05
+    q1=(base[0]+perp[0]*off,base[1]+perp[1]*off)
+    q2=(base[0]-perp[0]*off,base[1]-perp[1]*off)
+    in1=any(_point_in_polygon(q1,poly) for poly in polys)
+    in2=any(_point_in_polygon(q2,poly) for poly in polys)
+    if in1==in2:return None
+    return -1.0 if in1 else 1.0
+
+
+def _line_intersection(p,u,q,v):
+    den=u[0]*v[1]-u[1]*v[0]
+    if abs(den)<1e-12:return None
+    t=((q[0]-p[0])*v[1]-(q[1]-p[1])*v[0])/den
+    return (p[0]+t*u[0],p[1]+t*u[1])
+
+
+def _corner_placement(P,wall_a,wall_b,polys,width,depth):
+    """Column centre/rotation whose outer corner meets the walls' outer corner.
+
+    The column's outer faces are flush with the outer faces of both walls;
+    when the column is thicker than a wall the extra shows on the inside.
+    Rooms decide which side is outside (so inner/reflex corners work); with
+    no rooms the convex side between the two walls is treated as inside.
     """
-    active_z=float(doc.work_plane.origin[2])
+    def far_end(p):
+        a=(float(p['x1']),float(p['y1']));b=(float(p['x2']),float(p['y2']))
+        return b if hypot(a[0]-P[0],a[1]-P[1])<=hypot(b[0]-P[0],b[1]-P[1]) else a
+    ea=far_end(wall_a);eb=far_end(wall_b)
+    uA=_unit(ea[0]-P[0],ea[1]-P[1]);uB=_unit(eb[0]-P[0],eb[1]-P[1])
+    if uA is None or uB is None or abs(uA[0]*uB[1]-uA[1]*uB[0])<1e-6:return None
+    tA=float(wall_a['thickness']);tB=float(wall_b['thickness'])
+    bis=(uA[0]+uB[0],uA[1]+uB[1])
+    def outward(u,t,length):
+        perp=(-u[1],u[0]);probe=min(0.30,length/2.0)
+        side=_outward_side((P[0]+u[0]*probe,P[1]+u[1]*probe),u,perp,t,polys)
+        if side is None:side=-1.0 if perp[0]*bis[0]+perp[1]*bis[1]>0 else 1.0
+        return (perp[0]*side,perp[1]*side)
+    nA=outward(uA,tA,hypot(ea[0]-P[0],ea[1]-P[1]))
+    nB=outward(uB,tB,hypot(eb[0]-P[0],eb[1]-P[1]))
+    O=_line_intersection((P[0]+nA[0]*tA/2,P[1]+nA[1]*tA/2),uA,(P[0]+nB[0]*tB/2,P[1]+nB[1]*tB/2),uB)
+    if O is None:return None
+    sigma=-1.0 if -(nB[0]*uA[0]+nB[1]*uA[1])<0 else 1.0
+    cx=O[0]-nA[0]*depth/2+sigma*uA[0]*width/2
+    cy=O[1]-nA[1]*depth/2+sigma*uA[1]*width/2
+    return (cx,cy),_angle(uA)
+
+
+def _slab_corner_placement(poly,i,width,depth):
+    V=poly[i];nxt=poly[(i+1)%len(poly)];prv=poly[i-1]
+    e1=_unit(nxt[0]-V[0],nxt[1]-V[1]);e2=_unit(prv[0]-V[0],prv[1]-V[1])
+    if e1 is None or e2 is None:return None
+    n1=(-e1[1],e1[0])
+    if n1[0]*e2[0]+n1[1]*e2[1]<0:n1=(-n1[0],-n1[1])
+    return (V[0]+e1[0]*width/2+n1[0]*depth/2,V[1]+e1[1]*width/2+n1[1]*depth/2),_angle(e1)
+
+
+def column_snap(doc:Document,x:float,y:float,tolerance:float=COLUMN_SNAP_TOLERANCE,width:float=.25,depth:float=.25):
+    """Place a column centre near wall corners, slab corners, or on a wall.
+
+    Returns (SnapPoint at the column centre, rotation_degrees_or_None) or
+    (None, None). Wall corners win over slab corners, which win over a wall
+    axis. Columns are flush with outer wall faces where outside is known.
+    """
+    active_z=float(doc.work_plane.origin[2]);width=float(width);depth=float(depth)
     walls=[(eid,e.params) for eid,e in doc.entities.items()
            if e.kind=='wall' and e.visible and abs(float(e.params.get('z',0.0))-active_z)<=1e-5]
-    corners=[]
-    hit=_best_wall_intersection(doc,x,y,tolerance,set(),active_z)
-    if hit is not None:corners.append(hit)
+    polys=None
+    def rooms():
+        nonlocal polys
+        if polys is None:polys=_room_polygons(doc)
+        return polys
+    # 1) Wall corners, ends and crossings.
+    junctions=[]
     for eid,p in walls:
-        corners.append(SnapPoint(float(p['x1']),float(p['y1']),active_z,'endpoint',eid))
-        corners.append(SnapPoint(float(p['x2']),float(p['y2']),active_z,'endpoint',eid))
-    corners.extend(_slab_vertices(doc,active_z))
+        for P in ((float(p['x1']),float(p['y1'])),(float(p['x2']),float(p['y2']))):
+            d=hypot(P[0]-x,P[1]-y)
+            if d<tolerance:junctions.append((d,P))
+    crossing=_best_wall_intersection(doc,x,y,tolerance,set(),active_z)
+    if crossing is not None:junctions.append((hypot(crossing.x-x,crossing.y-y),(crossing.x,crossing.y)))
+    if junctions:
+        _,P=min(junctions,key=lambda item:item[0])
+        at=[(eid,p) for eid,p in walls
+            if hypot(float(p['x1'])-P[0],float(p['y1'])-P[1])<1e-6 or hypot(float(p['x2'])-P[0],float(p['y2'])-P[1])<1e-6]
+        if len(at)==2:
+            placed=_corner_placement(P,at[0][1],at[1][1],rooms(),width,depth)
+            if placed is not None:
+                (cx,cy),rot=placed
+                return SnapPoint(cx,cy,active_z,'wall_corner',f'{at[0][0]}|{at[1][0]}'),rot
+        if len(at)==1:
+            p=at[0][1];u=_unit(float(p['x2'])-float(p['x1']),float(p['y2'])-float(p['y1']))
+            return SnapPoint(P[0],P[1],active_z,'endpoint',at[0][0]),(_angle(u) if u else None)
+        return SnapPoint(P[0],P[1],active_z,'intersection',''),None
+    # 2) Floor slab corners (no wall corner nearby).
     best=None;bestd=float(tolerance)
-    for sp in corners:
+    for sp in _slab_vertices(doc,active_z):
         d=hypot(sp.x-x,sp.y-y)
-        if d<bestd-1e-12:best,bestd=sp,d
+        if d<bestd:best,bestd=sp,d
     if best is not None:
-        host=next((p for eid,p in walls if eid==best.entity_id.split('|')[0]),None)
-        return best,(_wall_angle(host) if host is not None else None)
+        slab=doc.get(best.entity_id)
+        if slab.kind=='room_floor':
+            from archforge.architecture.rooms import room_slab_geometry
+            poly=list((room_slab_geometry(doc,slab) or {}).get('points',()))
+        else:
+            poly=list(slab.params.get('points',()))
+        idx=min(range(len(poly)),key=lambda i:hypot(poly[i][0]-best.x,poly[i][1]-best.y))
+        placed=_slab_corner_placement([(float(a),float(b)) for a,b in poly],idx,width,depth)
+        if placed is not None:
+            (cx,cy),rot=placed
+            return SnapPoint(cx,cy,active_z,'slab_corner',best.entity_id),rot
+        return best,None
+    # 3) On a wall: follow its direction, flush with its outer face.
     for eid,p in walls:
         sp=_wall_projection(eid,p,x,y,tolerance)
         if sp is None:continue
         d=hypot(sp.x-x,sp.y-y)
-        if d<bestd:best,bestd=SnapPoint(sp.x,sp.y,active_z,'wall',eid),d
+        if d<bestd:best,bestd=(sp,eid,p),d
     if best is not None:
-        host=next(p for eid,p in walls if eid==best.entity_id)
-        return best,_wall_angle(host)
+        sp,eid,p=best
+        u=_unit(float(p['x2'])-float(p['x1']),float(p['y2'])-float(p['y1']))
+        perp=(-u[1],u[0]);t=float(p['thickness'])
+        side=_outward_side((sp.x,sp.y),u,perp,t,rooms())
+        cx,cy=sp.x,sp.y
+        if side is not None:
+            shift=t/2.0-depth/2.0
+            cx+=perp[0]*side*shift;cy+=perp[1]*side*shift
+        return SnapPoint(cx,cy,active_z,'wall',eid),_angle(u)
     return None,None
