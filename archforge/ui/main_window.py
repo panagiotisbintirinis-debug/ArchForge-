@@ -144,8 +144,20 @@ class MainWindow(QMainWindow):
         # real central PlanView. Switching tabs must never leave Wall/Door/etc.
         # routed to an invisible 3D widget.
         plan_tools = {'select','wall','door','window','opening_rect','opening_arch','stair','ramp','move','stretch','rotate','component'}
+        # Tools the 3D Scene places by clicking on the model itself.
+        pbr_tools = {'select','door','window','opening_rect','opening_arch','stair','ramp','move','rotate'}
         central = getattr(self, '_central_tabs', None)
-        if tool in plan_tools and central is not None and not getattr(self, '_simultaneous_action', None).isChecked():
+        simultaneous = getattr(self, '_simultaneous_action', None)
+        simultaneous = simultaneous is not None and simultaneous.isChecked()
+        looking_at_3d = (
+            central is not None and not simultaneous and central.currentIndex() == 1
+            and self.tabs.currentWidget() is self.pbr_view
+        )
+        if looking_at_3d and tool in pbr_tools:
+            # Stay in 3D: Door/Window/Opening/Stair work directly on the model.
+            self.view = self.pbr_view
+            self.pbr_view.activate()
+        elif tool in plan_tools and central is not None and not simultaneous:
             central.setCurrentIndex(0)
             self.view = self.plan_view
         # Column/Beam are placed in whichever editor the human is using; the

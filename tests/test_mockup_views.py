@@ -77,3 +77,37 @@ def test_a_click_without_drag_does_not_change_the_view():
     window.plan_view.end_view_line(1.0, 1.01)
     assert window.pbr_view._view_line is None
     _close(app, window)
+
+
+@pytest.mark.parametrize('tool', ['door', 'window', 'opening_rect'])
+def test_door_and_window_work_directly_in_the_3d_scene(tool):
+    app, window = _window()
+    window._set_pbr_camera('orbit')
+    assert window._central_tabs.currentIndex() == 1
+    window._set_active_tool(tool)
+    assert window._central_tabs.currentIndex() == 1
+    assert window.view is window.pbr_view
+    assert window.pbr_view.active_tool == tool
+    _close(app, window)
+
+
+def test_wall_tool_from_3d_returns_to_the_2d_plan():
+    app, window = _window()
+    window._set_pbr_camera('orbit')
+    window._set_active_tool('wall')
+    assert window._central_tabs.currentIndex() == 0
+    assert window.view is window.plan_view
+    assert window.plan_view.controller.tool == 'wall'
+    _close(app, window)
+
+
+def test_door_placed_from_the_3d_scene_cuts_its_wall():
+    import json
+    app, window = _window()
+    window._set_pbr_camera('orbit')
+    window._set_active_tool('door')
+    wall = next(e for e in window.doc.entities.values() if e.kind == 'wall' and e.params['y1'] == 0 and e.params['y2'] == 0)
+    window.pbr_view._place_opening_from_web('door', json.dumps({'entity_id': wall.id, 'point': [2.0, 0.0, 1.0]}))
+    doors = [e for e in window.doc.entities.values() if e.kind == 'door']
+    assert len(doors) == 1 and doors[0].parent_id == wall.id
+    _close(app, window)
