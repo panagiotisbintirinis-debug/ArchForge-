@@ -760,17 +760,21 @@ class AssignConstruction(Command):
             doc.mark_dirty(self.eid)
 
 class CommandStack:
-    def __init__(self,doc):self.doc=doc;self.done=[];self.undone=[]
+    def __init__(self,doc):self.doc=doc;self.done=[];self.undone=[];self.listeners=[]
+    def _notify(self):
+        # Views that are visible at the same time (2D + 3D) refresh on every
+        # committed change, not only the view that authored it.
+        for listener in tuple(getattr(self,'listeners',())):listener()
     @property
     def can_undo(self) -> bool:
         return bool(self.done)
     @property
     def can_redo(self) -> bool:
         return bool(self.undone)
-    def execute(self,c):c.do(self.doc);self.done.append(c);self.undone.clear()
+    def execute(self,c):c.do(self.doc);self.done.append(c);self.undone.clear();self._notify()
     def undo(self):
         if not self.done:return
-        c=self.done.pop();c.undo(self.doc);self.undone.append(c)
+        c=self.done.pop();c.undo(self.doc);self.undone.append(c);self._notify()
     def redo(self):
         if not self.undone:return
-        c=self.undone.pop();c.do(self.doc);self.done.append(c)
+        c=self.undone.pop();c.do(self.doc);self.done.append(c);self._notify()

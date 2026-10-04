@@ -33,6 +33,7 @@ class MainWindow(QMainWindow):
         self.resize(1400, 900)
         self.doc = Document()
         self.stack = CommandStack(self.doc)
+        self.stack.listeners.append(self._on_document_changed)
         self.current_path = None
         self._clean_state = copy.deepcopy(self.doc.to_dict())
         self.tabs = QTabWidget()
@@ -100,12 +101,8 @@ class MainWindow(QMainWindow):
         if tool in plan_tools and central is not None and not getattr(self, '_simultaneous_action', None).isChecked():
             central.setCurrentIndex(0)
             self.view = self.plan_view
-        # Structural authoring belongs to the real structural view.
-        if tool.startswith('structural_') and self.view is not self.structural_view:
-            if central is not None:
-                central.setCurrentIndex(1)
-            self.tabs.setCurrentWidget(self.structural_view)
-            self.view = self.structural_view
+        # Column/Beam are placed in whichever editor the human is using; the
+        # 2D plan supports them, so do not jump to the Structural tab.
         if self.view is self.structural_view and str(tool) not in (
             'select','structural_column','structural_beam','move','rotate'
         ):
@@ -1513,6 +1510,15 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             QMessageBox.warning(self, 'Flat Roof', str(exc))
 
+    def _on_document_changed(self):
+        # Refresh every editor the human can currently see (e.g. 2D + 3D side
+        # by side) so a committed edit appears without switching tabs. Hidden
+        # editors refresh when they are shown.
+        for view in (getattr(self, 'plan_view', None), getattr(self, 'pbr_view', None), getattr(self, 'structural_view', None)):
+            if view is None or view is self.view or not view.isVisible():
+                continue
+            view.redraw()
+
     def _selection_from_view(self):
         self.refresh_inspector()
 
@@ -1573,6 +1579,7 @@ class MainWindow(QMainWindow):
     def _replace_project(self, doc, path=None):
         self.doc = doc
         self.stack = CommandStack(self.doc)
+        self.stack.listeners.append(self._on_document_changed)
         for view in (self.plan_view, self.pbr_view, self.structural_view):
             view.rebind(self.doc, self.stack)
         self.current_path = path
