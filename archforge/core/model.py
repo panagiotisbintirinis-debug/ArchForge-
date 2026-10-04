@@ -669,6 +669,21 @@ class Document:
     def get(self, eid):
         return self.entities[eid]
 
+    def active_level_name(self, tolerance=1e-5):
+        """Name of the storey the work plane sits on.
+
+        A fresh document keeps the generic 'XY' work-plane name at z=0, which
+        is the Ground storey; resolve such planes by elevation.
+        """
+        name = str(self.work_plane.name)
+        if name in self.levels:
+            return name
+        z = float(self.work_plane.origin[2])
+        for level_name, level_z in self.levels.items():
+            if abs(float(level_z) - z) <= tolerance:
+                return str(level_name)
+        return name
+
     def update(self, eid, changes):
         entity = self.get(eid)
         if entity.locked:

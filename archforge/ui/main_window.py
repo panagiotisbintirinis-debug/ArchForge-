@@ -762,7 +762,7 @@ class MainWindow(QMainWindow):
             base_level_editor=QComboBox(dialog)
             for name,z in ordered_levels:
                 base_level_editor.addItem(f'{name} ({float(z):.2f} m)', str(name))
-            base_idx=base_level_editor.findData(str(entity.params.get('base_level',self.doc.work_plane.name)))
+            base_idx=base_level_editor.findData(str(entity.params.get('base_level',self.doc.active_level_name())))
             if base_idx >= 0:
                 base_level_editor.setCurrentIndex(base_idx)
             form.addRow('Base Level',base_level_editor)
@@ -781,7 +781,7 @@ class MainWindow(QMainWindow):
             beam_level_editor=QComboBox(dialog)
             for name,z in ordered_levels:
                 beam_level_editor.addItem(f'{name} ({float(z):.2f} m)', str(name))
-            level_idx=beam_level_editor.findData(str(entity.params.get('level',self.doc.work_plane.name)))
+            level_idx=beam_level_editor.findData(str(entity.params.get('level',self.doc.active_level_name())))
             if level_idx >= 0:
                 beam_level_editor.setCurrentIndex(level_idx)
             form.addRow('Storey',beam_level_editor)

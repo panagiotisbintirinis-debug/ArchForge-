@@ -103,7 +103,7 @@ class PointerController:
             return self.preview
         if self.tool in ('structural_column','structural_beam'):
             active_z=float(self.doc.work_plane.origin[2])
-            level_name=str(self.doc.work_plane.name)
+            level_name=self.doc.active_level_name()
             above=sorted(
                 (float(z),str(name))
                 for name,z in self.doc.levels.items()

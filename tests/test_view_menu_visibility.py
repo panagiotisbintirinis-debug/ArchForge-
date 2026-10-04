@@ -28,8 +28,10 @@ def test_view_menu_controls_real_status_bar_and_tools_toolbar_visibility():
     # Verify the menu contents while the QMenu wrapper is definitely live. Some
     # offscreen PySide6 builds invalidate a retained QMenu wrapper after visibility
     # changes even though the actual menu/action ownership remains correct.
+    # The View menu also carries workspace dock toggles; only the two shell
+    # toggles are this test's contract.
     labels = {action.text() for action in window.view_menu.actions()}
-    assert labels == {'Status Bar', 'Tools Toolbar'}
+    assert {'Status Bar', 'Tools Toolbar'} <= labels
 
     window.status_bar_action.trigger()
     window.tools_toolbar_action.trigger()

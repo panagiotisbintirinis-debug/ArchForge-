@@ -124,9 +124,9 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
     if e.kind in ('floor','room'):return abs(float(p.get('z',0.0))-z)<=tolerance
     if e.kind=='mep_terminal':return abs(float(p.get('level_z',0.0))-z)<=tolerance
     if e.kind=='structural_column':
-        return str(p.get('base_level',''))==str(doc.work_plane.name) or abs(float(p.get('z',0.0))-z)<=tolerance
+        return str(p.get('base_level',''))==doc.active_level_name() or abs(float(p.get('z',0.0))-z)<=tolerance
     if e.kind=='structural_beam':
-        return str(p.get('level',''))==str(doc.work_plane.name)
+        return str(p.get('level',''))==doc.active_level_name()
     if e.kind=='structural_support':
         if not e.parent_id or e.parent_id not in doc.entities:return False
         return _entity_on_active_level(doc,doc.get(e.parent_id),tolerance)

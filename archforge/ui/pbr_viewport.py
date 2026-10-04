@@ -1629,7 +1629,7 @@ class PBRViewport(QWidget):
     def _place_structural_column_from_web(self, x: float, y: float) -> None:
         try:
             active_z = float(self.doc.work_plane.origin[2])
-            level_name = str(self.doc.work_plane.name)
+            level_name = self.doc.active_level_name()
             above = sorted(
                 (float(z), str(name))
                 for name, z in self.doc.levels.items()
@@ -1657,7 +1657,7 @@ class PBRViewport(QWidget):
     def _begin_structural_beam_from_web(self, x: float, y: float) -> None:
         try:
             active_z = float(self.doc.work_plane.origin[2])
-            level_name = str(self.doc.work_plane.name)
+            level_name = self.doc.active_level_name()
             above = sorted(
                 (float(z), str(name)) for name, z in self.doc.levels.items()
                 if float(z) > active_z + 1e-9
