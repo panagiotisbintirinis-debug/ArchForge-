@@ -460,7 +460,10 @@ class PlanView(QGraphicsView):
             pen.setStyle(Qt.PenStyle.DashLine if p.role=='roof-outline' else Qt.PenStyle.DashDotLine)
         if p.role=='cable':
             from archforge.mep.electrical import CABLE_COLORS
-            pen=QPen(QColor(CABLE_COLORS.get(dict(p.meta).get('group'),'#e07a00')));pen.setWidthF(.015);pen.setStyle(Qt.PenStyle.DashLine)
+            pen=QPen(QColor(CABLE_COLORS.get(dict(p.meta).get('group'),'#e07a00')));pen.setWidthF(.015)
+            pen.setStyle({'wall':Qt.PenStyle.SolidLine,'floor':Qt.PenStyle.DotLine}.get(dict(p.meta).get('run'),Qt.PenStyle.DashLine))
+        if p.role=='elec-box':
+            pen=QPen(QColor({'pull':'#c0262d','floor':'#0a8a5a'}.get(dict(p.meta).get('box'),'#3a3f48')));pen.setWidthF(.012)
         if p.role=='electrical-point':pen=QPen(QColor(200,120,0));pen.setWidthF(.02)
         if p.role=='plumbing-point':pen=QPen(QColor(31,90,160));pen.setWidthF(.02)
         if p.role in ('wall-layer','wall-insulation'):

@@ -207,6 +207,13 @@ def _rafter_spacing(v):
     return v
 
 
+def _cable_routing(v):
+    v = str(v)
+    if v not in ('auto', 'wall', 'floor'):
+        raise ValueError('routing must be auto, wall or floor')
+    return v
+
+
 def _count(v):
     value = int(round(float(v)))
     if not 0 <= value <= 20:
@@ -512,7 +519,8 @@ SCHEMAS = {
                      'pitch': _pitch, 'overhang': _nonnegative, 'rafter_spacing': _rafter_spacing,
                      'roof_form': _roof_form, 'tile': _roof_tile, 'snow_zone': _snow_zone, 'altitude': _nonnegative,
                      'insulation': _roof_insulation, 'insulation_thickness': _insulation_thickness},
-    'electrical_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _electrical_type, 'power_w': _nonnegative},
+    'electrical_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _electrical_type, 'power_w': _nonnegative,
+                         'routing': _cable_routing},
     'plumbing_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _plumbing_type},
     'cabinet': {
         'x': _finite, 'y': _finite, 'z': _finite, 'rotation': _finite,

@@ -91,7 +91,14 @@ class _Grid:
     def point(self, c):
         return (self.x0 + c[0] * CELL, self.y0 + c[1] * CELL)
 
+    mode = "floor"
+
     def cost(self, c):
+        if self.mode == "wall":
+            # Conduits chased into the walls: run inside walls, avoid open rooms.
+            if c in self.wall:
+                return 0.8
+            return 1.5 if c in self.near else 40.0
         if c in self.wall:
             return WALL_COST
         return NEAR_WALL_COST if c in self.near else FREE_COST

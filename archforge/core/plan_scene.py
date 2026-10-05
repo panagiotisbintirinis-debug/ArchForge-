@@ -513,8 +513,18 @@ def build_plan_frame(doc,preview=None):
         level=float(doc.work_plane.origin[2])
         wiring=route_cables_cached(doc)
         for a,b,group,cid in wiring['runs']:
+            rel=a[2]-level
             if abs(a[2]-b[2])<1e-9 and elec_floor(doc,a[2])==level:
-                f.primitives.append(Primitive2D('polyline',((a[0],a[1]),(b[0],b[1])),role='cable',meta=(('group',group),('circuit',cid))))
+                run='floor' if rel<1.0 else ('wall' if rel<2.45 else 'ceiling')
+                f.primitives.append(Primitive2D('polyline',((a[0],a[1]),(b[0],b[1])),role='cable',meta=(('group',group),('circuit',cid),('run',run))))
+        for x,y,z,kind,cid in wiring['boxes']:
+            if elec_floor(doc,z)==level:
+                r=.07
+                pts=((x,y-r),(x+r,y),(x,y+r),(x-r,y),(x,y-r)) if kind=='floor' else ((x-r,y-r),(x+r,y-r),(x+r,y+r),(x-r,y+r),(x-r,y-r))
+                f.primitives.append(Primitive2D('polyline',pts,role='elec-box',meta=(('box',kind),('circuit',cid))))
+                if kind=='pull':
+                    f.primitives.append(Primitive2D('polyline',((x-r,y-r),(x+r,y+r)),role='elec-box',meta=(('box',kind),)))
+                    f.primitives.append(Primitive2D('polyline',((x-r,y+r),(x+r,y-r)),role='elec-box',meta=(('box',kind),)))
         names={pid:c['id'] for c in wiring['circuits'] for pid in c['points']}
         for eid in doc.entities:
             e=doc.get(eid)

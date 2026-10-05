@@ -1,4 +1,5 @@
 """Electrical points in the Document; circuits and cables derived by stated rules."""
+import math
 import os
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
@@ -77,7 +78,7 @@ def test_plan_labels_and_elec_layer_in_3d():
     labels = [dict(p.meta)['text'] for p in prims if p.role == 'electrical-label']
     assert any(t.startswith('Ρ Κ') for t in labels) and any(t.startswith('Φ Κ') for t in labels)
     objs = build_pbr_scene_payload(IncrementalEvaluationCache(SculptedPreviewBackend()).sync(doc), [], doc=doc)['objects']
-    assert {o['render_part'] for o in objs if o.get('layer') == 'elec'} == {'elec:lighting', 'elec:sockets'}
+    assert {o['render_part'] for o in objs if o.get('layer') == 'elec'} == {'elec:lighting', 'elec:sockets', 'elec:boxes'}
 
 
 def test_menu_places_points_and_schedule_lists_circuits():
@@ -98,3 +99,44 @@ def test_menu_places_points_and_schedule_lists_circuits():
     finally:
         QMessageBox.information = original
         window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_greek_practice_wall_runs_boxes_and_island_from_the_floor():
+    from archforge.mep.electrical import FLOOR_BOX_Z, WALL_RUN_Z, routing_of
+    doc = Document(); stack = CommandStack(doc); _house(stack)
+    _pt(stack, 'panel', 0.3, 3.0)
+    wall_socket = _pt(stack, 'socket', 0.3, 1.0)
+    island = _pt(stack, 'kitchen_socket', 2.0, 3.6)           # free standing: island
+    light = _pt(stack, 'light', 2.0, 2.0)
+    assert routing_of(doc, wall_socket) == 'wall' and routing_of(doc, island) == 'floor'
+    r = route_cables(doc)
+    horizontal = {round(a[2], 3) for a, b, _g, _c in r['runs'] if abs(a[2] - b[2]) < 1e-9}
+    assert WALL_RUN_Z in horizontal and 0.05 in horizontal          # wall runs above lintels, floor runs in the screed
+    assert not any(abs(z - 0.30) < 1e-6 for z in horizontal)
+    boxes = r['boxes']
+    assert any(k == 'junction' and abs(z - WALL_RUN_Z) < 1e-9 and math.dist((x, y), (0.3, 1.0)) < 0.25 for x, y, z, k, _c in boxes)
+    assert any(k == 'floor' and abs(z - FLOOR_BOX_Z) < 1e-9 and math.dist((x, y), (2.0, 3.6)) < 0.25 for x, y, z, k, _c in boxes)
+    # Lights: from a box on a wall, through the ceiling (never through the floor).
+    lit = [(a, b) for a, b, g, _c in r['runs'] if g == 'lighting']
+    assert lit and all(a[2] >= WALL_RUN_Z - 1e-9 for a, b in lit if abs(a[2] - b[2]) < 1e-9)
+    # The user can force the island socket through the wall instead (shared command, undoable).
+    stack.execute(UpdateEntity(island.id, {'routing': 'wall'}))
+    assert routing_of(doc, doc.get(island.id)) == 'wall'
+    assert not any(k == 'floor' for *_xyz, k, _c in route_cables(doc)['boxes'])
+    stack.undo()
+    assert routing_of(doc, doc.get(island.id)) == 'floor'
+    with pytest.raises(ValueError):
+        stack.execute(UpdateEntity(island.id, {'routing': 'ceiling'}))
+    prims = build_plan_frame(doc).primitives
+    kinds = {dict(p.meta)['box'] for p in prims if p.role == 'elec-box'}
+    assert {'junction', 'floor'} <= kinds
+    assert {dict(p.meta)['run'] for p in prims if p.role == 'cable'} >= {'wall', 'floor'}
+
+
+def test_pull_boxes_every_10_m_and_after_two_bends():
+    from archforge.mep.electrical import _pull_boxes
+    straight = [(float(x), 0.0) for x in range(0, 26)]
+    assert len(_pull_boxes(straight, 2.35, 'C1')) == 2              # 25 m -> boxes at 10 and 20 m
+    zigzag = [(0, 0), (1, 0), (1, 1), (2, 1), (2, 2), (3, 2)]
+    boxes = _pull_boxes(zigzag, 2.35, 'C1')
+    assert len(boxes) == 1 and boxes[0][3] == 'pull' and boxes[0][:2] == (2, 1)

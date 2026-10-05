@@ -14,8 +14,12 @@ check it:
   20 A 2.5 mm², air-conditioner, washing machine, dishwasher 16 A 2.5 mm².
 * A shared circuit whose design load exceeds 80 % of its breaker, or a
   dedicated line whose appliance exceeds its breaker, is flagged.
-* Routes: lights and switches via the ceiling, sockets along the walls at
-  30 cm, using the same cheapest-path router as the plumbing.
+* Routes (Greek practice): conduits rise into the walls and run horizontally
+  at 2.35 m (above the lintels) with a junction box above every switch and
+  socket; points away from walls (kitchen islands) are fed through the floor
+  with a box 15 cm above the floor; the choice is automatic per point or set
+  by the user ('routing' = wall/floor).  Pull boxes on runs over 10 m or after
+  two bends.  Same cheapest-path router as the plumbing.
 * All circuits sit behind a 30 mA RCD (noted, not modelled).
 
 Status: pre-design layout for review by an electrical engineer; it is not
@@ -162,57 +166,148 @@ def design_circuits(doc):
     return out
 
 
+WALL_RUN_Z = 2.35          # horizontal conduits above the lintels (Greek practice 2.30-2.40 m)
+FLOOR_BOX_Z = 0.15         # junction boxes 15 cm above the floor for floor routing
+WALL_NEAR = 0.60           # auto: a point within 60 cm of a wall face is fed from the wall
+PULL_EVERY = 10.0          # pull box on straight runs longer than 10 m (every 10 m)
+PULL_BENDS = 2             # ... and after 2 bends without a box
+
+
+def _wall_distance(doc, x, y, floor):
+    best = math.inf
+    for e in doc.entities.values():
+        if e.kind != "wall" or abs(float(e.params.get("z", 0.0)) - floor) > 0.05:
+            continue
+        p = e.params
+        x1, y1, x2, y2 = (float(p[k]) for k in ("x1", "y1", "x2", "y2"))
+        dx, dy = x2 - x1, y2 - y1
+        L2 = dx * dx + dy * dy
+        t = 0.0 if L2 < 1e-12 else max(0.0, min(1.0, ((x - x1) * dx + (y - y1) * dy) / L2))
+        best = min(best, math.hypot(x - (x1 + dx * t), y - (y1 + dy * t)) - float(p["thickness"]) / 2)
+    return best
+
+
+def routing_of(doc, e):
+    """'wall' or 'floor' for one point: explicit choice, else nearest wall decides."""
+    choice = str(e.params.get("routing", "auto"))
+    if choice in ("wall", "floor"):
+        return choice
+    floor = _floor_of(doc, float(e.params["z"]))
+    return "wall" if _wall_distance(doc, float(e.params["x"]), float(e.params["y"]), floor) <= WALL_NEAR else "floor"
+
+
+def _pull_boxes(points_chain, z, cid):
+    """Pull boxes along one path (list of xy from the target to the source)."""
+    boxes, run, bends, prev_dir = [], 0.0, 0, None
+    for a, b in zip(points_chain, points_chain[1:]):
+        d = (round(b[0] - a[0], 6), round(b[1] - a[1], 6))
+        seg = math.hypot(*d)
+        direction = (d[0] / seg, d[1] / seg) if seg > 1e-9 else prev_dir
+        if prev_dir is not None and direction != prev_dir:
+            bends += 1
+            if bends > PULL_BENDS:
+                boxes.append((a[0], a[1], z, "pull", cid))
+                bends, run = 1, 0.0
+        run += seg
+        while run > PULL_EVERY:
+            back = run - PULL_EVERY
+            boxes.append((b[0] - direction[0] * back, b[1] - direction[1] * back, z, "pull", cid))
+            run, bends = back, 0
+        prev_dir = direction
+    return boxes
+
+
 def route_cables(doc):
-    """Circuits plus cable runs ``(a, b, group)`` from the panel to each point."""
+    """Circuits plus conduit runs ``(a, b, group, circuit)`` and boxes.
+
+    Wall routing: up from the panel into the walls at WALL_RUN_Z, horizontal
+    runs inside the walls, a junction box at WALL_RUN_Z above every switch and
+    socket, then down to the device.  Ceiling lights are fed from a box on
+    the nearest wall through the ceiling slab.  Floor routing (islands, free
+    standing points): runs in the screed, junction box FLOOR_BOX_Z above the
+    floor at the device.  Pull boxes by the stated length/bend rule.
+    """
     design = design_circuits(doc)
-    runs = []
+    runs, boxes = [], []
     points = {e.id: e for e in electrical_points(doc)}
     panel = next((e for e in points.values() if e.params["point_type"] == "panel"), None)
     if panel is None:
-        return {**design, "runs": runs}
+        return {**design, "runs": runs, "boxes": boxes}
+    px, py = float(panel.params["x"]), float(panel.params["y"])
     for circuit in design["circuits"]:
         members = [points[i] for i in circuit["points"]]
         floor = _floor_of(doc, float(members[0].params["z"]))
-        overhead = circuit["group"] == "lighting"
-        z = _ceiling(doc, floor) if overhead else floor + 0.30
-        pts = [(float(e.params["x"]), float(e.params["y"])) for e in members + [panel]]
-        grid = _Grid(doc, floor, pts)
-        source = grid.cell(float(panel.params["x"]), float(panel.params["y"]))
-        targets = {e.id: grid.cell(float(e.params["x"]), float(e.params["y"])) for e in members}
-        paths, _loads, parent = _grow(grid, source, targets)
-        seen = set()
-        for path in paths.values():
-            c = path[0]
-            while parent.get(c) is not None:
-                p = parent[c]
-                edge = frozenset((c, p))
-                if edge in seen:
-                    break
-                seen.add(edge)
-                a, b = grid.point(c), grid.point(p)
-                runs.append(((a[0], a[1], z), (b[0], b[1], z), circuit["group"], circuit["id"]))
-                c = p
-        # Panel riser to the run level and drops to each point's mounting height.
-        pp = grid.point(source)
-        runs.append(((pp[0], pp[1], mount_z(doc, panel.params)), (pp[0], pp[1], z), circuit["group"], circuit["id"]))
+        cid, group = circuit["id"], circuit["group"]
+        split = {"wall": [], "floor": []}
         for e in members:
-            c = grid.point(grid.cell(float(e.params["x"]), float(e.params["y"])))
-            runs.append(((c[0], c[1], z), (c[0], c[1], mount_z(doc, e.params)), circuit["group"], circuit["id"]))
-    # Switch legs: switch to its lights through the ceiling.
+            ceiling_light = e.params["point_type"] == "light"
+            split["wall" if ceiling_light else routing_of(doc, e)].append(e)
+        for mode, chosen in split.items():
+            if not chosen:
+                continue
+            z = floor + (WALL_RUN_Z if mode == "wall" else 0.05)
+            grid = _Grid(doc, floor, [(float(e.params["x"]), float(e.params["y"])) for e in chosen] + [(px, py)])
+            grid.mode = mode
+            source = grid.cell(px, py)
+            targets = {}
+            for e in chosen:
+                ex, ey = float(e.params["x"]), float(e.params["y"])
+                cell = grid.cell(ex, ey)
+                if mode == "wall" and e.params["point_type"] == "light":
+                    # Box on the nearest wall, then through the ceiling to the light.
+                    cell = min(grid.wall | grid.near, key=lambda c: (c not in grid.wall, math.hypot(*(q - r for q, r in zip(grid.point(c), (ex, ey))))))
+                targets[e.id] = cell
+            paths, _loads, parent = _grow(grid, source, targets)
+            seen = set()
+            for tid, path in paths.items():
+                chain = []
+                c = path[0]
+                chain.append(grid.point(c))
+                while parent.get(c) is not None:
+                    p_ = parent[c]
+                    edge = frozenset((c, p_))
+                    a, b = grid.point(c), grid.point(p_)
+                    if edge not in seen:
+                        seen.add(edge)
+                        runs.append(((a[0], a[1], z), (b[0], b[1], z), group, cid))
+                    chain.append(b)
+                    c = p_
+                boxes.extend(_pull_boxes(chain, z, cid))
+            pp = grid.point(source)
+            runs.append(((pp[0], pp[1], mount_z(doc, panel.params)), (pp[0], pp[1], z), group, cid))
+            for e in chosen:
+                bx, by = grid.point(targets[e.id])
+                device_z = mount_z(doc, e.params)
+                if mode == "wall" and e.params["point_type"] == "light":
+                    zc = _ceiling(doc, floor)
+                    ex, ey = float(e.params["x"]), float(e.params["y"])
+                    boxes.append((bx, by, z, "junction", cid))
+                    runs += [((bx, by, z), (bx, by, zc), group, cid), ((bx, by, zc), (ex, by, zc), group, cid),
+                             ((ex, by, zc), (ex, ey, zc), group, cid)]
+                elif mode == "wall":
+                    boxes.append((bx, by, z, "junction", cid))
+                    runs.append(((bx, by, z), (bx, by, device_z), group, cid))
+                else:
+                    box_z = floor + FLOOR_BOX_Z
+                    boxes.append((bx, by, box_z, "floor", cid))
+                    runs += [((bx, by, z), (bx, by, box_z), group, cid), ((bx, by, box_z), (bx, by, device_z), group, cid)]
+    # Switch legs: from the switch's box at the wall run, through the ceiling to its lights.
     for link in design["switch_links"]:
         sw = points[link["switch"]]
         floor = _floor_of(doc, float(sw.params["z"]))
-        zc = _ceiling(doc, floor)
+        zr, zc = floor + WALL_RUN_Z, _ceiling(doc, floor)
         sx, sy = float(sw.params["x"]), float(sw.params["y"])
-        runs.append(((sx, sy, mount_z(doc, sw.params)), (sx, sy, zc), "switch", ""))
+        boxes.append((sx, sy, zr, "junction", ""))
+        runs.append(((sx, sy, mount_z(doc, sw.params)), (sx, sy, zr), "switch", ""))
+        runs.append(((sx, sy, zr), (sx, sy, zc), "switch", ""))
         for lid in link["lights"]:
             lx, ly = float(points[lid].params["x"]), float(points[lid].params["y"])
             runs.append(((sx, sy, zc), (lx, sy, zc), "switch", ""))
             runs.append(((lx, sy, zc), (lx, ly, zc), "switch", ""))
     runs = [r for r in runs if math.dist(r[0], r[1]) > 1e-6]
-    total = sum(math.dist(a, b) for a, b, _g, _c in runs)
-    design["report"]["cable_m"] = round(total, 1)
-    return {**design, "runs": runs}
+    design["report"]["cable_m"] = round(sum(math.dist(a, b) for a, b, _g, _c in runs), 1)
+    design["report"]["boxes"] = {k: sum(1 for b in boxes if b[3] == k) for k in ("junction", "floor", "pull")}
+    return {**design, "runs": runs, "boxes": boxes}
 
 
 _CACHE = {"key": None, "value": None}

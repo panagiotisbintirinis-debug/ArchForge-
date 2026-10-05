@@ -892,7 +892,10 @@ class MainWindow(QMainWindow):
         wiring = route_cables_cached(self.doc)
         lines = [f"{c['id']}  {c['label']}: {c['breaker_a']} A, {c['cable_mm2']} mm², {len(c['points'])} σημεία, "
                  f"{c['load_w']} W ({c['current_a']} A){'' if c['ok'] else '  ⚠'}" for c in wiring['circuits']]
+        boxes = wiring['report'].get('boxes', {})
         lines += [''] + wiring['report']['warnings'] + ['', f"Καλώδια ≈ {wiring['report'].get('cable_m', 0)} m",
+                                                         f"Κουτιά: διακλάδωσης {boxes.get('junction', 0)}, δαπέδου {boxes.get('floor', 0)}, "
+                                                         f"διέλευσης {boxes.get('pull', 0)} (κάθε 10 m ή μετά από 2 καμπύλες)",
                                                          'Όλα τα κυκλώματα πίσω από διαφορικό 30 mA.', '', wiring['report']['provenance']]
         QMessageBox.information(self, 'Πίνακας κυκλωμάτων', '\n'.join(lines) if wiring['circuits'] else
                                 'Δεν υπάρχουν κυκλώματα: βάλτε πίνακα και σημεία.')
@@ -1280,6 +1283,16 @@ class MainWindow(QMainWindow):
                 self.form.addRow(key, spin)
             elif entity.kind == 'room_floor' and key == 'room_signature':
                 self.form.addRow('Room', QLabel(str(value)))
+        if entity.kind == 'electrical_point' and params.get('point_type') not in ('panel', 'light'):
+            from archforge.mep.electrical import routing_of
+            combo = QComboBox()
+            for value, label in (('auto', 'Αυτόματα (καλύτερη διαδρομή)'), ('wall', 'Από τοίχο (2,35 m)'), ('floor', 'Από δάπεδο (κουτί 15 cm)')):
+                combo.addItem(label, value)
+            combo.setCurrentIndex(max(0, combo.findData(params.get('routing', 'auto'))))
+            combo.currentIndexChanged.connect(
+                lambda _i, widget=combo, entity_id=eid: self._set_entity_choice(entity_id, 'routing', widget.currentData()))
+            self.form.addRow('Όδευση', combo)
+            self.form.addRow('', QLabel('→ ' + {'wall': 'τοίχος', 'floor': 'δάπεδο'}[routing_of(self.doc, entity)]))
         if entity.kind == 'pitched_roof':
             from archforge.structure.timber_roof import FORMS, TILES, size_rafter
             from archforge.structure.timber_roof import INSULATIONS, build_up, indicative_u

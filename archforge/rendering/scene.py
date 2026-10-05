@@ -285,7 +285,19 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
         if any(e.kind == "electrical_point" for e in doc.entities.values()):
             from archforge.mep.electrical import CABLE_COLORS, route_cables_cached
             groups = {}
-            for a, b, group, _cid in route_cables_cached(doc)["runs"]:
+            wiring = route_cables_cached(doc)
+            boxes = ([], [])
+            for x, y, z, _kind, _cid in wiring["boxes"]:
+                s = 0.05
+                base = len(boxes[0])
+                boxes[0].extend([float(x + dx), float(y + dy), float(z + dz)] for dx in (-s, s) for dy in (-s, s) for dz in (-s, s))
+                for q in ((0, 2, 3, 1), (4, 5, 7, 6), (0, 1, 5, 4), (2, 6, 7, 3), (0, 4, 6, 2), (1, 3, 7, 5)):
+                    boxes[1].extend([[base + q[0], base + q[1], base + q[2]], [base + q[0], base + q[2], base + q[3]]])
+            if boxes[1]:
+                objects.append({"id": "", "render_part": "elec:boxes", "kind": "elec_box", "layer": "elec",
+                                "vertices": boxes[0], "triangles": boxes[1], "surfaces": ["box"] * len(boxes[1]),
+                                "material": {"color": "#3a3f48", "roughness": 0.6, "metalness": 0.0}})
+            for a, b, group, _cid in wiring["runs"]:
                 v, t = pipe_mesh(a, b, 25, sides=6)
                 g = groups.setdefault(group, ([], []))
                 base = len(g[0])
