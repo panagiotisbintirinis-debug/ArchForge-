@@ -22,6 +22,7 @@ from PySide6.QtWidgets import QFrame, QLabel, QToolButton, QVBoxLayout, QWidget
 SCULPT_OPS = (("pull", "Τράβηγμα"), ("push", "Σπρώξιμο"), ("inflate", "Φούσκωμα"), ("recess", "Βύθιση"),
               ("smooth", "Λείανση"), ("crease", "Πτυχή"))
 ANGLES = (90.0, 45.0, 15.0, None)
+STAIR_TYPES = ((None, "Αυτόματη"), ("straight", "Ευθεία"), ("l", "Γ (L)"), ("u", "Π (U)"), ("spiral", "Σπιράλ"))
 TOOLS = (("select", "Επιλογή"), ("wall", "Τοίχος"), ("door", "Πόρτα"), ("window", "Παράθυρο"),
          ("structural_column", "Κολώνα"), ("structural_beam", "Δοκός"), ("opening_rect", "Άνοιγμα"))
 BRUSH_STEP = 0.05
@@ -46,6 +47,16 @@ def build_menu(window, view, entity_id=None):
         entries += [_e(f"mm:sculpt:{key}", label, checked=(key == op)) for key, label in SCULPT_OPS]
         return {"center": f"Sculpt · {dict(SCULPT_OPS).get(op, op)} · βούρτσα Ø{window.sculpt_radius.value():.2f} m",
                 "entries": entries, "wheel": "brush"}
+    # Placing a stair: cancel on top, the types around, the wheel cycles the options.
+    pbr = getattr(window, "pbr_view", None)
+    placing_3d = pbr is not None and getattr(pbr, "_stair_tx", None) is not None
+    if tool == "stair" or placing_3d:
+        layout = getattr(window, "_stair_layout", None)
+        entries = [_e("mm:stair:cancel", "✕ Ακύρωση σκάλας", danger=True)]
+        entries += [_e(f"mm:stair:{key or 'auto'}", label, checked=(key == layout))
+                    for key, label in STAIR_TYPES]
+        entries.append(_e("mm:tool:select", "✓ Τέλος σκάλας"))
+        return {"center": f"Σκάλα · {dict(STAIR_TYPES).get(layout, 'Αυτόματη')}", "entries": entries, "wheel": "stair"}
     # Drawing walls: angle step, finish, cancel the live segment.
     if view == "plan" and tool == "wall":
         current = plan.controller.wall_angle_increment
@@ -112,6 +123,13 @@ def run(window, view, entity_id, action_id, plan_xy=None):
             window.sculpt_action.setChecked(True)
         else:
             window.sculpt_operation.setCurrentText(arg)
+    elif group == "stair":
+        if arg == "cancel":
+            window.pbr_view.cancel_interaction()
+            window.plan_view.controller.set_tool("select")
+            window._set_active_tool("select")
+        else:
+            window._choose_stair_layout(None if arg == "auto" else arg)
     elif group == "angle":
         window.plan_view._choose_wall_angle(None if arg == "free" else float(arg))
     elif group == "wall" and arg == "cancel":
@@ -130,6 +148,12 @@ def run(window, view, entity_id, action_id, plan_xy=None):
 
 def wheel(window, kind, steps):
     """Wheel while the menu is open; returns the new centre text."""
+    if kind == "stair":
+        if getattr(window.pbr_view, "_stair_tx", None) is not None:
+            window.pbr_view._cycle_stair_from_web(steps)
+        elif window.plan_view.controller.cycle_option(1 if steps > 0 else -1):
+            window.plan_view.redraw()
+        return build_menu(window, "plan")["center"]
     if kind == "brush":
         window.sculpt_radius.setValue(round(window.sculpt_radius.value() + BRUSH_STEP * steps, 2))
     elif kind == "angle":

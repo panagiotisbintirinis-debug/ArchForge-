@@ -8,7 +8,7 @@
 >
 > Ενημερώνεται σε κάθε commit που αλλάζει κατεύθυνση ή κλείνει στοιχείο.
 
-Τελευταία ενημέρωση: 2026-10-05 · branch `claude/new-session-hiekda` (συνέχεια του `claude/new-session-l1o9gl`) · tests: 724 passed, 1 skipped (Windows ιδιοκτήτη: 724 passed + 1 αποτυχία πλάτους ribbon, διορθώθηκε).
+Τελευταία ενημέρωση: 2026-10-05 · branch `claude/new-session-hiekda` (συνέχεια του `claude/new-session-l1o9gl`) · tests: 728 passed, 1 skipped (Windows ιδιοκτήτη: 724 passed + 1 αποτυχία πλάτους ribbon, διορθώθηκε).
 
 ---
 

@@ -74,8 +74,13 @@ def entity_level(doc, entity, levels=None):
     return levels[0][0]
 
 
+# Default English names given at creation say nothing; the computed label does.
+GENERIC_NAMES = {"Wall", "Column", "Beam", "Stair", "Ramp", "Door", "Window", "Opening", "Floor", "Room",
+                 "Structural_Column", "Structural_Beam", "Box", "Pod"}
+
+
 def _label(entity):
-    if entity.name:
+    if entity.name and entity.name not in GENERIC_NAMES:
         return entity.name
     p, k = entity.params, entity.kind
     base = KIND_LABELS.get(k, k)
@@ -83,6 +88,8 @@ def _label(entity):
         import math
         length = math.hypot(float(p["x2"]) - float(p["x1"]), float(p["y2"]) - float(p["y1"]))
         return f"{base} {length:.2f} m"
+    if k == "stair" and "layout" in p:
+        return f"{base} {p['layout']} · {int(p.get('riser_count', 0))} ρίχτια"
     if k in ("cabinet", "library_object", "box") and "width" in p:
         return f"{base} {float(p['width']) * 100:.0f} cm"
     return base

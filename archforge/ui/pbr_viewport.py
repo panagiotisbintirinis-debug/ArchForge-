@@ -272,8 +272,8 @@ let bridge = null;
 let workPlaneZ = 0;
 window.setWorkPlaneZ = function(z) { workPlaneZ = Number(z) || 0; };
 function placementPoint(event) {
-  const hit = pickModel(event);
-  if (hit && hit.face) return {x: Number(hit.point.x), y: Number(hit.point.y)};
+  // Stair / Ramp start on the floor of the active storey: walls, ceilings and roofs
+  // in the way (e.g. see-through in Glass) must not catch the point.
   const p = pointOnHorizontalPlane(event, workPlaneZ);
   return p ? {x: Number(p.x), y: Number(p.y)} : null;
 }
@@ -1007,8 +1007,31 @@ function pickModel(event) {
   );
   const raycaster = new THREE.Raycaster();
   raycaster.setFromCamera(mouse, camera);
-  const hits = raycaster.intersectObjects(modelRoot.children, false);
+  const hits = raycaster.intersectObjects(modelRoot.children, false).filter((h) => h.object.visible);
   return hits.length ? hits[0] : null;
+}
+
+// Picking an object to act on (select, move, rotate, mouse menu): the most specific
+// thing along the ray wins. Slabs, roofs and ground only when nothing else is there;
+// in Glass, and while a Stair/Ramp is being worked, walls are see-through for the mouse.
+const CONTAINER_KINDS = new Set(["room_floor", "room_ceiling", "room_foundation", "room_roof", "floor", "room",
+                                 "pitched_roof", "ceiling_joists", "terrain"]);
+function pickForSelection(event) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  const mouse = new THREE.Vector2(
+    ((event.clientX - rect.left) / rect.width) * 2 - 1,
+    -((event.clientY - rect.top) / rect.height) * 2 + 1
+  );
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(modelRoot.children, false)
+    .filter((h) => h.object.visible && h.face && h.object.userData.entityId);
+  if (!hits.length) return null;
+  const wallsInactive = activeTechnique === "glass" || activeTool === "stair" || activeTool === "ramp";
+  const kindOf = (h) => h.object.userData.kind || "";
+  return hits.find((h) => !CONTAINER_KINDS.has(kindOf(h)) && !(wallsInactive && kindOf(h) === "wall"))
+    || hits.find((h) => !CONTAINER_KINDS.has(kindOf(h)))
+    || hits[0];
 }
 
 function pointOnHorizontalPlane(event, z) {
@@ -1061,7 +1084,7 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
       return;
     }
 
-    const hit = pickModel(event);
+    const hit = pickForSelection(event);
     if (!hit || !hit.face) return;
     const kind = hit.object.userData.kind || "";
     const supported = ["stair", "ramp", "wall", "box", "pod", "floor", "room", "mechanical_part"];
@@ -1117,7 +1140,7 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
       return;
     }
 
-    const hit = pickModel(event);
+    const hit = pickForSelection(event);
     if (!hit || !hit.face) return;
     const kind = hit.object.userData.kind || "";
     const supported = ["stair", "ramp", "wall", "box", "pod"];
@@ -1304,7 +1327,7 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
 renderer.domElement.addEventListener("dblclick", (event) => {
   if (!bridge || sculpting || stairing || ramping || movingEntity || rotatingEntity) return;
   if (activeTool === "door" || activeTool === "window" || activeTool === "opening_rect" || activeTool === "opening_arch" || activeTool === "sculpt" || activeTool === "stair" || activeTool === "ramp" || activeTool === "move" || activeTool === "rotate") return;
-  const hit = pickModel(event);
+  const hit = pickForSelection(event);
   if (!hit || !hit.face) return;
   bridge.selectEntity(hit.object.userData.entityId || "");
   event.preventDefault();
@@ -1352,7 +1375,7 @@ renderer.domElement.addEventListener("contextmenu", (event) => {
     event.stopPropagation();
     return;
   }
-  const hit = pickModel(event);
+  const hit = pickForSelection(event);
   // Empty space gets the task menu too; Python decides its content.
   bridge.showContextMenu(
     (hit && hit.face && hit.object.userData.entityId) || "",
@@ -1767,6 +1790,13 @@ class PBRViewport(QWidget):
         self.statusChanged.emit("Snap ON" if self._snap_enabled else "Snap OFF — Free mode")
 
     def set_tool(self, tool: str) -> None:
+        # Leaving Stair/Ramp drops a half-placed one, so its HUD and ghost never stay behind.
+        if str(tool) != "stair" and self._stair_tx is not None:
+            self._cancel_stair_from_web()
+        if str(tool) != "ramp" and getattr(self, "_ramp_tx", None) is not None:
+            self._cancel_ramp_from_web()
+        if str(tool) not in ("stair", "ramp"):
+            self._set_stair_candidate_params(())
         self.active_tool = str(tool)
         if self.web_view is not None:
             script = (

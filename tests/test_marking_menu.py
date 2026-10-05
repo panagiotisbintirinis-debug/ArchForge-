@@ -88,3 +88,64 @@ def test_3d_view_gets_the_same_menu_and_routes_its_actions(window):
     window.pbr_view._marking_wheel(-1)
     window._handle_object_context_action('', 'mm:sculpt:exit')
     assert not window.sculpt_action.isChecked()
+
+
+def test_half_placed_stair_in_3d_is_dropped_when_the_tool_changes(window):
+    """Reported: the SPIRAL hint stayed on screen and clicks no longer selected anything."""
+    window.doc.levels['Floor 2'] = 2.7
+    window.pbr_view.set_tool('stair')
+    window.pbr_view._begin_stair_from_web(1.0, 1.0)
+    assert window.pbr_view._stair_tx is not None
+    window.pbr_view.set_tool('select')
+    assert window.pbr_view._stair_tx is None
+    assert not any(e.kind == 'stair' for e in window.doc.entities.values())
+
+
+def test_stair_menu_while_placing(window):
+    from archforge.ui.marking_menu import build_menu, run
+    window.doc.levels['Floor 2'] = 2.7
+    window.pbr_view.set_tool('stair')
+    window.pbr_view._begin_stair_from_web(1.0, 1.0)
+    menu = build_menu(window, 'pbr')
+    assert _ids(menu)[0] == 'mm:stair:cancel' and 'mm:stair:spiral' in _ids(menu) and menu['wheel'] == 'stair'
+    run(window, 'pbr', None, 'mm:stair:cancel')
+    assert window.pbr_view._stair_tx is None and window.plan_view.controller.tool == 'select'
+    run(window, 'plan', None, 'mm:stair:straight')
+    assert window._stair_layout == 'straight' and window.plan_view.controller.tool == 'stair'
+
+
+def test_tree_labels_say_something_instead_of_generic_names(window):
+    from archforge.ui.project_outline import project_outline
+    w = Entity('wall', {'x1': 0, 'y1': 0, 'x2': 8, 'y2': 0, 'z': 0, 'height': 2.7, 'thickness': 0.15}, name='Wall')
+    window.stack.execute(AddEntity(w))
+    labels = []
+
+    def walk(n):
+        labels.append(n['label'])
+        for c in n['children']:
+            walk(c)
+    walk(project_outline(window.doc))
+    assert 'Τοίχος 8.00 m · 15 cm' in labels and not any(l.startswith('Wall') for l in labels)
+
+
+def test_3d_picking_rules_walls_inactive_in_glass_and_while_working_a_stair():
+    """Reported: in Glass the mouse caught the walls instead of the stair."""
+    import re
+    import shutil
+    import subprocess
+    import tempfile
+    from archforge.ui.pbr_viewport import _PBR_HTML as html
+    body = html[html.index('function pickForSelection'):]
+    body = body[:body.index('\n}\n')]
+    assert 'activeTechnique === "glass"' in body and 'activeTool === "stair"' in body and 'CONTAINER_KINDS' in body
+    start = html[html.index('function placementPoint'):]
+    assert 'pickModel' not in start[:start.index('\n}\n')]                 # stair/ramp start on the storey floor
+    dbl = html[html.index('addEventListener("dblclick"'):]
+    assert 'pickForSelection(event)' in dbl[:600]
+    menu = html[html.index('addEventListener("contextmenu"'):]
+    assert 'pickForSelection(event)' in menu[:menu.index('bridge.showContextMenu')]
+    if shutil.which('node'):
+        code = max(re.findall(r'<script[^>]*>(.*?)</script>', html, re.S), key=len)
+        with tempfile.NamedTemporaryFile('w', suffix='.mjs', delete=False) as f:
+            f.write(code)
+        assert subprocess.run(['node', '--check', f.name]).returncode == 0
