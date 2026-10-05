@@ -175,6 +175,12 @@ def install_approved_mockup_shell(window):
     for a in (roof_layer,tiles_layer):
         menus["Κατασκευή"].addAction(a); window.view_menu.addAction(a)
     window._roof_tiles_layer_action=tiles_layer
+    structure_menu=menus["Δομικά"]
+    structure_menu.addSeparator()
+    for text,run in (("Στοιχεία κτιρίου για στατική…",lambda: window._edit_structural_settings()),
+                     ("Στατική ανάλυση φέροντος οργανισμού…",lambda: window._show_structural_analysis())):
+        a=QAction(text,window); a.triggered.connect(lambda _=False,r=run: r()); structure_menu.addAction(a)
+    window._structure_menu=structure_menu
     mep_menu=menus["Μηχανολογικά"]
     from archforge.mep.plumbing import POINT_TYPES
     plumbing=QMenu("Υδραυλικά σημεία",mep_menu); mep_menu.addMenu(plumbing)

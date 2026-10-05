@@ -322,6 +322,34 @@ def _structural_section(v):
     return value
 
 
+def _steel_profile(v):
+    from archforge.structure.analysis.sections import PROFILES
+    v = str(v)
+    if v and v not in PROFILES:
+        raise ValueError(f'unknown steel profile {v}')
+    return v
+
+
+def _choice(options, label):
+    def check(v):
+        v = str(v)
+        if v not in options:
+            raise ValueError(f'{label} must be one of {", ".join(options)}')
+        return v
+    return check
+
+
+def _structural_design_schema():
+    from archforge.structure.analysis.sections import CONCRETE, STEEL_GRADES
+    from archforge.structure.analysis.settings import IMPORTANCE, OCCUPANCIES, ROOF_ACCESS, SOILS, SYSTEMS, ZONES
+    return {'system': _choice(SYSTEMS, 'system'), 'occupancy': _choice(OCCUPANCIES, 'occupancy'),
+            'roof_access': _choice(ROOF_ACCESS, 'roof access'), 'seismic_zone': _choice(ZONES, 'seismic zone'),
+            'soil': _choice(SOILS, 'soil'), 'importance': _choice(IMPORTANCE, 'importance class'),
+            'concrete': _choice(CONCRETE, 'concrete'), 'steel_grade': _choice(STEEL_GRADES, 'steel grade'),
+            'slab_thickness': _positive, 'finishes': _nonnegative, 'partitions': _nonnegative,
+            'roof_finishes': _nonnegative, 'soil_pressure': _positive}
+
+
 def _structural_support_type(v):
     value = str(v).lower()
     if value not in ('fixed', 'pinned', 'roller'):
@@ -507,6 +535,7 @@ SCHEMAS = {
         'section': _structural_section,
         'base_level': _nonempty,
         'top_level': _nonempty,
+        'profile': _steel_profile,
     },
     'structural_beam': {
         'x1': _finite, 'y1': _finite, 'x2': _finite, 'y2': _finite,
@@ -515,6 +544,7 @@ SCHEMAS = {
         'construction': _construction_system,
         'section': _structural_section,
         'level': _nonempty,
+        'profile': _steel_profile,
     },
     'structural_support': {
         'member_end': _member_end,
@@ -597,7 +627,8 @@ def validate_params(kind, params):
     if kind == 'structural_column':
         out.setdefault('section', 'rectangular')
         out.setdefault('top_level', 'Unassigned')
-    for key, fn in SCHEMAS.get(kind, {}).items():
+    schema = _structural_design_schema() if kind == 'structural_design' else SCHEMAS.get(kind, {})
+    for key, fn in schema.items():
         if key in out:
             out[key] = fn(out[key])
     if kind == 'terrain':

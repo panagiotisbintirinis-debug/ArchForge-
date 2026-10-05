@@ -36,10 +36,11 @@ class Proposal:
     source: str
     targets: Tuple[str, ...] = ()
     build: Optional[Callable] = field(default=None, repr=False)   # doc -> Command
+    run: Optional[str] = None          # non-document action handled by the UI (e.g. 'analyze')
 
     @property
     def actionable(self):
-        return self.build is not None
+        return self.build is not None or self.run is not None
 
 
 def _vent_entity(kind, x, y, z):
@@ -121,6 +122,7 @@ def propose(doc, reading=None):
                 break
         out.append(Proposal(f"J-2:{e.id}", "warning", f"{e.name or 'Δοκίδες'}: άνοιγμα {rep['span_m']:.2f} m χωρίς επαρκή διατομή",
                             "Τεχνικές προτάσεις: " + "; ".join(rep["proposals"]), rep["provenance"], (e.id,), fix))
+    out += _structural(doc)
     if any(e.kind == "ventilation_point" for e in doc.entities.values()):
         from archforge.mep.ventilation import route_ventilation_cached
         for w in route_ventilation_cached(doc)["report"]["warnings"]:
@@ -139,8 +141,49 @@ def propose(doc, reading=None):
     return sorted(out, key=lambda p: (order[p.severity], p.key))
 
 
+def _structural(doc):
+    """S-0 run / refresh the analysis; S-1 members that fail, with the section that passes; S-2 drift."""
+    from archforge.structure.analysis import fresh_result, has_structure
+    if not has_structure(doc):
+        return []
+    result = fresh_result(doc)
+    if result is None:
+        return [Proposal("S-0", "hint", "Στατική ανάλυση: χρειάζεται (επαν)υπολογισμός",
+                         "Ο φέρων οργανισμός άλλαξε. «Εφαρμογή» = υπολογισμός φορτίων, σεισμού, οπλισμών/διατομών.",
+                         "Βλ. Δομικά → Στατική ανάλυση", (), None, run="analyze")]
+    out = []
+    if result.get("error"):
+        out.append(Proposal("S-E", "warning", f"Στατική: {result['error']}", "", result["provenance"]))
+    for e in result["members"].values():
+        prop = e.get("proposal")
+        if not e.get("ok", True):
+            what = (f"Πρόταση: διατομή {prop['width'] * 100:.0f}/{prop.get('height', prop.get('depth', 0)) * 100:.0f}"
+                    if prop and "profile" not in prop else "Δεν βρέθηκε επαρκής τυπική διατομή — επανεξέταση φορέα")
+            out.append(Proposal(f"S-1:{e['id']}", "warning", f"{e['name']}: ανεπαρκής διατομή",
+                                "; ".join(e.get("checks", [])) + f"<br>{what}", result["provenance"], (e["id"],),
+                                _update(e["id"], prop) if prop else None))
+        elif prop and "profile" in prop:
+            out.append(Proposal(f"S-1:{e['id']}", "hint", f"{e['name']}: διατομή {prop['profile']} από τον υπολογισμό",
+                                f"Καταχώριση της ελαφρύτερης επαρκούς διατομής ({e.get('text', '')}).",
+                                result["provenance"], (e["id"],), _update(e["id"], prop)))
+    for d in ("Ex", "Ey"):
+        info = (result.get("seismic") or {}).get(d)
+        if info and not info["drift_ok"]:
+            out.append(Proposal(f"S-2:{d}", "warning", f"Σεισμός {d}: σχετική μετακίνηση ορόφου {info['drift_ratio'] * 1000:.1f} ‰ > 5 ‰",
+                                "Το κτίριο είναι πολύ εύκαμπτο: μεγαλύτερες κολώνες ή τοιχώματα.", result["provenance"]))
+    return out
+
+
+def _update(entity_id, params):
+    from archforge.core.commands import UpdateEntity
+    return lambda _doc: UpdateEntity(entity_id, dict(params))
+
+
 def apply(stack, proposal):
     """Run the proposal's command through the stack (one undo step); returns the command."""
+    if proposal.run == "analyze":
+        from archforge.structure.analysis import analyze_cached
+        return analyze_cached(stack.doc)
     if proposal.build is None:
         raise ValueError("this proposal has no automatic solution")
     command = proposal.build(stack.doc)

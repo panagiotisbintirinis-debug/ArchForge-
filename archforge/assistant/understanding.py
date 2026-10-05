@@ -93,7 +93,10 @@ def read_drawing(doc):
         storey = {"name": name, "z": z, "top": top, "walls": len(walls),
                   "wall_length_m": round(sum(math.hypot(float(w.params["x2"]) - float(w.params["x1"]),
                                                         float(w.params["y2"]) - float(w.params["y1"])) for w in walls), 2),
-                  "exterior_walls": sorted(ext), "rooms": []}
+                  "exterior_walls": sorted(ext), "rooms": [],
+                  "columns": [e.id for e in entities if e.kind == "structural_column" and abs(float(e.params.get("z", 0.0)) - z) < 0.05],
+                  "beams": [e.id for e in entities if e.kind == "structural_beam" and
+                            abs(float(doc.levels.get(str(e.params.get("level")), -1e9)) - z) < 0.05]}
         for i, face in enumerate(faces):
             poly = [(float(p[0]), float(p[1])) for p in face.polygon]
             meta = doc.room_metadata(face.signature) if hasattr(doc, "room_metadata") else {}
@@ -148,7 +151,8 @@ def describe(reading):
     lines = []
     for s in reading["storeys"]:
         lines.append(f"{s['name']} (+{s['z']:.2f}): {s['walls']} τοίχοι, {s['wall_length_m']:.1f} m, "
-                     f"{len(s['exterior_walls'])} εξωτερικοί, {len(s['rooms'])} χώροι")
+                     f"{len(s['exterior_walls'])} εξωτερικοί, {len(s['rooms'])} χώροι"
+                     + (f", {len(s['columns'])} κολώνες, {len(s['beams'])} δοκοί" if s['columns'] or s['beams'] else ""))
         for r in s["rooms"]:
             extra = []
             if r["windows"]:

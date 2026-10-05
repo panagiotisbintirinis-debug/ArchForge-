@@ -1321,6 +1321,13 @@ class MainWindow(QMainWindow):
             combo.currentIndexChanged.connect(
                 lambda _i, widget=combo, entity_id=eid: self._set_entity_choice(entity_id, 'pipe_system', widget.currentData()))
             self.form.addRow('Σύστημα σωλήνων', combo)
+        if entity.kind in ('structural_column', 'structural_beam'):
+            from archforge.structure.analysis import fresh_result
+            result = fresh_result(self.doc)
+            info = result['members'].get(eid) if result else None
+            label = QLabel(info['text'] if info else 'Στατική: Δομικά → «Στατική ανάλυση…» για οπλισμό/διατομή')
+            label.setWordWrap(True)
+            self.form.addRow('Στατική', label)
         if entity.kind == 'ceiling_joists':
             from archforge.structure.joists import USES, size_joists
             for key, options in (('usage', {k: v[0] for k, v in USES.items()}),
@@ -2378,6 +2385,91 @@ class MainWindow(QMainWindow):
         self._assistant_dismissed = set()
         return panel
 
+    def _edit_structural_settings(self):
+        """Building type and design basis for the structural analysis (one undoable command)."""
+        from archforge.structure.analysis.sections import CONCRETE, STEEL_GRADES
+        from archforge.structure.analysis.settings import (IMPORTANCE, OCCUPANCIES, ROOF_ACCESS, SOILS, SYSTEMS,
+                                                           ZONES, design_entity, get_settings)
+        current = get_settings(self.doc)
+        dialog = QDialog(self)
+        dialog.setWindowTitle('Στοιχεία κτιρίου για στατική')
+        form = QFormLayout(dialog)
+        combos = {}
+        choices = (
+            ('system', 'Τύπος φέροντος', SYSTEMS),
+            ('occupancy', 'Χρήση', {k: v[0] for k, v in OCCUPANCIES.items()}),
+            ('roof_access', 'Δώμα', {k: v[0] for k, v in ROOF_ACCESS.items()}),
+            ('seismic_zone', 'Σεισμική ζώνη', {k: f'Ζώνη {"I" * int(k)} (agR = {v:.2f} g)' for k, v in ZONES.items()}),
+            ('soil', 'Κατηγορία εδάφους', {k: k for k in SOILS}),
+            ('importance', 'Σπουδαιότητα', {k: f'Σ{k} (γI = {v})' for k, v in IMPORTANCE.items()}),
+            ('concrete', 'Σκυρόδεμα', {k: k for k in CONCRETE}),
+            ('steel_grade', 'Χάλυβας διατομών', {k: k for k in STEEL_GRADES}),
+        )
+        for key, label, options in choices:
+            combo = QComboBox(dialog)
+            for value, text in options.items():
+                combo.addItem(text, value)
+            combo.setCurrentIndex(max(0, combo.findData(str(current[key]))))
+            form.addRow(label, combo)
+            combos[key] = combo
+        spins = {}
+        for key, label, lo, hi, step in (('slab_thickness', 'Πάχος πλάκας (m)', 0.10, 0.40, 0.01),
+                                         ('finishes', 'Επικαλύψεις δαπέδων (kN/m²)', 0.0, 5.0, 0.1),
+                                         ('partitions', 'Διαχωριστικά (kN/m²)', 0.0, 3.0, 0.1),
+                                         ('roof_finishes', 'Επικαλύψεις δώματος (kN/m²)', 0.0, 5.0, 0.1),
+                                         ('soil_pressure', 'Επιτρεπόμενη τάση εδάφους (kPa)', 50.0, 600.0, 10.0)):
+            spin = QDoubleSpinBox(dialog)
+            spin.setRange(lo, hi)
+            spin.setSingleStep(step)
+            spin.setDecimals(2)
+            spin.setValue(float(current[key]))
+            form.addRow(label, spin)
+            spins[key] = spin
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel, dialog)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        form.addRow(buttons)
+        self._structural_settings_dialog = dialog
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return None
+        params = {k: c.currentData() for k, c in combos.items()}
+        params.update({k: round(s.value(), 3) for k, s in spins.items()})
+        return self._apply_structural_settings(params)
+
+    def _apply_structural_settings(self, params):
+        from archforge.structure.analysis.settings import design_entity
+        entity = design_entity(self.doc)
+        if entity is None:
+            entity = Entity('structural_design', dict(params), name='Στοιχεία στατικής')
+            self.stack.execute(AddEntity(entity))
+        else:
+            self.stack.execute(UpdateEntity(entity.id, dict(params)))
+        self._schedule_assistant_refresh()
+        return entity
+
+    def _show_structural_analysis(self):
+        """Run the analysis and show the full report (pre-design)."""
+        from archforge.structure.analysis import analyze_cached
+        from archforge.structure.analysis.report import report_html
+        from PySide6.QtWidgets import QTextBrowser
+        result = analyze_cached(self.doc)
+        dialog = QDialog(self)
+        dialog.setWindowTitle('Στατική ανάλυση φέροντος οργανισμού')
+        dialog.resize(980, 720)
+        layout = QVBoxLayout(dialog)
+        browser = QTextBrowser(dialog)
+        browser.setHtml(report_html(result))
+        layout.addWidget(browser)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, dialog)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        self._structural_report = browser
+        self._schedule_assistant_refresh()
+        self._redraw_views(all_views=True)
+        if not getattr(self, '_no_modal_dialogs', False):
+            dialog.exec()
+        return result
+
     def _schedule_assistant_refresh(self):
         if getattr(self, '_assistant_pending', False):
             return
@@ -2423,7 +2515,8 @@ class MainWindow(QMainWindow):
         from archforge.assistant.suggestions import apply
         apply(self.stack, p)
         self._redraw_views(all_views=True)
-        self.statusBar().showMessage(f'Βοηθός: εφαρμόστηκε «{p.title}» — Ctrl+Z για αναίρεση', 6000)
+        self.statusBar().showMessage('Βοηθός: η στατική ανάλυση ολοκληρώθηκε — Δομικά → Στατική ανάλυση για το τεύχος'
+                                     if p.run == 'analyze' else f'Βοηθός: εφαρμόστηκε «{p.title}» — Ctrl+Z για αναίρεση', 6000)
         self._refresh_assistant()
 
     def _dismiss_assistant_proposal(self):

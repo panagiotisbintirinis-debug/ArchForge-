@@ -567,6 +567,28 @@ def build_plan_frame(doc,preview=None):
         text=(f"Δοκίδες {sec['b']*100:.0f}/{sec['h']*100:.0f} @{rep['spacing_m']*100:.0f} ×{rep['count']}" if sec else 'Δοκίδες: ανεπαρκής διατομή ⚠')
         xs=[float(q[0]) for q in e.params['points']];ys=[float(q[1]) for q in e.params['points']]
         f.primitives.append(Primitive2D('label',((min(xs)+.2,min(ys)+.2),),entity_id=eid,role='joists-label',meta=(('text',text),)))
+    # Structural analysis results of the active storey (only when up to date; never computed here).
+    if any(e.kind in ('structural_column','structural_beam') for e in doc.entities.values()):
+        from archforge.structure.analysis import fresh_result
+        result=fresh_result(doc)
+        level=float(doc.work_plane.origin[2])
+        for eid,info in (result or {}).get('members',{}).items():
+            e=doc.entities.get(eid)
+            if e is None:
+                continue
+            p=e.params
+            if e.kind=='structural_column':
+                if abs(float(p['z'])-level)>.05:
+                    continue
+                at=(float(p['x'])+float(p['width'])/2+.05,float(p['y'])-float(p['depth'])/2-.25)
+                bars=info.get('bars');extra=f" {bars['n']}Ø{bars['d']}" if bars else ''
+            else:
+                if abs(float(doc.levels.get(str(p.get('level')),-1e9))-level)>.05:
+                    continue
+                at=((float(p['x1'])+float(p['x2']))/2+.1,(float(p['y1'])+float(p['y2']))/2+.1)
+                extra=''
+            text=f"{info['name']} {info.get('section','')}{extra}"+('' if info.get('ok',True) else ' ⚠')
+            f.primitives.append(Primitive2D('label',(at,),entity_id=eid,role='structural-label',meta=(('text',text),)))
     # Derived extract ducts of the active storey (under the ceiling) and their outlets.
     if any(e.kind=='ventilation_point' for e in doc.entities.values()):
         from archforge.mep.ventilation import POINT_TYPES as VENT,_floor_of as vent_floor,route_ventilation_cached
