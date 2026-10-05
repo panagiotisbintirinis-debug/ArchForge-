@@ -36,6 +36,7 @@ MARKER = b"\xcd\xab"
 STRIDE = 162
 SEARCH = 64            # bytes after a marker in which the count may sit
 MAX_ABS = 2000.0       # |coordinate| in source units (inches): larger is not furniture geometry
+DATA_OFFSET = 24       # verified: records start 24 bytes after the CD AB marker
 MIN_TRIANGLES = 4      # 1-3 "triangles" validate by coincidence
 UNITS = {"inch": 0.0254, "mm": 0.001, "m": 1.0}
 
@@ -88,15 +89,27 @@ def find_meshes(blob):
             n = struct.unpack_from("<I", blob, k)[0]
             if not MIN_TRIANGLES <= n <= 5_000_000 or (best and n <= len(best[2])):
                 continue
-            for gap in (4, 8):
+            # Real file: data starts 14 bytes after the count.  Several
+            # alignments can decode as finite doubles; the true one shares the
+            # most vertices (fewest unique points).
+            options = []
+            for gap in range(4, 34, 2):
                 tris = _triangles_at(blob, k + gap, n)
                 if tris and _connected_enough(tris) and _has_extent(tris):
-                    best = (m, k + gap, tris)
-                    break
+                    options.append((_unique_vertices(tris), k + gap, tris))
+            if options:
+                # Verified layout puts the records at marker+24; prefer it.
+                verified = [o for o in options if o[1] == m + DATA_OFFSET]
+                _, start, tris = verified[0] if verified else min(options, key=lambda o: o[0])
+                best = (m, start, tris)
         if best:
             found.append(best)
             covered_until = best[1] + len(best[2]) * STRIDE
     return found
+
+
+def _unique_vertices(tris):
+    return len({tuple(round(c, 6) for c in v) for t in tris for v in t})
 
 
 def _has_extent(tris):

@@ -54,19 +54,37 @@ The images are therefore probably embedded in the large catalogs; Kohler.calib
 alone is 5.1 GB. This is a guess until a sample proves it. Resolve images by file name against a user-chosen folder.
 Never resolve them by the stored absolute path.
 
-## 3D symbols (`Type 14`): reported by a second analysis, NOT yet verified here
-These findings come from `Belwith-Keeler.calibz`, object 1 `B076086 - Pull 1-1/2" Center to Center`:
-- `.calibz` is a container holding the `.calib` plus JPG textures. The scripts treat it as a zip. That is a guess until a real file is opened.
-- `LibSymDataId` points to `LibrarySymbolData`. `symDxf` and `symBlock` are NULL there. `twoDRep` (8 KB) appears to hold the 2D plan symbol as float64 (x, y) pairs.
-- The 3D model lives in `SymbolData4LibraryObjects.SymbolData` (785 KB). It is a series of records starting with `CD AB`. Their number varies per object: 5 in a pull, 26 in a knob, 46 in another pull.
-- Geometry record `CD AB 74 00 B2 0B …`:
-  - a uint32 triangle count (4806);
-  - then 162-byte records, each starting with 9 float64 values, which are 3 vertices (x, y, z);
-  - units are inches. The bounding box is 2.097 × 1.069 × 1.062 in. That fits the claimed pull but is not proven.
-- The other 90 bytes of each record are unknown. They are probably normals, UVs or a material index.
-- `scripts/calib_mesh.py` scans for this layout without assuming fixed offsets and writes OBJ files. Mark this section verified only after an extracted OBJ visibly matches the object in Home Designer.
+## 3D symbols (`Type 14`): VERIFIED on 2 objects (Belwith-Keeler, 2026-10-05)
+Verification: we extracted `B076086 Pull 1-1/2"` and `B076087 Knob 2" X 1"`.
+- Their shapes match their names: a U-shaped pull and a T-shaped bar knob.
+- The knob measures 50.0 × 25.3 × 25.3 mm. The name says 2" × 1" (50.8 × 25.4 mm).
+- The pull is 53.3 × 27.1 × 27.0 mm, with 4806 triangles and 2406 unique vertices.
+
+Layout:
+- `.calibz` is **not** a zip. `calib_open.py` finds the embedded SQLite image by its header and carves it out. How the wrapper stores textures is still unknown.
+- `LibraryObjects.LibSymDataId` points to `LibrarySymbolData`. In that row `symDxf` and `symBlock` are NULL. `twoDRep` (8 KB) is probably the 2D plan symbol, made of float64 (x, y) pairs. This is a guess.
+- The 3D model is in `SymbolData4LibraryObjects.SymbolData`, a series of records that each start with `CD AB`.
+- Mesh record, seen at offset 7048 in the pull:
+  ```
+  +0   CD AB 74 00
+  +4   B2 0B                       (record version? guess)
+  +6   FF FF FF FF
+  +10  uint32 N                    triangle count (4806)
+  +14  10 bytes                    unknown (03 00 04 00 00 00 00 00 08 11 in the pull)
+  +24  N × 162-byte triangle records
+  ```
+  In the knob the count sits at +10 and the data at +24 in the same way.
+- Triangle record, 162 bytes:
+  - **verified:** `0..71` are 9 × float64, the vertices (x, y, z) × 3, in **inches**.
+  - **guess:** `72..87` are uint32 a, uint32 b, int32 -1, uint32 3 (neighbour or edge indices?).
+  - **guess:** `88..135` are 6 × float64 per-vertex UV pairs (values like 514.6, 14.26).
+  - **guess:** `136..151` are 2 × float64 (20.0, 20.0), a texture scale?
+  - **unknown:** `152..161` are 10 bytes, possibly a material index or flags.
+- Axes are not yet confirmed. In the samples the long dimension lies on X and the model is centred near the origin.
+- The remaining `CD AB` records (26 in the knob, 46 in some pulls) are not yet decoded. They are probably materials and other sub-objects.
+- `scripts/calib_mesh.py` scans for this layout. It keeps the largest valid count at each marker, and among the alignments that decode it keeps the one with the fewest unique vertices.
 
 ## Open questions
 - Where HD stores texture JPGs locally.
-- 3D symbols: confirm the layout above on several objects. Then decode the remaining 90 bytes of each record, the materials, and the axis convention.
+- 3D symbols: test the layout on furniture and other catalogs. Decode the UV, material and other bytes of each record, the other `CD AB` records, and the axis convention.
 - The `.calibz` wrapper.

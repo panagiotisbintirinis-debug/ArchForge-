@@ -156,3 +156,20 @@ def test_sampler_can_truncate_large_blobs(tmp_path):
     mod.sample(str(src), str(out), [1], max_blob=64)
     conn = sqlite3.connect(out)
     assert conn.execute("SELECT LENGTH(Data) FROM Data4LibraryObjects").fetchall() == [(64,)]
+
+
+def test_mesh_scanner_matches_verified_belwith_layout():
+    # Verified layout (Belwith-Keeler pull): CD AB 74 00, B2 0B, FF*4, uint32 N at +10,
+    # 10 unknown bytes, triangle records from +24.  Unknown bytes copied from the file.
+    c = [(x, y, z) for x in (0, 2) for y in (0, 1) for z in (0, 1)]
+    quads = [(0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)]
+    tris = [t for a, b, cc, d in quads for t in ((a, b, cc), (a, cc, d))]
+    tail = (struct.pack("<IIiI", 4804, 4805, -1, 3) + struct.pack("<6d", 514.6, 14.26, 514.5, 1960.7, 514.8, 15.3)
+            + struct.pack("<2d", 20.0, 20.0) + bytes.fromhex("03000100000000000311"))
+    assert len(tail) == 90
+    body = b"".join(struct.pack("<9d", *c[i], *c[j], *c[k]) + tail for i, j, k in tris)
+    blob = (b"\x00" * 40 + b"\xcd\xab\x74\x00\xb2\x0b\xff\xff\xff\xff" + struct.pack("<I", len(tris))
+            + bytes.fromhex("03000400000000000811") + body)
+    (m, start, found), = _mesh_module().find_meshes(blob)
+    assert (m, start, len(found)) == (40, 64, 12)
+    assert found[0] == ((0.0, 0.0, 0.0), (0.0, 0.0, 1.0), (0.0, 1.0, 1.0))
