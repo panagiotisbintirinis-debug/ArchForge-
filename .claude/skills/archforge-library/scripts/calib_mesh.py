@@ -1,21 +1,34 @@
 #!/usr/bin/env python3
-"""EXPERIMENTAL: extract triangle meshes from Home Designer 3D symbol records.
+"""Extract polygon meshes from Home Designer 3D symbol records (local study only).
 
-Status: hypothesis under test (see references/calib-format.md, "3D symbols").
-Reported layout (from analysis of Belwith-Keeler.calib, not yet verified here):
+Layout (verified 2026-10-05 on Belwith-Keeler handles and a Bonus grouped
+living room; see references/calib-format.md, "3D symbols"):
 
-    SymbolData4LibraryObjects.SymbolData contains records starting with CD AB.
-    A geometry record holds a uint32 triangle count N, followed by N
-    fixed-size records of 162 bytes; the first 72 bytes of each are
-    9 little-endian float64 = three (x, y, z) vertices.  Units: inches.
+    SymbolData4LibraryObjects.SymbolData is a series of records that start
+    with CD AB <uint16 record type>.  A mesh record is type 0x0074:
 
-The scanner does not trust fixed offsets.  After every CD AB marker it looks
-for a uint32 N whose following N*162 bytes all decode as finite, bounded
-coordinates and whose triangles share vertices (a real mesh is connected).
-Every accepted block is reported with its offset so the hypothesis can be
-checked or refuted object by object.
+      +0   CD AB 74 00
+      +4   uint16 version (B2 0B, AF 08 seen)
+      +6   FF FF FF FF
+      +10  uint32 P                      polygon count
+      +14  P polygon records, back to back, variable length:
+             uint16 n                    vertex count (3, 4, 5, ...)
+             uint16 flags
+             uint32 surface index?       (0, 1, 2, ... seen)
+             uint16 ?
+             n x 3 float64               vertices (x, y, z), inches
+             n x int32                   neighbour polygon per edge (-1 = open)
+             uint32 k                    UV pair count (0 or n)
+             k x 2 float64               UV pairs
+             2 float64                   texture scale? (20.0, 20.0 seen)
 
-Output OBJ files are for local format study only (licensed content).
+The parser walks the records exactly; a mesh is accepted only if all P
+polygons parse with finite, bounded coordinates.  Polygons are fan-
+triangulated for OBJ output.  Each mesh is written as its own OBJ object, in
+its local coordinates (placement of parts inside grouped objects is not
+decoded yet).
+
+Output OBJ files are licensed Home Designer content: local format study only.
 
 Usage:
     python calib_mesh.py CATALOG.calib|.calibz [--name TEXT] [--ids 1,2] [--limit 5]
@@ -24,121 +37,92 @@ Usage:
 import argparse
 import math
 import os
-import sqlite3
 import struct
 import sys
 
-import os as _os
-sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
-from calib_open import connect_ro, open_catalog, resolve  # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from calib_open import open_catalog  # noqa: E402
 
 MARKER = b"\xcd\xab"
-STRIDE = 162
-SEARCH = 64            # bytes after a marker in which the count may sit
-MAX_ABS = 2000.0       # |coordinate| in source units (inches): larger is not furniture geometry
-DATA_OFFSET = 24       # verified: records start 24 bytes after the CD AB marker
-MIN_TRIANGLES = 4      # 1-3 "triangles" validate by coincidence
+MESH_RECORD = b"\xcd\xab\x74\x00"
+MAX_ABS = 2000.0       # |coordinate| in inches; larger is not furniture geometry
+MAX_VERTS = 256        # per polygon
+MAX_INDEX = 4096       # header surface index
 UNITS = {"inch": 0.0254, "mm": 0.001, "m": 1.0}
 
 
-def _triangles_at(blob, start, n):
-    end = start + n * STRIDE
-    if end > len(blob):
-        return None
-    tris = []
-    for i in range(n):
-        vals = struct.unpack_from("<9d", blob, start + i * STRIDE)
+def parse_mesh_record(blob, m):
+    """Parse the mesh record at marker offset ``m``.
+
+    Returns (polygons, end_offset, complete).  ``complete`` is False when the
+    record runs past the data (e.g. a truncated study sample) or a polygon
+    does not decode; the polygons read so far are still returned.
+    """
+    if blob[m:m + 4] != MESH_RECORD or m + 14 > len(blob):
+        return [], m, False
+    count = struct.unpack_from("<I", blob, m + 10)[0]
+    p = m + 14
+    polys = []
+    for _ in range(count):
+        if p + 10 > len(blob):
+            return polys, p, False
+        n = struct.unpack_from("<H", blob, p)[0]
+        index = struct.unpack_from("<I", blob, p + 4)[0]
+        vend = p + 10 + 24 * n
+        if not (3 <= n <= MAX_VERTS and index < MAX_INDEX) or vend + 4 * n + 4 > len(blob):
+            return polys, p, False
+        vals = struct.unpack_from(f"<{3 * n}d", blob, p + 10)
         if not all(math.isfinite(v) and abs(v) < MAX_ABS for v in vals):
-            return None
-        tris.append((vals[0:3], vals[3:6], vals[6:9]))
-    return tris
+            return polys, p, False
+        polys.append([vals[3 * i:3 * i + 3] for i in range(n)])
+        t = vend + 4 * n
+        k = struct.unpack_from("<I", blob, t)[0]
+        if k > MAX_VERTS:
+            return polys, p, False
+        p = t + 4 + 16 * k + 16
+    return polys, p, p <= len(blob)
 
 
-def _connected_enough(tris):
-    """Most triangles of a real mesh share at least one vertex with another."""
-    if len(tris) < 2:
-        return True
-    seen = {}
-    for t in tris:
-        for v in t:
-            k = tuple(round(c, 6) for c in v)
-            seen[k] = seen.get(k, 0) + 1
-    shared = sum(1 for t in tris if any(seen[tuple(round(c, 6) for c in v)] > 1 for v in t))
-    return shared >= 0.8 * len(tris)
+def triangulate(polys):
+    return [(pl[0], pl[i], pl[i + 1]) for pl in polys for i in range(1, len(pl) - 1)]
 
 
 def find_meshes(blob):
-    """Return [(marker_offset, data_offset, triangles)] for every plausible block.
-
-    At each CD AB marker every candidate count in the window is tried and the
-    largest block that validates wins: small counts validate by coincidence
-    (a few doubles that happen to be finite), the real count explains the data.
-    """
-    found = []
-    pos = 0
-    covered_until = -1
-    while True:
-        m = blob.find(MARKER, pos)
-        if m < 0:
-            break
-        pos = m + 1
-        if m < covered_until:
-            continue
-        best = None
-        for k in range(m + 2, min(m + 2 + SEARCH, len(blob) - 4)):
-            n = struct.unpack_from("<I", blob, k)[0]
-            if not MIN_TRIANGLES <= n <= 5_000_000 or (best and n <= len(best[2])):
-                continue
-            # Real file: data starts 14 bytes after the count.  Several
-            # alignments can decode as finite doubles; the true one shares the
-            # most vertices (fewest unique points).
-            options = []
-            for gap in range(4, 34, 2):
-                tris = _triangles_at(blob, k + gap, n)
-                if tris and _connected_enough(tris) and _has_extent(tris):
-                    options.append((_unique_vertices(tris), k + gap, tris))
-            if options:
-                # Verified layout puts the records at marker+24; prefer it.
-                verified = [o for o in options if o[1] == m + DATA_OFFSET]
-                _, start, tris = verified[0] if verified else min(options, key=lambda o: o[0])
-                best = (m, start, tris)
-        if best:
-            found.append(best)
-            covered_until = best[1] + len(best[2]) * STRIDE
-    return found
+    """Return [(marker_offset, polygons, complete)] for every mesh record."""
+    out = []
+    m = blob.find(MESH_RECORD)
+    while m >= 0:
+        polys, end, complete = parse_mesh_record(blob, m)
+        if polys:
+            out.append((m, polys, complete))
+        m = blob.find(MESH_RECORD, end if complete else m + 1)
+    return out
 
 
-def _unique_vertices(tris):
-    return len({tuple(round(c, 6) for c in v) for t in tris for v in t})
-
-
-def _has_extent(tris):
-    xs = [v[i] for t in tris for v in t for i in range(3)]
-    return max(xs) - min(xs) > 1e-9
-
-
-def to_obj(tris, scale):
-    index, verts, faces = {}, [], []
-    for t in tris:
-        f = []
-        for v in t:
-            k = tuple(round(c * scale, 9) for c in v)
-            if k not in index:
-                index[k] = len(verts) + 1
-                verts.append(k)
-            f.append(index[k])
-        if len(set(f)) == 3:
-            faces.append(f)
-    lines = [f"v {x:.9g} {y:.9g} {z:.9g}" for x, y, z in verts]
-    lines += [f"f {a} {b} {c}" for a, b, c in faces]
-    return "\n".join(lines) + "\n", len(verts), len(faces)
-
-
-def bbox(tris, scale):
-    pts = [v for t in tris for v in t]
-    lo = [min(p[i] for p in pts) * scale for i in range(3)]
-    hi = [max(p[i] for p in pts) * scale for i in range(3)]
+def bbox(points, scale):
+    lo = [min(p[i] for p in points) * scale for i in range(3)]
+    hi = [max(p[i] for p in points) * scale for i in range(3)]
     return lo, hi
+
+
+def to_obj(parts, scale):
+    """parts: [(name, triangles)] -> OBJ text with one object per part."""
+    index, verts, body, nf = {}, [], [], 0
+    for name, tris in parts:
+        body.append(f"o {name}")
+        for t in tris:
+            f = []
+            for v in t:
+                k = tuple(round(c * scale, 9) for c in v)
+                if k not in index:
+                    index[k] = len(verts) + 1
+                    verts.append(k)
+                f.append(index[k])
+            if len(set(f)) == 3:
+                body.append(f"f {f[0]} {f[1]} {f[2]}")
+                nf += 1
+    lines = [f"v {x:.9g} {y:.9g} {z:.9g}" for x, y, z in verts] + body
+    return "\n".join(lines) + "\n", len(verts), nf
 
 
 def main(argv=None):
@@ -170,23 +154,24 @@ def main(argv=None):
         blob = bytes(blob)
         meshes = find_meshes(blob)
         print(f"[{oid}] {name}  type={typ}  SymbolData={len(blob)} bytes  "
-              f"markers={blob.count(MARKER)}  mesh blocks={len(meshes)}")
-        all_tris = []
-        for m, start, tris in meshes:
-            lo, hi = bbox(tris, scale)
+              f"records={blob.count(MARKER)}  meshes={len(meshes)}")
+        parts = []
+        for m, polys, complete in meshes:
+            lo, hi = bbox([v for pl in polys for v in pl], scale)
             size = [h - l for l, h in zip(lo, hi)]
-            print(f"    marker@{m} data@{start} triangles={len(tris)} "
-                  f"size(m)={size[0]:.4f} x {size[1]:.4f} x {size[2]:.4f}")
-            all_tris += tris
-        covered = sum(len(t) * STRIDE for _, _, t in meshes)
-        print(f"    bytes explained by mesh blocks: {covered / max(1, len(blob)):.0%}")
-        if a.out_dir and all_tris:
-            text, nv, nf = to_obj(all_tris, scale)
+            state = "" if complete else "  INCOMPLETE (truncated or undecoded)"
+            print(f"    mesh@{m} polygons={len(polys)} "
+                  f"size(m)={size[0]:.3f} x {size[1]:.3f} x {size[2]:.3f}{state}")
+            if complete:
+                parts.append((f"mesh_{m}", triangulate(polys)))
+        if a.out_dir and parts:
+            text, nv, nf = to_obj(parts, scale)
             safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in name)[:60]
             path = os.path.join(a.out_dir, f"{oid}_{safe}.obj")
             with open(path, "w", encoding="utf-8") as f:
-                f.write(f"# {name} (Home Designer catalog, local study only)\n# unit: metres\n" + text)
-            print(f"    wrote {path}  vertices={nv} faces={nf}")
+                f.write(f"# {name} (Home Designer catalog, local study only)\n"
+                        f"# unit: metres; each 'o' is one mesh record in its local coordinates\n" + text)
+            print(f"    wrote {path}  vertices={nv} triangles={nf}")
     return 0
 
 

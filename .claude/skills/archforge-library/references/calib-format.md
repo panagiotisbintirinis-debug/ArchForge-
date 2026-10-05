@@ -54,37 +54,49 @@ The images are therefore probably embedded in the large catalogs; Kohler.calib
 alone is 5.1 GB. This is a guess until a sample proves it. Resolve images by file name against a user-chosen folder.
 Never resolve them by the stored absolute path.
 
-## 3D symbols (`Type 14`): VERIFIED on 2 objects (Belwith-Keeler, 2026-10-05)
-Verification: we extracted `B076086 Pull 1-1/2"` and `B076087 Knob 2" X 1"`.
-- Their shapes match their names: a U-shaped pull and a T-shaped bar knob.
-- The knob measures 50.0 × 25.3 × 25.3 mm. The name says 2" × 1" (50.8 × 25.4 mm).
-- The pull is 53.3 × 27.1 × 27.0 mm, with 4806 triangles and 2406 unique vertices.
+## 3D symbols: VERIFIED (2026-10-05)
+Verified on Belwith-Keeler handles (`Type 14`, 5 objects) and on `Living Room 03` from `BonusGroupedLivingRooms` (`Type 19`, a grouped object).
 
-Layout:
-- `.calibz` is **not** a zip. `calib_open.py` finds the embedded SQLite image by its header and carves it out. How the wrapper stores textures is still unknown.
-- `LibraryObjects.LibSymDataId` points to `LibrarySymbolData`. In that row `symDxf` and `symBlock` are NULL. `twoDRep` (8 KB) is probably the 2D plan symbol, made of float64 (x, y) pairs. This is a guess.
-- The 3D model is in `SymbolData4LibraryObjects.SymbolData`, a series of records that each start with `CD AB`.
-- Mesh record, seen at offset 7048 in the pull:
-  ```
-  +0   CD AB 74 00
-  +4   B2 0B                       (record version? guess)
-  +6   FF FF FF FF
-  +10  uint32 N                    triangle count (4806)
-  +14  10 bytes                    unknown (03 00 04 00 00 00 00 00 08 11 in the pull)
-  +24  N × 162-byte triangle records
-  ```
-  In the knob the count sits at +10 and the data at +24 in the same way.
-- Triangle record, 162 bytes:
-  - **verified:** `0..71` are 9 × float64, the vertices (x, y, z) × 3, in **inches**.
-  - **guess:** `72..87` are uint32 a, uint32 b, int32 -1, uint32 3 (neighbour or edge indices?).
-  - **guess:** `88..135` are 6 × float64 per-vertex UV pairs (values like 514.6, 14.26).
-  - **guess:** `136..151` are 2 × float64 (20.0, 20.0), a texture scale?
-  - **unknown:** `152..161` are 10 bytes, possibly a material index or flags.
-- Axes are not yet confirmed. In the samples the long dimension lies on X and the model is centred near the origin.
-- The remaining `CD AB` records (26 in the knob, 46 in some pulls) are not yet decoded. They are probably materials and other sub-objects.
-- `scripts/calib_mesh.py` scans for this layout. It keeps the largest valid count at each marker, and among the alignments that decode it keeps the one with the fewest unique vertices.
+| Object | Extracted size | Matches |
+|---|---|---|
+| Knob 2" × 1" | 50.0 × 25.3 × 25.3 mm | the name |
+| Pull 3-3/4" (96 mm) | 110 mm long | 96 mm between holes plus the ends |
+| Living room sofa | 2.03 × 0.81 × 0.87 m | a sofa |
+
+The other living-room parts are a round rug (0.91 m), a leaning mirror (2.10 m), an orb vase, a stretch vase and stacked books. All are recognisable when rendered. **Z is up**, and units are **inches**.
+
+### Containers
+- `.calibz` is **not** a zip. `calib_open.py` finds the embedded SQLite image by its header and carves it out. Where the wrapper keeps textures is still unknown.
+- The 3D data is in `SymbolData4LibraryObjects.SymbolData`. For each object, `LibrarySymbolData.twoDRep` probably holds the 2D plan symbol. That is a guess.
+- `SymbolData` is a series of records, each starting with `CD AB <uint16 type>`. Types seen:
+  - `0x74`: **mesh**, decoded below.
+  - `0x61`: placed sub-object, carrying a catalog path string such as `Bonus Living Room Items:Accessories/Orb Vase` or `Sofa/Sofa`. Probably holds its transform; not decoded.
+  - `0x30`: 124 in the living room, each starting with a 16-byte GUID. Probably materials.
+  - `0x1f`, `0x28`, `0x22`, `0x23`: unknown.
+
+### Mesh record `CD AB 74 00`
+```
++0   CD AB 74 00
++4   uint16 version            B2 0B (Belwith), AF 08 (Bonus living room)
++6   FF FF FF FF
++10  uint32 P                  polygon count
++14  P polygon records, back to back, variable length:
+       uint16 n                vertex count (3, 4, 5, ... seen)
+       uint16 flags            (0x0000, 0x1000, 0x100a ... seen; meaning unknown)
+       uint32 index            0, 1, 2 ... (surface/material index? guess)
+       uint16 ?
+       n × 3 float64           vertices x, y, z in inches          VERIFIED
+       n × int32               neighbouring polygon per edge, -1 = open edge   (guess, fits values)
+       uint32 k                UV count: n (Belwith) or 0 (living room)   VERIFIED as a length
+       k × 2 float64           UV pairs (guess)
+       2 float64               20.0, 20.0 in Belwith (texture scale? guess)
+```
+- Walking these lengths exactly consumes every mesh record completely: 4806 of 4806 polygons in the pull, and every polygon of the 6 complete living-room meshes.
+- The Belwith "162-byte stride" is just this layout with n = 3 and k = 3.
+- Mesh coordinates are **local to each part**. Placement inside grouped objects is not decoded yet; it probably lives in the `0x61` records.
+- `scripts/calib_mesh.py` implements this parser. It writes one OBJ object per mesh record and flags truncated or undecodable records as INCOMPLETE.
 
 ## Open questions
 - Where HD stores texture JPGs locally.
-- 3D symbols: test the layout on furniture and other catalogs. Decode the UV, material and other bytes of each record, the other `CD AB` records, and the axis convention.
+- 3D symbols: decode the transforms of the sub-objects (`0x61`?), the materials (`0x30`?), the UVs and the texture images.
 - The `.calibz` wrapper.

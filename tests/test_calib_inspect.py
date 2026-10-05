@@ -100,29 +100,58 @@ def _mesh_module():
     return mod
 
 
-def test_mesh_scanner_finds_reported_triangle_layout():
-    # Unit cube (inches) as 12 triangles in the reported layout:
-    # CD AB <type> ... uint32 N, then N records of 162 bytes, 9 float64 first.
-    c = [(x, y, z) for x in (0, 1) for y in (0, 1) for z in (0, 1)]
-    quads = [(0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)]
-    tris = [t for a, b, cc, d in quads for t in ((a, b, cc), (a, cc, d))]
-    body = b"".join(struct.pack("<9d", *c[i], *c[j], *c[k]) + b"\x00" * 90 for i, j, k in tris)
-    blob = (b"\x01\x00\x00\x00\x01" + b"\xcd\xab\x61\x00" + b"junk" * 20
-            + b"\xcd\xab\x74\x00\xb2\x0b" + struct.pack("<I", len(tris)) + b"\x00" * 4 + body + b"Hardware")
+def _mesh_record(polys, version=b"\xb2\x0b", uv=True, surface=0):
+    """Mesh record in the verified layout (see references/calib-format.md)."""
+    out = b"\xcd\xab\x74\x00" + version + b"\xff" * 4 + struct.pack("<I", len(polys))
+    for i, pl in enumerate(polys):
+        n = len(pl)
+        out += struct.pack("<HHIH", n, 0x1000, surface, 0x1108)
+        out += b"".join(struct.pack("<3d", *v) for v in pl)
+        out += struct.pack(f"<{n}i", *([i + 1] * (n - 1) + [-1]))
+        if uv:
+            out += struct.pack("<I", n) + b"".join(struct.pack("<2d", 514.6 + j, 14.26) for j in range(n))
+        else:
+            out += struct.pack("<I", 0)
+        out += struct.pack("<2d", 20.0, 20.0)
+    return out
+
+
+_CUBE = [(x, y, z) for x in (0, 1) for y in (0, 1) for z in (0, 1)]
+_QUADS = [(0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)]
+
+
+def test_mesh_parser_reads_triangles_with_uvs_like_belwith_handles():
+    tris = [[_CUBE[i] for i in t] for a, b, c, d in _QUADS for t in ((a, b, c), (a, c, d))]
+    blob = b"\x01\x00\x00\x00\x01\xcd\xab\x61\x00" + b"x" * 30 + _mesh_record(tris) + b"\xcd\xab\x30\x00tail"
+    mod = _mesh_module()
+    (m, polys, complete), = mod.find_meshes(blob)
+    assert complete and m == 39 and len(polys) == 12 and polys[0] == tris[0]
+    text, nv, nf = mod.to_obj([("cube", mod.triangulate(polys))], mod.UNITS["inch"])
+    assert (nv, nf) == (8, 12)
+
+
+def test_mesh_parser_reads_quads_without_uvs_and_several_records_like_grouped_furniture():
+    quads = [[_CUBE[i] for i in q] for q in _QUADS]
+    big = [[(x * 80, y * 32, z * 34) for x, y, z in q] for q in quads]
+    blob = (_mesh_record(quads, b"\xaf\x08", uv=False, surface=2) + b"\xcd\xab\x1f\x00gap"
+            + _mesh_record(big, b"\xaf\x08", uv=False, surface=1))
     mod = _mesh_module()
     meshes = mod.find_meshes(blob)
-    assert len(meshes) == 1 and len(meshes[0][2]) == 12
-    text, nv, nf = mod.to_obj(meshes[0][2], mod.UNITS["inch"])
-    assert (nv, nf) == (8, 12)
-    lo, hi = mod.bbox(meshes[0][2], 0.0254)
-    assert [round(h - l, 6) for l, h in zip(lo, hi)] == [0.0254] * 3
+    assert [(len(p), c) for _, p, c in meshes] == [(6, True), (6, True)]
+    assert len(mod.triangulate(meshes[1][1])) == 12
+    lo, hi = mod.bbox([v for pl in meshes[1][1] for v in pl], 0.0254)
+    assert [round(h - l, 4) for l, h in zip(lo, hi)] == [2.032, 0.8128, 0.8636]
 
 
-def test_mesh_scanner_rejects_random_bytes():
+def test_mesh_parser_flags_truncated_record_and_rejects_noise():
     import random
+    quads = [[_CUBE[i] for i in q] for q in _QUADS]
+    rec = _mesh_record(quads, uv=False)
+    mod = _mesh_module()
+    (_, polys, complete), = mod.find_meshes(rec[:-60])
+    assert not complete and 0 < len(polys) < 6
     rnd = random.Random(1)
-    blob = b"\xcd\xab" + bytes(rnd.randrange(256) for _ in range(20000))
-    assert _mesh_module().find_meshes(blob) == []
+    assert mod.find_meshes(b"\xcd\xab\x74\x00" + bytes(rnd.randrange(256) for _ in range(5000))) == []
 
 
 def test_calibz_with_embedded_sqlite_is_carved_and_opened(tmp_path):
@@ -132,17 +161,6 @@ def test_calibz_with_embedded_sqlite_is_carved_and_opened(tmp_path):
     wrapped.write_bytes(b"HDBUNDLE\x01\x02" + b"\x00" * 50 + cat.read_bytes() + b"\xff\xd8JPEGDATA" * 10)
     result = _load().inspect(str(wrapped))
     assert sorted(o["name"] for o in result["objects"]) == ["New Style", "Old Style"]
-
-
-def test_mesh_scanner_prefers_full_count_over_coincidental_small_count():
-    c = [(x, y, z) for x in (0, 1) for y in (0, 1) for z in (0, 1)]
-    quads = [(0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)]
-    tris = [t for a, b, cc, d in quads for t in ((a, b, cc), (a, cc, d))]
-    body = b"".join(struct.pack("<9d", *c[i], *c[j], *c[k]) + b"\x00" * 90 for i, j, k in tris)
-    # Real count 12, then a second header field that also reads as a valid count (4).
-    blob = b"\xcd\xab\x74\x00" + struct.pack("<II", 12, 4) + body
-    meshes = _mesh_module().find_meshes(blob)
-    assert [len(t) for _, _, t in meshes] == [12]
 
 
 def test_sampler_can_truncate_large_blobs(tmp_path):
@@ -156,20 +174,3 @@ def test_sampler_can_truncate_large_blobs(tmp_path):
     mod.sample(str(src), str(out), [1], max_blob=64)
     conn = sqlite3.connect(out)
     assert conn.execute("SELECT LENGTH(Data) FROM Data4LibraryObjects").fetchall() == [(64,)]
-
-
-def test_mesh_scanner_matches_verified_belwith_layout():
-    # Verified layout (Belwith-Keeler pull): CD AB 74 00, B2 0B, FF*4, uint32 N at +10,
-    # 10 unknown bytes, triangle records from +24.  Unknown bytes copied from the file.
-    c = [(x, y, z) for x in (0, 2) for y in (0, 1) for z in (0, 1)]
-    quads = [(0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)]
-    tris = [t for a, b, cc, d in quads for t in ((a, b, cc), (a, cc, d))]
-    tail = (struct.pack("<IIiI", 4804, 4805, -1, 3) + struct.pack("<6d", 514.6, 14.26, 514.5, 1960.7, 514.8, 15.3)
-            + struct.pack("<2d", 20.0, 20.0) + bytes.fromhex("03000100000000000311"))
-    assert len(tail) == 90
-    body = b"".join(struct.pack("<9d", *c[i], *c[j], *c[k]) + tail for i, j, k in tris)
-    blob = (b"\x00" * 40 + b"\xcd\xab\x74\x00\xb2\x0b\xff\xff\xff\xff" + struct.pack("<I", len(tris))
-            + bytes.fromhex("03000400000000000811") + body)
-    (m, start, found), = _mesh_module().find_meshes(blob)
-    assert (m, start, len(found)) == (40, 64, 12)
-    assert found[0] == ((0.0, 0.0, 0.0), (0.0, 0.0, 1.0), (0.0, 1.0, 1.0))
