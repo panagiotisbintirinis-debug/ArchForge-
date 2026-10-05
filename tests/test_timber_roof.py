@@ -11,7 +11,7 @@ from archforge.core.model import Document, Entity
 from archforge.core.plan_scene import build_plan_frame
 from archforge.structure.timber_roof import SECTIONS, members, ridge_z, roof_mesh, size_rafter, snow_load
 
-BASE = {'x0': 0.0, 'y0': 0.0, 'x1': 10.0, 'y1': 8.0, 'eave_z': 3.0, 'pitch': 25.0, 'overhang': 0.5,
+BASE = {'insulation': 'xps', 'insulation_thickness': 0.08, 'x0': 0.0, 'y0': 0.0, 'x1': 10.0, 'y1': 8.0, 'eave_z': 3.0, 'pitch': 25.0, 'overhang': 0.5,
         'rafter_spacing': 0.6, 'roof_form': 'gable', 'tile': 'roman', 'snow_zone': 2, 'altitude': 0.0}
 
 
@@ -37,6 +37,9 @@ def test_hip_and_shed_forms():
     shed = dict(BASE, roof_form='shed')
     assert ridge_z(shed) == pytest.approx(3.0 + 8.0 * math.tan(math.radians(25)))
     assert not any(m[0] == 'ridge' for m in members(shed))
+    plates = [m for m in members(shed) if m[0] == 'plate']
+    assert max(max(a[2], b[2]) for _r, a, b, _s in plates) == pytest.approx(ridge_z(shed))   # high wall carries the roof
+    assert all(a[2] == pytest.approx(3.0) and b[2] == pytest.approx(3.0) for _r, a, b, _s in members(BASE) if _r == 'plate')
 
 
 def test_rafter_section_grows_with_snow_and_span_and_passes_its_checks():
@@ -66,7 +69,8 @@ def test_roof_in_document_plan_3d_and_moves():
     assert 'roof-outline' in roles and 'roof-ridge' in roles
     objs = build_pbr_scene_payload(IncrementalEvaluationCache(SculptedPreviewBackend()).sync(doc), [], doc=doc)['objects']
     parts = {o['render_part'].split(':')[1]: o for o in objs if o['id'] == roof.id}
-    assert set(parts) == {'plate', 'rafter', 'ridge', 'batten', 'tiles'}
+    assert set(parts) == {'plate', 'rafter', 'ridge', 'batten', 'counter_batten', 'boarding', 'vapour_barrier',
+                          'insulation', 'membrane', 'tiles'}
     assert parts['tiles']['layer'] == 'roof_tiles' and parts['rafter']['layer'] == 'roof_structure'
     stack.execute(MoveEntities([roof.id], 1.0, 2.0))
     assert doc.get(roof.id).params['x0'] == 1.0 and doc.get(roof.id).params['y1'] == 10.0
@@ -95,3 +99,20 @@ def test_menu_creates_roof_over_the_walls():
         assert 'roof_tiles' in window.pbr_view.hidden_layers
     finally:
         window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_insulation_build_up_feeds_loads_u_and_3d_order():
+    from archforge.structure.timber_roof import build_up, dead_load, indicative_u
+    bare = dict(BASE, insulation='none', insulation_thickness=0.0)
+    insulated = dict(BASE, insulation='xps', insulation_thickness=0.10)
+    assert [r for *_x, r in build_up(insulated)] == ['boarding', 'vapour_barrier', 'insulation', 'membrane']
+    assert 'insulation' not in [r for *_x, r in build_up(bare)]
+    assert dead_load(insulated) > dead_load(bare)
+    assert indicative_u(insulated) < 0.35 < 2.0 < indicative_u(bare)
+    # In 3D the layers stack upwards: boarding < insulation < membrane < tiles above the same point.
+    v, t, r = roof_mesh(insulated)
+    def top(role):
+        return max(v[i][2] for tri, rr in zip(t, r) if rr == role for i in tri)
+    assert top('boarding') < top('insulation') < top('membrane') < top('tiles')
+    with pytest.raises(ValueError):
+        Document().add(Entity('pitched_roof', dict(BASE, insulation='straw')))

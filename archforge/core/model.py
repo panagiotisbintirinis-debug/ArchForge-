@@ -171,6 +171,21 @@ def _roof_tile(v):
     return v
 
 
+def _roof_insulation(v):
+    from archforge.structure.timber_roof import INSULATIONS
+    v = str(v)
+    if v not in INSULATIONS:
+        raise ValueError(f'insulation must be one of {", ".join(INSULATIONS)}')
+    return v
+
+
+def _insulation_thickness(v):
+    v = _finite(v)
+    if not 0.0 <= v <= 0.30:
+        raise ValueError('insulation thickness must be between 0 and 0.30 m')
+    return v
+
+
 def _snow_zone(v):
     v = int(round(float(v)))
     if v not in (1, 2, 3):
@@ -495,7 +510,8 @@ SCHEMAS = {
     },
     'pitched_roof': {'x0': _finite, 'y0': _finite, 'x1': _finite, 'y1': _finite, 'eave_z': _finite,
                      'pitch': _pitch, 'overhang': _nonnegative, 'rafter_spacing': _rafter_spacing,
-                     'roof_form': _roof_form, 'tile': _roof_tile, 'snow_zone': _snow_zone, 'altitude': _nonnegative},
+                     'roof_form': _roof_form, 'tile': _roof_tile, 'snow_zone': _snow_zone, 'altitude': _nonnegative,
+                     'insulation': _roof_insulation, 'insulation_thickness': _insulation_thickness},
     'electrical_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _electrical_type, 'power_w': _nonnegative},
     'plumbing_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _plumbing_type},
     'cabinet': {

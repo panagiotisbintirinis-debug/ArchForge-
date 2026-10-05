@@ -9,8 +9,9 @@ Rafter PRE-SIZING (written out so a structural engineer can check it):
 
 * Rafter = simply supported beam over its horizontal span (wall plate to
   ridge/hip), loads per horizontal metre at the rafter spacing.
-* Permanent load g (on the slope): tiles 0.55 + battens/membrane/boarding
-  0.25 = 0.80 kN/m², converted to plan by dividing by cos(pitch).
+* Permanent load g (on the slope): tiles 0.55 + battens 0.05 + build-up
+  (boarding 0.12, foils 0.02, insulation by type and thickness), converted to
+  plan by dividing by cos(pitch).
 * Snow (EN 1991-1-3): s = μ1 · s_k with μ1 = 0.8 for 0–30°, 0.8·(60−α)/30 for
   30–60°, 0 above.  s_k = s_k,0 · [1 + (A/917)²] with s_k,0 by Greek snow
   zone I 0.4, II 0.8, III 1.7 kN/m² (values to be confirmed against the
@@ -34,7 +35,19 @@ FORMS = {"gable": "Δίρριχτη", "hip": "Τετράρριχτη", "shed": "
 TILES = {"roman": ("Κεραμίδι ρωμαϊκού τύπου", 0.33, "#b5532d"), "french": ("Κεραμίδι γαλλικού τύπου", 0.34, "#a8492a"),
          "flat": ("Κεραμίδι επίπεδο", 0.30, "#7b3a24")}
 SNOW_SK0 = {1: 0.4, 2: 0.8, 3: 1.7}           # kN/m² at sea level, Greek zones I-III (confirm with NA)
-G_ROOF = 0.80                                   # kN/m² on slope: tiles + battens + boarding/membrane
+G_ROOF = 0.80                                   # kN/m² on slope without insulation (kept for reference)
+# Build-up above the rafters, bottom to top (Greek practice for a ventilated tiled roof).
+# name, thickness (m, normal to the slope), weight kN/m², λ W/mK (None = not counted in U)
+BOARDING = ("Ταμπλάς (σανίδωμα)", 0.022, 0.12, 0.13)
+VAPOUR = ("Φράγμα υδρατμών", 0.002, 0.01, None)
+MEMBRANE = ("Διαπνέουσα αδιάβροχη μεμβράνη", 0.002, 0.01, None)
+INSULATIONS = {  # name, λ, weight kN/m³
+    "xps": ("Εξηλασμένη πολυστερίνη (XPS)", 0.034, 0.35),
+    "rockwool": ("Πετροβάμβακας υψηλής πυκνότητας", 0.037, 1.0),
+    "none": ("Χωρίς θερμομόνωση", None, 0.0),
+}
+TILE_WEIGHT, BATTENS_WEIGHT = 0.55, 0.05
+RSI_ROOF, RSE_VENTILATED = 0.10, 0.10           # ISO 6946: upward flow; ventilated layer above the membrane
 F_MK, K_MOD, GAMMA_M, E_MEAN = 24.0, 0.9, 1.3, 11000.0   # C24 (MPa)
 SECTIONS = [(0.06, 0.12), (0.06, 0.14), (0.08, 0.14), (0.08, 0.16), (0.08, 0.18), (0.10, 0.20),
             (0.10, 0.22), (0.12, 0.24), (0.12, 0.26), (0.14, 0.28)]
@@ -44,6 +57,29 @@ TILE_THICK = 0.03
 
 
 # ------------------------------------------------------------------ loads
+def build_up(p):
+    """Layers above the rafters, bottom to top: ``[(name, thickness, weight, λ, role)]``."""
+    kind = str(p.get("insulation", "xps"))
+    t = float(p.get("insulation_thickness", 0.08)) if kind != "none" else 0.0
+    name, lam, density = INSULATIONS[kind]
+    layers = [(*BOARDING, "boarding"), (*VAPOUR, "vapour_barrier")]
+    if t > 0:
+        layers.append((name, t, density * t, lam, "insulation"))
+    layers.append((*MEMBRANE, "membrane"))
+    return layers
+
+
+def dead_load(p):
+    """Permanent load on the slope, kN/m²: tiles, battens and the build-up."""
+    return TILE_WEIGHT + BATTENS_WEIGHT + sum(w for _n, _t, w, _l, _r in build_up(p))
+
+
+def indicative_u(p):
+    """Indicative U of the roof (W/m²K): build-up below the ventilated layer only."""
+    r = RSI_ROOF + RSE_VENTILATED + sum(t / lam for _n, t, _w, lam, _r in build_up(p) if lam)
+    return 1.0 / r
+
+
 def snow_load(params):
     pitch = float(params["pitch"])
     mu = 0.8 if pitch <= 30 else (0.8 * (60 - pitch) / 30 if pitch < 60 else 0.0)
@@ -65,7 +101,8 @@ def size_rafter(params):
     spacing = float(params["rafter_spacing"])
     L = rafter_span(params)
     s, sk, mu = snow_load(params)
-    g_plan = G_ROOF / math.cos(alpha)                      # kN/m² per plan area
+    g_slope = dead_load(params)
+    g_plan = g_slope / math.cos(alpha)                      # kN/m² per plan area
     q_uls = (1.35 * g_plan + 1.5 * s) * spacing           # kN/m along the plan span
     q_sls = (g_plan + s) * spacing
     f_md = K_MOD * F_MK / GAMMA_M                          # MPa
@@ -85,7 +122,7 @@ def size_rafter(params):
                       "utilisation": round(sigma / f_md, 2), "deflection_mm": round(defl * 1000, 1),
                       "deflection_limit_mm": round(limit * 1000, 1)}
             break
-    return {"span_m": round(L, 2), "spacing_m": spacing, "g_kn_m2": G_ROOF, "snow_kn_m2": round(s, 2),
+    return {"span_m": round(L, 2), "spacing_m": spacing, "g_kn_m2": round(g_slope, 2), "snow_kn_m2": round(s, 2),
             "sk_kn_m2": round(sk, 2), "mu1": round(mu, 2), "q_uls_kn_m": round(q_uls, 2), "m_ed_knm": round(m_ed, 2),
             "section": chosen, "ok": chosen is not None, "provenance": PROVENANCE}
 
@@ -181,8 +218,14 @@ def members(p):
     x0, y0, x1, y1 = _frame(p)
     ez = float(p["eave_z"])
     # Wall plates along the eaves (under the rafters).
+    roof_planes = planes(p)
+
+    def under_roof(x, y):
+        # Lowest roof plane over the wall line: eaves stay at eave_z, the high
+        # wall of a shed roof and the sloping side walls follow the roof.
+        return min(height_at(p, plane, x, y) for plane in roof_planes)
     for a, b in (((x0, y0), (x1, y0)), ((x1, y1), (x0, y1)), ((x0, y0), (x0, y1)), ((x1, y0), (x1, y1))):
-        out.append(("plate", (a[0], a[1], ez), (b[0], b[1], ez), PLATE))
+        out.append(("plate", (a[0], a[1], under_roof(*a)), (b[0], b[1], under_roof(*b)), PLATE))
     for plane in planes(p):
         poly, ea, eb, up = plane
         ex, ey = eb[0] - ea[0], eb[1] - ea[1]
@@ -267,33 +310,50 @@ def _beam(a, b, size, top_offset_normal=None):
 
 
 def roof_mesh(p):
-    """World (vertices, triangles, roles) for members and the tiled surface."""
+    """World (vertices, triangles, roles): members, build-up layers and tiles."""
     verts, tris, roles = [], [], []
+    cos_a = math.cos(math.radians(float(p["pitch"])))
 
     def add(v, t, role):
         base = len(verts)
         verts.extend(v)
         tris.extend(tuple(base + i for i in tri) for tri in t)
         roles.extend(role for _ in t)
-    for role, a, b, size in members(p):
-        if role == "batten":
-            # battens sit on the rafters: lift by the batten height
-            a = (a[0], a[1], a[2] + BATTEN[1])
-            b = (b[0], b[1], b[2] + BATTEN[1])
-        v, t = _beam(a, b, size)
-        add(v, t, role)
-    lift = BATTEN[1]
-    for plane in planes(p):
+
+    def slab(plane, z_from, z_to, role):
         poly = plane[0]
-        top = [(x, y, height_at(p, plane, x, y) + lift + TILE_THICK) for x, y in poly]
-        bot = [(x, y, height_at(p, plane, x, y) + lift) for x, y in poly]
+        top = [(x, y, height_at(p, plane, x, y) + z_to) for x, y in poly]
+        bot = [(x, y, height_at(p, plane, x, y) + z_from) for x, y in poly]
         n = len(poly)
-        v = top + bot
         t = [(0, i, i + 1) for i in range(1, n - 1)] + [(n, n + i + 1, n + i) for i in range(1, n - 1)]
         for i in range(n):
             j = (i + 1) % n
             t += [(i, j, n + j), (i, n + j, n + i)]
-        add(v, t, "tiles")
+        add(top + bot, t, role)
+
+    # Vertical lifts of each layer above the rafter top (thickness / cos α).
+    stack = 0.0
+    layer_spans = []
+    for _name, thick, _w, _lam, role in build_up(p):
+        shown = max(thick, 0.004) / cos_a           # foils drawn 4 mm so they stay visible
+        layer_spans.append((role, stack, stack + shown))
+        stack += shown
+    counter = 0.03 / cos_a                           # counter battens over the membrane (ventilation)
+    batten_base = stack + counter
+    for role, a, b, size in members(p):
+        if role == "batten":
+            a = (a[0], a[1], a[2] + batten_base + BATTEN[1])
+            b = (b[0], b[1], b[2] + batten_base + BATTEN[1])
+        v, t = _beam(a, b, size)
+        add(v, t, role)
+        if role == "rafter":                         # counter batten on top of the build-up
+            v, t = _beam((a[0], a[1], a[2] + batten_base), (b[0], b[1], b[2] + batten_base), (0.05, 0.03))
+            add(v, t, "counter_batten")
+    for plane in planes(p):
+        for role, z0, z1 in layer_spans:
+            slab(plane, z0, z1, role)
+        tiles_base = batten_base + BATTEN[1]
+        slab(plane, tiles_base, tiles_base + TILE_THICK, "tiles")
     return tuple(verts), tuple(tris), tuple(roles)
 
 
@@ -309,4 +369,5 @@ def default_params(doc, level_name=None):
     height = max(float(w.params["height"]) for w in walls)
     return {"x0": min(xs) - t, "y0": min(ys) - t, "x1": max(xs) + t, "y1": max(ys) + t,
             "eave_z": z + height, "pitch": 25.0, "overhang": 0.50, "rafter_spacing": 0.60,
-            "roof_form": "gable", "tile": "roman", "snow_zone": 2, "altitude": 0.0}
+            "roof_form": "gable", "tile": "roman", "snow_zone": 2, "altitude": 0.0,
+            "insulation": "xps", "insulation_thickness": 0.08}
