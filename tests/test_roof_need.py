@@ -163,3 +163,17 @@ def test_tiled_roof_goes_over_the_top_storey_even_from_the_ground_floor():
         assert roof.params['x1'] < 5.5                                     # over the upper storey only
     finally:
         w._mark_clean(); w.close(); app.processEvents()
+
+
+def test_assistant_flags_a_ground_extension_left_without_roof():
+    """Screenshot: the tiled roof covers the upper storey; the single-storey part beside it stayed open."""
+    from archforge.assistant.suggestions import apply, propose
+    from archforge.structure.timber_roof import default_params
+    doc, st, (left, right) = _two_storeys()
+    assert not any(p.key == 'R-2' for p in propose(doc))                    # nothing roofed yet: no nagging
+    st.execute(AddEntity(Entity('pitched_roof', default_params(doc, z=2.7))))
+    r2 = next(p for p in propose(doc) if p.key == 'R-2')
+    assert r2.targets == (right.signature,) and r2.severity == 'warning'
+    apply(st, r2)
+    assert not any(p.key == 'R-2' for p in propose(doc))
+    assert sum(e.kind == 'room_roof' for e in doc.entities.values()) == 1

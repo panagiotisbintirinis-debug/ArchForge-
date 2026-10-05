@@ -184,9 +184,18 @@ def _structural(doc):
 
 
 def _roofs(doc):
-    """R-1: a roof slab under an upper storey is not needed (the storey above covers the room)."""
-    from archforge.architecture.roof_need import COVERED, coverage, room_face_of
+    """R-1: a roof slab under an upper storey is not needed. R-2: an uncovered room has no roof."""
+    from archforge.architecture.roof_need import COVERED, coverage, room_face_of, roof_plan
     out = []
+    if any(e.kind in ("room_roof", "pitched_roof") for e in doc.entities.values()):
+        # Only once the user has started roofing: before that, every room is "open" on purpose.
+        missing = roof_plan(doc)["add"]
+        if missing:
+            from archforge.core.commands import CreateRoomRoofs
+            out.append(Proposal("R-2", "warning", f"Στέγη: {len(missing)} χώρος/οι χωρίς στέγη και χωρίς όροφο από πάνω",
+                                "Π.χ. ισόγεια προέκταση έξω από τον πάνω όροφο. «Εφαρμογή» = επίπεδη στέγη (δώμα) εκεί· "
+                                "για κεραμοσκεπή: Κατασκευή → Στέγη → Με κεραμίδια.", "Κανόνας στέγης: κάθε ακάλυπτος χώρος στεγάζεται",
+                                tuple(missing), lambda _doc, m=tuple(missing): CreateRoomRoofs(list(m), thickness=.20, roof_type="flat")))
     for e in doc.entities.values():
         if e.kind != "room_roof":
             continue
