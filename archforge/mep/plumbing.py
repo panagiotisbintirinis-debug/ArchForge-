@@ -15,8 +15,16 @@ Routing rules (stated so an engineer can check them):
   its plan position; it also needs a cold feed, so it joins the cold tree.
 * At each fixture the pipe rises vertically to the fixture's usual
   connection height.
-* Diameters follow common PEX practice: Ø20 on runs that feed two or more
-  outlets, Ø16 on single-outlet branches.  Not a hydraulic calculation.
+* Pipe system (set on the water-supply point, ``pipe_system``):
+  - multilayer (πολυστρωματική, PEX-Al-PEX): branched tree, Ø16 single
+    outlet, Ø20 for 2-5 outlets, Ø26 for 6 or more;
+  - copper (χαλκός, EN 1057): branched tree, Ø15 / Ø18 / Ø22 by the same
+    outlet counts;
+  - manifold (μονοσωλήνιο): a manifold (πίνακας υδροληψίας, cold and hot
+    collectors) per wet room, fed by one Ø20 line (Ø26 for 6+ outlets), then
+    one independent Ø16 pipe per fixture, with no joints in the floor.
+  Sizing by outlet count is a common rule of thumb, not a hydraulic
+  calculation (EN 806-3 loading units are not evaluated).
 
 Status: pre-design layout for review by a mechanical engineer.
 """
@@ -25,8 +33,27 @@ from __future__ import annotations
 import heapq
 import math
 
-PROVENANCE = ("Προμελέτη διάταξης: κανόνες χάραξης & τυπικές διατομές PEX (Ø20 κοινά τμήματα, "
-              "Ø16 διακλαδώσεις) — όχι υδραυλικός υπολογισμός, προς έλεγχο από μηχανολόγο")
+PROVENANCE = ("Προμελέτη διάταξης: κανόνες χάραξης & τυπικές διατομές ανά πλήθος εκροών "
+              "— όχι υδραυλικός υπολογισμός (EN 806-3), προς έλεγχο από μηχανολόγο")
+
+# system: label, (Ø one outlet, Ø 2-5 outlets, Ø 6+ outlets) in mm
+PIPE_SYSTEMS = {
+    "multilayer": ("Πολυστρωματική (PEX-Al-PEX), διακλαδώσεις", (16, 20, 26)),
+    "copper": ("Χαλκός (EN 1057), διακλαδώσεις", (15, 18, 22)),
+    "manifold": ("Μονοσωλήνιο με πίνακες υδροληψίας", (16, 20, 26)),
+}
+DEFAULT_SYSTEM = "multilayer"
+HOME_RUN_GAP = 0.04   # plan spacing of parallel home-run pipes from a manifold
+
+
+def pipe_system(doc):
+    supply = next((e for e in plumbing_points(doc) if e.params["point_type"] == "water_supply"), None)
+    value = str(supply.params.get("pipe_system", DEFAULT_SYSTEM)) if supply is not None else DEFAULT_SYSTEM
+    return value if value in PIPE_SYSTEMS else DEFAULT_SYSTEM
+
+
+def _size(sizes, outlets):
+    return sizes[0] if outlets <= 1 else (sizes[1] if outlets <= 5 else sizes[2])
 
 # type: label, needs cold, needs hot, connection height (m), plan letter
 POINT_TYPES = {
@@ -179,7 +206,7 @@ def _grow(grid, source_cell, targets):
     return paths, loads, parent
 
 
-def _segments(grid, paths, loads, parent, z, offset=0.0):
+def _segments(grid, paths, loads, parent, z, offset=0.0, sizes=(16, 20, 26)):
     """Tree edges as straight runs ``(a, b, diameter_mm)``: one run per straight
     stretch of equal diameter, each edge emitted once."""
     seen = set()
@@ -193,7 +220,7 @@ def _segments(grid, paths, loads, parent, z, offset=0.0):
             if edge in seen:
                 break
             seen.add(edge)
-            chain.append((c, p, 20 if loads.get(edge, 1) >= 2 else 16))
+            chain.append((c, p, _size(sizes, loads.get(edge, 1))))
             c = p
         k = 0
         while k < len(chain):
@@ -217,13 +244,29 @@ def _segments(grid, paths, loads, parent, z, offset=0.0):
     return out
 
 
-def route_plumbing(doc):
-    """Derived networks: ``{"cold": [...], "hot": [...], "report": {...}}``.
+def _room_key(doc, x, y, floor):
+    from archforge.mep.electrical import _room_of
+    return _room_of(doc, x, y, floor)
 
-    Each pipe is ``(start_xyz, end_xyz, diameter_mm)``.
+
+def _offset(a, b, d):
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    n = math.hypot(dx, dy) or 1.0
+    return -dy / n * d, dx / n * d
+
+
+def route_plumbing(doc):
+    """Derived networks: ``{"cold": [...], "hot": [...], "manifolds": [...], "report": {...}}``.
+
+    Each pipe is ``(start_xyz, end_xyz, diameter_mm)``; each manifold is a dict
+    with its position, system (cold/hot), room and outlets.
     """
     points = plumbing_points(doc)
-    result = {"cold": [], "hot": [], "report": {"cold_m": 0.0, "hot_m": 0.0, "unserved": [], "provenance": PROVENANCE}}
+    system_key = pipe_system(doc)
+    label, sizes = PIPE_SYSTEMS[system_key]
+    result = {"cold": [], "hot": [], "manifolds": [],
+              "report": {"cold_m": 0.0, "hot_m": 0.0, "unserved": [], "system": system_key, "system_label": label,
+                         "provenance": PROVENANCE}}
     if not points:
         return result
     supplies = [e for e in points if e.params["point_type"] == "water_supply"]
@@ -248,27 +291,95 @@ def route_plumbing(doc):
             src = source_list[0]
             sx, sy, sz = (float(src.params[k]) for k in ("x", "y", "z"))
             source_cell = grid.cell(sx, sy)
-            targets = {e.id: grid.cell(float(e.params["x"]), float(e.params["y"])) for e in needs if e.id != src.id}
-            paths, loads, parent = _grow(grid, source_cell, targets)
             offset = HOT_OFFSET if system == "hot" else 0.0
-            pipes = _segments(grid, paths, loads, parent, z, offset)
+            served = [e for e in needs if e.id != src.id]
+            cell_of = {e.id: grid.cell(float(e.params["x"]), float(e.params["y"])) for e in served}
+            pipes = []
+            if system_key == "manifold":
+                # Wet rooms -> one manifold each (heaters are fed directly, they are sources too).
+                groups = {}
+                for e in served:
+                    room = None if e.params["point_type"] in SOURCES else \
+                        _room_key(doc, float(e.params["x"]), float(e.params["y"]), floor)
+                    groups.setdefault(room if room is not None else f"#{e.id}", []).append(e)
+                # A fixture alone in its room joins the nearest wet room's manifold.
+                def _centroid(group):
+                    return (sum(float(e.params["x"]) for e in group) / len(group),
+                            sum(float(e.params["y"]) for e in group) / len(group))
+                for room in [r for r, g in groups.items() if len(g) == 1 and g[0].params["point_type"] not in SOURCES]:
+                    others = [r for r, g in groups.items() if r != room and len(g) > 1]
+                    if others:
+                        lone = groups.pop(room)
+                        target = min(others, key=lambda r: (math.dist(_centroid(groups[r]), _centroid(lone)), str(r)))
+                        groups[target] += lone
+                feeds, home_runs, outlet_count = {}, [], {}
+                for room, group in sorted(groups.items(), key=lambda kv: str(kv[0])):
+                    if len(group) == 1 and group[0].params["point_type"] in SOURCES:
+                        feeds[group[0].id] = cell_of[group[0].id]
+                        continue
+                    cx = sum(float(e.params["x"]) for e in group) / len(group)
+                    cy = sum(float(e.params["y"]) for e in group) / len(group)
+                    mcell = min(grid.near, key=lambda c: (math.dist(grid.point(c), (cx, cy)), c))
+                    key = f"manifold:{system}:{room}"
+                    feeds[key] = mcell
+                    outlet_count[key] = len(group)
+                    mx, my = grid.point(mcell)
+                    result["manifolds"].append({"x": mx, "y": my, "z": floor, "system": system, "room": str(room),
+                                                "outlets": [e.id for e in group], "feed_mm": _size(sizes, max(2, len(group)))})
+                    for k, e in enumerate(group):
+                        path = grid.route(cell_of[e.id], {mcell})
+                        home_runs.append((path, k - (len(group) - 1) / 2))
+                paths, _loads, parent = _grow(grid, source_cell, feeds)
+                outlets_on = {}
+                for key, path in paths.items():
+                    c = path[0]
+                    while parent.get(c) is not None:
+                        edge = frozenset((c, parent[c]))
+                        outlets_on[edge] = outlets_on.get(edge, 0) + max(2, outlet_count.get(key, 1)) \
+                            if outlet_count.get(key, 1) > 1 else outlets_on.get(edge, 0) + 1
+                        c = parent[c]
+                pipes += _segments(grid, paths, outlets_on, parent, z, offset, sizes)
+                # Independent pipes, drawn side by side so each one stays readable.
+                for path, slot in home_runs:
+                    pts_ = _simplify([grid.point(c) for c in path])
+                    for a, b in zip(pts_, pts_[1:]):
+                        ox, oy = _offset(a, b, offset + slot * HOME_RUN_GAP)
+                        pipes.append(((a[0] + ox, a[1] + oy, z), (b[0] + ox, b[1] + oy, z), sizes[0]))
+            else:
+                paths, loads, parent = _grow(grid, source_cell, cell_of)
+                pipes += _segments(grid, paths, loads, parent, z, offset, sizes)
             # Riser from the source to the screed (e.g. solar heater on the roof)
             sxy = grid.point(source_cell)
             src_conn = sz + POINT_TYPES[src.params["point_type"]][3]
             if abs(src_conn - z) > 1e-6:
-                pipes.append(((sxy[0] + offset, sxy[1], src_conn), (sxy[0] + offset, sxy[1], z), 20))
+                pipes.append(((sxy[0] + offset, sxy[1], src_conn), (sxy[0] + offset, sxy[1], z), _size(sizes, len(served))))
             # Drop-ups to each fixture's connection height
-            for e in needs:
-                if e.id == src.id:
-                    continue
-                c = grid.point(grid.cell(float(e.params["x"]), float(e.params["y"])))
+            for e in served:
+                c = grid.point(cell_of[e.id])
                 top = float(e.params["z"]) + POINT_TYPES[e.params["point_type"]][3]
                 if top > z + 1e-6:
-                    pipes.append(((c[0] + offset, c[1], z), (c[0] + offset, c[1], top), 16))
+                    pipes.append(((c[0] + offset, c[1], z), (c[0] + offset, c[1], top), sizes[0]))
             result[system] += pipes
     for system in ("cold", "hot"):
         result["report"][f"{system}_m"] = round(sum(math.dist(a, b) for a, b, _d in result[system]), 2)
     return result
+
+
+def manifold_mesh(m):
+    """Manifold box (recessed cabinet) with its collector bar and one valve stub per outlet."""
+    n = len(m["outlets"])
+    w = 0.10 + 0.05 * n
+    x, y, z0 = m["x"], m["y"], m["z"] + (0.45 if m["system"] == "cold" else 0.60)
+    parts = [pipe_mesh((x - w / 2, y, z0), (x + w / 2, y, z0), 32, sides=10)]
+    for k in range(n):
+        px = x - w / 2 + 0.05 * (k + 1) + 0.025
+        parts.append(pipe_mesh((px, y, z0), (px, y, z0 - 0.12), 16, sides=6))
+    verts, tris = [], []
+    for v, t in parts:
+        base = len(verts)
+        verts += list(v)
+        tris += [tuple(base + i for i in tri) for tri in t]
+    return verts, tris
 
 
 def pipe_mesh(a, b, diameter_mm, sides=8):

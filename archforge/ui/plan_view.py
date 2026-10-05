@@ -462,6 +462,8 @@ class PlanView(QGraphicsView):
             from archforge.mep.electrical import CABLE_COLORS
             pen=QPen(QColor(CABLE_COLORS.get(dict(p.meta).get('group'),'#e07a00')));pen.setWidthF(.015)
             pen.setStyle({'wall':Qt.PenStyle.SolidLine,'floor':Qt.PenStyle.DotLine}.get(dict(p.meta).get('run'),Qt.PenStyle.DashLine))
+        if p.role=='manifold':
+            pen=QPen(QColor(31,111,209) if dict(p.meta).get('system')=='cold' else QColor(209,48,31));pen.setWidthF(.012)
         if p.role=='elec-box':
             pen=QPen(QColor({'pull':'#c0262d','floor':'#0a8a5a'}.get(dict(p.meta).get('box'),'#3a3f48')));pen.setWidthF(.012)
         if p.role=='electrical-point':pen=QPen(QColor(200,120,0));pen.setWidthF(.02)

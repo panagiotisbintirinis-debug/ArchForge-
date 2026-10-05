@@ -262,8 +262,15 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
         # Derived water pipes (layer "mep"): one mesh per system, not entities.
         from archforge.mep.plumbing import pipe_mesh, route_plumbing_cached
         network = route_plumbing_cached(doc)
+        from archforge.mep.plumbing import manifold_mesh
         for system in ("cold", "hot"):
             verts, tris = [], []
+            for m in network.get("manifolds", ()):
+                if m["system"] == system:
+                    v, t = manifold_mesh(m)
+                    base = len(verts)
+                    verts += [list(map(float, q)) for q in v]
+                    tris += [[base + i for i in tri] for tri in t]
             for a, b, dia in network[system]:
                 # Drawn at least Ø40 so the route reads in 3D; the real Ø stays in the data/plan.
                 v, t = pipe_mesh(a, b, max(dia, 40))

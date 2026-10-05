@@ -867,7 +867,7 @@ class MainWindow(QMainWindow):
         report = route_plumbing_cached(self.doc)['report']
         extra = f" · χωρίς σύνδεση: {len(report['unserved'])}" if report['unserved'] else ''
         self.statusBar().showMessage(
-            f"{label} · κρύο {report['cold_m']:.1f} m, ζεστό {report['hot_m']:.1f} m{extra} — προμελέτη, προς έλεγχο μηχανολόγου",
+            f"{label} · {report['system_label']} · κρύο {report['cold_m']:.1f} m, ζεστό {report['hot_m']:.1f} m{extra} — προμελέτη, προς έλεγχο μηχανολόγου",
             7000)
         return point
 
@@ -1283,6 +1283,15 @@ class MainWindow(QMainWindow):
                 self.form.addRow(key, spin)
             elif entity.kind == 'room_floor' and key == 'room_signature':
                 self.form.addRow('Room', QLabel(str(value)))
+        if entity.kind == 'plumbing_point' and params.get('point_type') == 'water_supply':
+            from archforge.mep.plumbing import DEFAULT_SYSTEM, PIPE_SYSTEMS
+            combo = QComboBox()
+            for value, (label, _sizes) in PIPE_SYSTEMS.items():
+                combo.addItem(label, value)
+            combo.setCurrentIndex(max(0, combo.findData(params.get('pipe_system', DEFAULT_SYSTEM))))
+            combo.currentIndexChanged.connect(
+                lambda _i, widget=combo, entity_id=eid: self._set_entity_choice(entity_id, 'pipe_system', widget.currentData()))
+            self.form.addRow('Σύστημα σωλήνων', combo)
         if entity.kind == 'electrical_point' and params.get('point_type') not in ('panel', 'light'):
             from archforge.mep.electrical import routing_of
             combo = QComboBox()

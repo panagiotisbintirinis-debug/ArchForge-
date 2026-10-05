@@ -207,6 +207,13 @@ def _rafter_spacing(v):
     return v
 
 
+def _pipe_system(v):
+    v = str(v)
+    if v not in ('multilayer', 'copper', 'manifold'):
+        raise ValueError('pipe_system must be multilayer, copper or manifold')
+    return v
+
+
 def _cable_routing(v):
     v = str(v)
     if v not in ('auto', 'wall', 'floor'):
@@ -521,7 +528,7 @@ SCHEMAS = {
                      'insulation': _roof_insulation, 'insulation_thickness': _insulation_thickness},
     'electrical_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _electrical_type, 'power_w': _nonnegative,
                          'routing': _cable_routing},
-    'plumbing_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _plumbing_type},
+    'plumbing_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _plumbing_type, 'pipe_system': _pipe_system},
     'cabinet': {
         'x': _finite, 'y': _finite, 'z': _finite, 'rotation': _finite,
         'width': _positive, 'depth': _positive, 'height': _positive, 'plinth': _nonnegative,

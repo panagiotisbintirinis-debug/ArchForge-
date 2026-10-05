@@ -107,3 +107,48 @@ def test_menu_places_points_and_layer_can_be_hidden():
         assert 'mep' in window.pbr_view.hidden_layers
     finally:
         window._mark_clean(); window.close(); app.processEvents()
+
+
+def _bathroom_and_kitchen(stack, system=None):
+    extra = {'pipe_system': system} if system else {}
+    supply = Entity('plumbing_point', {'x': 0.3, 'y': 0.3, 'z': 0.0, 'point_type': 'water_supply', **extra})
+    stack.execute(AddEntity(supply))
+    _point(stack, 'solar_heater', 6.0, 2.0, z=6.0)
+    fixtures = [_point(stack, k, x, y) for k, x, y in [('basin', 5.0, 5.7), ('wc', 6.5, 5.7), ('shower', 7.7, 4.2),
+                                                       ('kitchen_sink', 1.0, 5.7), ('dishwasher', 1.7, 5.7)]]
+    return supply, fixtures
+
+
+@pytest.mark.parametrize('system,sizes', [('multilayer', {16, 20, 26}), ('copper', {15, 18, 22})])
+def test_tree_systems_use_their_material_sizes(system, sizes):
+    doc = Document(); stack = CommandStack(doc); _house(stack)
+    _bathroom_and_kitchen(stack, system)
+    r = route_plumbing(doc)
+    assert r['report']['system'] == system and r['manifolds'] == []
+    used = {d for _a, _b, d in r['cold'] + r['hot']}
+    assert used <= sizes and min(sizes) in used
+
+
+def test_manifold_system_feeds_each_fixture_with_its_own_pipe_and_switches_by_command():
+    from archforge.core.commands import UpdateEntity
+    doc = Document(); stack = CommandStack(doc); _house(stack)
+    supply, fixtures = _bathroom_and_kitchen(stack)
+    tree = route_plumbing(doc)
+    stack.execute(UpdateEntity(supply.id, {'pipe_system': 'manifold'}))
+    r = route_plumbing(doc)
+    assert r['report']['system'] == 'manifold'
+    cold = [m for m in r['manifolds'] if m['system'] == 'cold']
+    # every fixture appears in exactly one cold manifold; no manifold with a single outlet
+    assert sorted(i for m in cold for i in m['outlets']) == sorted(e.id for e in fixtures)
+    assert all(len(m['outlets']) >= 2 for m in r['manifolds'])
+    hot_fixtures = {e.id for e in fixtures if POINT_TYPES[e.params['point_type']][2]}
+    assert {i for m in r['manifolds'] if m['system'] == 'hot' for i in m['outlets']} == hot_fixtures
+    # home runs are Ø16 and there are more pipes than in a branched tree
+    assert r['report']['cold_m'] > tree['report']['cold_m']
+    prims = build_plan_frame(doc).primitives
+    assert any(p.role == 'manifold' for p in prims)
+    assert any(dict(p.meta).get('text', '').startswith('Π.Υ.') for p in prims if p.role == 'plumbing-label')
+    stack.undo()
+    assert route_plumbing(doc)['manifolds'] == []
+    with pytest.raises(ValueError):
+        stack.execute(UpdateEntity(supply.id, {'pipe_system': 'lead'}))

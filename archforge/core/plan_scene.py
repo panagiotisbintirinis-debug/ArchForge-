@@ -502,6 +502,18 @@ def build_plan_frame(doc,preview=None):
             for a,b,dia in network[system]:
                 if abs(a[2]-b[2])<1e-9 and abs(a[2]-(level+SCREED))<1e-6:
                     f.primitives.append(Primitive2D('polyline',((a[0],a[1]),(b[0],b[1])),role=f'pipe-{system}',meta=(('diameter',dia),)))
+        # Manifolds (πίνακες υδροληψίας): box, collector bar and one valve per outlet.
+        for m in network.get('manifolds',()):
+            if abs(m['z']-level)>1e-6:
+                continue
+            n=len(m['outlets']);w=.10+.05*n;x=m['x'];y=m['y']+(.10 if m['system']=='hot' else -.10)
+            f.primitives.append(Primitive2D('polyline',((x-w/2,y-.06),(x+w/2,y-.06),(x+w/2,y+.06),(x-w/2,y+.06),(x-w/2,y-.06)),role='manifold',meta=(('system',m['system']),)))
+            f.primitives.append(Primitive2D('polyline',((x-w/2+.02,y),(x+w/2-.02,y)),role=f"pipe-{m['system']}",meta=(('diameter',m['feed_mm']),)))
+            for k in range(n):
+                px=x-w/2+.05*(k+1)+.025
+                f.primitives.append(Primitive2D('polyline',((px,y-.05),(px,y+.05)),role='manifold',meta=(('system',m['system']),)))
+            f.primitives.append(Primitive2D('label',((x+w/2+.05,y),),role='plumbing-label',
+                                            meta=(('text',f"Π.Υ. {'κρύο' if m['system']=='cold' else 'ζεστό'} {n} εξ."),)))
         for eid in doc.entities:
             e=doc.get(eid)
             if e.kind=='plumbing_point' and _entity_on_active_level(doc,e):
