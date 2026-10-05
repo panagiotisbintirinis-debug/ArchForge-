@@ -455,6 +455,9 @@ class PlanView(QGraphicsView):
         if p.role in ('pipe-cold','pipe-hot'):
             pen=QPen(QColor(31,111,209) if p.role=='pipe-cold' else QColor(209,48,31))
             pen.setWidthF(.035 if dict(p.meta).get('diameter',16)>=20 else .02)
+        if p.role in ('roof-outline','roof-ridge'):
+            pen=QPen(QColor(150,70,40));pen.setWidthF(.02 if p.role=='roof-outline' else .015)
+            pen.setStyle(Qt.PenStyle.DashLine if p.role=='roof-outline' else Qt.PenStyle.DashDotLine)
         if p.role=='cable':
             from archforge.mep.electrical import CABLE_COLORS
             pen=QPen(QColor(CABLE_COLORS.get(dict(p.meta).get('group'),'#e07a00')));pen.setWidthF(.015);pen.setStyle(Qt.PenStyle.DashLine)

@@ -87,6 +87,7 @@ class MoveEntities(Command):
             if e.kind in ('structural_column','structural_beam') and abs(float(self.dz))>1e-12:
                 raise ValueError(f'{e.kind} vertical position is level-driven; change its level instead')
             if e.kind in ('box','mechanical_part','library_object','kitchen_part','cabinet','plumbing_point','electrical_point'):doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy,'z':p['z']+self.dz})
+            elif e.kind=='pitched_roof':doc.update(i,{'x0':p['x0']+self.dx,'x1':p['x1']+self.dx,'y0':p['y0']+self.dy,'y1':p['y1']+self.dy,'eave_z':p['eave_z']+self.dz})
             elif e.kind=='plant':doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy,'z':p['z']+self.dz})
             elif e.kind=='structural_column':doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy})
             elif e.kind=='mep_terminal':doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy,'elevation':p['elevation']+self.dz})

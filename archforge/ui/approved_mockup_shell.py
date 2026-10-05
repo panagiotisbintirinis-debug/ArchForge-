@@ -165,6 +165,16 @@ def install_approved_mockup_shell(window):
         if text is None:terrain_menu.addSeparator();continue
         a=QAction(text,window); a.triggered.connect(lambda _=False,r=run: r()); terrain_menu.addAction(a)
     window._mockup_terrain_menu=terrain_menu
+    roof_action=QAction("Ξύλινη κεραμοσκεπή (δοκοί & κεραμίδια)",window)
+    roof_action.triggered.connect(lambda: window._create_pitched_roof())
+    menus["Κατασκευή"].addAction(roof_action); window._pitched_roof_action=roof_action
+    roof_layer=QAction("Σκελετός στέγης στο 3D",window); roof_layer.setCheckable(True); roof_layer.setChecked(True)
+    roof_layer.toggled.connect(lambda on: window._set_layer_visible("roof_structure",on))
+    tiles_layer=QAction("Κεραμίδια στο 3D",window); tiles_layer.setCheckable(True); tiles_layer.setChecked(True)
+    tiles_layer.toggled.connect(lambda on: window._set_layer_visible("roof_tiles",on))
+    for a in (roof_layer,tiles_layer):
+        menus["Κατασκευή"].addAction(a); window.view_menu.addAction(a)
+    window._roof_tiles_layer_action=tiles_layer
     mep_menu=menus["Μηχανολογικά"]
     from archforge.mep.plumbing import POINT_TYPES
     plumbing=QMenu("Υδραυλικά σημεία",mep_menu); mep_menu.addMenu(plumbing)

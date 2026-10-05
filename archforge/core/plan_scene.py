@@ -151,6 +151,11 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
         # roof, or foundation). Filtering on the slab's rendered Z would hide
         # those dependants from the plan that owns them.
         return found is not None and abs(float(found[1])-z)<=tolerance
+    if e.kind=='pitched_roof':
+        # A roof belongs to the storey whose walls carry it.
+        ez=float(p.get('eave_z',0.0))-0.05
+        owner=max([float(v) for v in doc.levels.values() if float(v)<=ez]+[min([float(v) for v in doc.levels.values()]+[0.0])])
+        return abs(owner-z)<=tolerance
     if e.kind=='electrical_point':
         from archforge.mep.electrical import _floor_of as elec_floor
         return abs(elec_floor(doc,float(p.get('z',0.0)))-z)<=tolerance
@@ -180,6 +185,11 @@ def entity_primitive(doc,eid):
     if e.kind=='plant':
         r=float(p['canopy'])/2.0
         return Primitive2D('ellipse',((float(p['x']),float(p['y'])),),r,r,0.,eid,'plant')
+    if e.kind=='pitched_roof':
+        from archforge.structure.timber_roof import planes
+        pts=[q for plane in planes(p) for q in plane[0]]
+        xs=[q[0] for q in pts];ys=[q[1] for q in pts]
+        return Primitive2D('polyline',((min(xs),min(ys)),(max(xs),min(ys)),(max(xs),max(ys)),(min(xs),max(ys)),(min(xs),min(ys))),entity_id=eid,role='roof-outline')
     if e.kind=='electrical_point':
         from archforge.mep.electrical import POINT_TYPES as ELEC
         return Primitive2D('ellipse',((float(p['x']),float(p['y'])),),.10,.10,0.,eid,'electrical-point',
@@ -463,6 +473,11 @@ def build_plan_frame(doc,preview=None):
             from archforge.architecture.wall_types import layer_lines
             for pts,insulation in layer_lines(doc.get(eid).params,doc.get(eid).params['wall_type']):
                 f.primitives.append(Primitive2D('polyline',tuple(pts),entity_id=eid,role='wall-insulation' if insulation else 'wall-layer'))
+        if p and doc.get(eid).kind=='pitched_roof':
+            from archforge.structure.timber_roof import members
+            for role,a,b,_size in members(doc.get(eid).params):
+                if role in ('ridge','hip'):
+                    f.primitives.append(Primitive2D('polyline',((a[0],a[1]),(b[0],b[1])),entity_id=eid,role='roof-ridge'))
         if p and doc.get(eid).kind=='cabinet':
             from archforge.kitchen.cabinets import front_line,footprint as cabinet_footprint
             q=doc.get(eid).params

@@ -155,6 +155,43 @@ def _electrical_type(v):
     return v
 
 
+def _roof_form(v):
+    from archforge.structure.timber_roof import FORMS
+    v = str(v)
+    if v not in FORMS:
+        raise ValueError(f'roof form must be one of {", ".join(FORMS)}')
+    return v
+
+
+def _roof_tile(v):
+    from archforge.structure.timber_roof import TILES
+    v = str(v)
+    if v not in TILES:
+        raise ValueError(f'tile must be one of {", ".join(TILES)}')
+    return v
+
+
+def _snow_zone(v):
+    v = int(round(float(v)))
+    if v not in (1, 2, 3):
+        raise ValueError('snow zone must be 1, 2 or 3')
+    return v
+
+
+def _pitch(v):
+    v = _finite(v)
+    if not 5.0 <= v <= 60.0:
+        raise ValueError('roof pitch must be between 5 and 60 degrees')
+    return v
+
+
+def _rafter_spacing(v):
+    v = _finite(v)
+    if not 0.3 <= v <= 1.2:
+        raise ValueError('rafter spacing must be between 0.30 and 1.20 m')
+    return v
+
+
 def _count(v):
     value = int(round(float(v)))
     if not 0 <= value <= 20:
@@ -456,6 +493,9 @@ SCHEMAS = {
         'x': _finite, 'y': _finite, 'z': _finite, 'height': _positive, 'canopy': _positive,
         'species': _plant_species,
     },
+    'pitched_roof': {'x0': _finite, 'y0': _finite, 'x1': _finite, 'y1': _finite, 'eave_z': _finite,
+                     'pitch': _pitch, 'overhang': _nonnegative, 'rafter_spacing': _rafter_spacing,
+                     'roof_form': _roof_form, 'tile': _roof_tile, 'snow_zone': _snow_zone, 'altitude': _nonnegative},
     'electrical_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _electrical_type, 'power_w': _nonnegative},
     'plumbing_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _plumbing_type},
     'cabinet': {

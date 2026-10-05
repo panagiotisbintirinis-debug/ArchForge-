@@ -904,6 +904,33 @@ class MainWindow(QMainWindow):
         self.pbr_view.hidden_layers = hidden
         self._redraw_views(all_views=True)
 
+    def _set_entity_choice(self, entity_id, key, value):
+        if self.doc.get(entity_id).params.get(key) == value:
+            return
+        self.stack.execute(UpdateEntity(entity_id, {key: value}))
+        self._redraw_views(all_views=True)
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self.refresh_inspector)
+
+    def _create_pitched_roof(self):
+        """Timber tiled roof over the active storey's walls (one undoable command)."""
+        from archforge.structure.timber_roof import FORMS, default_params, size_rafter
+        try:
+            params = default_params(self.doc)
+        except ValueError as exc:
+            QMessageBox.information(self, 'Κεραμοσκεπή', str(exc))
+            return None
+        roof = Entity('pitched_roof', params, name=f"Κεραμοσκεπή {FORMS[params['roof_form']].lower()}")
+        self.stack.execute(AddEntity(roof))
+        self.doc.select([roof.id])
+        self._redraw_views(all_views=True)
+        self.refresh_inspector()
+        sec = size_rafter(params)['section']
+        self.statusBar().showMessage(
+            f"Κεραμοσκεπή: ψαλίδια {sec['b'] * 100:.0f}×{sec['h'] * 100:.0f} ανά 60 cm — μορφή, κλίση, χιόνι στις Ιδιότητες · προς έλεγχο στατικού",
+            8000)
+        return roof
+
     def _set_wall_type(self, entity_id, wall_type):
         """Apply a wall assembly: sets the type and the matching total thickness."""
         from archforge.architecture.wall_types import total_thickness
@@ -1253,6 +1280,25 @@ class MainWindow(QMainWindow):
                 self.form.addRow(key, spin)
             elif entity.kind == 'room_floor' and key == 'room_signature':
                 self.form.addRow('Room', QLabel(str(value)))
+        if entity.kind == 'pitched_roof':
+            from archforge.structure.timber_roof import FORMS, TILES, size_rafter
+            for key, options in (('roof_form', FORMS), ('tile', {k: v[0] for k, v in TILES.items()})):
+                combo = QComboBox()
+                for value, label in options.items():
+                    combo.addItem(label, value)
+                combo.setCurrentIndex(max(0, combo.findData(params.get(key))))
+                combo.currentIndexChanged.connect(
+                    lambda _i, widget=combo, k=key, entity_id=eid: self._set_entity_choice(entity_id, k, widget.currentData()))
+                self.form.addRow('Μορφή' if key == 'roof_form' else 'Κεραμίδι', combo)
+            report = size_rafter(params)
+            sec = report['section']
+            text = (f"Ψαλίδια {sec['b'] * 100:.0f}×{sec['h'] * 100:.0f} cm ανά {report['spacing_m'] * 100:.0f} cm, "
+                    f"άνοιγμα {report['span_m']} m · αξιοποίηση {sec['utilisation']:.0%}, βέλος {sec['deflection_mm']}/{sec['deflection_limit_mm']} mm"
+                    if sec else 'Καμία τυποποιημένη διατομή δεν επαρκεί — μειώστε απόσταση ψαλιδιών/άνοιγμα')
+            label = QLabel(f"{text}<br>χιόνι {report['snow_kn_m2']} kN/m², μόνιμα {report['g_kn_m2']} kN/m²"
+                           f"<br><i>{report['provenance']}</i>")
+            label.setWordWrap(True)
+            self.form.addRow('Στατική προδιάσταση', label)
         if entity.kind == 'wall':
             from archforge.architecture.wall_types import WALL_TYPES, indicative_u, layers
             combo = QComboBox()

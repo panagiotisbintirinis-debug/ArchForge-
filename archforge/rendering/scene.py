@@ -18,6 +18,11 @@ _MATERIALS: Mapping[str, dict] = {
     "window_glass": {"color": "#a9c3d2", "roughness": 0.03, "metalness": 0.1, "opacity": 0.28},
     "plant_trunk": {"color": "#6b4a2f", "roughness": 0.9, "metalness": 0.0},
     "library_object": {"color": "#b9b2a6", "roughness": 0.6, "metalness": 0.0},
+    "roof_plate": {"color": "#8a6038", "roughness": 0.8, "metalness": 0.0},
+    "roof_ridge": {"color": "#8a6038", "roughness": 0.8, "metalness": 0.0},
+    "roof_hip": {"color": "#8a6038", "roughness": 0.8, "metalness": 0.0},
+    "roof_rafter": {"color": "#a37548", "roughness": 0.8, "metalness": 0.0},
+    "roof_batten": {"color": "#c19a6b", "roughness": 0.8, "metalness": 0.0},
     "plumbing_point": {"color": "#2d6fb3", "roughness": 0.4, "metalness": 0.1},
     "electrical_point": {"color": "#e08a00", "roughness": 0.4, "metalness": 0.1},
     "mep_cold": {"color": "#1f6fd1", "roughness": 0.35, "metalness": 0.0},
@@ -128,6 +133,24 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                     "surfaces": [r for _, r in picked],
                     "material": _material(f"plant_{role}", body.entity_id in selected, entity=entity, doc=doc),
                 })
+            continue
+        if body.semantic_kind == "pitched_roof" and entity is not None:
+            # Timber members and the tiled surface as separate derived meshes.
+            from archforge.structure.timber_roof import TILES
+            groups = {}
+            for tri, role in zip(mesh.triangles, mesh.triangle_surfaces):
+                groups.setdefault(str(role), []).append([int(tri[0]), int(tri[1]), int(tri[2])])
+            for role, tris in groups.items():
+                if role == "tiles":
+                    material = _material("roof_tiles", body.entity_id in selected, entity=entity, doc=doc, surface_role=role)
+                    if not _surface_material_id(entity, role) and body.entity_id not in selected:
+                        material["color"] = TILES[entity.params.get("tile", "roman")][2]
+                        material["roughness"] = 0.75
+                else:
+                    material = _material(f"roof_{role}", body.entity_id in selected, entity=entity, doc=doc, surface_role=role)
+                objects.append({"id": str(body.entity_id), "render_part": f"{body.entity_id}:{role}", "kind": "pitched_roof",
+                                "layer": "roof_structure" if role != "tiles" else "roof_tiles",
+                                "vertices": vertices, "triangles": tris, "surfaces": [role] * len(tris), "material": material})
             continue
         if body.semantic_kind == "cabinet" and entity is not None:
             # One derived mesh per cabinet role; palette finishes per role live in

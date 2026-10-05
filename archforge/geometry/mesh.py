@@ -546,6 +546,9 @@ def _payload(doc,node):
  if k=='plant':
   from archforge.site.plants import plant_base_z,plant_mesh
   v,t,r=plant_mesh(p,plant_base_z(doc,p));return MeshPayload(v,t,r)
+ if k=='pitched_roof':
+  from archforge.structure.timber_roof import roof_mesh
+  v,t,r=roof_mesh(p);return MeshPayload(v,t,r)
  if k=='electrical_point':
   from archforge.mep.electrical import point_marker_mesh as elec_marker
   v,t=elec_marker(doc,p);return MeshPayload(tuple(v),tuple(tuple(x) for x in t),tuple('marker' for _ in t))
