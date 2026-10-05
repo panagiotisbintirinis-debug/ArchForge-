@@ -35,7 +35,8 @@ from calib_open import connect_ro, open_catalog, resolve  # noqa: E402
 MARKER = b"\xcd\xab"
 STRIDE = 162
 SEARCH = 64            # bytes after a marker in which the count may sit
-MAX_ABS = 1.0e5        # coordinates larger than this are not geometry
+MAX_ABS = 2000.0       # |coordinate| in source units (inches): larger is not furniture geometry
+MIN_TRIANGLES = 4      # 1-3 "triangles" validate by coincidence
 UNITS = {"inch": 0.0254, "mm": 0.001, "m": 1.0}
 
 
@@ -66,7 +67,12 @@ def _connected_enough(tris):
 
 
 def find_meshes(blob):
-    """Return [(marker_offset, data_offset, triangles)] for every plausible block."""
+    """Return [(marker_offset, data_offset, triangles)] for every plausible block.
+
+    At each CD AB marker every candidate count in the window is tried and the
+    largest block that validates wins: small counts validate by coincidence
+    (a few doubles that happen to be finite), the real count explains the data.
+    """
     found = []
     pos = 0
     covered_until = -1
@@ -77,19 +83,19 @@ def find_meshes(blob):
         pos = m + 1
         if m < covered_until:
             continue
+        best = None
         for k in range(m + 2, min(m + 2 + SEARCH, len(blob) - 4)):
             n = struct.unpack_from("<I", blob, k)[0]
-            if not 1 <= n <= 5_000_000:
+            if not MIN_TRIANGLES <= n <= 5_000_000 or (best and n <= len(best[2])):
                 continue
             for gap in (4, 8):
                 tris = _triangles_at(blob, k + gap, n)
                 if tris and _connected_enough(tris) and _has_extent(tris):
-                    found.append((m, k + gap, tris))
-                    covered_until = k + gap + n * STRIDE
+                    best = (m, k + gap, tris)
                     break
-            else:
-                continue
-            break
+        if best:
+            found.append(best)
+            covered_until = best[1] + len(best[2]) * STRIDE
     return found
 
 

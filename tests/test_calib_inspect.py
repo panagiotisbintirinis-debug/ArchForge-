@@ -132,3 +132,14 @@ def test_calibz_with_embedded_sqlite_is_carved_and_opened(tmp_path):
     wrapped.write_bytes(b"HDBUNDLE\x01\x02" + b"\x00" * 50 + cat.read_bytes() + b"\xff\xd8JPEGDATA" * 10)
     result = _load().inspect(str(wrapped))
     assert sorted(o["name"] for o in result["objects"]) == ["New Style", "Old Style"]
+
+
+def test_mesh_scanner_prefers_full_count_over_coincidental_small_count():
+    c = [(x, y, z) for x in (0, 1) for y in (0, 1) for z in (0, 1)]
+    quads = [(0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)]
+    tris = [t for a, b, cc, d in quads for t in ((a, b, cc), (a, cc, d))]
+    body = b"".join(struct.pack("<9d", *c[i], *c[j], *c[k]) + b"\x00" * 90 for i, j, k in tris)
+    # Real count 12, then a second header field that also reads as a valid count (4).
+    blob = b"\xcd\xab\x74\x00" + struct.pack("<II", 12, 4) + body
+    meshes = _mesh_module().find_meshes(blob)
+    assert [len(t) for _, _, t in meshes] == [12]
