@@ -2,7 +2,7 @@
 
 > Συνέχεια από προηγούμενο chat: δες **`docs/HANDOFF.md`** (αιτήματα ιδιοκτήτη, αποφάσεις, πού σταματήσαμε).
 
-Branch: `claude/new-session-l1o9gl` · Δοκιμή στα Windows:
+Branch: `claude/new-session-hiekda` (συνέχεια του `claude/new-session-l1o9gl`) · Δοκιμή στα Windows:
 
 ```
 cd C:\Users\User\ArchForge-test
