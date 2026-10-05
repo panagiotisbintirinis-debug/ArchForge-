@@ -8,14 +8,14 @@
 >
 > Ενημερώνεται σε κάθε commit που αλλάζει κατεύθυνση ή κλείνει στοιχείο.
 
-Τελευταία ενημέρωση: 2026-10-05 · branch `claude/new-session-l1o9gl` · tests: 678 passed, 1 skipped.
+Τελευταία ενημέρωση: 2026-10-05 · branch `claude/new-session-hiekda` (συνέχεια του `claude/new-session-l1o9gl`) · tests: 689 passed, 1 skipped.
 
 ---
 
 ## 1. Πώς δουλεύουμε με τον ιδιοκτήτη
 
 - **Γλώσσα και ρυθμός:** απαντάμε **στα ελληνικά**. Ο ιδιοκτήτης δίνει στοιχεία· εκτελούνται **με τη σειρά**, ένα-ένα, με test, commit και push.
-- **Branch:** εργασία μόνο στο `claude/new-session-l1o9gl`· push με `git push -u origin claude/new-session-l1o9gl`. Ποτέ push στο `develop`. Ποτέ PR χωρίς ρητό αίτημα.
+- **Branch:** κάθε chat έχει δικό του branch `claude/...`· το νέο ξεκινά από το τελευταίο (τώρα `claude/new-session-hiekda`, που περιέχει όλο το `claude/new-session-l1o9gl`). Ποτέ push στο `develop`. Ποτέ PR χωρίς ρητό αίτημα.
 - **Τεκμηρίωση:** το `docs/WORKLOG.md` ενημερώνεται σε κάθε στοιχείο: πίνακας ολοκληρωμένων, ουρά, ιστορικό λαθών.
 - **Δοκιμή στα Windows από τον ιδιοκτήτη:** `cd C:\Users\User\ArchForge-test` → `git pull` → `py -m pytest -q` → `py run_app.py`.
 - **Αρχές προϊόντος (AGENTS.md):**
@@ -46,18 +46,13 @@
 | **Διόρθωση:** «Δεν συνηθίζεται στην Ελλάδα… οι διελεύσεις ανεβαίνουν στα 2,3–2,4 m πάνω από τα σενάζ»· κουτιά διέλευσης σε μεγάλες αποστάσεις· κουτιά σύνδεσης πάνω από διακόπτες/πρίζες, ορατά στο σχέδιο | Οδεύσεις στον τοίχο στα 2,35 m· κουτιά διακλάδωσης, δαπέδου και διέλευσης | 2df35b6 |
 | «Επιλογή από δάπεδο ή από τοίχο… από δάπεδο τα κουτιά 15 cm πάνω από το έδαφος… να επιλέγει την καλύτερη διαδρομή, π.χ. νησίδα κουζίνας» | Πεδίο `routing` ανά σημείο: auto/wall/floor. Στο auto, ≤60 cm από τοίχο πάει από τοίχο, αλλιώς από δάπεδο | 2df35b6 |
 | Υδραυλικά ανάλογα με το υλικό: χαλκός, μονοσωλήνιο, πολυστρωματική· «να φαίνονται και οι πίνακες υδροληψίας με τη δομή τους» | Πεδίο `pipe_system` στην παροχή· πίνακες υδροληψίας σε κάτοψη και 3D | dffe8c5 |
-| «Τώρα που είπα νησίδα, ξέχασες τους εξαερισμούς» | ⏳ **επόμενο** (V1) | — |
-| «Μετά στήσε το AI Assistant, κατά προτίμηση μέσα στο ίδιο το πρόγραμμα και όχι εξωτερικά» | ⏳ μετά το V1 (AI1) | — |
+| «Τώρα που είπα νησίδα, ξέχασες τους εξαερισμούς» | `mep/ventilation.py`: απορροφητήρας τοίχου/νησίδας Ø125, μπάνιο/WC Ø100, ευθεία στον πλησιέστερο εξωτερικό τοίχο ή από τη στέγη, `outlet` auto/wall/roof (V1) | (αυτό το commit) |
+| «Μετά στήσε το AI Assistant, κατά προτίμηση μέσα στο ίδιο το πρόγραμμα και όχι εξωτερικά» | ⏳ **επόμενο** (AI1) | — |
 | «Προτεραιότητα να καταστεί η συνομιλία μας ορατή από το επόμενο chat» | Αυτό το αρχείο και το `CLAUDE.md` | (αυτό το commit) |
 
 ## 3. Ουρά: τι ακολουθεί, με σειρά
 
-1. **V1 Εξαερισμοί.**
-   - Απορροφητήρας:
-     - σε τοίχο: αεραγωγός Ø125 προς τον πλησιέστερο εξωτερικό τοίχο·
-     - σε νησίδα: αεραγωγός μέσω οροφής ως τον εξωτερικό τοίχο ή την οροφή.
-   - Ανεμιστήρες απαγωγής για μπάνιο και WC, Ø100.
-   - Κάτοψη και 3D layer· tests· κανόνας και πηγή δηλωμένα.
+1. ~~V1 Εξαερισμοί~~ ✅ (βλ. WORKLOG V1).
 2. **AI1 AI Assistant μέσα στην εφαρμογή.**
    - Πάνελ στο dock «AI».
    - Ροή: πρόθεση χρήστη → προτεινόμενες ενέργειες → **οι ίδιες κοινές εντολές** (AddEntity/UpdateEntity…) → Document.
@@ -92,6 +87,7 @@
 - **`archforge/mep/electrical.py`:**
   - Κυκλώματα: `CIRCUIT_RULES`, `design_circuits`.
   - Οδεύσεις: `route_cables` (τοίχος 2,35 m / δάπεδο, κουτιά), `routing_of`, `_pull_boxes`.
+- **`archforge/mep/ventilation.py`:** `exterior_walls`, `route_ventilation` (αεραγωγοί, στόμια, αναφορά), `outlet_of`.
 - **`archforge/structure/timber_roof.py`:** στέγη, φορτία, προδιαστασιολόγηση, στρώσεις.
 - **UI:**
   - `ui/object_modifier.py`, `ui/project_outline.py`;
@@ -99,11 +95,12 @@
   - `ui/main_window.py`: Inspector με combos για wall_type, roof, routing, pipe_system.
 - **Παράγωγα σχέδια:**
   - κάτοψη: `core/plan_scene.py` (`build_plan_frame`) με στυλ στο `ui/plan_view.py` (`_draw_primitive`)·
-  - 3D: `rendering/scene.py` (`build_pbr_scene_payload`, layers `mep` και `elec`).
-- **Σχήματα Document:** `core/model.py` `SCHEMAS`, για library_object, cabinet, plumbing_point (`pipe_system`), electrical_point (`routing`, `power_w`), pitched_roof, wall_type.
+  - 3D: `rendering/scene.py` (`build_pbr_scene_payload`, layers `mep`, `elec` και `vent`).
+- **Σχήματα Document:** `core/model.py` `SCHEMAS`, για library_object, cabinet, plumbing_point (`pipe_system`), ventilation_point (`outlet`, `airflow`), electrical_point (`routing`, `power_w`), pitched_roof, wall_type.
 
 ## 5. Χρήσιμα για τον επόμενο agent
 
+- Νέο cloud container: `pip install -r requirements.txt pytest` και `apt-get install libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3 libnss3` (αλλιώς τα tests UI αποτυγχάνουν με libEGL).
 - Πλήρης σουίτα στο cloud:
   `QT_QPA_PLATFORM=offscreen QTWEBENGINE_DISABLE_SANDBOX=1 QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu --single-process" python -m pytest -q -p no:cacheprovider`
 - Το δίκτυο του cloud μπλοκάρει Poly Haven, ambientCG και Kenney. Λειτουργεί μόνο το `raw.githubusercontent.com` (Khronos glTF samples).

@@ -162,6 +162,9 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
     if e.kind=='plumbing_point':
         from archforge.mep.plumbing import _floor_of
         return abs(_floor_of(doc,float(p.get('z',0.0)))-z)<=tolerance
+    if e.kind=='ventilation_point':
+        from archforge.mep.ventilation import _floor_of as vent_floor
+        return abs(vent_floor(doc,float(p.get('z',0.0)))-z)<=tolerance
     if e.kind=='cabinet':
         # Wall cabinets hang above their storey's floor: they belong to the
         # highest level at or below their base.
@@ -194,6 +197,12 @@ def entity_primitive(doc,eid):
         from archforge.mep.electrical import POINT_TYPES as ELEC
         return Primitive2D('ellipse',((float(p['x']),float(p['y'])),),.10,.10,0.,eid,'electrical-point',
                            meta=(('text',ELEC[p['point_type']][4]),('point_type',p['point_type'])))
+    if e.kind=='ventilation_point':
+        from archforge.mep.ventilation import POINT_TYPES as VENT
+        r=.30 if p['point_type']=='hood' else .10
+        x,y=float(p['x']),float(p['y'])
+        return Primitive2D('polygon',((x-r,y-r*.8),(x+r,y-r*.8),(x+r,y+r*.8),(x-r,y+r*.8)),entity_id=eid,role='ventilation-point',
+                           meta=(('text',VENT[p['point_type']][4]),('point_type',p['point_type'])))
     if e.kind=='plumbing_point':
         from archforge.mep.plumbing import POINT_TYPES
         return Primitive2D('ellipse',((float(p['x']),float(p['y'])),),.12,.12,0.,eid,'plumbing-point',
@@ -543,6 +552,31 @@ def build_plan_frame(doc,preview=None):
             if e.kind=='electrical_point' and _entity_on_active_level(doc,e):
                 text=ELEC[e.params['point_type']][4]+(f" {names[eid]}" if eid in names else '')
                 f.primitives.append(Primitive2D('label',((float(e.params['x'])+.12,float(e.params['y'])-.25),),entity_id=eid,role='electrical-label',meta=(('text',text),)))
+    # Derived extract ducts of the active storey (under the ceiling) and their outlets.
+    if any(e.kind=='ventilation_point' for e in doc.entities.values()):
+        from archforge.mep.ventilation import POINT_TYPES as VENT,_floor_of as vent_floor,route_ventilation_cached
+        level=float(doc.work_plane.origin[2])
+        vent=route_ventilation_cached(doc)
+        for a,b,dia,pid in vent['ducts']:
+            if abs(a[2]-b[2])<1e-9 and vent_floor(doc,a[2])==level:
+                f.primitives.append(Primitive2D('polyline',((a[0],a[1]),(b[0],b[1])),role='duct',meta=(('diameter',dia),('point',pid))))
+        for t in vent['terminals']:
+            src=doc.entities.get(t['point'])
+            if src is None or vent_floor(doc,float(src.params['z']))!=level:
+                continue
+            x,y=t['x'],t['y'];r=t['diameter']/2000.+.03
+            if t['kind']=='roof':
+                pts=tuple((x+r*cos(k*pi/6),y+r*sin(k*pi/6)) for k in range(13))
+            else:
+                pts=((x-r,y-r),(x+r,y-r),(x+r,y+r),(x-r,y+r),(x-r,y-r))
+            f.primitives.append(Primitive2D('polyline',pts,role='vent-terminal',meta=(('kind',t['kind']),('diameter',t['diameter']))))
+        for eid in doc.entities:
+            e=doc.get(eid)
+            if e.kind=='ventilation_point' and _entity_on_active_level(doc,e):
+                info=vent['report']['points'].get(eid,{})
+                where={'wall':'τοίχο','roof':'στέγη'}.get(info.get('outlet'),'')
+                text=f"{VENT[e.params['point_type']][4]} Ø{info.get('diameter','')} → {where}"
+                f.primitives.append(Primitive2D('label',((float(e.params['x'])+.15,float(e.params['y'])+.30),),entity_id=eid,role='ventilation-label',meta=(('text',text),)))
     f.handles=selection_handles(doc)
     if preview:f.primitives.extend(preview_primitives(preview));f.hud=dict(preview.hud);f.snap=preview.snap
     return f

@@ -190,11 +190,21 @@ def install_approved_mockup_shell(window):
         a.triggered.connect(lambda _=False,k=key,l=label: window._start_site_tool(f"elec_{k}",f"{l}: κλικ στην κάτοψη — τα κυκλώματα σχηματίζονται αυτόματα, Esc για τέλος"))
         electrical.addAction(a)
     window._mockup_electrical_menu=electrical
+    from archforge.mep.ventilation import POINT_TYPES as VENT
+    ventilation=QMenu("Εξαερισμοί",mep_menu); mep_menu.addMenu(ventilation)
+    for key,(label,_q,_h,_m,_l) in VENT.items():
+        a=QAction(label,window)
+        a.triggered.connect(lambda _=False,k=key,l=label: window._start_site_tool(f"vent_{k}",f"{l}: κλικ στην κάτοψη — ο αεραγωγός βγαίνει αυτόματα έξω, Esc για τέλος"))
+        ventilation.addAction(a)
+    window._mockup_ventilation_menu=ventilation
     schedule=QAction("Πίνακας κυκλωμάτων…",window); schedule.triggered.connect(lambda: window._show_circuit_schedule())
     mep_menu.addAction(schedule)
     elec_layer=QAction("Ηλεκτρολογικά στο 3D",window); elec_layer.setCheckable(True); elec_layer.setChecked(True)
     elec_layer.toggled.connect(lambda on: window._set_layer_visible("elec",on))
     mep_menu.addAction(elec_layer); window.view_menu.addAction(elec_layer); window._elec_layer_action=elec_layer
+    vent_layer=QAction("Εξαερισμοί στο 3D",window); vent_layer.setCheckable(True); vent_layer.setChecked(True)
+    vent_layer.toggled.connect(lambda on: window._set_layer_visible("vent",on))
+    mep_menu.addAction(vent_layer); window.view_menu.addAction(vent_layer); window._vent_layer_action=vent_layer
     layer=QAction("Μηχανολογικά στο 3D",window); layer.setCheckable(True); layer.setChecked(True)
     layer.toggled.connect(lambda on: window._set_layer_visible("mep",on))
     mep_menu.addAction(layer); window.view_menu.addAction(layer); window._mep_layer_action=layer

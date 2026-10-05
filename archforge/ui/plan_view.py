@@ -115,7 +115,7 @@ class PlanView(QGraphicsView):
         if event.button()==Qt.MouseButton.LeftButton:
             self._hide_wall_angle_radial()
         if event.button()!=Qt.MouseButton.LeftButton:super().mousePressEvent(event);return
-        if self.controller.tool in self.SITE_POINT_TOOLS or str(self.controller.tool).startswith(('plumb_','elec_')):
+        if self.controller.tool in self.SITE_POINT_TOOLS or str(self.controller.tool).startswith(('plumb_','elec_','vent_')):
             ev=self._scene_to_plane(event.position().toPoint())
             self.sitePointRequested.emit(self.controller.tool,float(ev.a),float(ev.b));event.accept();return
         if self.controller.tool in self.VIEW_LINE_TOOLS or self.controller.tool in self.SITE_LINE_TOOLS:
@@ -468,6 +468,11 @@ class PlanView(QGraphicsView):
             pen=QPen(QColor({'pull':'#c0262d','floor':'#0a8a5a'}.get(dict(p.meta).get('box'),'#3a3f48')));pen.setWidthF(.012)
         if p.role=='electrical-point':pen=QPen(QColor(200,120,0));pen.setWidthF(.02)
         if p.role=='plumbing-point':pen=QPen(QColor(31,90,160));pen.setWidthF(.02)
+        if p.role=='duct':
+            # Overhead element (under the ceiling): dashed, drawn at its true Ø.
+            pen=QPen(QColor(105,115,128,200));pen.setWidthF(float(dict(p.meta).get('diameter',125))/1000.)
+            pen.setStyle(Qt.PenStyle.DashLine);pen.setCapStyle(Qt.PenCapStyle.FlatCap)
+        if p.role in ('vent-terminal','ventilation-point'):pen=QPen(QColor(70,80,95));pen.setWidthF(.015)
         if p.role in ('wall-layer','wall-insulation'):
             pen=QPen(QColor(120,110,95) if p.role=='wall-layer' else QColor(200,150,40));pen.setWidthF(.008)
             if p.role=='wall-insulation':pen.setStyle(Qt.PenStyle.DashLine)

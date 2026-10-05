@@ -214,6 +214,21 @@ def _pipe_system(v):
     return v
 
 
+def _vent_type(v):
+    from archforge.mep.ventilation import POINT_TYPES
+    v = str(v)
+    if v not in POINT_TYPES:
+        raise ValueError(f'ventilation point must be one of {", ".join(POINT_TYPES)}')
+    return v
+
+
+def _vent_outlet(v):
+    v = str(v)
+    if v not in ('auto', 'wall', 'roof'):
+        raise ValueError('outlet must be auto, wall or roof')
+    return v
+
+
 def _cable_routing(v):
     v = str(v)
     if v not in ('auto', 'wall', 'floor'):
@@ -529,6 +544,8 @@ SCHEMAS = {
     'electrical_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _electrical_type, 'power_w': _nonnegative,
                          'routing': _cable_routing},
     'plumbing_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _plumbing_type, 'pipe_system': _pipe_system},
+    'ventilation_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _vent_type, 'outlet': _vent_outlet,
+                          'airflow': _nonnegative},
     'cabinet': {
         'x': _finite, 'y': _finite, 'z': _finite, 'rotation': _finite,
         'width': _positive, 'depth': _positive, 'height': _positive, 'plinth': _nonnegative,

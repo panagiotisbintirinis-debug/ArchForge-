@@ -30,6 +30,9 @@ _MATERIALS: Mapping[str, dict] = {
     "roof_membrane": {"color": "#d8dde2", "roughness": 0.5, "metalness": 0.0},
     "plumbing_point": {"color": "#2d6fb3", "roughness": 0.4, "metalness": 0.1},
     "electrical_point": {"color": "#e08a00", "roughness": 0.4, "metalness": 0.1},
+    "ventilation_point": {"color": "#b8bec6", "roughness": 0.3, "metalness": 0.6},
+    "vent_duct": {"color": "#a9b0b8", "roughness": 0.35, "metalness": 0.7},
+    "vent_terminal": {"color": "#5b6470", "roughness": 0.5, "metalness": 0.3},
     "mep_cold": {"color": "#1f6fd1", "roughness": 0.35, "metalness": 0.0},
     "mep_hot": {"color": "#d1301f", "roughness": 0.35, "metalness": 0.0},
     "cabinet_carcass": {"color": "#e9e5dd", "roughness": 0.6, "metalness": 0.0},
@@ -314,6 +317,14 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                 objects.append({"id": "", "render_part": f"elec:{group}", "kind": "elec_cable", "layer": "elec",
                                 "vertices": verts, "triangles": tris, "surfaces": ["cable"] * len(tris),
                                 "material": {"color": CABLE_COLORS.get(group, "#e07a00"), "roughness": 0.5, "metalness": 0.0}})
+        # Derived extract ducts (layer "vent"): ducts at their true Ø, grilles and roof caps.
+        if any(e.kind == "ventilation_point" for e in doc.entities.values()):
+            from archforge.mep.ventilation import duct_meshes, route_ventilation_cached
+            for part, (verts, tris) in zip(("duct", "terminal"), duct_meshes(route_ventilation_cached(doc))):
+                if tris:
+                    objects.append({"id": "", "render_part": f"vent:{part}", "kind": f"vent_{part}", "layer": "vent",
+                                    "vertices": verts, "triangles": tris, "surfaces": [part] * len(tris),
+                                    "material": dict(_MATERIALS[f"vent_{part}"])})
         # Door/window fixtures fill the wall holes (render only, see fixtures.py).
         from archforge.rendering.fixtures import opening_fixture_parts
         for entity in list(doc.entities.values()):

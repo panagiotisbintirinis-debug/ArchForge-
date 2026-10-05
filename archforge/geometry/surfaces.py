@@ -27,6 +27,7 @@ _KIND_ROLES:Dict[str,Tuple[Tuple[str,bool,bool,str],...]]={
  'pitched_roof':tuple((r,False,False,f'roof {r}') for r in ('plate','ridge','hip','rafter','batten','counter_batten','boarding','vapour_barrier','insulation','membrane','tiles')),
  'electrical_point':(('marker',False,False,'electrical point marker'),),
  'plumbing_point':(('marker',False,False,'plumbing point marker'),),
+ 'ventilation_point':(('marker',False,False,'ventilation device'),),
  'cabinet':tuple((r,False,False,f'cabinet {r}') for r in ('carcass','shelf','front','handle','plinth','worktop','rail')),
  'library_object':(('body',True,False,'library object surface (sculptable; coordinates local to the object)'),('placeholder',False,False,'box shown while the library asset is missing')),
  'terrain':(('top',False,False,'site ground surface'),('bottom',False,False,'site ground underside'),('side',False,False,'site ground edge'))}

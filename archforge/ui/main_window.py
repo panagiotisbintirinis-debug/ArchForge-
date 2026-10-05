@@ -643,6 +643,9 @@ class MainWindow(QMainWindow):
         if str(tool).startswith('plumb_'):
             self._place_plumbing_point(tool[len('plumb_'):], x, y)
             return
+        if str(tool).startswith('vent_'):
+            self._place_ventilation_point(tool[len('vent_'):], x, y)
+            return
         if tool == 'terrain_point':
             terrain = self._terrain_entity()
             if terrain is None:
@@ -870,6 +873,29 @@ class MainWindow(QMainWindow):
             f"{label} · {report['system_label']} · κρύο {report['cold_m']:.1f} m, ζεστό {report['hot_m']:.1f} m{extra} — προμελέτη, προς έλεγχο μηχανολόγου",
             7000)
         return point
+
+    def _place_ventilation_point(self, point_type, x, y):
+        """Add a hood or extract fan; its duct to the outside is derived automatically."""
+        from archforge.mep.ventilation import POINT_TYPES, route_ventilation_cached
+        label = POINT_TYPES[point_type][0]
+        point = Entity('ventilation_point', {'x': float(x), 'y': float(y), 'z': float(self.doc.work_plane.origin[2]),
+                                             'point_type': point_type, 'outlet': 'auto',
+                                             'airflow': float(POINT_TYPES[point_type][1])}, name=label)
+        self.stack.execute(AddEntity(point))
+        self._redraw_views(all_views=True)
+        self.statusBar().showMessage(self._ventilation_summary(point.id), 8000)
+        return point
+
+    def _ventilation_summary(self, entity_id):
+        from archforge.mep.ventilation import route_ventilation_cached
+        route = route_ventilation_cached(self.doc)
+        info = route['report']['points'].get(entity_id)
+        if info is None:
+            return ''
+        where = {'wall': f"από τον εξωτερικό τοίχο, οριζόντια {info['horizontal_m']:.1f} m", 'roof': 'από τη στέγη'}[info['outlet']]
+        warn = next((w for w in route['report']['warnings'] if w.startswith(info['label'] + ':')), '')
+        return (f"{info['label']}: αεραγωγός Ø{info['diameter']} {where}, {info['airflow']:g} m³/h ≈ {info['velocity_ms']} m/s"
+                f"{' · ⚠ ' + warn if warn else ''} — προμελέτη, προς έλεγχο μηχανολόγου")
 
     def _place_electrical_point(self, point_type, x, y):
         """Add an electrical point; circuits and cables are re-derived automatically."""
@@ -1292,6 +1318,18 @@ class MainWindow(QMainWindow):
             combo.currentIndexChanged.connect(
                 lambda _i, widget=combo, entity_id=eid: self._set_entity_choice(entity_id, 'pipe_system', widget.currentData()))
             self.form.addRow('Σύστημα σωλήνων', combo)
+        if entity.kind == 'ventilation_point':
+            from archforge.mep.ventilation import outlet_of
+            combo = QComboBox()
+            for value, label in (('auto', 'Αυτόματα (καλύτερη διαδρομή)'), ('wall', 'Από εξωτερικό τοίχο'), ('roof', 'Από τη στέγη')):
+                combo.addItem(label, value)
+            combo.setCurrentIndex(max(0, combo.findData(params.get('outlet', 'auto'))))
+            combo.currentIndexChanged.connect(
+                lambda _i, widget=combo, entity_id=eid: self._set_entity_choice(entity_id, 'outlet', widget.currentData()))
+            self.form.addRow('Έξοδος αέρα', combo)
+            summary = QLabel(self._ventilation_summary(eid))
+            summary.setWordWrap(True)
+            self.form.addRow('', summary)
         if entity.kind == 'electrical_point' and params.get('point_type') not in ('panel', 'light'):
             from archforge.mep.electrical import routing_of
             combo = QComboBox()
