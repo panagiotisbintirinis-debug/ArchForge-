@@ -635,7 +635,16 @@ def validate_params(kind, params):
     if kind == 'structural_column':
         out.setdefault('section', 'rectangular')
         out.setdefault('top_level', 'Unassigned')
-    schema = _structural_design_schema() if kind == 'structural_design' else SCHEMAS.get(kind, {})
+    if kind == 'structural_design':
+        schema = _structural_design_schema()
+    elif kind == 'project_brief':
+        from archforge.project.brief import QUESTIONS
+        schema = {key: _choice(options, key) for key, _q, options in QUESTIONS}
+    else:
+        schema = SCHEMAS.get(kind, {})
+    if 'phase' in out:
+        from archforge.project.brief import PHASES
+        out['phase'] = _choice(PHASES, 'phase')(out['phase'])
     for key, fn in schema.items():
         if key in out:
             out[key] = fn(out[key])

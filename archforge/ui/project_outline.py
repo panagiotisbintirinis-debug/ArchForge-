@@ -267,7 +267,7 @@ def project_outline(doc, title="Έργο"):
             groups.append(_node(f"Φέρων οργανισμός ({len(cols) + len(beams) + len(structure)})", None, name, sub))
         # Everything else on this storey (outside rooms).
         rest = [i for i, e in doc.entities.items() if i not in placed and e.kind not in SITE
-                and entity_level(doc, e) == name and e.kind != "structural_design"]
+                and entity_level(doc, e) == name and e.kind not in ("structural_design", "project_brief")]
         for cat, ids in _categorise(rest, doc):
             placed.update(ids)
             groups.append(_group(cat, ids, doc, name, labels))
@@ -284,6 +284,12 @@ def project_outline(doc, title="Έργο"):
     site = [i for i, e in doc.entities.items() if e.kind in SITE]
     if site:
         children.append(_node(f"Οικόπεδο ({len(site)})", None, None, [_node(_label(doc.get(i)), i, None) for i in site]))
+    brief = [i for i, e in doc.entities.items() if e.kind == "project_brief"]
+    if brief:
+        from archforge.project.brief import MEASURES, PROJECT_TYPES, WALL_SYSTEMS, get_brief
+        b = get_brief(doc)
+        children.insert(0, _node(f"Στοιχεία έργου · {PROJECT_TYPES[b['project_type']]} · {WALL_SYSTEMS[b['wall_system']][0].split(' (')[0]}"
+                                 f" · {MEASURES[b['measure']].lower()}", brief[0], None))
     design = [i for i, e in doc.entities.items() if e.kind == "structural_design"]
     if design:
         children.append(_node("Στοιχεία στατικής", design[0], None))

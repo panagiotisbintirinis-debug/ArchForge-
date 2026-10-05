@@ -84,6 +84,8 @@ class MoveEntities(Command):
             self.before_modifiers={mid:copy.deepcopy(m) for mid,m in doc.surface_modifiers.items() if m.target.owner_id in self.ids and _legacy_world_modifier(m)}
         for i in self.ids:
             e=doc.get(i); p=e.params
+            if e.kind in ('structural_column','structural_beam') and str(p.get('phase','new'))=='existing':
+                raise ValueError('υφιστάμενο φέρον στοιχείο (ανακαίνιση): δεν μετακινείται')
             if e.kind in ('structural_column','structural_beam') and abs(float(self.dz))>1e-12:
                 raise ValueError(f'{e.kind} vertical position is level-driven; change its level instead')
             if e.kind in ('box','mechanical_part','library_object','kitchen_part','cabinet','plumbing_point','electrical_point','ventilation_point'):doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy,'z':p['z']+self.dz})
@@ -132,6 +134,8 @@ class RotateEntities(Command):
         for i in self.ids:
             e = doc.get(i)
             p = e.params
+            if e.kind in ('structural_column', 'structural_beam') and str(p.get('phase', 'new')) == 'existing':
+                raise ValueError('υφιστάμενο φέρον στοιχείο (ανακαίνιση): δεν περιστρέφεται')
             if e.kind == 'pod':
                 px, py = self.pivot if self.pivot is not None else (p['cx'], p['cy'])
                 if self.pivot is not None:

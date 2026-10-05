@@ -1501,6 +1501,16 @@ class MainWindow(QMainWindow):
             combo.currentIndexChanged.connect(
                 lambda _i, widget=combo, entity_id=eid: self._set_entity_choice(entity_id, 'pipe_system', widget.currentData()))
             self.form.addRow('Σύστημα σωλήνων', combo)
+        if entity.kind in ('wall', 'door', 'window', 'opening', 'structural_column', 'structural_beam',
+                           'plumbing_point', 'electrical_point', 'ventilation_point', 'stair', 'cabinet', 'library_object'):
+            from archforge.project.brief import PHASES
+            phase_combo = QComboBox()
+            for value, label in PHASES.items():
+                phase_combo.addItem(label, value)
+            phase_combo.setCurrentIndex(max(0, phase_combo.findData(params.get('phase', 'new'))))
+            phase_combo.currentIndexChanged.connect(
+                lambda _i, widget=phase_combo, entity_id=eid: self._set_phase([entity_id], widget.currentData()))
+            self.form.addRow('Φάση', phase_combo)
         if entity.kind in ('structural_column', 'structural_beam'):
             from archforge.structure.analysis import fresh_result
             result = fresh_result(self.doc)
@@ -2883,6 +2893,10 @@ class MainWindow(QMainWindow):
         p = self._current_assistant_proposal()
         if p is None or not p.actionable:
             return
+        if p.run == 'brief':
+            self._edit_project_brief()
+            self._refresh_assistant()
+            return
         from archforge.assistant.suggestions import apply
         apply(self.stack, p)
         self._refresh_project_tree()
@@ -3006,7 +3020,100 @@ class MainWindow(QMainWindow):
             return False
         self._replace_project(Document())
         self.statusBar().showMessage('New project', 3000)
+        # Every project starts with its questions: the answers drive the choices that follow.
+        from PySide6.QtGui import QGuiApplication
+        if not getattr(self, '_no_modal_dialogs', False) and QGuiApplication.platformName() != 'offscreen':
+            self._edit_project_brief()
         return True
+
+    def _edit_project_brief(self):
+        """The project questions (new / renovation, walls, dimensions, floors) as one undoable answer."""
+        from archforge.project.brief import DEFAULTS, QUESTIONS, get_brief
+        current = get_brief(self.doc) or dict(DEFAULTS)
+        dialog = QDialog(self)
+        dialog.setWindowTitle('Στοιχεία έργου')
+        form = QFormLayout(dialog)
+        form.addRow(QLabel('<b>Οι απαντήσεις καθορίζουν τι θα προτείνει και τι θα κάνει το πρόγραμμα.</b>'))
+        combos = {}
+        for key, question, options in QUESTIONS:
+            combo = QComboBox(dialog)
+            for value, label in options.items():
+                combo.addItem(label[0] if isinstance(label, tuple) else label, value)
+            combo.setCurrentIndex(max(0, combo.findData(current[key])))
+            form.addRow(question, combo)
+            combos[key] = combo
+        # A renovation is usually measured inside; a new building outside.
+        combos['project_type'].currentIndexChanged.connect(lambda _i: combos['measure'].setCurrentIndex(
+            combos['measure'].findData('interior' if combos['project_type'].currentData() == 'renovation' else 'exterior')))
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel, dialog)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        form.addRow(buttons)
+        self._project_brief_dialog = dialog
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return None
+        return self._apply_project_brief({k: c.currentData() for k, c in combos.items()})
+
+    def _apply_project_brief(self, answers):
+        from archforge.project.brief import brief_entity
+        entity = brief_entity(self.doc)
+        if entity is None:
+            entity = Entity('project_brief', dict(answers), name='Στοιχεία έργου')
+            self.stack.execute(AddEntity(entity))
+        else:
+            self.stack.execute(UpdateEntity(entity.id, dict(answers)))
+        self._schedule_assistant_refresh()
+        self._refresh_project_tree()
+        return entity
+
+    def _set_phase(self, ids, phase):
+        """Renovation phase of elements (existing / demolish / new), one undo."""
+        from archforge.core.commands import CompositeCommand
+        kinds = ('wall', 'door', 'window', 'opening', 'structural_column', 'structural_beam',
+                 'plumbing_point', 'electrical_point', 'ventilation_point', 'stair', 'cabinet', 'library_object')
+        ids = [i for i in ids if i in self.doc.entities and self.doc.get(i).kind in kinds
+               and self.doc.get(i).params.get('phase', 'new') != phase]
+        if not ids:
+            return 0
+        self.stack.execute(CompositeCommand([UpdateEntity(i, {'phase': phase}) for i in ids], 'Φάση'))
+        self._redraw_views(all_views=True)
+        from archforge.project.brief import PHASES
+        self.statusBar().showMessage(f'{len(ids)} στοιχεία → {PHASES[phase]}', 5000)
+        return len(ids)
+
+    def _show_takeoff(self):
+        """Quantity take-off per room (paint, tiles, skirting, demolition) with CSV export."""
+        from PySide6.QtWidgets import QTextBrowser
+        from archforge.quantities.takeoff import COLUMNS, take_off, to_csv
+        result = take_off(self.doc)
+        rows = ''.join('<tr>' + ''.join(f'<td>{r[k]}</td>' for k, _l in COLUMNS) + '</tr>' for r in result['rooms'])
+        t, d = result['totals'], result['demolition']
+        html = ('<h2>Επιμέτρηση εργασιών</h2><table border=1 cellspacing=0 cellpadding=3><tr>'
+                + ''.join(f'<th>{label}</th>' for _k, label in COLUMNS) + '</tr>' + rows
+                + '<tr><td><b>Σύνολο</b></td><td></td>' + ''.join(f'<td><b>{t.get(k, "")}</b></td>' for k, _l in COLUMNS[2:]) + '</tr></table>'
+                + f"<h3>Καθαιρέσεις / διανοίξεις</h3><p>Τοίχοι σε καθαίρεση: {d['count']} — {d['walls_m2']} m², {d['walls_m3']} m³<br>"
+                + f"Νέα ανοίγματα σε υφιστάμενους τοίχους: {d['openings_to_cut']} — {d['openings_to_cut_m2']} m²</p>"
+                + f"<p><i>{result['provenance']}</i></p>")
+        dialog = QDialog(self)
+        dialog.setWindowTitle('Επιμέτρηση εργασιών')
+        dialog.resize(1100, 600)
+        layout = QVBoxLayout(dialog)
+        browser = QTextBrowser(dialog)
+        browser.setHtml(html)
+        layout.addWidget(browser)
+        export = QPushButton('Αποθήκευση CSV (για τιμολόγηση)…', dialog)
+
+        def save_csv():
+            path, _ = QFileDialog.getSaveFileName(self, 'Επιμέτρηση CSV', 'epimetrisi.csv', 'CSV (*.csv)')
+            if path:
+                with open(path, 'w', encoding='utf-8-sig') as f:
+                    f.write(to_csv(result))
+        export.clicked.connect(save_csv)
+        layout.addWidget(export)
+        self._takeoff_view = browser
+        if not getattr(self, '_no_modal_dialogs', False):
+            dialog.exec()
+        return result
 
     def save(self):
         path = self.current_path

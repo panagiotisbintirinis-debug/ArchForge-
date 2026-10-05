@@ -90,9 +90,13 @@ class PointerController:
                         float(rp['y2'])-float(rp['y1']),
                         float(rp['x2'])-float(rp['x1']),
                     ))
+            # The project brief (wall system) sets what the wall tool draws.
+            from archforge.project.brief import wall_defaults
+            brief_type,brief_thickness=wall_defaults(self.doc)
             self.active=WallDrawTransaction(
                 self.doc,self.stack,(sx,sy),
                 z=self.doc.work_plane.origin[2],
+                thickness=brief_thickness,
                 grid=self.grid,
                 snap_tol=self.snap_tolerance,
                 snap_enabled=geometry_snap_enabled,
@@ -101,6 +105,7 @@ class PointerController:
                 angle_enabled=not ev.shift,
             )
             self.active.source_reference_angle_deg=reference_angle
+            self.active.wall_type=brief_type
             self.preview=PreviewState(
                 'wall',
                 {'x1':sx,'y1':sy,'x2':sx,'y2':sy,'z':self.doc.work_plane.origin[2]},

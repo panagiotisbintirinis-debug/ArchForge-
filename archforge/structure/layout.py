@@ -122,7 +122,11 @@ def column_points(doc, z):
 def propose_frame(doc, settings=None):
     """New column and beam entities for every storey (existing columns are kept): ``(entities, report)``."""
     from archforge.core.model import Entity
+    from archforge.project.brief import load_bearing_walls
     from archforge.structure.analysis.settings import get_settings
+    if load_bearing_walls(doc):
+        # Stone / solid masonry: the walls carry the loads — no columns; the slabs are designed instead.
+        return [], {"storeys": [], "columns": 0, "beams": 0, "load_bearing": True}
     settings = settings or get_settings(doc)
     steel = settings["system"] == "steel"
     construction = "steel" if steel else "reinforced_concrete"

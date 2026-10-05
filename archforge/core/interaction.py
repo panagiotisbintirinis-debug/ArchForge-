@@ -305,7 +305,9 @@ class WallDrawTransaction:
             raise ValueError(
                 f'wall drag is too short ({L:.3f} m); move at least {self.min_length:.2f} m'
             )
-        e=Entity('wall',{'x1':sx,'y1':sy,'x2':ex,'y2':ey,'z':self.z,'height':self.height,'thickness':self.thickness},name='Wall')
+        params={'x1':sx,'y1':sy,'x2':ex,'y2':ey,'z':self.z,'height':self.height,'thickness':self.thickness}
+        if getattr(self,'wall_type',None):params['wall_type']=self.wall_type
+        e=Entity('wall',params,name='Wall')
         self.stack.execute(AddEntity(e));return e.id
     def cancel(self):self.cancelled=True
 

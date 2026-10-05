@@ -143,6 +143,8 @@ def install_approved_mockup_shell(window):
     mb=window.menuBar(); mb.clear()
     menus={name:mb.addMenu(name) for name in MENUS}
     file_menu=menus["Αρχείο"]
+    brief_action=QAction("Στοιχεία έργου (ερωτήσεις)…",window); brief_action.triggered.connect(lambda: window._edit_project_brief())
+    file_menu.addAction(brief_action); window._brief_action=brief_action
     for a in (window.new_action,window.open_action,window.save_action):file_menu.addAction(a)
     file_menu.addSeparator(); file_menu.addAction(window.export_stl_action)
     edit_menu=menus["Επεξεργασία"]
@@ -179,6 +181,14 @@ def install_approved_mockup_shell(window):
     # Στέγη, by theme: with tiles (timber pitched roofs), without tiles (flat), attic ceiling, tools.
     roof_menu=QMenu("Στέγη",menus["Κατασκευή"]); menus["Κατασκευή"].addMenu(roof_menu)
     window._roof_menu=roof_menu
+    renovation=QMenu("Ανακαίνιση (φάσεις)",menus["Κατασκευή"]); menus["Κατασκευή"].addMenu(renovation)
+    window._renovation_menu=renovation
+    for text,run in (("Όλα τα σχεδιασμένα = Υφιστάμενα (αποτύπωση)",lambda: window._set_phase(list(window.doc.entities),"existing")),
+                     ("Επιλεγμένα → Καθαίρεση",lambda: window._set_phase(list(window.doc.selection),"demolish")),
+                     ("Επιλεγμένα → Νέα",lambda: window._set_phase(list(window.doc.selection),"new"))):
+        a=QAction(text,window); a.triggered.connect(lambda _=False,r=run: r()); renovation.addAction(a)
+    takeoff=QAction("Επιμέτρηση εργασιών (ανά χώρο)…",window); takeoff.triggered.connect(lambda: window._show_takeoff())
+    menus["Κατασκευή"].addAction(takeoff); window._takeoff_action=takeoff
     tiled=QMenu("Με κεραμίδια (ξύλινη στέγη)",roof_menu); roof_menu.addMenu(tiled); window._roof_tiled_menu=tiled
     from archforge.structure.timber_roof import FORMS
     auto_tiled=QAction("Αυτόματα (μορφή από κάτοψη & φορτία)",window)

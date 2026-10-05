@@ -122,6 +122,7 @@ def propose(doc, reading=None):
                 break
         out.append(Proposal(f"J-2:{e.id}", "warning", f"{e.name or 'Δοκίδες'}: άνοιγμα {rep['span_m']:.2f} m χωρίς επαρκή διατομή",
                             "Τεχνικές προτάσεις: " + "; ".join(rep["proposals"]), rep["provenance"], (e.id,), fix))
+    out += _brief(doc)
     out += _structural(doc)
     out += _roofs(doc)
     if any(e.kind == "ventilation_point" for e in doc.entities.values()):
@@ -145,6 +146,13 @@ def propose(doc, reading=None):
 def _structural(doc):
     """S-0 run / refresh the analysis; S-1 members that fail, with the section that passes; S-2 drift."""
     from archforge.structure.analysis import fresh_result, has_structure
+    from archforge.project.brief import load_bearing_walls
+    if load_bearing_walls(doc):
+        if any(e.kind == "wall" for e in doc.entities.values()):
+            return [Proposal("S-4", "info", "Φέρουσα τοιχοποιία: χωρίς κολόνες",
+                             "Οι πέτρινοι/συμπαγείς τοίχοι φέρουν τα βάρη. Χρειάζεται οπλισμός πλάκας (εκτός αν τα πατώματα "
+                             "είναι ξύλινα) — επόμενο εργαλείο.", "Στοιχεία έργου")]
+        return []
     if not has_structure(doc):
         if any(e.kind == "wall" for e in doc.entities.values()):
             from archforge.structure.layout import propose_frame
@@ -181,6 +189,17 @@ def _structural(doc):
             out.append(Proposal(f"S-2:{d}", "warning", f"Σεισμός {d}: σχετική μετακίνηση ορόφου {info['drift_ratio'] * 1000:.1f} ‰ > 5 ‰",
                                 "Το κτίριο είναι πολύ εύκαμπτο: μεγαλύτερες κολώνες ή τοιχώματα.", result["provenance"]))
     return out
+
+
+def _brief(doc):
+    """B-0: the project questions are not answered — every later choice depends on them."""
+    from archforge.project.brief import get_brief
+    if get_brief(doc) is not None:
+        return []
+    return [Proposal("B-0", "hint", "Στοιχεία έργου: απάντησε στις ερωτήσεις",
+                     "Νέο ή ανακαίνιση; Τι τοίχοι; Εξωτερικές ή εσωτερικές διαστάσεις; Τι πατώματα; "
+                     "Οι απαντήσεις ορίζουν πάχος/τύπο τοίχων, φέροντα οργανισμό και επιμέτρηση.",
+                     "Αρχή έργου", (), None, run="brief")]
 
 
 def _roofs(doc):
