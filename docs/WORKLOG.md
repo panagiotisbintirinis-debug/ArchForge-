@@ -43,7 +43,7 @@ py run_app.py
 | 20 | Έδαφος (terrain) με κλίση · εξωτερική σκάλα ξεκινά από το έδαφος | fce14a4 | site/terrain.py | 🔎 |
 | 21 | Μενού «Έδαφος» · υψομετρικά σημεία | 9cfaf04 | site/terrain.py, ui/approved_mockup_shell.py | 🔎 |
 | 22 | Φυτά: Δέντρο / Θάμνος πάνω στο έδαφος | 3d3a5f8 | site/plants.py | 🔎 |
-| 30 | Βιβλιοθήκη: online μοντέλα & από φωτογραφία, 2D σύμβολο κάτοψης (περίγραμμα + γραμμές αλλαγής ύψους), χρώματα στο 3D, εισαγωγή glTF, φύλλα ελέγχου | (αυτό το commit) | library/plan_symbol.py, library/gltf.py, skill scripts | 🔎 |
+| 30 | Βιβλιοθήκη: online μοντέλα & από φωτογραφία, 2D σύμβολο κάτοψης (περίγραμμα + γραμμές αλλαγής ύψους), χρώματα στο 3D, εισαγωγή glTF, φύλλα ελέγχου | 9c63fb8 | library/plan_symbol.py, library/gltf.py, skill scripts | 🔎 |
 | 29 | Βιβλιοθήκη: εισαγωγή 3D επίπλων από καταλόγους Home Designer, τοποθέτηση με κλικ, σωστή κλίμακα (ίντσες→m), αλλαγή μεγέθους με κλείδωμα αναλογιών | 5bf53cf | library/hd_calib.py, library/assets.py, library/objects.py, ui/main_window.py | 🔎 |
 | 28 | Skill `archforge-library` (κανόνες βιβλιοθήκης, μορφή `.afcatalog`, άδειες) + εργαλείο ανάγνωσης καταλόγων Home Designer `.calib` (μόνο τοπικά, για μελέτη) | 1f1e074 | .claude/skills/archforge-library/, tests/test_calib_inspect.py, .gitignore | ✅ |
 | 27 | Πόρτες/παράθυρα στο 3D: κάσες, τζάμια, φύλλα πόρτας | 2f961c2 | rendering/fixtures.py, rendering/scene.py | 🔎 |
