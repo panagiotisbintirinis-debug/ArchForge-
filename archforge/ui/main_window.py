@@ -1001,11 +1001,12 @@ class MainWindow(QMainWindow):
         from PySide6.QtCore import QTimer
         QTimer.singleShot(0, self.refresh_inspector)
 
-    def _create_pitched_roof(self):
-        """Timber tiled roof over the active storey's walls (one undoable command)."""
+    def _create_pitched_roof(self, form='gable'):
+        """Timber tiled roof over the TOP storey's walls — never under a storey (one undoable command)."""
         from archforge.structure.timber_roof import FORMS, default_params, size_rafter
+        storeys = sorted({round(float(e.params.get('z', 0.0)), 4) for e in self.doc.entities.values() if e.kind == 'wall'})
         try:
-            params = default_params(self.doc)
+            params = default_params(self.doc, z=storeys[-1] if storeys else None, form=form)
         except ValueError as exc:
             QMessageBox.information(self, 'Κεραμοσκεπή', str(exc))
             return None
@@ -2385,6 +2386,20 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(
             f"Διόρθωση στεγών: αφαιρέθηκαν {len(plan['remove'])} κάτω από όροφο, προστέθηκαν {len(plan['add'])} — Ctrl+Z για αναίρεση", 7000)
         return plan
+
+    def _attic_ceilings(self, kind='slab'):
+        """Flat ceiling (attic) under the timber roof: concrete slab or timber joists, one undo."""
+        from archforge.architecture.roof_need import attic_ceiling_entities
+        from archforge.core.commands import AddEntities
+        entities = attic_ceiling_entities(self.doc, kind)
+        if not entities:
+            self.statusBar().showMessage('Δεν υπάρχει χώρος κάτω από κεραμοσκεπή χωρίς οροφή', 5000)
+            return 0
+        self.stack.execute(AddEntities(entities))
+        self._redraw_views(all_views=True)
+        what = 'πλάκα σκυροδέματος' if kind == 'slab' else 'ξύλινες δοκίδες (διαστασιολογημένες)'
+        self.statusBar().showMessage(f'Οροφή σοφίτας ({what}) σε {len(entities)} χώρους — Ctrl+Z για αναίρεση', 6000)
+        return len(entities)
 
     def _delete_all_roofs(self):
         from archforge.core.commands import DeleteEntities

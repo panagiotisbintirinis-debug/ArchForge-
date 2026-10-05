@@ -111,3 +111,49 @@ def roof_plan(doc):
             if coverage(doc, face.polygon, z) < COVERED:
                 add.append(face.signature)
     return {"remove": remove, "add": add}
+
+
+def attic_rooms(doc):
+    """Rooms under a timber roof without a flat ceiling yet: ``[(face, base_z, room_id)]`` (attic candidates)."""
+    from archforge.architecture.room_identity import room_id_for_signature
+    from archforge.assistant.understanding import centroid, inside
+    ceiled = set()
+    for e in doc.entities.values():
+        if e.kind == "room_ceiling":
+            found = room_face_of(doc, e)
+            if found is not None:
+                ceiled.add(found[0].signature)
+    joists = [(float(e.params["z"]), centroid([(float(q[0]), float(q[1])) for q in e.params["points"]]))
+              for e in doc.entities.values() if e.kind == "ceiling_joists"]
+    out = []
+    for z in _storeys(doc):
+        try:
+            faces = doc.active_room_faces(z=z)
+        except Exception:
+            faces = []
+        for face in faces:
+            if face.signature in ceiled or not under_pitched_roof(doc, face.polygon, z):
+                continue
+            poly = [(float(p[0]), float(p[1])) for p in face.polygon]
+            if any(abs(jz - z) < 0.05 and inside(poly, *c) for jz, c in joists):
+                continue
+            out.append((face, z, room_id_for_signature(doc, face.signature, z=z)))
+    return out
+
+
+def attic_ceiling_entities(doc, kind="slab", thickness=0.15):
+    """Entities for a flat attic ceiling in every attic room: concrete slab or timber joists."""
+    from archforge.core.model import Entity
+    out = []
+    for face, z, room_id in attic_rooms(doc):
+        if kind == "joists":
+            from archforge.assistant.suggestions import joists_entity
+            out.append(joists_entity(face.polygon, z, name="Δοκίδες οροφής σοφίτας"))
+            continue
+        tops = [float(doc.get(w).params["z"]) + float(doc.get(w).params["height"]) for w in face.wall_ids if w in doc.entities]
+        top = min(tops) if tops else z + 2.7
+        params = {"room_signature": face.signature, "thickness": float(thickness), "offset_z": top - z - float(thickness)}
+        if room_id is not None:
+            params["room_id"] = room_id
+        out.append(Entity("room_ceiling", params, name="Οροφή σοφίτας"))
+    return out

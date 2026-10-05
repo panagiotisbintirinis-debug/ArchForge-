@@ -1,6 +1,8 @@
 """Roofs only where nothing is built above; the assistant spots and removes a roof under a storey."""
 import os
 
+import pytest
+
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 from archforge.architecture.roof_need import coverage, roof_needed
@@ -88,7 +90,9 @@ def test_roof_menu_auto_and_fix_roofs_in_one_undo():
     app, w = _window_with(doc)
     try:
         texts = [a.text() for a in w._roof_menu.actions() if a.text()]
-        assert texts[0].startswith('Αυτόματη στέγη') and 'Διόρθωση στεγών' in texts and 'Διαγραφή όλων των στεγών' in texts
+        assert texts[:3] == ['Με κεραμίδια (ξύλινη στέγη)', 'Χωρίς κεραμίδια (επίπεδη / δώμα)', 'Οροφή σοφίτας κάτω από κεραμοσκεπή']
+        assert 'Διόρθωση στεγών' in texts and 'Διαγραφή όλων των στεγών' in texts
+        assert [a.text() for a in w._roof_tiled_menu.actions()] == ['Δίρριχτη', 'Τετράρριχτη', 'Μονόρριχτη']
         # A wrong roof under the upper storey (as the old Flat Roof made) …
         left = min(w.doc.active_room_faces(z=0.0), key=lambda f: min(p[0] for p in f.polygon))
         w.stack.execute(CreateRoomRoofs([left.signature]))
@@ -123,3 +127,39 @@ def test_room_under_a_timber_roof_gets_no_flat_roof():
     assert len(roof_plan(doc)['add']) == 1
     st.execute(AddEntity(Entity('pitched_roof', default_params(doc))))
     assert roof_plan(doc)['add'] == []
+
+
+def test_room_under_timber_roof_can_take_a_flat_attic_ceiling():
+    """Owner: the space under a tiled roof must be able to take a flat ceiling, like an attic."""
+    from archforge.architecture.roof_need import attic_ceiling_entities, attic_rooms
+    from archforge.assistant.target import actions_for, match, target_at
+    from archforge.core.commands import AddEntities
+    from archforge.structure.timber_roof import default_params
+    doc = Document(); st = CommandStack(doc)
+    for s in [(0, 0, 8, 0), (8, 0, 8, 6), (8, 6, 0, 6), (0, 6, 0, 0)]:
+        st.execute(AddEntity(Entity('wall', {'x1': s[0], 'y1': s[1], 'x2': s[2], 'y2': s[3], 'z': 0, 'height': 2.7, 'thickness': 0.2})))
+    assert attic_rooms(doc) == []                                        # no timber roof yet
+    st.execute(AddEntity(Entity('pitched_roof', default_params(doc))))
+    assert len(attic_rooms(doc)) == 1
+    slab = attic_ceiling_entities(doc, 'slab')
+    assert slab[0].kind == 'room_ceiling' and slab[0].params['offset_z'] == pytest.approx(2.7 - 0.15)
+    joists = attic_ceiling_entities(doc, 'joists')
+    assert joists[0].kind == 'ceiling_joists'
+    action = match('βάλε επίπεδη οροφή σοφίτας', actions_for(doc, target_at(doc, 4.0, 3.0)))
+    assert action is not None and action.key == 'attic_slab'
+    st.execute(AddEntities(slab))
+    assert attic_rooms(doc) == []                                        # done → not offered again
+    st.undo()
+    assert len(attic_rooms(doc)) == 1
+
+
+def test_tiled_roof_goes_over_the_top_storey_even_from_the_ground_floor():
+    doc, _st, _faces = _two_storeys()
+    app, w = _window_with(doc)
+    try:
+        w._activate_level_by_name('Ground')
+        roof = w._create_pitched_roof('hip')
+        assert roof.params['roof_form'] == 'hip' and roof.params['eave_z'] == pytest.approx(2.7 + 2.7)
+        assert roof.params['x1'] < 5.5                                     # over the upper storey only
+    finally:
+        w._mark_clean(); w.close(); app.processEvents()

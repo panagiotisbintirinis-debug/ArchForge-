@@ -165,13 +165,20 @@ def install_approved_mockup_shell(window):
         if text is None:terrain_menu.addSeparator();continue
         a=QAction(text,window); a.triggered.connect(lambda _=False,r=run: r()); terrain_menu.addAction(a)
     window._mockup_terrain_menu=terrain_menu
+    # Στέγη, by theme: with tiles (timber pitched roofs), without tiles (flat), attic ceiling, tools.
     roof_menu=QMenu("Στέγη",menus["Κατασκευή"]); menus["Κατασκευή"].addMenu(roof_menu)
     window._roof_menu=roof_menu
-    auto_roof=QAction("Αυτόματη στέγη (μόνο όπου δεν υπάρχει όροφος από πάνω)",window)
-    auto_roof.triggered.connect(lambda: window._auto_roofs()); roof_menu.addAction(auto_roof)
-    roof_action=QAction("Ξύλινη κεραμοσκεπή (δοκοί & κεραμίδια)",window)
-    roof_action.triggered.connect(lambda: window._create_pitched_roof())
-    roof_menu.addAction(roof_action); window._pitched_roof_action=roof_action
+    tiled=QMenu("Με κεραμίδια (ξύλινη στέγη)",roof_menu); roof_menu.addMenu(tiled); window._roof_tiled_menu=tiled
+    from archforge.structure.timber_roof import FORMS
+    for form,label in FORMS.items():
+        a=QAction(label,window); a.triggered.connect(lambda _=False,f=form: window._create_pitched_roof(f)); tiled.addAction(a)
+        if form=="gable": window._pitched_roof_action=a
+    flat=QMenu("Χωρίς κεραμίδια (επίπεδη / δώμα)",roof_menu); roof_menu.addMenu(flat); window._roof_flat_menu=flat
+    auto_roof=QAction("Αυτόματη επίπεδη στέγη (μόνο όπου δεν υπάρχει όροφος από πάνω)",window)
+    auto_roof.triggered.connect(lambda: window._auto_roofs()); flat.addAction(auto_roof)
+    attic=QMenu("Οροφή σοφίτας κάτω από κεραμοσκεπή",roof_menu); roof_menu.addMenu(attic); window._roof_attic_menu=attic
+    for text,kind in (("Πλάκα σκυροδέματος","slab"),("Ξύλινες δοκίδες","joists")):
+        a=QAction(text,window); a.triggered.connect(lambda _=False,k=kind: window._attic_ceilings(k)); attic.addAction(a)
     roof_menu.addSeparator()
     fix_roofs=QAction("Διόρθωση στεγών",window); fix_roofs.setToolTip("Αφαιρεί στέγες κάτω από όροφο και προσθέτει όσες λείπουν")
     fix_roofs.triggered.connect(lambda: window._fix_roofs()); roof_menu.addAction(fix_roofs)

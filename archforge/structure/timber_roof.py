@@ -357,9 +357,9 @@ def roof_mesh(p):
     return tuple(verts), tuple(tris), tuple(roles)
 
 
-def default_params(doc, level_name=None):
-    """A gable roof over the outer footprint of the active storey's walls."""
-    z = float(doc.work_plane.origin[2])
+def default_params(doc, level_name=None, z=None, form="gable"):
+    """A roof over the outer footprint of one storey's walls (default: the active storey)."""
+    z = float(doc.work_plane.origin[2]) if z is None else float(z)
     walls = [e for e in doc.entities.values() if e.kind == "wall" and abs(float(e.params.get("z", 0)) - z) < 0.05]
     if not walls:
         raise ValueError("δεν υπάρχουν τοίχοι στον ενεργό όροφο")
@@ -369,5 +369,5 @@ def default_params(doc, level_name=None):
     height = max(float(w.params["height"]) for w in walls)
     return {"x0": min(xs) - t, "y0": min(ys) - t, "x1": max(xs) + t, "y1": max(ys) + t,
             "eave_z": z + height, "pitch": 25.0, "overhang": 0.50, "rafter_spacing": 0.60,
-            "roof_form": "gable", "tile": "roman", "snow_zone": 2, "altitude": 0.0,
+            "roof_form": form, "tile": "roman", "snow_zone": 2, "altitude": 0.0,
             "insulation": "xps", "insulation_thickness": 0.08}

@@ -95,6 +95,43 @@ def _label(entity):
     return base
 
 
+FACING = ("Α", "ΒΑ", "Β", "ΒΔ", "Δ", "ΝΔ", "Ν", "ΝΑ")      # +x = Ανατολή, +y = Βορράς
+
+
+def _facing(nx, ny):
+    import math
+    return FACING[int(round(math.degrees(math.atan2(ny, nx)) / 45.0)) % 8]
+
+
+def _wall_identity(w, normal, rooms):
+    """What tells this wall apart: orientation (exterior) or the rooms it separates, plus size and type."""
+    import math
+    from archforge.assistant.understanding import inside
+    p = w.params
+    x1, y1, x2, y2, t = (float(p[k]) for k in ("x1", "y1", "x2", "y2", "thickness"))
+    length = math.hypot(x2 - x1, y2 - y1)
+    mx, my = (x1 + x2) / 2, (y1 + y2) / 2
+    nx, ny = (-(y2 - y1) / length, (x2 - x1) / length) if length > 1e-9 else (0.0, 0.0)
+    d = t / 2 + 0.10
+    sides = []
+    for sign in (1, -1):
+        hit = next((r["name"] for r in rooms if inside(r["polygon"], mx + sign * nx * d, my + sign * ny * d)), None)
+        if hit and hit not in sides:
+            sides.append(hit)
+    if normal is not None:
+        where = _facing(*normal) + (f" · {sides[0]}" if sides else "")
+    else:
+        where = " | ".join(sides) if sides else "ελεύθερος"
+    kind = str(p.get("wall_type", "generic"))
+    if kind != "generic":
+        from archforge.architecture.wall_types import WALL_TYPES
+        kind_label = " · " + WALL_TYPES.get(kind, (kind,))[0].split(" (")[0]
+    else:
+        kind_label = ""
+    name = w.name if w.name and w.name not in GENERIC_NAMES else "Τοίχος"
+    return f"{name} {where} · {length:.2f} m · {t * 100:.0f} cm{kind_label}"
+
+
 def _natural(text):
     """Sort key so that Κ2 comes before Κ10."""
     import re
@@ -195,6 +232,8 @@ def project_outline(doc, title="Έργο"):
         walls = [e for e in doc.entities.values() if e.kind == "wall" and entity_level(doc, e) == name]
         if walls:
             ext = set(storey["exterior_walls"])
+            from archforge.mep.ventilation import exterior_walls
+            normals = {wall.id: n for wall, n in exterior_walls(doc, z)}
             sub = []
             for title_, part in (("Εξωτερικοί", [w for w in walls if w.id in ext]),
                                  ("Εσωτερικοί", [w for w in walls if w.id not in ext])):
@@ -207,7 +246,7 @@ def project_outline(doc, title="Έργο"):
                     openings = [e.id for e in doc.entities.values()
                                 if e.kind in ("door", "window", "opening") and e.parent_id == w.id]
                     placed.update(openings)
-                    label = _label(w) + f" · {float(w.params['thickness']) * 100:.0f} cm"
+                    label = _wall_identity(w, normals.get(w.id), storey["rooms"])
                     nodes.append(_node(label, w.id, name, [_node(_label(doc.get(o)) + f" {float(doc.get(o).params.get('width', 0)):.2f} m", o, name)
                                                            for o in openings]))
                     placed.add(w.id)

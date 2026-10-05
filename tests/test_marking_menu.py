@@ -125,7 +125,7 @@ def test_tree_labels_say_something_instead_of_generic_names(window):
         for c in n['children']:
             walk(c)
     walk(project_outline(window.doc))
-    assert 'Τοίχος 8.00 m · 15 cm' in labels and not any(l.startswith('Wall') for l in labels)
+    assert 'Τοίχος ελεύθερος · 8.00 m · 15 cm' in labels and not any(l.startswith('Wall') for l in labels)
 
 
 def test_3d_picking_rules_walls_inactive_in_glass_and_while_working_a_stair():

@@ -144,6 +144,14 @@ def actions_for(doc, target: Target) -> List[Action]:
     bounding = ("structural_column", "structural_beam", "room_roof", "pitched_roof", "wall", "door", "window", "opening")
     if target.kind in ("room", "empty") or room is not None and target.kind not in bounding:
         if room is not None:
+            if room.get("under_pitched_roof"):
+                from archforge.architecture.roof_need import attic_ceiling_entities
+                from archforge.core.commands import AddEntities
+                slab = [e for e in attic_ceiling_entities(doc, "slab") if e.params["room_signature"] == room["signature"]]
+                if slab:
+                    out.append(Action("attic_slab", "Επίπεδη οροφή σοφίτας (πλάκα) σε αυτόν τον χώρο",
+                                      ("σοφίτ", "αττικ", "attic", "πλάκα οροφ", "επίπεδη οροφ", "επιπεδη οροφ"),
+                                      lambda _d, s=slab: AddEntities(s)))
             if not room["joists"]:
                 ent = joists_entity(room["polygon"], floor, name=f"Δοκίδες — {room['name']}")
                 out.append(Action("joists", "Διανομή δοκίδων ταβανιού σε αυτόν τον χώρο",

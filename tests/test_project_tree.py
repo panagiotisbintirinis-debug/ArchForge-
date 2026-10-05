@@ -91,7 +91,7 @@ def test_construction_tree_lists_every_entity_once_in_its_place():
     room_path = find(out, wc.id)
     assert any(p.startswith('Room 1 · WC') and '12.00 m²' in p for p in room_path)      # inside its room, use inferred
     wall_path = find(out, win.id)
-    assert any(p.startswith('Εξωτερικοί (4)') for p in wall_path) and wall_path[-2].startswith('Τοίχος 4.00 m')
+    assert any(p.startswith('Εξωτερικοί (4)') for p in wall_path) and wall_path[-2].startswith('Τοίχος Ν · Room 1 · 4.00 m')    # facing south, room named
     ids = []
 
     def collect(n):
