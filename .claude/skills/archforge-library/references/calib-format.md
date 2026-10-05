@@ -96,7 +96,19 @@ The other living-room parts are a round rug (0.91 m), a leaning mirror (2.10 m),
 - Mesh coordinates are **local to each part**. Placement inside grouped objects is not decoded yet; it probably lives in the `0x61` records.
 - `scripts/calib_mesh.py` implements this parser. It writes one OBJ object per mesh record and flags truncated or undecodable records as INCOMPLETE.
 
+### Grouped cabinet sets (`BonusGroupedIslands`, `Island 06`, verified 2026-10-05)
+- `SymbolData` (48 KB) holds only:
+  - one `0x61` sub-object `Seating:Chairs/Side Chairs/Low-back`;
+  - its mesh, a bar stool of 46 × 50 × 105 cm, parsed completely;
+  - small `0x30`, `0x1f` and `0x28` records. These contain ±1.0 and π/2 values, so they are probably transforms or curve primitives (guess).
+- **The cabinets are not meshes.** They are stored **parametrically** in `Data4LibraryObjects.Data` (60 KB):
+  - each base cabinet carries its code (`BCB2442L`, `B2442R`), size text (`24x24x42"`) and material (`material - Yellow Cedar`);
+  - each also lists its parts: `drawer 20 1/2x7 1/2"`, `hidden hinge`, `drawer glide`, and several `Filler 2 5/8x42"`.
+  - The blob uses its own `CD AB` record types (`0x0132` ×44, `0x013e`, `0x0107`, `0x7b`, `0x72`, `0x0f`, `0x6d`). Not decoded.
+- Consequence for ArchForge: HD cabinets should map to **ArchForge parametric cabinets** (WORKLOG 13α, `kitchen_part`), not to static meshes. That fits the human-first, parametric product rule.
+
 ## Open questions
 - Where HD stores texture JPGs locally.
-- 3D symbols: decode the transforms of the sub-objects (`0x61`?), the materials (`0x30`?), the UVs and the texture images.
+- 3D symbols: decode the transforms of the sub-objects (`0x61`?), the materials, the UVs and the texture images.
+- Parametric cabinet records in `Data`: width, depth and height, position, door and drawer layout, material.
 - The `.calibz` wrapper.
