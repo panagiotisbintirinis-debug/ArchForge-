@@ -9,3 +9,9 @@ dist/
 *.log
 .DS_Store
 Thumbs.db
+
+# Home Designer catalogs and caches: licensed content, local study only
+*.calib
+*.calibz
+*.tbdata
+hd-cache/

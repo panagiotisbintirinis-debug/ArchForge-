@@ -43,6 +43,7 @@ py run_app.py
 | 20 | Έδαφος (terrain) με κλίση · εξωτερική σκάλα ξεκινά από το έδαφος | fce14a4 | site/terrain.py | 🔎 |
 | 21 | Μενού «Έδαφος» · υψομετρικά σημεία | 9cfaf04 | site/terrain.py, ui/approved_mockup_shell.py | 🔎 |
 | 22 | Φυτά: Δέντρο / Θάμνος πάνω στο έδαφος | 3d3a5f8 | site/plants.py | 🔎 |
+| 28 | Skill `archforge-library` (κανόνες βιβλιοθήκης, μορφή `.afcatalog`, άδειες) + εργαλείο ανάγνωσης καταλόγων Home Designer `.calib` (μόνο τοπικά, για μελέτη) | (αυτό το commit) | .claude/skills/archforge-library/, tests/test_calib_inspect.py, .gitignore | ✅ |
 | 27 | Πόρτες/παράθυρα στο 3D: κάσες, τζάμια, φύλλα πόρτας | 2f961c2 | rendering/fixtures.py, rendering/scene.py | 🔎 |
 | 26 | Ουρανός και ήλιος ανά ώρα/μήνα (Rendering → Ήλιος & ουρανός) | 79223ae | rendering/sun.py, ui/pbr_viewport.py (JS) | 🔎 |
 | 25 | Το 3D δουλεύει χωρίς internet (three.js μέσα στην εφαρμογή) | 8016e44 | ui/vendor/three_bundle.js, ui/pbr_viewport.py | 🔎 |
@@ -72,7 +73,13 @@ py run_app.py
 13α. ⏳ Ντουλάπια (Cabinet): Base Cabinet, Wall Cabinet, Full Height, Soffit, Ράφι (Shelf), Χώρισμα (Partition), Πάγκος (Custom Countertop), Backsplash — να δένουν με την υπάρχουσα «Κουζίνα»
 14. ⏳ Εικόνα/Υπόβαθρο (Image) στην κάτοψη
 
-**Βιβλιοθήκη** (Library Browser του Home Designer):
+**Βιβλιοθήκη** (Library Browser του Home Designer) — κανόνες στο skill `.claude/skills/archforge-library/`:
+
+L1. ✅ Skill + ανάγνωση `.calib` (SQLite): υλικά = όνομα, χρώμα, υφή, κλίμακα · φάκελοι · λέξεις-κλειδιά (βλ. #28)
+L2. ⏳ Εισαγωγή υλικών HD στη Βιβλιοθήκη, τοπικά (`%APPDATA%\ArchForge\hd-cache`, σήμανση «μόνο τοπική χρήση») — χρειάζεται: πού είναι οι εικόνες υφής στο PC
+L3. ⏳ Παράθυρο Βιβλιοθήκης με κατηγορίες, αναζήτηση, μικρογραφίες
+L4. ⏳ 3D έπιπλα από `.calib` — χρειάζεται δείγμα καταλόγου επίπλων
+L5. ⏳ Δικές μας βιβλιοθήκες: παραμετρικά (13α), υλικά CC0 (ambientCG/Poly Haven), μορφή `.afcatalog`
 
 15α. ⏳ Εισαγωγή 3D αντικειμένων (OBJ / glTF / DAE / 3DS) στη Βιβλιοθήκη — για μοντέλα που εξάγει ο χρήστης από Home Designer ή δωρεάν βιβλιοθήκες (προσοχή στις άδειες των καταλόγων του HD)
 15. ⏳ Βιβλιοθήκη αντικειμένων με κατηγορίες (Exterior Arbors and Planters, Exterior Structures, Grouped Bathrooms/Bedrooms/Furniture…)
