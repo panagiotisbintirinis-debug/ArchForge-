@@ -168,3 +168,40 @@ def test_library_tabs_materials_structural_and_kitchen_appliances():
         assert window._pending_library_asset['name'] == 'Ψυγειοκαταψύκτης 60'
     finally:
         window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_library_is_one_tree_of_themes_with_search_and_actions():
+    """Owner: the library must be divided into themes."""
+    from PySide6.QtWidgets import QApplication
+    from archforge.ui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    try:
+        window._seed_core_library()
+        tree = window._library_tree
+        themes = [tree.topLevelItem(i).text(0).split(' (')[0] for i in range(tree.topLevelItemCount())]
+        assert themes[:7] == ['Δομικά', 'Κουζίνα', 'Έπιπλα', 'Μπάνιο', 'Εξωτερικοί χώροι', 'Η/Μ', 'Υλικά'][:7] or \
+            themes[:6] == ['Δομικά', 'Κουζίνα', 'Έπιπλα', 'Μπάνιο', 'Εξωτερικοί χώροι', 'Η/Μ']
+        assert themes[-1] == 'Υλικά'
+        furniture = next(tree.topLevelItem(i) for i in range(tree.topLevelItemCount()) if tree.topLevelItem(i).text(0).startswith('Έπιπλα'))
+        subs = [furniture.child(i).text(0).split(' (')[0] for i in range(furniture.childCount())]
+        assert 'Σαλόνι' in subs and 'Υπνοδωμάτιο' in subs
+        window._library_search.setText('ψυγειο')
+        visible = []
+
+        def walk(item):
+            if not item.isHidden() and item.childCount() == 0 and item.data(0, 0x0100):
+                visible.append(item)
+            for i in range(item.childCount()):
+                walk(item.child(i))
+        walk(tree.invisibleRootItem())
+        assert [v.text(0).split('  ')[0] for v in visible] == ['Ψυγειοκαταψύκτης 60']
+        window._library_tree_action(visible[0])
+        assert window.plan_view.controller.tool == 'library_place'
+        window._library_search.setText('')
+        mep = next(tree.topLevelItem(i) for i in range(tree.topLevelItemCount()) if tree.topLevelItem(i).text(0).startswith('Η/Μ'))
+        vent = next(mep.child(i) for i in range(mep.childCount()) if mep.child(i).text(0).startswith('Εξαερισμοί'))
+        window._library_tree_action(vent.child(0))
+        assert window.plan_view.controller.tool == 'vent_hood'
+    finally:
+        window._mark_clean(); window.close(); app.processEvents()

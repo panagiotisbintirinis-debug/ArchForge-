@@ -40,6 +40,7 @@ K_MOD, GAMMA_M, K_CR = 0.8, 1.3, 0.67
 SECTIONS = [(0.05, 0.10), (0.05, 0.12), (0.06, 0.14), (0.06, 0.16), (0.08, 0.16), (0.08, 0.18),
             (0.08, 0.20), (0.10, 0.22), (0.10, 0.24), (0.12, 0.26), (0.12, 0.28)]
 EDGE = 0.05
+MAX_TIMBER_LENGTH = 6.0      # usual commercial length of sawn C24 joists (m)
 
 
 def _bbox(points):
@@ -88,6 +89,8 @@ def size_joists(params):
     L = span(params)
     spacing = layout_spacing(params)
     chosen = next((c for c in (check_section(b, h, L, spacing, use) for b, h in SECTIONS) if c["ok"]), None)
+    if L > MAX_TIMBER_LENGTH:
+        chosen = None                         # no single sawn joist that long: practical limit
     report = {"span_m": round(L, 2), "spacing_m": round(spacing, 3), "use": use, "use_label": USES[use][0],
               "direction": span_direction(params), "count": len(positions(params)), "section": chosen,
               "ok": chosen is not None, "provenance": PROVENANCE}
@@ -99,6 +102,8 @@ def size_joists(params):
 
 def _proposals(L, use):
     out = []
+    if L > MAX_TIMBER_LENGTH:
+        out.append(f"Άνοιγμα {L:.2f} m > {MAX_TIMBER_LENGTH:g} m (μήκη ξυλείας εμπορίου): ενδιάμεση δοκός ή στήριξη")
     for s in (0.40, 0.30):
         c = next((c for c in (check_section(b, h, L, s, use) for b, h in SECTIONS) if c["ok"]), None)
         if c:

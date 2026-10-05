@@ -1076,6 +1076,7 @@ class MainWindow(QMainWindow):
                 elif r['provenance'].get('attribution'):
                     item.setToolTip(f"{r['provenance'].get('license', '')}: {r['provenance']['attribution']}")
                 listing.addItem(item)
+        self._refresh_library_tree()
         mats = getattr(self, '_library_materials_list', None)
         if mats is not None and mats.count() == 0:
             from PySide6.QtWidgets import QListWidgetItem
@@ -1089,6 +1090,105 @@ class MainWindow(QMainWindow):
                     item.setData(Qt.ItemDataRole.UserRole, material_id)
                     item.setForeground(QColor(str(spec['color'])))
                     mats.addItem(item)
+
+    def _library_outline(self):
+        """Library themes: ``[(theme, [(sub-theme or None, [(label, action)])])]``."""
+        from archforge.library import assets
+        from archforge.library.catalog import CATEGORIES
+        from archforge.mep.electrical import POINT_TYPES as ELEC
+        from archforge.mep.plumbing import POINT_TYPES as PLUMB
+        from archforge.mep.ventilation import POINT_TYPES as VENT
+        from archforge.rendering.materials import material_categories, materials_in_category
+        by_cat = {}
+        for r in assets.list_assets():
+            cat = (r.get('category') or ['Εισαγωγές'])[0]
+            w, d, h = (v * 100 for v in r['size'])
+            by_cat.setdefault(cat if cat in CATEGORIES else 'Εισαγωγές', []).append(
+                (f"{r['name']}  {w:.0f}×{d:.0f}×{h:.0f}", ('asset', r['id'])))
+        for items in by_cat.values():
+            items.sort(key=lambda t: t[0].lower())
+        themes = [
+            ('Δομικά', [(None, [(label, ('structural', tool, preset))
+                                for label, tool, preset in getattr(self, '_structural_presets', ())])]),
+            ('Κουζίνα', [('Ντουλάπια', [(label, ('cabinet', label)) for label in getattr(self, '_kitchen_defs', {})]),
+                         ('Συσκευές', by_cat.pop('Συσκευές', []))]),
+            ('Έπιπλα', [(cat, by_cat.pop(cat)) for cat in ('Σαλόνι', 'Τραπεζαρία', 'Υπνοδωμάτιο', 'Γραφείο', 'Φωτισμός', 'Διακόσμηση')
+                        if cat in by_cat]),
+            ('Μπάνιο', [(None, by_cat.pop('Μπάνιο', []))]),
+            ('Εξωτερικοί χώροι', [(None, by_cat.pop('Εξωτερικοί χώροι', []))]),
+            ('Η/Μ', [('Υδραυλικά', [(v[0], ('tool', f'plumb_{k}')) for k, v in PLUMB.items()]),
+                     ('Ηλεκτρολογικά', [(v[0], ('tool', f'elec_{k}')) for k, v in ELEC.items()]),
+                     ('Εξαερισμοί', [(v[0], ('tool', f'vent_{k}')) for k, v in VENT.items()])]),
+        ]
+        rest = [(cat, items) for cat, items in by_cat.items() if items]
+        if rest:
+            themes.append(('Εισαγωγές & λοιπά', rest))
+        themes.append(('Υλικά', [(cat, [(spec['name'], ('material', mid)) for mid, spec in materials_in_category(cat)])
+                                 for cat in material_categories()]))
+        return [(t, [(s, items) for s, items in subs if items]) for t, subs in themes]
+
+    def _refresh_library_tree(self):
+        from PySide6.QtWidgets import QTreeWidgetItem
+        tree = getattr(self, '_library_tree', None)
+        if tree is None:
+            return
+        opened = {tree.topLevelItem(i).text(0).split(' (')[0] for i in range(tree.topLevelItemCount())
+                  if tree.topLevelItem(i).isExpanded()}
+        tree.clear()
+        for theme, subs in self._library_outline():
+            count = sum(len(items) for _s, items in subs)
+            if not count:
+                continue
+            top = QTreeWidgetItem(tree, [f'{theme} ({count})'])
+            for sub, items in subs:
+                parent = top if sub is None else QTreeWidgetItem(top, [f'{sub} ({len(items)})'])
+                for label, action in items:
+                    leaf = QTreeWidgetItem(parent, [label])
+                    leaf.setData(0, Qt.ItemDataRole.UserRole, action)
+                    leaf.setToolTip(0, 'Διπλό κλικ: τοποθέτηση / εφαρμογή')
+            top.setExpanded(theme in opened)
+        self._filter_library_tree(getattr(self, '_library_search', None).text() if getattr(self, '_library_search', None) else '')
+
+    def _filter_library_tree(self, text):
+        tree = getattr(self, '_library_tree', None)
+        if tree is None:
+            return
+        text = str(text or '').strip().lower()
+
+        def walk(item):
+            if item.childCount() == 0:
+                show = not text or text in item.text(0).lower()
+            else:
+                show = any([walk(item.child(i)) for i in range(item.childCount())])
+                if text and show:
+                    item.setExpanded(True)
+            item.setHidden(not show)
+            return show
+        for i in range(tree.topLevelItemCount()):
+            walk(tree.topLevelItem(i))
+
+    def _library_tree_action(self, item):
+        """Double click on a library leaf: place it or start its tool."""
+        action = item.data(0, Qt.ItemDataRole.UserRole)
+        if not action:
+            return None
+        kind = action[0]
+        if kind == 'asset':
+            return self._choose_library_asset(action[1])
+        if kind == 'structural':
+            return self._start_structural_preset(action[1], action[2])
+        if kind == 'cabinet':
+            definition = getattr(self, '_kitchen_defs', {}).get(action[1])
+            if definition:
+                self.plan_view.controller.set_component_definition(definition)
+                self._set_active_tool('component')
+                self.statusBar().showMessage(f'{action[1]}: κλικ στην κάτοψη για τοποθέτηση', 5000)
+            return definition
+        if kind == 'tool':
+            return self._start_site_tool(action[1], f'{item.text(0)}: κλικ στην κάτοψη — Esc για τέλος')
+        if kind == 'material':
+            return self._apply_material_to_selection(action[1])
+        return None
 
     def _library_item_count(self):
         listing = getattr(self, '_library_assets_list', None)
@@ -2538,6 +2638,26 @@ class MainWindow(QMainWindow):
         self._assistant_proposals = []
         self._assistant_dismissed = set()
         return panel
+
+    def _propose_frame(self):
+        """Columns and beams from the walls (one undo), then the structural analysis."""
+        from archforge.core.commands import AddEntities
+        from archforge.structure.layout import propose_frame
+        entities, report = propose_frame(self.doc)
+        if not entities:
+            self.statusBar().showMessage('Ο φέρων οργανισμός καλύπτει ήδη τους τοίχους', 5000)
+            return report
+        self.stack.execute(AddEntities(entities))
+        from archforge.structure.analysis import analyze_cached
+        result = analyze_cached(self.doc)
+        self._refresh_project_tree()
+        self._redraw_views(all_views=True)
+        failing = sum(1 for m in result.get('members', {}).values() if not m.get('ok', True))
+        self.statusBar().showMessage(
+            f"Φέρων: {report['columns']} κολόνες, {report['beams']} δοκοί · στατική: "
+            + (result['error'] if result.get('error') else (f'{failing} μέλη θέλουν μεγαλύτερη διατομή (δες Βοηθό)' if failing else 'όλα επαρκούν'))
+            + ' — Ctrl+Z για αναίρεση', 9000)
+        return report
 
     def _edit_structural_settings(self):
         """Building type and design basis for the structural analysis (one undoable command)."""

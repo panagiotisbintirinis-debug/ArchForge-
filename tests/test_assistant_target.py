@@ -58,7 +58,7 @@ def test_structural_member_target_offers_analysis_then_the_section_fix():
     t = target_at(doc, 3.0, 4.0, z=0.0)
     assert t.entity_id == beam.id and t.label.startswith('Δ')
     actions = actions_for(doc, t)
-    assert [a.key for a in actions] == ['analyze', 'delete']               # every pointed object can be removed
+    assert {'analyze', 'delete'} <= {a.key for a in actions}               # every pointed object can be removed
     _run(st, match('κάνε στατική ανάλυση', actions))
     actions = actions_for(doc, t)
     resize = match('μεγάλωσε τη δοκό', actions)

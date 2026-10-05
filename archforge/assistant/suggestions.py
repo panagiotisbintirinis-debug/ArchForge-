@@ -146,6 +146,14 @@ def _structural(doc):
     """S-0 run / refresh the analysis; S-1 members that fail, with the section that passes; S-2 drift."""
     from archforge.structure.analysis import fresh_result, has_structure
     if not has_structure(doc):
+        if any(e.kind == "wall" for e in doc.entities.values()):
+            from archforge.structure.layout import propose_frame
+            entities, report = propose_frame(doc)
+            if entities:
+                return [Proposal("S-3", "hint", f"Φέρων οργανισμός: {report['columns']} κολόνες, {report['beams']} δοκοί από τους τοίχους",
+                                 "Κολόνες σε γωνίες/συναντήσεις τοίχων και ανά ≤ 6 m (όχι σε ανοίγματα), δοκοί πάνω στους τοίχους· "
+                                 "μετά τρέχει η στατική ανάλυση για οπλισμό/διατομές.",
+                                 "Προμελέτη φέροντος — προς έλεγχο στατικού", (), _add_all(entities))]
         return []
     result = fresh_result(doc)
     if result is None:
@@ -194,6 +202,11 @@ def _roofs(doc):
                                 "«Εφαρμογή» = αφαίρεση της στέγης.", "Κανόνας στέγης: μόνο ακάλυπτοι χώροι", (e.id,),
                                 lambda _doc, i=e.id: DeleteEntities([i])))
     return out
+
+
+def _add_all(entities):
+    from archforge.core.commands import AddEntities
+    return lambda _doc: AddEntities(list(entities))
 
 
 def _update(entity_id, params):

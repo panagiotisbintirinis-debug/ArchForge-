@@ -63,6 +63,7 @@ def _project_panel(window):
                 "Σκαμπό μπαρ":"Σκαμπό μπαρ"}
     for n in kitchen_defs: items.addItem(n)
     for n in appliances: items.addItem(n)
+    window._kitchen_defs=kitchen_defs
     def place_kitchen_component(item):
         if item.text() in appliances:
             window._place_library_by_name(appliances[item.text()]);return
@@ -88,6 +89,7 @@ def _project_panel(window):
              ("Δοκός 20×30","structural_beam",dict(width=.20,height=.30)),
              ("Δοκός 25×50","structural_beam",dict(width=.25,height=.50)),
              ("Δοκός 30×60","structural_beam",dict(width=.30,height=.60))]
+    window._structural_presets=presets
     for label,tool,preset in presets:
         it=QListWidgetItem(label); it.setData(Qt.UserRole,(tool,preset)); structural.addItem(it)
     structural.itemDoubleClicked.connect(lambda item: window._start_structural_preset(*item.data(Qt.UserRole)))
@@ -97,7 +99,16 @@ def _project_panel(window):
     mats.setToolTip("Διπλό κλικ: εφαρμόζει το υλικό στο επιλεγμένο αντικείμενο")
     lib.addTab(structural,"Δομικά"); lib.addTab(furniture,"Έπιπλα"); lib.addTab(page,"Κουζίνα"); lib.addTab(mats,"Υλικά"); lib.setCurrentIndex(2)
     box=QWidget(); lay=QVBoxLayout(box); lay.setContentsMargins(0,0,0,0); lay.setSpacing(6)
-    lay.addWidget(_card("Έργο",tabs),5); lay.addWidget(_card("Βιβλιοθήκη",lib),6)
+    # The library as one tree of themes with one search (the tabbed lists stay as data sources).
+    window._legacy_library_tabs=lib; lib.hide()
+    browser=QWidget(); bl=QVBoxLayout(browser); bl.setContentsMargins(6,6,6,6); bl.setSpacing(4)
+    lsearch=QLineEdit(); lsearch.setPlaceholderText("Αναζήτηση στη βιβλιοθήκη…"); bl.addWidget(lsearch)
+    ltree=QTreeWidget(); ltree.setHeaderHidden(True); bl.addWidget(ltree)
+    ltree.itemDoubleClicked.connect(lambda item,_c: window._library_tree_action(item))
+    lsearch.textChanged.connect(window._filter_library_tree)
+    window._library_tree=ltree; window._library_search=lsearch
+    lay.addWidget(_card("Έργο",tabs),5); lay.addWidget(_card("Βιβλιοθήκη",browser),6)
+    window._refresh_library_tree()
     window.project_tree=tree
     return box
 
@@ -193,7 +204,8 @@ def install_approved_mockup_shell(window):
     window._roof_tiles_layer_action=tiles_layer
     structure_menu=menus["Δομικά"]
     structure_menu.addSeparator()
-    for text,run in (("Στοιχεία κτιρίου για στατική…",lambda: window._edit_structural_settings()),
+    for text,run in (("Πρόταση φέροντος οργανισμού από τους τοίχους",lambda: window._propose_frame()),
+                     ("Στοιχεία κτιρίου για στατική…",lambda: window._edit_structural_settings()),
                      ("Στατική ανάλυση φέροντος οργανισμού…",lambda: window._show_structural_analysis())):
         a=QAction(text,window); a.triggered.connect(lambda _=False,r=run: r()); structure_menu.addAction(a)
     window._structure_menu=structure_menu

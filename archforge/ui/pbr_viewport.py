@@ -130,7 +130,9 @@ const camera = new THREE.PerspectiveCamera(48, 1, 0.02, 2000);
 camera.up.set(0, 0, 1);
 camera.position.set(8, -10, 8);
 
-const renderer = new THREE.WebGLRenderer({antialias: true, alpha: false, powerPreference: "high-performance"});
+// Logarithmic depth: no flicker (z-fighting) between touching surfaces at any distance.
+const renderer = new THREE.WebGLRenderer({antialias: true, alpha: false, powerPreference: "high-performance",
+                                          logarithmicDepthBuffer: true});
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;

@@ -175,6 +175,14 @@ def actions_for(doc, target: Target) -> List[Action]:
             out.append(Action("resize", f"Διατομή {size} από τον υπολογισμό",
                               ("μεγάλω", "μεγαλω", "διατομ", "αύξη", "αυξη", "διόρθ", "διορθ", "ενίσχ", "ενισχ"),
                               _update(target.entity_id, prop)))
+    # The whole load-bearing frame from the walls, wherever the user points.
+    from archforge.structure.layout import propose_frame
+    frame, frame_report = propose_frame(doc)
+    if frame:
+        from archforge.core.commands import AddEntities
+        out.append(Action("frame", f"Κολόνες & δοκοί όπου χρειάζονται ({frame_report['columns']} + {frame_report['beams']})",
+                          ("κολόν", "κολον", "κολών", "δοκάρ", "δοκαρ", "δοκούς", "δοκους", "φέρων", "φερων", "σκελετ", "στατικ"),
+                          lambda _d, f=frame: AddEntities(list(f))))
     if target.entity_id and target.entity_id in doc.entities:
         from archforge.core.commands import DeleteEntities
         out.append(Action("delete", f"Αφαίρεση: {target.label}",
