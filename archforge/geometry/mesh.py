@@ -546,6 +546,9 @@ def _payload(doc,node):
  if k=='plant':
   from archforge.site.plants import plant_base_z,plant_mesh
   v,t,r=plant_mesh(p,plant_base_z(doc,p));return MeshPayload(v,t,r)
+ if k=='plumbing_point':
+  from archforge.mep.plumbing import point_marker_mesh
+  v,t=point_marker_mesh(p);return MeshPayload(tuple(v),tuple(tuple(x) for x in t),tuple('marker' for _ in t))
  if k=='cabinet':
   from archforge.kitchen.cabinets import cabinet_mesh
   v,t,r=cabinet_mesh(p);return MeshPayload(v,t,r)

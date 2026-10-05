@@ -2583,6 +2583,9 @@ class PBRViewport(QWidget):
         )
         if self.structural_only:
             payload["objects"] = structural_payload_objects(payload.get("objects", ()), self.doc)
+        hidden = getattr(self, "hidden_layers", set())
+        if hidden:
+            payload["objects"] = [o for o in payload.get("objects", ()) if o.get("layer") not in hidden]
         fit = "true" if force_full and self._sculpt_tx is None else "false"
         script = (
             "window.__archforgePendingScene = "

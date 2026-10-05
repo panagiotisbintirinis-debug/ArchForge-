@@ -18,6 +18,9 @@ _MATERIALS: Mapping[str, dict] = {
     "window_glass": {"color": "#a9c3d2", "roughness": 0.03, "metalness": 0.1, "opacity": 0.28},
     "plant_trunk": {"color": "#6b4a2f", "roughness": 0.9, "metalness": 0.0},
     "library_object": {"color": "#b9b2a6", "roughness": 0.6, "metalness": 0.0},
+    "plumbing_point": {"color": "#2d6fb3", "roughness": 0.4, "metalness": 0.1},
+    "mep_cold": {"color": "#1f6fd1", "roughness": 0.35, "metalness": 0.0},
+    "mep_hot": {"color": "#d1301f", "roughness": 0.35, "metalness": 0.0},
     "cabinet_carcass": {"color": "#e9e5dd", "roughness": 0.6, "metalness": 0.0},
     "cabinet_shelf": {"color": "#e9e5dd", "roughness": 0.6, "metalness": 0.0},
     "cabinet_front": {"color": "#f4f1ea", "roughness": 0.45, "metalness": 0.0},
@@ -227,6 +230,28 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
             }
         )
     if doc is not None:
+        # Derived water pipes (layer "mep"): one mesh per system, not entities.
+        from archforge.mep.plumbing import pipe_mesh, route_plumbing_cached
+        network = route_plumbing_cached(doc)
+        for system in ("cold", "hot"):
+            verts, tris = [], []
+            for a, b, dia in network[system]:
+                # Drawn at least Ø40 so the route reads in 3D; the real Ø stays in the data/plan.
+                v, t = pipe_mesh(a, b, max(dia, 40))
+                base = len(verts)
+                verts += [list(map(float, q)) for q in v]
+                tris += [[base + i for i in tri] for tri in t]
+            if tris:
+                objects.append({
+                    "id": "",
+                    "render_part": f"mep:{system}",
+                    "kind": "mep_pipe",
+                    "layer": "mep",
+                    "vertices": verts,
+                    "triangles": tris,
+                    "surfaces": ["pipe"] * len(tris),
+                    "material": dict(_MATERIALS[f"mep_{system}"]),
+                })
         # Door/window fixtures fill the wall holes (render only, see fixtures.py).
         from archforge.rendering.fixtures import opening_fixture_parts
         for entity in list(doc.entities.values()):

@@ -637,6 +637,9 @@ class MainWindow(QMainWindow):
         if tool == 'library_place':
             self._place_library_object(x, y)
             return
+        if str(tool).startswith('plumb_'):
+            self._place_plumbing_point(tool[len('plumb_'):], x, y)
+            return
         if tool == 'terrain_point':
             terrain = self._terrain_entity()
             if terrain is None:
@@ -847,6 +850,29 @@ class MainWindow(QMainWindow):
                 if selector.currentIndex() != i:
                     selector.setCurrentIndex(i)
                 return
+
+    def _place_plumbing_point(self, point_type, x, y):
+        """Add a plumbing point; pipes re-route automatically from the points."""
+        from archforge.mep.plumbing import POINT_TYPES, route_plumbing_cached
+        z = float(self.doc.work_plane.origin[2])
+        if point_type == 'solar_heater':
+            z = max([float(v) for v in self.doc.levels.values()] + [z]) + 3.0   # on the roof
+        label = POINT_TYPES[point_type][0]
+        point = Entity('plumbing_point', {'x': float(x), 'y': float(y), 'z': z, 'point_type': point_type}, name=label)
+        self.stack.execute(AddEntity(point))
+        self._redraw_views(all_views=True)
+        report = route_plumbing_cached(self.doc)['report']
+        extra = f" · χωρίς σύνδεση: {len(report['unserved'])}" if report['unserved'] else ''
+        self.statusBar().showMessage(
+            f"{label} · κρύο {report['cold_m']:.1f} m, ζεστό {report['hot_m']:.1f} m{extra} — προμελέτη, προς έλεγχο μηχανολόγου",
+            7000)
+        return point
+
+    def _set_layer_visible(self, layer, visible):
+        hidden = set(getattr(self.pbr_view, 'hidden_layers', set()))
+        (hidden.discard if visible else hidden.add)(layer)
+        self.pbr_view.hidden_layers = hidden
+        self._redraw_views(all_views=True)
 
     def _set_wall_type(self, entity_id, wall_type):
         """Apply a wall assembly: sets the type and the matching total thickness."""

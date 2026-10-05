@@ -165,6 +165,17 @@ def install_approved_mockup_shell(window):
         if text is None:terrain_menu.addSeparator();continue
         a=QAction(text,window); a.triggered.connect(lambda _=False,r=run: r()); terrain_menu.addAction(a)
     window._mockup_terrain_menu=terrain_menu
+    mep_menu=menus["Μηχανολογικά"]
+    from archforge.mep.plumbing import POINT_TYPES
+    plumbing=QMenu("Υδραυλικά σημεία",mep_menu); mep_menu.addMenu(plumbing)
+    for key,(label,_c,_h,_z,_l) in POINT_TYPES.items():
+        a=QAction(label,window)
+        a.triggered.connect(lambda _=False,k=key,l=label: window._start_site_tool(f"plumb_{k}",f"{l}: κλικ στην κάτοψη — οι σωληνώσεις χαράζονται αυτόματα, Esc για τέλος"))
+        plumbing.addAction(a)
+    window._mockup_plumbing_menu=plumbing
+    layer=QAction("Μηχανολογικά στο 3D",window); layer.setCheckable(True); layer.setChecked(True)
+    layer.toggled.connect(lambda on: window._set_layer_visible("mep",on))
+    mep_menu.addAction(layer); window.view_menu.addAction(layer); window._mep_layer_action=layer
     library_menu=menus["Βιβλιοθήκη"]
     for text,run in (("Τοποθέτηση αντικειμένου…",lambda: window._choose_library_asset()),
                      ("Object Modifier (επιλεγμένο)…",lambda: window._open_object_modifier()),

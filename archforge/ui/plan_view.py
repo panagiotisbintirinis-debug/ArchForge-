@@ -115,7 +115,7 @@ class PlanView(QGraphicsView):
         if event.button()==Qt.MouseButton.LeftButton:
             self._hide_wall_angle_radial()
         if event.button()!=Qt.MouseButton.LeftButton:super().mousePressEvent(event);return
-        if self.controller.tool in self.SITE_POINT_TOOLS:
+        if self.controller.tool in self.SITE_POINT_TOOLS or str(self.controller.tool).startswith('plumb_'):
             ev=self._scene_to_plane(event.position().toPoint())
             self.sitePointRequested.emit(self.controller.tool,float(ev.a),float(ev.b));event.accept();return
         if self.controller.tool in self.VIEW_LINE_TOOLS or self.controller.tool in self.SITE_LINE_TOOLS:
@@ -452,6 +452,10 @@ class PlanView(QGraphicsView):
         pen.setWidthF(.022 if context else (.06 if opening else (.04 if preview else .035)));item=None
         if p.role=='library-symbol':pen=QPen(QColor(40,45,55));pen.setWidthF(.012)
         if p.role in ('cabinet','cabinet-front'):pen=QPen(QColor(40,45,55));pen.setWidthF(.012)
+        if p.role in ('pipe-cold','pipe-hot'):
+            pen=QPen(QColor(31,111,209) if p.role=='pipe-cold' else QColor(209,48,31))
+            pen.setWidthF(.035 if dict(p.meta).get('diameter',16)>=20 else .02)
+        if p.role=='plumbing-point':pen=QPen(QColor(31,90,160));pen.setWidthF(.02)
         if p.role in ('wall-layer','wall-insulation'):
             pen=QPen(QColor(120,110,95) if p.role=='wall-layer' else QColor(200,150,40));pen.setWidthF(.008)
             if p.role=='wall-insulation':pen.setStyle(Qt.PenStyle.DashLine)

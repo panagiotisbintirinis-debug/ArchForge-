@@ -139,6 +139,14 @@ def _wall_type(v):
     return v
 
 
+def _plumbing_type(v):
+    from archforge.mep.plumbing import POINT_TYPES
+    v = str(v)
+    if v not in POINT_TYPES:
+        raise ValueError(f'plumbing point must be one of {", ".join(POINT_TYPES)}')
+    return v
+
+
 def _count(v):
     value = int(round(float(v)))
     if not 0 <= value <= 20:
@@ -440,6 +448,7 @@ SCHEMAS = {
         'x': _finite, 'y': _finite, 'z': _finite, 'height': _positive, 'canopy': _positive,
         'species': _plant_species,
     },
+    'plumbing_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _plumbing_type},
     'cabinet': {
         'x': _finite, 'y': _finite, 'z': _finite, 'rotation': _finite,
         'width': _positive, 'depth': _positive, 'height': _positive, 'plinth': _nonnegative,

@@ -151,6 +151,9 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
         # roof, or foundation). Filtering on the slab's rendered Z would hide
         # those dependants from the plan that owns them.
         return found is not None and abs(float(found[1])-z)<=tolerance
+    if e.kind=='plumbing_point':
+        from archforge.mep.plumbing import _floor_of
+        return abs(_floor_of(doc,float(p.get('z',0.0)))-z)<=tolerance
     if e.kind=='cabinet':
         # Wall cabinets hang above their storey's floor: they belong to the
         # highest level at or below their base.
@@ -174,6 +177,10 @@ def entity_primitive(doc,eid):
     if e.kind=='plant':
         r=float(p['canopy'])/2.0
         return Primitive2D('ellipse',((float(p['x']),float(p['y'])),),r,r,0.,eid,'plant')
+    if e.kind=='plumbing_point':
+        from archforge.mep.plumbing import POINT_TYPES
+        return Primitive2D('ellipse',((float(p['x']),float(p['y'])),),.12,.12,0.,eid,'plumbing-point',
+                           meta=(('text',POINT_TYPES[p['point_type']][4]),('point_type',p['point_type'])))
     if e.kind=='cabinet':
         from archforge.kitchen.cabinets import footprint as cabinet_footprint
         role='cabinet-wall' if p.get('cabinet_type')=='wall' else 'cabinet'
@@ -464,6 +471,20 @@ def build_plan_frame(doc,preview=None):
             for closed,pts in plan_symbol_world(doc.get(eid).params):
                 if len(pts)>=2:
                     f.primitives.append(Primitive2D('polyline',tuple(pts+pts[:1] if closed else pts),entity_id=eid,role='library-symbol'))
+    # Derived water pipes of the active storey (horizontal runs in the screed).
+    if any(e.kind=='plumbing_point' for e in doc.entities.values()):
+        from archforge.mep.plumbing import POINT_TYPES,SCREED,route_plumbing_cached
+        level=float(doc.work_plane.origin[2])
+        network=route_plumbing_cached(doc)
+        for system in ('cold','hot'):
+            for a,b,dia in network[system]:
+                if abs(a[2]-b[2])<1e-9 and abs(a[2]-(level+SCREED))<1e-6:
+                    f.primitives.append(Primitive2D('polyline',((a[0],a[1]),(b[0],b[1])),role=f'pipe-{system}',meta=(('diameter',dia),)))
+        for eid in doc.entities:
+            e=doc.get(eid)
+            if e.kind=='plumbing_point' and _entity_on_active_level(doc,e):
+                f.primitives.append(Primitive2D('label',((float(e.params['x'])+.15,float(e.params['y'])+.15),),entity_id=eid,role='plumbing-label',
+                                                meta=(('text',POINT_TYPES[e.params['point_type']][0]),)))
     f.handles=selection_handles(doc)
     if preview:f.primitives.extend(preview_primitives(preview));f.hud=dict(preview.hud);f.snap=preview.snap
     return f
