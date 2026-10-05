@@ -38,6 +38,8 @@ repository or any distributed build.
   bytes live, then cut a few objects into a small sample:
   `python .claude/skills/archforge-library/scripts/calib_sample.py <file.calib> --stats`
   `python .claude/skills/archforge-library/scripts/calib_sample.py <file.calib> --out sample.calib --count 3`
+- Experimental 3D extraction, writing OBJ files to compare visually against Home Designer:
+  `python .claude/skills/archforge-library/scripts/calib_mesh.py <file.calib|.calibz> --name <text> --out-dir <dir>`
 - `references/calib-format.md` holds everything decoded so far, with each
   item marked verified or guess. Update that file whenever you learn
   something new from a real file. That keeps the next agent from redoing

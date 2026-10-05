@@ -91,3 +91,35 @@ def test_sampler_copies_only_chosen_objects_and_keeps_source(tmp_path):
     assert [o["name"] for o in result["objects"]] == ["Old Style"]
     assert result["objects"][0]["color"] == "#dccfbf"
     assert result["objects"][0]["folder"] == ["Brand", "Line B"]
+
+
+def _mesh_module():
+    spec = importlib.util.spec_from_file_location("calib_mesh", SCRIPT.with_name("calib_mesh.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_mesh_scanner_finds_reported_triangle_layout():
+    # Unit cube (inches) as 12 triangles in the reported layout:
+    # CD AB <type> ... uint32 N, then N records of 162 bytes, 9 float64 first.
+    c = [(x, y, z) for x in (0, 1) for y in (0, 1) for z in (0, 1)]
+    quads = [(0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)]
+    tris = [t for a, b, cc, d in quads for t in ((a, b, cc), (a, cc, d))]
+    body = b"".join(struct.pack("<9d", *c[i], *c[j], *c[k]) + b"\x00" * 90 for i, j, k in tris)
+    blob = (b"\x01\x00\x00\x00\x01" + b"\xcd\xab\x61\x00" + b"junk" * 20
+            + b"\xcd\xab\x74\x00\xb2\x0b" + struct.pack("<I", len(tris)) + b"\x00" * 4 + body + b"Hardware")
+    mod = _mesh_module()
+    meshes = mod.find_meshes(blob)
+    assert len(meshes) == 1 and len(meshes[0][2]) == 12
+    text, nv, nf = mod.to_obj(meshes[0][2], mod.UNITS["inch"])
+    assert (nv, nf) == (8, 12)
+    lo, hi = mod.bbox(meshes[0][2], 0.0254)
+    assert [round(h - l, 6) for l, h in zip(lo, hi)] == [0.0254] * 3
+
+
+def test_mesh_scanner_rejects_random_bytes():
+    import random
+    rnd = random.Random(1)
+    blob = b"\xcd\xab" + bytes(rnd.randrange(256) for _ in range(20000))
+    assert _mesh_module().find_meshes(blob) == []

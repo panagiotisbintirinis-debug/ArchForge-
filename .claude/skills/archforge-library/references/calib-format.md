@@ -54,7 +54,19 @@ The images are therefore probably embedded in the large catalogs; Kohler.calib
 alone is 5.1 GB. This is a guess until a sample proves it. Resolve images by file name against a user-chosen folder.
 Never resolve them by the stored absolute path.
 
+## 3D symbols (`Type 14`): reported by a second analysis, NOT yet verified here
+These findings come from `Belwith-Keeler.calibz`, object 1 `B076086 - Pull 1-1/2" Center to Center`:
+- `.calibz` is a container holding the `.calib` plus JPG textures. The scripts treat it as a zip. That is a guess until a real file is opened.
+- `LibSymDataId` points to `LibrarySymbolData`. `symDxf` and `symBlock` are NULL there. `twoDRep` (8 KB) appears to hold the 2D plan symbol as float64 (x, y) pairs.
+- The 3D model lives in `SymbolData4LibraryObjects.SymbolData` (785 KB). It is a series of records starting with `CD AB`. Their number varies per object: 5 in a pull, 26 in a knob, 46 in another pull.
+- Geometry record `CD AB 74 00 B2 0B …`:
+  - a uint32 triangle count (4806);
+  - then 162-byte records, each starting with 9 float64 values, which are 3 vertices (x, y, z);
+  - units are inches. The bounding box is 2.097 × 1.069 × 1.062 in. That fits the claimed pull but is not proven.
+- The other 90 bytes of each record are unknown. They are probably normals, UVs or a material index.
+- `scripts/calib_mesh.py` scans for this layout without assuming fixed offsets and writes OBJ files. Mark this section verified only after an extracted OBJ visibly matches the object in Home Designer.
+
 ## Open questions
 - Where HD stores texture JPGs locally.
-- Furniture/3D object geometry: which table holds it and whether it can be decoded.
+- 3D symbols: confirm the layout above on several objects. Then decode the remaining 90 bytes of each record, the materials, and the axis convention.
 - The `.calibz` wrapper.

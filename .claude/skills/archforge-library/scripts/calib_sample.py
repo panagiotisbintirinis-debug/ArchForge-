@@ -18,9 +18,22 @@ import argparse
 import os
 import sqlite3
 import sys
+import tempfile
+import zipfile
 
 # Tables without a LibraryObjectId column are copied whole only if small.
 SMALL_TABLE_BYTES = 2 * 1024 * 1024
+
+
+def _unpack(path):
+    """A .calibz is a zip holding the .calib (plus textures): use the inner .calib."""
+    if zipfile.is_zipfile(path):
+        with zipfile.ZipFile(path) as z:
+            inner = [n for n in z.namelist() if n.lower().endswith(".calib")]
+            if not inner:
+                raise SystemExit(f"{path}: zip without a .calib inside")
+            return z.extract(inner[0], tempfile.mkdtemp(prefix="calibz-"))
+    return path
 
 
 def _ro(path):
@@ -117,6 +130,7 @@ def main(argv=None):
     ap.add_argument("--count", type=int, default=3)
     ap.add_argument("--ids", help="comma-separated LibraryObjectId values")
     a = ap.parse_args(argv)
+    a.source = _unpack(a.source)
     conn = _ro(a.source)
     st = stats(conn)
     print("Object types:", st["types"])
