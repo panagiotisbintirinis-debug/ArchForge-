@@ -307,6 +307,7 @@ class WallDrawTransaction:
             )
         params={'x1':sx,'y1':sy,'x2':ex,'y2':ey,'z':self.z,'height':self.height,'thickness':self.thickness}
         if getattr(self,'wall_type',None):params['wall_type']=self.wall_type
+        if getattr(self,'reference',None) in ('exterior','interior'):params['reference']=self.reference
         e=Entity('wall',params,name='Wall')
         self.stack.execute(AddEntity(e));return e.id
     def cancel(self):self.cancelled=True

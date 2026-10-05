@@ -642,6 +642,8 @@ def validate_params(kind, params):
         schema = {key: _choice(options, key) for key, _q, options in QUESTIONS}
     else:
         schema = SCHEMAS.get(kind, {})
+    if kind == 'wall' and 'reference' in out:
+        out['reference'] = _choice(('axis', 'exterior', 'interior'), 'wall reference')(out['reference'])
     if 'phase' in out:
         from archforge.project.brief import PHASES
         out['phase'] = _choice(PHASES, 'phase')(out['phase'])

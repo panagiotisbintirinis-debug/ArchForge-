@@ -800,6 +800,14 @@ class CommandStack:
     def can_redo(self) -> bool:
         return bool(self.undone)
     def execute(self,c):c.do(self.doc);self.done.append(c);self.undone.clear();self._notify()
+    def amend(self,c):
+        """Run ``c`` as part of the last step: one undo removes both (e.g. a wall and its dimension reference)."""
+        if not self.done:
+            return self.execute(c)
+        c.do(self.doc)
+        last=self.done.pop()
+        self.done.append(CompositeCommand([last,c]))
+        self.undone.clear();self._notify()
     def undo(self):
         if not self.done:return
         c=self.done.pop();c.undo(self.doc);self.undone.append(c);self._notify()

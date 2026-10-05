@@ -106,6 +106,10 @@ class PointerController:
             )
             self.active.source_reference_angle_deg=reference_angle
             self.active.wall_type=brief_type
+            # The line drawn is a face of the wall (brief: exterior / interior dimensions).
+            from archforge.project.brief import get_brief
+            brief=get_brief(self.doc)
+            self.active.reference=brief['measure'] if brief else None
             self.preview=PreviewState(
                 'wall',
                 {'x1':sx,'y1':sy,'x2':sx,'y2':sy,'z':self.doc.work_plane.origin[2]},
@@ -354,7 +358,15 @@ class PointerController:
     def pointer_up(self,ev,exact=None):
         if self.active is None:return self.preview
         self.pointer_move(ev);committed_id=None
-        if isinstance(self.active,WallDrawTransaction):committed_id=self.active.commit((exact or {}).get('length'))
+        if isinstance(self.active,WallDrawTransaction):
+            committed_id=self.active.commit((exact or {}).get('length'))
+            if committed_id and getattr(self.active,'reference',None):
+                # A wall that closes a space moves onto its axis — same undo step as the wall.
+                from archforge.architecture.dimension_reference import ApplyDimensionReference
+                apply=ApplyDimensionReference(self.active.z)
+                from archforge.architecture.dimension_reference import plan as reference_plan
+                if any(reference_plan(self.doc,self.active.z)):
+                    self.stack.amend(apply)
         elif isinstance(self.active,(ConnectedWallEndpointStretchTransaction,WallEndpointStretchTransaction,StructuralBeamEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction,OpeningEditTransaction)):self.active.commit();committed_id=getattr(self.active,'eid',None)
         elif self.active.__class__.__name__=='ComponentPlaceTransaction':committed_id=self.active.commit()
         elif isinstance(self.active,StructuralColumnPlaceTransaction):committed_id=self.active.commit()
