@@ -1,0 +1,225 @@
+"""One mouse menu for every task (marking menu, Inventor style).
+
+Right click opens it at the cursor: the current task in the centre, the
+primary action on top (north), up to seven more around it (compass order)
+and a short list below for the rest.  Its content follows the task — wall
+drawing, Sculpt, an object under the cursor or empty space — so only the
+essentials are offered.  The wheel acts on the menu while it is open: brush
+size in Sculpt, angle step while drawing walls.
+
+``build_menu`` decides the content (shared by the 2D plan and the 3D view);
+``run`` and ``wheel`` carry out the choices through the window's existing
+commands.  ``MarkingMenu`` draws it in Qt (plan); the 3D view draws the same
+data in its web overlay.
+"""
+from __future__ import annotations
+
+import math
+
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import QFrame, QLabel, QToolButton, QVBoxLayout, QWidget
+
+SCULPT_OPS = (("pull", "Τράβηγμα"), ("push", "Σπρώξιμο"), ("inflate", "Φούσκωμα"), ("recess", "Βύθιση"),
+              ("smooth", "Λείανση"), ("crease", "Πτυχή"))
+ANGLES = (90.0, 45.0, 15.0, None)
+TOOLS = (("select", "Επιλογή"), ("wall", "Τοίχος"), ("door", "Πόρτα"), ("window", "Παράθυρο"),
+         ("structural_column", "Κολώνα"), ("structural_beam", "Δοκός"), ("opening_rect", "Άνοιγμα"))
+BRUSH_STEP = 0.05
+
+
+def _e(action_id, label, placement="radial", checked=False, danger=False):
+    return {"id": action_id, "label": label, "placement": placement, "checked": checked, "danger": danger}
+
+
+def _angle_label(v):
+    return "Ελεύθερη" if v is None else f"{float(v):g}°"
+
+
+def build_menu(window, view, entity_id=None):
+    """``{"center", "entries", "wheel"}`` for the task in hand."""
+    plan = getattr(window, "plan_view", None)
+    tool = getattr(getattr(plan, "controller", None), "tool", "select")
+    # Sculpt: operations around, brush size on the wheel.
+    if getattr(window, "sculpt_action", None) is not None and window.sculpt_action.isChecked():
+        op = window.sculpt_operation.currentText()
+        entries = [_e("mm:sculpt:exit", "✓ Τέλος Sculpt")]
+        entries += [_e(f"mm:sculpt:{key}", label, checked=(key == op)) for key, label in SCULPT_OPS]
+        return {"center": f"Sculpt · {dict(SCULPT_OPS).get(op, op)} · βούρτσα Ø{window.sculpt_radius.value():.2f} m",
+                "entries": entries, "wheel": "brush"}
+    # Drawing walls: angle step, finish, cancel the live segment.
+    if view == "plan" and tool == "wall":
+        current = plan.controller.wall_angle_increment
+        entries = [_e("mm:tool:select", "✓ Τέλος τοίχων")]
+        entries += [_e(f"mm:angle:{'free' if v is None else int(v)}", _angle_label(v),
+                       checked=(current is None and v is None) or (current is not None and v is not None
+                                                                   and abs(float(current) - v) < 1e-9))
+                    for v in ANGLES]
+        if plan.controller.active is not None and hasattr(plan.controller.active, "start"):
+            entries.append(_e("mm:wall:cancel", "Ακύρωση τμήματος", danger=True))
+        return {"center": f"Τοίχος · γωνία {_angle_label(current)}", "entries": entries, "wheel": "angle"}
+    # An object under the cursor: its own actions.
+    if entity_id and entity_id in window.doc.entities:
+        from archforge.assistant.target import describe_entity
+        from archforge.ui.object_context_menu import object_context_actions
+        entity = window.doc.get(entity_id)
+        actions = [a for a in object_context_actions(entity.kind, view) if a is not None]
+        entries = [_e(a["id"], {"properties": "Ιδιότητες", "move": "Μετακίνηση", "stretch": "Επιμήκυνση",
+                                "rotate": "Περιστροφή", "materials": "Υλικά", "support": "Στήριξη…",
+                                "load": "Φορτίο…", "delete": "Διαγραφή"}.get(a["id"], a["label"]),
+                      danger=a["id"] == "delete") for a in actions]
+        entries.append(_e("mm:assist:entity", "📍 Βοηθός εδώ", "panel"))
+        if entity.kind in ("structural_column", "structural_beam"):
+            entries.append(_e("mm:analyze", "Στατική ανάλυση", "panel"))
+        return {"center": describe_entity(window.doc, entity), "entries": _fit(entries), "wheel": None}
+    # Empty space: the drawing tools, the assistant at this point.
+    last = getattr(window, "_last_marking_tool", None)
+    entries = [_e(f"mm:tool:{last}", f"↻ {dict(TOOLS).get(last, last)}") if last else _e("mm:tool:select", "Επιλογή")]
+    entries += [_e(f"mm:tool:{key}", label) for key, label in TOOLS if key != (last or "select")][:6]
+    entries.append(_e("mm:sculpt:on", "Sculpt"))
+    if view == "plan":
+        entries.append(_e("mm:assist:point", "📍 Βοηθός εδώ", "panel"))
+    if any(e.kind in ("structural_column", "structural_beam") for e in window.doc.entities.values()):
+        entries.append(_e("mm:analyze", "Στατική ανάλυση", "panel"))
+    entries.append(_e("mm:undo", "Αναίρεση", "panel"))
+    return {"center": "Σχεδίαση", "entries": _fit(entries), "wheel": None}
+
+
+def _fit(entries):
+    """At most eight around the centre; the rest go to the list below."""
+    radial = [e for e in entries if e["placement"] == "radial"]
+    for e in radial[8:]:
+        e["placement"] = "panel"
+    return entries
+
+
+def run(window, view, entity_id, action_id, plan_xy=None):
+    """Carry out a menu choice with the window's existing commands."""
+    action_id = str(action_id)
+    if not action_id.startswith("mm:"):
+        window._handle_object_context_action(entity_id, action_id)
+        return
+    _mm, group, *rest = action_id.split(":")
+    arg = rest[0] if rest else ""
+    if group == "tool":
+        window._last_marking_tool = arg if arg != "select" else getattr(window, "_last_marking_tool", None)
+        if window.sculpt_action.isChecked():
+            window.sculpt_action.setChecked(False)
+        window._set_active_tool(arg)
+    elif group == "sculpt":
+        if arg == "exit":
+            window.sculpt_action.setChecked(False)
+        elif arg == "on":
+            window.sculpt_action.setChecked(True)
+        else:
+            window.sculpt_operation.setCurrentText(arg)
+    elif group == "angle":
+        window.plan_view._choose_wall_angle(None if arg == "free" else float(arg))
+    elif group == "wall" and arg == "cancel":
+        window.plan_view._wall_radial_command("delete")
+    elif group == "assist":
+        if arg == "entity" and entity_id:
+            window.doc.select([entity_id])
+            window._assistant_target_from_selection()
+        elif plan_xy is not None:
+            window._assistant_target_at(*plan_xy)
+    elif group == "analyze":
+        window._show_structural_analysis()
+    elif group == "undo":
+        window._undo()
+
+
+def wheel(window, kind, steps):
+    """Wheel while the menu is open; returns the new centre text."""
+    if kind == "brush":
+        window.sculpt_radius.setValue(round(window.sculpt_radius.value() + BRUSH_STEP * steps, 2))
+    elif kind == "angle":
+        current = window.plan_view.controller.wall_angle_increment
+        i = next((k for k, v in enumerate(ANGLES) if (v is None and current is None) or
+                  (v is not None and current is not None and abs(v - float(current)) < 1e-9)), 0)
+        window.plan_view.set_wall_angle_increment(ANGLES[(i + (1 if steps > 0 else -1)) % len(ANGLES)])
+        if window.plan_view.controller.active is not None:
+            window.plan_view.redraw()
+    return build_menu(window, "plan")["center"]
+
+
+# Compass positions, north first (Inventor order): N, NE, E, SE, S, SW, W, NW.
+COMPASS = tuple((math.sin(math.radians(a)), -math.cos(math.radians(a))) for a in range(0, 360, 45))
+
+
+class MarkingMenu(QWidget):
+    """Qt drawing of a menu from ``build_menu`` (used by the 2D plan)."""
+    chosen = Signal(str)
+    wheeled = Signal(int)
+    RADIUS = 96
+
+    def __init__(self, parent, menu, center_pos):
+        super().__init__(parent)
+        self.setObjectName("markingMenu")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
+        self.menu = menu
+        size = 2 * self.RADIUS + 300
+        panel = [e for e in menu["entries"] if e["placement"] == "panel"]
+        self.resize(size, size + 30 * len(panel) + 10)
+        cx, cy = size // 2, size // 2
+        self.buttons = {}
+        self.center = QLabel(menu["center"], self)
+        self.center.setStyleSheet("QLabel { background: rgba(32,41,53,0.88); color: white; border-radius: 9px;"
+                                  " padding: 3px 8px; font-weight: 600; }")
+        self.center.adjustSize()
+        self.center.move(cx - self.center.width() // 2, cy - self.center.height() // 2)
+        radial = [e for e in menu["entries"] if e["placement"] == "radial"]
+        clear = self.center.width() / 2 + 12                 # keep the side buttons off the centre title
+        for k, e in enumerate(radial):
+            dx, dy = COMPASS[k]
+            b = self._button(e)
+            x = cx + dx * self.RADIUS + math.copysign(max(0.0, clear - self.RADIUS * abs(dx) + b.width() / 2), dx) * (abs(dx) > 0.5)
+            b.move(int(x - b.width() / 2), int(cy + dy * self.RADIUS - b.height() / 2))
+        if panel:
+            frame = QFrame(self)
+            frame.setStyleSheet("QFrame { background: rgba(247,248,250,0.97); border: 1px solid #7c8792; border-radius: 8px; }")
+            lay = QVBoxLayout(frame)
+            lay.setContentsMargins(4, 4, 4, 4)
+            lay.setSpacing(2)
+            for e in panel:
+                lay.addWidget(self._button(e, frame, flat=True))
+            frame.adjustSize()
+            frame.move(cx - frame.width() // 2, int(cy + self.RADIUS + 26))
+        x, y = int(center_pos.x() - cx), int(center_pos.y() - cy)
+        if parent is not None:
+            x = max(0, min(parent.width() - self.width(), x))
+            y = max(0, min(parent.height() - self.height(), y))
+        self.move(x, y)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+    def _button(self, e, parent=None, flat=False):
+        b = QToolButton(parent or self)
+        b.setText(e["label"])
+        base = "#ffe5e5" if e["danger"] else ("#cfe7ff" if e["checked"] else "#f7f7f7")
+        b.setStyleSheet("QToolButton { background: %s; border: 1px solid #7c8792; border-radius: %dpx; padding: 4px 10px;"
+                        " font-weight: %s; } QToolButton:hover { background: #d9ecff; }"
+                        % (base, 6 if flat else 15, "600" if e["checked"] else "400"))
+        b.adjustSize()
+        b.resize(max(64, b.sizeHint().width()), max(30, b.sizeHint().height()))
+        b.clicked.connect(lambda _=False, i=e["id"]: self.chosen.emit(i))
+        self.buttons[e["id"]] = b
+        return b
+
+    def set_center(self, text):
+        cx = self.center.x() + self.center.width() // 2
+        self.center.setText(text)
+        self.center.adjustSize()
+        self.center.move(cx - self.center.width() // 2, self.center.y())
+
+    def wheelEvent(self, event):
+        steps = 1 if event.angleDelta().y() > 0 else -1
+        self.wheeled.emit(steps)
+        event.accept()
+
+    def mousePressEvent(self, event):
+        self.close()               # a click on empty menu space just closes it
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape:
+            self.close()
+            return
+        super().keyPressEvent(event)

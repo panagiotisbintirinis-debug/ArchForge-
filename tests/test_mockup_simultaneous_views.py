@@ -101,8 +101,14 @@ def test_ribbon_selectors_and_camera_snap_controls_are_visible_on_a_laptop_width
     window.show()
     app.processEvents()
 
-    for name in ('floor_selector', 'render_technique', 'sculpt_operation', 'sculpt_radius'):
+    for name in ('floor_selector', 'render_technique'):
         assert getattr(window, name).isVisible(), name
+    # Sculpt operation / brush size moved to the mouse menu; the ribbon keeps a margin
+    # under 1280 px so nothing falls into the overflow on Windows fonts either.
+    from PySide6.QtWidgets import QToolBar
+    ribbon = next(tb for tb in window.findChildren(QToolBar) if tb.windowTitle() == 'Mockup Ribbon')
+    assert ribbon.sizeHint().width() <= 1150
+    assert not window.sculpt_operation.isVisible() and not window.sculpt_radius.isVisible()
     boxes = {cb.text(): cb for cb in window.findChildren(QCheckBox)}
     assert boxes['Snap'].isVisible()
     assert boxes['Grid'].isVisible()

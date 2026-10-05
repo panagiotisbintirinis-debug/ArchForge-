@@ -79,6 +79,23 @@ class PlanView(QGraphicsView):
         super().mouseDoubleClickEvent(event)
 
     def contextMenuEvent(self,event):
+        window=getattr(self,'marking_menu_window',None)
+        if window is not None:
+            # One task-dependent mouse menu (marking menu), shared with the 3D view.
+            eid=self._entity_items.get(self.itemAt(event.pos()))
+            busy=self.controller.tool=='wall' or window.sculpt_action.isChecked()
+            if busy or not eid or eid not in self.doc.entities:
+                eid=None
+            else:
+                self.doc.select([eid]);self.controller.set_target(eid,None)
+                self.selectionChangedByView.emit();self.redraw()
+            pos=event.pos()
+            if self.controller.tool=='wall':
+                self._wall_menu_target_entity=None
+                pos=self._wall_angle_anchor(event.pos())
+            self.show_marking_menu(pos,eid,self._scene_to_plane(event.pos()))
+            event.accept()
+            return
         if self.controller.tool=='wall':
             hit=self.itemAt(event.pos())
             eid=self._entity_items.get(hit)
@@ -113,7 +130,7 @@ class PlanView(QGraphicsView):
 
     def mousePressEvent(self,event):
         if event.button()==Qt.MouseButton.LeftButton:
-            self._hide_wall_angle_radial()
+            self._hide_wall_angle_radial();self.hide_marking_menu()
         if event.button()!=Qt.MouseButton.LeftButton:super().mousePressEvent(event);return
         if self.controller.tool in self.SITE_POINT_TOOLS or str(self.controller.tool).startswith(('plumb_','elec_','vent_','assist_')):
             ev=self._scene_to_plane(event.position().toPoint())
@@ -199,6 +216,31 @@ class PlanView(QGraphicsView):
     def set_wall_angle_reference(self, mode):
         self.controller.set_wall_angle_reference(mode)
         self.statusChanged.emit(f'Wall angle reference: {str(mode).title()}')
+
+    def hide_marking_menu(self):
+        menu=getattr(self,'_marking_menu',None)
+        if menu is not None:
+            menu.close();menu.deleteLater()
+        self._marking_menu=None
+
+    def show_marking_menu(self,pos,entity_id=None,plan_point=None):
+        from archforge.ui.marking_menu import MarkingMenu,build_menu,run,wheel
+        window=self.marking_menu_window
+        self.hide_marking_menu();self._hide_wall_angle_radial()
+        menu=build_menu(window,'plan',entity_id)
+        xy=(float(plan_point.a),float(plan_point.b)) if plan_point is not None else None
+        widget=MarkingMenu(self.viewport(),menu,pos)
+
+        def choose(action_id):
+            self.hide_marking_menu()
+            run(window,'plan',entity_id,action_id,xy)
+        widget.chosen.connect(choose)
+        if menu['wheel']:
+            widget.wheeled.connect(lambda steps:widget.set_center(wheel(window,menu['wheel'],steps)))
+        widget.show();widget.raise_();widget.setFocus()
+        self._marking_menu=widget
+        self.statusChanged.emit(f"{menu['center']} — επίλεξε από το μενού{' · ροδέλα: '+('βούρτσα' if menu['wheel']=='brush' else 'γωνία') if menu['wheel'] else ''}")
+        return widget
 
     def _hide_wall_angle_radial(self):
         for button in self._wall_angle_buttons:

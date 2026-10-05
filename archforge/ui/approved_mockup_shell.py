@@ -280,11 +280,8 @@ def install_approved_mockup_shell(window):
     # legacy toolbar must not hide access to brush operation/radius.
     # Reuse the isolated semantic Kitchen command already owned by MainWindow.
     # Do not duplicate generation logic in the mockup shell.
-    ribbon.addSeparator()
-    ribbon.addWidget(QLabel("Sculpt Op:"))
-    _adopt(ribbon,window.sculpt_operation)
-    ribbon.addWidget(QLabel("Brush Size:"))
-    _adopt(ribbon,window.sculpt_radius)
+    # Sculpt operation and brush size live in the mouse menu (right click while
+    # sculpting; the wheel sets the brush) — not on the ribbon.
     ribbon.addSeparator()
     auto_floor=QAction("Auto Floor",window); auto_floor.triggered.connect(window._create_auto_floors); ribbon.addAction(auto_floor)
     flat_roof=QAction("Flat / Auto Roof",window); flat_roof.triggered.connect(window._create_flat_roofs); ribbon.addAction(flat_roof)
@@ -451,6 +448,9 @@ def install_approved_mockup_shell(window):
     window.tabifyDockWidget(window.dock,assistant_dock)
     window.dock.raise_()
     window._assistant_dock=assistant_dock
+    # One task-dependent mouse menu in the plan and in the 3D views.
+    for view in (window.plan_view,window.pbr_view,window.structural_view):
+        view.marking_menu_window=window
     window._schedule_assistant_refresh()
 
     for d in (project_dock,window.dock,views_dock,assistant_dock):

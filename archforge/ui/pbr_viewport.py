@@ -77,6 +77,11 @@ html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background:
   box-shadow: 0 3px 10px rgba(0,0,0,0.22); pointer-events: auto; cursor: pointer;
 }
 .markAction:hover { background: #d9eaff; border-color: #2f75b5; }
+.markAction.checked { background: #cfe7ff; border-color: #2f75b5; }
+#markingTitle {
+  position: absolute; transform: translate(-50%, 14px); padding: 3px 9px; border-radius: 9px;
+  background: rgba(32,41,53,0.88); color: #fff; font-size: 12px; font-weight: 600; white-space: nowrap;
+}
 .markAction.danger:hover { background: #ffe0e0; border-color: #b63b3b; color: #8f2020; }
 #commandStrip {
   position: absolute; display: flex; gap: 3px; transform: translate(-50%,-100%);
@@ -106,6 +111,7 @@ html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background:
 <div id="stairHud"></div>
 <div id="markingRoot">
   <div id="markingCenter"></div>
+  <div id="markingTitle"></div>
   <div id="radialMenu"></div>
   <div id="commandStrip"></div>
 </div>
@@ -145,6 +151,7 @@ window.__archforgeSetControlsEnabled = (enabled) => {
 
 const markingRoot = document.getElementById("markingRoot");
 const markingCenter = document.getElementById("markingCenter");
+const markingTitle = document.getElementById("markingTitle");
 const radialMenu = document.getElementById("radialMenu");
 const commandStrip = document.getElementById("commandStrip");
 const stairHud = document.getElementById("stairHud");
@@ -914,6 +921,16 @@ window.setMoveGhostDelta = function(dx, dy, snapped) {
   }
 };
 
+let markingWheel = "";
+window.setMarkingCenter = function(text) { markingTitle.textContent = text || ""; };
+// While the menu is open the wheel belongs to it (brush size, angle step), not to the zoom.
+window.addEventListener("wheel", (event) => {
+  if (markingRoot.style.display !== "block" || !markingWheel || !bridge) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  bridge.markingWheel(event.deltaY < 0 ? 1 : -1);
+}, { capture: true, passive: false });
+
 function hideMarkingMenu() {
   markingRoot.style.display = "none";
   radialMenu.replaceChildren();
@@ -922,16 +939,18 @@ function hideMarkingMenu() {
 }
 
 function dispatchMarkingAction(actionId) {
-  if (!bridge || !markingEntityId || !actionId) return;
+  if (!bridge || !actionId) return;
   const entityId = markingEntityId;
   hideMarkingMenu();
   bridge.contextAction(entityId, actionId);
 }
 
-window.showMarkingMenu = function(entityId, x, y, entries) {
+window.showMarkingMenu = function(entityId, x, y, entries, center, wheelKind) {
   hideMarkingMenu();
   markingEntityId = entityId || "";
-  if (!markingEntityId) return;
+  markingWheel = wheelKind || "";
+  markingTitle.textContent = center || "";
+  markingTitle.style.display = center ? "block" : "none";
 
   const radial = (entries || []).filter((entry) => entry && entry.placement === "radial");
   const panel = (entries || []).filter((entry) => entry && entry.placement === "panel");
@@ -941,14 +960,17 @@ window.showMarkingMenu = function(entityId, x, y, entries) {
   markingRoot.style.display = "block";
   markingCenter.style.left = cx + "px";
   markingCenter.style.top = cy + "px";
+  markingTitle.style.left = cx + "px";
+  markingTitle.style.top = cy + "px";
   radialMenu.style.left = cx + "px";
   radialMenu.style.top = cy + "px";
 
   const radius = 92;
   radial.forEach((entry, index) => {
-    const angle = -Math.PI / 2 + index * (2 * Math.PI / Math.max(1, radial.length));
+    // Fixed compass slots, north first (Inventor marking menu): N, NE, E, SE, S, SW, W, NW.
+    const angle = -Math.PI / 2 + index * (Math.PI / 4);
     const button = document.createElement("button");
-    button.className = "markAction" + (entry.id === "delete" ? " danger" : "");
+    button.className = "markAction" + ((entry.id === "delete" || entry.danger) ? " danger" : "") + (entry.checked ? " checked" : "");
     button.textContent = entry.label;
     button.style.left = (130 + Math.cos(angle) * radius) + "px";
     button.style.top = (130 + Math.sin(angle) * radius) + "px";
@@ -1331,9 +1353,9 @@ renderer.domElement.addEventListener("contextmenu", (event) => {
     return;
   }
   const hit = pickModel(event);
-  if (!hit || !hit.face) { hideMarkingMenu(); return; }
+  // Empty space gets the task menu too; Python decides its content.
   bridge.showContextMenu(
-    hit.object.userData.entityId || "",
+    (hit && hit.face && hit.object.userData.entityId) || "",
     Number(event.clientX),
     Number(event.clientY)
   );
@@ -1524,6 +1546,10 @@ class PBRInteractionBridge(QObject):
     @Slot(str, float, float)
     def showContextMenu(self, entity_id: str, x: float, y: float) -> None:
         self.viewport._show_context_menu(entity_id, x, y)
+
+    @Slot(int)
+    def markingWheel(self, steps: int) -> None:
+        self.viewport._marking_wheel(int(steps))
 
     @Slot(str, str)
     def contextAction(self, entity_id: str, action_id: str) -> None:
@@ -1791,8 +1817,35 @@ class PBRViewport(QWidget):
             f"Selected {entity.name or entity.kind.title()} — press Delete to remove"
         )
 
+    def _marking_wheel(self, steps: int) -> None:
+        window = getattr(self, "marking_menu_window", None)
+        kind = getattr(self, "_marking_wheel_kind", None)
+        if window is None or not kind or self.web_view is None:
+            return
+        from archforge.ui.marking_menu import wheel
+        text = wheel(window, kind, steps)
+        self.web_view.page().runJavaScript("if (window.setMarkingCenter) window.setMarkingCenter(" + json.dumps(text) + ");")
+
     def _show_context_menu(self, entity_id: str, x: float, y: float) -> None:
         entity_id = str(entity_id)
+        window = getattr(self, "marking_menu_window", None)
+        if window is not None:
+            # One task-dependent menu (shared with the plan): object, Sculpt or empty space.
+            from archforge.ui.marking_menu import build_menu
+            eid = entity_id if entity_id in self.doc.entities else ""
+            if eid and not window.sculpt_action.isChecked():
+                self.doc.select([eid])
+                self.selectionChangedByView.emit()
+            menu = build_menu(window, "pbr", eid or None)
+            self._marking_wheel_kind = menu["wheel"]
+            self.last_marking_menu = menu
+            if self.web_view is not None:
+                self.web_view.page().runJavaScript(
+                    "if (window.showMarkingMenu) window.showMarkingMenu(" + json.dumps(eid) + "," + json.dumps(float(x)) + ","
+                    + json.dumps(float(y)) + "," + json.dumps(menu["entries"], separators=(',', ':')) + ","
+                    + json.dumps(menu["center"]) + "," + json.dumps(menu["wheel"] or "") + ");")
+            self.statusChanged.emit(f"{menu['center']} — δεξί κλικ: μενού εργασίας")
+            return
         if entity_id not in self.doc.entities:
             return
         self.doc.select([entity_id])
