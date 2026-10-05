@@ -71,6 +71,10 @@ class MainWindow(QMainWindow):
         self._build_inspector()
         install_approved_mockup_shell(self)
         self._refresh_library_panel()
+        if not os.environ.get('PYTEST_CURRENT_TEST'):
+            # First run builds the shipped core library in the background.
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(300, self._seed_core_library)
         self._refresh_project_tree()
         self.refresh_inspector()
 
@@ -844,20 +848,97 @@ class MainWindow(QMainWindow):
                     selector.setCurrentIndex(i)
                 return
 
+    def _seed_core_library(self):
+        """Build the shipped core library into the local store (first run only)."""
+        from archforge.library.catalog import seed_core_library
+        try:
+            built = seed_core_library()
+        except Exception as exc:
+            self.statusBar().showMessage(f'Βασική βιβλιοθήκη: {exc}', 6000)
+            return
+        if built:
+            self.statusBar().showMessage(f'Βασική βιβλιοθήκη: {len(built)} αντικείμενα έτοιμα', 5000)
+        self._refresh_library_panel()
+
     def _refresh_library_panel(self):
         listing = getattr(self, '_library_assets_list', None)
+        if listing is not None:
+            from PySide6.QtWidgets import QListWidgetItem
+            from archforge.library import assets
+            from archforge.library.catalog import CATEGORIES
+            listing.clear()
+            records = assets.list_assets()
+
+            def category(r):
+                cat = (r.get('category') or ['Εισαγωγές'])[0]
+                return (CATEGORIES.index(cat) if cat in CATEGORIES else len(CATEGORIES), cat)
+            current = None
+            for r in sorted(records, key=lambda r: (category(r), r['name'].lower())):
+                cat = category(r)[1]
+                if cat != current:
+                    header = QListWidgetItem(f'— {cat} —')
+                    header.setFlags(Qt.ItemFlag.NoItemFlags)
+                    listing.addItem(header)
+                    current = cat
+                w, d, h = (v * 100 for v in r['size'])
+                item = QListWidgetItem(f"  {r['name']}  {w:.0f}×{d:.0f}×{h:.0f} cm")
+                item.setData(Qt.ItemDataRole.UserRole, r['id'])
+                if r['provenance'].get('source') == 'home-designer-calib':
+                    item.setToolTip('Home Designer — μόνο τοπική χρήση, δεν διανέμεται')
+                elif r['provenance'].get('attribution'):
+                    item.setToolTip(f"{r['provenance'].get('license', '')}: {r['provenance']['attribution']}")
+                listing.addItem(item)
+        mats = getattr(self, '_library_materials_list', None)
+        if mats is not None and mats.count() == 0:
+            from PySide6.QtWidgets import QListWidgetItem
+            from PySide6.QtGui import QColor
+            for category_name in material_categories():
+                header = QListWidgetItem(f'— {category_name} —')
+                header.setFlags(Qt.ItemFlag.NoItemFlags)
+                mats.addItem(header)
+                for material_id, spec in materials_in_category(category_name):
+                    item = QListWidgetItem(f"  ■ {spec['name']}")
+                    item.setData(Qt.ItemDataRole.UserRole, material_id)
+                    item.setForeground(QColor(str(spec['color'])))
+                    mats.addItem(item)
+
+    def _library_item_count(self):
+        listing = getattr(self, '_library_assets_list', None)
         if listing is None:
-            return
-        from PySide6.QtWidgets import QListWidgetItem
+            return 0
+        return sum(1 for i in range(listing.count()) if listing.item(i).data(Qt.ItemDataRole.UserRole))
+
+    def _place_library_by_name(self, name):
         from archforge.library import assets
-        listing.clear()
         for r in assets.list_assets():
-            w, d, h = (v * 100 for v in r['size'])
-            item = QListWidgetItem(f"{r['name']}  {w:.0f}×{d:.0f}×{h:.0f} cm")
-            item.setData(Qt.ItemDataRole.UserRole, r['id'])
-            if r['provenance'].get('source') == 'home-designer-calib':
-                item.setToolTip('Home Designer — μόνο τοπική χρήση, δεν διανέμεται')
-            listing.addItem(item)
+            if r['name'] == name:
+                return self._choose_library_asset(r['id'])
+        self._seed_core_library()
+        for r in assets.list_assets():
+            if r['name'] == name:
+                return self._choose_library_asset(r['id'])
+        self.statusBar().showMessage(f'{name}: δεν βρέθηκε στη βιβλιοθήκη', 4000)
+        return None
+
+    def _start_structural_preset(self, tool, preset):
+        self.plan_view.controller.structural_preset = dict(preset)
+        self._set_active_tool(tool)
+        self.statusBar().showMessage('Διατομή ' + ' × '.join(f"{v * 100:.0f}" for v in preset.values()) + ' cm — κλικ στην κάτοψη', 5000)
+
+    def _apply_material_to_selection(self, material_id):
+        if not material_id or len(self.doc.selection) != 1:
+            self.statusBar().showMessage('Επιλέξτε ένα αντικείμενο για να εφαρμόσετε το υλικό', 3000)
+            return False
+        entity_id = self.doc.selection[0]
+        entity = self.doc.get(entity_id)
+        changes = {'material_id': str(material_id)}
+        if entity.kind in ('library_object', 'cabinet'):
+            changes['surface_materials'] = {}
+        self.stack.execute(UpdateEntity(entity_id, changes))
+        self._redraw_views(all_views=True)
+        self.refresh_inspector()
+        self.statusBar().showMessage(f"{MATERIAL_PRESETS[material_id]['name']} → {entity.name or entity.kind}", 3000)
+        return True
 
     def _choose_library_asset(self, asset_id=None):
         from archforge.library import assets

@@ -75,6 +75,16 @@ repository or any distributed build.
 - The Object Modifier (`ui/object_modifier.py`) opens from the Inspector. It edits size and lock, rotation, elevation, part materials, and the sculpt modifier list, all through the shared commands.
 - UI: the **Βιβλιοθήκη** menu (place, Object Modifier, import glTF, import Home Designer), the **Έπιπλα** tab in the left panel, the `library_place` plan tool, and proportional resize in the Inspector.
 
+## Core library (ships with ArchForge)
+- `archforge/library/catalog.py` holds project-owned specs, built with `archforge/library/builder.py`. Every spec has an `expect_cm` size and a category.
+- `seed_core_library()` builds them into the local store once per `CORE_VERSION`. Bump the version when you change specs.
+- To add an item:
+  1. write the spec with standard real-world dimensions, front facing -Y;
+  2. check the size (the test enforces ±1 cm);
+  3. render a contact sheet and look at it;
+  4. fix the spec.
+- Findings from the first pass: a cistern floating apart from the bowl, shower glass on the open side, a hood built as a diamond from a 4-segment taper, short hex colours (`#555`), and handles adding depth beyond the nominal size.
+
 ## Parametric cabinets (implemented)
 `archforge/kitchen/cabinets.py` defines the `cabinet` entity.
 - Types: base, drawers, sink, wall, tall, wardrobe.

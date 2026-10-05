@@ -32,7 +32,7 @@ class IncrementalViewportAdapter:
 
 class PointerController:
     def __init__(self,doc,stack):
-        self.doc=doc;self.stack=stack;self.tool='select';self.active=None;self.component_definition=None;self.active_entity=None;self.active_handle=None;self.preview=PreviewState();self.construction_grid=.10;self.grid=self.construction_grid;self.snap_tolerance=.10;self.angle_increment=15.;self.wall_angle_increment=90.;self.wall_angle_reference='relative';self.snap_enabled=True
+        self.doc=doc;self.stack=stack;self.tool='select';self.active=None;self.component_definition=None;self.active_entity=None;self.active_handle=None;self.preview=PreviewState();self.construction_grid=.10;self.grid=self.construction_grid;self.snap_tolerance=.10;self.angle_increment=15.;self.wall_angle_increment=90.;self.wall_angle_reference='relative';self.snap_enabled=True;self.structural_preset={}
     def cycle_option(self,step=1):
         # Tab / wheel during a live Stair or Ramp placement: next option.
         if isinstance(self.active,(StairPlaceTransaction,RampPlaceTransaction)):
@@ -144,6 +144,7 @@ class PointerController:
                 self.active=StructuralColumnPlaceTransaction(
                     self.doc,self.stack,x,y,
                     z=active_z,height=height,
+                    **{k:v for k,v in getattr(self,'structural_preset',{}).items() if k in ('width','depth','construction','section','role')},
                     base_level=level_name,top_level=next_name,
                     grid=(self.grid if geometry_snap_enabled else None),
                     snap_tol=self.snap_tolerance,
@@ -158,11 +159,12 @@ class PointerController:
                 )
                 return self.preview
 
-            beam_height=.30
+            preset=getattr(self,'structural_preset',{}) if self.tool=='structural_beam' else {}
+            beam_height=float(preset.get('height',.30))
             beam_z=next_z-beam_height
             self.active=StructuralBeamDrawTransaction(
                 self.doc,self.stack,(sx,sy),
-                z=beam_z,width=.20,height=beam_height,
+                z=beam_z,width=float(preset.get('width',.20)),height=beam_height,
                 # The beam physically sits under the next level, but belongs to
                 # the storey from which the human authored it. Keeping that
                 # ownership on the active level prevents a just-created beam

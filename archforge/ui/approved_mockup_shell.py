@@ -55,14 +55,17 @@ def _project_panel(window):
         "Κρεμαστό ντουλάπι": dict(name="Κρεμαστό ντουλάπι",entity="cabinet",cabinet_type="wall",role="cabinet",width=.60,depth=.35,height=.72),
         "Ψηλό ντουλάπι": dict(name="Ψηλό ντουλάπι",entity="cabinet",cabinet_type="tall",role="cabinet",width=.60,depth=.60,height=2.10),
         "Ντουλάπα": dict(name="Ντουλάπα",entity="cabinet",cabinet_type="wardrobe",role="cabinet",width=1.00,depth=.60,height=2.40),
-        "Νησίδα": dict(name="Island Module 900",role="island",width=.90,depth=.90,height=.90,library_id="kitchen.island.900"),
-        "Εστία": dict(name="Hob 600",role="hob",width=.60,depth=.52,height=.05,library_id="kitchen.hob.600"),
-        "Φούρνος": dict(name="Oven 600",role="oven",width=.60,depth=.57,height=.60,library_id="kitchen.oven.600"),
-        "Ψυγείο": dict(name="Fridge 600",role="fridge",width=.60,depth=.65,height=2.00,library_id="kitchen.fridge.600"),
-        "Πλυντήριο πιάτων": dict(name="Dishwasher 600",role="dishwasher",width=.60,depth=.57,height=.82,library_id="kitchen.dishwasher.600"),
+        "Νησίδα": dict(name="Νησίδα",entity="cabinet",cabinet_type="base",role="cabinet",width=1.20,depth=.90,height=.86),
     }
+    # Appliances come from the core library (real 3D + plan symbol).
+    appliances={"Κουζίνα με φούρνο":"Κουζίνα με φούρνο 60","Εστία":"Εστία κεραμική 60","Ψυγείο":"Ψυγειοκαταψύκτης 60",
+                "Πλυντήριο πιάτων":"Πλυντήριο πιάτων 60","Απορροφητήρας":"Απορροφητήρας 60","Πλυντήριο ρούχων":"Πλυντήριο ρούχων 60",
+                "Σκαμπό μπαρ":"Σκαμπό μπαρ"}
     for n in kitchen_defs: items.addItem(n)
+    for n in appliances: items.addItem(n)
     def place_kitchen_component(item):
+        if item.text() in appliances:
+            window._place_library_by_name(appliances[item.text()]);return
         definition=kitchen_defs.get(item.text())
         if not definition:return
         window.plan_view.controller.set_component_definition(definition)
@@ -77,7 +80,22 @@ def _project_panel(window):
     fsearch.textChanged.connect(lambda t:[flist.item(i).setHidden(t.lower() not in flist.item(i).text().lower()) for i in range(flist.count())])
     flist.itemDoubleClicked.connect(lambda item: window._choose_library_asset(item.data(Qt.UserRole)))
     window._library_assets_list=flist
-    lib.addTab(QWidget(),"Δομικά"); lib.addTab(furniture,"Έπιπλα"); lib.addTab(page,"Κουζίνα"); lib.addTab(QWidget(),"Υλικά"); lib.setCurrentIndex(2)
+    structural=QListWidget()
+    presets=[("Κολόνα 25×25 (οπλ. σκυρόδεμα)","structural_column",dict(width=.25,depth=.25)),
+             ("Κολόνα 30×30 (οπλ. σκυρόδεμα)","structural_column",dict(width=.30,depth=.30)),
+             ("Κολόνα 40×40 (οπλ. σκυρόδεμα)","structural_column",dict(width=.40,depth=.40)),
+             ("Κολόνα 25×50 (τοιχίο)","structural_column",dict(width=.50,depth=.25)),
+             ("Δοκός 20×30","structural_beam",dict(width=.20,height=.30)),
+             ("Δοκός 25×50","structural_beam",dict(width=.25,height=.50)),
+             ("Δοκός 30×60","structural_beam",dict(width=.30,height=.60))]
+    for label,tool,preset in presets:
+        it=QListWidgetItem(label); it.setData(Qt.UserRole,(tool,preset)); structural.addItem(it)
+    structural.itemDoubleClicked.connect(lambda item: window._start_structural_preset(*item.data(Qt.UserRole)))
+    structural.setToolTip("Διπλό κλικ: ξεκινά το εργαλείο με αυτή τη διατομή")
+    mats=QListWidget(); window._library_materials_list=mats
+    mats.itemDoubleClicked.connect(lambda item: window._apply_material_to_selection(item.data(Qt.UserRole)))
+    mats.setToolTip("Διπλό κλικ: εφαρμόζει το υλικό στο επιλεγμένο αντικείμενο")
+    lib.addTab(structural,"Δομικά"); lib.addTab(furniture,"Έπιπλα"); lib.addTab(page,"Κουζίνα"); lib.addTab(mats,"Υλικά"); lib.setCurrentIndex(2)
     box=QWidget(); lay=QVBoxLayout(box); lay.setContentsMargins(0,0,0,0); lay.setSpacing(6)
     lay.addWidget(_card("Έργο",tabs),5); lay.addWidget(_card("Βιβλιοθήκη",lib),6)
     window.project_tree=tree

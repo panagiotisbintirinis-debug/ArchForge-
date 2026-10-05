@@ -44,7 +44,7 @@ def test_import_place_and_resize_sofa_through_the_ui(tmp_path):
         _catalog(cat)
         imported = window._import_hd_catalog(str(cat), object_ids=[3])
         assert len(imported) == 1
-        assert window._library_assets_list.count() == 1
+        assert window._library_item_count() == 1
         window._choose_library_asset(imported[0])
         assert window.plan_view.controller.tool == 'library_place'
         window.plan_view.sitePointRequested.emit('library_place', 4.0, 2.0)
@@ -80,7 +80,7 @@ def test_user_gltf_import_lands_in_library(tmp_path):
         record = assets.load_asset(asset_id)
         assert record['size'] == pytest.approx([0.6, 0.5, 0.9])
         assert record['provenance']['redistributable'] is False
-        assert window._library_assets_list.count() == 1
+        assert window._library_item_count() == 1
     finally:
         window._mark_clean(); window.close(); app.processEvents()
 
@@ -126,5 +126,45 @@ def test_object_modifier_edits_size_parts_and_sculpt_through_commands():
         assert mod.id in window.doc.surface_modifiers
         dialog.reset_size()
         assert window.doc.get(obj.id).params['width'] == pytest.approx(size[0])
+    finally:
+        window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_core_library_seeds_every_item_at_its_expected_size():
+    from archforge.library.builder import build, size_cm
+    from archforge.library.catalog import CATEGORIES, seed_core_library, specs
+    for spec in specs():
+        got = size_cm(build(spec)[0])
+        assert max(abs(a - b) for a, b in zip(got, spec['expect_cm'])) <= 1.01, spec['name']
+        assert spec['category'][0] in CATEGORIES
+    ids = seed_core_library()
+    assert len(ids) == len(specs()) and seed_core_library() == []      # once per version
+    records = assets.list_assets()
+    assert all(r['provenance']['redistributable'] for r in records)
+    assert all(assets.load_asset(r['id'])['plan']['outline'] for r in records)
+
+
+def test_library_tabs_materials_structural_and_kitchen_appliances():
+    from archforge.core.commands import AddEntity
+    from archforge.core.model import Entity
+    from archforge.rendering.materials import MATERIAL_PRESETS
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    try:
+        window._seed_core_library()
+        assert window._library_item_count() >= 39
+        mats = window._library_materials_list
+        ids = [mats.item(i).data(0x0100) for i in range(mats.count()) if mats.item(i).data(0x0100)]
+        assert set(ids) == set(MATERIAL_PRESETS)
+        box = Entity('box', {'x': 0, 'y': 0, 'z': 0, 'width': 1, 'depth': 1, 'height': 1, 'rotation': 0})
+        window.stack.execute(AddEntity(box)); window.doc.select([box.id])
+        assert window._apply_material_to_selection(ids[0])
+        assert window.doc.get(box.id).params['material_id'] == ids[0]
+        window._start_structural_preset('structural_column', {'width': .4, 'depth': .4})
+        assert window.plan_view.controller.tool == 'structural_column'
+        assert window.plan_view.controller.structural_preset == {'width': .4, 'depth': .4}
+        window._place_library_by_name('Ψυγειοκαταψύκτης 60')
+        assert window.plan_view.controller.tool == 'library_place'
+        assert window._pending_library_asset['name'] == 'Ψυγειοκαταψύκτης 60'
     finally:
         window._mark_clean(); window.close(); app.processEvents()
