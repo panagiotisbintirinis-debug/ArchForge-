@@ -36,14 +36,13 @@ def _card(title, widget):
 
 def _project_panel(window):
     tabs=QTabWidget()
+    # Filled from the Document by window._refresh_project_tree(): only real things.
     tree=QTreeWidget(); tree.setHeaderHidden(True)
-    root=QTreeWidgetItem(tree,["House Project 1"])
-    ground=QTreeWidgetItem(root,["Ισόγειο"]); rooms=QTreeWidgetItem(ground,["Δωμάτια"])
-    for n in ("Σαλόνι","Κουζίνα","Τραπεζαρία","Υπνοδωμάτιο 1","Μπάνιο 1"): QTreeWidgetItem(rooms,[n])
-    for n in ("Τοίχοι","Ανοίγματα","Δομικά","Έπιπλα","Μηχανολογικά"): QTreeWidgetItem(ground,[n])
-    for n in ("Όροφος 1","Στέγη","Έδαφος"): QTreeWidgetItem(root,[n])
-    root.setExpanded(True); ground.setExpanded(True); rooms.setExpanded(True)
-    tabs.addTab(tree,"Έργο"); tabs.addTab(QListWidget(),"Επίπεδα"); tabs.addTab(QListWidget(),"Υλικά")
+    tree.itemClicked.connect(lambda item,_c: window._project_tree_clicked(item))
+    levels_list=QListWidget(); materials_list=QListWidget()
+    levels_list.itemClicked.connect(lambda item: window._activate_level_by_name(item.data(Qt.UserRole)))
+    tabs.addTab(tree,"Έργο"); tabs.addTab(levels_list,"Επίπεδα"); tabs.addTab(materials_list,"Υλικά")
+    window._project_levels_list=levels_list; window._project_materials_list=materials_list
 
     lib=QTabWidget(); page=QWidget(); v=QVBoxLayout(page); v.setContentsMargins(8,8,8,8)
     search=QLineEdit(); search.setPlaceholderText("Αναζήτηση κουζίνας..."); v.addWidget(search)

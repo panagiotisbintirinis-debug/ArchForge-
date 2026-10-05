@@ -71,6 +71,7 @@ class MainWindow(QMainWindow):
         self._build_inspector()
         install_approved_mockup_shell(self)
         self._refresh_library_panel()
+        self._refresh_project_tree()
         self.refresh_inspector()
 
     def _on_tab_changed(self, idx):
@@ -786,6 +787,62 @@ class MainWindow(QMainWindow):
         self._object_modifier = dialog_class(self, entity_id)
         self._object_modifier.show()
         return self._object_modifier
+
+    def _refresh_project_tree(self):
+        """Rebuild the project tree, storeys and used materials from the Document."""
+        from PySide6.QtWidgets import QListWidgetItem, QTreeWidgetItem
+        from .project_outline import _levels, project_outline, used_materials
+        tree = getattr(self, 'project_tree', None)
+        if tree is None or not hasattr(tree, 'invisibleRootItem'):
+            return
+        title = os.path.splitext(os.path.basename(getattr(self, 'current_path', '') or ''))[0] or 'Έργο'
+        outline = project_outline(self.doc, title)
+
+        def add(parent, node):
+            item = QTreeWidgetItem(parent, [node['label']])
+            item.setData(0, Qt.ItemDataRole.UserRole, node['entity_id'])
+            item.setData(0, Qt.ItemDataRole.UserRole + 1, node['level'])
+            for child in node['children']:
+                add(item, child)
+            return item
+        tree.clear()
+        root = add(tree, outline)
+        root.setExpanded(True)
+        for i in range(root.childCount()):
+            root.child(i).setExpanded(True)
+        levels_list = getattr(self, '_project_levels_list', None)
+        if levels_list is not None:
+            levels_list.clear()
+            for name, z in _levels(self.doc):
+                item = QListWidgetItem(f'{name}   {z:+.2f} m')
+                item.setData(Qt.ItemDataRole.UserRole, name)
+                levels_list.addItem(item)
+        materials_list = getattr(self, '_project_materials_list', None)
+        if materials_list is not None:
+            materials_list.clear()
+            for _mid, name, count in used_materials(self.doc):
+                materials_list.addItem(f'{name}   ×{count}')
+
+    def _project_tree_clicked(self, item):
+        entity_id = item.data(0, Qt.ItemDataRole.UserRole)
+        level = item.data(0, Qt.ItemDataRole.UserRole + 1)
+        if level:
+            self._activate_level_by_name(level)
+        if entity_id and entity_id in self.doc.entities:
+            self.doc.select([entity_id])
+            self.refresh_inspector()
+            self._redraw_views(all_views=True)
+
+    def _activate_level_by_name(self, name):
+        selector = getattr(self, 'floor_selector', None)
+        if selector is None or not name:
+            return
+        for i in range(selector.count()):
+            data = selector.itemData(i)
+            if isinstance(data, (tuple, list)) and data and str(data[0]) == str(name):
+                if selector.currentIndex() != i:
+                    selector.setCurrentIndex(i)
+                return
 
     def _refresh_library_panel(self):
         listing = getattr(self, '_library_assets_list', None)
@@ -1976,6 +2033,7 @@ class MainWindow(QMainWindow):
 
     def _on_document_changed(self):
         self._update_plan_title()
+        self._refresh_project_tree()
         # Refresh every editor the human can currently see (e.g. 2D + 3D side
         # by side) so a committed edit appears without switching tabs. Hidden
         # editors refresh when they are shown.
