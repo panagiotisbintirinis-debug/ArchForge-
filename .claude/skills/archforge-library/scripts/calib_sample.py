@@ -72,7 +72,7 @@ def _pick(conn, count):
     return [r[0] for r in rows[lo:lo + count]]
 
 
-def sample(src, dst, ids):
+def sample(src, dst, ids, max_blob=None):
     s = _ro(src)
     if os.path.exists(dst):
         os.remove(dst)
@@ -92,6 +92,9 @@ def sample(src, dst, ids):
             rows = s.execute(
                 f'SELECT * FROM "{name}" WHERE LibSymDataId IN (SELECT LibSymDataId FROM '
                 f'LibraryObjects WHERE LibraryObjectId IN ({q}))', ids).fetchall()
+        elif name == "AssociatedData":
+            # Assumed (unverified) to share ids with LibraryObjects; may hold textures.
+            rows = s.execute(f'SELECT * FROM "{name}" WHERE AssociatedDataId IN ({q})', ids).fetchall()
         elif name == "PlantData":
             rows = s.execute(
                 f'SELECT * FROM "{name}" WHERE PlantDataId IN (SELECT PlantDataId FROM '
@@ -101,6 +104,11 @@ def sample(src, dst, ids):
         else:
             report[name] = "skipped (large, no object link)"
             continue
+        if max_blob:
+            # Study samples may keep only the head of each big BLOB (header +
+            # first records); enough to learn a layout, small enough to share.
+            rows = [tuple(v[:max_blob] if isinstance(v, bytes) and len(v) > max_blob else v
+                          for v in r) for r in rows]
         if rows:
             d.executemany(f'INSERT INTO "{name}" VALUES ({",".join("?" * len(cols))})', rows)
         report[name] = len(rows)
@@ -120,6 +128,7 @@ def main(argv=None):
     ap.add_argument("--out")
     ap.add_argument("--count", type=int, default=3)
     ap.add_argument("--ids", help="comma-separated LibraryObjectId values")
+    ap.add_argument("--max-blob-kb", type=int, help="truncate each BLOB to this many KB")
     a = ap.parse_args(argv)
     a.source = resolve(a.source)
     conn = _ro(a.source)
@@ -133,7 +142,8 @@ def main(argv=None):
             f'SELECT LibraryObjectId, Name FROM LibraryObjects WHERE LibraryObjectId IN '
             f'({",".join("?" * len(ids))})', ids)) if ids else {}
         conn.close()
-        report = sample(a.source, a.out, ids)
+        report = sample(a.source, a.out, ids,
+                        a.max_blob_kb * 1024 if a.max_blob_kb else None)
         print("Sampled objects:", {i: names.get(i) for i in ids})
         print("Copied rows:", report)
         print(f"Wrote {a.out}: {os.path.getsize(a.out) / 1048576:.2f} MB")

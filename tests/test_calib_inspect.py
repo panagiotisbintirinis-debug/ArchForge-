@@ -143,3 +143,16 @@ def test_mesh_scanner_prefers_full_count_over_coincidental_small_count():
     blob = b"\xcd\xab\x74\x00" + struct.pack("<II", 12, 4) + body
     meshes = _mesh_module().find_meshes(blob)
     assert [len(t) for _, _, t in meshes] == [12]
+
+
+def test_sampler_can_truncate_large_blobs(tmp_path):
+    spec = importlib.util.spec_from_file_location(
+        "calib_sample", SCRIPT.with_name("calib_sample.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    src = tmp_path / "Big.calib"
+    _catalog(src)
+    out = tmp_path / "small.calib"
+    mod.sample(str(src), str(out), [1], max_blob=64)
+    conn = sqlite3.connect(out)
+    assert conn.execute("SELECT LENGTH(Data) FROM Data4LibraryObjects").fetchall() == [(64,)]
