@@ -143,3 +143,76 @@ def test_library_object_reaches_the_3d_scene_at_its_size():
     pos = mine[0]["positions"] if "positions" in mine[0] else mine[0]["vertices"]
     pts = [pos[i:i + 3] for i in range(0, len(pos), 3)] if pos and not isinstance(pos[0], (list, tuple)) else pos
     assert _extent(pts) == pytest.approx(size)
+
+
+def _box_tris(x0, y0, z0, x1, y1, z1):
+    c = [(x, y, z) for x in (x0, x1) for y in (y0, y1) for z in (z0, z1)]
+    quads = [(0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)]
+    return [tuple(c[i] for i in t) for a, b, cc, d in quads for t in ((a, b, cc), (a, cc, d))]
+
+
+def test_plan_symbol_traces_outline_hole_and_height_steps():
+    from archforge.library.plan_symbol import plan_symbol
+    # A 2 x 1 m "sofa": seat 0.45 high in front, back 0.9 high behind (step line),
+    # plus a separate ring-like frame with a hole to check inner loops.
+    tris = _box_tris(0, 0, 0, 2, 0.7, 0.45) + _box_tris(0, 0.7, 0, 2, 1.0, 0.9)
+    verts = sorted({v for t in tris for v in t})
+    idx = {v: i for i, v in enumerate(verts)}
+    sym = plan_symbol(verts, [tuple(idx[v] for v in t) for t in tris])
+    (outline,) = sym["outline"]
+    xs = [q[0] for q in outline]; ys = [q[1] for q in outline]
+    assert min(xs) == pytest.approx(0, abs=0.02) and max(xs) == pytest.approx(2, abs=0.03)
+    assert max(ys) == pytest.approx(1, abs=0.03)
+    # One inner line where the seat meets the back (y = 0.7).
+    assert any(all(abs(q[1] - 0.7) < 0.02 for q in line) and
+               max(q[0] for q in line) - min(q[0] for q in line) > 1.8 for line in sym["lines"])
+    ring = _box_tris(0, 0, 0, 1, 0.2, 0.1) + _box_tris(0, 0.8, 0, 1, 1, 0.1) + \
+        _box_tris(0, 0, 0, 0.2, 1, 0.1) + _box_tris(0.8, 0, 0, 1, 1, 0.1)
+    verts = sorted({v for t in ring for v in t}); idx = {v: i for i, v in enumerate(verts)}
+    assert len(plan_symbol(verts, [tuple(idx[v] for v in t) for t in ring])["outline"]) == 2
+
+
+def test_gltf_reader_converts_y_up_metres_and_drops_display_base(tmp_path):
+    import base64
+    import json
+    from archforge.library.gltf import drop_ground_planes, read_gltf
+    # Object: 0.5 wide (x), 1.2 tall (+Y in glTF), 0.3 deep; base plate 3 x 3 m at y=0.
+    obj = [(-0.25, 0.0, -0.15), (0.25, 0.0, -0.15), (0.25, 1.2, 0.15)]
+    plate = [(-1.5, 0.0, -1.5), (1.5, 0.0, -1.5), (1.5, 0.0, 1.5)]
+    raw = b"".join(struct.pack("<3f", *v) for v in obj + plate)
+    doc = {"asset": {"version": "2.0"}, "scene": 0, "scenes": [{"nodes": [0, 1]}],
+           "nodes": [{"mesh": 0, "translation": [0, 0, 0]}, {"mesh": 1}],
+           "meshes": [{"primitives": [{"attributes": {"POSITION": 0}, "material": 0}]},
+                      {"primitives": [{"attributes": {"POSITION": 1}}]}],
+           "materials": [{"name": "fabric", "pbrMetallicRoughness": {"baseColorFactor": [1, 0, 0, 1]}}],
+           "buffers": [{"byteLength": len(raw), "uri": "data:application/octet-stream;base64," + base64.b64encode(raw).decode()}],
+           "bufferViews": [{"buffer": 0, "byteOffset": 0, "byteLength": 36}, {"buffer": 0, "byteOffset": 36, "byteLength": 36}],
+           "accessors": [{"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3"},
+                         {"bufferView": 1, "componentType": 5126, "count": 3, "type": "VEC3"}]}
+    path = tmp_path / "chair.gltf"
+    path.write_text(json.dumps(doc))
+    parts = read_gltf(path)
+    assert len(parts) == 2 and parts[0][1] == "#ff0000" and parts[0][2] == "fabric"
+    zs = [v[2] for v in parts[0][0][0]]
+    assert max(zs) == pytest.approx(1.2)          # +Y up became +Z up
+    kept, dropped = drop_ground_planes(parts)
+    assert len(kept) == 1 and dropped == ["part 1"]
+
+
+def test_colours_and_symbol_reach_3d_and_plan():
+    from archforge.core.plan_scene import build_plan_frame
+    from archforge.geometry.incremental import IncrementalEvaluationCache
+    from archforge.geometry.sculpt import SculptedPreviewBackend
+    from archforge.rendering.scene import build_pbr_scene_payload
+    tris = _box_tris(0, 0, 0, 1, 0.5, 0.4) + _box_tris(0, 0, 0.4, 1, 0.5, 0.45)
+    colors = ["#884422"] * 12 + ["#ddccaa"] * 12
+    asset_id, size = assets.store_asset("Table", tris, {"source": "test"}, colors=colors)
+    doc = Document(); obj = _placed(asset_id, size, rotation=90.0); doc.add(obj)
+    objs = build_pbr_scene_payload(IncrementalEvaluationCache(SculptedPreviewBackend()).sync(doc), [], doc=doc)["objects"]
+    assert sorted(o["material"]["color"] for o in objs if o["kind"] == "library_object") == ["#884422", "#ddccaa"]
+    frame = build_plan_frame(doc)
+    symbol = [p for p in frame.primitives if p.role == "library-symbol"]
+    assert symbol and all(p.entity_id == obj.id for p in symbol)
+    xs = [q[0] for p in symbol for q in p.points]
+    # Rotated 90 degrees: the 1 m width now runs along Y, 0.5 m depth along X.
+    assert max(xs) - min(xs) == pytest.approx(0.5, abs=0.02)

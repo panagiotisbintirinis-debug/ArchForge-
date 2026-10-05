@@ -118,6 +118,30 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                     "material": _material(f"plant_{role}", body.entity_id in selected, entity=entity, doc=doc),
                 })
             continue
+        if body.semantic_kind == "library_object" and entity is not None:
+            # One derived mesh per catalogue colour of the referenced asset.
+            from archforge.library.objects import triangle_colors
+            colors = triangle_colors(entity.params)
+            if colors is not None and len(colors) == len(mesh.triangles):
+                groups = {}
+                for tri, role, color in zip(mesh.triangles, mesh.triangle_surfaces, colors):
+                    g = groups.setdefault(color, ([], []))
+                    g[0].append([int(tri[0]), int(tri[1]), int(tri[2])])
+                    g[1].append(str(role))
+                for color, (tris, roles) in groups.items():
+                    material = _material("library_object", body.entity_id in selected, entity=entity, doc=doc)
+                    if body.entity_id not in selected:
+                        material["color"] = color
+                    objects.append({
+                        "id": str(body.entity_id),
+                        "render_part": f"{body.entity_id}:{color}",
+                        "kind": "library_object",
+                        "vertices": vertices,
+                        "triangles": tris,
+                        "surfaces": roles,
+                        "material": material,
+                    })
+                continue
         if body.semantic_kind == "wall" and entity is not None:
             groups = {}
             for tri, role in zip(mesh.triangles, mesh.triangle_surfaces):

@@ -66,7 +66,23 @@ repository or any distributed build.
 - `archforge/library/objects.py` derives the geometry of `library_object` entities.
   - The entity holds `x, y, z, rotation` (degrees), `width, depth, height` (metres), `uniform` (1 = keep proportions) and `asset`.
   - The mesh is the asset scaled per axis to the target size. A missing asset gives a placeholder box of that size.
-- UI: the **Βιβλιοθήκη** menu (import, place), the **Έπιπλα** tab in the left panel, the `library_place` plan tool, and proportional resize in the Inspector.
+- 2D plan symbols come from `archforge/library/plan_symbol.py`: the top-view outline plus lines where the height jumps.
+- glTF/GLB files are read by `archforge/library/gltf.py` (Y-up converted to Z-up, base colours, display bases dropped).
+- UI: the **Βιβλιοθήκη** menu (place, import glTF, import Home Designer), the **Έπιπλα** tab in the left panel, the `library_place` plan tool, and proportional resize in the Inspector.
+
+## Every import is verified: geometry against the visual result
+Follow `references/verification.md` for each new object, whatever its source:
+- measure the size against what the object must be;
+- render a verification sheet with `scripts/asset_preview.py`: 3D views, top view with the outline overlaid, and the 2D symbol;
+- judge the sheet against the source;
+- fix the importer or reject the item;
+- log the finding in the findings table there.
+
+Content sources and their rules are in `references/sources.md`:
+- ArchForge originals, including photo-built models made with `scripts/build_model.py`. No brands; the photo is reference only.
+- Khronos CC0/CC-BY models fetched with `scripts/fetch_khronos.py`.
+- User glTF files.
+- Home Designer catalogs.
 
 ## Catalog format
 

@@ -733,6 +733,40 @@ class MainWindow(QMainWindow):
             self._choose_library_asset()
         return imported
 
+    def _import_gltf_model(self, path=None, name=None):
+        """Import a user glTF/GLB model (metres, +Y up) into the local library."""
+        from PySide6.QtWidgets import QFileDialog
+        from archforge.library import assets
+        from archforge.library.gltf import drop_ground_planes, read_gltf
+        interactive = path is None
+        if interactive:
+            path, _ = QFileDialog.getOpenFileName(self, 'Μοντέλο glTF', '', 'glTF (*.gltf *.glb)')
+            if not path:
+                return None
+        try:
+            parts, dropped = drop_ground_planes(read_gltf(path))
+        except Exception as exc:
+            QMessageBox.warning(self, 'Βιβλιοθήκη', f'Το μοντέλο δεν διαβάζεται:\n{exc}')
+            return None
+        if name is None:
+            name, ok = QInputDialog.getText(
+                self, 'Βιβλιοθήκη', 'Όνομα αντικειμένου:', text=os.path.splitext(os.path.basename(path))[0])
+            if not ok or not name.strip():
+                return None
+        tris = [t for p, _c, _m in parts for t in p]
+        colors = [c for p, c, _m in parts for _t in p]
+        asset_id, size = assets.store_asset(name.strip(), tris, {
+            'source': 'user-file', 'file': os.path.basename(path),
+            'license': 'supplied by the user', 'redistributable': False,
+        }, colors=colors)
+        self._refresh_library_panel()
+        note = f' (αφαιρέθηκε βάση: {", ".join(dropped)})' if dropped else ''
+        self.statusBar().showMessage(
+            f'{name}: {size[0] * 100:.0f}×{size[1] * 100:.0f}×{size[2] * 100:.0f} cm στη Βιβλιοθήκη{note}', 6000)
+        if interactive:
+            self._choose_library_asset(asset_id)
+        return asset_id
+
     def _refresh_library_panel(self):
         listing = getattr(self, '_library_assets_list', None)
         if listing is None:

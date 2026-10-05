@@ -326,7 +326,7 @@ class PlanView(QGraphicsView):
         )
 
     def redraw(self):
-        self._scene.clear();self._handle_items.clear();self._entity_items.clear();self._draw_grid();frame=build_plan_frame(self.doc,self.controller.preview)
+        self._scene.clear();self._handle_items.clear();self._entity_items.clear();self._draw_grid();frame=build_plan_frame(self.doc,self.controller.preview);self._frame=frame
         if self.structural_only:
             structural_ids={
                 eid for eid,e in self.doc.entities.items()
@@ -436,6 +436,10 @@ class PlanView(QGraphicsView):
     def _draw_grid(self):
         extent=100;pen=QPen(QColor(225,225,225));pen.setWidthF(0);axis=QPen(QColor(160,160,160));axis.setWidthF(0)
         for i in range(-extent,extent+1):self._scene.addLine(i,-extent,i,extent,axis if i==0 else pen).setZValue(-100);self._scene.addLine(-extent,i,extent,i,axis if i==0 else pen).setZValue(-100)
+    def _has_symbol(self,entity_id):
+        frame=getattr(self,'_frame',None)
+        prims=frame.primitives if frame is not None else ()
+        return any(q.role=='library-symbol' and q.entity_id==entity_id for q in prims)
     def _draw_primitive(self,p:Primitive2D):
         preview=p.role=='preview';opening=p.role=='opening';room=p.role=='derived-room';terrain=p.role in ('terrain','plant')
         # The storey below is drawn like structural context: faint grey.
@@ -446,6 +450,10 @@ class PlanView(QGraphicsView):
             (QColor(180,90,20) if opening else (QColor(40,150,70) if preview else (QColor(95,140,60) if terrain else QColor(45,55,65))))
         )
         pen.setWidthF(.022 if context else (.06 if opening else (.04 if preview else .035)));item=None
+        if p.role=='library-symbol':pen=QPen(QColor(40,45,55));pen.setWidthF(.012)
+        if p.role=='library-object' and self._has_symbol(p.entity_id):
+            # Footprint stays for picking; the symbol carries the drawing.
+            pen=QPen(QColor(150,160,170,90));pen.setWidthF(.006)
         if p.kind=='line':a,b=p.points;item=self._scene.addLine(a[0],a[1],b[0],b[1],pen)
         elif p.kind=='polyline':
             if len(p.points)>=2:
@@ -458,7 +466,7 @@ class PlanView(QGraphicsView):
             brush=QBrush(
                 QColor(160,160,160,18)
                 if context else
-                (QColor(90,180,120,28) if room else (QColor(150,140,125,70) if p.role=='site-path' else QColor(80,160,220,40)))
+                (QColor(90,180,120,28) if room else (QColor(150,140,125,70) if p.role=='site-path' else (QColor(255,255,255,1) if p.role=='library-object' else QColor(80,160,220,40))))
             )
             room_pen=QPen(QColor(110,150,120));room_pen.setWidthF(.015)
             item=self._scene.addPolygon(QPolygonF([QPointF(x,y) for x,y in p.points]),room_pen if room else pen,brush)

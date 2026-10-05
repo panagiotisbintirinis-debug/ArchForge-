@@ -434,6 +434,12 @@ def build_plan_frame(doc,preview=None):
         if not _entity_on_active_level(doc,doc.get(eid)):continue
         p=entity_primitive(doc,eid)
         if p:f.primitives.append(p)
+        if p and doc.get(eid).kind=='library_object':
+            # The derived 2D symbol (outline + inner lines) of the same asset.
+            from archforge.library.objects import plan_symbol_world
+            for closed,pts in plan_symbol_world(doc.get(eid).params):
+                if len(pts)>=2:
+                    f.primitives.append(Primitive2D('polyline',tuple(pts+pts[:1] if closed else pts),entity_id=eid,role='library-symbol'))
     f.handles=selection_handles(doc)
     if preview:f.primitives.extend(preview_primitives(preview));f.hud=dict(preview.hud);f.snap=preview.snap
     return f

@@ -60,3 +60,26 @@ def test_import_place_and_resize_sofa_through_the_ui(tmp_path):
         assert window.doc.get(sofa.id).params['width'] == pytest.approx(2.032)
     finally:
         window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_user_gltf_import_lands_in_library(tmp_path):
+    import base64
+    import json
+    raw = b''.join(struct.pack('<3f', *v) for v in [(0, 0, 0), (0.6, 0, 0), (0.6, 0.9, 0.5)])
+    doc = {'asset': {'version': '2.0'}, 'scenes': [{'nodes': [0]}], 'nodes': [{'mesh': 0}],
+           'meshes': [{'primitives': [{'attributes': {'POSITION': 0}}]}],
+           'buffers': [{'byteLength': 36, 'uri': 'data:application/octet-stream;base64,' + base64.b64encode(raw).decode()}],
+           'bufferViews': [{'buffer': 0, 'byteLength': 36}],
+           'accessors': [{'bufferView': 0, 'componentType': 5126, 'count': 3, 'type': 'VEC3'}]}
+    path = tmp_path / 'stool.gltf'
+    path.write_text(json.dumps(doc))
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    try:
+        asset_id = window._import_gltf_model(str(path), name='Σκαμπό')
+        record = assets.load_asset(asset_id)
+        assert record['size'] == pytest.approx([0.6, 0.5, 0.9])
+        assert record['provenance']['redistributable'] is False
+        assert window._library_assets_list.count() == 1
+    finally:
+        window._mark_clean(); window.close(); app.processEvents()
