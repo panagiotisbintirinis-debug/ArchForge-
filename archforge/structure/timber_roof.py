@@ -87,12 +87,26 @@ def snow_load(params):
     return mu * sk, sk, mu
 
 
-def rafter_span(params):
-    """Horizontal span of the longest rafter (wall plate to ridge), metres."""
+SHED_SIDES = ("auto", "x0", "x1", "y0", "y1")
+
+
+def shed_high_side(params):
+    """High side of a shed roof: given, else the long edge opposite the first eave (+y / +x)."""
+    side = str(params.get("shed_high", "auto"))
+    if side in ("x0", "x1", "y0", "y1"):
+        return side
     w = abs(float(params["x1"]) - float(params["x0"]))
     d = abs(float(params["y1"]) - float(params["y0"]))
-    short = min(w, d)
-    return short if params.get("roof_form") == "shed" else short / 2
+    return "y1" if w >= d else "x1"
+
+
+def rafter_span(params):
+    """Horizontal span of the longest rafter (wall plate to ridge / high wall), metres."""
+    w = abs(float(params["x1"]) - float(params["x0"]))
+    d = abs(float(params["y1"]) - float(params["y0"]))
+    if params.get("roof_form") == "shed":
+        return d if shed_high_side(params) in ("y0", "y1") else w
+    return min(w, d) / 2
 
 
 def size_rafter(params):
@@ -152,9 +166,10 @@ def planes(p):
     along_x = (x1 - x0) >= (y1 - y0)
     X0, Y0, X1, Y1 = x0 - o, y0 - o, x1 + o, y1 + o
     if form == "shed":
-        if along_x:
-            return [([(X0, Y0), (X1, Y0), (X1, Y1), (X0, Y1)], (x0, y0), (x1, y0), (0.0, 1.0))]
-        return [([(X0, Y0), (X1, Y0), (X1, Y1), (X0, Y1)], (x0, y1), (x0, y0), (1.0, 0.0))]
+        rect = [(X0, Y0), (X1, Y0), (X1, Y1), (X0, Y1)]
+        high = shed_high_side(p)
+        return [{"y1": (rect, (x0, y0), (x1, y0), (0.0, 1.0)), "y0": (rect, (x1, y1), (x0, y1), (0.0, -1.0)),
+                 "x1": (rect, (x0, y1), (x0, y0), (1.0, 0.0)), "x0": (rect, (x1, y0), (x1, y1), (-1.0, 0.0))}[high]]
     if along_x:
         ym = (y0 + y1) / 2
         half = (y1 - y0) / 2
@@ -309,6 +324,37 @@ def _beam(a, b, size, top_offset_normal=None):
     return verts, [t for q0, q1, q2, q3 in quads for t in ((q0, q1, q2), (q0, q2, q3))]
 
 
+GABLE_THICKNESS = 0.20
+
+
+def gable_walls(p):
+    """Infill prisms on the frame edges between the eave level and the roof underside."""
+    x0, y0, x1, y1 = _frame(p)
+    ez = float(p["eave_z"])
+    roof_planes = planes(p)
+
+    def roof_at(x, y):
+        return min(height_at(p, plane, x, y) for plane in roof_planes)
+    out = []
+    t = GABLE_THICKNESS
+    for (a, b, inward) in (((x0, y0), (x1, y0), (0, 1)), ((x1, y1), (x0, y1), (0, -1)),
+                           ((x0, y1), (x0, y0), (1, 0)), ((x1, y0), (x1, y1), (-1, 0))):
+        pts = [a, ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2), b]
+        tops = [roof_at(*q) for q in pts]
+        if max(tops) - ez < 0.02:
+            continue                                  # eave edge: nothing above the wall
+        profile = [(pts[0], ez), (pts[2], ez), (pts[2], tops[2]), (pts[1], tops[1]), (pts[0], tops[0])]
+        n = len(profile)
+        front = [(q[0], q[1], z) for q, z in profile]
+        back = [(q[0] + inward[0] * t, q[1] + inward[1] * t, z) for q, z in profile]
+        tris = [(0, i, i + 1) for i in range(1, n - 1)] + [(n, n + i + 1, n + i) for i in range(1, n - 1)]
+        for i in range(n):
+            j = (i + 1) % n
+            tris += [(i, j, n + j), (i, n + j, n + i)]
+        out.append((front + back, tris))
+    return out
+
+
 def roof_mesh(p):
     """World (vertices, triangles, roles): members, build-up layers and tiles."""
     verts, tris, roles = [], [], []
@@ -349,12 +395,85 @@ def roof_mesh(p):
         if role == "rafter":                         # counter batten on top of the build-up
             v, t = _beam((a[0], a[1], a[2] + batten_base), (b[0], b[1], b[2] + batten_base), (0.05, 0.03))
             add(v, t, "counter_batten")
+    # Gable walls (αετώματα): where the roof rises above a wall line, the wall goes up to meet it.
+    for v, t in gable_walls(p):
+        add(v, t, "gable")
     for plane in planes(p):
         for role, z0, z1 in layer_spans:
             slab(plane, z0, z1, role)
         tiles_base = batten_base + BATTEN[1]
         slab(plane, tiles_base, tiles_base + TILE_THICK, "tiles")
     return tuple(verts), tuple(tris), tuple(roles)
+
+
+def auto_roofs(doc):
+    """Tiled roofs chosen by the plan and the loads: ``[(params, reason)]``.
+
+    * The top storey gets one roof over its footprint; any lower storey's rooms
+      with nothing above (extensions) get their own roof over each group of
+      adjoining rooms.
+    * Form: a roof footprint leaning on a taller wall (the storey above) is a
+      shed (μονόρριχτη) rising towards that wall; a near-square footprint
+      (long/short < 1.25) is hipped (τετράρριχτη: shortest rafters both ways);
+      otherwise a gable (δίρριχτη) with the ridge along the long side, so the
+      rafters span the short way.  The rafters are then pre-sized.
+    """
+    from archforge.architecture.roof_need import coverage
+    storeys = sorted({round(float(e.params.get("z", 0.0)), 4) for e in doc.entities.values() if e.kind == "wall"})
+    out = []
+    if not storeys:
+        return out
+    top = storeys[-1]
+    out.append(_auto_form(doc, default_params(doc, z=top)))
+    for z in storeys[:-1]:
+        faces = [f for f in doc.active_room_faces(z=z) if coverage(doc, f.polygon, z) < 0.5]
+        groups = []
+        for f in faces:
+            xs = [float(q[0]) for q in f.polygon]
+            ys = [float(q[1]) for q in f.polygon]
+            box = [min(xs), min(ys), max(xs), max(ys)]
+            for g in groups:
+                if box[0] <= g[2] + 0.3 and g[0] <= box[2] + 0.3 and box[1] <= g[3] + 0.3 and g[1] <= box[3] + 0.3:
+                    g[:] = [min(g[0], box[0]), min(g[1], box[1]), max(g[2], box[2]), max(g[3], box[3])]
+                    break
+            else:
+                groups.append(box)
+        walls = [e for e in doc.entities.values() if e.kind == "wall" and abs(float(e.params.get("z", 0)) - z) < 0.05]
+        t = max(float(w.params["thickness"]) for w in walls) / 2 if walls else 0.1
+        height = max(float(w.params["height"]) for w in walls) if walls else 2.7
+        for g in groups:
+            params = dict(default_params(doc, z=top), x0=g[0] - t, y0=g[1] - t, x1=g[2] + t, y1=g[3] + t, eave_z=z + height)
+            out.append(_auto_form(doc, params))
+    return out
+
+
+def _auto_form(doc, params):
+    x0, y0, x1, y1 = _frame(params)
+    ez = float(params["eave_z"])
+    # A taller wall along one edge (one that rises past the eaves, or a wall of the storey
+    # above standing on that edge): lean a shed roof against it, rising towards it.
+    for side, (a, b) in {"y0": ((x0, y0), (x1, y0)), "y1": ((x0, y1), (x1, y1)),
+                         "x0": ((x0, y0), (x0, y1)), "x1": ((x1, y0), (x1, y1))}.items():
+        along = math.dist(a, b)
+        covered = 0.0
+        for w in doc.entities.values():
+            if w.kind != "wall":
+                continue
+            p = w.params
+            base, top = float(p.get("z", 0.0)), float(p.get("z", 0.0)) + float(p.get("height", 0.0))
+            if not (abs(base - ez) < 0.15 or (base < ez - 0.1 and top > ez + 1.0)):
+                continue
+            wa, wb = (float(p["x1"]), float(p["y1"])), (float(p["x2"]), float(p["y2"]))
+            if side in ("y0", "y1") and abs(wa[1] - a[1]) <= 0.4 and abs(wb[1] - a[1]) <= 0.4:
+                covered += max(0.0, min(max(wa[0], wb[0]), x1) - max(min(wa[0], wb[0]), x0))
+            elif side in ("x0", "x1") and abs(wa[0] - a[0]) <= 0.4 and abs(wb[0] - a[0]) <= 0.4:
+                covered += max(0.0, min(max(wa[1], wb[1]), y1) - max(min(wa[1], wb[1]), y0))
+        if along > 0 and covered >= 0.5 * along:
+            return dict(params, roof_form="shed", shed_high=side), f"μονόρριχτη: ακουμπά στον ψηλότερο τοίχο/όροφο ({side})"
+    w, d = x1 - x0, y1 - y0
+    if max(w, d) / max(min(w, d), 1e-9) < 1.25:
+        return dict(params, roof_form="hip"), "τετράρριχτη: σχεδόν τετράγωνη κάτοψη (μικρότερα ψαλίδια και στις δύο διευθύνσεις)"
+    return dict(params, roof_form="gable"), "δίρριχτη: κορφιάς κατά τη μεγάλη πλευρά, τα ψαλίδια γεφυρώνουν το μικρό άνοιγμα"
 
 
 def default_params(doc, level_name=None, z=None, form="gable"):

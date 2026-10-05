@@ -1001,6 +1001,27 @@ class MainWindow(QMainWindow):
         from PySide6.QtCore import QTimer
         QTimer.singleShot(0, self.refresh_inspector)
 
+    def _auto_tiled_roofs(self):
+        """Tiled roofs with the form chosen from the plan and the loads, top storey and extensions (one undo)."""
+        from archforge.core.commands import AddEntities
+        from archforge.structure.timber_roof import FORMS, auto_roofs, size_rafter
+        existing = [e.params for e in self.doc.entities.values() if e.kind == 'pitched_roof']
+        entities, notes = [], []
+        for params, reason in auto_roofs(self.doc):
+            if any(abs(float(q['eave_z']) - float(params['eave_z'])) < 0.05 and abs(float(q['x0']) - float(params['x0'])) < 0.3
+                   and abs(float(q['y0']) - float(params['y0'])) < 0.3 for q in existing):
+                continue
+            entities.append(Entity('pitched_roof', params, name=f"Κεραμοσκεπή {FORMS[params['roof_form']].lower()}"))
+            sec = size_rafter(params)['section']
+            notes.append(reason + (f" · ψαλίδια {sec['b'] * 100:.0f}×{sec['h'] * 100:.0f}" if sec else ' · ⚠ ψαλίδια: καμία τυπική διατομή'))
+        if not entities:
+            self.statusBar().showMessage('Οι κεραμοσκεπές υπάρχουν ήδη', 5000)
+            return []
+        self.stack.execute(AddEntities(entities))
+        self._redraw_views(all_views=True)
+        self.statusBar().showMessage(' | '.join(notes) + ' — προς έλεγχο στατικού · Ctrl+Z για αναίρεση', 12000)
+        return entities
+
     def _create_pitched_roof(self, form='gable'):
         """Timber tiled roof over the TOP storey's walls — never under a storey (one undoable command)."""
         from archforge.structure.timber_roof import FORMS, default_params, size_rafter
@@ -1533,15 +1554,18 @@ class MainWindow(QMainWindow):
         if entity.kind == 'pitched_roof':
             from archforge.structure.timber_roof import FORMS, TILES, size_rafter
             from archforge.structure.timber_roof import INSULATIONS, build_up, indicative_u
+            shed = {'auto': 'Αυτόματα', 'y1': 'Βόρεια (+y)', 'y0': 'Νότια (−y)', 'x1': 'Ανατολικά (+x)', 'x0': 'Δυτικά (−x)'}
             for key, options in (('roof_form', FORMS), ('tile', {k: v[0] for k, v in TILES.items()}),
-                                 ('insulation', {k: v[0] for k, v in INSULATIONS.items()})):
+                                 ('insulation', {k: v[0] for k, v in INSULATIONS.items()}))\
+                    + ((('shed_high', shed),) if params.get('roof_form') == 'shed' else ()):
                 combo = QComboBox()
                 for value, label in options.items():
                     combo.addItem(label, value)
                 combo.setCurrentIndex(max(0, combo.findData(params.get(key))))
                 combo.currentIndexChanged.connect(
                     lambda _i, widget=combo, k=key, entity_id=eid: self._set_entity_choice(entity_id, k, widget.currentData()))
-                self.form.addRow({'roof_form': 'Μορφή', 'tile': 'Κεραμίδι', 'insulation': 'Θερμομόνωση'}[key], combo)
+                self.form.addRow({'roof_form': 'Μορφή', 'tile': 'Κεραμίδι', 'insulation': 'Θερμομόνωση',
+                                  'shed_high': 'Ψηλή πλευρά'}[key], combo)
             layers_text = '<br>'.join(f"{n} {t * 100:g} cm" for n, t, _w, _l, _r in build_up(params))
             ins = QLabel(f"{layers_text}<br>+ αντιτεγίδες (αερισμός), τεγίδες, κεραμίδια"
                          f"<br><i>U ≈ {indicative_u(params):.2f} W/m²K — ενδεικτικό (ISO 6946, αεριζόμενη στέγη), όχι μελέτη ΚΕΝΑΚ</i>")

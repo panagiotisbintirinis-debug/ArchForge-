@@ -163,6 +163,13 @@ def _roof_form(v):
     return v
 
 
+def _shed_high(v):
+    v = str(v)
+    if v not in ('auto', 'x0', 'x1', 'y0', 'y1'):
+        raise ValueError('shed high side must be auto, x0, x1, y0 or y1')
+    return v
+
+
 def _roof_tile(v):
     from archforge.structure.timber_roof import TILES
     v = str(v)
@@ -591,7 +598,8 @@ SCHEMAS = {
     'pitched_roof': {'x0': _finite, 'y0': _finite, 'x1': _finite, 'y1': _finite, 'eave_z': _finite,
                      'pitch': _pitch, 'overhang': _nonnegative, 'rafter_spacing': _rafter_spacing,
                      'roof_form': _roof_form, 'tile': _roof_tile, 'snow_zone': _snow_zone, 'altitude': _nonnegative,
-                     'insulation': _roof_insulation, 'insulation_thickness': _insulation_thickness},
+                     'insulation': _roof_insulation, 'insulation_thickness': _insulation_thickness,
+                     'shed_high': _shed_high},
     'electrical_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _electrical_type, 'power_w': _nonnegative,
                          'routing': _cable_routing},
     'plumbing_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _plumbing_type, 'pipe_system': _pipe_system},

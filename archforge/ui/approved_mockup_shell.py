@@ -181,6 +181,8 @@ def install_approved_mockup_shell(window):
     window._roof_menu=roof_menu
     tiled=QMenu("Με κεραμίδια (ξύλινη στέγη)",roof_menu); roof_menu.addMenu(tiled); window._roof_tiled_menu=tiled
     from archforge.structure.timber_roof import FORMS
+    auto_tiled=QAction("Αυτόματα (μορφή από κάτοψη & φορτία)",window)
+    auto_tiled.triggered.connect(lambda: window._auto_tiled_roofs()); tiled.addAction(auto_tiled); tiled.addSeparator()
     for form,label in FORMS.items():
         a=QAction(label,window); a.triggered.connect(lambda _=False,f=form: window._create_pitched_roof(f)); tiled.addAction(a)
         if form=="gable": window._pitched_roof_action=a

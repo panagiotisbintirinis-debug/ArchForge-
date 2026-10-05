@@ -69,9 +69,10 @@ def test_roof_in_document_plan_3d_and_moves():
     assert 'roof-outline' in roles and 'roof-ridge' in roles
     objs = build_pbr_scene_payload(IncrementalEvaluationCache(SculptedPreviewBackend()).sync(doc), [], doc=doc)['objects']
     parts = {o['render_part'].split(':')[1]: o for o in objs if o['id'] == roof.id}
-    assert set(parts) == {'plate', 'rafter', 'ridge', 'batten', 'counter_batten', 'boarding', 'vapour_barrier',
+    assert set(parts) == {'plate', 'gable', 'rafter', 'ridge', 'batten', 'counter_batten', 'boarding', 'vapour_barrier',
                           'insulation', 'membrane', 'tiles'}
     assert parts['tiles']['layer'] == 'roof_tiles' and parts['rafter']['layer'] == 'roof_structure'
+    assert parts['gable']['layer'] is None                       # gable walls are walls, shown with them
     stack.execute(MoveEntities([roof.id], 1.0, 2.0))
     assert doc.get(roof.id).params['x0'] == 1.0 and doc.get(roof.id).params['y1'] == 10.0
     with pytest.raises(ValueError):

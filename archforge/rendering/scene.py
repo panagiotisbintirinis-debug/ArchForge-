@@ -19,6 +19,7 @@ _MATERIALS: Mapping[str, dict] = {
     "plant_trunk": {"color": "#6b4a2f", "roughness": 0.9, "metalness": 0.0},
     "library_object": {"color": "#b9b2a6", "roughness": 0.6, "metalness": 0.0},
     "roof_plate": {"color": "#8a6038", "roughness": 0.8, "metalness": 0.0},
+    "roof_gable": {"color": "#d8d2c7", "roughness": 0.72, "metalness": 0.02},
     "roof_ridge": {"color": "#8a6038", "roughness": 0.8, "metalness": 0.0},
     "roof_hip": {"color": "#8a6038", "roughness": 0.8, "metalness": 0.0},
     "roof_rafter": {"color": "#a37548", "roughness": 0.8, "metalness": 0.0},
@@ -158,7 +159,8 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                 else:
                     material = _material(f"roof_{role}", body.entity_id in selected, entity=entity, doc=doc, surface_role=role)
                 objects.append({"id": str(body.entity_id), "render_part": f"{body.entity_id}:{role}", "kind": "pitched_roof",
-                                "layer": "roof_structure" if role != "tiles" else "roof_tiles",
+                                # Gable walls are walls: always shown, not part of the roof-frame layer.
+                                "layer": None if role == "gable" else ("roof_structure" if role != "tiles" else "roof_tiles"),
                                 "vertices": vertices, "triangles": tris, "surfaces": [role] * len(tris), "material": material})
             continue
         if body.semantic_kind == "cabinet" and entity is not None:

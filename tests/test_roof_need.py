@@ -92,7 +92,7 @@ def test_roof_menu_auto_and_fix_roofs_in_one_undo():
         texts = [a.text() for a in w._roof_menu.actions() if a.text()]
         assert texts[:3] == ['Με κεραμίδια (ξύλινη στέγη)', 'Χωρίς κεραμίδια (επίπεδη / δώμα)', 'Οροφή σοφίτας κάτω από κεραμοσκεπή']
         assert 'Διόρθωση στεγών' in texts and 'Διαγραφή όλων των στεγών' in texts
-        assert [a.text() for a in w._roof_tiled_menu.actions()] == ['Δίρριχτη', 'Τετράρριχτη', 'Μονόρριχτη']
+        assert [a.text() for a in w._roof_tiled_menu.actions() if a.text()] == ['Αυτόματα (μορφή από κάτοψη & φορτία)', 'Δίρριχτη', 'Τετράρριχτη', 'Μονόρριχτη']
         # A wrong roof under the upper storey (as the old Flat Roof made) …
         left = min(w.doc.active_room_faces(z=0.0), key=lambda f: min(p[0] for p in f.polygon))
         w.stack.execute(CreateRoomRoofs([left.signature]))
@@ -177,3 +177,43 @@ def test_assistant_flags_a_ground_extension_left_without_roof():
     apply(st, r2)
     assert not any(p.key == 'R-2' for p in propose(doc))
     assert sum(e.kind == 'room_roof' for e in doc.entities.values()) == 1
+
+
+def test_auto_tiled_roof_form_from_plan_and_gable_walls_follow():
+    """Owner: the roof became gable for lack of choice and the walls did not follow;
+    the auto roof should choose by the logic of the loads."""
+    from archforge.structure.timber_roof import auto_roofs, gable_walls, planes, rafter_span, roof_mesh
+    doc, _st, (left, right) = _two_storeys()
+    roofs = auto_roofs(doc)
+    forms = sorted((p['roof_form'], round(p['eave_z'], 1)) for p, _r in roofs)
+    # Upper storey 5×6 (~square: hip) and the ground extension leaning on the storey above (shed).
+    assert forms == [('hip', 5.4), ('shed', 2.7)]
+    shed, why = next((p, r) for p, r in roofs if p['roof_form'] == 'shed')
+    assert shed['shed_high'] == 'x0' and 'ακουμπά' in why                    # rises towards the upper storey at x=5
+    assert shed['x0'] > 4.5 and shed['x1'] < 10.5
+    assert rafter_span(shed) == pytest.approx(shed['x1'] - shed['x0'])
+    assert planes(shed)[0][3] == (-1.0, 0.0)
+    # Gable walls: a shed roof raises its high wall and two side triangles; a hip roof none.
+    assert len(gable_walls(shed)) == 3
+    hip = next(p for p, _r in roofs if p['roof_form'] == 'hip')
+    assert gable_walls(hip) == []
+    gable = dict(hip, roof_form='gable', x1=hip['x0'] + 10)
+    assert len(gable_walls(gable)) == 2                                      # the two gable ends
+    _v, _t, roles = roof_mesh(gable)
+    assert 'gable' in roles
+
+
+def test_auto_tiled_roof_menu_creates_them_in_one_undo():
+    doc, _st, _faces = _two_storeys()
+    app, w = _window_with(doc)
+    try:
+        texts = [a.text() for a in w._roof_tiled_menu.actions() if a.text()]
+        assert texts[0] == 'Αυτόματα (μορφή από κάτοψη & φορτία)'
+        made = w._auto_tiled_roofs()
+        assert sorted(e.params['roof_form'] for e in made) == ['hip', 'shed']
+        assert 'μονόρριχτη' in w.statusBar().currentMessage()
+        assert w._auto_tiled_roofs() == []                                    # not twice
+        w.stack.undo()
+        assert not any(e.kind == 'pitched_roof' for e in w.doc.entities.values())
+    finally:
+        w._mark_clean(); w.close(); app.processEvents()

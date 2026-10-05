@@ -24,7 +24,7 @@ _KIND_ROLES:Dict[str,Tuple[Tuple[str,bool,bool,str],...]]={
  'room':(('ceiling',True,False,'generated room ceiling'),('floor_boundary',False,False,'room floor boundary')),
  'site_path':(('top',False,False,'path surface'),('bottom',False,False,'path underside'),('side',False,False,'path edge')),
  'plant':(('trunk',False,False,'plant trunk'),('canopy',False,False,'plant crown')),
- 'pitched_roof':tuple((r,False,False,f'roof {r}') for r in ('plate','ridge','hip','rafter','batten','counter_batten','boarding','vapour_barrier','insulation','membrane','tiles')),
+ 'pitched_roof':tuple((r,False,False,f'roof {r}') for r in ('plate','gable','ridge','hip','rafter','batten','counter_batten','boarding','vapour_barrier','insulation','membrane','tiles')),
  'electrical_point':(('marker',False,False,'electrical point marker'),),
  'plumbing_point':(('marker',False,False,'plumbing point marker'),),
  'ventilation_point':(('marker',False,False,'ventilation device'),),
