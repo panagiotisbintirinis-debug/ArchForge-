@@ -88,7 +88,8 @@ def fetch(name, cache):
                                  if not str(x.get("license", "")).startswith("LicenseRef")),
         "redistributable": True,
     }
-    asset_id, size = store_asset(label, tris, provenance, colors=colors, category=category)
+    part_names = {c: m for _p, c, m in parts if m}
+    asset_id, size = store_asset(label, tris, provenance, colors=colors, category=category, part_names=part_names)
     issues = [f"dropped display base: {', '.join(dropped)}"] if dropped else []
     if expected:
         bad = [f"{axis}={value * 100:.0f} cm outside {lo}-{hi} cm"

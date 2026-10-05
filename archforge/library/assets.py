@@ -61,11 +61,13 @@ def normalise(triangles, colors=None):
     return verts, tris, size
 
 
-def store_asset(name, triangles, provenance, colors=None, category=None):
+def store_asset(name, triangles, provenance, colors=None, category=None, part_names=None):
     """Normalise and save a mesh with its plan symbol; return (id, size).
 
-    ``colors`` are optional per-triangle hex colours (kept as a palette).  The
-    id is a content hash, so importing the same geometry again dedupes.
+    ``colors`` are optional per-triangle hex colours (kept as a palette; each
+    palette entry is one material part, ``part<i>``); ``part_names`` maps a
+    colour to a readable part name.  The id is a content hash, so importing the
+    same geometry again dedupes.
     """
     from archforge.library.plan_symbol import plan_symbol
     if colors is not None:
@@ -87,6 +89,8 @@ def store_asset(name, triangles, provenance, colors=None, category=None):
         lookup = {c: i for i, c in enumerate(palette)}
         record["palette"] = palette
         record["tri_part"] = [lookup[c] for c in kept]
+        if part_names:
+            record["part_names"] = [str(part_names.get(c, "")) for c in palette]
     (folder / f"{asset_id}.json").write_text(json.dumps(record), encoding="utf-8")
     return asset_id, size
 

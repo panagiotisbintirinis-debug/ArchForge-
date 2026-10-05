@@ -86,7 +86,8 @@ class MoveEntities(Command):
             e=doc.get(i); p=e.params
             if e.kind in ('structural_column','structural_beam') and abs(float(self.dz))>1e-12:
                 raise ValueError(f'{e.kind} vertical position is level-driven; change its level instead')
-            if e.kind in ('box','mechanical_part'):doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy,'z':p['z']+self.dz})
+            if e.kind in ('box','mechanical_part','library_object','kitchen_part'):doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy,'z':p['z']+self.dz})
+            elif e.kind=='plant':doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy,'z':p['z']+self.dz})
             elif e.kind=='structural_column':doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy})
             elif e.kind=='mep_terminal':doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy,'elevation':p['elevation']+self.dz})
             elif e.kind=='wall':doc.update(i,{'x1':p['x1']+self.dx,'x2':p['x2']+self.dx,'y1':p['y1']+self.dy,'y2':p['y2']+self.dy,'z':p['z']+self.dz})
@@ -138,7 +139,7 @@ class RotateEntities(Command):
                     doc.update(i, {'cx': ncx, 'cy': ncy, 'rotation': (p.get('rotation', 0.0) + self.angle) % 360.0})
                 else:
                     doc.update(i, {'rotation': (p.get('rotation', 0.0) + self.angle) % 360.0})
-            elif e.kind == 'box':
+            elif e.kind in ('box', 'library_object'):
                 px, py = self.pivot if self.pivot is not None else (p['x'], p['y'])
                 if self.pivot is not None:
                     dx, dy = p['x'] - px, p['y'] - py

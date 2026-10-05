@@ -216,3 +216,71 @@ def test_colours_and_symbol_reach_3d_and_plan():
     xs = [q[0] for p in symbol for q in p.points]
     # Rotated 90 degrees: the 1 m width now runs along Y, 0.5 m depth along X.
     assert max(xs) - min(xs) == pytest.approx(0.5, abs=0.02)
+
+
+def test_part_material_from_palette_overrides_only_that_part():
+    from archforge.geometry.incremental import IncrementalEvaluationCache
+    from archforge.geometry.sculpt import SculptedPreviewBackend
+    from archforge.library.objects import asset_parts
+    from archforge.rendering.materials import MATERIAL_PRESETS
+    from archforge.rendering.scene import build_pbr_scene_payload
+    tris = _box_tris(0, 0, 0, 1, 0.5, 0.4) + _box_tris(0, 0, 0.4, 1, 0.5, 0.45)
+    colors = ["#884422"] * 12 + ["#ddccaa"] * 12
+    asset_id, size = assets.store_asset("Table", tris, {}, colors=colors,
+                                        part_names={"#884422": "legs", "#ddccaa": "top"})
+    doc = Document(); stack = CommandStack(doc); obj = _placed(asset_id, size); stack.execute(AddEntity(obj))
+    assert [(r, n) for r, _c, n in asset_parts(obj.params)] == [("part0", "legs"), ("part1", "top")]
+    material_id = next(iter(MATERIAL_PRESETS))
+    stack.execute(UpdateEntity(obj.id, {"surface_materials": {"part1": material_id}}))
+
+    def colours():
+        objs = build_pbr_scene_payload(IncrementalEvaluationCache(SculptedPreviewBackend()).sync(doc), [], doc=doc)["objects"]
+        return {o["render_part"].split(":")[1]: o["material"]["color"] for o in objs if o["kind"] == "library_object"}
+    got = colours()
+    assert got["part0"] == "#884422" and got["part1"] == MATERIAL_PRESETS[material_id]["color"]
+    stack.undo()
+    assert colours()["part1"] == "#ddccaa"
+
+
+def test_sculpt_on_library_object_follows_move_and_resize():
+    from archforge.core.commands import MoveEntities
+    from archforge.geometry.incremental import IncrementalEvaluationCache
+    from archforge.geometry.sculpt import SculptedPreviewBackend
+    from archforge.geometry.selection import BrushSpec, SurfaceHit, sculpt_modifier_from_hit
+    # A finely divided slab so a brush has vertices to move.
+    tris = []
+    n = 10
+    for i in range(n):
+        for j in range(n):
+            a, b, c, d = ((i / n, j / n, 0.1), ((i + 1) / n, j / n, 0.1), ((i + 1) / n, (j + 1) / n, 0.1), (i / n, (j + 1) / n, 0.1))
+            tris += [(a, b, c), (a, c, d)]
+    tris += _box_tris(0, 0, 0, 1, 1, 0.1)
+    asset_id, size = assets.store_asset("Slab", tris, {})
+    doc = Document(); stack = CommandStack(doc)
+    obj = _placed(asset_id, size, x=0.0, y=0.0); stack.execute(AddEntity(obj))
+    hit = SurfaceHit(obj.id, "body", (0.0, 0.0, 0.1), (0, 0, 1))
+    mod = sculpt_modifier_from_hit(doc, hit, BrushSpec(0.3), "pull", 0.2)
+    assert len(mod.target.subregion["uv_center"]) == 3
+    doc.add_surface_modifier(mod)
+
+    def peak():
+        body = IncrementalEvaluationCache(SculptedPreviewBackend()).sync(doc).body(obj.id)
+        top = max(body.payload.vertices, key=lambda v: v[2])
+        return top
+    x, y, z = peak()
+    assert z == pytest.approx(0.3, abs=1e-6) and (x, y) == pytest.approx((0.0, 0.0), abs=1e-6)
+    stack.execute(MoveEntities([obj.id], 3.0, 2.0))
+    x, y, z = peak()
+    assert (x, y) == pytest.approx((3.0, 2.0), abs=1e-6) and z == pytest.approx(0.3, abs=1e-6)
+
+
+def test_library_objects_move_and_rotate_with_the_shared_commands():
+    from archforge.core.commands import MoveEntities, RotateEntities
+    asset_id, size = assets.store_asset("Sofa", _sofa_triangles(), {})
+    doc = Document(); stack = CommandStack(doc); sofa = _placed(asset_id, size); stack.execute(AddEntity(sofa))
+    stack.execute(MoveEntities([sofa.id], 1.0, -0.5))
+    assert (doc.get(sofa.id).params["x"], doc.get(sofa.id).params["y"]) == (3.0, 0.5)
+    stack.execute(RotateEntities([sofa.id], 90.0))
+    assert doc.get(sofa.id).params["rotation"] == pytest.approx(90.0)
+    stack.undo(); stack.undo()
+    assert doc.get(sofa.id).params["x"] == 2.0 and doc.get(sofa.id).params["rotation"] == 0.0

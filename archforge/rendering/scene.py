@@ -119,22 +119,28 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                 })
             continue
         if body.semantic_kind == "library_object" and entity is not None:
-            # One derived mesh per catalogue colour of the referenced asset.
-            from archforge.library.objects import triangle_colors
-            colors = triangle_colors(entity.params)
-            if colors is not None and len(colors) == len(mesh.triangles):
+            # One derived mesh per material part of the referenced asset. A part
+            # keeps its catalogue colour until the user assigns a palette
+            # material to it (surface_materials["part<i>"]) or to the whole
+            # object (material_id), exactly like wall faces.
+            from archforge.library.objects import asset_parts, triangle_part_indices
+            parts = asset_parts(entity.params)
+            indices = triangle_part_indices(entity.params)
+            if parts and indices is not None and len(indices) == len(mesh.triangles):
                 groups = {}
-                for tri, role, color in zip(mesh.triangles, mesh.triangle_surfaces, colors):
-                    g = groups.setdefault(color, ([], []))
+                for tri, role, index in zip(mesh.triangles, mesh.triangle_surfaces, indices):
+                    g = groups.setdefault(index, ([], []))
                     g[0].append([int(tri[0]), int(tri[1]), int(tri[2])])
                     g[1].append(str(role))
-                for color, (tris, roles) in groups.items():
-                    material = _material("library_object", body.entity_id in selected, entity=entity, doc=doc)
-                    if body.entity_id not in selected:
+                for index, (tris, roles) in sorted(groups.items()):
+                    part_role, color, _name = parts[index]
+                    material = _material("library_object", body.entity_id in selected, entity=entity, doc=doc,
+                                         surface_role=part_role)
+                    if not _surface_material_id(entity, part_role) and body.entity_id not in selected:
                         material["color"] = color
                     objects.append({
                         "id": str(body.entity_id),
-                        "render_part": f"{body.entity_id}:{color}",
+                        "render_part": f"{body.entity_id}:{part_role}",
                         "kind": "library_object",
                         "vertices": vertices,
                         "triangles": tris,

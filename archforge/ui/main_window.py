@@ -755,10 +755,11 @@ class MainWindow(QMainWindow):
                 return None
         tris = [t for p, _c, _m in parts for t in p]
         colors = [c for p, c, _m in parts for _t in p]
+        part_names = {c: m for p, c, m in parts if m}
         asset_id, size = assets.store_asset(name.strip(), tris, {
             'source': 'user-file', 'file': os.path.basename(path),
             'license': 'supplied by the user', 'redistributable': False,
-        }, colors=colors)
+        }, colors=colors, part_names=part_names)
         self._refresh_library_panel()
         note = f' (αφαιρέθηκε βάση: {", ".join(dropped)})' if dropped else ''
         self.statusBar().showMessage(
@@ -766,6 +767,23 @@ class MainWindow(QMainWindow):
         if interactive:
             self._choose_library_asset(asset_id)
         return asset_id
+
+    def _open_object_modifier(self, entity_id=None):
+        from .object_modifier import ObjectModifierDialog
+        if entity_id is None:
+            if len(self.doc.selection) != 1:
+                self.statusBar().showMessage('Επιλέξτε ένα αντικείμενο βιβλιοθήκης', 3000)
+                return None
+            entity_id = self.doc.selection[0]
+        if self.doc.get(entity_id).kind != 'library_object':
+            self.statusBar().showMessage('Το Object Modifier αφορά αντικείμενα της Βιβλιοθήκης', 3000)
+            return None
+        old = getattr(self, '_object_modifier', None)
+        if old is not None:
+            old.close()
+        self._object_modifier = ObjectModifierDialog(self, entity_id)
+        self._object_modifier.show()
+        return self._object_modifier
 
     def _refresh_library_panel(self):
         listing = getattr(self, '_library_assets_list', None)
@@ -1024,6 +1042,11 @@ class MainWindow(QMainWindow):
                 self.form.addRow(key, spin)
             elif entity.kind == 'room_floor' and key == 'room_signature':
                 self.form.addRow('Room', QLabel(str(value)))
+        if entity.kind == 'library_object':
+            button = QPushButton('Object Modifier…')
+            button.setToolTip('Διαστάσεις, υλικά ανά τμήμα και Sculpt του αντικειμένου')
+            button.clicked.connect(lambda _=False, entity_id=eid: self._open_object_modifier(entity_id))
+            self.form.addRow(button)
 
     def _commit_property(self, eid, key, value):
         try:
@@ -1567,7 +1590,7 @@ class MainWindow(QMainWindow):
             return
         self._open_materials(self.doc.selection[0])
 
-    def _open_materials(self, entity_id):
+    def _open_materials(self, entity_id, part_role=None):
         entity_id = str(entity_id)
         if entity_id not in self.doc.entities:
             return
@@ -1576,7 +1599,7 @@ class MainWindow(QMainWindow):
             'wall', 'floor', 'room_floor', 'room_roof', 'room_ceiling',
             'room_foundation', 'box', 'pod', 'stair', 'ramp',
             'structural_column', 'structural_beam',
-            'mechanical_part', 'mesh',
+            'mechanical_part', 'mesh', 'library_object',
         }
         if entity.kind not in supported:
             self.statusBar().showMessage(
@@ -1602,6 +1625,19 @@ class MainWindow(QMainWindow):
             )
             layout.addWidget(QLabel('Apply to'))
             layout.addWidget(target)
+        elif entity.kind == 'library_object':
+            from archforge.library.objects import asset_parts
+            target = QComboBox(dialog)
+            target.addItem('Όλο το αντικείμενο', 'all')
+            for k, (role, color, name) in enumerate(asset_parts(entity.params), 1):
+                target.addItem(f'Τμήμα {k}' + (f' — {name}' if name else '') + f'  ({color})', role)
+            if part_role:
+                index = target.findData(part_role)
+                if index >= 0:
+                    target.setCurrentIndex(index)
+            layout.addWidget(QLabel('Εφαρμογή σε'))
+            layout.addWidget(target)
+        self._materials_target = target  # reachable from tests
 
         current = QLabel()
         layout.addWidget(current)
@@ -1622,6 +1658,9 @@ class MainWindow(QMainWindow):
         state = {'material_id': None}
 
         def current_material_id():
+            if entity.kind == 'library_object' and target is not None and target.currentData() != 'all':
+                surface_map = entity.params.get('surface_materials') or {}
+                return str(surface_map.get(str(target.currentData())) or entity.params.get('material_id', '') or '')
             if entity.kind != 'wall' or target is None:
                 return str(entity.params.get('material_id', '') or '')
             mode = str(target.currentData())
@@ -1721,6 +1760,16 @@ class MainWindow(QMainWindow):
                 surface_map[mode] = str(material_id)
                 target_label = 'Side A' if mode == 'exterior' else 'Side B'
             changes['surface_materials'] = surface_map
+        elif entity.kind == 'library_object' and target is not None and target.currentData() != 'all':
+            role = str(target.currentData())
+            surface_map = dict(entity.params.get('surface_materials') or {})
+            surface_map[role] = str(material_id)
+            changes['surface_materials'] = surface_map
+            target_label = target.currentText().split('  (')[0]
+        elif entity.kind == 'library_object':
+            # Whole object: one finish everywhere, part overrides cleared.
+            changes['material_id'] = str(material_id)
+            changes['surface_materials'] = {}
         else:
             changes['material_id'] = str(material_id)
 

@@ -97,3 +97,24 @@ def triangle_colors(params):
         return None
     palette = asset["palette"]
     return [palette[i] for i in asset["tri_part"]]
+
+
+def asset_parts(params):
+    """Material parts of the referenced asset: ``[(role, colour, name)]``.
+
+    Each palette colour is one part with surface role ``part<i>``; materials
+    chosen by the user are stored per role in ``surface_materials`` exactly
+    like wall faces.
+    """
+    asset = load_asset(str(params["asset"]))
+    if asset is None or "palette" not in asset:
+        return []
+    names = asset.get("part_names") or [""] * len(asset["palette"])
+    return [(f"part{i}", c, names[i] if i < len(names) else "") for i, c in enumerate(asset["palette"])]
+
+
+def triangle_part_indices(params):
+    asset = load_asset(str(params["asset"]))
+    if asset is None or "tri_part" not in asset:
+        return None
+    return asset["tri_part"]

@@ -83,3 +83,48 @@ def test_user_gltf_import_lands_in_library(tmp_path):
         assert window._library_assets_list.count() == 1
     finally:
         window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_object_modifier_edits_size_parts_and_sculpt_through_commands():
+    from archforge.core.commands import AddEntity
+    from archforge.core.model import Entity
+    from archforge.geometry.selection import BrushSpec, SurfaceHit, sculpt_modifier_from_hit
+    from archforge.rendering.materials import MATERIAL_PRESETS
+    c = [(x, y, z) for x in (0, 1) for y in (0, 0.5) for z in (0, 0.4)]
+    quads = [(0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)]
+    tris = [tuple(c[i] for i in t) for a, b, cc, d in quads for t in ((a, b, cc), (a, cc, d))]
+    asset_id, size = assets.store_asset('Table', tris, {'source': 'test'},
+                                        colors=['#884422'] * 6 + ['#ddccaa'] * 6,
+                                        part_names={'#884422': 'legs', '#ddccaa': 'top'})
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    try:
+        obj = Entity('library_object', {'x': 0.0, 'y': 0.0, 'z': 0.0, 'rotation': 0.0, 'width': size[0],
+                                        'depth': size[1], 'height': size[2], 'uniform': 1.0, 'asset': asset_id}, name='Table')
+        window.stack.execute(AddEntity(obj))
+        window.doc.select([obj.id]); window.refresh_inspector()
+        dialog = window._open_object_modifier(obj.id)
+        assert dialog.parts.count() == 2 and 'legs' in dialog.parts.item(0).text()
+        dialog.set_size('width', 150.0)                      # locked: depth scales too
+        p = window.doc.get(obj.id).params
+        assert (p['width'], p['depth']) == pytest.approx((1.5, 0.75))
+        dialog.set_lock(False); dialog.set_size('height', 60.0)
+        assert window.doc.get(obj.id).params['depth'] == pytest.approx(0.75)
+        mid = next(iter(MATERIAL_PRESETS))
+        dialog.set_part_material('part1', mid)
+        assert window.doc.get(obj.id).params['surface_materials'] == {'part1': mid}
+        assert MATERIAL_PRESETS[mid]['name'] in dialog.parts.item(1).text()
+        hit = SurfaceHit(obj.id, 'body', (0.0, 0.0, 0.6), (0, 0, 1))
+        mod = sculpt_modifier_from_hit(window.doc, hit, BrushSpec(0.3), 'pull', 0.05)
+        window.doc.add_surface_modifier(mod); dialog.refresh()
+        assert dialog.modifiers.count() == 1
+        dialog.set_modifier_enabled(mod.id, False)
+        assert window.doc.surface_modifiers[mod.id].enabled is False
+        dialog.remove_modifier(mod.id)
+        assert mod.id not in window.doc.surface_modifiers and dialog.modifiers.count() == 0
+        window.stack.undo()                                   # modifier back
+        assert mod.id in window.doc.surface_modifiers
+        dialog.reset_size()
+        assert window.doc.get(obj.id).params['width'] == pytest.approx(size[0])
+    finally:
+        window._mark_clean(); window.close(); app.processEvents()

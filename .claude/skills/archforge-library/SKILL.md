@@ -68,7 +68,12 @@ repository or any distributed build.
   - The mesh is the asset scaled per axis to the target size. A missing asset gives a placeholder box of that size.
 - 2D plan symbols come from `archforge/library/plan_symbol.py`: the top-view outline plus lines where the height jumps.
 - glTF/GLB files are read by `archforge/library/gltf.py` (Y-up converted to Z-up, base colours, display bases dropped).
-- UI: the **Βιβλιοθήκη** menu (place, import glTF, import Home Designer), the **Έπιπλα** tab in the left panel, the `library_place` plan tool, and proportional resize in the Inspector.
+- Material parts: each palette colour of an asset is part `part<i>` (with `part_names`).
+  - The user's palette finish is stored in `surface_materials["part<i>"]`, exactly like wall faces.
+  - `material_id` applies one finish to the whole object.
+- Sculpt: the surface `body` is deformable. Sculpt centres are stored as fractions of the object's own width, depth and height (see `geometry/surface_frame.py`), so they follow moves, rotations and resizes.
+- The Object Modifier (`ui/object_modifier.py`) opens from the Inspector. It edits size and lock, rotation, elevation, part materials, and the sculpt modifier list, all through the shared commands.
+- UI: the **Βιβλιοθήκη** menu (place, Object Modifier, import glTF, import Home Designer), the **Έπιπλα** tab in the left panel, the `library_place` plan tool, and proportional resize in the Inspector.
 
 ## Every import is verified: geometry against the visual result
 Follow `references/verification.md` for each new object, whatever its source:

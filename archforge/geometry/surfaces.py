@@ -24,7 +24,7 @@ _KIND_ROLES:Dict[str,Tuple[Tuple[str,bool,bool,str],...]]={
  'room':(('ceiling',True,False,'generated room ceiling'),('floor_boundary',False,False,'room floor boundary')),
  'site_path':(('top',False,False,'path surface'),('bottom',False,False,'path underside'),('side',False,False,'path edge')),
  'plant':(('trunk',False,False,'plant trunk'),('canopy',False,False,'plant crown')),
- 'library_object':(('body',False,False,'imported library mesh'),('placeholder',False,False,'box shown while the library asset is missing')),
+ 'library_object':(('body',True,False,'library object surface (sculptable; coordinates local to the object)'),('placeholder',False,False,'box shown while the library asset is missing')),
  'terrain':(('top',False,False,'site ground surface'),('bottom',False,False,'site ground underside'),('side',False,False,'site ground edge'))}
 def surface_catalog(doc,owner_id):
  if owner_id not in doc.entities:raise ValueError('surface owner does not exist')
