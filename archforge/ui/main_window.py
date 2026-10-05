@@ -2897,6 +2897,9 @@ class MainWindow(QMainWindow):
             self._edit_project_brief()
             self._refresh_assistant()
             return
+        if p.run == 'slabs':
+            self._show_slabs()
+            return
         from archforge.assistant.suggestions import apply
         apply(self.stack, p)
         self._refresh_project_tree()
@@ -3080,6 +3083,23 @@ class MainWindow(QMainWindow):
         from archforge.project.brief import PHASES
         self.statusBar().showMessage(f'{len(ids)} στοιχεία → {PHASES[phase]}', 5000)
         return len(ids)
+
+    def _show_slabs(self):
+        """Slab reinforcement per room panel (Marcus), pre-design."""
+        from PySide6.QtWidgets import QTextBrowser
+        from archforge.structure.slabs import design_slabs, slabs_html
+        result = design_slabs(self.doc)
+        dialog = QDialog(self)
+        dialog.setWindowTitle('Οπλισμός πλακών')
+        dialog.resize(1000, 520)
+        layout = QVBoxLayout(dialog)
+        browser = QTextBrowser(dialog)
+        browser.setHtml(slabs_html(result) or '<p>Δεν υπάρχουν πλάκες σκυροδέματος (ξύλινα πατώματα ή κανένας κλειστός χώρος).</p>')
+        layout.addWidget(browser)
+        self._slabs_view = browser
+        if not getattr(self, '_no_modal_dialogs', False):
+            dialog.exec()
+        return result
 
     def _show_takeoff(self):
         """Quantity take-off per room (paint, tiles, skirting, demolition) with CSV export."""

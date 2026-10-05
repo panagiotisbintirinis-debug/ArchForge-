@@ -218,7 +218,8 @@ def install_approved_mockup_shell(window):
     structure_menu.addSeparator()
     for text,run in (("Πρόταση φέροντος οργανισμού από τους τοίχους",lambda: window._propose_frame()),
                      ("Στοιχεία κτιρίου για στατική…",lambda: window._edit_structural_settings()),
-                     ("Στατική ανάλυση φέροντος οργανισμού…",lambda: window._show_structural_analysis())):
+                     ("Στατική ανάλυση φέροντος οργανισμού…",lambda: window._show_structural_analysis()),
+                     ("Οπλισμός πλακών…",lambda: window._show_slabs())):
         a=QAction(text,window); a.triggered.connect(lambda _=False,r=run: r()); structure_menu.addAction(a)
     window._structure_menu=structure_menu
     mep_menu=menus["Μηχανολογικά"]

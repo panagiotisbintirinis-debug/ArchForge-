@@ -76,6 +76,9 @@ def report_html(r):
                    "".join(f"<tr><td>{f['x']}, {f['y']}</td><td>{f['N_sls_kN']}</td><td>{f['B_m']:.2f}×{f['B_m']:.2f} m</td>"
                            f"<td>{f['h_m']:.2f} m</td></tr>" for f in r["footings"]) + "</table>"
                    "<p><i>Κεντρικά φορτισμένα πέδιλα· συνδετήριες δοκοί, ροπές βάσης και έλεγχος διάτρησης προς μελέτη.</i></p>")
+    if r.get("slabs"):
+        from archforge.structure.slabs import slabs_html
+        out.append(slabs_html(r["slabs"]))
     if r.get("warnings"):
         out.append("<h3>Παρατηρήσεις</h3><ul>" + "".join(f"<li>{escape(w)}</li>" for w in r["warnings"]) + "</ul>")
     out.append(f"<p><i>{escape(r['provenance'])}</i></p>")

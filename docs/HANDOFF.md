@@ -8,7 +8,7 @@
 >
 > Ενημερώνεται σε κάθε commit που αλλάζει κατεύθυνση ή κλείνει στοιχείο.
 
-Τελευταία ενημέρωση: 2026-10-05 · branch `claude/new-session-hiekda` (συνέχεια του `claude/new-session-l1o9gl`) · tests: 752 passed, 1 skipped (Windows ιδιοκτήτη: 724 passed + 1 αποτυχία πλάτους ribbon, διορθώθηκε).
+Τελευταία ενημέρωση: 2026-10-05 · branch `claude/new-session-hiekda` (συνέχεια του `claude/new-session-l1o9gl`) · tests: 756 passed, 1 skipped (Windows ιδιοκτήτη: 724 passed + 1 αποτυχία πλάτους ribbon, διορθώθηκε).
 
 ---
 
@@ -27,7 +27,7 @@
 **Οδικός χάρτης που προκύπτει** (σειρά προτεινόμενη):
 - ✅ ερωτήσεις έργου · φάσεις ανακαίνισης (υφιστάμενο/νέο/καθαίρεση, κλειδωμένες υφιστάμενες κολόνες) · επιμέτρηση ανά χώρο (CSV) · φέρουσα τοιχοποιία χωρίς κολόνες.
 - ✅ **αναγωγή διαστάσεων**: η γραμμή του τοίχου είναι η παρειά που μετράμε· όταν κλείνει ο χώρος, οι τοίχοι πάνε στον άξονά τους (`architecture/dimension_reference.py`).
-- ⏳ **οπλισμός πλάκας** (φέρουσα τοιχοποιία και σκελετός ΟΣ).
+- ✅ **οπλισμός πλάκας** (`structure/slabs.py`, Marcus, EC2).
 - ⏳ **αποχετεύσεις** (σιφώνια, σωλήνες με κλίση, στήλες, φρεάτια).
 - ⏳ **Η/Μ σε δικό τους ορατό layer** + **οδηγίες θέσης** (διαστάσεις από τοίχους/δάπεδο ανά σημείο, φύλλο εφαρμογής).
 - ⏳ **βεράντες/μπαλκόνια** ως επιλογή ανά όροφο (πλακάκια, μόνωση, κάγκελα) · **κόστη** από την επιμέτρηση.
@@ -101,6 +101,8 @@
   - γεωμετρία: `builder.py`·
   - κατάλογος: `catalog.py`, 39 δικά μας αντικείμενα με `seed_core_library`.
 - **`archforge/project/brief.py`:** ερωτήσεις έργου (`project_brief`), `wall_defaults`, `load_bearing_walls`, φάσεις (`phase`: new/existing/demolish).
+- **`archforge/architecture/dimension_reference.py`:** αναγωγή διαστάσεων (παρειά → άξονας όταν κλείνει χώρος).
+- **`archforge/structure/slabs.py`:** οπλισμός πλακών ανά φάτνωμα (`design_slabs`, `slabs_html`).
 - **`archforge/quantities/takeoff.py`:** επιμέτρηση ανά χώρο (`take_off`, `net_polygon`, `to_csv`).
 - **`archforge/ui/marking_menu.py`:** `build_menu` (περιεχόμενο ανά εργασία, κοινό 2D/3D), `run`, `wheel`, `MarkingMenu` (Qt)· στο 3D `showMarkingMenu`/`markingWheel` στο `pbr_viewport.py`· ενέργειες `mm:*` περνούν από `_handle_object_context_action`.
 - **`archforge/ui/project_outline.py`:** δέντρο κατασκευής από την ίδια ανάγνωση (`read_drawing`) — κάθε οντότητα μία φορά· ονόματα μελών από τη στατική· `_sync_tree_selection` στο `main_window.py`.

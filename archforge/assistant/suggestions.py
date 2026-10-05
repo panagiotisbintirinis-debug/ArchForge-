@@ -149,9 +149,13 @@ def _structural(doc):
     from archforge.project.brief import load_bearing_walls
     if load_bearing_walls(doc):
         if any(e.kind == "wall" for e in doc.entities.values()):
+            from archforge.project.brief import get_brief
+            timber = get_brief(doc)["floor_system"] == "timber"
             return [Proposal("S-4", "info", "Φέρουσα τοιχοποιία: χωρίς κολόνες",
-                             "Οι πέτρινοι/συμπαγείς τοίχοι φέρουν τα βάρη. Χρειάζεται οπλισμός πλάκας (εκτός αν τα πατώματα "
-                             "είναι ξύλινα) — επόμενο εργαλείο.", "Στοιχεία έργου")]
+                             "Οι πέτρινοι/συμπαγείς τοίχοι φέρουν τα βάρη. " + (
+                                 "Πατώματα ξύλινα: δοκίδες ανά χώρο (Βοηθός → Διανομή δοκίδων)." if timber else
+                                 "«Εφαρμογή» = οπλισμός πλάκας ανά χώρο (Marcus)."),
+                             "Στοιχεία έργου", (), None, run=None if timber else "slabs")]
         return []
     if not has_structure(doc):
         if any(e.kind == "wall" for e in doc.entities.values()):

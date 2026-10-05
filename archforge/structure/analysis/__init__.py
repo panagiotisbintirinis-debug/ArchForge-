@@ -226,6 +226,8 @@ def analyze(doc):
         if not entry.get("ok", True):
             result["ok"] = False
     result["footings"] = _footings(model, frame, settings)
+    from archforge.structure.slabs import design_slabs
+    result["slabs"] = design_slabs(doc)
     return result
 
 
