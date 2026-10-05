@@ -162,6 +162,7 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
     if e.kind=='plumbing_point':
         from archforge.mep.plumbing import _floor_of
         return abs(_floor_of(doc,float(p.get('z',0.0)))-z)<=tolerance
+    if e.kind=='ceiling_joists':return abs(float(p.get('z',0.0))-z)<=tolerance
     if e.kind=='ventilation_point':
         from archforge.mep.ventilation import _floor_of as vent_floor
         return abs(vent_floor(doc,float(p.get('z',0.0)))-z)<=tolerance
@@ -197,6 +198,7 @@ def entity_primitive(doc,eid):
         from archforge.mep.electrical import POINT_TYPES as ELEC
         return Primitive2D('ellipse',((float(p['x']),float(p['y'])),),.10,.10,0.,eid,'electrical-point',
                            meta=(('text',ELEC[p['point_type']][4]),('point_type',p['point_type'])))
+    if e.kind=='ceiling_joists':return Primitive2D('polygon',tuple(tuple(q) for q in p['points']),entity_id=eid,role='joists-area')
     if e.kind=='ventilation_point':
         from archforge.mep.ventilation import POINT_TYPES as VENT
         r=.30 if p['point_type']=='hood' else .10
@@ -552,6 +554,19 @@ def build_plan_frame(doc,preview=None):
             if e.kind=='electrical_point' and _entity_on_active_level(doc,e):
                 text=ELEC[e.params['point_type']][4]+(f" {names[eid]}" if eid in names else '')
                 f.primitives.append(Primitive2D('label',((float(e.params['x'])+.12,float(e.params['y'])-.25),),entity_id=eid,role='electrical-label',meta=(('text',text),)))
+    # Derived joists of the active storey: one dashed line per joist and the solver's label.
+    for eid in doc.entities:
+        e=doc.get(eid)
+        if e.kind!='ceiling_joists' or not e.visible or not _entity_on_active_level(doc,e):
+            continue
+        from archforge.structure.joists import positions,size_joists
+        rep=size_joists(e.params)
+        for a,b in positions(e.params):
+            f.primitives.append(Primitive2D('polyline',(a,b),role='joist',meta=(('ok',rep['ok']),)))
+        sec=rep['section']
+        text=(f"Δοκίδες {sec['b']*100:.0f}/{sec['h']*100:.0f} @{rep['spacing_m']*100:.0f} ×{rep['count']}" if sec else 'Δοκίδες: ανεπαρκής διατομή ⚠')
+        xs=[float(q[0]) for q in e.params['points']];ys=[float(q[1]) for q in e.params['points']]
+        f.primitives.append(Primitive2D('label',((min(xs)+.2,min(ys)+.2),),entity_id=eid,role='joists-label',meta=(('text',text),)))
     # Derived extract ducts of the active storey (under the ceiling) and their outlets.
     if any(e.kind=='ventilation_point' for e in doc.entities.values()):
         from archforge.mep.ventilation import POINT_TYPES as VENT,_floor_of as vent_floor,route_ventilation_cached

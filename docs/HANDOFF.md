@@ -8,7 +8,7 @@
 >
 > Ενημερώνεται σε κάθε commit που αλλάζει κατεύθυνση ή κλείνει στοιχείο.
 
-Τελευταία ενημέρωση: 2026-10-05 · branch `claude/new-session-hiekda` (συνέχεια του `claude/new-session-l1o9gl`) · tests: 689 passed, 1 skipped.
+Τελευταία ενημέρωση: 2026-10-05 · branch `claude/new-session-hiekda` (συνέχεια του `claude/new-session-l1o9gl`) · tests: 699 passed, 1 skipped.
 
 ---
 
@@ -47,23 +47,18 @@
 | «Επιλογή από δάπεδο ή από τοίχο… από δάπεδο τα κουτιά 15 cm πάνω από το έδαφος… να επιλέγει την καλύτερη διαδρομή, π.χ. νησίδα κουζίνας» | Πεδίο `routing` ανά σημείο: auto/wall/floor. Στο auto, ≤60 cm από τοίχο πάει από τοίχο, αλλιώς από δάπεδο | 2df35b6 |
 | Υδραυλικά ανάλογα με το υλικό: χαλκός, μονοσωλήνιο, πολυστρωματική· «να φαίνονται και οι πίνακες υδροληψίας με τη δομή τους» | Πεδίο `pipe_system` στην παροχή· πίνακες υδροληψίας σε κάτοψη και 3D | dffe8c5 |
 | «Τώρα που είπα νησίδα, ξέχασες τους εξαερισμούς» | `mep/ventilation.py`: απορροφητήρας τοίχου/νησίδας Ø125, μπάνιο/WC Ø100, ευθεία στον πλησιέστερο εξωτερικό τοίχο ή από τη στέγη, `outlet` auto/wall/roof (V1) | (αυτό το commit) |
-| «Μετά στήσε το AI Assistant, κατά προτίμηση μέσα στο ίδιο το πρόγραμμα και όχι εξωτερικά» | ⏳ **επόμενο** (AI1) | — |
+| «Μετά στήσε το AI Assistant, κατά προτίμηση μέσα στο ίδιο το πρόγραμμα και όχι εξωτερικά» | Αναθεωρήθηκε (βλ. επόμενες γραμμές) | — |
+| **Απόφαση:** «Δεν ξέρω αν θέλω πάροχο ούτε αν θέλω AI… το ArchForge είναι human-first, το AI είναι εργαλείο κατανόησης και βοήθειας: θα υπολογίζει δυνάμεις, θα βρίσκει λύσεις (solver), "κάνε μου διανομή τις δοκίδες στο ταβάνι", διαιρέσεις, τεχνικές προτάσεις όταν το UI δεν τις έχει… πρέπει να αναγκάσω τον χρήστη να πληρώνει συνδρομή; γιατί όχι ένα online εργαλείο;» → Συμφωνήθηκε: **Βοηθός με κανόνες & solvers, χωρίς υποχρεωτικό AI, χωρίς internet, χωρίς συνδρομή**. Φυσική γλώσσα μέσω LLM μόνο προαιρετικά αργότερα (δικό του κλειδί ή τοπικό μοντέλο), και μόνο ως μετάφραση σε κλήση των ίδιων solvers — ποτέ υπολογισμός από το LLM | — | — |
+| «Ναι, αλλά δυναμικό με προτάσεις… κάτι ενδιάμεσο» · «θέλω να αναγνωρίζει κάθε εκατοστό του σχεδίου» | Dock **Βοηθός** (καρτέλα δίπλα στις Ιδιότητες): διαβάζει όλο το Document («Τι βλέπω»: όροφοι, τοίχοι, εξωτερικοί, χώροι με διαστάσεις/εμβαδό/χρήση, κουφώματα, εξοπλισμός ανά χώρο), ζωντανές προτάσεις με «Εφαρμογή» (μία εντολή, ένα undo) / «Αγνόηση»· solver **δοκίδων ταβανιού** (AI1) | (αυτό το commit) |
 | «Προτεραιότητα να καταστεί η συνομιλία μας ορατή από το επόμενο chat» | Αυτό το αρχείο και το `CLAUDE.md` | (αυτό το commit) |
 
 ## 3. Ουρά: τι ακολουθεί, με σειρά
 
 1. ~~V1 Εξαερισμοί~~ ✅ (βλ. WORKLOG V1).
-2. **AI1 AI Assistant μέσα στην εφαρμογή.**
-   - Πάνελ στο dock «AI».
-   - Ροή: πρόθεση χρήστη → προτεινόμενες ενέργειες → **οι ίδιες κοινές εντολές** (AddEntity/UpdateEntity…) → Document.
-   - Επιπλέον:
-     - εφαρμογή μόνο με έγκριση του χρήστη· undo με ένα βήμα·
-     - provider ρυθμιζόμενος· το πρόγραμμα δουλεύει πλήρως και χωρίς AI·
-     - tests που συγκρίνουν την authoritative κατάσταση χειροκίνητης και AI εκτέλεσης (AGENTS.md).
-   - Υπάρχουσα βάση:
-     - `architecture/design_agent.py` (`AIAssistantProposal`, `apply_ai_proposal`);
-     - `orchestration/` (LangGraph, providers);
-     - dock «AI» στο `ui/main_window.py` (~γρ. 1193).
+2. ~~AI1~~ ✅ Βοηθός, πρώτη έκδοση. **Συνέχεια του Βοηθού** (ένα-ένα, με test):
+   - περισσότεροι κανόνες: π.χ. υπνοδωμάτιο χωρίς παράθυρο, πρίζες ανά χώρο, πόρτα μπάνιου, ύψος κάγκελων·
+   - περισσότεροι solvers: πλάκα/δοκοί ΟΣ (προδιάσταση), διαιρέσεις πλακιδίων/γυψοσανίδας, σκάλα (Blondel)·
+   - επιλογή ρόλου «Βοηθός» στα τμήματα του σχεδίου (όχι μόνο ανά χώρο).
 3. Από το WORKLOG:
    - L8 κουφώματα· L9 κάγκελα· L10 υφές/χρώματα·
    - L7 υπόλοιπα (γωνιακά ντουλάπια, ανοιχτά ράφια, εσωτερικά ντουλάπας)·
@@ -87,6 +82,11 @@
 - **`archforge/mep/electrical.py`:**
   - Κυκλώματα: `CIRCUIT_RULES`, `design_circuits`.
   - Οδεύσεις: `route_cables` (τοίχος 2,35 m / δάπεδο, κουτιά), `routing_of`, `_pull_boxes`.
+- **`archforge/assistant/`:** Βοηθός.
+  - `understanding.py`: `read_drawing` (πλήρης ανάγνωση του Document ανά όροφο και χώρο), `describe` («Τι βλέπω»)·
+  - `suggestions.py`: `propose` (κανόνες V-1/V-2/V-3, J-1/J-2, M-1/M-2), `apply` (μία εντολή μέσω CommandStack), `room_at`·
+  - UI: `_build_assistant_panel`, `_refresh_assistant` (ανανέωση σε κάθε αλλαγή, με καθυστέρηση 250 ms), εργαλείο `assist_joists`· dock στο `approved_mockup_shell.py`.
+- **`archforge/structure/joists.py`:** δοκίδες: `size_joists`, `positions` (ίσες διαιρέσεις), `check_section` (κάμψη, διάτμηση, βέλος), `_proposals`.
 - **`archforge/mep/ventilation.py`:** `exterior_walls`, `route_ventilation` (αεραγωγοί, στόμια, αναφορά), `outlet_of`.
 - **`archforge/structure/timber_roof.py`:** στέγη, φορτία, προδιαστασιολόγηση, στρώσεις.
 - **UI:**
@@ -96,7 +96,7 @@
 - **Παράγωγα σχέδια:**
   - κάτοψη: `core/plan_scene.py` (`build_plan_frame`) με στυλ στο `ui/plan_view.py` (`_draw_primitive`)·
   - 3D: `rendering/scene.py` (`build_pbr_scene_payload`, layers `mep`, `elec` και `vent`).
-- **Σχήματα Document:** `core/model.py` `SCHEMAS`, για library_object, cabinet, plumbing_point (`pipe_system`), ventilation_point (`outlet`, `airflow`), electrical_point (`routing`, `power_w`), pitched_roof, wall_type.
+- **Σχήματα Document:** `core/model.py` `SCHEMAS`, για library_object, cabinet, plumbing_point (`pipe_system`), ventilation_point (`outlet`, `airflow`), ceiling_joists (`points`, `spacing`, `usage`, `direction`), electrical_point (`routing`, `power_w`), pitched_roof, wall_type.
 
 ## 5. Χρήσιμα για τον επόμενο agent
 
@@ -104,6 +104,7 @@
 - Πλήρης σουίτα στο cloud:
   `QT_QPA_PLATFORM=offscreen QTWEBENGINE_DISABLE_SANDBOX=1 QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu --single-process" python -m pytest -q -p no:cacheprovider`
 - Το δίκτυο του cloud μπλοκάρει Poly Haven, ambientCG και Kenney. Λειτουργεί μόνο το `raw.githubusercontent.com` (Khronos glTF samples).
+- Το `_build_mockup_workspace` στο `main_window.py` δεν καλείται πουθενά: το ορατό UI χτίζεται στο `ui/approved_mockup_shell.py`.
 - Οπτική επαλήθευση: render με matplotlib ή `asset_preview.py` του skill, πριν δηλωθεί κάτι «έτοιμο».
 - Τα αρχεία `.calib`, `.calibz` και `.tbdata` του Home Designer είναι αδειοδοτημένα: μόνο για τοπική μελέτη, **ποτέ** στο repo.
 - Το πλήρες transcript της συνεδρίας δεν είναι στο repo. Όσα χρειάζονται για συνέχεια είναι σε αυτό το αρχείο και στο WORKLOG.

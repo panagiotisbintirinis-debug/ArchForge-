@@ -552,6 +552,9 @@ def _payload(doc,node):
  if k=='electrical_point':
   from archforge.mep.electrical import point_marker_mesh as elec_marker
   v,t=elec_marker(doc,p);return MeshPayload(tuple(v),tuple(tuple(x) for x in t),tuple('marker' for _ in t))
+ if k=='ceiling_joists':
+  from archforge.structure.joists import joists_mesh
+  v,t,r=joists_mesh(doc,p);return MeshPayload(v,t,r)
  if k=='ventilation_point':
   from archforge.mep.ventilation import point_marker_mesh as vent_marker
   v,t=vent_marker(doc,p);return MeshPayload(tuple(v),tuple(tuple(x) for x in t),tuple('marker' for _ in t))

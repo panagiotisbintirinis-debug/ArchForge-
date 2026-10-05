@@ -436,16 +436,27 @@ def install_approved_mockup_shell(window):
     views_dock.setAllowedAreas(Qt.BottomDockWidgetArea|Qt.TopDockWidgetArea)
     window.addDockWidget(Qt.BottomDockWidgetArea,views_dock)
 
-    for d in (project_dock,window.dock,views_dock):
+    # Βοηθός: live proposals over the whole Document, tabbed with the Properties.
+    assistant_dock=QDockWidget("Βοηθός",window)
+    assistant_dock.setObjectName("approved_assistant")
+    assistant_dock.setWidget(window._build_assistant_panel())
+    assistant_dock.setAllowedAreas(Qt.LeftDockWidgetArea|Qt.RightDockWidgetArea)
+    window.addDockWidget(Qt.RightDockWidgetArea,assistant_dock)
+    window.tabifyDockWidget(window.dock,assistant_dock)
+    window.dock.raise_()
+    window._assistant_dock=assistant_dock
+    window._schedule_assistant_refresh()
+
+    for d in (project_dock,window.dock,views_dock,assistant_dock):
         d.setFeatures(QDockWidget.DockWidgetClosable|QDockWidget.DockWidgetMovable|QDockWidget.DockWidgetFloatable)
 
     # Restore buttons/menu: Προβολή -> Παράθυρα.
     panels=window.view_menu.addMenu("Παράθυρα")
-    for d in (project_dock,window.dock,views_dock):
+    for d in (project_dock,window.dock,assistant_dock,views_dock):
         panels.addAction(d.toggleViewAction())
     # Workspace docks built before the shell (Library, AI, ...) lost their
     # toggles with the old View menu; keep them recoverable here too.
-    extra=[d for d in getattr(window,"workspace_docks",()) if d not in (project_dock,window.dock,views_dock)]
+    extra=[d for d in getattr(window,"workspace_docks",()) if d not in (project_dock,window.dock,views_dock,assistant_dock)]
     if extra:
         panels.addSeparator()
         for d in extra: panels.addAction(d.toggleViewAction())

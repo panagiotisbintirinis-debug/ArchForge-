@@ -1,0 +1,160 @@
+"""Live proposals: rules over the assistant's reading of the Document.
+
+Each proposal says what was found, why (rule + source) and, when it can be
+solved automatically, which commands would solve it.  Nothing is applied
+without the user: ``apply()`` runs the proposal's commands through the
+CommandStack as ONE undoable step.
+
+Rules:
+
+* V-1  Wet room (bathroom / WC) without an extract fan → add one.  A wet
+       room without a window has no natural ventilation, so the proposal is
+       a warning there, a hint otherwise.
+* V-2  Kitchen (sink / cooker) without a hood → add one over the cooker
+       point, else over the sink.
+* V-3  Ventilation duct findings (length, wall penetrations, shafts).
+* J-1  Room under a pitched roof (top storey) without ceiling joists → lay
+       them out with the solver.
+* J-2  Joists that no listed section carries → technical proposals; when a
+       closer spacing solves it, apply that spacing.
+* M-1  Plumbing fixtures without a source, circuit warnings: reported.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Callable, List, Optional, Tuple
+
+from archforge.assistant.understanding import USE_LABELS, inside, read_drawing
+
+
+@dataclass
+class Proposal:
+    key: str
+    severity: str                      # 'warning' | 'hint' | 'info'
+    title: str
+    detail: str
+    source: str
+    targets: Tuple[str, ...] = ()
+    build: Optional[Callable] = field(default=None, repr=False)   # doc -> Command
+
+    @property
+    def actionable(self):
+        return self.build is not None
+
+
+def _vent_entity(kind, x, y, z):
+    from archforge.core.model import Entity
+    from archforge.mep.ventilation import POINT_TYPES
+    return Entity("ventilation_point", {"x": float(x), "y": float(y), "z": float(z), "point_type": kind,
+                                        "outlet": "auto", "airflow": POINT_TYPES[kind][1]}, name=POINT_TYPES[kind][0])
+
+
+def _add(entity):
+    from archforge.core.commands import AddEntity
+    return lambda _doc: AddEntity(entity)
+
+
+def joists_entity(room_polygon, z, spacing=0.50, usage="ceiling", direction="auto", name="Δοκίδες ταβανιού"):
+    from archforge.core.model import Entity
+    return Entity("ceiling_joists", {"points": [tuple(p) for p in room_polygon], "z": float(z), "spacing": float(spacing),
+                                     "usage": usage, "direction": direction}, name=name)
+
+
+def _best_spot(doc, room, preferred):
+    """A device position: the first preferred point inside the room, else its centroid."""
+    for kind, ptypes in preferred:
+        for eid in room[kind]:
+            e = doc.get(eid)
+            if e.params["point_type"] in ptypes:
+                return float(e.params["x"]), float(e.params["y"])
+    return room["centroid"]
+
+
+def propose(doc, reading=None):
+    reading = reading or read_drawing(doc)
+    out: List[Proposal] = []
+    for storey in reading["storeys"]:
+        z = storey["z"]
+        for room in storey["rooms"]:
+            name, use = room["name"], room["use"]
+            if use in ("bathroom", "wc") and not room["ventilation"]:
+                kind = "bath_fan" if use == "bathroom" else "wc_fan"
+                x, y = _best_spot(doc, room, (("plumbing", {"shower", "bathtub", "wc"}),))
+                no_window = not room["windows"]
+                out.append(Proposal(
+                    f"V-1:{room['signature']}", "warning" if no_window else "hint",
+                    f"{name}: {USE_LABELS[use]} χωρίς απαγωγή",
+                    ("Δεν έχει παράθυρο, άρα ούτε φυσικό αερισμό· " if no_window else "Έχει παράθυρο, αλλά ") +
+                    f"προτείνεται ανεμιστήρας Ø100 ({'90' if kind == 'bath_fan' else '60'} m³/h) με αεραγωγό προς τα έξω.",
+                    "Υγρός χώρος: μηχανική απαγωγή (τάξη μεγέθους DIN 18017-3) — προς έλεγχο μηχανολόγου",
+                    (room["signature"],), _add(_vent_entity(kind, x, y, z))))
+            if use == "kitchen" and not any(doc.get(i).params["point_type"] == "hood" for i in room["ventilation"]):
+                x, y = _best_spot(doc, room, (("electrical", {"cooker"}), ("plumbing", {"kitchen_sink"})))
+                out.append(Proposal(
+                    f"V-2:{room['signature']}", "hint", f"{name}: κουζίνα χωρίς απορροφητήρα",
+                    "Προτείνεται απορροφητήρας 400 m³/h με αεραγωγό Ø125 προς τον πλησιέστερο εξωτερικό τοίχο "
+                    "(πάνω από την εστία, αν υπάρχει σημείο κουζίνας/φούρνου).",
+                    "Απαγωγή μαγειρείου προς τα έξω — προς έλεγχο μηχανολόγου", (room["signature"],),
+                    _add(_vent_entity("hood", x, y, z))))
+            if storey["top"] and room["under_pitched_roof"] and not room["joists"]:
+                from archforge.structure.joists import size_joists
+                ent = joists_entity(room["polygon"], z)
+                rep = size_joists(ent.params)
+                sec = rep["section"]
+                what = (f"{rep['count']} δοκίδες {sec['b'] * 100:.0f}/{sec['h'] * 100:.0f} C24 ανά {rep['spacing_m'] * 100:.0f} cm, "
+                        f"άνοιγμα {rep['span_m']:.2f} m (αξιοποίηση {sec['utilisation']:.0%})" if sec else
+                        "Καμία τυπική διατομή δεν αρκεί: " + "; ".join(rep.get("proposals", [])))
+                out.append(Proposal(f"J-1:{room['signature']}", "hint", f"{name}: ταβάνι κάτω από στέγη χωρίς δοκίδες",
+                                    what, rep["provenance"], (room["signature"],), _add(ent)))
+    for e in doc.entities.values():
+        if e.kind != "ceiling_joists":
+            continue
+        from archforge.structure.joists import size_joists
+        rep = size_joists(e.params)
+        if rep["ok"]:
+            continue
+        fix = None
+        for s in (0.40, 0.30):
+            if size_joists(dict(e.params, spacing=s))["ok"]:
+                from archforge.core.commands import UpdateEntity
+                fix = (lambda spacing: lambda _doc: UpdateEntity(e.id, {"spacing": spacing}))(s)
+                break
+        out.append(Proposal(f"J-2:{e.id}", "warning", f"{e.name or 'Δοκίδες'}: άνοιγμα {rep['span_m']:.2f} m χωρίς επαρκή διατομή",
+                            "Τεχνικές προτάσεις: " + "; ".join(rep["proposals"]), rep["provenance"], (e.id,), fix))
+    if any(e.kind == "ventilation_point" for e in doc.entities.values()):
+        from archforge.mep.ventilation import route_ventilation_cached
+        for w in route_ventilation_cached(doc)["report"]["warnings"]:
+            out.append(Proposal(f"V-3:{w}", "info", w, "Από τη χάραξη των αεραγωγών.", "Βλ. Εξαερισμοί"))
+    if any(e.kind == "plumbing_point" for e in doc.entities.values()):
+        from archforge.mep.plumbing import route_plumbing_cached
+        unserved = route_plumbing_cached(doc)["report"]["unserved"]
+        if unserved:
+            out.append(Proposal("M-1", "warning", f"Υδραυλικά: {len(unserved)} συνδέσεις χωρίς πηγή",
+                                "Πρόσθεσε παροχή κρύου νερού ή θερμοσίφωνα:<br>" + "<br>".join(unserved), "Βλ. Υδραυλικά"))
+    if any(e.kind == "electrical_point" for e in doc.entities.values()):
+        from archforge.mep.electrical import route_cables_cached
+        for w in route_cables_cached(doc)["report"]["warnings"]:
+            out.append(Proposal(f"M-2:{w}", "warning", w, "Από τα κυκλώματα.", "Βλ. Πίνακας κυκλωμάτων"))
+    order = {"warning": 0, "hint": 1, "info": 2}
+    return sorted(out, key=lambda p: (order[p.severity], p.key))
+
+
+def apply(stack, proposal):
+    """Run the proposal's command through the stack (one undo step); returns the command."""
+    if proposal.build is None:
+        raise ValueError("this proposal has no automatic solution")
+    command = proposal.build(stack.doc)
+    stack.execute(command)
+    return command
+
+
+def room_at(doc, x, y, z=None):
+    """The room (from the reading) containing a plan point on the given / active storey."""
+    level = float(doc.work_plane.origin[2]) if z is None else float(z)
+    for storey in read_drawing(doc)["storeys"]:
+        if abs(storey["z"] - level) > 1e-6:
+            continue
+        for room in storey["rooms"]:
+            if inside(room["polygon"], x, y):
+                return room
+    return None

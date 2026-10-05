@@ -229,6 +229,27 @@ def _vent_outlet(v):
     return v
 
 
+def _joist_spacing(v):
+    v = _finite(v)
+    if not 0.25 <= v <= 1.0:
+        raise ValueError('joist spacing must be between 0.25 and 1.00 m')
+    return v
+
+
+def _joist_usage(v):
+    v = str(v)
+    if v not in ('ceiling', 'floor'):
+        raise ValueError('usage must be ceiling or floor')
+    return v
+
+
+def _joist_direction(v):
+    v = str(v)
+    if v not in ('auto', 'x', 'y'):
+        raise ValueError('direction must be auto, x or y')
+    return v
+
+
 def _cable_routing(v):
     v = str(v)
     if v not in ('auto', 'wall', 'floor'):
@@ -544,6 +565,8 @@ SCHEMAS = {
     'electrical_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _electrical_type, 'power_w': _nonnegative,
                          'routing': _cable_routing},
     'plumbing_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _plumbing_type, 'pipe_system': _pipe_system},
+    'ceiling_joists': {'points': _polygon, 'z': _finite, 'spacing': _joist_spacing, 'usage': _joist_usage,
+                       'direction': _joist_direction},
     'ventilation_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _vent_type, 'outlet': _vent_outlet,
                           'airflow': _nonnegative},
     'cabinet': {

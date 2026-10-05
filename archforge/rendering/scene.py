@@ -30,6 +30,7 @@ _MATERIALS: Mapping[str, dict] = {
     "roof_membrane": {"color": "#d8dde2", "roughness": 0.5, "metalness": 0.0},
     "plumbing_point": {"color": "#2d6fb3", "roughness": 0.4, "metalness": 0.1},
     "electrical_point": {"color": "#e08a00", "roughness": 0.4, "metalness": 0.1},
+    "ceiling_joists": {"color": "#c8a46e", "roughness": 0.8, "metalness": 0.0},
     "ventilation_point": {"color": "#b8bec6", "roughness": 0.3, "metalness": 0.6},
     "vent_duct": {"color": "#a9b0b8", "roughness": 0.35, "metalness": 0.7},
     "vent_terminal": {"color": "#5b6470", "roughness": 0.5, "metalness": 0.3},

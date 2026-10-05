@@ -115,7 +115,7 @@ class PlanView(QGraphicsView):
         if event.button()==Qt.MouseButton.LeftButton:
             self._hide_wall_angle_radial()
         if event.button()!=Qt.MouseButton.LeftButton:super().mousePressEvent(event);return
-        if self.controller.tool in self.SITE_POINT_TOOLS or str(self.controller.tool).startswith(('plumb_','elec_','vent_')):
+        if self.controller.tool in self.SITE_POINT_TOOLS or str(self.controller.tool).startswith(('plumb_','elec_','vent_','assist_')):
             ev=self._scene_to_plane(event.position().toPoint())
             self.sitePointRequested.emit(self.controller.tool,float(ev.a),float(ev.b));event.accept();return
         if self.controller.tool in self.VIEW_LINE_TOOLS or self.controller.tool in self.SITE_LINE_TOOLS:
@@ -472,6 +472,9 @@ class PlanView(QGraphicsView):
             # Overhead element (under the ceiling): dashed, drawn at its true Ø.
             pen=QPen(QColor(105,115,128,200));pen.setWidthF(float(dict(p.meta).get('diameter',125))/1000.)
             pen.setStyle(Qt.PenStyle.DashLine);pen.setCapStyle(Qt.PenCapStyle.FlatCap)
+        if p.role=='joist':
+            pen=QPen(QColor(150,105,45) if dict(p.meta).get('ok',True) else QColor(200,40,40));pen.setWidthF(.02);pen.setStyle(Qt.PenStyle.DashLine)
+        if p.role=='joists-area':pen=QPen(QColor(150,105,45,120));pen.setWidthF(.01)
         if p.role in ('vent-terminal','ventilation-point'):pen=QPen(QColor(70,80,95));pen.setWidthF(.015)
         if p.role in ('wall-layer','wall-insulation'):
             pen=QPen(QColor(120,110,95) if p.role=='wall-layer' else QColor(200,150,40));pen.setWidthF(.008)
@@ -493,7 +496,7 @@ class PlanView(QGraphicsView):
             brush=QBrush(
                 QColor(160,160,160,18)
                 if context else
-                (QColor(90,180,120,28) if room else (QColor(150,140,125,70) if p.role=='site-path' else (QColor(255,255,255,1) if p.role=='library-object' else (QColor(236,230,220,120) if p.role=='cabinet' else (QColor(0,0,0,0) if p.role=='cabinet-wall' else QColor(80,160,220,40))))))
+                (QColor(90,180,120,28) if room else (QColor(150,140,125,70) if p.role=='site-path' else (QColor(255,255,255,1) if p.role=='library-object' else (QColor(236,230,220,120) if p.role=='cabinet' else (QColor(0,0,0,0) if p.role in ('cabinet-wall','joists-area') else QColor(80,160,220,40))))))
             )
             room_pen=QPen(QColor(110,150,120));room_pen.setWidthF(.015)
             item=self._scene.addPolygon(QPolygonF([QPointF(x,y) for x,y in p.points]),room_pen if room else pen,brush)

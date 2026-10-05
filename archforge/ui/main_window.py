@@ -643,6 +643,9 @@ class MainWindow(QMainWindow):
         if str(tool).startswith('plumb_'):
             self._place_plumbing_point(tool[len('plumb_'):], x, y)
             return
+        if tool == 'assist_joists':
+            self._assist_joists_at(x, y)
+            return
         if str(tool).startswith('vent_'):
             self._place_ventilation_point(tool[len('vent_'):], x, y)
             return
@@ -1318,6 +1321,27 @@ class MainWindow(QMainWindow):
             combo.currentIndexChanged.connect(
                 lambda _i, widget=combo, entity_id=eid: self._set_entity_choice(entity_id, 'pipe_system', widget.currentData()))
             self.form.addRow('Σύστημα σωλήνων', combo)
+        if entity.kind == 'ceiling_joists':
+            from archforge.structure.joists import USES, size_joists
+            for key, options in (('usage', {k: v[0] for k, v in USES.items()}),
+                                 ('direction', {'auto': 'Αυτόματα (μικρό άνοιγμα)', 'x': 'Κατά X', 'y': 'Κατά Y'})):
+                combo = QComboBox()
+                for value, label in options.items():
+                    combo.addItem(label, value)
+                combo.setCurrentIndex(max(0, combo.findData(params.get(key))))
+                combo.currentIndexChanged.connect(
+                    lambda _i, widget=combo, k=key, entity_id=eid: self._set_entity_choice(entity_id, k, widget.currentData()))
+                self.form.addRow({'usage': 'Χρήση', 'direction': 'Διεύθυνση'}[key], combo)
+            rep = size_joists(params)
+            sec = rep['section']
+            text = (f"Άνοιγμα {rep['span_m']:.2f} m · {rep['count']} δοκίδες ανά {rep['spacing_m'] * 100:.1f} cm<br>"
+                    + (f"Διατομή {sec['b'] * 100:.0f}/{sec['h'] * 100:.0f} C24 · σ {sec['sigma_mpa']}/{sec['f_md_mpa']} MPa · "
+                       f"τ {sec['tau_mpa']}/{sec['f_vd_mpa']} MPa · βέλος {sec['deflection_mm']}/{sec['deflection_limit_mm']} mm"
+                       if sec else '⚠ Καμία τυπική διατομή δεν αρκεί:<br>' + '<br>'.join(rep['proposals']))
+                    + f"<br><i>{rep['provenance']}</i>")
+            label = QLabel(text)
+            label.setWordWrap(True)
+            self.form.addRow('', label)
         if entity.kind == 'ventilation_point':
             from archforge.mep.ventilation import outlet_of
             combo = QComboBox()
@@ -2314,7 +2338,125 @@ class MainWindow(QMainWindow):
         name = self.doc.active_level_name()
         label.setText('Κάτοψη - ' + ('Ισόγειο' if name in ('Ground', 'XY') else name))
 
+    def _build_assistant_panel(self):
+        """Βοηθός: live proposals from rules and solvers over the whole Document (no AI, no network)."""
+        panel = QWidget(self)
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.addWidget(QLabel('<b>ΒΟΗΘΟΣ</b> — προτάσεις από κανόνες & υπολογισμούς, εφαρμογή μόνο με έγκρισή σου'))
+        self.assistant_list = QListWidget(panel)
+        self.assistant_list.currentRowChanged.connect(self._show_assistant_detail)
+        layout.addWidget(self.assistant_list, 2)
+        self.assistant_detail = QLabel(panel)
+        self.assistant_detail.setWordWrap(True)
+        layout.addWidget(self.assistant_detail)
+        row = QHBoxLayout()
+        self.assistant_apply = QPushButton('Εφαρμογή', panel)
+        self.assistant_apply.clicked.connect(self._apply_assistant_proposal)
+        self.assistant_dismiss = QPushButton('Αγνόηση', panel)
+        self.assistant_dismiss.clicked.connect(self._dismiss_assistant_proposal)
+        row.addWidget(self.assistant_apply)
+        row.addWidget(self.assistant_dismiss)
+        layout.addLayout(row)
+        tools = QGroupBox('Εργαλεία υπολογισμού', panel)
+        tools_layout = QVBoxLayout(tools)
+        joists = QPushButton('Διανομή δοκίδων ταβανιού (κλικ σε χώρο)', tools)
+        joists.clicked.connect(lambda: self._start_site_tool(
+            'assist_joists', 'Κλικ μέσα σε χώρο της κάτοψης: οι δοκίδες μοιράζονται και διαστασιολογούνται — Esc για τέλος'))
+        tools_layout.addWidget(joists)
+        self.assistant_joists_button = joists
+        layout.addWidget(tools)
+        seen = QGroupBox('Τι βλέπω στο σχέδιο', panel)
+        seen_layout = QVBoxLayout(seen)
+        self.assistant_reading = QLabel(seen)
+        self.assistant_reading.setWordWrap(True)
+        self.assistant_reading.setText('Το σχέδιο είναι κενό.')
+        self.assistant_reading.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        seen_layout.addWidget(self.assistant_reading)
+        layout.addWidget(seen, 1)
+        self._assistant_proposals = []
+        self._assistant_dismissed = set()
+        return panel
+
+    def _schedule_assistant_refresh(self):
+        if getattr(self, '_assistant_pending', False):
+            return
+        self._assistant_pending = True
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(250, self._refresh_assistant)
+
+    def _refresh_assistant(self):
+        """Re-read the whole Document and rebuild the proposal list."""
+        self._assistant_pending = False
+        if not hasattr(self, 'assistant_list'):
+            return
+        from archforge.assistant.suggestions import propose
+        from archforge.assistant.understanding import describe, read_drawing
+        reading = read_drawing(self.doc)
+        self._assistant_proposals = [p for p in propose(self.doc, reading) if p.key not in self._assistant_dismissed]
+        icons = {'warning': '⚠', 'hint': '💡', 'info': 'ℹ'}
+        self.assistant_list.blockSignals(True)
+        self.assistant_list.clear()
+        for p in self._assistant_proposals:
+            self.assistant_list.addItem(f"{icons[p.severity]} {p.title}")
+        self.assistant_list.blockSignals(False)
+        if not self._assistant_proposals:
+            self.assistant_list.addItem('✓ Καμία εκκρεμότητα με τους τρέχοντες κανόνες')
+        self.assistant_reading.setText(describe(reading) or 'Το σχέδιο είναι κενό.')
+        self.assistant_list.setCurrentRow(0)
+        self._show_assistant_detail(0)
+
+    def _current_assistant_proposal(self):
+        row = self.assistant_list.currentRow() if hasattr(self, 'assistant_list') else -1
+        return self._assistant_proposals[row] if 0 <= row < len(self._assistant_proposals) else None
+
+    def _show_assistant_detail(self, _row):
+        p = self._current_assistant_proposal()
+        self.assistant_detail.setText(f"{p.detail}<br><i>{p.source}</i>" if p else '')
+        self.assistant_apply.setEnabled(bool(p and p.actionable))
+        self.assistant_dismiss.setEnabled(p is not None)
+
+    def _apply_assistant_proposal(self):
+        p = self._current_assistant_proposal()
+        if p is None or not p.actionable:
+            return
+        from archforge.assistant.suggestions import apply
+        apply(self.stack, p)
+        self._redraw_views(all_views=True)
+        self.statusBar().showMessage(f'Βοηθός: εφαρμόστηκε «{p.title}» — Ctrl+Z για αναίρεση', 6000)
+        self._refresh_assistant()
+
+    def _dismiss_assistant_proposal(self):
+        p = self._current_assistant_proposal()
+        if p is not None:
+            self._assistant_dismissed.add(p.key)
+            self._refresh_assistant()
+
+    def _assist_joists_at(self, x, y):
+        """Lay out and size ceiling joists in the room under the click (one undoable command)."""
+        from archforge.assistant.suggestions import joists_entity, room_at
+        from archforge.structure.joists import size_joists
+        room = room_at(self.doc, x, y)
+        if room is None:
+            self.statusBar().showMessage('Βοηθός: δεν βρέθηκε κλειστός χώρος σε αυτό το σημείο', 5000)
+            return None
+        if room['joists']:
+            self.statusBar().showMessage(f"Βοηθός: ο χώρος {room['name']} έχει ήδη δοκίδες — άλλαξέ τες από τις Ιδιότητες", 5000)
+            return None
+        entity = joists_entity(room['polygon'], float(self.doc.work_plane.origin[2]), name=f"Δοκίδες — {room['name']}")
+        self.stack.execute(AddEntity(entity))
+        self._redraw_views(all_views=True)
+        rep = size_joists(entity.params)
+        sec = rep['section']
+        self.statusBar().showMessage(
+            (f"{room['name']}: {rep['count']} δοκίδες {sec['b'] * 100:.0f}/{sec['h'] * 100:.0f} C24 ανά {rep['spacing_m'] * 100:.0f} cm, "
+             f"άνοιγμα {rep['span_m']:.2f} m, αξιοποίηση {sec['utilisation']:.0%}" if sec else
+             f"{room['name']}: καμία τυπική διατομή δεν αρκεί — δες τον Βοηθό για τεχνικές προτάσεις")
+            + ' — προδιάσταση, προς έλεγχο στατικού', 9000)
+        return entity
+
     def _on_document_changed(self):
+        self._schedule_assistant_refresh()
         self._update_plan_title()
         self._refresh_project_tree()
         # Refresh every editor the human can currently see (e.g. 2D + 3D side
