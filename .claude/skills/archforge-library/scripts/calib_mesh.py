@@ -27,26 +27,16 @@ import os
 import sqlite3
 import struct
 import sys
-import tempfile
-import zipfile
+
+import os as _os
+sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from calib_open import connect_ro, open_catalog, resolve  # noqa: E402
 
 MARKER = b"\xcd\xab"
 STRIDE = 162
 SEARCH = 64            # bytes after a marker in which the count may sit
 MAX_ABS = 1.0e5        # coordinates larger than this are not geometry
 UNITS = {"inch": 0.0254, "mm": 0.001, "m": 1.0}
-
-
-def open_catalog(path):
-    """Open a .calib read-only; a .calibz is unzipped to a temp dir first."""
-    if zipfile.is_zipfile(path):
-        with zipfile.ZipFile(path) as z:
-            inner = [n for n in z.namelist() if n.lower().endswith(".calib")]
-            if not inner:
-                raise SystemExit(f"{path}: zip without a .calib inside: {z.namelist()[:10]}")
-            tmp = tempfile.mkdtemp(prefix="calibz-")
-            path = z.extract(inner[0], tmp)
-    return sqlite3.connect(f"file:{path}?mode=ro", uri=True)
 
 
 def _triangles_at(blob, start, n):

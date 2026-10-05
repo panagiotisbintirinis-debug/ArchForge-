@@ -123,3 +123,12 @@ def test_mesh_scanner_rejects_random_bytes():
     rnd = random.Random(1)
     blob = b"\xcd\xab" + bytes(rnd.randrange(256) for _ in range(20000))
     assert _mesh_module().find_meshes(blob) == []
+
+
+def test_calibz_with_embedded_sqlite_is_carved_and_opened(tmp_path):
+    cat = tmp_path / "Inner.calib"
+    _catalog(cat)
+    wrapped = tmp_path / "Bundle.calibz"
+    wrapped.write_bytes(b"HDBUNDLE\x01\x02" + b"\x00" * 50 + cat.read_bytes() + b"\xff\xd8JPEGDATA" * 10)
+    result = _load().inspect(str(wrapped))
+    assert sorted(o["name"] for o in result["objects"]) == ["New Style", "Old Style"]

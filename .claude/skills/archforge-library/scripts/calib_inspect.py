@@ -21,13 +21,17 @@ import struct
 import sys
 import xml.etree.ElementTree as ET
 
+import os as _os
+sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from calib_open import connect_ro, open_catalog, resolve  # noqa: E402
+
 # Object Type values observed so far (LibraryObjects.Type).  Unknown types are
 # reported as "type-<n>" rather than guessed.
 KNOWN_TYPES = {8: "material", 10: "backdrop"}
 
 
 def _open_readonly(path):
-    return sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    return open_catalog(path)
 
 
 def _tree(conn):

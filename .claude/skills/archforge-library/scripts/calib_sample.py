@@ -18,26 +18,17 @@ import argparse
 import os
 import sqlite3
 import sys
-import tempfile
-import zipfile
+
+import os as _os
+sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from calib_open import connect_ro, open_catalog, resolve  # noqa: E402
 
 # Tables without a LibraryObjectId column are copied whole only if small.
 SMALL_TABLE_BYTES = 2 * 1024 * 1024
 
 
-def _unpack(path):
-    """A .calibz is a zip holding the .calib (plus textures): use the inner .calib."""
-    if zipfile.is_zipfile(path):
-        with zipfile.ZipFile(path) as z:
-            inner = [n for n in z.namelist() if n.lower().endswith(".calib")]
-            if not inner:
-                raise SystemExit(f"{path}: zip without a .calib inside")
-            return z.extract(inner[0], tempfile.mkdtemp(prefix="calibz-"))
-    return path
-
-
 def _ro(path):
-    return sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    return connect_ro(path)
 
 
 def _tables(conn):
@@ -130,7 +121,7 @@ def main(argv=None):
     ap.add_argument("--count", type=int, default=3)
     ap.add_argument("--ids", help="comma-separated LibraryObjectId values")
     a = ap.parse_args(argv)
-    a.source = _unpack(a.source)
+    a.source = resolve(a.source)
     conn = _ro(a.source)
     st = stats(conn)
     print("Object types:", st["types"])
