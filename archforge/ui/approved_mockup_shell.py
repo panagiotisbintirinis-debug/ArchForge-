@@ -173,6 +173,18 @@ def install_approved_mockup_shell(window):
         a.triggered.connect(lambda _=False,k=key,l=label: window._start_site_tool(f"plumb_{k}",f"{l}: κλικ στην κάτοψη — οι σωληνώσεις χαράζονται αυτόματα, Esc για τέλος"))
         plumbing.addAction(a)
     window._mockup_plumbing_menu=plumbing
+    from archforge.mep.electrical import POINT_TYPES as ELEC
+    electrical=QMenu("Ηλεκτρολογικά σημεία",mep_menu); mep_menu.addMenu(electrical)
+    for key,(label,_g,_w,_h,_l) in ELEC.items():
+        a=QAction(label,window)
+        a.triggered.connect(lambda _=False,k=key,l=label: window._start_site_tool(f"elec_{k}",f"{l}: κλικ στην κάτοψη — τα κυκλώματα σχηματίζονται αυτόματα, Esc για τέλος"))
+        electrical.addAction(a)
+    window._mockup_electrical_menu=electrical
+    schedule=QAction("Πίνακας κυκλωμάτων…",window); schedule.triggered.connect(lambda: window._show_circuit_schedule())
+    mep_menu.addAction(schedule)
+    elec_layer=QAction("Ηλεκτρολογικά στο 3D",window); elec_layer.setCheckable(True); elec_layer.setChecked(True)
+    elec_layer.toggled.connect(lambda on: window._set_layer_visible("elec",on))
+    mep_menu.addAction(elec_layer); window.view_menu.addAction(elec_layer); window._elec_layer_action=elec_layer
     layer=QAction("Μηχανολογικά στο 3D",window); layer.setCheckable(True); layer.setChecked(True)
     layer.toggled.connect(lambda on: window._set_layer_visible("mep",on))
     mep_menu.addAction(layer); window.view_menu.addAction(layer); window._mep_layer_action=layer

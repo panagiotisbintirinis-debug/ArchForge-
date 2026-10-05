@@ -147,6 +147,14 @@ def _plumbing_type(v):
     return v
 
 
+def _electrical_type(v):
+    from archforge.mep.electrical import POINT_TYPES
+    v = str(v)
+    if v not in POINT_TYPES:
+        raise ValueError(f'electrical point must be one of {", ".join(POINT_TYPES)}')
+    return v
+
+
 def _count(v):
     value = int(round(float(v)))
     if not 0 <= value <= 20:
@@ -448,6 +456,7 @@ SCHEMAS = {
         'x': _finite, 'y': _finite, 'z': _finite, 'height': _positive, 'canopy': _positive,
         'species': _plant_species,
     },
+    'electrical_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _electrical_type, 'power_w': _nonnegative},
     'plumbing_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _plumbing_type},
     'cabinet': {
         'x': _finite, 'y': _finite, 'z': _finite, 'rotation': _finite,

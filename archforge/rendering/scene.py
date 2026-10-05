@@ -19,6 +19,7 @@ _MATERIALS: Mapping[str, dict] = {
     "plant_trunk": {"color": "#6b4a2f", "roughness": 0.9, "metalness": 0.0},
     "library_object": {"color": "#b9b2a6", "roughness": 0.6, "metalness": 0.0},
     "plumbing_point": {"color": "#2d6fb3", "roughness": 0.4, "metalness": 0.1},
+    "electrical_point": {"color": "#e08a00", "roughness": 0.4, "metalness": 0.1},
     "mep_cold": {"color": "#1f6fd1", "roughness": 0.35, "metalness": 0.0},
     "mep_hot": {"color": "#d1301f", "roughness": 0.35, "metalness": 0.0},
     "cabinet_carcass": {"color": "#e9e5dd", "roughness": 0.6, "metalness": 0.0},
@@ -252,6 +253,20 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                     "surfaces": ["pipe"] * len(tris),
                     "material": dict(_MATERIALS[f"mep_{system}"]),
                 })
+        # Derived cable runs (layer "elec"), one mesh per circuit kind.
+        if any(e.kind == "electrical_point" for e in doc.entities.values()):
+            from archforge.mep.electrical import CABLE_COLORS, route_cables_cached
+            groups = {}
+            for a, b, group, _cid in route_cables_cached(doc)["runs"]:
+                v, t = pipe_mesh(a, b, 25, sides=6)
+                g = groups.setdefault(group, ([], []))
+                base = len(g[0])
+                g[0].extend(list(map(float, q)) for q in v)
+                g[1].extend([base + i for i in tri] for tri in t)
+            for group, (verts, tris) in groups.items():
+                objects.append({"id": "", "render_part": f"elec:{group}", "kind": "elec_cable", "layer": "elec",
+                                "vertices": verts, "triangles": tris, "surfaces": ["cable"] * len(tris),
+                                "material": {"color": CABLE_COLORS.get(group, "#e07a00"), "roughness": 0.5, "metalness": 0.0}})
         # Door/window fixtures fill the wall holes (render only, see fixtures.py).
         from archforge.rendering.fixtures import opening_fixture_parts
         for entity in list(doc.entities.values()):

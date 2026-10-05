@@ -637,6 +637,9 @@ class MainWindow(QMainWindow):
         if tool == 'library_place':
             self._place_library_object(x, y)
             return
+        if str(tool).startswith('elec_'):
+            self._place_electrical_point(tool[len('elec_'):], x, y)
+            return
         if str(tool).startswith('plumb_'):
             self._place_plumbing_point(tool[len('plumb_'):], x, y)
             return
@@ -867,6 +870,33 @@ class MainWindow(QMainWindow):
             f"{label} · κρύο {report['cold_m']:.1f} m, ζεστό {report['hot_m']:.1f} m{extra} — προμελέτη, προς έλεγχο μηχανολόγου",
             7000)
         return point
+
+    def _place_electrical_point(self, point_type, x, y):
+        """Add an electrical point; circuits and cables are re-derived automatically."""
+        from archforge.mep.electrical import POINT_TYPES, route_cables_cached
+        label = POINT_TYPES[point_type][0]
+        point = Entity('electrical_point', {'x': float(x), 'y': float(y), 'z': float(self.doc.work_plane.origin[2]),
+                                            'point_type': point_type, 'power_w': float(POINT_TYPES[point_type][2])}, name=label)
+        self.stack.execute(AddEntity(point))
+        self._redraw_views(all_views=True)
+        wiring = route_cables_cached(self.doc)
+        circuit = next((c for c in wiring['circuits'] if point.id in c['points']), None)
+        where = f" → {circuit['id']} {circuit['label']} ({circuit['breaker_a']} A, {circuit['cable_mm2']} mm²)" if circuit else ''
+        warn = f" · ⚠ {wiring['report']['warnings'][0]}" if wiring['report']['warnings'] else ''
+        self.statusBar().showMessage(f'{label}{where}{warn} — προμελέτη, προς έλεγχο ηλεκτρολόγου', 8000)
+        return point
+
+    def _show_circuit_schedule(self):
+        """Panel schedule of the derived circuits (pre-design)."""
+        from archforge.mep.electrical import route_cables_cached
+        wiring = route_cables_cached(self.doc)
+        lines = [f"{c['id']}  {c['label']}: {c['breaker_a']} A, {c['cable_mm2']} mm², {len(c['points'])} σημεία, "
+                 f"{c['load_w']} W ({c['current_a']} A){'' if c['ok'] else '  ⚠'}" for c in wiring['circuits']]
+        lines += [''] + wiring['report']['warnings'] + ['', f"Καλώδια ≈ {wiring['report'].get('cable_m', 0)} m",
+                                                         'Όλα τα κυκλώματα πίσω από διαφορικό 30 mA.', '', wiring['report']['provenance']]
+        QMessageBox.information(self, 'Πίνακας κυκλωμάτων', '\n'.join(lines) if wiring['circuits'] else
+                                'Δεν υπάρχουν κυκλώματα: βάλτε πίνακα και σημεία.')
+        return wiring
 
     def _set_layer_visible(self, layer, visible):
         hidden = set(getattr(self.pbr_view, 'hidden_layers', set()))
