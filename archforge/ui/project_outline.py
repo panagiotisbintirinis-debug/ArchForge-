@@ -88,56 +88,160 @@ def _label(entity):
     return base
 
 
-def _rooms(doc, z):
-    try:
-        from archforge.architecture.topology import room_metrics
-        out = []
-        for index, face in enumerate(doc.active_room_faces(z=z), start=1):
-            data = doc.room_metadata(face.signature)
-            area = room_metrics(face.polygon)["area"]
-            out.append(f"{data.get('name') or f'Room {index}'}  {area:.2f} m²")
-        return out
-    except Exception:
-        return []
+def _natural(text):
+    """Sort key so that Κ2 comes before Κ10."""
+    import re
+    return [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", text)]
+
+
+def _node(label, entity_id=None, level=None, children=None):
+    return {"label": label, "entity_id": entity_id, "level": level, "children": children or []}
+
+
+def _group(title, ids, doc, level, labels, extra=""):
+    return _node(f"{title} ({len(ids)}){extra}", None, level,
+                 [_node(labels.get(i) or _label(doc.get(i)), i, level) for i in ids])
+
+
+def _categorise(ids, doc):
+    """[(category title, ids)] in CATEGORIES order, then the rest."""
+    out, listed = [], set()
+    for title, kinds in CATEGORIES + (("Υδραυλικά", ("plumbing_point",)), ("Ηλεκτρολογικά", ("electrical_point",)),
+                                      ("Εξαερισμοί", ("ventilation_point",)), ("Δοκίδες", ("ceiling_joists",)),
+                                      ("Στέγες", ("pitched_roof",)), ("Στοιχεία στατικής", ("structural_design",))):
+        group = [i for i in ids if doc.get(i).kind in kinds]
+        listed.update(group)
+        if group:
+            out.append((title, group))
+    rest = [i for i in ids if i not in listed]
+    if rest:
+        out.append(("Άλλα", rest))
+    return out
+
+
+def _labels_from_analysis(doc):
+    """Member names (Κ1, Δ1 …) shared with the structural analysis, plus its results when up to date."""
+    labels = {}
+    if not any(e.kind in ("structural_column", "structural_beam") for e in doc.entities.values()):
+        return labels
+    from archforge.structure.analysis import fresh_result
+    from archforge.structure.analysis.building import read_members
+    members, _excluded = read_members(doc)
+    result = fresh_result(doc) or {}
+    for mid, m in members.items():
+        info = result.get("members", {}).get(mid)
+        if info:
+            bars = info.get("bars") or info.get("bottom")
+            extra = f" {bars['n']}Ø{bars['d']}" if bars and m.kind == "column" else ""
+            labels[mid] = (f"{info['name']} {info.get('section', '')}{extra} · {min(info.get('utilisation', 0), 9.99):.0%}"
+                           + ("" if info.get("ok", True) else " ⚠"))
+        else:
+            size = m.profile or f"{m.b * 100:.0f}/{m.h * 100:.0f}"
+            labels[mid] = f"{m.name} {size}"
+    return labels
+
+
+def _mep_summary(doc):
+    """One line per derived network, keyed by kind (no layers: these are the networks themselves)."""
+    out = {}
+    kinds = {e.kind for e in doc.entities.values()}
+    if "plumbing_point" in kinds:
+        from archforge.mep.plumbing import route_plumbing_cached
+        r = route_plumbing_cached(doc)["report"]
+        out["plumbing_point"] = f" · κρύο {r['cold_m']:.1f} m, ζεστό {r['hot_m']:.1f} m"
+    if "electrical_point" in kinds:
+        from archforge.mep.electrical import route_cables_cached
+        out["electrical_point"] = f" · {len(route_cables_cached(doc)['circuits'])} κυκλώματα"
+    if "ventilation_point" in kinds:
+        from archforge.mep.ventilation import route_ventilation_cached
+        out["ventilation_point"] = f" · αεραγωγοί {route_ventilation_cached(doc)['report']['duct_m']:.1f} m"
+    return out
 
 
 def project_outline(doc, title="Έργο"):
-    levels = _levels(doc)
-    by_level = {name: {} for name, _z in levels}
-    site = []
-    for eid, e in doc.entities.items():
-        if e.kind in SITE:
-            site.append(eid)
-            continue
-        level = entity_level(doc, e, levels)
-        by_level.setdefault(level, {}).setdefault(e.kind, []).append(eid)
+    """The construction tree: storeys → rooms (with what is in them), walls (with their openings),
+    load-bearing structure, then everything else — every entity exactly once, all from one reading."""
+    from archforge.assistant.understanding import USE_LABELS, read_drawing
+
+    import math
+    reading = read_drawing(doc)
+    labels = _labels_from_analysis(doc)
+    mep = _mep_summary(doc)
+    placed = set()
     children = []
-    for name, z in levels:
-        kinds = by_level.get(name, {})
+    for storey in reading["storeys"]:
+        name, z = storey["name"], storey["z"]
         groups = []
-        rooms = _rooms(doc, z)
-        if rooms:
-            groups.append({"label": f"Δωμάτια ({len(rooms)})", "entity_id": None, "level": name,
-                           "children": [{"label": r, "entity_id": None, "level": name, "children": []} for r in rooms]})
-        listed = set()
-        for title_, kind_list in CATEGORIES:
-            ids = [eid for k in kind_list for eid in kinds.get(k, [])]
-            listed.update(kind_list)
-            if ids:
-                groups.append({"label": f"{title_} ({len(ids)})", "entity_id": None, "level": name,
-                               "children": [{"label": _label(doc.get(i)), "entity_id": i, "level": name, "children": []}
-                                            for i in ids]})
-        other = [eid for k, ids in kinds.items() if k not in listed for eid in ids]
-        if other:
-            groups.append({"label": f"Άλλα ({len(other)})", "entity_id": None, "level": name,
-                           "children": [{"label": _label(doc.get(i)), "entity_id": i, "level": name, "children": []}
-                                        for i in other]})
-        children.append({"label": f"{name}  ({z:+.2f} m)", "entity_id": None, "level": name, "children": groups})
+        # Rooms and what is inside them.
+        if storey["rooms"]:
+            rooms = []
+            for r in storey["rooms"]:
+                use = f" · {USE_LABELS[r['use']]}" if r["use"] else ""
+                inner = []
+                for cat, ids in _categorise([i for i in r["contents"] if i not in placed], doc):
+                    placed.update(ids)
+                    inner.append(_group(cat, ids, doc, name, labels))
+                rooms.append(_node(f"{r['name']}{use} · {r['size_m'][0]:.2f}×{r['size_m'][1]:.2f} m · {r['area_m2']:.2f} m²",
+                                   None, name, inner))
+            groups.append(_node(f"Δωμάτια ({len(rooms)})", None, name, rooms))
+        # Walls, exterior / interior, each with its openings.
+        walls = [e for e in doc.entities.values() if e.kind == "wall" and entity_level(doc, e) == name]
+        if walls:
+            ext = set(storey["exterior_walls"])
+            sub = []
+            for title_, part in (("Εξωτερικοί", [w for w in walls if w.id in ext]),
+                                 ("Εσωτερικοί", [w for w in walls if w.id not in ext])):
+                if not part:
+                    continue
+                length = sum(math.hypot(float(w.params["x2"]) - float(w.params["x1"]),
+                                        float(w.params["y2"]) - float(w.params["y1"])) for w in part)
+                nodes = []
+                for w in part:
+                    openings = [e.id for e in doc.entities.values()
+                                if e.kind in ("door", "window", "opening") and e.parent_id == w.id]
+                    placed.update(openings)
+                    label = _label(w) + f" · {float(w.params['thickness']) * 100:.0f} cm"
+                    nodes.append(_node(label, w.id, name, [_node(_label(doc.get(o)) + f" {float(doc.get(o).params.get('width', 0)):.2f} m", o, name)
+                                                           for o in openings]))
+                    placed.add(w.id)
+                sub.append(_node(f"{title_} ({len(part)}) · {length:.2f} m", None, name, nodes))
+            groups.append(_node(f"Τοίχοι ({len(walls)})", None, name, sub))
+        # Load-bearing structure, with the analysis names and results.
+        cols = [i for i in storey["columns"] if i not in placed]
+        beams = [i for i in storey["beams"] if i not in placed]
+        structure = [i for i, e in doc.entities.items() if e.kind in ("structural_support", "structural_load")
+                     and i not in placed and entity_level(doc, e) == name]
+        if cols or beams or structure:
+            sub = []
+            for title_, ids in (("Κολώνες", cols), ("Δοκοί", beams), ("Στηρίξεις & φορτία", structure)):
+                if ids:
+                    ids = sorted(ids, key=lambda i: _natural(labels.get(i, _label(doc.get(i)))))
+                    sub.append(_group(title_, ids, doc, name, labels))
+                    placed.update(ids)
+            groups.append(_node(f"Φέρων οργανισμός ({len(cols) + len(beams) + len(structure)})", None, name, sub))
+        # Everything else on this storey (outside rooms).
+        rest = [i for i, e in doc.entities.items() if i not in placed and e.kind not in SITE
+                and entity_level(doc, e) == name and e.kind != "structural_design"]
+        for cat, ids in _categorise(rest, doc):
+            placed.update(ids)
+            groups.append(_group(cat, ids, doc, name, labels))
+        summary = f"{storey['walls']} τοίχοι {storey['wall_length_m']:.1f} m · {len(storey['rooms'])} χώροι"
+        if storey["columns"] or storey["beams"]:
+            summary += f" · {len(storey['columns'])} κολώνες · {len(storey['beams'])} δοκοί"
+        children.append(_node(f"{name}  ({z:+.2f} m) · {summary}" if storey["walls"] or storey["columns"] else f"{name}  ({z:+.2f} m)",
+                              None, name, groups))
+    # Derived networks (whole building): one line each, from the same points.
+    if mep:
+        names = {"plumbing_point": "Υδραυλικό δίκτυο", "electrical_point": "Ηλεκτρολογικό δίκτυο",
+                 "ventilation_point": "Αεραγωγοί"}
+        children.append(_node("Η/Μ δίκτυα", None, None, [_node(names[k] + v, None, None) for k, v in mep.items()]))
+    site = [i for i, e in doc.entities.items() if e.kind in SITE]
     if site:
-        children.append({"label": f"Οικόπεδο ({len(site)})", "entity_id": None, "level": None,
-                         "children": [{"label": _label(doc.get(i)), "entity_id": i, "level": None, "children": []}
-                                      for i in site]})
-    return {"label": title, "entity_id": None, "level": None, "children": children}
+        children.append(_node(f"Οικόπεδο ({len(site)})", None, None, [_node(_label(doc.get(i)), i, None) for i in site]))
+    design = [i for i, e in doc.entities.items() if e.kind == "structural_design"]
+    if design:
+        children.append(_node("Στοιχεία στατικής", design[0], None))
+    return _node(title, None, None, children)
 
 
 def used_materials(doc):

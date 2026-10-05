@@ -431,6 +431,12 @@ class PlanView(QGraphicsView):
             pen=QPen(QColor(200,60,40));pen.setWidthF(.05);pen.setStyle(Qt.PenStyle.DashLine)
             (ax,ay),(bx,by)=drag;self._scene.addLine(ax,ay,bx,by,pen).setZValue(30)
             dot=QPen(QColor(200,60,40));dot.setWidthF(.05);self._scene.addEllipse(ax-.12,ay-.12,.24,.24,dot,QBrush(QColor(200,60,40))).setZValue(30)
+        marker=getattr(self,'assistant_marker',None)
+        if marker is not None:
+            # Assistant marker: where the human pointed (UI state, not part of the Document).
+            mx,my=marker;red=QColor(220,30,40);pen=QPen(red);pen.setWidthF(.04)
+            self._scene.addEllipse(mx-.18,my-.18,.36,.36,pen,QBrush(QColor(220,30,40,60))).setZValue(40)
+            self._scene.addLine(mx-.32,my,mx+.32,my,pen).setZValue(40);self._scene.addLine(mx,my-.32,mx,my+.32,pen).setZValue(40)
         r=self.mapToScene(self.viewport().rect()).boundingRect();self._scene.setSceneRect(r.adjusted(-5,-5,5,5))
         self.previewChanged.emit(copy.deepcopy(self.controller.preview))
     def _draw_grid(self):

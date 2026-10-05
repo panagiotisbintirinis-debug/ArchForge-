@@ -643,6 +643,9 @@ class MainWindow(QMainWindow):
         if str(tool).startswith('plumb_'):
             self._place_plumbing_point(tool[len('plumb_'):], x, y)
             return
+        if tool == 'assist_point':
+            self._assistant_target_at(x, y)
+            return
         if tool == 'assist_joists':
             self._assist_joists_at(x, y)
             return
@@ -821,11 +824,37 @@ class MainWindow(QMainWindow):
             for child in node['children']:
                 add(item, child)
             return item
+        # Keep what the human had opened: key = path of labels without the live counts.
+        import re
+
+        def key(item):
+            parts = []
+            while item is not None:
+                parts.append(re.split(r' \(| ·', item.text(0))[0])
+                item = item.parent()
+            return tuple(reversed(parts))
+
+        opened = set()
+
+        def remember(item):
+            if item.isExpanded():
+                opened.add(key(item))
+            for i in range(item.childCount()):
+                remember(item.child(i))
+        first_build = tree.topLevelItemCount() == 0
+        for i in range(tree.topLevelItemCount()):
+            remember(tree.topLevelItem(i))
         tree.clear()
         root = add(tree, outline)
         root.setExpanded(True)
-        for i in range(root.childCount()):
-            root.child(i).setExpanded(True)
+
+        def restore(item, depth):
+            if (first_build and depth <= 1) or key(item) in opened:
+                item.setExpanded(True)
+            for i in range(item.childCount()):
+                restore(item.child(i), depth + 1)
+        restore(root, 0)
+        self._sync_tree_selection()
         levels_list = getattr(self, '_project_levels_list', None)
         if levels_list is not None:
             levels_list.clear()
@@ -838,6 +867,34 @@ class MainWindow(QMainWindow):
             materials_list.clear()
             for _mid, name, count in used_materials(self.doc):
                 materials_list.addItem(f'{name}   ×{count}')
+
+    def _sync_tree_selection(self):
+        """Highlight in the tree what is selected in the drawing (one selection everywhere)."""
+        tree = getattr(self, 'project_tree', None)
+        if tree is None or not hasattr(tree, 'invisibleRootItem'):
+            return
+        wanted = set(self.doc.selection or ())
+
+        def walk(item):
+            if item.data(0, Qt.ItemDataRole.UserRole) in wanted:
+                return item
+            for i in range(item.childCount()):
+                hit = walk(item.child(i))
+                if hit is not None:
+                    return hit
+            return None
+        hit = walk(tree.invisibleRootItem()) if wanted else None
+        tree.blockSignals(True)
+        if hit is not None:
+            parent = hit.parent()
+            while parent is not None:
+                parent.setExpanded(True)
+                parent = parent.parent()
+            tree.setCurrentItem(hit)
+            tree.scrollToItem(hit)
+        else:
+            tree.setCurrentItem(None)
+        tree.blockSignals(False)
 
     def _project_tree_clicked(self, item):
         entity_id = item.data(0, Qt.ItemDataRole.UserRole)
@@ -1285,6 +1342,7 @@ class MainWindow(QMainWindow):
 
     def refresh_inspector(self):
         self._clear_form()
+        self._sync_tree_selection()
         if len(self.doc.selection) != 1:
             self.form.addRow(QLabel(f'{len(self.doc.selection)} selected'))
             return
@@ -2373,14 +2431,43 @@ class MainWindow(QMainWindow):
         tools_layout.addWidget(joists)
         self.assistant_joists_button = joists
         layout.addWidget(tools)
-        seen = QGroupBox('Τι βλέπω στο σχέδιο', panel)
-        seen_layout = QVBoxLayout(seen)
-        self.assistant_reading = QLabel(seen)
-        self.assistant_reading.setWordWrap(True)
-        self.assistant_reading.setText('Το σχέδιο είναι κενό.')
-        self.assistant_reading.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        seen_layout.addWidget(self.assistant_reading)
-        layout.addWidget(seen, 1)
+        target_box = QGroupBox('Στόχος', panel)
+        target_layout = QVBoxLayout(target_box)
+        pick_row = QHBoxLayout()
+        self.assistant_pick = QPushButton('📍 Δείξε στην κάτοψη', target_box)
+        self.assistant_pick.clicked.connect(lambda: self._start_site_tool(
+            'assist_point', 'Κλικ εκεί που θέλεις να επέμβει ο Βοηθός — Esc για τέλος'))
+        self.assistant_from_selection = QPushButton('Στόχος = επιλογή (2D/3D)', target_box)
+        self.assistant_from_selection.clicked.connect(self._assistant_target_from_selection)
+        clear = QPushButton('✕', target_box)
+        clear.setMaximumWidth(32)
+        clear.clicked.connect(lambda: self._set_assistant_target(None))
+        pick_row.addWidget(self.assistant_pick)
+        pick_row.addWidget(self.assistant_from_selection)
+        pick_row.addWidget(clear)
+        target_layout.addLayout(pick_row)
+        self.assistant_target_label = QLabel('Κανένας στόχος — οι προτάσεις αφορούν όλο το έργο', target_box)
+        self.assistant_target_label.setWordWrap(True)
+        target_layout.addWidget(self.assistant_target_label)
+        self.assistant_actions = QListWidget(target_box)
+        self.assistant_actions.setMaximumHeight(120)
+        self.assistant_actions.itemDoubleClicked.connect(lambda item: self._run_assistant_action(self.assistant_actions.row(item)))
+        target_layout.addWidget(self.assistant_actions)
+        ask_row = QHBoxLayout()
+        self.assistant_text = QLineEdit(target_box)
+        self.assistant_text.setPlaceholderText('Τι θέλεις εδώ; π.χ. «βάλε εξαερισμό», «μεγάλωσε τη δοκό»')
+        self.assistant_text.returnPressed.connect(self._assistant_ask)
+        ask = QPushButton('Εκτέλεση', target_box)
+        ask.clicked.connect(self._assistant_ask)
+        ask_row.addWidget(self.assistant_text)
+        ask_row.addWidget(ask)
+        target_layout.addLayout(ask_row)
+        self.assistant_reply = QLabel(target_box)
+        self.assistant_reply.setWordWrap(True)
+        target_layout.addWidget(self.assistant_reply)
+        layout.addWidget(target_box)
+        self._assistant_target = None
+        self._assistant_target_actions = []
         self._assistant_proposals = []
         self._assistant_dismissed = set()
         return panel
@@ -2464,11 +2551,65 @@ class MainWindow(QMainWindow):
         buttons.rejected.connect(dialog.reject)
         layout.addWidget(buttons)
         self._structural_report = browser
+        self._refresh_project_tree()
         self._schedule_assistant_refresh()
         self._redraw_views(all_views=True)
         if not getattr(self, '_no_modal_dialogs', False):
             dialog.exec()
         return result
+
+    def _set_assistant_target(self, target):
+        """Point the assistant at one thing (or nothing); the plan shows the marker."""
+        self._assistant_target = target
+        self.plan_view.assistant_marker = (target.x, target.y) if target is not None else None
+        dock = getattr(self, '_assistant_dock', None)
+        if dock is not None and target is not None:
+            dock.show()
+            dock.raise_()
+        self.plan_view.redraw()
+        self._refresh_assistant()
+        return target
+
+    def _assistant_target_at(self, x, y):
+        from archforge.assistant.target import target_at
+        return self._set_assistant_target(target_at(self.doc, x, y))
+
+    def _assistant_target_from_selection(self):
+        from archforge.assistant.target import target_of_entity
+        if len(self.doc.selection) != 1:
+            self.assistant_reply.setText('Επίλεξε πρώτα ένα αντικείμενο στην κάτοψη ή στο 3D.')
+            return None
+        return self._set_assistant_target(target_of_entity(self.doc, self.doc.selection[0]))
+
+    def _run_assistant_action(self, row):
+        from archforge.assistant.suggestions import apply, Proposal
+        if not 0 <= row < len(self._assistant_target_actions):
+            return None
+        action = self._assistant_target_actions[row]
+        apply(self.stack, Proposal(action.key, 'hint', action.label, '', '', (), action.build, run=action.run))
+        self._refresh_project_tree()
+        self._redraw_views(all_views=True)
+        self.assistant_reply.setText(f'✓ {action.label}' + ('' if action.run else ' — Ctrl+Z για αναίρεση'))
+        self.statusBar().showMessage(f'Βοηθός: {action.label}', 6000)
+        self._refresh_assistant()
+        return action
+
+    def _assistant_ask(self):
+        """Typed request for the pointed target, matched to the available actions (keywords, no AI)."""
+        from archforge.assistant.target import match
+        text = self.assistant_text.text().strip()
+        if not text:
+            return None
+        if self._assistant_target is None:
+            self.assistant_reply.setText('Δείξε πρώτα πού (📍 ή «Στόχος = επιλογή»), ώστε να ξέρω σε τι αναφέρεσαι.')
+            return None
+        action = match(text, self._assistant_target_actions)
+        if action is None:
+            options = '; '.join(a.label for a in self._assistant_target_actions) or 'καμία αυτόματη ενέργεια'
+            self.assistant_reply.setText(f'Δεν το αντιστοίχισα. Εδώ μπορώ: {options}.')
+            return None
+        self.assistant_text.clear()
+        return self._run_assistant_action(self._assistant_target_actions.index(action))
 
     def _schedule_assistant_refresh(self):
         if getattr(self, '_assistant_pending', False):
@@ -2483,9 +2624,29 @@ class MainWindow(QMainWindow):
         if not hasattr(self, 'assistant_list'):
             return
         from archforge.assistant.suggestions import propose
-        from archforge.assistant.understanding import describe, read_drawing
+        from archforge.assistant.understanding import read_drawing
         reading = read_drawing(self.doc)
         self._assistant_proposals = [p for p in propose(self.doc, reading) if p.key not in self._assistant_dismissed]
+        target = getattr(self, '_assistant_target', None)
+        if target is not None and target.entity_id and target.entity_id not in self.doc.entities:
+            target = self._assistant_target = None                 # the pointed object was deleted
+            self.plan_view.assistant_marker = None
+        if target is not None:
+            from archforge.assistant.target import actions_for, describe_entity
+            if target.entity_id:
+                target.label = describe_entity(self.doc, self.doc.get(target.entity_id))
+            mine = {target.entity_id, (target.room or {}).get('signature')} - {None}
+            # Proposals about the pointed thing first, then the rest of the project.
+            self._assistant_proposals.sort(key=lambda p: 0 if set(p.targets) & mine else 1)
+            self._assistant_target_actions = actions_for(self.doc, target)
+            self.assistant_target_label.setText(f'<b>{target.label}</b>' + (
+                f"<br>στον χώρο: {target.room['name']}" if target.room and target.kind != 'room' else ''))
+        else:
+            self._assistant_target_actions = []
+            self.assistant_target_label.setText('Κανένας στόχος — οι προτάσεις αφορούν όλο το έργο')
+        self.assistant_actions.clear()
+        for a in self._assistant_target_actions:
+            self.assistant_actions.addItem(f"▶ {a.label}" + (f" — {a.info}" if a.info else ''))
         icons = {'warning': '⚠', 'hint': '💡', 'info': 'ℹ'}
         self.assistant_list.blockSignals(True)
         self.assistant_list.clear()
@@ -2494,7 +2655,6 @@ class MainWindow(QMainWindow):
         self.assistant_list.blockSignals(False)
         if not self._assistant_proposals:
             self.assistant_list.addItem('✓ Καμία εκκρεμότητα με τους τρέχοντες κανόνες')
-        self.assistant_reading.setText(describe(reading) or 'Το σχέδιο είναι κενό.')
         self.assistant_list.setCurrentRow(0)
         self._show_assistant_detail(0)
 
@@ -2514,6 +2674,7 @@ class MainWindow(QMainWindow):
             return
         from archforge.assistant.suggestions import apply
         apply(self.stack, p)
+        self._refresh_project_tree()
         self._redraw_views(all_views=True)
         self.statusBar().showMessage('Βοηθός: η στατική ανάλυση ολοκληρώθηκε — Δομικά → Στατική ανάλυση για το τεύχος'
                                      if p.run == 'analyze' else f'Βοηθός: εφαρμόστηκε «{p.title}» — Ctrl+Z για αναίρεση', 6000)

@@ -145,7 +145,15 @@ def test_panel_lists_proposals_applies_and_joist_tool_works():
         window._refresh_assistant()
         titles = [window.assistant_list.item(i).text() for i in range(window.assistant_list.count())]
         assert any('χωρίς απαγωγή' in t for t in titles)
-        assert 'WC' in window.assistant_reading.text()
+        window._refresh_project_tree()
+        tree_text = []
+
+        def walk(item):
+            tree_text.append(item.text(0))
+            for i in range(item.childCount()):
+                walk(item.child(i))
+        walk(window.project_tree.invisibleRootItem())
+        assert any('WC' in t and 'm²' in t for t in tree_text)            # the reading lives in the project tree
         row = next(i for i, p in enumerate(window._assistant_proposals) if p.key.startswith('V-1'))
         window.assistant_list.setCurrentRow(row)
         assert window.assistant_apply.isEnabled()

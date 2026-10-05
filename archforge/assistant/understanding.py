@@ -72,12 +72,29 @@ def _opening_sides(doc, e):
     return ((cx - uy * d, cy + ux * d), (cx + uy * d, cy - ux * d))
 
 
-def read_drawing(doc):
-    """``{"storeys": [...], "counts": {...}}`` — the assistant's reading of the model."""
-    from archforge.mep.ventilation import exterior_walls
+# Positioned things that live inside a room (listed under it in the project tree).
+ROOM_CONTENT_KINDS = ("plumbing_point", "electrical_point", "ventilation_point", "ceiling_joists", "cabinet",
+                      "kitchen_part", "library_object", "box", "mechanical_part", "mep_terminal", "stair", "ramp")
 
-    levels = sorted({(float(z), str(name)) for name, z in doc.levels.items()} or {(0.0, "Ground")})
+
+def _plan_point(e):
+    p = e.params
+    if "points" in p and p["points"]:
+        return centroid([(float(q[0]), float(q[1])) for q in p["points"]])
+    if "x" in p and "y" in p:
+        return float(p["x"]), float(p["y"])
+    return None
+
+
+def read_drawing(doc):
+    """``{"storeys": [...], "counts": {...}}`` — one reading of the model shared by the assistant and the project tree."""
+    from archforge.mep.ventilation import exterior_walls
+    from archforge.ui.project_outline import _levels, entity_level
+
+    named = _levels(doc)
+    levels = [(z, name) for name, z in named]
     entities = list(doc.entities.values())
+    level_of = {e.id: entity_level(doc, e, named) for e in entities}
     counts = {}
     for e in entities:
         counts[e.kind] = counts.get(e.kind, 0) + 1
@@ -105,9 +122,13 @@ def read_drawing(doc):
                     "size_m": (round(max(p[0] for p in poly) - min(p[0] for p in poly), 2),
                                round(max(p[1] for p in poly) - min(p[1] for p in poly), 2)),
                     "plumbing": [], "electrical": [], "ventilation": [], "windows": [], "doors": [], "joists": [],
-                    "under_pitched_roof": False}
+                    "contents": [], "under_pitched_roof": False}
             for e in entities:
                 p = e.params
+                if e.kind in ROOM_CONTENT_KINDS and level_of.get(e.id) == name:
+                    at = _plan_point(e)
+                    if at is not None and inside(poly, *at):
+                        room["contents"].append(e.id)
                 if e.kind in ("plumbing_point", "electrical_point", "ventilation_point"):
                     from archforge.mep.ventilation import _floor_of
                     if abs(_floor_of(doc, float(p["z"])) - z) < 1e-6 and inside(poly, float(p["x"]), float(p["y"])):
