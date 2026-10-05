@@ -553,3 +553,42 @@ def test_stair_still_needs_a_target_without_floor_or_roof():
     doc = Document()
     with pytest.raises(ValueError):
         StairPlaceTransaction(doc, CommandStack(doc), (0.0, 0.0))
+
+
+def test_stair_on_a_slab_is_selectable_by_click_in_the_plan_on_both_storeys():
+    """Reported: the stair could not be selected — the Auto Floor slab was drawn over it and took the click."""
+    from PySide6.QtCore import QPointF, Qt
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QApplication
+    from archforge.architecture.stairs import candidate_from_params
+    from archforge.core.commands import AddEntity
+    from archforge.ui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    w = MainWindow(); w.resize(1400, 900); w.show()
+    try:
+        doc = w.doc
+        doc.levels['Floor 2'] = 2.7
+        for z in (0.0, 2.7):
+            for s in [(0, 0, 6, 0), (6, 0, 6, 5), (6, 5, 0, 5), (0, 5, 0, 0)]:
+                w.stack.execute(AddEntity(Entity('wall', {'x1': s[0], 'y1': s[1], 'x2': s[2], 'y2': s[3], 'z': z,
+                                                          'height': 2.7, 'thickness': 0.2})))
+        tx = StairPlaceTransaction(doc, w.stack, (1.0, 1.0)); tx.update(5.0, 1.0); sid = tx.commit()
+        w._create_auto_floors()
+        assert any(e.kind == 'room_floor' for e in doc.entities.values())
+        fp = stair_footprint(candidate_from_params(doc.get(sid).params))
+        cx, cy = sum(p[0] for p in fp) / len(fp), sum(p[1] for p in fp) / len(fp)
+        w._set_active_tool('select')
+        for level in ('Ground', 'Floor 2'):
+            w._activate_level_by_name(level); w._redraw_views(all_views=True); app.processEvents()
+            doc.select([])
+            pos = w.plan_view.mapFromScene(QPointF(cx, cy))
+            QTest.mouseClick(w.plan_view.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, pos)
+            assert doc.selection == [sid], level
+        # The slab itself stays selectable where nothing else is on it.
+        w._activate_level_by_name('Ground'); w._redraw_views(all_views=True); app.processEvents()
+        doc.select([])
+        QTest.mouseClick(w.plan_view.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+                         w.plan_view.mapFromScene(QPointF(5.0, 4.2)))
+        assert [doc.get(i).kind for i in doc.selection] == ['room_floor']
+    finally:
+        w._mark_clean(); w.close(); app.processEvents()

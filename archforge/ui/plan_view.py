@@ -46,6 +46,30 @@ class PlanView(QGraphicsView):
         self._mouse_down=False;self._handle_items={};self._entity_items={};self._active_handle=None;self._hud_item=None;self._wall_angle_buttons=[];self._wall_menu_target_entity=None;self.scale(55.0,-55.0);self.redraw()
     def rebind(self,doc,stack):self.doc=doc;self.stack=stack;self.controller=PointerController(doc,stack);self.redraw()
     def set_tool(self,tool):self.controller.set_tool(tool);self._active_handle=None;self.statusChanged.emit(f'Tool: {tool}');self.redraw()
+    # Things that carry other things (slabs, roofs, joists, ground): picked only
+    # when nothing more specific (a stair, a cabinet, an MEP point…) is under the cursor.
+    CONTAINER_KINDS=('room_floor','room_ceiling','room_foundation','room_roof','floor','room',
+                     'pitched_roof','ceiling_joists','terrain')
+
+    def itemAt(self,*args):
+        """Most specific pickable item under the cursor (handles first, then objects, then containers)."""
+        items=self.items(*args)
+        if not items:
+            return None
+        for item in items:
+            if item in getattr(self,'_handle_items',{}):
+                return item
+        containers=[]
+        for item in items:
+            eid=self._entity_items.get(item)
+            if not eid or eid not in self.doc.entities:
+                continue
+            if self.doc.get(eid).kind in self.CONTAINER_KINDS:
+                containers.append(item)
+                continue
+            return item
+        return containers[0] if containers else items[0]
+
     def _scene_to_plane(self,pos):p=self.mapToScene(pos);return PointerEvent(p.x(),p.y())
     def _acquire_rotate_target(self,hit):
         eid=self._entity_items.get(hit)
@@ -556,7 +580,8 @@ class PlanView(QGraphicsView):
         elif p.kind=='label':
             meta=dict(p.meta);text=str(meta.get('text',''));cx,cy=p.points[0];item=self._scene.addText(text);item.setDefaultTextColor(QColor(55,80,65));item.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations,True);item.setPos(cx,cy);item.setTransformOriginPoint(item.boundingRect().center());item.setScale(1.0);item.setZValue(8);return
         if item is not None:
-            item.setZValue(-20 if context else (-10 if room else (10 if opening else (20 if preview else 0))))
+            container=bool(p.entity_id) and p.entity_id in self.doc.entities and self.doc.get(p.entity_id).kind in self.CONTAINER_KINDS
+            item.setZValue(-20 if context else (-10 if room else (10 if opening else (20 if preview else (-5 if container else 0)))))
             if p.entity_id and not preview:self._entity_items[item]=p.entity_id
     def _draw_handle(self,h):
         r=.09;it=self._scene.addEllipse(h.x-r,h.y-r,2*r,2*r,QPen(QColor(20,90,180),0),QBrush(QColor(255,255,255)));it.setZValue(50);self._handle_items[it]=h
