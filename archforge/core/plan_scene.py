@@ -444,6 +444,11 @@ def build_plan_frame(doc,preview=None):
         if not _entity_on_active_level(doc,doc.get(eid)):continue
         p=entity_primitive(doc,eid)
         if p:f.primitives.append(p)
+        if p and doc.get(eid).kind=='wall' and doc.get(eid).params.get('wall_type','generic')!='generic':
+            # Layer boundaries of the wall assembly; insulation drawn dashed.
+            from archforge.architecture.wall_types import layer_lines
+            for pts,insulation in layer_lines(doc.get(eid).params,doc.get(eid).params['wall_type']):
+                f.primitives.append(Primitive2D('polyline',tuple(pts),entity_id=eid,role='wall-insulation' if insulation else 'wall-layer'))
         if p and doc.get(eid).kind=='cabinet':
             from archforge.kitchen.cabinets import front_line,footprint as cabinet_footprint
             q=doc.get(eid).params

@@ -175,16 +175,29 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                     })
                 continue
         if body.semantic_kind == "wall" and entity is not None:
+            from archforge.architecture.wall_types import face_colors
+            type_colors = face_colors(entity.params.get("wall_type", "generic"))
             groups = {}
             for tri, role in zip(mesh.triangles, mesh.triangle_surfaces):
                 role = str(role)
                 material_id = _surface_material_id(entity, role)
                 key = str(material_id) if material_id else "__default__"
+                if not material_id and role in ("exterior", "interior") and type_colors:
+                    key = f"__type_{role}__"   # finishing layer of the wall assembly
                 group = groups.setdefault(key, {"triangles": [], "surfaces": [], "role": role})
                 group["triangles"].append([int(tri[0]), int(tri[1]), int(tri[2])])
                 group["surfaces"].append(role)
             for key, group in groups.items():
                 representative_role = group["role"]
+                material = _material(
+                    body.semantic_kind,
+                    body.entity_id in selected,
+                    entity=entity,
+                    doc=doc,
+                    surface_role=representative_role,
+                )
+                if key.startswith("__type_") and body.entity_id not in selected:
+                    material["color"] = type_colors[0] if representative_role == "exterior" else type_colors[1]
                 objects.append(
                     {
                         "id": str(body.entity_id),
@@ -193,13 +206,7 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                         "vertices": vertices,
                         "triangles": group["triangles"],
                         "surfaces": group["surfaces"],
-                        "material": _material(
-                            body.semantic_kind,
-                            body.entity_id in selected,
-                            entity=entity,
-                            doc=doc,
-                            surface_role=representative_role,
-                        ),
+                        "material": material,
                     }
                 )
             continue

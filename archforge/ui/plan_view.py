@@ -452,6 +452,9 @@ class PlanView(QGraphicsView):
         pen.setWidthF(.022 if context else (.06 if opening else (.04 if preview else .035)));item=None
         if p.role=='library-symbol':pen=QPen(QColor(40,45,55));pen.setWidthF(.012)
         if p.role in ('cabinet','cabinet-front'):pen=QPen(QColor(40,45,55));pen.setWidthF(.012)
+        if p.role in ('wall-layer','wall-insulation'):
+            pen=QPen(QColor(120,110,95) if p.role=='wall-layer' else QColor(200,150,40));pen.setWidthF(.008)
+            if p.role=='wall-insulation':pen.setStyle(Qt.PenStyle.DashLine)
         if p.role=='cabinet-wall':
             pen=QPen(QColor(70,80,95));pen.setWidthF(.01);pen.setStyle(Qt.PenStyle.DashLine)
         if p.role=='library-object' and self._has_symbol(p.entity_id):

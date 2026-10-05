@@ -131,6 +131,14 @@ def _stair_layout(v):
     return value
 
 
+def _wall_type(v):
+    from archforge.architecture.wall_types import WALL_TYPES
+    v = str(v)
+    if v not in WALL_TYPES:
+        raise ValueError(f'wall type must be one of {", ".join(WALL_TYPES)}')
+    return v
+
+
 def _count(v):
     value = int(round(float(v)))
     if not 0 <= value <= 20:
@@ -327,7 +335,7 @@ _OPENING = {'offset': _finite, 'surface_u': _finite, 'width': _positive, 'height
 _ARCH_OPENING = {**_OPENING, 'shape': _opening_shape, 'arch_rise': _positive}
 SCHEMAS = {
     'box': {'x': _finite, 'y': _finite, 'z': _finite, 'width': _positive, 'depth': _positive, 'height': _positive, 'rotation': _finite},
-    'wall': {'x1': _finite, 'y1': _finite, 'z': _finite, 'x2': _finite, 'y2': _finite, 'height': _positive, 'thickness': _positive},
+    'wall': {'x1': _finite, 'y1': _finite, 'z': _finite, 'x2': _finite, 'y2': _finite, 'height': _positive, 'thickness': _positive, 'wall_type': _wall_type},
     'pod': {'cx': _finite, 'cy': _finite, 'floor_level': _finite, 'diameter_x': _positive, 'diameter_y': _positive, 'height': _positive, 'shell_thickness': _positive, 'rotation': _finite},
     'stair': {
         'x': _finite,

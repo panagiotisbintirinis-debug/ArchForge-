@@ -848,6 +848,21 @@ class MainWindow(QMainWindow):
                     selector.setCurrentIndex(i)
                 return
 
+    def _set_wall_type(self, entity_id, wall_type):
+        """Apply a wall assembly: sets the type and the matching total thickness."""
+        from archforge.architecture.wall_types import total_thickness
+        entity = self.doc.get(entity_id)
+        if entity.params.get('wall_type', 'generic') == wall_type:
+            return
+        changes = {'wall_type': str(wall_type)}
+        thickness = total_thickness(wall_type)
+        if thickness > 0:
+            changes['thickness'] = thickness
+        self.stack.execute(UpdateEntity(entity_id, changes))
+        self._redraw_views(all_views=True)
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self.refresh_inspector)   # rebuild the form outside the combo's signal
+
     def _seed_core_library(self):
         """Build the shipped core library into the local store (first run only)."""
         from archforge.library.catalog import seed_core_library
@@ -1182,6 +1197,24 @@ class MainWindow(QMainWindow):
                 self.form.addRow(key, spin)
             elif entity.kind == 'room_floor' and key == 'room_signature':
                 self.form.addRow('Room', QLabel(str(value)))
+        if entity.kind == 'wall':
+            from archforge.architecture.wall_types import WALL_TYPES, indicative_u, layers
+            combo = QComboBox()
+            for key, (label, _layers) in WALL_TYPES.items():
+                combo.addItem(label, key)
+            current_type = params.get('wall_type', 'generic')
+            combo.setCurrentIndex(max(0, combo.findData(current_type)))
+            combo.currentIndexChanged.connect(
+                lambda _i, widget=combo, entity_id=eid: self._set_wall_type(entity_id, widget.currentData()))
+            self.form.addRow('Τύπος τοίχου', combo)
+            build_up = layers(current_type)
+            if build_up:
+                text = '<br>'.join(f'{name} {d * 100:g} cm' for name, d, _l, _c, _i in build_up)
+                u = indicative_u(current_type)
+                text += f'<br><i>U ≈ {u:.2f} W/m²K — ενδεικτικό (τυπικά λ, EN ISO 6946), όχι μελέτη ΚΕΝΑΚ</i>'
+                label = QLabel(text)
+                label.setWordWrap(True)
+                self.form.addRow('Στρώσεις (έξω→μέσα)', label)
         if entity.kind in ('library_object', 'cabinet'):
             button = QPushButton('Object Modifier…')
             button.setToolTip('Διαστάσεις, υλικά ανά τμήμα και Sculpt του αντικειμένου')
