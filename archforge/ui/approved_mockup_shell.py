@@ -165,9 +165,18 @@ def install_approved_mockup_shell(window):
         if text is None:terrain_menu.addSeparator();continue
         a=QAction(text,window); a.triggered.connect(lambda _=False,r=run: r()); terrain_menu.addAction(a)
     window._mockup_terrain_menu=terrain_menu
+    roof_menu=QMenu("Στέγη",menus["Κατασκευή"]); menus["Κατασκευή"].addMenu(roof_menu)
+    window._roof_menu=roof_menu
+    auto_roof=QAction("Αυτόματη στέγη (μόνο όπου δεν υπάρχει όροφος από πάνω)",window)
+    auto_roof.triggered.connect(lambda: window._auto_roofs()); roof_menu.addAction(auto_roof)
     roof_action=QAction("Ξύλινη κεραμοσκεπή (δοκοί & κεραμίδια)",window)
     roof_action.triggered.connect(lambda: window._create_pitched_roof())
-    menus["Κατασκευή"].addAction(roof_action); window._pitched_roof_action=roof_action
+    roof_menu.addAction(roof_action); window._pitched_roof_action=roof_action
+    roof_menu.addSeparator()
+    fix_roofs=QAction("Διόρθωση στεγών",window); fix_roofs.setToolTip("Αφαιρεί στέγες κάτω από όροφο και προσθέτει όσες λείπουν")
+    fix_roofs.triggered.connect(lambda: window._fix_roofs()); roof_menu.addAction(fix_roofs)
+    delete_roofs=QAction("Διαγραφή όλων των στεγών",window)
+    delete_roofs.triggered.connect(lambda: window._delete_all_roofs()); roof_menu.addAction(delete_roofs)
     roof_layer=QAction("Σκελετός στέγης στο 3D",window); roof_layer.setCheckable(True); roof_layer.setChecked(True)
     roof_layer.toggled.connect(lambda on: window._set_layer_visible("roof_structure",on))
     tiles_layer=QAction("Κεραμίδια στο 3D",window); tiles_layer.setCheckable(True); tiles_layer.setChecked(True)

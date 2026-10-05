@@ -248,6 +248,26 @@ class DeleteEntities(Command):
         if self.before_state is None:return
         _restore_document_state(doc,self.before_state,self.before_selection or [])
 
+class CompositeCommand(Command):
+    """Several commands as one undo step; if one fails, the ones already done are undone."""
+    def __init__(self, commands, label=''):
+        self.commands = [c for c in commands if c is not None]
+        self.label = str(label)
+    def do(self, doc):
+        done = []
+        try:
+            for command in self.commands:
+                command.do(doc)
+                done.append(command)
+        except Exception:
+            for command in reversed(done):
+                command.undo(doc)
+            raise
+    def undo(self, doc):
+        for command in reversed(self.commands):
+            command.undo(doc)
+
+
 class CreateRoomFloors(Command):
     """Create one topology-linked floor per persistent semantic room as one undo step."""
     def __init__(self,signatures:List[str],thickness:float=.15,offset_z:float=0.0):

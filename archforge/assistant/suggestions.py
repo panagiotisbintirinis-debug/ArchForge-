@@ -123,6 +123,7 @@ def propose(doc, reading=None):
         out.append(Proposal(f"J-2:{e.id}", "warning", f"{e.name or 'Δοκίδες'}: άνοιγμα {rep['span_m']:.2f} m χωρίς επαρκή διατομή",
                             "Τεχνικές προτάσεις: " + "; ".join(rep["proposals"]), rep["provenance"], (e.id,), fix))
     out += _structural(doc)
+    out += _roofs(doc)
     if any(e.kind == "ventilation_point" for e in doc.entities.values()):
         from archforge.mep.ventilation import route_ventilation_cached
         for w in route_ventilation_cached(doc)["report"]["warnings"]:
@@ -171,6 +172,27 @@ def _structural(doc):
         if info and not info["drift_ok"]:
             out.append(Proposal(f"S-2:{d}", "warning", f"Σεισμός {d}: σχετική μετακίνηση ορόφου {info['drift_ratio'] * 1000:.1f} ‰ > 5 ‰",
                                 "Το κτίριο είναι πολύ εύκαμπτο: μεγαλύτερες κολώνες ή τοιχώματα.", result["provenance"]))
+    return out
+
+
+def _roofs(doc):
+    """R-1: a roof slab under an upper storey is not needed (the storey above covers the room)."""
+    from archforge.architecture.roof_need import COVERED, coverage, room_face_of
+    out = []
+    for e in doc.entities.values():
+        if e.kind != "room_roof":
+            continue
+        found = room_face_of(doc, e)
+        if found is None:
+            continue
+        face, base_z = found
+        c = coverage(doc, face.polygon, base_z)
+        if c >= COVERED:
+            from archforge.core.commands import DeleteEntities
+            out.append(Proposal(f"R-1:{e.id}", "warning", f"{e.name or 'Στέγη'}: κάτω από τον όροφο — δεν χρειάζεται",
+                                f"Ο όροφος από πάνω καλύπτει το {c:.0%} του χώρου· η στέγη μπαίνει μόνο όπου δεν υπάρχει τίποτα από πάνω. "
+                                "«Εφαρμογή» = αφαίρεση της στέγης.", "Κανόνας στέγης: μόνο ακάλυπτοι χώροι", (e.id,),
+                                lambda _doc, i=e.id: DeleteEntities([i])))
     return out
 
 

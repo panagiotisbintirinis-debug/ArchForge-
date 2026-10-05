@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import Callable, List, Optional, Tuple
 
 POINT_KINDS = ("plumbing_point", "electrical_point", "ventilation_point", "library_object", "cabinet", "box", "plant")
-KIND_LABELS = {"wall": "Τοίχος", "structural_column": "Κολώνα", "structural_beam": "Δοκός", "door": "Πόρτα",
+KIND_LABELS = {"room_roof": "Στέγη", "room_floor": "Πλάκα δαπέδου", "room_ceiling": "Οροφή", "wall": "Τοίχος", "structural_column": "Κολώνα", "structural_beam": "Δοκός", "door": "Πόρτα",
                "window": "Παράθυρο", "plumbing_point": "Υδραυλικό σημείο", "electrical_point": "Ηλεκτρολογικό σημείο",
                "ventilation_point": "Εξαερισμός", "ceiling_joists": "Δοκίδες", "cabinet": "Ντουλάπι",
                "library_object": "Αντικείμενο", "stair": "Σκάλα"}
@@ -97,13 +97,24 @@ def target_of_entity(doc, entity_id):
     from archforge.assistant.suggestions import room_at
     e = doc.get(entity_id)
     p = e.params
+    level = float(doc.work_plane.origin[2])
     if "x" in p and "y" in p:
         x, y = float(p["x"]), float(p["y"])
     elif "x1" in p:
         x, y = (float(p["x1"]) + float(p["x2"])) / 2, (float(p["y1"]) + float(p["y2"])) / 2
+    elif "points" in p and p["points"]:
+        from archforge.assistant.understanding import centroid
+        x, y = centroid([(float(q[0]), float(q[1])) for q in p["points"]])
+    elif p.get("room_signature") or p.get("room_id"):
+        # Room-linked slabs (floor, ceiling, roof): the centre of their room.
+        from archforge.architecture.roof_need import room_face_of
+        from archforge.assistant.understanding import centroid
+        found = room_face_of(doc, e)
+        x, y = centroid([(float(q[0]), float(q[1])) for q in found[0].polygon]) if found else (0.0, 0.0)
+        if found:
+            level = found[1]
     else:
         x = y = 0.0
-    level = float(doc.work_plane.origin[2])
     return Target(e.kind, e.id, describe_entity(doc, e), x, y, level, room_at(doc, x, y, level))
 
 
@@ -128,7 +139,10 @@ def actions_for(doc, target: Target) -> List[Action]:
     out: List[Action] = []
     room = target.room
     floor = target.z
-    if target.kind in ("room", "empty") or room is not None and target.kind not in ("structural_column", "structural_beam"):
+    # Room actions only when pointing at the room itself or at something in it — not at its
+    # bounding parts (roof, walls, openings, members), where they would be noise.
+    bounding = ("structural_column", "structural_beam", "room_roof", "pitched_roof", "wall", "door", "window", "opening")
+    if target.kind in ("room", "empty") or room is not None and target.kind not in bounding:
         if room is not None:
             if not room["joists"]:
                 ent = joists_entity(room["polygon"], floor, name=f"Δοκίδες — {room['name']}")
@@ -153,6 +167,17 @@ def actions_for(doc, target: Target) -> List[Action]:
             out.append(Action("resize", f"Διατομή {size} από τον υπολογισμό",
                               ("μεγάλω", "μεγαλω", "διατομ", "αύξη", "αυξη", "διόρθ", "διορθ", "ενίσχ", "ενισχ"),
                               _update(target.entity_id, prop)))
+    if target.entity_id and target.entity_id in doc.entities:
+        from archforge.core.commands import DeleteEntities
+        out.append(Action("delete", f"Αφαίρεση: {target.label}",
+                          ("αφαίρ", "αφαιρ", "διαγρ", "διέγρ", "σβήσ", "σβησ", "βγάλ", "βγαλ", "delete", "remove"),
+                          lambda _d, i=target.entity_id: DeleteEntities([i])))
+        if target.kind == "room_roof":
+            from archforge.architecture.roof_need import coverage, room_face_of
+            found = room_face_of(doc, doc.get(target.entity_id))
+            if found is not None:
+                c = coverage(doc, found[0].polygon, found[1])
+                out[-1].info = (f"κάτω από όροφο ({c:.0%}) — δεν χρειάζεται" if c >= 0.5 else "ακάλυπτος χώρος — χρειάζεται")
     if target.kind == "ventilation_point":
         for value, label in (("wall", "Έξοδος από εξωτερικό τοίχο"), ("roof", "Έξοδος από τη στέγη")):
             out.append(Action(f"outlet_{value}", label, (("τοίχ", "τοιχ") if value == "wall" else ("στέγ", "στεγ", "ταράτσ")),

@@ -2357,6 +2357,44 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             QMessageBox.warning(self, 'Auto Floors', str(exc))
 
+    def _auto_roofs(self):
+        """Flat roofs on every storey, only over rooms with nothing above (one undo)."""
+        from archforge.architecture.roof_need import roof_plan
+        add = roof_plan(self.doc)["add"]
+        if not add:
+            self.statusBar().showMessage('Όλοι οι ακάλυπτοι χώροι έχουν ήδη στέγη', 5000)
+            return 0
+        self.stack.execute(CreateRoomRoofs(add, thickness=.20, roof_type='flat'))
+        self._redraw_views(all_views=True)
+        self.statusBar().showMessage(f'Δημιουργήθηκαν {len(add)} επίπεδες στέγες στους ακάλυπτους χώρους', 6000)
+        return len(add)
+
+    def _fix_roofs(self):
+        """Remove roofs under a storey and add the missing ones, as one undo step."""
+        from archforge.architecture.roof_need import roof_plan
+        from archforge.core.commands import CompositeCommand, DeleteEntities
+        plan = roof_plan(self.doc)
+        if not plan['remove'] and not plan['add']:
+            self.statusBar().showMessage('Οι στέγες είναι σωστές: καμία κάτω από όροφο, καμία ακάλυπτη αίθουσα', 5000)
+            return plan
+        self.stack.execute(CompositeCommand([
+            DeleteEntities(plan['remove']) if plan['remove'] else None,
+            CreateRoomRoofs(plan['add'], thickness=.20, roof_type='flat') if plan['add'] else None,
+        ], 'Διόρθωση στεγών'))
+        self._redraw_views(all_views=True)
+        self.statusBar().showMessage(
+            f"Διόρθωση στεγών: αφαιρέθηκαν {len(plan['remove'])} κάτω από όροφο, προστέθηκαν {len(plan['add'])} — Ctrl+Z για αναίρεση", 7000)
+        return plan
+
+    def _delete_all_roofs(self):
+        from archforge.core.commands import DeleteEntities
+        ids = [i for i, e in self.doc.entities.items() if e.kind in ('room_roof', 'pitched_roof')]
+        if ids:
+            self.stack.execute(DeleteEntities(ids))
+            self._redraw_views(all_views=True)
+        self.statusBar().showMessage(f'Διαγράφηκαν {len(ids)} στέγες', 5000)
+        return len(ids)
+
     def _create_flat_roofs(self):
         faces = self.doc.active_room_faces()
         if not faces:
@@ -2383,6 +2421,14 @@ class MainWindow(QMainWindow):
                 4000,
             )
             return
+        # A roof only where nothing is built above (the storey over it is its roof).
+        from archforge.architecture.roof_need import roof_needed
+        covered = [s for s in signatures if not roof_needed(self.doc, s)[0]]
+        signatures = [s for s in signatures if s not in covered]
+        if not signatures:
+            self.statusBar().showMessage(
+                f'Δεν χρειάζεται στέγη: {len(covered)} χώρος/οι καλύπτονται από τον όροφο από πάνω', 6000)
+            return
 
         try:
             self.stack.execute(
@@ -2395,8 +2441,9 @@ class MainWindow(QMainWindow):
             self._redraw_views(all_views=True)
             self.refresh_inspector()
             self.statusBar().showMessage(
-                f'Created {len(signatures)} flat roof slab(s)',
-                4000,
+                f'Δημιουργήθηκαν {len(signatures)} επίπεδες στέγες'
+                + (f' · παραλείφθηκαν {len(covered)} χώροι κάτω από όροφο' if covered else ''),
+                6000,
             )
         except Exception as exc:
             QMessageBox.warning(self, 'Flat Roof', str(exc))
