@@ -20,7 +20,7 @@ class PlanView(QGraphicsView):
     VIEW_LINE_TOOLS={'view_section':'section','view_camera':'camera'}
     # Single-click site tools: (tool, x, y) handled by the main window.
     sitePointRequested=Signal(str,float,float)
-    SITE_POINT_TOOLS=('terrain_point','plant_tree','plant_shrub')
+    SITE_POINT_TOOLS=('terrain_point','plant_tree','plant_shrub','library_place')
     # Drag tools for site strips: (tool, x1, y1, x2, y2).
     siteLineRequested=Signal(str,float,float,float,float)
     SITE_LINE_TOOLS=('path_path','path_sidewalk','path_road')

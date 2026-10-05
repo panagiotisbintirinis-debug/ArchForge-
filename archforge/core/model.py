@@ -409,6 +409,11 @@ SCHEMAS = {
         'x': _finite, 'y': _finite, 'z': _finite, 'height': _positive, 'canopy': _positive,
         'species': _plant_species,
     },
+    'library_object': {
+        'x': _finite, 'y': _finite, 'z': _finite, 'rotation': _finite,
+        'width': _positive, 'depth': _positive, 'height': _positive,
+        'uniform': _unit_interval, 'asset': _nonempty,
+    },
     'kitchen_part': {
         'x': _finite, 'y': _finite, 'z': _finite,
         'width': _positive, 'depth': _positive, 'height': _positive,

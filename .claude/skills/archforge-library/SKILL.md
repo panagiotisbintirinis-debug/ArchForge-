@@ -58,6 +58,16 @@ repository or any distributed build.
   `*.tbdata`, and `hd-cache/`. Do not attach these files to tests. Write
   tests against tiny synthetic SQLite files that the test builds itself.
 
+## In the app (implemented)
+- `archforge/library/hd_calib.py` is the catalog reader and mesh parser. The skill scripts reuse it.
+- `archforge/library/assets.py` stores imported meshes in the user data folder (`ARCHFORGE_DATA` overrides it).
+  - Each mesh is normalised to metres, centred on X/Y, with its base at Z=0.
+  - Its id is a content hash, so importing the same object twice keeps one copy.
+- `archforge/library/objects.py` derives the geometry of `library_object` entities.
+  - The entity holds `x, y, z, rotation` (degrees), `width, depth, height` (metres), `uniform` (1 = keep proportions) and `asset`.
+  - The mesh is the asset scaled per axis to the target size. A missing asset gives a placeholder box of that size.
+- UI: the **Βιβλιοθήκη** menu (import, place), the **Έπιπλα** tab in the left panel, the `library_place` plan tool, and proportional resize in the Inspector.
+
 ## Catalog format
 
 Shipped and shared libraries use `.afcatalog`, a zip containing

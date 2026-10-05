@@ -70,6 +70,7 @@ class MainWindow(QMainWindow):
         self._build_view_menu()
         self._build_inspector()
         install_approved_mockup_shell(self)
+        self._refresh_library_panel()
         self.refresh_inspector()
 
     def _on_tab_changed(self, idx):
@@ -628,6 +629,9 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(
                 f'{plant.name}: ύψος/κόμη στις Ιδιότητες — κλικ για επόμενο, Esc για τέλος', 5000)
             return
+        if tool == 'library_place':
+            self._place_library_object(x, y)
+            return
         if tool == 'terrain_point':
             terrain = self._terrain_entity()
             if terrain is None:
@@ -646,6 +650,142 @@ class MainWindow(QMainWindow):
             self.stack.execute(UpdateEntity(terrain.id, {'points': points}))
             self._redraw_views(all_views=True)
             self.statusBar().showMessage(f'Υψομετρικό σημείο {z:+.2f} m — Esc για τέλος', 5000)
+
+    # ---------------------------------------------------------------- library
+    def _library_list_dialog(self, title, rows, multi=False):
+        """Searchable list; rows are (label, data). Returns chosen data list."""
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLineEdit, QListWidget, QListWidgetItem, QVBoxLayout, QAbstractItemView
+        dialog = QDialog(self)
+        dialog.setWindowTitle(title)
+        dialog.resize(560, 520)
+        layout = QVBoxLayout(dialog)
+        search = QLineEdit(dialog)
+        search.setPlaceholderText('Αναζήτηση…')
+        listing = QListWidget(dialog)
+        if multi:
+            listing.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        for label, data in rows:
+            item = QListWidgetItem(label)
+            item.setData(Qt.ItemDataRole.UserRole, data)
+            listing.addItem(item)
+        if listing.count():
+            listing.setCurrentRow(0)
+
+        def filter_rows(text):
+            text = text.lower()
+            for i in range(listing.count()):
+                listing.item(i).setHidden(text not in listing.item(i).text().lower())
+
+        search.textChanged.connect(filter_rows)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel, parent=dialog)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        listing.itemDoubleClicked.connect(lambda *_: dialog.accept())
+        layout.addWidget(search)
+        layout.addWidget(listing)
+        layout.addWidget(buttons)
+        self._library_dialog = dialog  # reachable from tests
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return []
+        return [i.data(Qt.ItemDataRole.UserRole) for i in listing.selectedItems() if not i.isHidden()]
+
+    def _import_hd_catalog(self, path=None, object_ids=None):
+        """Import 3D objects from a Home Designer catalog into the local library.
+
+        The catalog is read in place; meshes are stored in the user data
+        folder marked as local-use-only Home Designer content.
+        """
+        from PySide6.QtWidgets import QFileDialog
+        from archforge.library import assets, hd_calib
+        if path is None:
+            path, _ = QFileDialog.getOpenFileName(
+                self, 'Κατάλογος Home Designer', r'C:\ProgramData',
+                'Κατάλογοι Home Designer (*.calib *.calibz)')
+            if not path:
+                return []
+        try:
+            conn = hd_calib.open_catalog(path)
+            objects = hd_calib.catalog_objects(conn)
+        except Exception as exc:
+            QMessageBox.warning(self, 'Βιβλιοθήκη', f'Ο κατάλογος δεν διαβάζεται:\n{exc}')
+            return []
+        interactive = object_ids is None
+        if interactive:
+            rows = [(f'{name}   ({size / 1048576:.1f} MB)', oid) for oid, name, _typ, size in objects]
+            object_ids = self._library_list_dialog(
+                f'Εισαγωγή από {os.path.basename(path)} — επιλέξτε (Ctrl/Shift για πολλά)', rows, multi=True)
+        names = {oid: name for oid, name, _t, _s in objects}
+        imported = []
+        for oid in object_ids:
+            parts = hd_calib.object_parts(conn, oid)
+            for i, (offset, tris) in enumerate(parts, 1):
+                label = names[oid] if len(parts) == 1 else f'{names[oid]} — κομμάτι {i}'
+                asset_id, _ = assets.store_asset(label, tris, {
+                    'source': 'home-designer-calib', 'catalog': os.path.basename(path),
+                    'object_id': int(oid), 'offset': int(offset), 'redistributable': False,
+                })
+                imported.append(asset_id)
+        self.statusBar().showMessage(
+            f'Βιβλιοθήκη: εισήχθησαν {len(imported)} αντικείμενα (Home Designer — μόνο τοπική χρήση)', 6000)
+        self._refresh_library_panel()
+        if imported and interactive:
+            self._choose_library_asset()
+        return imported
+
+    def _refresh_library_panel(self):
+        listing = getattr(self, '_library_assets_list', None)
+        if listing is None:
+            return
+        from PySide6.QtWidgets import QListWidgetItem
+        from archforge.library import assets
+        listing.clear()
+        for r in assets.list_assets():
+            w, d, h = (v * 100 for v in r['size'])
+            item = QListWidgetItem(f"{r['name']}  {w:.0f}×{d:.0f}×{h:.0f} cm")
+            item.setData(Qt.ItemDataRole.UserRole, r['id'])
+            if r['provenance'].get('source') == 'home-designer-calib':
+                item.setToolTip('Home Designer — μόνο τοπική χρήση, δεν διανέμεται')
+            listing.addItem(item)
+
+    def _choose_library_asset(self, asset_id=None):
+        from archforge.library import assets
+        records = assets.list_assets()
+        if not records:
+            QMessageBox.information(
+                self, 'Βιβλιοθήκη', 'Η βιβλιοθήκη είναι άδεια. Εισαγάγετε πρώτα αντικείμενα από κατάλογο.')
+            return None
+        if asset_id is None:
+            rows = []
+            for r in records:
+                w, d, h = (v * 100 for v in r['size'])
+                tag = '  · HD (τοπικά)' if r['provenance'].get('source') == 'home-designer-calib' else ''
+                rows.append((f"{r['name']}   {w:.0f}×{d:.0f}×{h:.0f} cm{tag}", r['id']))
+            chosen = self._library_list_dialog('Βιβλιοθήκη — τοποθέτηση αντικειμένου', rows)
+            if not chosen:
+                return None
+            asset_id = chosen[0]
+        self._pending_library_asset = next(r for r in records if r['id'] == asset_id)
+        self._start_site_tool(
+            'library_place', f"{self._pending_library_asset['name']}: κλικ στην κάτοψη — Esc για τέλος")
+        return asset_id
+
+    def _place_library_object(self, x, y):
+        record = getattr(self, '_pending_library_asset', None)
+        if record is None:
+            return None
+        w, d, h = record['size']
+        obj = Entity('library_object', {
+            'x': float(x), 'y': float(y), 'z': float(self.doc.work_plane.origin[2]),
+            'rotation': 0.0, 'width': float(w), 'depth': float(d), 'height': float(h),
+            'uniform': 1.0, 'asset': record['id'],
+        }, name=record['name'])
+        self.stack.execute(AddEntity(obj))
+        self._redraw_views(all_views=True)
+        self.statusBar().showMessage(
+            f"{record['name']}: μέγεθος/περιστροφή στις Ιδιότητες (uniform=1 κρατά αναλογίες) — κλικ για επόμενο, Esc για τέλος",
+            6000)
+        return obj
 
     def _choose_sun_time(self):
         current = self.pbr_view._sun or (11.0, 6)
@@ -855,6 +995,9 @@ class MainWindow(QMainWindow):
         try:
             entity = self.doc.get(eid)
             changes = {key: value}
+            if entity.kind == 'library_object' and key in ('width', 'depth', 'height'):
+                from archforge.library.objects import resized
+                changes = resized(entity.params, key, value)
             if entity.kind == 'stair':
                 p = entity.params
                 lower_z = float(p['lower_z'])

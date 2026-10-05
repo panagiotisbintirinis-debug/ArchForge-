@@ -17,6 +17,7 @@ _MATERIALS: Mapping[str, dict] = {
     "door_leaf": {"color": "#7a5c43", "roughness": 0.55, "metalness": 0.0},
     "window_glass": {"color": "#a9c3d2", "roughness": 0.03, "metalness": 0.1, "opacity": 0.28},
     "plant_trunk": {"color": "#6b4a2f", "roughness": 0.9, "metalness": 0.0},
+    "library_object": {"color": "#b9b2a6", "roughness": 0.6, "metalness": 0.0},
     "plant_canopy": {"color": "#4f7a3a", "roughness": 0.85, "metalness": 0.0},
     "room_ceiling": {"color": "#dedbd2", "roughness": 0.78, "metalness": 0.01},
     "room_foundation": {"color": "#9ea4aa", "roughness": 0.9, "metalness": 0.0},

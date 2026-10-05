@@ -26,7 +26,7 @@ QStatusBar { background:#FFFFFF; border-top:1px solid #D8DEE8; }
 QSplitter::handle { background:#F1F4F8; }
 """
 
-MENUS=("Αρχείο","Επεξεργασία","Προβολή","Σχεδίαση","Κατασκευή","Έδαφος","Δομικά","Υλικά","Sculpt","Κουζίνα","Μηχανολογικά","AI","Rendering","Βοήθεια")
+MENUS=("Αρχείο","Επεξεργασία","Προβολή","Σχεδίαση","Κατασκευή","Έδαφος","Βιβλιοθήκη","Δομικά","Υλικά","Sculpt","Κουζίνα","Μηχανολογικά","AI","Rendering","Βοήθεια")
 
 def _card(title, widget):
     f=QFrame(); f.setObjectName("card")
@@ -70,7 +70,13 @@ def _project_panel(window):
     items.itemDoubleClicked.connect(place_kitchen_component)
     search.textChanged.connect(lambda t:[items.item(i).setHidden(t.lower() not in items.item(i).text().lower()) for i in range(items.count())])
     v.addWidget(items)
-    lib.addTab(QWidget(),"Δομικά"); lib.addTab(QWidget(),"Έπιπλα"); lib.addTab(page,"Κουζίνα"); lib.addTab(QWidget(),"Υλικά"); lib.setCurrentIndex(2)
+    furniture=QWidget(); fv=QVBoxLayout(furniture); fv.setContentsMargins(0,0,0,0)
+    fsearch=QLineEdit(); fsearch.setPlaceholderText("Αναζήτηση επίπλων…"); fv.addWidget(fsearch)
+    flist=QListWidget(); fv.addWidget(flist)
+    fsearch.textChanged.connect(lambda t:[flist.item(i).setHidden(t.lower() not in flist.item(i).text().lower()) for i in range(flist.count())])
+    flist.itemDoubleClicked.connect(lambda item: window._choose_library_asset(item.data(Qt.UserRole)))
+    window._library_assets_list=flist
+    lib.addTab(QWidget(),"Δομικά"); lib.addTab(furniture,"Έπιπλα"); lib.addTab(page,"Κουζίνα"); lib.addTab(QWidget(),"Υλικά"); lib.setCurrentIndex(2)
     box=QWidget(); lay=QVBoxLayout(box); lay.setContentsMargins(0,0,0,0); lay.setSpacing(6)
     lay.addWidget(_card("Έργο",tabs),5); lay.addWidget(_card("Βιβλιοθήκη",lib),6)
     window.project_tree=tree
@@ -140,6 +146,11 @@ def install_approved_mockup_shell(window):
         if text is None:terrain_menu.addSeparator();continue
         a=QAction(text,window); a.triggered.connect(lambda _=False,r=run: r()); terrain_menu.addAction(a)
     window._mockup_terrain_menu=terrain_menu
+    library_menu=menus["Βιβλιοθήκη"]
+    for text,run in (("Τοποθέτηση αντικειμένου…",lambda: window._choose_library_asset()),
+                     ("Εισαγωγή από Home Designer (.calib/.calibz)…",lambda: window._import_hd_catalog())):
+        a=QAction(text,window); a.triggered.connect(lambda _=False,r=run: r()); library_menu.addAction(a)
+    window._mockup_library_menu=library_menu
     ao=QAction("Σκιές επαφής (Ambient Occlusion)",window); ao.setCheckable(True); ao.setChecked(True)
     ao.toggled.connect(window.pbr_view.set_ambient_occlusion)
     menus["Rendering"].addAction(ao)

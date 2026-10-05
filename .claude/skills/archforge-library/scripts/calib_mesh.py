@@ -43,60 +43,11 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from calib_open import open_catalog  # noqa: E402
 
+from archforge.library.hd_calib import (  # noqa: E402
+    MAX_ABS, MAX_INDEX, MAX_VERTS, MESH_RECORD, find_meshes, parse_mesh_record, triangulate)
+
 MARKER = b"\xcd\xab"
-MESH_RECORD = b"\xcd\xab\x74\x00"
-MAX_ABS = 2000.0       # |coordinate| in inches; larger is not furniture geometry
-MAX_VERTS = 256        # per polygon
-MAX_INDEX = 4096       # header surface index
 UNITS = {"inch": 0.0254, "mm": 0.001, "m": 1.0}
-
-
-def parse_mesh_record(blob, m):
-    """Parse the mesh record at marker offset ``m``.
-
-    Returns (polygons, end_offset, complete).  ``complete`` is False when the
-    record runs past the data (e.g. a truncated study sample) or a polygon
-    does not decode; the polygons read so far are still returned.
-    """
-    if blob[m:m + 4] != MESH_RECORD or m + 14 > len(blob):
-        return [], m, False
-    count = struct.unpack_from("<I", blob, m + 10)[0]
-    p = m + 14
-    polys = []
-    for _ in range(count):
-        if p + 10 > len(blob):
-            return polys, p, False
-        n = struct.unpack_from("<H", blob, p)[0]
-        index = struct.unpack_from("<I", blob, p + 4)[0]
-        vend = p + 10 + 24 * n
-        if not (3 <= n <= MAX_VERTS and index < MAX_INDEX) or vend + 4 * n + 4 > len(blob):
-            return polys, p, False
-        vals = struct.unpack_from(f"<{3 * n}d", blob, p + 10)
-        if not all(math.isfinite(v) and abs(v) < MAX_ABS for v in vals):
-            return polys, p, False
-        polys.append([vals[3 * i:3 * i + 3] for i in range(n)])
-        t = vend + 4 * n
-        k = struct.unpack_from("<I", blob, t)[0]
-        if k > MAX_VERTS:
-            return polys, p, False
-        p = t + 4 + 16 * k + 16
-    return polys, p, p <= len(blob)
-
-
-def triangulate(polys):
-    return [(pl[0], pl[i], pl[i + 1]) for pl in polys for i in range(1, len(pl) - 1)]
-
-
-def find_meshes(blob):
-    """Return [(marker_offset, polygons, complete)] for every mesh record."""
-    out = []
-    m = blob.find(MESH_RECORD)
-    while m >= 0:
-        polys, end, complete = parse_mesh_record(blob, m)
-        if polys:
-            out.append((m, polys, complete))
-        m = blob.find(MESH_RECORD, end if complete else m + 1)
-    return out
 
 
 def bbox(points, scale):
