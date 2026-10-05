@@ -125,6 +125,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("source")
     ap.add_argument("--stats", action="store_true")
+    ap.add_argument("--list", action="store_true", help="list objects by SymbolData size")
     ap.add_argument("--out")
     ap.add_argument("--count", type=int, default=3)
     ap.add_argument("--ids", help="comma-separated LibraryObjectId values")
@@ -136,6 +137,12 @@ def main(argv=None):
     print("Object types:", st["types"])
     for name, (rows, size) in sorted(st["tables"].items(), key=lambda t: -t[1][1]):
         print(f"  {name:30s} rows={rows:<7d} MB={size / 1048576:.2f}")
+    if a.list:
+        rows = conn.execute(
+            "SELECT l.LibraryObjectId, l.Type, IFNULL(LENGTH(s.SymbolData),0), l.Name FROM LibraryObjects l "
+            "LEFT JOIN SymbolData4LibraryObjects s USING(LibraryObjectId) ORDER BY 3")
+        for oid, typ, size, name in rows:
+            print(f"  id={oid:<6d} type={typ:<4d} MB={size / 1048576:6.2f}  {name}")
     if a.out:
         ids = [int(x) for x in a.ids.split(",")] if a.ids else _pick(conn, a.count)
         names = dict(conn.execute(
