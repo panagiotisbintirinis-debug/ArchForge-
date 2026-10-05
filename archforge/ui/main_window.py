@@ -769,19 +769,21 @@ class MainWindow(QMainWindow):
         return asset_id
 
     def _open_object_modifier(self, entity_id=None):
-        from .object_modifier import ObjectModifierDialog
+        from .object_modifier import CabinetModifierDialog, ObjectModifierDialog
         if entity_id is None:
             if len(self.doc.selection) != 1:
                 self.statusBar().showMessage('Επιλέξτε ένα αντικείμενο βιβλιοθήκης', 3000)
                 return None
             entity_id = self.doc.selection[0]
-        if self.doc.get(entity_id).kind != 'library_object':
-            self.statusBar().showMessage('Το Object Modifier αφορά αντικείμενα της Βιβλιοθήκης', 3000)
+        kind = self.doc.get(entity_id).kind
+        if kind not in ('library_object', 'cabinet'):
+            self.statusBar().showMessage('Το Object Modifier αφορά αντικείμενα βιβλιοθήκης και ντουλάπια', 3000)
             return None
         old = getattr(self, '_object_modifier', None)
         if old is not None:
             old.close()
-        self._object_modifier = ObjectModifierDialog(self, entity_id)
+        dialog_class = CabinetModifierDialog if kind == 'cabinet' else ObjectModifierDialog
+        self._object_modifier = dialog_class(self, entity_id)
         self._object_modifier.show()
         return self._object_modifier
 
@@ -1042,7 +1044,7 @@ class MainWindow(QMainWindow):
                 self.form.addRow(key, spin)
             elif entity.kind == 'room_floor' and key == 'room_signature':
                 self.form.addRow('Room', QLabel(str(value)))
-        if entity.kind == 'library_object':
+        if entity.kind in ('library_object', 'cabinet'):
             button = QPushButton('Object Modifier…')
             button.setToolTip('Διαστάσεις, υλικά ανά τμήμα και Sculpt του αντικειμένου')
             button.clicked.connect(lambda _=False, entity_id=eid: self._open_object_modifier(entity_id))
@@ -1599,7 +1601,7 @@ class MainWindow(QMainWindow):
             'wall', 'floor', 'room_floor', 'room_roof', 'room_ceiling',
             'room_foundation', 'box', 'pod', 'stair', 'ramp',
             'structural_column', 'structural_beam',
-            'mechanical_part', 'mesh', 'library_object',
+            'mechanical_part', 'mesh', 'library_object', 'cabinet',
         }
         if entity.kind not in supported:
             self.statusBar().showMessage(
@@ -1637,6 +1639,18 @@ class MainWindow(QMainWindow):
                     target.setCurrentIndex(index)
             layout.addWidget(QLabel('Εφαρμογή σε'))
             layout.addWidget(target)
+        elif entity.kind == 'cabinet':
+            from archforge.kitchen.cabinets import ROLE_NAMES
+            target = QComboBox(dialog)
+            target.addItem('Όλο το ντουλάπι', 'all')
+            for role, label in ROLE_NAMES.items():
+                target.addItem(label, role)
+            if part_role:
+                index = target.findData(part_role)
+                if index >= 0:
+                    target.setCurrentIndex(index)
+            layout.addWidget(QLabel('Εφαρμογή σε'))
+            layout.addWidget(target)
         self._materials_target = target  # reachable from tests
 
         current = QLabel()
@@ -1658,7 +1672,7 @@ class MainWindow(QMainWindow):
         state = {'material_id': None}
 
         def current_material_id():
-            if entity.kind == 'library_object' and target is not None and target.currentData() != 'all':
+            if entity.kind in ('library_object', 'cabinet') and target is not None and target.currentData() != 'all':
                 surface_map = entity.params.get('surface_materials') or {}
                 return str(surface_map.get(str(target.currentData())) or entity.params.get('material_id', '') or '')
             if entity.kind != 'wall' or target is None:
@@ -1760,13 +1774,13 @@ class MainWindow(QMainWindow):
                 surface_map[mode] = str(material_id)
                 target_label = 'Side A' if mode == 'exterior' else 'Side B'
             changes['surface_materials'] = surface_map
-        elif entity.kind == 'library_object' and target is not None and target.currentData() != 'all':
+        elif entity.kind in ('library_object', 'cabinet') and target is not None and target.currentData() != 'all':
             role = str(target.currentData())
             surface_map = dict(entity.params.get('surface_materials') or {})
             surface_map[role] = str(material_id)
             changes['surface_materials'] = surface_map
             target_label = target.currentText().split('  (')[0]
-        elif entity.kind == 'library_object':
+        elif entity.kind in ('library_object', 'cabinet'):
             # Whole object: one finish everywhere, part overrides cleared.
             changes['material_id'] = str(material_id)
             changes['surface_materials'] = {}

@@ -18,6 +18,13 @@ _MATERIALS: Mapping[str, dict] = {
     "window_glass": {"color": "#a9c3d2", "roughness": 0.03, "metalness": 0.1, "opacity": 0.28},
     "plant_trunk": {"color": "#6b4a2f", "roughness": 0.9, "metalness": 0.0},
     "library_object": {"color": "#b9b2a6", "roughness": 0.6, "metalness": 0.0},
+    "cabinet_carcass": {"color": "#e9e5dd", "roughness": 0.6, "metalness": 0.0},
+    "cabinet_shelf": {"color": "#e9e5dd", "roughness": 0.6, "metalness": 0.0},
+    "cabinet_front": {"color": "#f4f1ea", "roughness": 0.45, "metalness": 0.0},
+    "cabinet_handle": {"color": "#a7a9ac", "roughness": 0.3, "metalness": 0.85},
+    "cabinet_plinth": {"color": "#3b3b3b", "roughness": 0.7, "metalness": 0.0},
+    "cabinet_worktop": {"color": "#77716a", "roughness": 0.35, "metalness": 0.0},
+    "cabinet_rail": {"color": "#b5b7ba", "roughness": 0.25, "metalness": 0.9},
     "plant_canopy": {"color": "#4f7a3a", "roughness": 0.85, "metalness": 0.0},
     "room_ceiling": {"color": "#dedbd2", "roughness": 0.78, "metalness": 0.01},
     "room_foundation": {"color": "#9ea4aa", "roughness": 0.9, "metalness": 0.0},
@@ -116,6 +123,25 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                     "triangles": [[int(t[0]), int(t[1]), int(t[2])] for t, _ in picked],
                     "surfaces": [r for _, r in picked],
                     "material": _material(f"plant_{role}", body.entity_id in selected, entity=entity, doc=doc),
+                })
+            continue
+        if body.semantic_kind == "cabinet" and entity is not None:
+            # One derived mesh per cabinet role; palette finishes per role live in
+            # surface_materials like wall faces (material_id = whole cabinet).
+            groups = {}
+            for tri, role in zip(mesh.triangles, mesh.triangle_surfaces):
+                g = groups.setdefault(str(role), [])
+                g.append([int(tri[0]), int(tri[1]), int(tri[2])])
+            for role, tris in groups.items():
+                objects.append({
+                    "id": str(body.entity_id),
+                    "render_part": f"{body.entity_id}:{role}",
+                    "kind": "cabinet",
+                    "vertices": vertices,
+                    "triangles": tris,
+                    "surfaces": [role] * len(tris),
+                    "material": _material(f"cabinet_{role}", body.entity_id in selected, entity=entity, doc=doc,
+                                          surface_role=role),
                 })
             continue
         if body.semantic_kind == "library_object" and entity is not None:

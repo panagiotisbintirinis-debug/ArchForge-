@@ -451,6 +451,9 @@ class PlanView(QGraphicsView):
         )
         pen.setWidthF(.022 if context else (.06 if opening else (.04 if preview else .035)));item=None
         if p.role=='library-symbol':pen=QPen(QColor(40,45,55));pen.setWidthF(.012)
+        if p.role in ('cabinet','cabinet-front'):pen=QPen(QColor(40,45,55));pen.setWidthF(.012)
+        if p.role=='cabinet-wall':
+            pen=QPen(QColor(70,80,95));pen.setWidthF(.01);pen.setStyle(Qt.PenStyle.DashLine)
         if p.role=='library-object' and self._has_symbol(p.entity_id):
             # Footprint stays for picking; the symbol carries the drawing.
             pen=QPen(QColor(150,160,170,90));pen.setWidthF(.006)
@@ -466,7 +469,7 @@ class PlanView(QGraphicsView):
             brush=QBrush(
                 QColor(160,160,160,18)
                 if context else
-                (QColor(90,180,120,28) if room else (QColor(150,140,125,70) if p.role=='site-path' else (QColor(255,255,255,1) if p.role=='library-object' else QColor(80,160,220,40))))
+                (QColor(90,180,120,28) if room else (QColor(150,140,125,70) if p.role=='site-path' else (QColor(255,255,255,1) if p.role=='library-object' else (QColor(236,230,220,120) if p.role=='cabinet' else (QColor(0,0,0,0) if p.role=='cabinet-wall' else QColor(80,160,220,40))))))
             )
             room_pen=QPen(QColor(110,150,120));room_pen.setWidthF(.015)
             item=self._scene.addPolygon(QPolygonF([QPointF(x,y) for x,y in p.points]),room_pen if room else pen,brush)

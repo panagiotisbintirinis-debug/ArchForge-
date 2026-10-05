@@ -49,11 +49,13 @@ def _project_panel(window):
     search=QLineEdit(); search.setPlaceholderText("Αναζήτηση κουζίνας..."); v.addWidget(search)
     items=QListWidget()
     kitchen_defs={
-        "Κάτω ντουλάπι": dict(name="Base Cabinet 600",role="base_cabinet",width=.60,depth=.60,height=.82,library_id="kitchen.base.600"),
-        "Συρτάρια": dict(name="Drawer Cabinet 600",role="drawer_cabinet",width=.60,depth=.60,height=.82,library_id="kitchen.drawers.600"),
-        "Ντουλάπι νεροχύτη": dict(name="Sink Cabinet 800",role="sink_cabinet",width=.80,depth=.60,height=.82,library_id="kitchen.sink.800"),
-        "Κρεμαστό ντουλάπι": dict(name="Wall Cabinet 600",role="wall_cabinet",width=.60,depth=.35,height=.72,library_id="kitchen.wall.600"),
-        "Ψηλό ντουλάπι": dict(name="Tall Cabinet 600",role="tall_cabinet",width=.60,depth=.60,height=2.10,library_id="kitchen.tall.600"),
+        # Parametric cabinets (doors, drawers, shelves follow the size).
+        "Κάτω ντουλάπι": dict(name="Ντουλάπι βάσης",entity="cabinet",cabinet_type="base",role="cabinet",width=.60,depth=.60,height=.86),
+        "Συρτάρια": dict(name="Συρταριέρα",entity="cabinet",cabinet_type="drawers",role="cabinet",width=.60,depth=.60,height=.86),
+        "Ντουλάπι νεροχύτη": dict(name="Ντουλάπι νεροχύτη",entity="cabinet",cabinet_type="sink",role="cabinet",width=.80,depth=.60,height=.86),
+        "Κρεμαστό ντουλάπι": dict(name="Κρεμαστό ντουλάπι",entity="cabinet",cabinet_type="wall",role="cabinet",width=.60,depth=.35,height=.72),
+        "Ψηλό ντουλάπι": dict(name="Ψηλό ντουλάπι",entity="cabinet",cabinet_type="tall",role="cabinet",width=.60,depth=.60,height=2.10),
+        "Ντουλάπα": dict(name="Ντουλάπα",entity="cabinet",cabinet_type="wardrobe",role="cabinet",width=1.00,depth=.60,height=2.40),
         "Νησίδα": dict(name="Island Module 900",role="island",width=.90,depth=.90,height=.90,library_id="kitchen.island.900"),
         "Εστία": dict(name="Hob 600",role="hob",width=.60,depth=.52,height=.05,library_id="kitchen.hob.600"),
         "Φούρνος": dict(name="Oven 600",role="oven",width=.60,depth=.57,height=.60,library_id="kitchen.oven.600"),

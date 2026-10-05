@@ -151,6 +151,12 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
         # roof, or foundation). Filtering on the slab's rendered Z would hide
         # those dependants from the plan that owns them.
         return found is not None and abs(float(found[1])-z)<=tolerance
+    if e.kind=='cabinet':
+        # Wall cabinets hang above their storey's floor: they belong to the
+        # highest level at or below their base.
+        cz=float(p.get('z',0.0))
+        owner=max([float(v) for v in doc.levels.values() if float(v)<=cz+tolerance]+[min([float(v) for v in doc.levels.values()]+[0.0])])
+        return abs(owner-z)<=tolerance
     if e.kind in ('plant','site_path','library_object'):return abs(float(p.get('z',0.0))-z)<=tolerance
     if e.kind=='terrain':
         # The site belongs to the lowest storey's plan only.
@@ -168,6 +174,10 @@ def entity_primitive(doc,eid):
     if e.kind=='plant':
         r=float(p['canopy'])/2.0
         return Primitive2D('ellipse',((float(p['x']),float(p['y'])),),r,r,0.,eid,'plant')
+    if e.kind=='cabinet':
+        from archforge.kitchen.cabinets import footprint as cabinet_footprint
+        role='cabinet-wall' if p.get('cabinet_type')=='wall' else 'cabinet'
+        return Primitive2D('polygon',tuple(cabinet_footprint(p)),entity_id=eid,role=role)
     if e.kind=='library_object':
         from archforge.library.objects import footprint
         return Primitive2D('polygon',tuple(footprint(p)),entity_id=eid,role='library-object')
@@ -434,6 +444,15 @@ def build_plan_frame(doc,preview=None):
         if not _entity_on_active_level(doc,doc.get(eid)):continue
         p=entity_primitive(doc,eid)
         if p:f.primitives.append(p)
+        if p and doc.get(eid).kind=='cabinet':
+            from archforge.kitchen.cabinets import front_line,footprint as cabinet_footprint
+            q=doc.get(eid).params
+            f.primitives.append(Primitive2D('polyline',tuple(front_line(q)),entity_id=eid,role='cabinet-front'))
+            if q.get('cabinet_type')=='wall':
+                # Plan convention for cabinets above the work plane: dashed outline and a cross.
+                c=cabinet_footprint(q)
+                f.primitives.append(Primitive2D('polyline',(c[0],c[2]),entity_id=eid,role='cabinet-wall'))
+                f.primitives.append(Primitive2D('polyline',(c[1],c[3]),entity_id=eid,role='cabinet-wall'))
         if p and doc.get(eid).kind=='library_object':
             # The derived 2D symbol (outline + inner lines) of the same asset.
             from archforge.library.objects import plan_symbol_world

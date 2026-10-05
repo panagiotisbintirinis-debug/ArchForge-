@@ -131,6 +131,29 @@ def _stair_layout(v):
     return value
 
 
+def _count(v):
+    value = int(round(float(v)))
+    if not 0 <= value <= 20:
+        raise ValueError('count must be between 0 and 20')
+    return value
+
+
+def _cabinet_type(v):
+    from archforge.kitchen.cabinets import TYPES
+    v = str(v)
+    if v not in TYPES:
+        raise ValueError(f'cabinet type must be one of {", ".join(TYPES)}')
+    return v
+
+
+def _cabinet_handle(v):
+    from archforge.kitchen.cabinets import HANDLES
+    v = str(v)
+    if v not in HANDLES:
+        raise ValueError(f'handle must be one of {", ".join(HANDLES)}')
+    return v
+
+
 def _positive_int(v):
     value = int(v)
     if value <= 0:
@@ -408,6 +431,12 @@ SCHEMAS = {
     'plant': {
         'x': _finite, 'y': _finite, 'z': _finite, 'height': _positive, 'canopy': _positive,
         'species': _plant_species,
+    },
+    'cabinet': {
+        'x': _finite, 'y': _finite, 'z': _finite, 'rotation': _finite,
+        'width': _positive, 'depth': _positive, 'height': _positive, 'plinth': _nonnegative,
+        'cabinet_type': _cabinet_type, 'doors': _count, 'drawers': _count, 'shelves': _count,
+        'worktop': _unit_interval, 'handle': _cabinet_handle,
     },
     'library_object': {
         'x': _finite, 'y': _finite, 'z': _finite, 'rotation': _finite,

@@ -75,6 +75,14 @@ repository or any distributed build.
 - The Object Modifier (`ui/object_modifier.py`) opens from the Inspector. It edits size and lock, rotation, elevation, part materials, and the sculpt modifier list, all through the shared commands.
 - UI: the **Βιβλιοθήκη** menu (place, Object Modifier, import glTF, import Home Designer), the **Έπιπλα** tab in the left panel, the `library_place` plan tool, and proportional resize in the Inspector.
 
+## Parametric cabinets (implemented)
+`archforge/kitchen/cabinets.py` defines the `cabinet` entity.
+- Types: base, drawers, sink, wall, tall, wardrobe.
+- Derived boxes per role: carcass, shelf, front, handle, plinth, worktop, rail.
+- Panel thicknesses and gaps are constants, so resizing never distorts. The door count follows the width (60 cm per door, 50 cm in wardrobes).
+- Placement through the Κουζίνα panel uses `wall_aligned` (back onto the nearest wall face, facing the room) and `snap_to_neighbours` (butt against a cabinet on the same run).
+- Verify new cabinet types with sheets at several widths (3D next to the plan), as for imported objects.
+
 ## Every import is verified: geometry against the visual result
 Follow `references/verification.md` for each new object, whatever its source:
 - measure the size against what the object must be;

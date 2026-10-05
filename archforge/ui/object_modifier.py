@@ -229,3 +229,158 @@ class ObjectModifierDialog(QDialog):
         action = getattr(self.window, "sculpt_action", None)
         if action is not None:
             action.setChecked(True)
+
+
+class CabinetModifierDialog(QDialog):
+    """Object Modifier for parametric cabinets and wardrobes.
+
+    Size changes keep panel thicknesses and gaps; the number of doors follows
+    the width unless the user sets it.  Finishes are per role (carcass,
+    fronts, handles, plinth, worktop...) from the shared palette.
+    """
+
+    def __init__(self, window, entity_id):
+        from PySide6.QtWidgets import QComboBox, QSpinBox
+        from archforge.kitchen.cabinets import HANDLES, TYPES
+        super().__init__(window)
+        self.window = window
+        self.entity_id = str(entity_id)
+        self.setWindowTitle("Object Modifier — ντουλάπι")
+        self.resize(420, 640)
+        self._building = False
+        layout = QVBoxLayout(self)
+        self.header = QLabel()
+        layout.addWidget(self.header)
+        box = QGroupBox("Τύπος & διαστάσεις")
+        form = QFormLayout(box)
+        self.kind = QComboBox()
+        for key, (name, _d) in TYPES.items():
+            self.kind.addItem(name, key)
+        self.kind.currentIndexChanged.connect(lambda _i: self.set_param("cabinet_type", self.kind.currentData()))
+        form.addRow("Τύπος", self.kind)
+        self.cm = {}
+        for key, label in (("width", "Πλάτος (cm)"), ("depth", "Βάθος (cm)"), ("height", "Ύψος (cm)"),
+                           ("plinth", "Πόδι/βάση (cm)"), ("z", "Υψόμετρο (cm)")):
+            spin = QDoubleSpinBox()
+            spin.setRange(0.0 if key in ("plinth", "z") else 10.0, 100000.0)
+            spin.setDecimals(1)
+            spin.editingFinished.connect(lambda k=key, w=spin: self.set_param(k, w.value() / 100.0))
+            form.addRow(label, spin)
+            self.cm[key] = spin
+        self.counts = {}
+        for key, label in (("doors", "Πόρτες"), ("drawers", "Συρτάρια"), ("shelves", "Ράφια")):
+            spin = QSpinBox()
+            spin.setRange(0, 20)
+            spin.editingFinished.connect(lambda k=key, w=spin: self.set_param(k, w.value()))
+            form.addRow(label, spin)
+            self.counts[key] = spin
+        self.rotation = QDoubleSpinBox()
+        self.rotation.setRange(-360.0, 360.0)
+        self.rotation.editingFinished.connect(lambda: self.set_param("rotation", self.rotation.value() % 360.0))
+        form.addRow("Περιστροφή (°)", self.rotation)
+        self.worktop = QCheckBox("Πάγκος εργασίας")
+        self.worktop.toggled.connect(lambda on: self.set_param("worktop", 1.0 if on else 0.0))
+        form.addRow(self.worktop)
+        self.handle = QComboBox()
+        for h, label in zip(HANDLES, ("Μπάρα", "Πόμολο", "Χωρίς (push)")):
+            self.handle.addItem(label, h)
+        self.handle.currentIndexChanged.connect(lambda _i: self.set_param("handle", self.handle.currentData()))
+        form.addRow("Χερούλι", self.handle)
+        layout.addWidget(box)
+        mat = QGroupBox("Υλικά (παλέτα)")
+        mv = QVBoxLayout(mat)
+        self.parts = QListWidget()
+        self.parts.itemDoubleClicked.connect(lambda item: self.choose_material(item.data(Qt.ItemDataRole.UserRole)))
+        mv.addWidget(self.parts)
+        row = QHBoxLayout()
+        for text, run in (("Αλλαγή υλικού…", lambda: self.choose_material(self._current_role())),
+                          ("Όλο το ντουλάπι…", lambda: self.choose_material(None)),
+                          ("Αρχικά", self.reset_materials)):
+            b = QPushButton(text)
+            b.clicked.connect(run)
+            row.addWidget(b)
+        mv.addLayout(row)
+        layout.addWidget(mat)
+        self.refresh()
+
+    @property
+    def entity(self):
+        return self.window.doc.get(self.entity_id)
+
+    def _execute(self, command):
+        self.window.stack.execute(command)
+        self.window.doc.select([self.entity_id])
+        self.window._redraw_views(all_views=True)
+        self.window.refresh_inspector()
+        self.refresh()
+
+    def refresh(self):
+        from archforge.kitchen.cabinets import ROLE_NAMES, TYPES
+        if self.entity_id not in self.window.doc.entities:
+            self.close()
+            return
+        self._building = True
+        p = self.entity.params
+        self.header.setText(f"<b>{self.entity.name or TYPES[p['cabinet_type']][0]}</b>")
+        self.kind.setCurrentIndex(self.kind.findData(p["cabinet_type"]))
+        for key, spin in self.cm.items():
+            spin.setValue(float(p.get(key, 0.0)) * 100.0)
+        for key, spin in self.counts.items():
+            spin.setValue(int(p.get(key, 0)))
+        self.rotation.setValue(float(p.get("rotation", 0.0)))
+        self.worktop.setChecked(bool(p.get("worktop", 0.0)))
+        self.handle.setCurrentIndex(self.handle.findData(p.get("handle", "bar")))
+        self.parts.clear()
+        overrides = p.get("surface_materials") or {}
+        from archforge.kitchen.cabinets import cabinet_boxes
+        present = []
+        for role, _lo, _hi in cabinet_boxes(p):
+            if role not in present:
+                present.append(role)
+        for role in present:
+            mid = overrides.get(role) or p.get("material_id")
+            finish = MATERIAL_PRESETS.get(mid, {}).get("name", "αρχικό")
+            item = QListWidgetItem(f"{ROLE_NAMES.get(role, role)}:  {finish}")
+            item.setData(Qt.ItemDataRole.UserRole, role)
+            self.parts.addItem(item)
+        self._building = False
+
+    def _current_role(self):
+        item = self.parts.currentItem()
+        return item.data(Qt.ItemDataRole.UserRole) if item else None
+
+    def set_param(self, key, value):
+        """Change one parameter; width also re-derives the door count."""
+        if self._building:
+            return
+        from archforge.kitchen.cabinets import TYPES, auto_doors
+        p = self.entity.params
+        if p.get(key) == value:
+            return
+        changes = {key: value}
+        if key == "width" and int(p.get("doors", 0)) == auto_doors(p["cabinet_type"], float(p["width"])):
+            changes["doors"] = auto_doors(p["cabinet_type"], float(value)) if int(p.get("doors", 0)) else 0
+        if key == "cabinet_type":
+            name, d = TYPES[value]
+            changes.update({k: d[k] for k in ("depth", "height", "plinth", "drawers", "shelves", "worktop")})
+            changes["doors"] = auto_doors(value, float(p["width"])) if d["doors"] else 0
+            changes["z"] = float(p["z"]) + (d["z"] - TYPES[p["cabinet_type"]][1]["z"])
+        self._execute(UpdateEntity(self.entity_id, changes))
+
+    def choose_material(self, role):
+        self.window._open_materials(self.entity_id, part_role=role)
+        self.refresh()
+
+    def set_role_material(self, role, material_id):
+        if material_id not in MATERIAL_PRESETS:
+            raise KeyError(material_id)
+        if role is None:
+            changes = {"material_id": material_id, "surface_materials": {}}
+        else:
+            surface_map = dict(self.entity.params.get("surface_materials") or {})
+            surface_map[role] = material_id
+            changes = {"surface_materials": surface_map}
+        self._execute(UpdateEntity(self.entity_id, changes))
+
+    def reset_materials(self):
+        self._execute(UpdateEntity(self.entity_id, {"material_id": "", "surface_materials": {}}))
