@@ -126,6 +126,8 @@ def main(argv=None):
     ap.add_argument("source")
     ap.add_argument("--stats", action="store_true")
     ap.add_argument("--list", action="store_true", help="list objects by SymbolData size")
+    ap.add_argument("--smallest", action="store_true",
+                    help="sample the object with the smallest non-empty SymbolData (whole, untruncated)")
     ap.add_argument("--out")
     ap.add_argument("--count", type=int, default=3)
     ap.add_argument("--ids", help="comma-separated LibraryObjectId values")
@@ -144,7 +146,14 @@ def main(argv=None):
         for oid, typ, size, name in rows:
             print(f"  id={oid:<6d} type={typ:<4d} MB={size / 1048576:6.2f}  {name}")
     if a.out:
-        ids = [int(x) for x in a.ids.split(",")] if a.ids else _pick(conn, a.count)
+        if a.smallest:
+            ids = [conn.execute(
+                "SELECT LibraryObjectId FROM SymbolData4LibraryObjects WHERE LENGTH(SymbolData) > 1000 "
+                "ORDER BY LENGTH(SymbolData) LIMIT 1").fetchone()[0]]
+        elif a.ids:
+            ids = [int(x) for x in a.ids.split(",")]
+        else:
+            ids = _pick(conn, a.count)
         names = dict(conn.execute(
             f'SELECT LibraryObjectId, Name FROM LibraryObjects WHERE LibraryObjectId IN '
             f'({",".join("?" * len(ids))})', ids)) if ids else {}
