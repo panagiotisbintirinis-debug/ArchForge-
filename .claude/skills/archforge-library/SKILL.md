@@ -34,6 +34,10 @@ repository or any distributed build.
 
 - Inspect a catalog with the bundled read-only script:
   `python .claude/skills/archforge-library/scripts/calib_inspect.py <file.calib> [--out x.json] [--hex]`
+- To study a big catalog (furniture is 30 MB to 5 GB), first print where its
+  bytes live, then cut a few objects into a small sample:
+  `python .claude/skills/archforge-library/scripts/calib_sample.py <file.calib> --stats`
+  `python .claude/skills/archforge-library/scripts/calib_sample.py <file.calib> --out sample.calib --count 3`
 - `references/calib-format.md` holds everything decoded so far, with each
   item marked verified or guess. Update that file whenever you learn
   something new from a real file. That keeps the next agent from redoing

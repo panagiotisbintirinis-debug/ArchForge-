@@ -74,3 +74,20 @@ def test_inspector_decodes_both_material_revisions_and_tree(tmp_path):
     assert all(o["provenance"] == {"source": "home-designer-calib", "redistributable": False}
                for o in result["objects"])
     assert cat.read_bytes() == before  # read-only
+
+
+def test_sampler_copies_only_chosen_objects_and_keeps_source(tmp_path):
+    spec = importlib.util.spec_from_file_location(
+        "calib_sample", SCRIPT.with_name("calib_sample.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    src = tmp_path / "Big.calib"
+    _catalog(src)
+    before = src.read_bytes()
+    out = tmp_path / "sample.calib"
+    mod.sample(str(src), str(out), [2])
+    assert src.read_bytes() == before
+    result = _load().inspect(str(out))
+    assert [o["name"] for o in result["objects"]] == ["Old Style"]
+    assert result["objects"][0]["color"] == "#dccfbf"
+    assert result["objects"][0]["folder"] == ["Brand", "Line B"]

@@ -48,7 +48,10 @@ them as `type-<n>` until a sample confirms the value.
 Texture and backdrop paths point at the authoring machine
 (`C:\Productivity\P4\content\…`, `C:\Users\Dustin\…`). The JPGs live
 somewhere else in the user's Home Designer install, and that location is
-**not found yet**. Resolve images by file name against a user-chosen folder.
+**not found yet**. Verified on the user's machine: Home Designer Pro 2023
+has no loose texture JPG/PNG files. The only loose images are help files.
+The images are therefore probably embedded in the large catalogs; Kohler.calib
+alone is 5.1 GB. This is a guess until a sample proves it. Resolve images by file name against a user-chosen folder.
 Never resolve them by the stored absolute path.
 
 ## Open questions
