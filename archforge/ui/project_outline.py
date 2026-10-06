@@ -269,6 +269,17 @@ def project_outline(doc, title="Έργο"):
                     ids = sorted(ids, key=lambda i: _natural(labels.get(i, _label(doc.get(i)))))
                     sub.append(_group(title_, ids, doc, name, labels))
                     placed.update(ids)
+            # Foundation under this storey (from the up-to-date analysis): footings, tie beams.
+            from archforge.structure.analysis import fresh_result
+            fd = (fresh_result(doc) or {}).get("foundation") or {}
+            fts = [f for f in fd.get("footings", ()) if abs(float(f.get("z", 0.0)) - float(storey["z"])) < 0.05]
+            if fts:
+                ties = [t for t in fd.get("ties", ()) if abs(float(t.get("z", 0.0)) - float(storey["z"])) < 0.05]
+                sub.append(_node(f"Θεμελίωση ({len(fts)} πέδιλα, {len(ties)} συνδετήριες) · {fd['concrete_m3']} m³", None, name,
+                                 [_node(f"{f['name']} ({f.get('column', '')}) {f['B_m']:.2f}×{f['B_m']:.2f} h{f['h_m']:.2f} {f['mesh']}",
+                                        f.get("column_id") or None, name) for f in fts]
+                                 + [_node(f"{t['name']} {t['from']}–{t['to']} {t['section']} {t['bars']} {t['stirrups']}", None, name)
+                                    for t in ties]))
             groups.append(_node(f"Φέρων οργανισμός ({len(cols) + len(beams) + len(structure)})", None, name, sub))
         # Everything else on this storey (outside rooms).
         rest = [i for i, e in doc.entities.items() if i not in placed and e.kind not in SITE

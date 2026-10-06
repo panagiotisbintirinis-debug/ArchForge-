@@ -1,4 +1,5 @@
 from __future__ import annotations
+import math
 from dataclasses import dataclass,field
 from math import cos,sin,radians,pi
 from typing import List,Tuple,Optional,Dict,Any
@@ -596,6 +597,26 @@ def build_plan_frame(doc,preview=None):
                 extra=''
             text=f"{info['name']} {info.get('section','')}{extra}"+('' if info.get('ok',True) else ' ⚠')
             f.primitives.append(Primitive2D('label',(at,),entity_id=eid,role='structural-label',meta=(('text',text),)))
+        # Foundation under the base storey: footings and tie beams (hidden lines), from the same analysis.
+        fd=(result or {}).get('foundation') or {}
+        for ft in fd.get('footings',()):
+            if abs(float(ft.get('z',0.0))-level)>.05:
+                continue
+            x,y,h=float(ft['x']),float(ft['y']),float(ft['B_m'])/2
+            f.primitives.append(Primitive2D('polyline',((x-h,y-h),(x+h,y-h),(x+h,y+h),(x-h,y+h),(x-h,y-h)),role='footing',
+                                            entity_id=ft.get('column_id') or None,meta=(('name',ft['name']),)))
+            f.primitives.append(Primitive2D('label',((x-h+.05,y-h-.25),),role='footing-label',
+                                            meta=(('text',f"{ft['name']} {ft['B_m']:.2f}×{ft['B_m']:.2f} h{ft['h_m']:.2f} {ft['mesh']}"),)))
+        for t in fd.get('ties',()):
+            if abs(float(t.get('z',0.0))-level)>.05:
+                continue
+            (ax,ay),(bx,by)=t['a'],t['b']
+            L=math.hypot(bx-ax,by-ay) or 1.0
+            nx,ny=-(by-ay)/L*.125,(bx-ax)/L*.125
+            for s_ in (1,-1):
+                f.primitives.append(Primitive2D('polyline',((ax+nx*s_,ay+ny*s_),(bx+nx*s_,by+ny*s_)),role='tie-beam',meta=(('name',t['name']),)))
+            f.primitives.append(Primitive2D('label',(((ax+bx)/2+.05,(ay+by)/2+.18),),role='footing-label',
+                                            meta=(('text',f"{t['name']} {t['section']} {t['bars']}"),)))
     # Derived drainage of the active storey: sloped pipes with Φ and slope, fittings.
     if any(e.kind=='plumbing_point' for e in doc.entities.values()):
         from archforge.mep.drainage import SLOPE,_floor_of as drain_floor,route_drainage_cached

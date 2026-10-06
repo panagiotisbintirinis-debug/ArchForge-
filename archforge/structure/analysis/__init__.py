@@ -226,6 +226,8 @@ def analyze(doc):
         if not entry.get("ok", True):
             result["ok"] = False
     result["footings"] = _footings(model, frame, settings)
+    from archforge.structure.foundation import design_foundation
+    result["foundation"] = design_foundation(result["footings"], settings)
     from archforge.structure.slabs import design_slabs
     result["slabs"] = design_slabs(doc)
     return result
@@ -268,7 +270,11 @@ def _footings(model, frame, settings):
         if N <= 0:
             continue
         B = max(1.0, math.ceil(math.sqrt(1.1 * N / sigma) / 0.05) * 0.05)      # +10 % footing weight
+        col = next((m for m in model.members.values() if m.kind == "column"
+                    and math.dist(m.p1, model.nodes[n]) < 0.05), None)
         out.append({"node": n, "x": round(model.nodes[n][0], 2), "y": round(model.nodes[n][1], 2),
+                    "z": round(model.nodes[n][2], 3), "column": col.name if col else "", "column_id": col.id if col else "",
+                    "column_m": round(max(col.b, col.h), 3) if col else 0.30,
                     "N_sls_kN": round(N, 1), "B_m": round(B, 2), "h_m": round(max(0.5, 0.3 * B), 2)})
     return out
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 from typing import Iterable, Mapping
 
 from archforge.geometry.mesh import MeshPayload
@@ -322,6 +324,37 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                 objects.append({"id": "", "render_part": f"elec:{group}", "kind": "elec_cable", "layer": "elec",
                                 "vertices": verts, "triangles": tris, "surfaces": ["cable"] * len(tris),
                                 "material": {"color": CABLE_COLORS.get(group, "#e07a00"), "roughness": 0.5, "metalness": 0.0}})
+        # Foundation (layer "foundation"): footings and tie beams from the up-to-date analysis (never computed here).
+        if any(e.kind == "structural_column" for e in doc.entities.values()):
+            from archforge.structure.analysis import fresh_result
+            from archforge.structure.foundation import TIE_B, TIE_H, levels
+            fd = (fresh_result(doc) or {}).get("foundation") or {}
+            verts, tris = [], []
+
+            def box(corners, z0, z1):
+                base = len(verts)
+                for zz in (z0, z1):
+                    verts.extend([float(cx), float(cy), float(zz)] for cx, cy in corners)
+                for a, b, c in ((0, 2, 1), (0, 3, 2), (4, 5, 6), (4, 6, 7)):
+                    tris.append([base + a, base + b, base + c])
+                for i in range(4):
+                    j = (i + 1) % 4
+                    tris.extend([[base + i, base + j, base + 4 + j], [base + i, base + 4 + j, base + 4 + i]])
+            for ft in fd.get("footings", ()):
+                h = float(ft["B_m"]) / 2
+                top, bottom = levels(ft)
+                box(((ft["x"] - h, ft["y"] - h), (ft["x"] + h, ft["y"] - h), (ft["x"] + h, ft["y"] + h), (ft["x"] - h, ft["y"] + h)),
+                    bottom, top)
+            for t in fd.get("ties", ()):
+                (ax, ay), (bx, by) = t["a"], t["b"]
+                L = math.hypot(bx - ax, by - ay) or 1.0
+                nx, ny = -(by - ay) / L * TIE_B / 2, (bx - ax) / L * TIE_B / 2
+                z = float(t.get("z", 0.0))
+                box(((ax + nx, ay + ny), (bx + nx, by + ny), (bx - nx, by - ny), (ax - nx, ay - ny)), z - TIE_H, z)
+            if tris:
+                objects.append({"id": "", "render_part": "foundation", "kind": "foundation", "layer": "foundation",
+                                "vertices": verts, "triangles": tris, "surfaces": ["concrete"] * len(tris),
+                                "material": {"color": "#9a9a95", "roughness": 0.8, "metalness": 0.0}})
         # Derived drainage (layer "drain"): sloped pipes, stacks, floor drains and manhole, true diameters.
         if any(e.kind == "plumbing_point" for e in doc.entities.values()):
             from archforge.mep.drainage import route_drainage_cached

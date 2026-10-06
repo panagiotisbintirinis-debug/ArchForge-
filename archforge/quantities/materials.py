@@ -49,6 +49,32 @@ def drainage_list(doc):
     return rows
 
 
+def structure_list(doc):
+    """Concrete of the frame and foundation from the up-to-date analysis (reinforcement weight: from the study)."""
+    from archforge.structure.analysis import fresh_result
+    r = fresh_result(doc)
+    if not r or r.get("error"):
+        return []
+    cols = beams = 0.0
+    for mid, m in r["members"].items():
+        e = doc.entities.get(mid)
+        if e is None or m["material"] != "rc":
+            continue
+        p = e.params
+        if e.kind == "structural_column":
+            cols += float(p["width"]) * float(p["depth"]) * float(p["height"])
+        else:
+            L = ((float(p["x2"]) - float(p["x1"])) ** 2 + (float(p["y2"]) - float(p["y1"])) ** 2) ** 0.5
+            beams += float(p["width"]) * float(p["height"]) * L
+    fd = r.get("foundation") or {}
+    rows = [("Σκυρόδεμα κολονών", "m³", round(cols, 2)), ("Σκυρόδεμα δοκαριών", "m³", round(beams, 2)),
+            ("Σκυρόδεμα πεδίλων", "m³", round(sum(f["concrete_m3"] for f in fd.get("footings", ())), 2)),
+            ("Σκυρόδεμα συνδετήριων δοκών", "m³", round(sum(t["concrete_m3"] for t in fd.get("ties", ())), 2)),
+            ("Οπλισμός B500C (φέρων και θεμελίωση) — από τη στατική μελέτη", "kg", None),
+            ("Καλούπια (ξυλότυποι)", "m²", None)]
+    return [row for row in rows if row[2] is None or row[2] > 0]
+
+
 def all_lists(doc):
     """``[(sheet name, title, rows, notes)]`` for the lists that have quantities."""
     from archforge.construction.isotex import PROVENANCE as ISOTEX
@@ -56,7 +82,8 @@ def all_lists(doc):
     for name, title, rows, notes in (
             ("Isotex", "Λίστα Isotex — τεμάχια, σκυρόδεμα, εργασίες", isotex_list(doc), (ISOTEX,)),
             ("Επιμέτρηση", "Επιμέτρηση εργασιών (σύνολα έργου)", takeoff_list(doc), ("Ανά χώρο: Κατασκευή → Επιμέτρηση εργασιών.",)),
-            ("Αποχέτευση", "Αποχέτευση — σωλήνες και εξαρτήματα", drainage_list(doc), ("Προμελέτη — προς έλεγχο μηχανολόγου.",))):
+            ("Αποχέτευση", "Αποχέτευση — σωλήνες και εξαρτήματα", drainage_list(doc), ("Προμελέτη — προς έλεγχο μηχανολόγου.",)),
+            ("Φέρων", "Φέρων οργανισμός και θεμελίωση", structure_list(doc), ("Προμελέτη — προς έλεγχο στατικού μηχανικού.",))):
         if rows:
             out.append((name, title, rows, ("Συμπλήρωσε τις κίτρινες στήλες (τιμή μονάδας και ό,τι ποσότητα λείπει)· "
                                             "τα σύνολα βγαίνουν αυτόματα.",) + tuple(notes)))

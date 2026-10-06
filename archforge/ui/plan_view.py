@@ -547,6 +547,9 @@ class PlanView(QGraphicsView):
         if p.role in ('drain','drain-node','drain-stack','drainage-point'):
             pen=QPen(QColor(150,80,30));pen.setWidthF(max(.015,float(dict(p.meta).get('diameter',50))/2500.) if p.role=='drain' else .015)
             if p.role=='drain' and dict(p.meta).get('kind')=='branch':pen.setStyle(Qt.PenStyle.DashLine)
+        if p.role in ('footing','tie-beam'):
+            # Below the floor: hidden lines.
+            pen=QPen(QColor(95,95,90));pen.setWidthF(.015);pen.setStyle(Qt.PenStyle.DashLine)
         if p.role=='joist':
             pen=QPen(QColor(150,105,45) if dict(p.meta).get('ok',True) else QColor(200,40,40));pen.setWidthF(.02);pen.setStyle(Qt.PenStyle.DashLine)
         if p.role=='joists-area':pen=QPen(QColor(150,105,45,120));pen.setWidthF(.01)

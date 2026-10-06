@@ -220,11 +220,15 @@ def install_approved_mockup_shell(window):
     window._roof_tiles_layer_action=tiles_layer
     structure_menu=menus["Δομικά"]
     structure_menu.addSeparator()
-    for text,run in (("Πρόταση φέροντος οργανισμού από τους τοίχους",lambda: window._propose_frame()),
+    for text,run in (("Υπολογισμός φέροντα: κολόνες, δοκάρια, βάσεις",lambda: window._design_structure()),
+                     ("Πρόταση φέροντος οργανισμού από τους τοίχους",lambda: window._propose_frame()),
                      ("Στοιχεία κτιρίου για στατική…",lambda: window._edit_structural_settings()),
                      ("Στατική ανάλυση φέροντος οργανισμού…",lambda: window._show_structural_analysis()),
                      ("Οπλισμός πλακών…",lambda: window._show_slabs())):
         a=QAction(text,window); a.triggered.connect(lambda _=False,r=run: r()); structure_menu.addAction(a)
+    foundation_layer=QAction("Θεμελίωση στο 3D",window); foundation_layer.setCheckable(True); foundation_layer.setChecked(True)
+    foundation_layer.toggled.connect(lambda on: window._set_layer_visible("foundation",on))
+    structure_menu.addAction(foundation_layer); window.view_menu.addAction(foundation_layer); window._foundation_layer_action=foundation_layer
     window._structure_menu=structure_menu
     mep_menu=menus["Μηχανολογικά"]
     from archforge.mep.plumbing import POINT_TYPES

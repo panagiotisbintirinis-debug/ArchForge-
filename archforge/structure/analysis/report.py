@@ -70,12 +70,9 @@ def report_html(r):
                        f"<td>{e['N_max']}</td><td>{nu}</td><td>{bars}</td><td>{st}</td><td>{_pct(e.get('utilisation', 0))}</td>"
                        f"<td>{_status(e)}</td></tr>")
         out.append("</table>")
-    if r.get("footings"):
-        out.append("<h3>Πέδιλα (προδιάσταση από φορτία λειτουργίας G+Q)</h3><table border=1 cellspacing=0 cellpadding=3>"
-                   "<tr><th>Θέση (x, y)</th><th>N (kN)</th><th>Πέδιλο B×B</th><th>Ύψος</th></tr>" +
-                   "".join(f"<tr><td>{f['x']}, {f['y']}</td><td>{f['N_sls_kN']}</td><td>{f['B_m']:.2f}×{f['B_m']:.2f} m</td>"
-                           f"<td>{f['h_m']:.2f} m</td></tr>" for f in r["footings"]) + "</table>"
-                   "<p><i>Κεντρικά φορτισμένα πέδιλα· συνδετήριες δοκοί, ροπές βάσης και έλεγχος διάτρησης προς μελέτη.</i></p>")
+    if r.get("foundation"):
+        from archforge.structure.foundation import foundation_html
+        out.append(foundation_html(r["foundation"]))
     if r.get("slabs"):
         from archforge.structure.slabs import slabs_html
         out.append(slabs_html(r["slabs"]))

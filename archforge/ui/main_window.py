@@ -2704,6 +2704,18 @@ class MainWindow(QMainWindow):
             + ' — Ctrl+Z για αναίρεση', 9000)
         return report
 
+    def _design_structure(self):
+        """Columns, beams and footings in one go (one undo), then the report."""
+        from archforge.structure.design_all import design_structure, summary
+        out = design_structure(self.doc, self.stack)
+        self._refresh_project_tree()
+        self._redraw_views(all_views=True)
+        self._schedule_assistant_refresh()
+        self.statusBar().showMessage(summary(out) + (' — Ctrl+Z για αναίρεση' if out['result'] else ''), 12000)
+        if out['result'] is not None and not out['result'].get('error'):
+            self._show_structural_analysis()
+        return out
+
     def _edit_structural_settings(self):
         """Building type and design basis for the structural analysis (one undoable command)."""
         from archforge.structure.analysis.sections import CONCRETE, STEEL_GRADES
