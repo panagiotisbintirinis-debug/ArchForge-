@@ -2,6 +2,7 @@ import os
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
+import pytest
 from PySide6.QtWidgets import QApplication, QMessageBox, QToolButton
 
 from archforge.core.viewport import PointerEvent
@@ -170,3 +171,34 @@ def test_plan_redraw_does_not_wipe_a_3d_stair_preview():
     window.plan_view.redraw()          # emits an empty plan preview
     assert calls == []
     _close(app, window)
+
+
+def test_3d_stair_is_a_ghost_that_follows_the_cursor_through_walls_and_one_click_places_it():
+    from archforge.core.commands import AddEntity
+    from archforge.core.model import Entity
+    app, window = _window()
+    try:
+        window.doc.levels['Floor 2'] = 2.70
+        window.stack.execute(AddEntity(Entity('wall', {'x1': 3.0, 'y1': -5.0, 'x2': 3.0, 'y2': 5.0, 'z': 0.0, 'height': 2.7, 'thickness': 0.2})))
+        shown = []
+        pbr = window.pbr_view
+        original = pbr._set_stair_candidate_params
+        pbr._set_stair_candidate_params = lambda c, i=0: (shown.append(len(c)), original(c, i))
+        pbr._hover_stair_from_web(1.02, 0.98)
+        first = pbr._stair_tx.origin
+        assert first == pytest.approx((1.0, 1.0))                  # 5 cm steps on the floor
+        pbr._hover_stair_from_web(3.01, 0.0)                         # over the wall: it just follows
+        assert pbr._stair_tx.origin == pytest.approx((3.0, 0.0))
+        assert set(shown) == {1}                                      # one stair shown, never the four options
+        layout = pbr._stair_tx.active_candidate.layout
+        pbr._cycle_stair_from_web(1)
+        assert pbr._stair_tx.active_candidate.layout != layout or len(pbr._stair_tx.candidates) == 1
+        pbr._rotate_stair_from_web()
+        assert pbr._stair_heading == 90.0
+        pbr._finish_stair_from_web()
+        stairs = [e for e in window.doc.entities.values() if e.kind == 'stair']
+        assert len(stairs) == 1
+        window.stack.undo()
+        assert not [e for e in window.doc.entities.values() if e.kind == 'stair']
+    finally:
+        _close(app, window)

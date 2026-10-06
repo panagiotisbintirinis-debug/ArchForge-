@@ -357,7 +357,8 @@ function scheduleStairUpdate(point) {
     if (!stairing || !bridge || !pendingStairPoint) return;
     const point = pendingStairPoint;
     pendingStairPoint = null;
-    bridge.updateStair(Number(point.x), Number(point.y));
+    if (bridge.hoverStair) bridge.hoverStair(Number(point.x), Number(point.y));
+    else bridge.updateStair(Number(point.x), Number(point.y));
   });
 }
 
@@ -589,12 +590,12 @@ window.setStairPreview = function(payload) {
   stairHud.innerHTML =
     "<strong>" + label + "</strong>" +
     optionText +
-    " · " + String(info.risers || "") + " risers" +
-    " · rise " + Number(info.riser || 0).toFixed(3) + " m" +
-    " · tread " + Number(info.tread || 0).toFixed(3) + " m" +
-    " · landing " + Number(info.landing_z || 0).toFixed(3) + " m" +
-    " · slab " + Number(info.slab_thickness || 0).toFixed(3) + " m" +
-    "<span class='hint'>Move = adjust · Wheel/Tab = next type · Left click = place · Right click/Esc = cancel</span>";
+    " · " + String(info.risers || "") + " ρίχτια" +
+    " · ύψος " + Number(info.riser || 0).toFixed(3) + " m" +
+    " · πάτημα " + Number(info.tread || 0).toFixed(3) + " m" +
+    " · πλατύσκαλο " + Number(info.landing_z || 0).toFixed(3) + " m" +
+    " · πλάκα " + Number(info.slab_thickness || 0).toFixed(3) + " m" +
+    "<span class='hint'>Κίνηση = μετακίνηση (μέσα από τοίχους) · Ροδέλα/Tab = τύπος · R = περιστροφή 90° · Κλικ = τοποθέτηση · Δεξί κλικ/Esc = ακύρωση</span>";
   stairHud.style.display = "block";
 };
 
@@ -638,7 +639,7 @@ window.setRampPreview = function(payload) {
     " · slope " + Number(info.slope_pct || 0).toFixed(1) + "%" +
     " · run " + Number(info.run_length || 0).toFixed(2) + " m" +
     " · rise " + Number(info.rise || 0).toFixed(2) + " m" +
-    "<span class='hint'>Move = direction/space · Wheel = slope · Left click = place · Right click/Esc = cancel</span>";
+    "<span class='hint'>Κίνηση = κατεύθυνση/χώρος · Ροδέλα = κλίση · Κλικ = τοποθέτηση · Δεξί κλικ/Esc = ακύρωση</span>";
   stairHud.style.display = "block";
 };
 
@@ -1287,25 +1288,13 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     }
     if (event.button !== 0) return;
 
-    if (stairing) {
-      const point = pointOnHorizontalPlane(event, stairPlaneZ);
-      if (point) bridge.updateStair(Number(point.x), Number(point.y));
-      pendingStairPoint = null;
-      stairing = false;
-      controls.enabled = true;
-      bridge.endStair();
-      event.preventDefault();
-      event.stopPropagation();
-      return;
-    }
-
-    const hit = pickModel(event);
-    const start = placementPoint(event);
-    if (!start) return;
-    stairing = true;
-    stairPlaneZ = workPlaneZ;
-    controls.enabled = false;
-    bridge.beginStair(start.x, start.y);
+    // The ghost already follows the cursor on the floor (walls are air): a click places it.
+    const point = pointOnHorizontalPlane(event, workPlaneZ);
+    if (!point) return;
+    if (bridge.hoverStair) bridge.hoverStair(Number(point.x), Number(point.y));
+    pendingStairPoint = null;
+    stairing = false;
+    bridge.endStair();
     event.preventDefault();
     event.stopPropagation();
     return;
@@ -1477,6 +1466,11 @@ renderer.domElement.addEventListener("wheel", (event) => {
   }
 }, {passive: false, capture: true});
 window.addEventListener("keydown", (event) => {
+  if (stairing && bridge && (event.key === "r" || event.key === "R") && bridge.rotateStair) {
+    event.preventDefault();
+    bridge.rotateStair();
+    return;
+  }
   if ((stairing || ramping) && bridge && (event.key === "Tab" || event.key === " ")) {
     event.preventDefault();
     if (stairing) bridge.cycleStair(1); else bridge.cycleRamp(1);
@@ -1532,11 +1526,12 @@ renderer.domElement.addEventListener("pointermove", (event) => {
     event.stopPropagation();
     return;
   }
-  if (stairing) {
-    const point = pointOnHorizontalPlane(event, stairPlaneZ);
+  if (activeTool === "stair" && !(event.buttons & 7)) {
+    // Hover: the stair ghost follows the cursor on the floor until a click places it.
+    stairing = true;
+    stairPlaneZ = workPlaneZ;
+    const point = pointOnHorizontalPlane(event, workPlaneZ);
     if (point) scheduleStairUpdate(point);
-    event.preventDefault();
-    event.stopPropagation();
     return;
   }
   if (ramping) {
@@ -1762,6 +1757,14 @@ class PBRInteractionBridge(QObject):
     @Slot()
     def endStair(self) -> None:
         self.viewport._finish_stair_from_web()
+
+    @Slot(float, float)
+    def hoverStair(self, x: float, y: float) -> None:
+        self.viewport._hover_stair_from_web(x, y)
+
+    @Slot()
+    def rotateStair(self) -> None:
+        self.viewport._rotate_stair_from_web()
 
     @Slot(int)
     def cycleStair(self, step: int) -> None:
@@ -2289,15 +2292,42 @@ class PBRViewport(QWidget):
         except Exception as exc:
             self.statusChanged.emit(f"Stair preview error: {exc}")
 
+    STAIR_SNAP = 0.05          # the ghost moves in 5 cm steps on the floor: magnetised, never stuck
+
+    def _hover_stair_from_web(self, x: float, y: float) -> None:
+        """The stair follows the cursor on the floor as a ghost (walls do not stop it); a click places it."""
+        import math
+        snap = self.STAIR_SNAP
+        x, y = round(float(x) / snap) * snap, round(float(y) / snap) * snap
+        heading = math.radians(getattr(self, "_stair_heading", 0.0))
+        try:
+            tx = StairPlaceTransaction(self.doc, self.stack, (x, y), layout=getattr(self, "stair_layout", None))
+            tx.active_index = getattr(self, "_stair_option", 0)
+            tx.update(x + math.cos(heading) * 3.0, y + math.sin(heading) * 3.0)
+            self._stair_option = tx.active_index
+            self._stair_tx = tx
+            # Only the stair you will place is shown — not every option at once.
+            self._set_stair_candidate_params(tx.preview.get("candidates", ())[tx.active_index:tx.active_index + 1], 0)
+            self._stair_status()
+        except Exception as exc:
+            self._stair_tx = None
+            self._set_stair_candidate_params(())
+            self.statusChanged.emit(f"Σκάλα: {exc}")
+
+    def _rotate_stair_from_web(self) -> None:
+        self._stair_heading = (getattr(self, "_stair_heading", 0.0) + 90.0) % 360.0
+        tx = self._stair_tx
+        if tx is not None:
+            self._hover_stair_from_web(*tx.origin)
+
     def _cycle_stair_from_web(self, step: int) -> None:
         if self._stair_tx is None:
             return
         try:
             self._stair_tx.cycle_candidate(1 if int(step) >= 0 else -1)
-            self._set_stair_candidate_params(
-                self._stair_tx.preview.get("candidates", ()),
-                self._stair_tx.active_index,
-            )
+            self._stair_option = self._stair_tx.active_index
+            i = self._stair_tx.active_index
+            self._set_stair_candidate_params(self._stair_tx.preview.get("candidates", ())[i:i + 1], 0)
             self._stair_status()
         except Exception as exc:
             self.statusChanged.emit(f"Cannot change stair option: {exc}")
