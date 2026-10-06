@@ -608,6 +608,8 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(message, 8000)
 
     def _place_site_line(self, tool, x1, y1, x2, y2):
+        if str(tool).startswith('pergola_'):
+            return self._place_pergola(tool[len('pergola_'):], x1, y1, x2, y2)
         from archforge.site.paths import STYLES
         style = tool.split('_', 1)[1]
         spec = STYLES[style]
@@ -619,6 +621,40 @@ class MainWindow(QMainWindow):
         self.stack.execute(AddEntity(path))
         self._redraw_views(all_views=True)
         self.statusBar().showMessage(f"{spec['name']}: πλάτος στις Ιδιότητες — σύρε για επόμενο, Esc για τέλος", 5000)
+
+    def _place_pergola(self, material, x1, y1, x2, y2):
+        """A pergola over the dragged rectangle (posts, beams, rafters) — one undo."""
+        from archforge.architecture.pergola import pergola_entities
+        from archforge.core.commands import AddEntities
+        try:
+            entities, report = pergola_entities(self.doc, x1, y1, x2, y2, z=float(self.doc.work_plane.origin[2]),
+                                                material=material, level=self.doc.active_level_name())
+        except ValueError as exc:
+            self.statusBar().showMessage(str(exc), 6000)
+            return None
+        self.stack.execute(AddEntities(entities))
+        self._redraw_views(all_views=True)
+        self._refresh_project_tree()
+        fixed = f" · στον τοίχο: {', '.join(report['fixed'])}" if report['fixed'] else ''
+        self.statusBar().showMessage(f"Πέργκολα {report['label']} {report['area']:.1f} m²: {report['posts']} κολονάκια, "
+                                     f"{report['rafters']} τεγίδες{fixed} — Ctrl+Z για αναίρεση", 8000)
+        return entities
+
+    def _set_room_roof(self, choice, x, y):
+        """Tiled roof or terrace for the room at (x, y) of the active storey — one undo."""
+        from archforge.architecture.roof_choice import room_roof_command
+        from archforge.assistant.suggestions import room_at
+        room = room_at(self.doc, x, y)
+        if room is None:
+            self.statusBar().showMessage('Κλικ μέσα σε κλειστό χώρο για να διαλέξεις τη στέγη του', 6000)
+            return None
+        command, message = room_roof_command(self.doc, room, choice)
+        if command is not None:
+            self.stack.execute(command)
+            self._redraw_views(all_views=True)
+            self._refresh_project_tree()
+        self.statusBar().showMessage(message + (' — Ctrl+Z για αναίρεση' if command else ''), 9000)
+        return command
 
     def _place_site_point(self, tool, x, y):
         from archforge.site.terrain import terrain_contains, terrain_height
@@ -636,6 +672,9 @@ class MainWindow(QMainWindow):
             return
         if tool == 'library_place':
             self._place_library_object(x, y)
+            return
+        if tool in ('roofroom_tiled', 'roofroom_terrace'):
+            self._set_room_roof(tool.split('_', 1)[1], x, y)
             return
         if str(tool).startswith('elec_'):
             self._place_electrical_point(tool[len('elec_'):], x, y)

@@ -215,6 +215,11 @@ def install_approved_mockup_shell(window):
     for text,kind in (("Πλάκα σκυροδέματος","slab"),("Ξύλινες δοκίδες","joists")):
         a=QAction(text,window); a.triggered.connect(lambda _=False,k=kind: window._attic_ceilings(k)); attic.addAction(a)
     roof_menu.addSeparator()
+    for text,choice in (("Κεραμοσκεπή σε χώρο (κλικ στον χώρο)","tiled"),("Ταράτσα σε χώρο (κλικ στον χώρο)","terrace")):
+        a=QAction(text,window)
+        a.triggered.connect(lambda _=False,c=choice,t=text: window._start_site_tool(f"roofroom_{c}",f"{t.split(' (')[0]}: κλικ μέσα στον χώρο — οι άλλοι χώροι κρατούν τη δική τους στέγη, Esc για τέλος"))
+        roof_menu.addAction(a)
+    roof_menu.addSeparator()
     fix_roofs=QAction("Διόρθωση στεγών",window); fix_roofs.setToolTip("Αφαιρεί στέγες κάτω από όροφο και προσθέτει όσες λείπουν")
     fix_roofs.triggered.connect(lambda: window._fix_roofs()); roof_menu.addAction(fix_roofs)
     delete_roofs=QAction("Διαγραφή όλων των στεγών",window)
@@ -343,6 +348,13 @@ def install_approved_mockup_shell(window):
         for name in getattr(window,"_kitchen_item_names",()):
             a=QAction(name,kitchen); a.triggered.connect(lambda _=False,n=name: window._place_kitchen_item(n)); kitchen.addAction(a)
     kitchen.aboutToShow.connect(fill_kitchen); window._fill_kitchen_menu=fill_kitchen
+    elements.addMenu(window._roof_menu)
+    pergola=QMenu("Πέργκολα",elements); elements.addMenu(pergola); window._mockup_pergola_menu=pergola
+    for text,mat in (("Ξύλινη",'timber'),("Αλουμινίου",'aluminium')):
+        a=QAction(text,pergola)
+        a.triggered.connect(lambda _=False,m=mat,t=text: window._start_site_tool(f"pergola_{m}",f"Πέργκολα {t.lower()}: σύρε το ορθογώνιο στην κάτοψη (πλευρά σε τοίχο = στερεώνεται εκεί), Esc για τέλος"))
+        pergola.addAction(a)
+    menus["Κατασκευή"].addMenu(pergola)
     # Structure: columns, beams, footings as one submenu.
     structural=QMenu("Δομικά: κολόνες, δοκάρια, βάσεις",elements); elements.addMenu(structural)
     window._mockup_structural_submenu=structural
@@ -367,6 +379,8 @@ def install_approved_mockup_shell(window):
     # sculpting; the wheel sets the brush) — not on the ribbon.
     # Automatic floors / flat roof / site: one menu, so the bar stays narrow on a laptop.
     auto=QMenu("Αυτόματα",window); window._mockup_auto_menu=auto
+    auto.addMenu(window._roof_menu)                       # roofs: tiled (auto / forms), flat, attic ceiling
+    auto.addSeparator()
     auto_floor=QAction("Δάπεδα (αυτόματα)",window); auto_floor.triggered.connect(window._create_auto_floors); auto.addAction(auto_floor)
     flat_roof=QAction("Δώμα (αυτόματα)",window); flat_roof.triggered.connect(window._create_flat_roofs); auto.addAction(flat_roof)
     window._mockup_auto_floor_action=auto_floor

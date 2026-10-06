@@ -117,6 +117,8 @@ def build_menu(window, view, entity_id=None):
     entries.append(_e("mm:sculpt:on", "Sculpt", "panel"))
     if view == "plan":
         entries.append(_e("mm:assist:point", "📍 Βοηθός εδώ", "panel"))
+        entries.append(_e("mm:roofroom:tiled", "Κεραμοσκεπή σε αυτόν τον χώρο", "panel"))
+        entries.append(_e("mm:roofroom:terrace", "Ταράτσα σε αυτόν τον χώρο", "panel"))
     if any(e.kind in ("structural_column", "structural_beam") for e in window.doc.entities.values()):
         entries.append(_e("mm:analyze", "Στατική ανάλυση", "panel"))
     entries.append(_e("mm:undo", "Αναίρεση", "panel"))
@@ -181,6 +183,8 @@ def run(window, view, entity_id, action_id, plan_xy=None):
             i = getattr(window, "_kitchen_wheel", 0) if arg == "current" else int(arg)
             window._kitchen_wheel = i % len(names)
             window._place_kitchen_item(names[i % len(names)])
+    elif group == "roofroom" and plan_xy is not None:
+        window._set_room_roof(arg, *plan_xy)
     elif group == "structure":
         (window._design_structure if arg == "design" else window._propose_frame)()
     elif group == "analyze":

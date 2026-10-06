@@ -23,7 +23,7 @@ class PlanView(QGraphicsView):
     SITE_POINT_TOOLS=('terrain_point','plant_tree','plant_shrub','library_place')
     # Drag tools for site strips: (tool, x1, y1, x2, y2).
     siteLineRequested=Signal(str,float,float,float,float)
-    SITE_LINE_TOOLS=('path_path','path_sidewalk','path_road')
+    SITE_LINE_TOOLS=('path_path','path_sidewalk','path_road','pergola_timber','pergola_aluminium')
     def begin_view_line(self,x,y):self._view_drag=[(float(x),float(y)),(float(x),float(y))];self.redraw()
     def move_view_line(self,x,y):
         if getattr(self,'_view_drag',None):self._view_drag[1]=(float(x),float(y));self.redraw()
@@ -156,7 +156,7 @@ class PlanView(QGraphicsView):
         if event.button()==Qt.MouseButton.LeftButton:
             self._hide_wall_angle_radial();self.hide_marking_menu()
         if event.button()!=Qt.MouseButton.LeftButton:super().mousePressEvent(event);return
-        if self.controller.tool in self.SITE_POINT_TOOLS or str(self.controller.tool).startswith(('plumb_','elec_','vent_','assist_','drain_')):
+        if self.controller.tool in self.SITE_POINT_TOOLS or str(self.controller.tool).startswith(('plumb_','elec_','vent_','assist_','drain_','roofroom_')):
             ev=self._scene_to_plane(event.position().toPoint())
             self.sitePointRequested.emit(self.controller.tool,float(ev.a),float(ev.b));event.accept();return
         if self.controller.tool in self.VIEW_LINE_TOOLS or self.controller.tool in self.SITE_LINE_TOOLS:
