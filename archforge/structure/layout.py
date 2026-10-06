@@ -3,12 +3,16 @@
 Drawn after the walls and rooms, the frame follows them (rules stated so a
 structural engineer can check them):
 
-* Columns at every wall corner and junction (L, T, cross) and at the free
-  ends of exterior walls; along longer walls, extra columns so that no clear
-  distance between columns exceeds ``MAX_SPAN`` (6.0 m, usual for RC
-  dwellings).  Never inside a door or window: a column that would fall in
-  an opening moves to the nearer side of it.
-* Beams along every wall from column to column, their top on the slab level
+* A structural grid, as in usual RC dwelling studies: axes on the exterior
+  walls, and where a bay would exceed 6 m an axis on the strongest wall
+  inside it (longest, nearest the middle) — or a free axis — so slab and
+  beam spans and the load each column takes stay balanced; axes closer
+  than 2 m are not doubled.  Columns at the axis crossings inside the
+  building where they meet a wall (never free in a room: there the axis'
+  beam spans façade to façade), never in a door or window
+  (slid to its side); columns closer than 1.2 m become one; wall pieces
+  under 40 cm and plasterboard partitions are not structure.
+* Beams on the axes from column to column, their top on the slab level
   (the storey above, or the top of the walls on the last storey).
 * Typical starting sections — RC: columns 40/40, beams 25/50; steel: HEB200
   columns, IPE300 beams.  The structural analysis then checks them and the
@@ -23,6 +27,9 @@ from __future__ import annotations
 import math
 
 MAX_SPAN = 6.0
+MERGE = 1.2           # columns closer than this become one (the stronger reason wins)
+MIN_WALL = 0.40       # shorter wall pieces are drawing leftovers, not structure
+LIGHT_TYPES = ("drywall_100", "drywall_double_125")   # partitions on the slab: no frame under them
 SNAP = 0.05
 EXISTING = 0.30
 OPENING_CLEAR = 0.15
@@ -33,7 +40,30 @@ def _key(x, y):
 
 
 def _walls(doc, z):
-    return [e for e in doc.entities.values() if e.kind == "wall" and abs(float(e.params.get("z", 0.0)) - z) < 0.05]
+    """Walls of the storey that the frame follows: not tiny leftovers, not light (plasterboard) partitions."""
+    out = []
+    for e in doc.entities.values():
+        if e.kind != "wall" or abs(float(e.params.get("z", 0.0)) - z) >= 0.05:
+            continue
+        p = e.params
+        if math.hypot(float(p["x2"]) - float(p["x1"]), float(p["y2"]) - float(p["y1"])) < MIN_WALL:
+            continue
+        if str(p.get("wall_type", "")) in LIGHT_TYPES and not p.get("load_bearing"):
+            continue
+        out.append(e)
+    return out
+
+
+RANK = {"γωνία εξωτερικών τοίχων": 0, "γωνία/συνάντηση τοίχων": 1, "άκρο εξωτερικού τοίχου": 2}
+
+
+def _merge(points):
+    """Columns closer than MERGE become one: the exterior corner first, then junctions, then ends."""
+    kept = {}
+    for k, reason in sorted(points.items(), key=lambda kv: (RANK.get(kv[1], 3), kv[0])):
+        if all(math.hypot(k[0] - q[0], k[1] - q[1]) >= MERGE for q in kept):
+            kept[k] = reason
+    return kept
 
 
 def _storeys(doc):
@@ -68,55 +98,174 @@ def _free_of_openings(s, openings, length):
     return max(0.0, min(length, s))
 
 
+# ---------------------------------------------------------------- structural grid
+GRID_SPAN = 6.0        # largest bay (m): slab and beam spans stay within usual RC dwelling sizes
+MIN_BAY = 2.0          # no axis closer than this to another (no double columns)
+AXIS_TOL = 0.30        # walls within this of an axis are on it
+
+
+def _direction(w):
+    p = w.params
+    dx, dy = float(p["x2"]) - float(p["x1"]), float(p["y2"]) - float(p["y1"])
+    L = math.hypot(dx, dy)
+    if L < 1e-9:
+        return None, 0.0
+    if abs(dx) / L < 0.03:
+        return "x", L                 # runs along y: lies on an x = const axis
+    if abs(dy) / L < 0.03:
+        return "y", L
+    return None, L
+
+
+def _candidates(walls, exterior, axis):
+    """Axis positions offered by the walls (weight: length, exterior ×3), merged within AXIS_TOL."""
+    raw = []
+    for w in walls:
+        d, L = _direction(w)
+        if d != axis:
+            continue
+        p = w.params
+        pos = (float(p["x1"]) + float(p["x2"])) / 2 if axis == "x" else (float(p["y1"]) + float(p["y2"])) / 2
+        raw.append([pos, L * (3.0 if w.id in exterior else 1.0), w.id in exterior])
+    raw.sort()
+    merged = []
+    for pos, wt, ext in raw:
+        if merged and abs(pos - merged[-1][0]) <= AXIS_TOL:
+            m = merged[-1]
+            m[0] = (m[0] * m[1] + pos * wt) / (m[1] + wt); m[1] += wt; m[2] = m[2] or ext
+        else:
+            merged.append([pos, wt, ext])
+    return merged
+
+
+def grid_axes(walls, exterior, axis):
+    """The structural axes along one direction: exterior walls, then the strongest walls that keep bays ≤ GRID_SPAN."""
+    cands = _candidates(walls, exterior, axis)
+    if not cands:
+        return []
+    chosen = sorted({c[0] for c in cands if c[2]} | {cands[0][0], cands[-1][0]})
+    # Drop exterior axes closer than MIN_BAY (a jog in the facade): keep the heavier one.
+    weight = {c[0]: c[1] for c in cands}
+    pruned = []
+    for a in chosen:
+        if pruned and a - pruned[-1] < MIN_BAY:
+            if weight.get(a, 0) > weight.get(pruned[-1], 0):
+                pruned[-1] = a
+            continue
+        pruned.append(a)
+    chosen = pruned
+    for _ in range(40):
+        gaps = [(b - a, a, b) for a, b in zip(chosen, chosen[1:]) if b - a > GRID_SPAN + 1e-6]
+        if not gaps:
+            break
+        _g, a, b = max(gaps)
+        mid = (a + b) / 2
+        inside = [c for c in cands if a + MIN_BAY <= c[0] <= b - MIN_BAY]
+        if inside:
+            # A wall carries the new axis: the longest, preferring the middle of the bay.
+            best = max(inside, key=lambda c: c[1] * (1.0 - .6 * abs(c[0] - mid) / (b - a)))
+            pos = best[0]
+        else:
+            pos = mid                                     # no wall there: a free axis in the middle
+        chosen = sorted(chosen + [pos])
+    return chosen
+
+
+def _inside_building(doc, z, walls, x, y):
+    """On a wall (within its thickness) or inside a room of the storey."""
+    from archforge.assistant.understanding import inside
+    for w in walls:
+        p = w.params
+        ax, ay, bx, by = (float(p[c]) for c in ("x1", "y1", "x2", "y2"))
+        L2 = (bx - ax) ** 2 + (by - ay) ** 2
+        if L2 < 1e-12:
+            continue
+        t = max(0.0, min(1.0, ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / L2))
+        if math.hypot(ax + (bx - ax) * t - x, ay + (by - ay) * t - y) <= float(p["thickness"]) / 2 + SNAP:
+            return "wall"
+    for f in doc.active_room_faces(z=z):
+        if inside(f.polygon, x, y):
+            return "room"
+    return None
+
+
+def _wall_at(walls, x, y):
+    for w in walls:
+        p = w.params
+        ax, ay, bx, by = (float(p[c]) for c in ("x1", "y1", "x2", "y2"))
+        L = math.hypot(bx - ax, by - ay)
+        if L < 1e-9:
+            continue
+        ux, uy = (bx - ax) / L, (by - ay) / L
+        s = (x - ax) * ux + (y - ay) * uy
+        if -SNAP <= s <= L + SNAP and abs(-(x - ax) * uy + (y - ay) * ux) <= float(p["thickness"]) / 2 + SNAP:
+            return w, s, (ax, ay, ux, uy, L)
+    return None
+
+
 def column_points(doc, z):
-    """Plan points of the columns a storey needs: ``{(x, y): reason}``."""
+    """Plan points of the columns a storey needs: ``{(x, y): reason}`` on a structural grid.
+
+    Axes in x and y from the exterior walls and, where a bay would exceed GRID_SPAN, from the
+    strongest interior wall in it (or a free axis): the slab loads spread evenly and every slab
+    span stays within ~6 m.  Columns where axes cross inside a wall (never free in a room), slid
+    out of doors and windows; walls off the grid (diagonal) keep columns at their ends.
+    """
     from archforge.mep.ventilation import exterior_walls
     walls = _walls(doc, z)
     if not walls:
         return {}
     exterior = {w.id for w, _n in exterior_walls(doc, z)}
-    ends = {}
-    for w in walls:
-        p = w.params
-        for x, y in ((float(p["x1"]), float(p["y1"])), (float(p["x2"]), float(p["y2"]))):
-            ends.setdefault(_key(x, y), []).append(w.id)
+    xs, ys = grid_axes(walls, exterior, "x"), grid_axes(walls, exterior, "y")
     points = {}
-    # Junctions: an end shared by two walls, or an end lying on another wall (T).
-    for k, ids in ends.items():
-        on_other = []
-        for w in walls:
-            if w.id in ids:
+    for x in xs:
+        for y in ys:
+            where = _inside_building(doc, z, walls, x, y)
+            if where is None:
                 continue
-            p = w.params
-            ax, ay, bx, by = (float(p[c]) for c in ("x1", "y1", "x2", "y2"))
-            L2 = (bx - ax) ** 2 + (by - ay) ** 2
-            if L2 < 1e-12:
-                continue
-            t = ((k[0] - ax) * (bx - ax) + (k[1] - ay) * (by - ay)) / L2
-            if 0.0 < t < 1.0 and math.hypot(ax + (bx - ax) * t - k[0], ay + (by - ay) * t - k[1]) <= float(p["thickness"]) / 2 + SNAP:
-                on_other.append(w.id)
-        if len(ids) >= 2 or on_other:
-            points[k] = "γωνία/συνάντηση τοίχων"
-        elif any(i in exterior for i in ids):
-            points[k] = "άκρο εξωτερικού τοίχου"
-    # Long walls: intermediate columns, never inside an opening.
+            hit = _wall_at(walls, x, y)
+            if hit is not None:
+                w, s, (ax, ay, ux, uy, L) = hit
+                s = _free_of_openings(s, _openings(doc, w), L)
+                px, py = ax + ux * s, ay + uy * s
+                ext = w.id in exterior
+                points[_key(px, py)] = "γωνία εξωτερικών τοίχων" if ext and (x in (xs[0], xs[-1]) or y in (ys[0], ys[-1])) \
+                    else ("φέρων άξονας σε τοίχο" if not ext else "φέρων άξονας στην πρόσοψη")
+            # In the middle of a room: no column — the axis' beam spans façade to façade.
+    # Walls off the grid (diagonal): columns at their ends.
     for w in walls:
-        p = w.params
-        ax, ay, bx, by = (float(p[c]) for c in ("x1", "y1", "x2", "y2"))
-        length = math.hypot(bx - ax, by - ay)
-        if length < 1e-9:
-            continue
-        ux, uy = (bx - ax) / length, (by - ay) / length
-        on_wall = sorted({0.0, length} | {round((k[0] - ax) * ux + (k[1] - ay) * uy, 3) for k in points
-                                          if abs(-(k[0] - ax) * uy + (k[1] - ay) * ux) <= float(p["thickness"]) / 2 + SNAP
-                                          and -SNAP <= (k[0] - ax) * ux + (k[1] - ay) * uy <= length + SNAP})
-        openings = _openings(doc, w)
-        for a, b in zip(on_wall, on_wall[1:]):
-            n = math.ceil((b - a) / MAX_SPAN - 1e-9)
-            for i in range(1, n):
-                s = _free_of_openings(a + (b - a) * i / n, openings, length)
-                points[_key(ax + ux * s, ay + uy * s)] = "ενδιάμεση (άνοιγμα ≤ 6 m)"
-    return points
+        d, L = _direction(w)
+        if d is None and L > 0 and w.id in exterior:
+            p = w.params
+            for x, y in ((float(p["x1"]), float(p["y1"])), (float(p["x2"]), float(p["y2"]))):
+                points.setdefault(_key(x, y), "άκρο λοξού τοίχου")
+    return _merge(points)
+
+
+def grid_beams(doc, z, points):
+    """Beams on the grid axes between consecutive columns (inside the building)."""
+    walls = _walls(doc, z)
+    pts = list(points)
+    out = []
+    for axis in ("x", "y"):
+        lines = {}
+        for x, y in pts:
+            lines.setdefault(round(x if axis == "x" else y, 2), []).append((x, y))
+        for _pos, line in lines.items():
+            line.sort(key=lambda q: q[1] if axis == "x" else q[0])
+            for a, b in zip(line, line[1:]):
+                if math.dist(a, b) < 0.3:
+                    continue
+                mid = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+                if _inside_building(doc, z, walls, *mid):
+                    out.append((a, b))
+    # Diagonal exterior walls: a beam along each, end to end.
+    from archforge.mep.ventilation import exterior_walls
+    for w, _n in exterior_walls(doc, z):
+        if _direction(w)[0] is None and w in walls:
+            p = w.params
+            out.append(((float(p["x1"]), float(p["y1"])), (float(p["x2"]), float(p["y2"]))))
+    return out
 
 
 def propose_frame(doc, settings=None):
@@ -151,36 +300,25 @@ def propose_frame(doc, settings=None):
                 params["profile"] = "HEB200"
             entities.append(Entity("structural_column", params, name="Κολόνα"))
             new_cols += 1
-        # Beams along the walls, column to column.
-        all_pts = list(pts) + [(float(c.params["x"]), float(c.params["y"])) for c in existing_cols
-                               if abs(float(c.params["z"]) - z) < 0.05]
+        # Beams on the grid axes, column to column.
+        all_pts = dict(pts)
+        for c in existing_cols:
+            if abs(float(c.params["z"]) - z) < 0.05:
+                all_pts.setdefault((float(c.params["x"]), float(c.params["y"])), "υπάρχουσα")
         new_beams = 0
-        for w in walls:
-            p = w.params
-            ax, ay, bx, by = (float(p[c]) for c in ("x1", "y1", "x2", "y2"))
-            length = math.hypot(bx - ax, by - ay)
-            if length < 1e-9:
+        for (x1, y1), (x2, y2) in grid_beams(doc, z, all_pts):
+            if any(abs(float(e.params["z"]) + float(e.params["height"]) - top) < 0.05 and
+                   math.hypot((float(e.params["x1"]) + float(e.params["x2"])) / 2 - (x1 + x2) / 2,
+                              (float(e.params["y1"]) + float(e.params["y2"])) / 2 - (y1 + y2) / 2) < 0.3
+                   for e in existing_beams):
                 continue
-            ux, uy = (bx - ax) / length, (by - ay) / length
-            on = sorted({round((x - ax) * ux + (y - ay) * uy, 3) for x, y in all_pts
-                         if abs(-(x - ax) * uy + (y - ay) * ux) <= float(p["thickness"]) / 2 + SNAP
-                         and -SNAP <= (x - ax) * ux + (y - ay) * uy <= length + SNAP})
-            for a, b in zip(on, on[1:]):
-                if b - a < 0.3:
-                    continue
-                x1, y1, x2, y2 = ax + ux * a, ay + uy * a, ax + ux * b, ay + uy * b
-                if any(abs(float(e.params["z"]) + float(e.params["height"]) - top) < 0.05 and
-                       math.hypot((float(e.params["x1"]) + float(e.params["x2"])) / 2 - (x1 + x2) / 2,
-                                  (float(e.params["y1"]) + float(e.params["y2"])) / 2 - (y1 + y2) / 2) < 0.3
-                       for e in existing_beams):
-                    continue
-                params = {"x1": x1, "y1": y1, "x2": x2, "y2": y2, "z": top - beam_size[1], "width": beam_size[0],
-                          "height": beam_size[1], "role": "structural", "construction": construction,
-                          "section": "rectangular", "level": level}
-                if steel:
-                    params["profile"] = "IPE300"
-                entities.append(Entity("structural_beam", params, name="Δοκός"))
-                new_beams += 1
+            params = {"x1": x1, "y1": y1, "x2": x2, "y2": y2, "z": top - beam_size[1], "width": beam_size[0],
+                      "height": beam_size[1], "role": "structural", "construction": construction,
+                      "section": "rectangular", "level": level}
+            if steel:
+                params["profile"] = "IPE300"
+            entities.append(Entity("structural_beam", params, name="Δοκός"))
+            new_beams += 1
         report["storeys"].append({"z": z, "level": level, "columns": new_cols, "beams": new_beams})
         report["columns"] += new_cols
         report["beams"] += new_beams

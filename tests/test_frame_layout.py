@@ -34,7 +34,8 @@ def test_frame_for_two_storeys_analyses_and_does_not_duplicate():
     doc = Document(); st = CommandStack(doc); doc.levels['Floor 2'] = 3.0
     _house(st, 0.0); _house(st, 3.0)
     entities, report = propose_frame(doc)
-    assert report['columns'] == 16 and report['beams'] == 2 * 9
+    # 9 beams on the walls + the x = 8.5 axis beam across the 7 m room (it splits the slab), per storey.
+    assert report['columns'] == 16 and report['beams'] == 2 * 10
     cols = [e for e in entities if e.kind == 'structural_column']
     assert {round(e.params['height'], 2) for e in cols} == {3.0, 2.7}           # to the slab / to the roof
     beams = [e for e in entities if e.kind == 'structural_beam']
@@ -42,7 +43,7 @@ def test_frame_for_two_storeys_analyses_and_does_not_duplicate():
     st.execute(AddEntities(entities))
     assert propose_frame(doc)[0] == []                                          # nothing doubled
     r = analyze(doc)
-    assert r['error'] is None and len(r['members']) == 16 + 18
+    assert r['error'] is None and len(r['members']) == 16 + 20
 
 
 def test_assistant_proposes_and_understands_columns_where_needed():
@@ -74,3 +75,26 @@ def test_menu_command_adds_frame_and_runs_analysis():
         assert fresh_result(w.doc) is not None and 'Φέρων: 8 κολόνες' in w.statusBar().currentMessage()
     finally:
         w._mark_clean(); w.close(); app.processEvents()
+
+
+def test_grid_follows_the_loads_not_every_wall_junction():
+    """A 10 × 9 house: two close parallel walls, short partitions and a leftover 5 cm piece."""
+    from archforge.structure.layout import grid_axes, _walls
+    from archforge.mep.ventilation import exterior_walls
+    doc = Document(); st = CommandStack(doc)
+    segs = [(0, 0, 10, 0), (10, 0, 10, 9), (10, 9, 0, 9), (0, 9, 0, 0),          # shell
+            (4.0, 0, 4.0, 9), (4.6, 5, 4.6, 9),                                  # two close parallel walls
+            (0, 5, 4.0, 5), (4.6, 5, 10, 5), (7.5, 5, 7.5, 9),                   # rooms
+            (2.0, 5, 2.0, 5.05)]                                                 # leftover piece
+    for x1, y1, x2, y2 in segs:
+        st.execute(AddEntity(Entity('wall', {'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2, 'z': 0.0, 'height': 2.7, 'thickness': 0.2})))
+    walls = _walls(doc, 0.0)
+    assert len(walls) == len(segs) - 1                                           # the 5 cm piece is not structure
+    ext = {w.id for w, _n in exterior_walls(doc, 0.0)}
+    xs, ys = grid_axes(walls, ext, 'x'), grid_axes(walls, ext, 'y')
+    assert all(b - a <= 6.0 + 1e-6 for a, b in zip(xs, xs[1:])) and all(b - a <= 6.0 + 1e-6 for a, b in zip(ys, ys[1:]))
+    assert all(b - a >= 2.0 - 1e-6 for a, b in zip(xs, xs[1:]))                  # never two axes 60 cm apart
+    pts = column_points(doc, 0.0)
+    close = [(p, q) for p in pts for q in pts if p < q and ((p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2) ** .5 < 1.2]
+    assert not close
+    assert len(pts) <= 9                                                          # a grid, not a column per junction

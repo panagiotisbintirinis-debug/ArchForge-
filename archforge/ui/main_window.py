@@ -2926,6 +2926,10 @@ class MainWindow(QMainWindow):
         if p.run == 'isotex':
             self._show_isotex()
             return
+        if p.run == 'design':
+            self._design_structure()
+            self._refresh_assistant()
+            return
         from archforge.assistant.suggestions import apply
         apply(self.stack, p)
         self._refresh_project_tree()
