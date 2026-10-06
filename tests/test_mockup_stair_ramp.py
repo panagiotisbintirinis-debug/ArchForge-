@@ -26,13 +26,29 @@ def _close(app, window):
     app.processEvents()
 
 
-def test_ribbon_has_one_stair_ramp_button_with_both_tools():
+def test_ribbon_groups_doors_windows_openings_stairs_kitchen_and_structure_in_one_menu():
     app, window = _window()
-    buttons = [b for b in window.findChildren(QToolButton) if b.text() == 'Σκάλα / Ράμπα' and b.isVisible()]
+    buttons = [b for b in window.findChildren(QToolButton) if b.text() == 'Στοιχεία' and b.isVisible()]
     assert len(buttons) == 1
-    labels = [a.text() for a in buttons[0].menu().actions()]
-    assert labels[:2] == ['Σκάλα', 'Ράμπα']
-    assert 'Τύπος σκάλας' in labels
+    menu = buttons[0].menu()
+    labels = [a.text() for a in menu.actions()]
+    assert labels[:3] == ['Πόρτα', 'Παράθυρο', 'Άνοιγμα']
+    subs = {a.text(): a.menu() for a in menu.actions() if a.menu()}
+    assert set(subs) == {'Σκάλα / Ράμπα', 'Κουζίνα', 'Δομικά: κολόνες, δοκάρια, βάσεις'}
+    stair = [a.text() for a in subs['Σκάλα / Ράμπα'].actions()]
+    assert stair[:2] == ['Σκάλα', 'Ράμπα'] and 'Τύπος σκάλας' in stair
+    window._fill_kitchen_menu()
+    assert 'Κάτω ντουλάπι' in [a.text() for a in subs['Κουζίνα'].actions()]
+    structure = [a.text() for a in subs['Δομικά: κολόνες, δοκάρια, βάσεις'].actions()]
+    assert structure[:2] == ['Κολώνα', 'Δοκός'] and any(t.startswith('Βάσεις') for t in structure)
+    # Same submenu at the top of the Δομικά menu.
+    assert window._structure_menu.actions()[0].menu() is subs['Δομικά: κολόνες, δοκάρια, βάσεις']
+    # Toolbars can be moved and hidden, and brought back from Προβολή → Γραμμές εργαλείων.
+    assert window._mockup_ribbon.isMovable()
+    toggle = window._toolbars_menu.actions()[0]
+    toggle.trigger(); assert window._mockup_ribbon.isHidden()
+    toggle.trigger(); assert not window._mockup_ribbon.isHidden()
+    window._toolbars_lock_action.setChecked(True); assert not window._mockup_ribbon.isMovable()
     _close(app, window)
 
 

@@ -64,15 +64,17 @@ def _project_panel(window):
     for n in kitchen_defs: items.addItem(n)
     for n in appliances: items.addItem(n)
     window._kitchen_defs=kitchen_defs
-    def place_kitchen_component(item):
-        if item.text() in appliances:
-            window._place_library_by_name(appliances[item.text()]);return
-        definition=kitchen_defs.get(item.text())
+    def place_kitchen_item(name):
+        if name in appliances:
+            window._place_library_by_name(appliances[name]);return
+        definition=kitchen_defs.get(name)
         if not definition:return
         window.plan_view.controller.set_component_definition(definition)
         window._set_active_tool("component")
-        window.statusBar().showMessage(f'{item.text()}: μετακίνησε το ποντίκι και κάνε click για τοποθέτηση',5000)
-    items.itemDoubleClicked.connect(place_kitchen_component)
+        window.statusBar().showMessage(f'{name}: μετακίνησε το ποντίκι και κάνε click για τοποθέτηση',5000)
+    window._place_kitchen_item=place_kitchen_item
+    window._kitchen_item_names=tuple(kitchen_defs)+tuple(appliances)
+    items.itemDoubleClicked.connect(lambda item: place_kitchen_item(item.text()))
     search.textChanged.connect(lambda t:[items.item(i).setHidden(t.lower() not in items.item(i).text().lower()) for i in range(items.count())])
     v.addWidget(items)
     furniture=QWidget(); fv=QVBoxLayout(furniture); fv.setContentsMargins(0,0,0,0)
@@ -305,35 +307,51 @@ def install_approved_mockup_shell(window):
         tb.hide()
         tb.toggleViewAction().setVisible(False)
 
-    ribbon=QToolBar("Mockup Ribbon",window); ribbon.setMovable(False); ribbon.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
-    tool_specs=(
-        ("Επιλογή","select"),("Τοίχος","wall"),("Πόρτα","door"),("Παράθυρο","window"),
-        ("Άνοιγμα","opening_rect"),("Σκάλα / Ράμπα","circulation"),
-        ("Κολώνα","structural_column"),("Δοκός","structural_beam"),
-        ("Sculpt","sculpt"),("Υλικά","materials")
-    )
-    for label,tool in tool_specs:
-        if tool=="circulation":
-            # One grouped vertical-circulation tool, as in the legacy toolbar.
-            menu=QMenu(window)
-            for text,t in (("Σκάλα","stair"),("Ράμπα","ramp")):
-                item=QAction(text,menu); item.triggered.connect(lambda _=False,t=t: window._set_active_tool(t)); menu.addAction(item)
-            # Explicit stair type; the wheel/Tab still switch while placing.
-            types=QMenu("Τύπος σκάλας",menu); menu.addMenu(types)
-            window._mockup_circulation_menu=menu; window._mockup_stair_type_menu=types
-            for text,layout in (("Αυτόματη",None),("Ευθεία","straight"),("Γ (L)","l"),("Π (U)","u"),("Σπιράλ","spiral")):
-                item=QAction(text,types)
-                item.triggered.connect(lambda _=False,l=layout: window._choose_stair_layout(l))
-                types.addAction(item)
-            button=QToolButton(ribbon); button.setText(label); button.setToolTip("Σκάλα ή Ράμπα")
-            button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup); button.setMenu(menu)
-            button.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
-            ribbon.addWidget(button); window._mockup_circulation_button=button
-            continue
+    ribbon=QToolBar("Mockup Ribbon",window); ribbon.setObjectName("ribbon"); ribbon.setWindowTitle("Mockup Ribbon")
+    ribbon.setMovable(True); ribbon.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+
+    def tool_action(text,tool,parent):
+        a=QAction(text,parent); a.triggered.connect(lambda _=False,t=tool: window._set_active_tool(t)); return a
+    for label,tool in (("Επιλογή","select"),("Τοίχος","wall")):
+        ribbon.addAction(tool_action(label,tool,window))
+    # One menu for what goes into / along the walls: doors, windows, openings, stairs, kitchen, structure.
+    elements=QMenu("Στοιχεία",window); window._mockup_elements_menu=elements
+    for text,tool in (("Πόρτα","door"),("Παράθυρο","window"),("Άνοιγμα","opening_rect")):
+        elements.addAction(tool_action(text,tool,elements))
+    elements.addSeparator()
+    circulation=QMenu("Σκάλα / Ράμπα",elements); elements.addMenu(circulation)
+    for text,t in (("Σκάλα","stair"),("Ράμπα","ramp")):
+        circulation.addAction(tool_action(text,t,circulation))
+    # Explicit stair type; the wheel/Tab still switch while placing.
+    types=QMenu("Τύπος σκάλας",circulation); circulation.addMenu(types)
+    window._mockup_circulation_menu=circulation; window._mockup_stair_type_menu=types
+    for text,layout in (("Αυτόματη",None),("Ευθεία","straight"),("Γ (L)","l"),("Π (U)","u"),("Σπιράλ","spiral")):
+        item=QAction(text,types)
+        item.triggered.connect(lambda _=False,l=layout: window._choose_stair_layout(l))
+        types.addAction(item)
+    kitchen=QMenu("Κουζίνα",elements); elements.addMenu(kitchen); window._mockup_kitchen_menu=kitchen
+    def fill_kitchen():
+        # The kitchen catalogue is built with the library panel; fill on first open.
+        if kitchen.actions():
+            return
+        for name in getattr(window,"_kitchen_item_names",()):
+            a=QAction(name,kitchen); a.triggered.connect(lambda _=False,n=name: window._place_kitchen_item(n)); kitchen.addAction(a)
+    kitchen.aboutToShow.connect(fill_kitchen); window._fill_kitchen_menu=fill_kitchen
+    # Structure: columns, beams, footings as one submenu.
+    structural=QMenu("Δομικά: κολόνες, δοκάρια, βάσεις",elements); elements.addMenu(structural)
+    window._mockup_structural_submenu=structural
+    structural.addAction(tool_action("Κολώνα","structural_column",structural))
+    structural.addAction(tool_action("Δοκός","structural_beam",structural))
+    footings=QAction("Βάσεις (πέδιλα, συνδετήριες) — υπολογισμός φέροντα",structural)
+    footings.triggered.connect(lambda: window._design_structure()); structural.addAction(footings)
+    button=QToolButton(ribbon); button.setText("Στοιχεία"); button.setToolTip("Πόρτες, παράθυρα, ανοίγματα, σκάλες, κουζίνα, δομικά")
+    button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup); button.setMenu(elements)
+    button.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+    ribbon.addWidget(button); window._mockup_elements_button=button; window._mockup_circulation_button=button
+    for label,tool in (("Sculpt","sculpt"),("Υλικά","materials")):
         a=QAction(label,window)
         if tool=="sculpt": a.triggered.connect(lambda _=False: window.sculpt_action.toggle())
-        elif tool=="materials": a.triggered.connect(window._open_selected_materials)
-        else: a.triggered.connect(lambda _=False,t=tool: window._set_active_tool(t))
+        else: a.triggered.connect(window._open_selected_materials)
         ribbon.addAction(a)
     # Reuse the proven Sculpt controls from the original toolbar. Hiding the
     # legacy toolbar must not hide access to brush operation/radius.
@@ -342,8 +360,8 @@ def install_approved_mockup_shell(window):
     # Sculpt operation and brush size live in the mouse menu (right click while
     # sculpting; the wheel sets the brush) — not on the ribbon.
     ribbon.addSeparator()
-    auto_floor=QAction("Auto Floor",window); auto_floor.triggered.connect(window._create_auto_floors); ribbon.addAction(auto_floor)
-    flat_roof=QAction("Flat / Auto Roof",window); flat_roof.triggered.connect(window._create_flat_roofs); ribbon.addAction(flat_roof)
+    auto_floor=QAction("Δάπεδα (αυτόματα)",window); auto_floor.triggered.connect(window._create_auto_floors); ribbon.addAction(auto_floor)
+    flat_roof=QAction("Δώμα (αυτόματα)",window); flat_roof.triggered.connect(window._create_flat_roofs); ribbon.addAction(flat_roof)
     window._mockup_auto_floor_action=auto_floor
     terrain=QAction("Έδαφος",window); terrain.triggered.connect(window._create_terrain); ribbon.addAction(terrain)
     window._mockup_terrain_action=terrain
@@ -352,7 +370,7 @@ def install_approved_mockup_shell(window):
 
     # Second row: storey/display, camera and snapping. A single row needs
     # ~1700 px, so on a laptop these controls fell into the hidden overflow.
-    camera=QToolBar("Mockup Camera",window); camera.setMovable(False)
+    camera=QToolBar("Mockup Camera",window); camera.setObjectName("camera"); camera.setMovable(True)
     add_floor=QAction("+ Όροφος",window); add_floor.triggered.connect(window._add_floor_level); camera.addAction(add_floor)
     window._mockup_add_floor_action=add_floor
     camera.addWidget(QLabel("Όροφος: ")); _adopt(camera,window.floor_selector)
@@ -367,6 +385,17 @@ def install_approved_mockup_shell(window):
     # Own row: sharing the ribbon row squeezed Grid/Snap into the overflow.
     window.addToolBarBreak(Qt.TopToolBarArea)
     window.addToolBar(Qt.TopToolBarArea,camera)
+    # Columns / beams / footings also as the first submenu of the Δομικά menu.
+    first=window._structure_menu.actions()[0] if window._structure_menu.actions() else None
+    window._structure_menu.insertMenu(first,window._mockup_structural_submenu)
+    # The bars can be dragged anywhere (or floated) and hidden; Προβολή → Γραμμές εργαλείων brings them back.
+    bars=QMenu("Γραμμές εργαλείων",window.view_menu); window.view_menu.addMenu(bars); window._toolbars_menu=bars
+    for bar,text in ((ribbon,"Εργαλεία σχεδίασης"),(camera,"Όροφος, κάμερα, snap")):
+        toggle=bar.toggleViewAction(); toggle.setText(text); toggle.setVisible(True); bars.addAction(toggle)
+    lock=QAction("Κλείδωμα θέσης",window); lock.setCheckable(True)
+    lock.toggled.connect(lambda on: [b.setMovable(not on) for b in (ribbon,camera)])
+    bars.addSeparator(); bars.addAction(lock); window._toolbars_lock_action=lock
+    window._mockup_ribbon=ribbon; window._mockup_camera_bar=camera
 
     # The real editors are mounted simultaneously, exactly where the supplied
     # prototype had PlanView and PBRViewport placeholders.
