@@ -41,7 +41,30 @@ INTERIOR_WALLS = {
     "brick_plaster": ("Τούβλο με σοβά (13 cm)", "brick_partition", False),
     "bearing": ("Φέρων οργανισμός (ελάχιστο 25 cm)", "bearing_interior_25", True),
     "isotex_hb_25_16": ("Isotex HB 25/16 φέρων (25 cm)", "isotex_hb_25_16", True),
+    "custom": ("Άλλο — γράψε το δικό σου (π.χ. «γυψοσανίδα 15 cm»)", "generic", False),
 }
+WALL_SYSTEMS["custom"] = ("Άλλο — γράψε το δικό σου (π.χ. «τσιμεντόλιθος 30 cm»)", "generic", None, False)
+# Questions whose answer can be typed (editable list): the text and the thickness read from it are kept.
+EDITABLE = ("wall_system", "interior_walls")
+
+
+def parse_custom(text):
+    """(text, thickness m or None) from a typed answer: the first number, in cm unless it is below 1 (m)."""
+    import re
+    text = str(text).strip()
+    m = re.search(r"(\d+(?:[.,]\d+)?)", text)
+    if not m:
+        return text, None
+    v = float(m.group(1).replace(",", "."))
+    return text, round(v / 100 if v >= 1 else v, 4)
+
+
+def custom_answer(text):
+    """Brief params for a typed answer to an editable question, or None when it names no thickness."""
+    text, thickness = parse_custom(text)
+    if not text or thickness is None or not 0.02 <= thickness <= 1.5:
+        return None
+    return {"text": text, "thickness": thickness}
 MIN_BEARING_THICKNESS = 0.25
 MEASURES = {"exterior": "Εξωτερικές διαστάσεις κτίσματος", "interior": "Εσωτερικές διαστάσεις χώρων"}
 FLOOR_SYSTEMS = {"rc_slab": "Πλάκα οπλισμένου σκυροδέματος", "timber": "Ξύλινοι δοκοί και ξύλινο μεσοπάτωμα"}
@@ -68,6 +91,10 @@ def get_brief(doc):
         return None
     out = dict(DEFAULTS)
     out.update({k: v for k, v in e.params.items() if k in DEFAULTS})
+    for key in EDITABLE:
+        for extra in ("_text", "_thickness"):
+            if key + extra in e.params:
+                out[key + extra] = e.params[key + extra]
     return out
 
 
@@ -77,6 +104,8 @@ def wall_defaults(doc):
     if brief is None:
         return None, 0.15
     from archforge.architecture.wall_types import total_thickness
+    if brief["wall_system"] == "custom":
+        return "generic", float(brief.get("wall_system_thickness") or 0.15)
     _label, wall_type, thickness, _bearing = WALL_SYSTEMS[brief["wall_system"]]
     return wall_type, round(total_thickness(wall_type), 4) if wall_type else thickness
 
@@ -87,6 +116,8 @@ def interior_wall_defaults(doc):
     if brief is None:
         return None
     from archforge.architecture.wall_types import total_thickness
+    if brief["interior_walls"] == "custom":
+        return "generic", float(brief.get("interior_walls_thickness") or 0.10), False
     _label, wall_type, bearing = INTERIOR_WALLS[brief["interior_walls"]]
     return wall_type, round(total_thickness(wall_type), 4), bearing
 

@@ -3057,7 +3057,7 @@ class MainWindow(QMainWindow):
 
     def _edit_project_brief(self):
         """The project questions (new / renovation, walls, dimensions, floors) as one undoable answer."""
-        from archforge.project.brief import DEFAULTS, QUESTIONS, get_brief
+        from archforge.project.brief import DEFAULTS, EDITABLE, QUESTIONS, get_brief
         current = get_brief(self.doc) or dict(DEFAULTS)
         dialog = QDialog(self)
         dialog.setWindowTitle('Στοιχεία έργου')
@@ -3069,6 +3069,13 @@ class MainWindow(QMainWindow):
             for value, label in options.items():
                 combo.addItem(label[0] if isinstance(label, tuple) else label, value)
             combo.setCurrentIndex(max(0, combo.findData(current[key])))
+            if key in EDITABLE:
+                # Editable: pick from the list or type your own (with its thickness, e.g. «γυψοσανίδα 15 cm»).
+                combo.setEditable(True)
+                combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+                if current[key] == 'custom' and current.get(key + '_text'):
+                    combo.setEditText(str(current[key + '_text']))
+                combo.setToolTip('Διάλεξε ή γράψε δικό σου τύπο με πάχος (π.χ. «γυψοσανίδα 15 cm»)')
             form.addRow(question, combo)
             combos[key] = combo
         # A renovation is usually measured inside; a new building outside.
@@ -3081,7 +3088,28 @@ class MainWindow(QMainWindow):
         self._project_brief_dialog = dialog
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
-        return self._apply_project_brief({k: c.currentData() for k, c in combos.items()})
+        return self._apply_project_brief(self._brief_answers(combos))
+
+    def _brief_answers(self, combos):
+        """Answers of the brief dialog; a typed (edited) answer becomes 'custom' with its text and thickness."""
+        from archforge.project.brief import EDITABLE, custom_answer
+        answers = {}
+        for key, combo in combos.items():
+            value = combo.currentData()
+            if key in EDITABLE and combo.isEditable():
+                typed = combo.currentText().strip()
+                listed = combo.itemText(combo.currentIndex()) if combo.currentIndex() >= 0 else ''
+                if typed and typed != listed and combo.findText(typed) < 0:
+                    custom = custom_answer(typed)
+                    if custom is None:
+                        self.statusBar().showMessage(f'«{typed}»: γράψε και το πάχος (π.χ. «{typed} 15 cm») — κράτησα την προηγούμενη επιλογή', 9000)
+                    else:
+                        value = 'custom'
+                        answers[key + '_text'], answers[key + '_thickness'] = custom['text'], custom['thickness']
+                elif combo.findText(typed) >= 0:
+                    value = combo.itemData(combo.findText(typed))
+            answers[key] = value
+        return answers
 
     def _apply_project_brief(self, answers):
         from archforge.project.brief import brief_entity

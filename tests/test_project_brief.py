@@ -160,3 +160,40 @@ def test_bearing_interior_walls_under_25cm_get_an_assistant_fix():
     assert doc.get(ids[-1]).params['thickness'] == pytest.approx(0.29) and doc.get(ids[-1]).params['load_bearing']
     assert not [p for p in propose(doc) if p.key == 'W-1']
     assert doc.get(ids[0]).params['thickness'] == pytest.approx(0.35)  # the shell is not touched
+
+
+def test_wall_answers_are_editable_typed_type_with_thickness():
+    from archforge.project.brief import custom_answer, interior_wall_defaults, parse_custom
+    assert parse_custom('γυψοσανίδα 15 cm') == ('γυψοσανίδα 15 cm', 0.15)
+    assert parse_custom('τσιμεντόλιθος 0,30') == ('τσιμεντόλιθος 0,30', 0.30)
+    assert custom_answer('κάτι χωρίς πάχος') is None
+    doc = Document(); st = CommandStack(doc)
+    _brief(st, wall_system='custom', wall_system_text='τσιμεντόλιθος 30 cm', wall_system_thickness=0.30,
+           interior_walls='custom', interior_walls_text='γυψοσανίδα 15', interior_walls_thickness=0.15)
+    assert wall_defaults(doc) == ('generic', pytest.approx(0.30))
+    assert interior_wall_defaults(doc) == ('generic', pytest.approx(0.15), False)
+    assert get_brief(doc)['interior_walls_text'] == 'γυψοσανίδα 15'
+
+
+def test_brief_dialog_lists_are_editable_and_typed_text_becomes_custom():
+    from PySide6.QtWidgets import QApplication, QComboBox
+    from archforge.project.brief import QUESTIONS
+    from archforge.ui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    try:
+        combos = {}
+        for key, _q, options in QUESTIONS:
+            c = QComboBox(); c.setEditable(key in ('wall_system', 'interior_walls'))
+            for value, label in options.items():
+                c.addItem(label[0] if isinstance(label, tuple) else label, value)
+            combos[key] = c
+        combos['interior_walls'].setEditText('Γυψοσανίδα 15 cm με ορυκτοβάμβακα')
+        answers = window._brief_answers(combos)
+        assert answers['interior_walls'] == 'custom' and answers['interior_walls_thickness'] == pytest.approx(0.15)
+        assert answers['wall_system'] == combos['wall_system'].currentData()
+        window._apply_project_brief(answers)
+        from archforge.project.brief import interior_wall_defaults
+        assert interior_wall_defaults(window.doc)[1] == pytest.approx(0.15)
+    finally:
+        window._mark_clean(); window.close(); app.processEvents()

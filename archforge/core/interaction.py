@@ -249,39 +249,79 @@ class WallDrawTransaction:
         self.angle_snapped=False
         self.cancelled=False
 
+    # A wall end near a corner closes onto it: corners pull from this far (m), not only from the snap tolerance.
+    CORNER_CAPTURE=0.30
+
+    def _corner_near(self,x,y):
+        """Nearest wall end / corner of the active storey within the corner capture radius (not the start)."""
+        from .snapping import SnapPoint
+        radius=max(float(self.snap_tol),self.CORNER_CAPTURE);best=None
+        for eid,e in self.doc.entities.items():
+            if e.kind!='wall' or not e.visible or abs(float(e.params.get('z',0.0))-float(self.z))>1e-5:continue
+            p=e.params
+            for px,py in ((float(p['x1']),float(p['y1'])),(float(p['x2']),float(p['y2']))):
+                if hypot(px-self.start[0],py-self.start[1])<=max(self.min_length,1e-6):continue
+                d=hypot(px-x,py-y)
+                if d<=radius and (best is None or d<best[0]):best=(d,SnapPoint(px,py,float(self.z),'endpoint',eid))
+        return best[1] if best else None
+
+    def _ray_hits_wall(self,ux,uy,x,y):
+        """Where the constrained direction meets the axis of a wall the pointer is on (keeps the angle)."""
+        from .snapping import SnapPoint
+        sx,sy=self.start;best=None
+        for eid,e in self.doc.entities.items():
+            if e.kind!='wall' or not e.visible or abs(float(e.params.get('z',0.0))-float(self.z))>1e-5:continue
+            p=e.params;ax,ay,bx,by=(float(p[k]) for k in ('x1','y1','x2','y2'))
+            wx,wy=bx-ax,by-ay;L=hypot(wx,wy)
+            if L<1e-9:continue
+            # The pointer must be on (or right next to) that wall.
+            t=max(0.0,min(1.0,((x-ax)*wx+(y-ay)*wy)/(L*L)))
+            if hypot(ax+wx*t-x,ay+wy*t-y)>float(p.get('thickness',0.2))/2+float(self.snap_tol):continue
+            den=ux*wy-uy*wx
+            if abs(den)<1e-9:continue                      # parallel: no crossing
+            r=((ax-sx)*wy-(ay-sy)*wx)/den                  # along the ray
+            q=((ax-sx)*uy-(ay-sy)*ux)/den                  # along the wall
+            if r<=self.min_length or q<-1e-6 or q>L+1e-6:continue
+            hit=(sx+ux*r,sy+uy*r)
+            d=hypot(hit[0]-x,hit[1]-y)
+            if best is None or d<best[0]:best=(d,SnapPoint(hit[0],hit[1],float(self.z),'wall_on_axis',eid))
+        return best[1] if best else None
+
     def update(self,x,y):
         x=float(x);y=float(y)
         self.last_snap=None
         self.angle_snapped=False
+        sx,sy=self.start
+        constrained=(self.angle_enabled and self.angle_increment is not None and self.angle_increment>0)
 
-        # Exact semantic geometry always wins over an angle guide. Grid is kept
-        # out of this first pass so a nearby T-junction/endpoint cannot be
-        # displaced by a global angular constraint.
-        sp=best_snap(self.doc,x,y,self.snap_tol,grid=None) if self.snap_enabled else None
-        if sp is not None:
-            self.end=(sp.x,sp.y)
-            self.last_snap=sp
+        # 1. Corners close the outline: a wall end near another wall's end lands exactly on it (autosnap).
+        corner=self._corner_near(x,y) if self.snap_enabled else None
+        if corner is not None:
+            self.end=(corner.x,corner.y);self.last_snap=corner
+        elif constrained and hypot(x-sx,y-sy)>1e-12:
+            # 2. The angle (90° / 45° / 15°) is kept: snaps may set where the wall stops, never its direction.
+            rel=degrees(atan2(y-sy,x-sx))-self.reference_angle_deg
+            a=radians(self.reference_angle_deg+round(rel/self.angle_increment)*self.angle_increment)
+            ux,uy=cos(a),sin(a)
+            length=hypot(x-sx,y-sy)
+            self.end=(sx+ux*length,sy+uy*length);self.angle_snapped=True
+            hit=self._ray_hits_wall(ux,uy,x,y) if self.snap_enabled else None
+            if hit is not None:
+                # Reaching another wall: stop on its axis, along the same direction.
+                self.end=(hit.x,hit.y);self.last_snap=hit
+            elif self.snap_enabled:
+                sp=best_snap(self.doc,self.end[0],self.end[1],self.snap_tol,grid=None)
+                if sp is not None:
+                    # A point next to the ray (alignment with a corner/midpoint): its projection on the ray.
+                    k=max(0.0,(sp.x-sx)*ux+(sp.y-sy)*uy)
+                    if hypot(sx+ux*k-sp.x,sy+uy*k-sp.y)<=self.snap_tol and k>self.min_length:
+                        self.end=(sx+ux*k,sy+uy*k);self.last_snap=sp
         else:
-            sx,sy=self.start
-            dx,dy=x-sx,y-sy
-            length=hypot(dx,dy)
-            if (
-                self.angle_enabled
-                and self.angle_increment is not None
-                and self.angle_increment>0
-                and length>1e-12
-            ):
-                raw=degrees(atan2(dy,dx))
-                rel=raw-self.reference_angle_deg
-                snapped_rel=round(rel/self.angle_increment)*self.angle_increment
-                angle=self.reference_angle_deg+snapped_rel
-                a=radians(angle)
-                self.end=(sx+length*cos(a),sy+length*sin(a))
-                self.angle_snapped=True
+            sp=best_snap(self.doc,x,y,self.snap_tol,grid=None) if self.snap_enabled else None
+            if sp is not None:
+                self.end=(sp.x,sp.y);self.last_snap=sp
             elif self.snap_enabled and self.grid:
-                gx=round(x/self.grid)*self.grid
-                gy=round(y/self.grid)*self.grid
-                self.end=(gx,gy)
+                self.end=(round(x/self.grid)*self.grid,round(y/self.grid)*self.grid)
             else:
                 self.end=(x,y)
 

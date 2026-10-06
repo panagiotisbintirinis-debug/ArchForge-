@@ -1,3 +1,4 @@
+import pytest
 from archforge.core.model import Document, Entity
 from archforge.core.snapping import best_snap
 from archforge.core.commands import CommandStack
@@ -32,9 +33,32 @@ def test_wall_draw_transaction_can_finish_as_t_junction():
     d=Document();host=wall(0,0,10,0);d.add(host);stack=CommandStack(d)
     tx=WallDrawTransaction(d,stack,(3,3),grid=None,snap_tol=0.2)
     hud=tx.update(3.05,0.08)
-    assert tx.end==(3.05,0.0)
+    # Reported: reaching the opposite wall tilted the new one off 90°. It stops on the wall axis, still at 90°.
+    assert tx.end==pytest.approx((3.0,0.0)) and hud.values['angle_locked']==1.0
     eid=tx.commit();p=d.get(eid).params
-    assert abs(p['y2'])<1e-9 and abs(p['x2']-3.05)<1e-9
+    assert abs(p['y2'])<1e-9 and abs(p['x2']-3.0)<1e-9
+    d2=Document();d2.add(wall(0,0,10,0))
+    free=WallDrawTransaction(d2,CommandStack(d2),(3,3),grid=None,snap_tol=0.2,angle_enabled=False)
+    free.update(3.05,0.08)
+    assert free.end==pytest.approx((3.05,0.0))                      # Shift (no angle): free T-junction
+
+
+def test_wall_end_near_a_corner_closes_onto_it_even_off_the_angle():
+    d=Document();stack=CommandStack(d)
+    for a,b in [((0,0),(5,0)),((5,0),(5,4)),((5,4),(0,4))]:
+        d.add(wall(*a,*b))
+    tx=WallDrawTransaction(d,stack,(0,4),grid=None,snap_tol=0.1)
+    tx.update(0.18,0.2)                                               # 18–20 cm off the start corner
+    assert tx.end==(0.0,0.0) and tx.last_snap.kind=='endpoint'
+
+
+def test_far_from_corners_the_angle_holds_while_passing_other_walls():
+    d=Document();stack=CommandStack(d);d.add(wall(0,0,10,0));d.add(wall(4,-2,4,6))
+    tx=WallDrawTransaction(d,stack,(0,3),grid=None,snap_tol=0.15)
+    tx.update(4.1,3.12)                                               # on the crossing wall, a little off
+    assert tx.end==pytest.approx((4.0,3.0))                           # stops on its axis, still horizontal
+    tx.update(7.0,3.1)
+    assert tx.end[1]==pytest.approx(3.0)
 
 
 def test_wall_projection_respects_exclusion():

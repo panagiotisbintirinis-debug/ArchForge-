@@ -359,13 +359,18 @@ def install_approved_mockup_shell(window):
     # Do not duplicate generation logic in the mockup shell.
     # Sculpt operation and brush size live in the mouse menu (right click while
     # sculpting; the wheel sets the brush) — not on the ribbon.
-    ribbon.addSeparator()
-    auto_floor=QAction("Δάπεδα (αυτόματα)",window); auto_floor.triggered.connect(window._create_auto_floors); ribbon.addAction(auto_floor)
-    flat_roof=QAction("Δώμα (αυτόματα)",window); flat_roof.triggered.connect(window._create_flat_roofs); ribbon.addAction(flat_roof)
+    # Automatic floors / flat roof / site: one menu, so the bar stays narrow on a laptop.
+    auto=QMenu("Αυτόματα",window); window._mockup_auto_menu=auto
+    auto_floor=QAction("Δάπεδα (αυτόματα)",window); auto_floor.triggered.connect(window._create_auto_floors); auto.addAction(auto_floor)
+    flat_roof=QAction("Δώμα (αυτόματα)",window); flat_roof.triggered.connect(window._create_flat_roofs); auto.addAction(flat_roof)
     window._mockup_auto_floor_action=auto_floor
-    terrain=QAction("Έδαφος",window); terrain.triggered.connect(window._create_terrain); ribbon.addAction(terrain)
+    terrain=QAction("Έδαφος",window); terrain.triggered.connect(window._create_terrain); auto.addAction(terrain)
     window._mockup_terrain_action=terrain
     window._mockup_flat_roof_action=flat_roof
+    auto_button=QToolButton(ribbon); auto_button.setText("Αυτόματα"); auto_button.setToolTip("Δάπεδα, δώμα, έδαφος")
+    auto_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup); auto_button.setMenu(auto)
+    auto_button.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+    ribbon.addSeparator(); ribbon.addWidget(auto_button)
     window.addToolBar(Qt.TopToolBarArea,ribbon)
 
     # Second row: storey/display, camera and snapping. A single row needs
