@@ -163,6 +163,9 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
         from archforge.mep.plumbing import _floor_of
         return abs(_floor_of(doc,float(p.get('z',0.0)))-z)<=tolerance
     if e.kind=='ceiling_joists':return abs(float(p.get('z',0.0))-z)<=tolerance
+    if e.kind=='drainage_point':
+        from archforge.mep.drainage import _floor_of as drain_floor
+        return abs(drain_floor(doc,float(p.get('z',0.0)))-z)<=tolerance
     if e.kind=='ventilation_point':
         from archforge.mep.ventilation import _floor_of as vent_floor
         return abs(vent_floor(doc,float(p.get('z',0.0)))-z)<=tolerance
@@ -199,6 +202,10 @@ def entity_primitive(doc,eid):
         return Primitive2D('ellipse',((float(p['x']),float(p['y'])),),.10,.10,0.,eid,'electrical-point',
                            meta=(('text',ELEC[p['point_type']][4]),('point_type',p['point_type'])))
     if e.kind=='ceiling_joists':return Primitive2D('polygon',tuple(tuple(q) for q in p['points']),entity_id=eid,role='joists-area')
+    if e.kind=='drainage_point':
+        r=.30 if p['point_type']=='manhole' else (.09 if p['point_type']=='stack' else .08)
+        x,y=float(p['x']),float(p['y'])
+        return Primitive2D('polygon',((x-r,y-r),(x+r,y-r),(x+r,y+r),(x-r,y+r)),entity_id=eid,role='drainage-point',meta=(('point_type',p['point_type']),))
     if e.kind=='ventilation_point':
         from archforge.mep.ventilation import POINT_TYPES as VENT
         r=.30 if p['point_type']=='hood' else .10
@@ -589,6 +596,29 @@ def build_plan_frame(doc,preview=None):
                 extra=''
             text=f"{info['name']} {info.get('section','')}{extra}"+('' if info.get('ok',True) else ' ⚠')
             f.primitives.append(Primitive2D('label',(at,),entity_id=eid,role='structural-label',meta=(('text',text),)))
+    # Derived drainage of the active storey: sloped pipes with Φ and slope, fittings.
+    if any(e.kind=='plumbing_point' for e in doc.entities.values()):
+        from archforge.mep.drainage import SLOPE,_floor_of as drain_floor,route_drainage_cached
+        level=float(doc.work_plane.origin[2])
+        drain=route_drainage_cached(doc)
+        labelled=set()
+        for a,b,dn,kind in drain['pipes']:
+            if kind=='stack':
+                f.primitives.append(Primitive2D('ellipse',((a[0],a[1]),),dn/2000+.03,dn/2000+.03,0.,'','drain-stack',meta=(('diameter',dn),)))
+                continue
+            if drain_floor(doc,max(a[2],b[2])+.5)!=level:
+                continue
+            f.primitives.append(Primitive2D('polyline',((a[0],a[1]),(b[0],b[1])),role='drain',meta=(('diameter',dn),('kind',kind))))
+            if kind=='collector' and (dn,round(a[0],1),) not in labelled and abs(a[0]-b[0])+abs(a[1]-b[1])>.15 and len(labelled)<12:
+                labelled.add((dn,round(a[0],1)))
+                f.primitives.append(Primitive2D('label',(((a[0]+b[0])/2+.05,(a[1]+b[1])/2+.12),),role='drain-label',meta=(('text',f"Φ{dn} {SLOPE*100:.0f}%"),)))
+        for n in drain['nodes']:
+            if abs(n['z']-level)>.05:
+                continue
+            r={'manhole':.30,'floor_drain':.08,'stack':.10}[n['kind']]
+            x,y=n['x'],n['y']
+            f.primitives.append(Primitive2D('polyline',((x-r,y-r),(x+r,y-r),(x+r,y+r),(x-r,y+r),(x-r,y-r)),role='drain-node',meta=(('kind',n['kind']),('auto',n['auto']))))
+            f.primitives.append(Primitive2D('label',((x+r+.05,y-r-.12),),role='drain-label',meta=(('text',{'manhole':'Φρεάτιο','floor_drain':'Σιφώνι','stack':f"Στήλη Φ{n.get('dn',100)}"}[n['kind']]+(' (αυτ.)' if n['auto'] else '')),)))
     # Derived extract ducts of the active storey (under the ceiling) and their outlets.
     if any(e.kind=='ventilation_point' for e in doc.entities.values()):
         from archforge.mep.ventilation import POINT_TYPES as VENT,_floor_of as vent_floor,route_ventilation_cached

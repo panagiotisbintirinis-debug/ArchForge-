@@ -28,6 +28,7 @@ _KIND_ROLES:Dict[str,Tuple[Tuple[str,bool,bool,str],...]]={
  'electrical_point':(('marker',False,False,'electrical point marker'),),
  'plumbing_point':(('marker',False,False,'plumbing point marker'),),
  'ventilation_point':(('marker',False,False,'ventilation device'),),
+ 'drainage_point':(('marker',False,False,'drainage fitting'),),
  'ceiling_joists':(('joist',False,False,'timber joist'),),
  'cabinet':tuple((r,False,False,f'cabinet {r}') for r in ('carcass','shelf','front','handle','plinth','worktop','rail')),
  'library_object':(('body',True,False,'library object surface (sculptable; coordinates local to the object)'),('placeholder',False,False,'box shown while the library asset is missing')),

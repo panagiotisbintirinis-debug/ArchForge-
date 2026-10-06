@@ -73,7 +73,7 @@ def _opening_sides(doc, e):
 
 
 # Positioned things that live inside a room (listed under it in the project tree).
-ROOM_CONTENT_KINDS = ("plumbing_point", "electrical_point", "ventilation_point", "ceiling_joists", "cabinet",
+ROOM_CONTENT_KINDS = ("plumbing_point", "electrical_point", "ventilation_point", "drainage_point", "ceiling_joists", "cabinet",
                       "kitchen_part", "library_object", "box", "mechanical_part", "mep_terminal", "stair", "ramp")
 
 

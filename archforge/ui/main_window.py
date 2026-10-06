@@ -643,6 +643,17 @@ class MainWindow(QMainWindow):
         if str(tool).startswith('plumb_'):
             self._place_plumbing_point(tool[len('plumb_'):], x, y)
             return
+        if str(tool).startswith('drain_'):
+            from archforge.mep.drainage import POINT_TYPES as DRAIN, route_drainage_cached
+            kind = tool[len('drain_'):]
+            z = float(self.doc.work_plane.origin[2])
+            point = Entity('drainage_point', {'x': float(x), 'y': float(y), 'z': z, 'point_type': kind}, name=DRAIN[kind][0])
+            self.stack.execute(AddEntity(point))
+            self._redraw_views(all_views=True)
+            rep = route_drainage_cached(self.doc)['report']
+            self.statusBar().showMessage(f"{DRAIN[kind][0]} · αποχέτευση: " + ', '.join(f'Φ{k} {v:.1f} m' for k, v in sorted(rep['length_by_dn'].items()))
+                                         + (f" · ⚠ {rep['warnings'][0]}" if rep['warnings'] else '') + ' — προς έλεγχο μηχανολόγου', 9000)
+            return
         if tool == 'assist_point':
             self._assistant_target_at(x, y)
             return

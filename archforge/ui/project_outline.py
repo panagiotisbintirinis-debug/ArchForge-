@@ -151,7 +151,7 @@ def _categorise(ids, doc):
     """[(category title, ids)] in CATEGORIES order, then the rest."""
     out, listed = [], set()
     for title, kinds in CATEGORIES + (("Υδραυλικά", ("plumbing_point",)), ("Ηλεκτρολογικά", ("electrical_point",)),
-                                      ("Εξαερισμοί", ("ventilation_point",)), ("Δοκίδες", ("ceiling_joists",)),
+                                      ("Εξαερισμοί", ("ventilation_point",)), ("Αποχετεύσεις", ("drainage_point",)), ("Δοκίδες", ("ceiling_joists",)),
                                       ("Στέγες", ("pitched_roof",)), ("Στοιχεία στατικής", ("structural_design",))):
         group = [i for i in ids if doc.get(i).kind in kinds]
         listed.update(group)
@@ -196,6 +196,11 @@ def _mep_summary(doc):
     if "electrical_point" in kinds:
         from archforge.mep.electrical import route_cables_cached
         out["electrical_point"] = f" · {len(route_cables_cached(doc)['circuits'])} κυκλώματα"
+    if "plumbing_point" in kinds:
+        from archforge.mep.drainage import route_drainage_cached
+        lengths = route_drainage_cached(doc)["report"]["length_by_dn"]
+        if lengths:
+            out["drainage"] = " · " + ", ".join(f"Φ{k} {v:.1f} m" for k, v in sorted(lengths.items()))
     if "ventilation_point" in kinds:
         from archforge.mep.ventilation import route_ventilation_cached
         out["ventilation_point"] = f" · αεραγωγοί {route_ventilation_cached(doc)['report']['duct_m']:.1f} m"
@@ -278,7 +283,7 @@ def project_outline(doc, title="Έργο"):
                               None, name, groups))
     # Derived networks (whole building): one line each, from the same points.
     if mep:
-        names = {"plumbing_point": "Υδραυλικό δίκτυο", "electrical_point": "Ηλεκτρολογικό δίκτυο",
+        names = {"plumbing_point": "Υδραυλικό δίκτυο", "drainage": "Αποχέτευση", "electrical_point": "Ηλεκτρολογικό δίκτυο",
                  "ventilation_point": "Αεραγωγοί"}
         children.append(_node("Η/Μ δίκτυα", None, None, [_node(names[k] + v, None, None) for k, v in mep.items()]))
     site = [i for i, e in doc.entities.items() if e.kind in SITE]

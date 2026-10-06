@@ -237,6 +237,13 @@ def install_approved_mockup_shell(window):
         a.triggered.connect(lambda _=False,k=key,l=label: window._start_site_tool(f"elec_{k}",f"{l}: κλικ στην κάτοψη — τα κυκλώματα σχηματίζονται αυτόματα, Esc για τέλος"))
         electrical.addAction(a)
     window._mockup_electrical_menu=electrical
+    from archforge.mep.drainage import POINT_TYPES as DRAIN
+    drainage=QMenu("Αποχετεύσεις",mep_menu); mep_menu.addMenu(drainage)
+    for key,(label,_l) in DRAIN.items():
+        a=QAction(label,window)
+        a.triggered.connect(lambda _=False,k=key,l=label: window._start_site_tool(f"drain_{k}",f"{l}: κλικ στην κάτοψη — η αποχέτευση ξαναχαράζεται αυτόματα, Esc για τέλος"))
+        drainage.addAction(a)
+    window._mockup_drainage_menu=drainage
     from archforge.mep.ventilation import POINT_TYPES as VENT
     ventilation=QMenu("Εξαερισμοί",mep_menu); mep_menu.addMenu(ventilation)
     for key,(label,_q,_h,_m,_l) in VENT.items():
@@ -249,6 +256,9 @@ def install_approved_mockup_shell(window):
     elec_layer=QAction("Ηλεκτρολογικά στο 3D",window); elec_layer.setCheckable(True); elec_layer.setChecked(True)
     elec_layer.toggled.connect(lambda on: window._set_layer_visible("elec",on))
     mep_menu.addAction(elec_layer); window.view_menu.addAction(elec_layer); window._elec_layer_action=elec_layer
+    drain_layer=QAction("Αποχετεύσεις στο 3D",window); drain_layer.setCheckable(True); drain_layer.setChecked(True)
+    drain_layer.toggled.connect(lambda on: window._set_layer_visible("drain",on))
+    mep_menu.addAction(drain_layer); window.view_menu.addAction(drain_layer); window._drain_layer_action=drain_layer
     vent_layer=QAction("Εξαερισμοί στο 3D",window); vent_layer.setCheckable(True); vent_layer.setChecked(True)
     vent_layer.toggled.connect(lambda on: window._set_layer_visible("vent",on))
     mep_menu.addAction(vent_layer); window.view_menu.addAction(vent_layer); window._vent_layer_action=vent_layer

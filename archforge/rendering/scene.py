@@ -32,6 +32,8 @@ _MATERIALS: Mapping[str, dict] = {
     "plumbing_point": {"color": "#2d6fb3", "roughness": 0.4, "metalness": 0.1},
     "electrical_point": {"color": "#e08a00", "roughness": 0.4, "metalness": 0.1},
     "ceiling_joists": {"color": "#c8a46e", "roughness": 0.8, "metalness": 0.0},
+    "drainage_point": {"color": "#6b4a2b", "roughness": 0.6, "metalness": 0.0},
+    "drain_pipe": {"color": "#c46a2b", "roughness": 0.55, "metalness": 0.0},
     "ventilation_point": {"color": "#b8bec6", "roughness": 0.3, "metalness": 0.6},
     "vent_duct": {"color": "#a9b0b8", "roughness": 0.35, "metalness": 0.7},
     "vent_terminal": {"color": "#5b6470", "roughness": 0.5, "metalness": 0.3},
@@ -320,6 +322,26 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                 objects.append({"id": "", "render_part": f"elec:{group}", "kind": "elec_cable", "layer": "elec",
                                 "vertices": verts, "triangles": tris, "surfaces": ["cable"] * len(tris),
                                 "material": {"color": CABLE_COLORS.get(group, "#e07a00"), "roughness": 0.5, "metalness": 0.0}})
+        # Derived drainage (layer "drain"): sloped pipes, stacks, floor drains and manhole, true diameters.
+        if any(e.kind == "plumbing_point" for e in doc.entities.values()):
+            from archforge.mep.drainage import route_drainage_cached
+            from archforge.mep.plumbing import pipe_mesh as _pipe
+            route = route_drainage_cached(doc)
+            verts, tris = [], []
+            parts = [_pipe(a, b, max(dn, 50), sides=10) for a, b, dn, _k in route["pipes"]]
+            for n in route["nodes"]:
+                if n["kind"] == "manhole":
+                    parts.append(_pipe((n["x"], n["y"], n["z"] - 0.6), (n["x"], n["y"], n["z"]), 600, sides=4))
+                elif n["kind"] == "floor_drain":
+                    parts.append(_pipe((n["x"], n["y"], n["z"] - 0.02), (n["x"], n["y"], n["z"] + 0.005), 150, sides=8))
+            for v, t in parts:
+                base = len(verts)
+                verts += [list(map(float, q)) for q in v]
+                tris += [[base + i for i in tri] for tri in t]
+            if tris:
+                objects.append({"id": "", "render_part": "drain:pipes", "kind": "drain_pipe", "layer": "drain",
+                                "vertices": verts, "triangles": tris, "surfaces": ["pipe"] * len(tris),
+                                "material": dict(_MATERIALS["drain_pipe"])})
         # Derived extract ducts (layer "vent"): ducts at their true Ø, grilles and roof caps.
         if any(e.kind == "ventilation_point" for e in doc.entities.values()):
             from archforge.mep.ventilation import duct_meshes, route_ventilation_cached
