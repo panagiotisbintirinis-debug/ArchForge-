@@ -123,6 +123,7 @@ def propose(doc, reading=None):
         out.append(Proposal(f"J-2:{e.id}", "warning", f"{e.name or 'Δοκίδες'}: άνοιγμα {rep['span_m']:.2f} m χωρίς επαρκή διατομή",
                             "Τεχνικές προτάσεις: " + "; ".join(rep["proposals"]), rep["provenance"], (e.id,), fix))
     out += _brief(doc)
+    out += _interior_walls(doc)
     out += _structural(doc)
     out += _roofs(doc)
     if any(e.kind == "ventilation_point" for e in doc.entities.values()):
@@ -239,6 +240,26 @@ def _roofs(doc):
 def _add_all(entities):
     from archforge.core.commands import AddEntities
     return lambda _doc: AddEntities(list(entities))
+
+
+def _interior_walls(doc):
+    """W-1: interior walls declared load-bearing must be at least 25 cm thick; the fix sets the bearing type."""
+    from archforge.project.brief import MIN_BEARING_THICKNESS, get_brief, interior_wall_defaults, interior_walls
+    brief = get_brief(doc)
+    if brief is None or brief["interior_walls"] != "bearing":
+        return []
+    itype, ithick, _b = interior_wall_defaults(doc)
+    thin = [w for w in interior_walls(doc) if float(w.params.get("thickness", 0.0)) < MIN_BEARING_THICKNESS - 1e-6]
+    if not thin:
+        return []
+    from archforge.core.commands import CompositeCommand, UpdateEntity
+    ids = tuple(w.id for w in thin)
+    return [Proposal("W-1", "warning", f"Φέροντες εσωτερικοί τοίχοι κάτω από 25 cm: {len(thin)}",
+                     "Στα Στοιχεία έργου οι εσωτερικοί τοίχοι είναι φέρων οργανισμός (ελάχιστο 25 cm). "
+                     f"«Εφαρμογή» = φέρουσα τοιχοποιία 25 cm + σοβάδες ({ithick * 100:.0f} cm).",
+                     "Στοιχεία έργου", ids,
+                     lambda _doc: CompositeCommand([UpdateEntity(i, {"wall_type": itype, "thickness": ithick, "load_bearing": True})
+                                                    for i in ids], "Φέροντες εσωτερικοί τοίχοι"))]
 
 
 def _update(entity_id, params):

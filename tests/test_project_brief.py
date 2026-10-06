@@ -108,3 +108,55 @@ def test_new_project_asks_and_menus_exist():
         assert all(w.doc.get(i).params.get('phase', 'new') == 'new' for i in ids)
     finally:
         w._mark_clean(); w.close(); app.processEvents()
+
+
+def test_interior_walls_question_drywall_brick_or_bearing_min_25():
+    from archforge.project.brief import INTERIOR_WALLS, QUESTIONS, interior_wall_defaults
+    assert 'interior_walls' in [q[0] for q in QUESTIONS]
+    assert set(INTERIOR_WALLS) == {'drywall_single', 'drywall_double', 'brick_plaster', 'bearing'}
+    doc = Document(); st = CommandStack(doc)
+    assert interior_wall_defaults(doc) is None
+    e = _brief(st)                                                     # older briefs: brick with plaster
+    assert interior_wall_defaults(doc) == ('brick_partition', pytest.approx(0.13), False)
+    for key, (wtype, thick, bearing) in {'drywall_single': ('drywall_100', 0.10, False),
+                                         'drywall_double': ('drywall_double_125', 0.125, False),
+                                         'bearing': ('bearing_interior_25', 0.29, True)}.items():
+        st.execute(UpdateEntity(e.id, {'interior_walls': key}))
+        t, th, b = interior_wall_defaults(doc)
+        assert (t, b) == (wtype, bearing) and th == pytest.approx(thick)
+        assert not b or th >= 0.25
+    with pytest.raises(ValueError):
+        st.execute(UpdateEntity(e.id, {'interior_walls': 'cardboard'}))
+
+
+def _draw_wall(doc, stack, a, b):
+    from archforge.core.viewport import PointerController, PointerEvent
+    c = PointerController(doc, stack); c.snap_enabled = False; c.tool = 'wall'
+    c.pointer_down(PointerEvent(*a)); c.pointer_move(PointerEvent(*b)); c.pointer_up(PointerEvent(*b))
+    return [w for w in doc.entities.values() if w.kind == 'wall'][-1]
+
+
+def test_a_wall_drawn_inside_a_closed_space_takes_the_interior_type_in_one_undo():
+    doc = Document(); st = CommandStack(doc)
+    _brief(st, interior_walls='drywall_double')
+    _box(st, 8.0, 6.0, t=0.35)
+    w = _draw_wall(doc, st, (4.0, 0.5), (4.0, 5.5))
+    assert w.params['wall_type'] == 'drywall_double_125' and w.params['thickness'] == pytest.approx(0.125)
+    st.undo()
+    assert w.id not in doc.entities                                    # wall and its type: one step
+    outside = _draw_wall(doc, st, (9.0, 0.0), (12.0, 0.0))             # outside the shell: exterior system
+    assert outside.params.get('wall_type') == 'brick_double_insulated'
+
+
+def test_bearing_interior_walls_under_25cm_get_an_assistant_fix():
+    from archforge.assistant.suggestions import apply, propose
+    doc = Document(); st = CommandStack(doc)
+    _brief(st, interior_walls='bearing')
+    ids = _box(st, 8.0, 6.0, t=0.35, extra=[(4, 0, 4, 6)])
+    st.execute(UpdateEntity(ids[-1], {'thickness': 0.15}))
+    (p,) = [p for p in propose(doc) if p.key == 'W-1']
+    assert p.targets == (ids[-1],)
+    apply(st, p)
+    assert doc.get(ids[-1]).params['thickness'] == pytest.approx(0.29) and doc.get(ids[-1]).params['load_bearing']
+    assert not [p for p in propose(doc) if p.key == 'W-1']
+    assert doc.get(ids[0]).params['thickness'] == pytest.approx(0.35)  # the shell is not touched

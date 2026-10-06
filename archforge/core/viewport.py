@@ -359,7 +359,15 @@ class PointerController:
         if self.active is None:return self.preview
         self.pointer_move(ev);committed_id=None
         if isinstance(self.active,WallDrawTransaction):
+            from archforge.project.brief import interior_wall_defaults,wall_is_interior
+            interior=interior_wall_defaults(self.doc)
+            faces_before=self.doc.active_room_faces(z=self.active.z) if interior else []
             committed_id=self.active.commit((exact or {}).get('length'))
+            if committed_id and interior and committed_id in self.doc.entities and wall_is_interior(faces_before,self.doc.get(committed_id).params):
+                # A wall inside a closed space is a partition: the brief's interior wall type — same undo step.
+                from archforge.core.commands import UpdateEntity
+                itype,ithick,bearing=interior
+                self.stack.amend(UpdateEntity(committed_id,{'wall_type':itype,'thickness':ithick,'load_bearing':bool(bearing)}))
             if committed_id and getattr(self.active,'reference',None):
                 # A wall that closes a space moves onto its axis — same undo step as the wall.
                 from archforge.architecture.dimension_reference import ApplyDimensionReference

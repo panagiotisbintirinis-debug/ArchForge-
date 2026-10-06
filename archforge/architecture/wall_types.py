@@ -19,6 +19,7 @@ _GYPSUM = ("Γυψοσανίδα", 0.0125, 0.25, "#f1efea", False)
 _BRICK = ("Οπτόπλινθος διάτρητος", 0.09, 0.47, "#b5653b", False)
 _STONE = ("Λιθοδομή", 0.50, 1.70, "#9b8f7d", False)
 _CONCRETE = ("Οπλισμένο σκυρόδεμα", 0.25, 2.30, "#a3a3a0", False)
+_BEARING_MASONRY = ("Φέρουσα τοιχοποιία", 0.25, 0.80, "#a8704a", False)
 
 
 def _wool(d):
@@ -41,6 +42,7 @@ WALL_TYPES = {
     "brick_double_insulated": ("Διπλή τοιχοποιία με μόνωση 5 cm (εξωτερικός)", [_PLASTER, _BRICK, _xps(0.05), _BRICK, _PLASTER]),
     "stone_uninsulated": ("Πετροκτιστός 54 cm χωρίς μόνωση", [_PLASTER, _STONE, _PLASTER]),
     "stone_insulated": ("Πετροκτιστός με εσωτερική μόνωση 5 cm", [_PLASTER, _STONE, _wool(0.05), _GYPSUM]),
+    "bearing_interior_25": ("Φέρων εσωτερικός τοίχος 25 cm + σοβάδες", [_PLASTER, _BEARING_MASONRY, _PLASTER]),
     "concrete_etics": ("Μπετό με εξωτερική θερμοπρόσοψη 8 cm", [_PLASTER, _eps(0.08), _CONCRETE, _PLASTER]),
 }
 
