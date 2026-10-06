@@ -107,3 +107,49 @@ def test_kitchen_panel_places_a_cabinet_against_a_wall_and_modifier_edits_it():
         assert window.doc.get(cab[0].id).params['cabinet_type'] == 'base'
     finally:
         window._mark_clean(); window.close(); app.processEvents()
+
+
+def _corner_kitchen():
+    doc = Document(); stack = CommandStack(doc)
+    stack.execute(AddEntity(Entity('wall', {'x1': 0.0, 'y1': 0.0, 'z': 0.0, 'x2': 5.0, 'y2': 0.0, 'height': 2.7, 'thickness': 0.2})))
+    stack.execute(AddEntity(Entity('wall', {'x1': 0.0, 'y1': 0.0, 'z': 0.0, 'x2': 0.0, 'y2': 4.0, 'height': 2.7, 'thickness': 0.2})))
+    return doc, stack
+
+
+def _place(doc, stack, x, y, kind='base', name='Ντουλάπι βάσης'):
+    from archforge.components.placement import ComponentPlaceTransaction
+    d = dict(name=name, entity='cabinet', cabinet_type=kind, role='cabinet', width=.60, depth=.60, height=.86 if kind != 'wall' else .72)
+    tx = ComponentPlaceTransaction(doc, stack, x, y, d, z=0.0)
+    return tx
+
+
+def test_cabinet_snaps_to_the_corner_wall_and_to_a_neighbour_a_hand_away():
+    doc, stack = _corner_kitchen()
+    tx = _place(doc, stack, .55, .5)                          # 15 cm off the corner wall's face
+    p = tx.preview
+    assert (p['x'], p['y']) == pytest.approx((.1 + .3, .1 + .3)) and p['fits']
+    first = doc.get(tx.commit()).params
+    tx2 = _place(doc, stack, 1.25, .5)                        # 25 cm gap to the first: pulled against it
+    assert tx2.preview['x'] == pytest.approx(first['x'] + .6) and tx2.preview['fits']
+
+
+def test_a_cabinet_that_does_not_fit_is_shown_red_and_not_placed():
+    from archforge.core.plan_scene import preview_primitives
+    from archforge.core.viewport import PreviewState
+    from archforge.kitchen.cabinets import fit_problem
+    doc, stack = _corner_kitchen()
+    _place(doc, stack, .55, .5).commit()
+    tx = _place(doc, stack, .62, 1.05)                        # its own wall would put it over the first one
+    tx.preview.update({'x': .7, 'y': .45, 'rotation': 180.0})
+    assert 'πέφτει πάνω σε «' in fit_problem(doc, tx.preview)
+    tx.problem = fit_problem(doc, tx.preview); tx.preview['fits'] = False
+    (prim,) = preview_primitives(PreviewState('component', tx.preview, {}, None))
+    assert dict(prim.meta)['fits'] is False
+    with pytest.raises(ValueError, match='δεν χωράει'):
+        tx.commit()
+    assert sum(e.kind == 'cabinet' for e in doc.entities.values()) == 1
+    # A wall cabinet above a base cabinet is fine (different heights).
+    upper = dict(default_params('wall', .4, .275, rotation=180.0))
+    assert fit_problem(doc, upper) is None
+    # Through a wall: not placed.
+    assert 'τοίχο' in fit_problem(doc, dict(default_params('base', 2.0, 0.0, rotation=180.0)))

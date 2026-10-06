@@ -202,7 +202,10 @@ class PlanView(QGraphicsView):
             ev=self._scene_to_plane(event.position().toPoint())
             ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
             ev.ctrl=bool(event.modifiers()&Qt.KeyboardModifier.ControlModifier)
-            try:self.controller.pointer_move(ev);self.redraw()
+            try:
+                self.controller.pointer_move(ev);self.redraw()
+                problem=getattr(self.controller.active,'problem',None)
+                if problem:self.statusChanged.emit(f'⚠ Δεν χωράει: {problem} — μετακίνησε ή άλλαξε πλάτος')
             except ValueError as exc:self.statusChanged.emit(str(exc))
         else:
             p=self.mapToScene(event.position().toPoint());self.statusChanged.emit(f'X {p.x():.3f}   Y {p.y():.3f}')
@@ -523,6 +526,7 @@ class PlanView(QGraphicsView):
             (QColor(180,90,20) if opening else (QColor(40,150,70) if preview else (QColor(95,140,60) if terrain else QColor(45,55,65))))
         )
         pen.setWidthF(.022 if context else (.06 if opening else (.04 if preview else .035)));item=None
+        if preview and dict(p.meta).get('fits') is False:pen=QPen(QColor(210,40,40));pen.setWidthF(.05)
         if p.role=='library-symbol':pen=QPen(QColor(40,45,55));pen.setWidthF(.012)
         if p.role in ('cabinet','cabinet-front'):pen=QPen(QColor(40,45,55));pen.setWidthF(.012)
         if p.role in ('pipe-cold','pipe-hot'):

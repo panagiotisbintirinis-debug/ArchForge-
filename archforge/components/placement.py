@@ -36,7 +36,7 @@ class ComponentPlaceTransaction:
 
     def _update_cabinet(self,x,y):
         """Cabinets back onto the nearest wall and butt against neighbours."""
-        from archforge.kitchen.cabinets import default_params, snap_to_neighbours, wall_aligned
+        from archforge.kitchen.cabinets import default_params, fit_problem, snap_to_neighbours, snap_to_side_walls, wall_aligned
         d=self.definition
         p=default_params(d['cabinet_type'],x,y,rotation=float(d.get('rotation',0.0)),width=d.get('width'))
         for key in ('depth','height','plinth','doors','drawers','shelves','worktop','handle'):
@@ -46,18 +46,27 @@ class ComponentPlaceTransaction:
         aligned=wall_aligned(self.doc,x,y,float(p['depth']),z=self.z)
         self.last_snap=None
         if aligned is not None:
+            # Back on the wall, then a side on the corner wall, then against the neighbour (stronger, last).
             p['x'],p['y'],p['rotation']=aligned
-            p['x'],p['y']=snap_to_neighbours(self.doc,p['x'],p['y'],p['rotation'],float(p['width']),float(p['depth']))
+            w,dp=float(p['width']),float(p['depth'])
+            p['x'],p['y']=snap_to_side_walls(self.doc,p['x'],p['y'],p['rotation'],w,dp,z=self.z)
+            p['x'],p['y']=snap_to_neighbours(self.doc,p['x'],p['y'],p['rotation'],w,dp)
         else:
             sp=best_snap(self.doc,x,y,self.snap_tol,self.grid)
             if sp is not None:p['x'],p['y']=float(sp.x),float(sp.y);self.last_snap=sp
+        # Does it fit? A wall or another cabinet in the way: shown red, and it is not placed.
+        self.problem=fit_problem(self.doc,p)
+        p['fits']=self.problem is None
         self.preview=p
         return self.preview
 
     def commit(self):
         if self.cancelled: raise RuntimeError('transaction cancelled')
         if self.definition.get('entity')=='cabinet':
-            e=Entity('cabinet',dict(self.preview),name=str(self.definition['name']))
+            if getattr(self,'problem',None):
+                raise ValueError(f"⚠ {self.definition['name']}: δεν χωράει εδώ — {self.problem}")
+            params={k:v for k,v in self.preview.items() if k!='fits'}
+            e=Entity('cabinet',params,name=str(self.definition['name']))
             self.stack.execute(AddEntity(e));return e.id
         e=Entity('kitchen_part',dict(self.preview),name=str(self.definition['name']))
         self.stack.execute(AddEntity(e));return e.id

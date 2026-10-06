@@ -210,7 +210,88 @@ def wall_aligned(doc, x, y, depth, *, tolerance=0.6, z=None):
     return px + nx * off, py + ny * off, rotation
 
 
-def snap_to_neighbours(doc, x, y, rotation, width, depth, *, tolerance=0.12, ignore=()):
+def plan_box(x, y, rotation, width, depth):
+    """Plan corners of a cabinet (centre x, y; local X along the run)."""
+    a = math.radians(rotation)
+    ux, uy, nx, ny = math.cos(a), math.sin(a), -math.sin(a), math.cos(a)
+    return [(x + ux * sx * width / 2 + nx * sy * depth / 2, y + uy * sx * width / 2 + ny * sy * depth / 2)
+            for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+
+
+def _overlap(p, q, margin=0.01):
+    """Separating-axis test for two convex polygons, shrunk by ``margin`` (touching is not overlapping)."""
+    for poly in (p, q):
+        for i in range(len(poly)):
+            (x1, y1), (x2, y2) = poly[i], poly[(i + 1) % len(poly)]
+            ax, ay = -(y2 - y1), x2 - x1
+            L = math.hypot(ax, ay) or 1.0
+            ax, ay = ax / L, ay / L
+            pa = [vx * ax + vy * ay for vx, vy in p]; qa = [vx * ax + vy * ay for vx, vy in q]
+            if max(pa) <= min(qa) + margin or max(qa) <= min(pa) + margin:
+                return False
+    return True
+
+
+def _wall_box(p):
+    x1, y1, x2, y2 = (float(p[k]) for k in ("x1", "y1", "x2", "y2"))
+    L = math.hypot(x2 - x1, y2 - y1) or 1.0
+    ux, uy = (x2 - x1) / L, (y2 - y1) / L
+    t = float(p.get("thickness", .2)) / 2
+    return [(x1 - uy * t, y1 + ux * t), (x2 - uy * t, y2 + ux * t), (x2 + uy * t, y2 - ux * t), (x1 + uy * t, y1 - ux * t)]
+
+
+def _levels_overlap(a, b):
+    """Base and wall cabinets share the plan; they collide only if their heights overlap."""
+    za, zb = float(a.get("z", 0.0)), float(b.get("z", 0.0))
+    return za < zb + float(b.get("height", .86)) - .01 and zb < za + float(a.get("height", .86)) - .01
+
+
+def snap_to_side_walls(doc, x, y, rotation, width, depth, *, tolerance=0.35, z=None):
+    """Slide along the run so a side touches the face of a wall across the run (the corner of the kitchen)."""
+    level = doc.work_plane.origin[2] if z is None else z
+    a = math.radians(rotation)
+    ux, uy = math.cos(a), math.sin(a)
+    best = None
+    for e in doc.entities.values():
+        if e.kind != "wall" or abs(float(e.params.get("z", 0.0)) - level) > 0.05:
+            continue
+        box = _wall_box(e.params)
+        # The wall must lie across the run: its faces along the run direction bound the cabinet.
+        along = [(vx - x) * ux + (vy - y) * uy for vx, vy in box]
+        across_n = [(vx - x) * -uy + (vy - y) * ux for vx, vy in box]
+        if max(across_n) < -depth / 2 or min(across_n) > depth / 2:
+            continue                                  # not beside the cabinet
+        lo, hi = min(along), max(along)
+        if hi - lo > 1.5 * (max(across_n) - min(across_n)) + 1.0:
+            continue                                  # a wall along the run, not across it
+        # The wall on the cabinet's left gets its left side, the one on the right its right side.
+        target = hi + width / 2 if (lo + hi) / 2 < 0 else lo - width / 2
+        if abs(target) <= tolerance and (best is None or abs(target) < abs(best)):
+            best = target
+    if best is None or abs(best) > tolerance:
+        return x, y
+    return x + ux * best, y + uy * best
+
+
+def fit_problem(doc, params, *, ignore=(), host=None):
+    """Why a cabinet with ``params`` does not fit (a wall or another cabinet in the way), or None."""
+    z = float(params.get("z", 0.0))
+    level = doc.work_plane.origin[2]
+    me = plan_box(float(params["x"]), float(params["y"]), float(params.get("rotation", 0.0)),
+                   float(params["width"]), float(params["depth"]))
+    for e in doc.entities.values():
+        if e.id in ignore:
+            continue
+        if e.kind == "wall" and abs(float(e.params.get("z", 0.0)) - level) < .05 and _overlap(me, _wall_box(e.params), .015):
+            return "πέφτει πάνω σε τοίχο"
+        if e.kind == "cabinet" and _levels_overlap(params, e.params):
+            q = e.params
+            if _overlap(me, plan_box(float(q["x"]), float(q["y"]), float(q.get("rotation", 0.0)), float(q["width"]), float(q["depth"]))):
+                return f"πέφτει πάνω σε «{e.name or 'ντουλάπι'}»"
+    return None
+
+
+def snap_to_neighbours(doc, x, y, rotation, width, depth, *, tolerance=0.35, ignore=()):
     """Slide along the run so the cabinet's side touches a neighbour within tolerance."""
     a = math.radians(rotation)
     ux, uy = math.cos(a), math.sin(a)          # along the run (local +X)

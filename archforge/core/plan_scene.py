@@ -366,7 +366,7 @@ def preview_primitives(preview):
                                    meta=(('text',f"{float(hud['corner_deg']):.0f}°"+(' ◆' if mag else '')),)))
         return out
     if preview.kind=='component' and g:
-        return [Primitive2D('polygon',tuple(_box_corners(g)),entity_id=preview.entity_id or '',role='preview',meta=(('semantic','component-preview'),))]
+        return [Primitive2D('polygon',tuple(_box_corners(g)),entity_id=preview.entity_id or '',role='preview',meta=(('semantic','component-preview'),('fits',bool(g.get('fits',True)))))]
     if preview.kind=='structural-column' and g:
         return [Primitive2D('polygon',tuple(_box_corners(g)),entity_id=preview.entity_id or '',role='preview',meta=(('semantic','structural-column-preview'),))]
     if preview.kind=='structural-beam' and g:
