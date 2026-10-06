@@ -610,7 +610,8 @@ def build_plan_frame(doc,preview=None):
             text=f"{info['name']} {info.get('section','')}{extra}"+('' if info.get('ok',True) else ' ⚠')
             f.primitives.append(Primitive2D('label',(at,),entity_id=eid,role='structural-label',meta=(('text',text),)))
         # Foundation under the base storey: footings and tie beams (hidden lines), from the same analysis.
-        fd=(result or {}).get('foundation') or {}
+        from archforge.structure.analysis import last_result
+        fd=(last_result(doc) or {}).get('foundation') or {}
         for ft in fd.get('footings',()):
             if abs(float(ft.get('z',0.0))-level)>.05:
                 continue

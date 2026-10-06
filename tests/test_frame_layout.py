@@ -98,3 +98,51 @@ def test_grid_follows_the_loads_not_every_wall_junction():
     close = [(p, q) for p in pts for q in pts if p < q and ((p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2) ** .5 < 1.2]
     assert not close
     assert len(pts) <= 9                                                          # a grid, not a column per junction
+
+
+def test_columns_never_hang_outside_the_facade():
+    doc = Document(); st = CommandStack(doc); _house(st)                 # walls 20 cm, columns 40/40
+    entities, _r = propose_frame(doc)
+    for e in entities:
+        if e.kind != 'structural_column':
+            continue
+        x, y, h = e.params['x'], e.params['y'], e.params['width'] / 2
+        assert x - h >= -0.1 - 1e-6 and x + h <= 12.1 + 1e-6 and y - h >= -0.1 - 1e-6 and y + h <= 6.1 + 1e-6
+    corner = min((e for e in entities if e.kind == 'structural_column'), key=lambda e: e.params['x'] + e.params['y'])
+    assert (corner.params['x'], corner.params['y']) == pytest.approx((0.1, 0.1))   # outer faces flush, inwards both ways
+
+
+def test_lower_storey_carries_every_column_of_the_storey_above():
+    doc = Document(); st = CommandStack(doc); doc.levels['Floor 2'] = 3.0
+    _house(st, 0.0, x_max=7.0)                                            # ground 7 × 6
+    for s in [(0, 0, 7, 0), (7, 0, 7, 6), (7, 6, 0, 6), (0, 6, 0, 0), (3.5, 0, 3.5, 6)]:
+        st.execute(AddEntity(Entity('wall', {'x1': s[0], 'y1': s[1], 'x2': s[2], 'y2': s[3], 'z': 3.0, 'height': 2.7, 'thickness': 0.2})))
+    entities, _r = propose_frame(doc)
+    cols = [e for e in entities if e.kind == 'structural_column']
+    upper = [(round(e.params['x'], 1), round(e.params['y'], 1)) for e in cols if e.params['z'] == 3.0]
+    lower = [(round(e.params['x'], 1), round(e.params['y'], 1)) for e in cols if e.params['z'] == 0.0]
+    for u in upper:
+        assert any(abs(u[0] - l[0]) <= .3 and abs(u[1] - l[1]) <= .3 for l in lower), u
+
+
+def test_3d_scene_hides_members_inside_walls_and_shows_what_sticks_out():
+    from archforge.ui.pbr_viewport import members_hidden_in_walls
+    doc = Document(); st = CommandStack(doc)
+    for s in [(0, 0, 8, 0), (8, 0, 8, 6), (8, 6, 0, 6), (0, 6, 0, 0)]:
+        st.execute(AddEntity(Entity('wall', {'x1': s[0], 'y1': s[1], 'x2': s[2], 'y2': s[3], 'z': 0.0, 'height': 2.5, 'thickness': 0.3})))
+    def col(x, y, size):
+        e = Entity('structural_column', {'x': x, 'y': y, 'z': 0.0, 'width': size, 'depth': size, 'height': 3.0, 'rotation': 0.0,
+                                         'role': 'structural', 'construction': 'reinforced_concrete', 'section': 'rectangular',
+                                         'base_level': 'Ground', 'top_level': 'Unassigned'})
+        st.execute(AddEntity(e)); return e
+    def beam(x1, y1, x2, y2):
+        e = Entity('structural_beam', {'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2, 'z': 2.5, 'width': .25, 'height': .5, 'role': 'structural',
+                                       'construction': 'reinforced_concrete', 'section': 'rectangular', 'level': 'Ground'})
+        st.execute(AddEntity(e)); return e
+    inside = col(4.0, 0.0, .25)                 # 25 cm column in a 30 cm wall: plastered over
+    thick = col(0.0, 3.0, .40)                  # thicker than the wall: shows in the room
+    over_wall = beam(0, 0, 8, 0)                # on the wall: hidden
+    free = beam(4, 0, 4, 6)                     # across the room: a downstand, visible
+    hidden = members_hidden_in_walls(doc)
+    assert inside.id in hidden and over_wall.id in hidden
+    assert thick.id not in hidden and free.id not in hidden

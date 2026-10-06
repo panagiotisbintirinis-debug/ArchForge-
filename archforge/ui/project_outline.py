@@ -63,6 +63,9 @@ def entity_level(doc, entity, levels=None):
         return str(p["base_level"])
     if k == "structural_beam" and p.get("level") in names:
         return str(p["level"])
+    if k == "pitched_roof":
+        # A tiled roof belongs to the storey it covers (its eaves sit on that storey's walls).
+        return _owner(levels, float(p.get("eave_z", 0.0)) - 0.5)
     if k == "structural_support" and entity.parent_id in doc.entities:
         return entity_level(doc, doc.get(entity.parent_id), levels)
     for key in ("z", "floor_level", "level_z", "lower_z", "elevation_z"):
@@ -138,8 +141,8 @@ def _natural(text):
     return [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", text)]
 
 
-def _node(label, entity_id=None, level=None, children=None):
-    return {"label": label, "entity_id": entity_id, "level": level, "children": children or []}
+def _node(label, entity_id=None, level=None, children=None, signature=None):
+    return {"label": label, "entity_id": entity_id, "level": level, "children": children or [], "signature": signature}
 
 
 def _group(title, ids, doc, level, labels, extra=""):
@@ -231,7 +234,7 @@ def project_outline(doc, title="Έργο"):
                     placed.update(ids)
                     inner.append(_group(cat, ids, doc, name, labels))
                 rooms.append(_node(f"{r['name']}{use} · {r['size_m'][0]:.2f}×{r['size_m'][1]:.2f} m · {r['area_m2']:.2f} m²",
-                                   None, name, inner))
+                                   None, name, inner, signature=r["signature"]))
             groups.append(_node(f"Δωμάτια ({len(rooms)})", None, name, rooms))
         # Walls, exterior / interior, each with its openings.
         walls = [e for e in doc.entities.values() if e.kind == "wall" and entity_level(doc, e) == name]
@@ -270,8 +273,8 @@ def project_outline(doc, title="Έργο"):
                     sub.append(_group(title_, ids, doc, name, labels))
                     placed.update(ids)
             # Foundation under this storey (from the up-to-date analysis): footings, tie beams.
-            from archforge.structure.analysis import fresh_result
-            fd = (fresh_result(doc) or {}).get("foundation") or {}
+            from archforge.structure.analysis import last_result
+            fd = (last_result(doc) or {}).get("foundation") or {}
             fts = [f for f in fd.get("footings", ()) if abs(float(f.get("z", 0.0)) - float(storey["z"])) < 0.05]
             if fts:
                 ties = [t for t in fd.get("ties", ()) if abs(float(t.get("z", 0.0)) - float(storey["z"])) < 0.05]

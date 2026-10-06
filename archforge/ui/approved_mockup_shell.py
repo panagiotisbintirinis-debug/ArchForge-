@@ -39,6 +39,12 @@ def _project_panel(window):
     # Filled from the Document by window._refresh_project_tree(): only real things.
     tree=QTreeWidget(); tree.setHeaderHidden(True)
     tree.itemClicked.connect(lambda item,_c: window._project_tree_clicked(item))
+    # Right click: properties / delete; Delete key deletes what is selected in the tree.
+    tree.setContextMenuPolicy(Qt.CustomContextMenu)
+    tree.customContextMenuRequested.connect(lambda pos: window._project_tree_menu(pos))
+    from PySide6.QtGui import QShortcut, QKeySequence
+    tree_delete=QShortcut(QKeySequence(Qt.Key_Delete),tree); tree_delete.setContext(Qt.WidgetShortcut)
+    tree_delete.activated.connect(lambda: window._delete_selection()); window._tree_delete_shortcut=tree_delete
     levels_list=QListWidget(); materials_list=QListWidget()
     levels_list.itemClicked.connect(lambda item: window._activate_level_by_name(item.data(Qt.UserRole)))
     tabs.addTab(tree,"Έργο"); tabs.addTab(levels_list,"Επίπεδα"); tabs.addTab(materials_list,"Υλικά")

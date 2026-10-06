@@ -117,3 +117,17 @@ def test_frame_and_foundation_concrete_go_into_the_priced_list():
     assert rows['Σκυρόδεμα κολονών'][2] == pytest.approx(9 * 0.4 * 0.4 * 3.0, abs=0.01)
     assert rows['Σκυρόδεμα πεδίλων'][2] > 0 and rows['Σκυρόδεμα συνδετήριων δοκών'][2] > 0
     assert 'Φέρων' in [s[0] for s in all_lists(doc)]
+
+
+def test_footings_stay_on_the_drawing_after_a_change_and_show_in_the_structural_view():
+    from archforge.core.commands import UpdateEntity
+    from archforge.core.plan_scene import build_plan_frame
+    from archforge.structure.analysis import fresh_result, last_result
+    from archforge.ui.pbr_viewport import STRUCTURAL_VIEW_KINDS
+    doc, st = _building(storeys=1)
+    analyze_cached(doc)
+    col = next(e for e in doc.entities.values() if e.kind == 'structural_column')
+    st.execute(UpdateEntity(col.id, {'width': .45, 'depth': .45}))
+    assert fresh_result(doc) is None and last_result(doc) is not None
+    assert [p.role for p in build_plan_frame(doc).primitives].count('footing') == 9
+    assert 'foundation' in STRUCTURAL_VIEW_KINDS

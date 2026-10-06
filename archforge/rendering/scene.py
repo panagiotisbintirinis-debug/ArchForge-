@@ -326,9 +326,9 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                                 "material": {"color": CABLE_COLORS.get(group, "#e07a00"), "roughness": 0.5, "metalness": 0.0}})
         # Foundation (layer "foundation"): footings and tie beams from the up-to-date analysis (never computed here).
         if any(e.kind == "structural_column" for e in doc.entities.values()):
-            from archforge.structure.analysis import fresh_result
+            from archforge.structure.analysis import last_result
             from archforge.structure.foundation import TIE_B, TIE_H, levels
-            fd = (fresh_result(doc) or {}).get("foundation") or {}
+            fd = (last_result(doc) or {}).get("foundation") or {}
             verts, tris = [], []
 
             def box(corners, z0, z1):

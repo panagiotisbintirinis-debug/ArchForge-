@@ -242,6 +242,30 @@ def column_points(doc, z):
     return _merge(points)
 
 
+def flush_with_facade(x, y, size, outer):
+    """Move a column whose section is thicker than the exterior wall inwards, so its outer face is the
+    wall's outer face: nothing hangs outside the building (at a corner, inwards both ways)."""
+    dx = dy = 0.0
+    for w, (nx, ny) in outer:
+        p = w.params
+        ax, ay, bx, by = (float(p[c]) for c in ("x1", "y1", "x2", "y2"))
+        L = math.hypot(bx - ax, by - ay)
+        if L < 1e-9:
+            continue
+        ux, uy = (bx - ax) / L, (by - ay) / L
+        s = (x - ax) * ux + (y - ay) * uy
+        t = float(p.get("thickness", .2))
+        if not (-t <= s <= L + t) or abs(-(x - ax) * uy + (y - ay) * ux) > t / 2 + SNAP:
+            continue
+        half = (size[1] if abs(nx) > abs(ny) else size[0]) / 2   # the column's half-size across this wall
+        shift = max(0.0, half - t / 2)
+        if abs(nx) > abs(ny) and abs(dx) < 1e-9:
+            dx = -nx * shift
+        elif abs(ny) >= abs(nx) and abs(dy) < 1e-9:
+            dy = -ny * shift
+    return round(x + dx, 4), round(y + dy, 4)
+
+
 def grid_beams(doc, z, points):
     """Beams on the grid axes between consecutive columns (inside the building)."""
     walls = _walls(doc, z)
@@ -283,13 +307,27 @@ def propose_frame(doc, settings=None):
     existing_cols = [e for e in doc.entities.values() if e.kind == "structural_column"]
     existing_beams = [e for e in doc.entities.values() if e.kind == "structural_beam"]
     entities, report = [], {"storeys": [], "columns": 0, "beams": 0}
+    # Top down: what does each storey carry? Its own grid, plus every column of the storeys above
+    # that stands over it — a column is never left without one under it down to the foundation.
+    per_storey, carried = {}, {}
+    for z in reversed(_storeys(doc)):
+        walls = _walls(doc, z)
+        pts = column_points(doc, z)
+        for q, why in carried.items():
+            if all(math.hypot(q[0] - p[0], q[1] - p[1]) >= MERGE for p in pts) and _inside_building(doc, z, walls, *q):
+                pts[q] = "στηρίζει κολόνα του ορόφου από πάνω"
+        per_storey[z] = pts
+        carried = {**carried, **pts}
     for z in _storeys(doc):
         walls = _walls(doc, z)
         top = _top_of(doc, z, walls)
         level = _level_name(doc, z)
-        pts = column_points(doc, z)
+        pts = per_storey[z]
         new_cols = 0
+        from archforge.mep.ventilation import exterior_walls
+        outer = exterior_walls(doc, z)
         for (x, y), reason in sorted(pts.items()):
+            x, y = flush_with_facade(x, y, col_size, outer)
             if any(abs(float(c.params["z"]) - z) < 0.05 and math.hypot(float(c.params["x"]) - x, float(c.params["y"]) - y) <= EXISTING
                    for c in existing_cols):
                 continue

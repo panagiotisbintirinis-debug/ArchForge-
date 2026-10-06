@@ -327,6 +327,18 @@ def fresh_result(doc):
     return _CACHE["value"] if _CACHE["key"] == analysis_key(doc) else None
 
 
+def last_result(doc):
+    """The last analysis made for this project, even if the structure changed since (its footings stay
+    on the drawing until the next run); None if never analysed or another project."""
+    value = _CACHE["value"]
+    if value is None or _CACHE["key"] is None:
+        return None
+    members = value.get("members", {})
+    if members and not any(mid in doc.entities for mid in members):
+        return None
+    return value
+
+
 def analyze_cached(doc):
     key = analysis_key(doc)
     if _CACHE["key"] != key:

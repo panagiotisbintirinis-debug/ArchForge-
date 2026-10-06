@@ -89,6 +89,13 @@ class MainWindow(QMainWindow):
         if self.view is self.pbr_view:
             self.pbr_view.activate()
         elif self.view is self.structural_view:
+            # The structure is shown with its foundation: analyse it now if it never was (or changed).
+            from archforge.structure.analysis import analyze_cached, has_structure
+            if has_structure(self.doc):
+                try:
+                    analyze_cached(self.doc)
+                except Exception as exc:          # a broken model must not block the view
+                    self.statusBar().showMessage(f'Στατική: {exc}', 6000)
             self.structural_view.activate()
             self.structural_view.set_render_technique('technical')
             try:
@@ -871,6 +878,7 @@ class MainWindow(QMainWindow):
             item = QTreeWidgetItem(parent, [node['label']])
             item.setData(0, Qt.ItemDataRole.UserRole, node['entity_id'])
             item.setData(0, Qt.ItemDataRole.UserRole + 1, node['level'])
+            item.setData(0, Qt.ItemDataRole.UserRole + 2, node.get('signature'))
             for child in node['children']:
                 add(item, child)
             return item
@@ -946,15 +954,58 @@ class MainWindow(QMainWindow):
             tree.setCurrentItem(None)
         tree.blockSignals(False)
 
-    def _project_tree_clicked(self, item):
+    def _tree_item_ids(self, item):
+        """What a tree node stands for: its entity, a room's walls, or everything under a group."""
         entity_id = item.data(0, Qt.ItemDataRole.UserRole)
+        if entity_id and entity_id in self.doc.entities:
+            return [entity_id]
+        signature = item.data(0, Qt.ItemDataRole.UserRole + 2)
+        if signature:
+            for z in sorted({round(float(v), 4) for v in self.doc.levels.values()} | {0.0}):
+                for face in self.doc.active_room_faces(z=z):
+                    if face.signature == signature:
+                        return [i for i in face.wall_ids if i in self.doc.entities]
+        out = []
+        for i in range(item.childCount()):
+            out += [x for x in self._tree_item_ids(item.child(i)) if x not in out]
+        return out
+
+    def _project_tree_clicked(self, item):
+        """Tree → drawing: select what the node stands for, on its storey, and show its properties."""
         level = item.data(0, Qt.ItemDataRole.UserRole + 1)
         if level:
             self._activate_level_by_name(level)
-        if entity_id and entity_id in self.doc.entities:
-            self.doc.select([entity_id])
-            self.refresh_inspector()
-            self._redraw_views(all_views=True)
+        ids = self._tree_item_ids(item)
+        if not ids:
+            return
+        self.doc.select(ids)
+        self.refresh_inspector()
+        self._redraw_views(all_views=True)
+        dock = getattr(self, 'dock', None)
+        if dock is not None and len(ids) == 1:
+            dock.show(); dock.raise_()                     # the properties of the element, next to the tree
+        self.statusBar().showMessage(f'Επιλογή: {len(ids)} στοιχεία — Delete για διαγραφή, δεξί κλικ για επιλογές', 5000)
+
+    def _project_tree_menu(self, pos):
+        """Right click on the tree: properties / delete what the node stands for."""
+        from PySide6.QtWidgets import QMenu
+        tree = self.project_tree
+        item = tree.itemAt(pos)
+        if item is None:
+            return None
+        self._project_tree_clicked(item)
+        ids = self._tree_item_ids(item)
+        if not ids:
+            return None
+        menu = QMenu(tree)
+        props = menu.addAction('Ιδιότητες')
+        delete = menu.addAction(f'Διαγραφή ({len(ids)} στοιχεία)' if len(ids) > 1 else 'Διαγραφή')
+        self._tree_menu = menu
+        props.triggered.connect(lambda: (self.dock.show(), self.dock.raise_()))
+        delete.triggered.connect(self._delete_selection)
+        if not getattr(self, '_no_modal_dialogs', False):
+            menu.exec(tree.viewport().mapToGlobal(pos))
+        return menu
 
     def _activate_level_by_name(self, name):
         selector = getattr(self, 'floor_selector', None)

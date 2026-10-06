@@ -20,8 +20,70 @@ from archforge.ui.object_context_menu import object_context_actions
 
 STRUCTURAL_VIEW_KINDS = frozenset({
     "structural_column", "structural_beam",
-    "floor", "room_floor", "room_foundation",
+    "floor", "room_floor", "room_foundation", "foundation",
 })
+
+
+def _wall_cover(walls, ax, ay, bx, by, width):
+    """Share of the segment a→b lying inside walls at least ``width`` thick (on their axis)."""
+    import math
+    L = math.hypot(bx - ax, by - ay)
+    if L < 1e-9:
+        return 0.0
+    ux, uy = (bx - ax) / L, (by - ay) / L
+    covered = 0.0
+    for w in walls:
+        p = w.params
+        wx1, wy1, wx2, wy2 = (float(p[k]) for k in ("x1", "y1", "x2", "y2"))
+        t = float(p.get("thickness", .2))
+        if width > t + 0.02:
+            continue
+        # both ends of the member's axis within the wall's thickness of the wall line
+        wl = math.hypot(wx2 - wx1, wy2 - wy1) or 1.0
+        nx, ny = -(wy2 - wy1) / wl, (wx2 - wx1) / wl
+        if abs((ax - wx1) * nx + (ay - wy1) * ny) > t / 2 + .02 or abs((bx - wx1) * nx + (by - wy1) * ny) > t / 2 + .02:
+            continue
+        s0 = (wx1 - ax) * ux + (wy1 - ay) * uy; s1 = (wx2 - ax) * ux + (wy2 - ay) * uy
+        covered += max(0.0, min(max(s0, s1), L) - max(min(s0, s1), 0.0))
+    return min(1.0, covered / L)
+
+
+def members_hidden_in_walls(doc):
+    """Structural columns and beams that sit inside walls (as built: plastered over) — not drawn in the 3D
+    scene; the Structural view and the plan still show them. A column thicker than its wall, or a beam
+    that spans where there is no wall under it, stays visible."""
+    walls = [e for e in doc.entities.values() if e.kind == "wall"]
+    hidden = set()
+    for e in doc.entities.values():
+        p = e.params
+        if e.kind not in ("structural_column", "structural_beam") or p.get("role", "structural") != "structural":
+            continue
+        if e.kind == "structural_column":
+            z = float(p.get("z", 0.0))
+            here = [w for w in walls if abs(float(w.params.get("z", 0.0)) - z) < .05]
+            x, y = float(p["x"]), float(p["y"])
+            for w in here:
+                q = w.params
+                vertical = abs(float(q["x2"]) - float(q["x1"])) < abs(float(q["y2"]) - float(q["y1"]))
+                across = float(p.get("width", .3)) if vertical else float(p.get("depth", .3))
+                along = float(p.get("depth", .3)) if vertical else float(p.get("width", .3))
+                ax, ay = (x, y - along / 2) if vertical else (x - along / 2, y)
+                bx, by = (x, y + along / 2) if vertical else (x + along / 2, y)
+                if _wall_cover([w], ax, ay, bx, by, across) > .99:
+                    hidden.add(e.id)
+                    break
+        else:
+            bottom = float(p.get("z", 0.0))
+            under = [w for w in walls if abs(float(w.params.get("z", 0.0)) + float(w.params.get("height", 0.0)) - bottom) < .6]
+            if _wall_cover(under, float(p["x1"]), float(p["y1"]), float(p["x2"]), float(p["y2"]), float(p.get("width", .25))) >= .9:
+                hidden.add(e.id)
+    return hidden
+
+
+def architectural_payload_objects(objects, doc):
+    """Objects of the 3D scene: members inside walls are left out (unless selected)."""
+    hidden = members_hidden_in_walls(doc) - set(doc.selection or ())
+    return [o for o in objects if o.get("id") not in hidden] if hidden else list(objects)
 
 
 def structural_payload_objects(objects, doc):
@@ -2758,6 +2820,8 @@ class PBRViewport(QWidget):
         )
         if self.structural_only:
             payload["objects"] = structural_payload_objects(payload.get("objects", ()), self.doc)
+        else:
+            payload["objects"] = architectural_payload_objects(payload.get("objects", ()), self.doc)
         hidden = getattr(self, "hidden_layers", set())
         if hidden:
             payload["objects"] = [o for o in payload.get("objects", ()) if o.get("layer") not in hidden]

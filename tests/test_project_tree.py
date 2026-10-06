@@ -117,3 +117,50 @@ def test_selection_in_the_drawing_is_highlighted_in_the_tree():
         assert current is not None and current.data(0, 0x0100) == walls[2]
     finally:
         window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_tree_groups_and_rooms_select_in_the_drawing_and_can_be_deleted():
+    from PySide6.QtWidgets import QApplication
+    from archforge.ui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(); window._no_modal_dialogs = True
+    try:
+        ids = _walls(window.stack)
+        window.doc.levels['Floor 2'] = 2.7
+        _walls(window.stack, 2.7)
+        from archforge.structure.timber_roof import default_params
+        roof = Entity('pitched_roof', default_params(window.doc, z=2.7), name='Κεραμοσκεπή δίρριχτη')
+        window.stack.execute(AddEntity(roof))
+        window._refresh_project_tree()
+        tree = window.project_tree
+
+        def find(prefix, item=None):
+            item = item or tree.invisibleRootItem()
+            for i in range(item.childCount()):
+                c = item.child(i)
+                if c.text(0).startswith(prefix):
+                    return c
+                hit = find(prefix, c)
+                if hit is not None:
+                    return hit
+        walls_group = find('Τοίχοι')
+        window._project_tree_clicked(walls_group)
+        assert set(ids) <= set(window.doc.selection) or set(window.doc.selection) == set(window._tree_item_ids(walls_group))
+        room = find('Room 1')
+        window._project_tree_clicked(room)
+        assert len(window.doc.selection) == 4                      # the room's walls light up
+        # The tiled roof is listed under the storey it covers, not the ground floor.
+        roof_item = next(it for it in [find('Κεραμοσκεπή')] if it is not None)
+        level = roof_item.data(0, 0x0100 + 1)
+        assert level == 'Floor 2'
+        window._project_tree_clicked(roof_item)
+        assert window.doc.selection == [roof.id] or list(window.doc.selection) == [roof.id]
+        menu = window._project_tree_menu(tree.visualItemRect(roof_item).center())
+        texts = [a.text() for a in menu.actions()]
+        assert texts == ['Ιδιότητες', 'Διαγραφή']
+        menu.actions()[1].trigger()
+        assert roof.id not in window.doc.entities
+        window.stack.undo()
+        assert roof.id in window.doc.entities
+    finally:
+        window._mark_clean(); window.close(); app.processEvents()
