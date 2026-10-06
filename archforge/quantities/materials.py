@@ -94,4 +94,5 @@ def write_workbook(doc, path, only=None):
     sheets = [s for s in all_lists(doc) if only is None or s[0] in only]
     if not sheets:
         return None
-    return write_priced_workbook(path, sheets)
+    from archforge.quantities.quote import settings
+    return write_priced_workbook(path, sheets, settings(doc)['prices'])

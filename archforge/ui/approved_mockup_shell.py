@@ -148,7 +148,12 @@ def install_approved_mockup_shell(window):
     brief_action=QAction("Στοιχεία έργου (ερωτήσεις)…",window); brief_action.triggered.connect(lambda: window._edit_project_brief())
     file_menu.addAction(brief_action); window._brief_action=brief_action
     for a in (window.new_action,window.open_action,window.save_action):file_menu.addAction(a)
-    file_menu.addSeparator(); file_menu.addAction(window.export_stl_action)
+    file_menu.addSeparator()
+    pdf_action=QAction("Εξαγωγή PDF (κατόψεις, επιμέτρηση, προσφορά)…",window); pdf_action.triggered.connect(lambda: window._export_pdf())
+    file_menu.addAction(pdf_action); window._pdf_action=pdf_action
+    prices_action=QAction("Τιμές & προσφορά…",window); prices_action.triggered.connect(lambda: window._edit_prices())
+    file_menu.addAction(prices_action); window._prices_action=prices_action
+    file_menu.addAction(window.export_stl_action)
     edit_menu=menus["Επεξεργασία"]
     edit_menu.addAction(window.undo_action); edit_menu.addAction(window.redo_action)
     edit_menu.addSeparator(); edit_menu.addAction(window.delete_action)
@@ -195,6 +200,7 @@ def install_approved_mockup_shell(window):
     menus["Κατασκευή"].addAction(isotex); window._isotex_action=isotex
     priced=QAction("Λίστα υλικών με τιμές (Excel)…",window); priced.triggered.connect(lambda: window._export_priced_lists())
     menus["Κατασκευή"].addAction(priced); window._priced_lists_action=priced
+    menus["Κατασκευή"].addAction(prices_action); menus["Κατασκευή"].addAction(pdf_action)
     tiled=QMenu("Με κεραμίδια (ξύλινη στέγη)",roof_menu); roof_menu.addMenu(tiled); window._roof_tiled_menu=tiled
     from archforge.structure.timber_roof import FORMS
     auto_tiled=QAction("Αυτόματα (μορφή από κάτοψη & φορτία)",window)

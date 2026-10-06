@@ -35,7 +35,7 @@ def _cell(ref, value, style=0, formula=None):
     return f'<c r="{ref}"{st} t="inlineStr"><is><t xml:space="preserve">{escape(str(value))}</t></is></c>'
 
 
-def _sheet(title, rows, notes=()):
+def _sheet(title, rows, notes=(), prices=None):
     """Sheet XML: title row, header, priced rows, total; returns (xml, first_row, last_row)."""
     out = [f'<row r="1">{_cell("A1", title, 1)}</row>',
            '<row r="3">' + "".join(_cell(f"{_col(i)}3", h, 1) for i, h in enumerate(HEADER)) + "</row>"]
@@ -44,7 +44,7 @@ def _sheet(title, rows, notes=()):
     for desc, unit, qty in rows:
         out.append(f'<row r="{r}">' + _cell(f"A{r}", desc) + _cell(f"B{r}", unit)
                    + _cell(f"C{r}", qty if qty is None else round(float(qty), 3), 3 if qty is None else 0)
-                   + _cell(f"D{r}", None, 2) + _cell(f"E{r}", None, 4, formula=f"IF(OR(C{r}=\"\",D{r}=\"\"),0,C{r}*D{r})")
+                   + _cell(f"D{r}", (prices or {}).get(desc), 2) + _cell(f"E{r}", None, 4, formula=f"IF(OR(C{r}=\"\",D{r}=\"\"),0,C{r}*D{r})")
                    + "</row>")
         r += 1
     last = r - 1
@@ -81,12 +81,12 @@ _STYLES = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
            '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>')
 
 
-def write_priced_workbook(path, sheets):
+def write_priced_workbook(path, sheets, prices=None):
     """``sheets``: ``[(name, title, rows, notes)]`` → .xlsx at ``path`` (prices empty, totals as formulas)."""
     names = []
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
         for i, (name, title, rows, notes) in enumerate(sheets, 1):
-            xml, _f, _l = _sheet(title, rows, notes)
+            xml, _f, _l = _sheet(title, rows, notes, prices)
             z.writestr(f"xl/worksheets/sheet{i}.xml", xml)
             names.append(name[:31])
         z.writestr("[Content_Types].xml",

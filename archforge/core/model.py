@@ -613,6 +613,7 @@ SCHEMAS = {
     'plumbing_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _plumbing_type, 'pipe_system': _pipe_system},
     'ceiling_joists': {'points': _polygon, 'z': _finite, 'spacing': _joist_spacing, 'usage': _joist_usage,
                        'direction': _joist_direction},
+    'price_list': {'vat': _nonnegative},
     'drainage_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _drain_type, 'rain_area': _nonnegative},
     'ventilation_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _vent_type, 'outlet': _vent_outlet,
                           'airflow': _nonnegative},

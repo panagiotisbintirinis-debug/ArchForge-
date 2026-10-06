@@ -3192,6 +3192,77 @@ class MainWindow(QMainWindow):
             dialog.exec()
         return result
 
+    def _edit_prices(self):
+        """Prices, client and VAT for the quote (one undoable change); every measured item is listed."""
+        from PySide6.QtWidgets import QDoubleSpinBox, QLineEdit, QPlainTextEdit, QSpinBox, QTableWidget, QTableWidgetItem
+        from archforge.quantities.materials import all_lists
+        from archforge.quantities.quote import settings
+        s = settings(self.doc)
+        dialog = QDialog(self)
+        dialog.setWindowTitle('Τιμές & προσφορά')
+        dialog.resize(900, 640)
+        form = QFormLayout(dialog)
+        client = QLineEdit(s['client'], dialog); project = QLineEdit(s['project'], dialog)
+        vat = QDoubleSpinBox(dialog); vat.setRange(0, 50); vat.setValue(s['vat']); vat.setSuffix(' %')
+        validity = QSpinBox(dialog); validity.setRange(1, 365); validity.setValue(s['validity_days']); validity.setSuffix(' ημέρες')
+        notes = QPlainTextEdit(s['notes'], dialog); notes.setFixedHeight(54)
+        form.addRow('Πελάτης', client); form.addRow('Έργο', project); form.addRow('ΦΠΑ', vat)
+        form.addRow('Ισχύς προσφοράς', validity); form.addRow('Σημειώσεις', notes)
+        rows = [(desc, unit, qty) for _n, _t, items, _no in all_lists(self.doc) for desc, unit, qty in items]
+        table = QTableWidget(len(rows), 4, dialog)
+        table.setHorizontalHeaderLabels(['Είδος / εργασία', 'Μον.', 'Ποσότητα', 'Τιμή μονάδας €'])
+        for i, (desc, unit, qty) in enumerate(rows):
+            for j, v in enumerate((desc, unit, '' if qty is None else f'{float(qty):g}')):
+                item = QTableWidgetItem(str(v)); item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable); table.setItem(i, j, item)
+            price = s['prices'].get(desc)
+            table.setItem(i, 3, QTableWidgetItem('' if price is None else f'{price:g}'))
+        table.resizeColumnsToContents(); table.setColumnWidth(0, 430)
+        form.addRow(table)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel, dialog)
+        buttons.accepted.connect(dialog.accept); buttons.rejected.connect(dialog.reject)
+        form.addRow(buttons)
+        self._prices_dialog = (dialog, table, client, project, vat, validity, notes)
+        if getattr(self, '_no_modal_dialogs', False) or dialog.exec() == QDialog.DialogCode.Accepted:
+            return self._apply_prices_dialog()
+        return None
+
+    def _apply_prices_dialog(self):
+        dialog, table, client, project, vat, validity, notes = self._prices_dialog
+        from archforge.quantities.quote import price_entity, settings
+        prices = dict(settings(self.doc)['prices'])
+        for i in range(table.rowCount()):
+            desc = table.item(i, 0).text()
+            text = (table.item(i, 3).text() if table.item(i, 3) else '').strip().replace('€', '').replace(',', '.')
+            if not text:
+                prices.pop(desc, None); continue
+            try:
+                prices[desc] = round(float(text), 4)
+            except ValueError:
+                self.statusBar().showMessage(f'«{desc}»: η τιμή «{text}» δεν είναι αριθμός — παραλείφθηκε', 8000)
+        params = {'prices': prices, 'client': client.text().strip(), 'project': project.text().strip(),
+                  'vat': float(vat.value()), 'validity_days': int(validity.value()), 'notes': notes.toPlainText().strip()}
+        entity = price_entity(self.doc)
+        if entity is None:
+            entity = Entity('price_list', params, name='Τιμές & προσφορά')
+            self.stack.execute(AddEntity(entity))
+        else:
+            self.stack.execute(UpdateEntity(entity.id, params))
+        self.statusBar().showMessage(f'Τιμές: {len(prices)} είδη — Αρχείο → Εξαγωγή PDF για την προσφορά', 6000)
+        return entity
+
+    def _export_pdf(self, path=None):
+        """Cover, a plan per storey with dimensions, the take-off and the quote — one PDF."""
+        from archforge.output.pdf import export_pdf
+        if path is None:
+            path, _ = QFileDialog.getSaveFileName(self, 'Εξαγωγή PDF', 'ergo.pdf', 'PDF (*.pdf)')
+            if not path:
+                return None
+        if not path.lower().endswith('.pdf'):
+            path += '.pdf'
+        result = export_pdf(self.doc, path)
+        self.statusBar().showMessage(f"PDF: {result['pages']} σελίδες — {path}", 9000)
+        return result
+
     def _export_priced_lists(self, path=None, only=None, default='ylika.xlsx'):
         """All material lists (Isotex its own sheet) to .xlsx: price column to fill, totals as formulas."""
         from archforge.quantities.materials import write_workbook
