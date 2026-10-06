@@ -20,7 +20,7 @@ const path = require('path');
     const fps = 30, total = Math.round(25 * fps) + 30;
     for (let i = Math.max(0, from); i < Math.min(total, to); i++) {
       await page.evaluate(t => window.render(t), Math.min(i / fps, 25));
-      await stage.screenshot({ path: `' + (process.env.FRAMES || 'frames') + '/f${String(i).padStart(4, '0')}.png` });
+      await stage.screenshot({ path: `${process.env.FRAMES || 'frames'}/f${String(i).padStart(4, '0')}.png` });
     }
   }
   await browser.close();
