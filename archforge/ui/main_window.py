@@ -2911,6 +2911,9 @@ class MainWindow(QMainWindow):
         if p.run == 'slabs':
             self._show_slabs()
             return
+        if p.run == 'isotex':
+            self._show_isotex()
+            return
         from archforge.assistant.suggestions import apply
         apply(self.stack, p)
         self._refresh_project_tree()
@@ -3141,7 +3144,44 @@ class MainWindow(QMainWindow):
                     f.write(to_csv(result))
         export.clicked.connect(save_csv)
         layout.addWidget(export)
+        priced = QPushButton('Λίστα υλικών με τιμές (Excel)…', dialog)
+        priced.clicked.connect(lambda: self._export_priced_lists())
+        layout.addWidget(priced)
         self._takeoff_view = browser
+        if not getattr(self, '_no_modal_dialogs', False):
+            dialog.exec()
+        return result
+
+    def _export_priced_lists(self, path=None, only=None, default='ylika.xlsx'):
+        """All material lists (Isotex its own sheet) to .xlsx: price column to fill, totals as formulas."""
+        from archforge.quantities.materials import write_workbook
+        if path is None:
+            path, _ = QFileDialog.getSaveFileName(self, 'Λίστα υλικών (Excel)', default, 'Excel (*.xlsx)')
+            if not path:
+                return None
+        if not path.lower().endswith('.xlsx'):
+            path += '.xlsx'
+        written = write_workbook(self.doc, path, only=only)
+        self.statusBar().showMessage(f'Λίστα υλικών: {path} — συμπλήρωσε τις τιμές, τα σύνολα βγαίνουν αυτόματα'
+                                     if written else 'Δεν υπάρχουν ποσότητες για λίστα υλικών', 8000)
+        return written
+
+    def _show_isotex(self):
+        """Isotex pieces per wall / block type, concrete fill (pre-design take-off)."""
+        from PySide6.QtWidgets import QTextBrowser
+        from archforge.construction.isotex import isotex_html, take_off_isotex
+        result = take_off_isotex(self.doc)
+        dialog = QDialog(self)
+        dialog.setWindowTitle('Τεμάχια Isotex')
+        dialog.resize(1000, 600)
+        layout = QVBoxLayout(dialog)
+        browser = QTextBrowser(dialog)
+        browser.setHtml(isotex_html(result))
+        layout.addWidget(browser)
+        export = QPushButton('Λίστα Isotex σε Excel (με στήλη τιμών)…', dialog)
+        export.clicked.connect(lambda: self._export_priced_lists(only=('Isotex',), default='isotex.xlsx'))
+        layout.addWidget(export)
+        self._isotex_view = browser
         if not getattr(self, '_no_modal_dialogs', False):
             dialog.exec()
         return result

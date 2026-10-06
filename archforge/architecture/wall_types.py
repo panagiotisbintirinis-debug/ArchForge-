@@ -45,6 +45,9 @@ WALL_TYPES = {
     "bearing_interior_25": ("Φέρων εσωτερικός τοίχος 25 cm + σοβάδες", [_PLASTER, _BEARING_MASONRY, _PLASTER]),
     "concrete_etics": ("Μπετό με εξωτερική θερμοπρόσοψη 8 cm", [_PLASTER, _eps(0.08), _CONCRETE, _PLASTER]),
 }
+# Isotex wood-cement formwork blocks (construction/isotex.py): with or without a graphite EPS insert.
+from archforge.construction.isotex import wall_type_layers as _isotex_layers  # noqa: E402
+WALL_TYPES.update(_isotex_layers())
 
 
 def layers(wall_type):
@@ -57,7 +60,11 @@ def total_thickness(wall_type):
 
 
 def indicative_u(wall_type):
-    """Indicative U (W/m²K) from typical λ values, or None for generic walls."""
+    """Indicative U (W/m²K) from typical λ values, or None for generic walls (a block's published U when known)."""
+    from archforge.construction.isotex import BLOCKS, code_of_wall_type
+    code = code_of_wall_type(wall_type)
+    if code and BLOCKS[code][6] is not None:
+        return BLOCKS[code][6]
     ls = layers(wall_type)
     if not ls:
         return None

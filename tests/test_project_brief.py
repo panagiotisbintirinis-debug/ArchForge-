@@ -113,7 +113,7 @@ def test_new_project_asks_and_menus_exist():
 def test_interior_walls_question_drywall_brick_or_bearing_min_25():
     from archforge.project.brief import INTERIOR_WALLS, QUESTIONS, interior_wall_defaults
     assert 'interior_walls' in [q[0] for q in QUESTIONS]
-    assert set(INTERIOR_WALLS) == {'drywall_single', 'drywall_double', 'brick_plaster', 'bearing'}
+    assert {'drywall_single', 'drywall_double', 'brick_plaster', 'bearing'} <= set(INTERIOR_WALLS)
     doc = Document(); st = CommandStack(doc)
     assert interior_wall_defaults(doc) is None
     e = _brief(st)                                                     # older briefs: brick with plaster

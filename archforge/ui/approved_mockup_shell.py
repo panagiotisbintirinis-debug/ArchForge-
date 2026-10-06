@@ -189,6 +189,10 @@ def install_approved_mockup_shell(window):
         a=QAction(text,window); a.triggered.connect(lambda _=False,r=run: r()); renovation.addAction(a)
     takeoff=QAction("Επιμέτρηση εργασιών (ανά χώρο)…",window); takeoff.triggered.connect(lambda: window._show_takeoff())
     menus["Κατασκευή"].addAction(takeoff); window._takeoff_action=takeoff
+    isotex=QAction("Τεμάχια Isotex (αναγωγή)…",window); isotex.triggered.connect(lambda: window._show_isotex())
+    menus["Κατασκευή"].addAction(isotex); window._isotex_action=isotex
+    priced=QAction("Λίστα υλικών με τιμές (Excel)…",window); priced.triggered.connect(lambda: window._export_priced_lists())
+    menus["Κατασκευή"].addAction(priced); window._priced_lists_action=priced
     tiled=QMenu("Με κεραμίδια (ξύλινη στέγη)",roof_menu); roof_menu.addMenu(tiled); window._roof_tiled_menu=tiled
     from archforge.structure.timber_roof import FORMS
     auto_tiled=QAction("Αυτόματα (μορφή από κάτοψη & φορτία)",window)

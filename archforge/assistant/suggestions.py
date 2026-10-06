@@ -124,6 +124,7 @@ def propose(doc, reading=None):
                             "Τεχνικές προτάσεις: " + "; ".join(rep["proposals"]), rep["provenance"], (e.id,), fix))
     out += _brief(doc)
     out += _interior_walls(doc)
+    out += _isotex(doc)
     out += _structural(doc)
     out += _roofs(doc)
     if any(e.kind == "ventilation_point" for e in doc.entities.values()):
@@ -152,8 +153,11 @@ def _structural(doc):
         if any(e.kind == "wall" for e in doc.entities.values()):
             from archforge.project.brief import get_brief
             timber = get_brief(doc)["floor_system"] == "timber"
-            return [Proposal("S-4", "info", "Φέρουσα τοιχοποιία: χωρίς κολόνες",
-                             "Οι πέτρινοι/συμπαγείς τοίχοι φέρουν τα βάρη. " + (
+            isotex = str(get_brief(doc)["wall_system"]).startswith("isotex_")
+            return [Proposal("S-4", "info", "Isotex = φέρων οργανισμός: χωρίς κολόνες" if isotex else "Φέρουσα τοιχοποιία: χωρίς κολόνες",
+                             ("Τα Isotex είναι τοιχώματα οπλισμένου σκυροδέματος σε μόνιμο καλούπι ξυλοτσιμέντου: φέρουν τα βάρη "
+                              "και τον σεισμό· οπλισμός τοιχωμάτων, πρέκια και σενάζ από τη στατική μελέτη. " if isotex else
+                              "Οι πέτρινοι/συμπαγείς τοίχοι φέρουν τα βάρη. ") + (
                                  "Πατώματα ξύλινα: δοκίδες ανά χώρο (Βοηθός → Διανομή δοκίδων)." if timber else
                                  "«Εφαρμογή» = οπλισμός πλάκας ανά χώρο (Marcus)."),
                              "Στοιχεία έργου", (), None, run=None if timber else "slabs")]
@@ -260,6 +264,19 @@ def _interior_walls(doc):
                      "Στοιχεία έργου", ids,
                      lambda _doc: CompositeCommand([UpdateEntity(i, {"wall_type": itype, "thickness": ithick, "load_bearing": True})
                                                     for i in ids], "Φέροντες εσωτερικοί τοίχοι"))]
+
+
+def _isotex(doc):
+    """I-1: Isotex walls drawn — the pieces they need (take-off), shown on «Εφαρμογή»."""
+    if not any(e.kind == "wall" and str(e.params.get("wall_type", "")).startswith("isotex_") for e in doc.entities.values()):
+        return []
+    from archforge.construction.isotex import take_off_isotex
+    r = take_off_isotex(doc)
+    t = r["totals"]
+    detail = ", ".join(f"{c}: {v['blocks']} τεμ." for c, v in r["by_code"].items())
+    return [Proposal("I-1", "info", f"Isotex: {t['blocks']} τεμάχια, {t['concrete_m3']} m³ σκυρόδεμα",
+                     f"{detail} · {t['net_m2']} m² καθαρού τοίχου σε {t['walls']} τοίχους. «Εφαρμογή» = αναλυτικά ανά τοίχο/όροφο.",
+                     r["source"], tuple(w["wall"] for w in r["walls"]), None, run="isotex")]
 
 
 def _update(entity_id, params):

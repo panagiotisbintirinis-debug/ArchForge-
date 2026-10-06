@@ -30,12 +30,17 @@ WALL_SYSTEMS = {
     "brick_single": ("Μονή τοιχοποιία (κέλυφος σε σκελετό ΟΣ)", "brick_partition", None, False),
     "concrete_etics": ("Οπλισμένο σκυρόδεμα με θερμοπρόσοψη", "concrete_etics", None, False),
 }
+# Isotex: an alternative way to build — reinforced concrete walls in wood-cement blocks (load-bearing).
+from archforge.construction.isotex import BLOCKS as _ISOTEX, wall_type_of as _isotex_type  # noqa: E402
+for _code, _spec in _ISOTEX.items():
+    WALL_SYSTEMS[_isotex_type(_code)] = (_spec[0] + " — φέρουσα", _isotex_type(_code), None, True)
 # interior walls: label, wall type, load-bearing
 INTERIOR_WALLS = {
     "drywall_single": ("Γυψοσανίδα μονή (10 cm)", "drywall_100", False),
     "drywall_double": ("Γυψοσανίδα διπλή (12,5 cm, ηχομόνωση)", "drywall_double_125", False),
     "brick_plaster": ("Τούβλο με σοβά (13 cm)", "brick_partition", False),
     "bearing": ("Φέρων οργανισμός (ελάχιστο 25 cm)", "bearing_interior_25", True),
+    "isotex_hb_25_16": ("Isotex HB 25/16 φέρων (25 cm)", "isotex_hb_25_16", True),
 }
 MIN_BEARING_THICKNESS = 0.25
 MEASURES = {"exterior": "Εξωτερικές διαστάσεις κτίσματος", "interior": "Εσωτερικές διαστάσεις χώρων"}
