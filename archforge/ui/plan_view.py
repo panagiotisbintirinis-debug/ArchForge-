@@ -248,6 +248,7 @@ class PlanView(QGraphicsView):
         self._marking_menu=None
 
     def show_marking_menu(self,pos,entity_id=None,plan_point=None):
+        self._last_marking=(pos,entity_id,plan_point)
         from archforge.ui.marking_menu import MarkingMenu,build_menu,run,wheel
         window=self.marking_menu_window
         self.hide_marking_menu();self._hide_wall_angle_radial()

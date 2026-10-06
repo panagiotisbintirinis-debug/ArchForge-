@@ -25,6 +25,8 @@ ANGLES = ("magnet", 90.0, 45.0, 15.0, None)
 STAIR_TYPES = ((None, "Αυτόματη"), ("straight", "Ευθεία"), ("l", "Γ (L)"), ("u", "Π (U)"), ("spiral", "Σπιράλ"))
 TOOLS = (("select", "Επιλογή"), ("wall", "Τοίχος"), ("door", "Πόρτα"), ("window", "Παράθυρο"),
          ("structural_column", "Κολώνα"), ("structural_beam", "Δοκός"), ("opening_rect", "Άνοιγμα"))
+# The empty-space menu: what you draw first, in that order.
+BUILD_TOOLS = (("wall", "Τοίχος"), ("door", "Πόρτα"), ("window", "Παράθυρο"), ("opening_rect", "Άνοιγμα"))
 BRUSH_STEP = 0.05
 
 
@@ -89,11 +91,30 @@ def build_menu(window, view, entity_id=None):
         if entity.kind in ("structural_column", "structural_beam"):
             entries.append(_e("mm:analyze", "Στατική ανάλυση", "panel"))
         return {"center": describe_entity(window.doc, entity), "entries": _fit(entries), "wheel": None}
-    # Empty space: the drawing tools, the assistant at this point.
+    # A submenu asked from the empty-space menu (kitchen, stairs, structure), shown once.
+    sub = getattr(window, "_marking_submenu", None)
+    window._marking_submenu = None
+    if sub == "kitchen":
+        names = list(getattr(window, "_kitchen_item_names", ()))
+        i = getattr(window, "_kitchen_wheel", 0) % max(1, len(names))
+        entries = [_e("mm:kitchen:current", f"✓ {names[i]}" if names else "—")]
+        entries += [_e(f"mm:kitchen:{k}", n) for k, n in enumerate(names)]
+        return {"center": f"Κουζίνα · {names[i] if names else ''} — ροδέλα: επόμενο", "entries": _fit(entries), "wheel": "kitchen"}
+    if sub == "stair":
+        entries = [_e("mm:tool:stair", "Σκάλα"), _e("mm:tool:ramp", "Ράμπα")]
+        entries += [_e(f"mm:stair:{key or 'auto'}", f"Σκάλα {label}") for key, label in STAIR_TYPES]
+        return {"center": "Σκάλα / Ράμπα", "entries": _fit(entries), "wheel": None}
+    if sub == "structure":
+        entries = [_e("mm:tool:structural_column", "Κολώνα"), _e("mm:tool:structural_beam", "Δοκός"),
+                   _e("mm:structure:design", "Βάσεις — υπολογισμός φέροντα"), _e("mm:structure:frame", "Πρόταση από τους τοίχους"),
+                   _e("mm:analyze", "Στατική ανάλυση")]
+        return {"center": "Δομικά: κολόνες, δοκάρια, βάσεις", "entries": _fit(entries), "wheel": None}
+    # Empty space: the drawing tools in the order you build (walls, doors, windows …), kitchen and structure.
     last = getattr(window, "_last_marking_tool", None)
     entries = [_e(f"mm:tool:{last}", f"↻ {dict(TOOLS).get(last, last)}") if last else _e("mm:tool:select", "Επιλογή")]
-    entries += [_e(f"mm:tool:{key}", label) for key, label in TOOLS if key != (last or "select")][:6]
-    entries.append(_e("mm:sculpt:on", "Sculpt"))
+    entries += [_e(f"mm:tool:{key}", label) for key, label in BUILD_TOOLS if key != last]
+    entries += [_e("mm:menu:stair", "Σκάλα ▸"), _e("mm:menu:kitchen", "Κουζίνα ▸"), _e("mm:menu:structure", "Δομικά ▸")]
+    entries.append(_e("mm:sculpt:on", "Sculpt", "panel"))
     if view == "plan":
         entries.append(_e("mm:assist:point", "📍 Βοηθός εδώ", "panel"))
     if any(e.kind in ("structural_column", "structural_beam") for e in window.doc.entities.values()):
@@ -147,6 +168,21 @@ def run(window, view, entity_id, action_id, plan_xy=None):
             window._assistant_target_from_selection()
         elif plan_xy is not None:
             window._assistant_target_at(*plan_xy)
+    elif group == "menu":
+        # Open the submenu where the menu was.
+        window._marking_submenu = arg
+        if view == "plan" and getattr(window.plan_view, "_last_marking", None):
+            window.plan_view.show_marking_menu(*window.plan_view._last_marking)
+        elif view == "pbr" and getattr(window.pbr_view, "_last_marking_xy", None):
+            window.pbr_view._show_context_menu("", *window.pbr_view._last_marking_xy)
+    elif group == "kitchen":
+        names = list(getattr(window, "_kitchen_item_names", ()))
+        if names:
+            i = getattr(window, "_kitchen_wheel", 0) if arg == "current" else int(arg)
+            window._kitchen_wheel = i % len(names)
+            window._place_kitchen_item(names[i % len(names)])
+    elif group == "structure":
+        (window._design_structure if arg == "design" else window._propose_frame)()
     elif group == "analyze":
         window._show_structural_analysis()
     elif group == "undo":
@@ -161,6 +197,12 @@ def wheel(window, kind, steps):
         elif window.plan_view.controller.cycle_option(1 if steps > 0 else -1):
             window.plan_view.redraw()
         return build_menu(window, "plan")["center"]
+    if kind == "kitchen":
+        names = list(getattr(window, "_kitchen_item_names", ()))
+        if names:
+            window._kitchen_wheel = (getattr(window, "_kitchen_wheel", 0) + (1 if steps > 0 else -1)) % len(names)
+            return f"Κουζίνα · {names[window._kitchen_wheel]} — ✓ για τοποθέτηση"
+        return "Κουζίνα"
     if kind == "brush":
         window.sculpt_radius.setValue(round(window.sculpt_radius.value() + BRUSH_STEP * steps, 2))
     elif kind == "angle":

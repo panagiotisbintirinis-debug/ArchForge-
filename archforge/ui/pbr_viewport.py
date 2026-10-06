@@ -689,6 +689,7 @@ function applyViewLine(line) {
   activeCameraPreset = "line";
   controls.enabled = true;
   camera.up.set(0, 0, 1);
+  setWalkMode(line.kind === "camera");
   if (line.kind === "camera") {
     // Interior view: stand at the drag start, look along the drag.
     sectionPlane = null;
@@ -748,6 +749,7 @@ function setCameraPreset(mode) {
   const {center, radius} = bounds;
   activeCameraPreset = mode;
   activeViewLine = null;
+  setWalkMode(mode === "eye");
   sectionPlane = null;
   hiddenKinds = mode === "dollhouse" ? new Set(["room_roof", "room_ceiling"]) : new Set();
   setLens(mode === "ortho" ? 8 : 48);
@@ -1524,8 +1526,95 @@ if (window.__archforgePendingScene) window.archforgeSetScene(window.__archforgeP
 if (window.__archforgePendingStairPreview) window.setStairPreview(window.__archforgePendingStairPreview);
 if (window.__archforgePendingRampPreview) window.setRampPreview(window.__archforgePendingRampPreview);
 
+// Walk mode (Walkthrough / interior camera): W A S D or the arrows walk (left/right arrows turn),
+// Shift runs, Q / E go down / up, left-drag looks around, the wheel steps forward / back.
+// No collision: you walk through walls, as in a model.
+let walkMode = false;
+const walkKeys = new Set();
+let walkLast = performance.now();
+let walkDrag = null;
+const walkHint = document.createElement("div");
+walkHint.textContent = "Περιήγηση: W A S D / βελάκια = κίνηση · Shift = τρέξιμο · σύρσιμο = κοίτα γύρω · ροδέλα = βήματα · Q/E = κάτω/πάνω";
+walkHint.style.cssText = "position:fixed;left:50%;bottom:12px;transform:translateX(-50%);padding:6px 12px;border-radius:14px;" +
+  "background:rgba(20,24,30,.72);color:#f1f4f8;font:12px Segoe UI,Arial,sans-serif;display:none;pointer-events:none;z-index:20";
+document.body.appendChild(walkHint);
+function walkForward() {
+  const d = new THREE.Vector3().subVectors(controls.target, camera.position);
+  d.z = 0;
+  if (d.lengthSq() < 1e-9) d.set(0, 1, 0);
+  return d.normalize();
+}
+function setWalkMode(on) {
+  walkMode = !!on;
+  walkKeys.clear();
+  walkDrag = null;
+  controls.enabled = !walkMode;
+  walkHint.style.display = walkMode ? "block" : "none";
+  if (walkMode) renderer.domElement.focus && renderer.domElement.focus();
+}
+window.setWalkMode = setWalkMode;
+function walkMove(forward, side, up) {
+  const f = walkForward(), r = new THREE.Vector3(f.y, -f.x, 0);
+  const delta = f.multiplyScalar(forward).add(r.multiplyScalar(side));
+  delta.z += up;
+  camera.position.add(delta);
+  controls.target.add(delta);
+}
+function walkLook(yaw, pitch) {
+  const d = new THREE.Vector3().subVectors(controls.target, camera.position);
+  const len = Math.max(d.length(), 1.0);
+  let heading = Math.atan2(d.y, d.x) + yaw;
+  let tilt = Math.asin(Math.max(-1, Math.min(1, d.z / len))) + pitch;
+  tilt = Math.max(-1.3, Math.min(1.3, tilt));
+  controls.target.set(camera.position.x + Math.cos(heading) * Math.cos(tilt) * 2.0,
+                      camera.position.y + Math.sin(heading) * Math.cos(tilt) * 2.0,
+                      camera.position.z + Math.sin(tilt) * 2.0);
+  camera.lookAt(controls.target);
+}
+const WALK_CODES = ["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "ShiftLeft", "ShiftRight"];
+window.addEventListener("keydown", (event) => {
+  if (!walkMode || !WALK_CODES.includes(event.code)) return;
+  walkKeys.add(event.code);
+  event.preventDefault();
+});
+window.addEventListener("keyup", (event) => { walkKeys.delete(event.code); });
+window.addEventListener("blur", () => walkKeys.clear());
+renderer.domElement.addEventListener("pointerdown", (event) => {
+  if (walkMode && event.button === 0) walkDrag = {x: event.clientX, y: event.clientY};
+});
+window.addEventListener("pointermove", (event) => {
+  if (!walkMode || !walkDrag || !(event.buttons & 1)) return;
+  walkLook(-(event.clientX - walkDrag.x) * 0.0045, -(event.clientY - walkDrag.y) * 0.0035);
+  walkDrag = {x: event.clientX, y: event.clientY};
+});
+window.addEventListener("pointerup", () => { walkDrag = null; });
+renderer.domElement.addEventListener("wheel", (event) => {
+  if (!walkMode || markingRoot.style.display === "block") return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  walkMove((event.deltaY < 0 ? 1 : -1) * (event.shiftKey ? 2.0 : 0.6), 0, 0);
+}, {passive: false, capture: true});
+function walkStep() {
+  const now = performance.now();
+  const dt = Math.min(0.1, (now - walkLast) / 1000);
+  walkLast = now;
+  if (!walkMode || !walkKeys.size) return;
+  const run = walkKeys.has("ShiftLeft") || walkKeys.has("ShiftRight");
+  const v = (run ? 6.0 : 2.4) * dt;
+  const fwd = (walkKeys.has("KeyW") || walkKeys.has("ArrowUp") ? 1 : 0) - (walkKeys.has("KeyS") || walkKeys.has("ArrowDown") ? 1 : 0);
+  const side = (walkKeys.has("KeyD") ? 1 : 0) - (walkKeys.has("KeyA") ? 1 : 0);
+  const up = (walkKeys.has("KeyE") ? 1 : 0) - (walkKeys.has("KeyQ") ? 1 : 0);
+  const turn = (walkKeys.has("ArrowLeft") ? 1 : 0) - (walkKeys.has("ArrowRight") ? 1 : 0);
+  if (turn) walkLook(turn * 1.8 * dt, 0);
+  if (fwd || side || up) walkMove(fwd * v, side * v, up * v * 0.6);
+}
+window.__walkStep = walkStep;
+window.__walkState = () => ({walkMode, x: camera.position.x, y: camera.position.y, z: camera.position.z});
+
 function animate() {
-  controls.update();
+  walkStep();
+  if (walkMode) controls.enabled = false;
+  else controls.update();
   if (useComposer()) composer.render(); else renderer.render(scene, camera);
   requestAnimationFrame(animate);
 }
@@ -1860,6 +1949,7 @@ class PBRViewport(QWidget):
 
     def _show_context_menu(self, entity_id: str, x: float, y: float) -> None:
         entity_id = str(entity_id)
+        self._last_marking_xy = (float(x), float(y))
         window = getattr(self, "marking_menu_window", None)
         if window is not None:
             # One task-dependent menu (shared with the plan): object, Sculpt or empty space.

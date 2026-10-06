@@ -149,3 +149,40 @@ def test_3d_picking_rules_walls_inactive_in_glass_and_while_working_a_stair():
         with tempfile.NamedTemporaryFile('w', suffix='.mjs', delete=False) as f:
             f.write(code)
         assert subprocess.run(['node', '--check', f.name]).returncode == 0
+
+
+def test_empty_menu_has_walls_doors_windows_and_submenus_with_a_kitchen_wheel(window):
+    from archforge.ui.marking_menu import build_menu, run, wheel
+    empty = build_menu(window, 'plan')
+    ids = _ids(empty)
+    assert ids[1:5] == ['mm:tool:wall', 'mm:tool:door', 'mm:tool:window', 'mm:tool:opening_rect']
+    assert {'mm:menu:stair', 'mm:menu:kitchen', 'mm:menu:structure'} <= set(ids) and len(ids) <= 8
+    # Kitchen: a submenu with every item; the wheel scrolls, ✓ places the one shown.
+    window._marking_submenu = 'kitchen'
+    kitchen = build_menu(window, 'plan')
+    assert kitchen['wheel'] == 'kitchen' and kitchen['entries'][0]['id'] == 'mm:kitchen:current'
+    names = list(window._kitchen_item_names)
+    assert len(kitchen['entries']) == len(names) + 1
+    text = wheel(window, 'kitchen', +1)
+    assert names[1] in text
+    placed = []
+    window._place_kitchen_item = placed.append
+    run(window, 'plan', None, 'mm:kitchen:current')
+    assert placed == [names[1]]
+    # The submenu is shown once; the next menu is the normal one again.
+    assert build_menu(window, 'plan')['center'] == 'Σχεδίαση'
+    window._marking_submenu = 'structure'
+    structure = build_menu(window, 'plan')
+    assert {'mm:tool:structural_column', 'mm:tool:structural_beam', 'mm:structure:design'} <= set(_ids(structure))
+    window._marking_submenu = 'stair'
+    assert {'mm:tool:stair', 'mm:tool:ramp'} <= set(_ids(build_menu(window, 'plan')))
+
+
+def test_choosing_a_submenu_reopens_the_menu_in_place(window):
+    from PySide6.QtCore import QPoint
+    from archforge.ui.marking_menu import run
+    menu = window.plan_view.show_marking_menu(QPoint(200, 200))
+    assert 'mm:menu:kitchen' in menu.buttons
+    run(window, 'plan', None, 'mm:menu:kitchen')
+    again = window.plan_view._marking_menu
+    assert again is not None and 'mm:kitchen:current' in again.buttons
