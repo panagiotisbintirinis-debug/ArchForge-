@@ -21,7 +21,7 @@ from PySide6.QtWidgets import QFrame, QLabel, QToolButton, QVBoxLayout, QWidget
 
 SCULPT_OPS = (("pull", "Τράβηγμα"), ("push", "Σπρώξιμο"), ("inflate", "Φούσκωμα"), ("recess", "Βύθιση"),
               ("smooth", "Λείανση"), ("crease", "Πτυχή"))
-ANGLES = (90.0, 45.0, 15.0, None)
+ANGLES = ("magnet", 90.0, 45.0, 15.0, None)
 STAIR_TYPES = ((None, "Αυτόματη"), ("straight", "Ευθεία"), ("l", "Γ (L)"), ("u", "Π (U)"), ("spiral", "Σπιράλ"))
 TOOLS = (("select", "Επιλογή"), ("wall", "Τοίχος"), ("door", "Πόρτα"), ("window", "Παράθυρο"),
          ("structural_column", "Κολώνα"), ("structural_beam", "Δοκός"), ("opening_rect", "Άνοιγμα"))
@@ -32,7 +32,15 @@ def _e(action_id, label, placement="radial", checked=False, danger=False):
     return {"id": action_id, "label": label, "placement": placement, "checked": checked, "danger": danger}
 
 
+def _same_angle(a, b):
+    if a is None or b is None or a == "magnet" or b == "magnet":
+        return a == b
+    return abs(float(a) - float(b)) < 1e-9
+
+
 def _angle_label(v):
+    if v == "magnet":
+        return "Μαγνήτες 90/45/15"
     return "Ελεύθερη" if v is None else f"{float(v):g}°"
 
 
@@ -61,9 +69,8 @@ def build_menu(window, view, entity_id=None):
     if view == "plan" and tool == "wall":
         current = plan.controller.wall_angle_increment
         entries = [_e("mm:tool:select", "✓ Τέλος τοίχων")]
-        entries += [_e(f"mm:angle:{'free' if v is None else int(v)}", _angle_label(v),
-                       checked=(current is None and v is None) or (current is not None and v is not None
-                                                                   and abs(float(current) - v) < 1e-9))
+        entries += [_e(f"mm:angle:{'free' if v is None else (v if v == 'magnet' else int(v))}", _angle_label(v),
+                       checked=_same_angle(current, v))
                     for v in ANGLES]
         if plan.controller.active is not None and hasattr(plan.controller.active, "start"):
             entries.append(_e("mm:wall:cancel", "Ακύρωση τμήματος", danger=True))
@@ -131,7 +138,7 @@ def run(window, view, entity_id, action_id, plan_xy=None):
         else:
             window._choose_stair_layout(None if arg == "auto" else arg)
     elif group == "angle":
-        window.plan_view._choose_wall_angle(None if arg == "free" else float(arg))
+        window.plan_view._choose_wall_angle(None if arg == "free" else (arg if arg == "magnet" else float(arg)))
     elif group == "wall" and arg == "cancel":
         window.plan_view._wall_radial_command("delete")
     elif group == "assist":
@@ -158,8 +165,7 @@ def wheel(window, kind, steps):
         window.sculpt_radius.setValue(round(window.sculpt_radius.value() + BRUSH_STEP * steps, 2))
     elif kind == "angle":
         current = window.plan_view.controller.wall_angle_increment
-        i = next((k for k, v in enumerate(ANGLES) if (v is None and current is None) or
-                  (v is not None and current is not None and abs(v - float(current)) < 1e-9)), 0)
+        i = next((k for k, v in enumerate(ANGLES) if _same_angle(current, v)), 0)
         window.plan_view.set_wall_angle_increment(ANGLES[(i + (1 if steps > 0 else -1)) % len(ANGLES)])
         if window.plan_view.controller.active is not None:
             window.plan_view.redraw()

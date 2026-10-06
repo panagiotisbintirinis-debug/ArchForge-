@@ -352,7 +352,19 @@ def selection_handles(doc):
     return out
 def preview_primitives(preview):
     g=preview.geometry
-    if preview.kind=='wall' and g:return [Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),entity_id=preview.entity_id or '',role='preview')]
+    if preview.kind=='wall' and g:
+        out=[Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),entity_id=preview.entity_id or '',role='preview')]
+        hud=dict(preview.hud or {})
+        if 'corner_deg' in hud:
+            # Corner mark: an arc from the previous wall to the new one, with the degrees.
+            x0,y0=float(g['x1']),float(g['y1']);a0=float(hud['previous_deg']);a1=float(hud['angle_deg'])
+            sweep=(a1-a0+180.0)%360.0-180.0;r=.45
+            pts=tuple((x0+r*cos(radians(a0+sweep*k/16)),y0+r*sin(radians(a0+sweep*k/16))) for k in range(17))
+            out.append(Primitive2D('polyline',pts,role='angle-arc',meta=(('magnet',float(hud.get('magnet',0.0))),)))
+            mid=radians(a0+sweep/2);mag=float(hud.get('magnet',0.0))
+            out.append(Primitive2D('label',((x0+(r+.25)*cos(mid),y0+(r+.25)*sin(mid)),),role='angle-label',
+                                   meta=(('text',f"{float(hud['corner_deg']):.0f}°"+(' ◆' if mag else '')),)))
+        return out
     if preview.kind=='component' and g:
         return [Primitive2D('polygon',tuple(_box_corners(g)),entity_id=preview.entity_id or '',role='preview',meta=(('semantic','component-preview'),))]
     if preview.kind=='structural-column' and g:

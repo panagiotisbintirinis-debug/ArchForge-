@@ -218,6 +218,12 @@ class MoveTransaction:
         self.preview = {eid: self.before[eid].copy() for eid in self.ids}
 
 
+# Wall angle "magnets": 90° / 45° / 15° pull lightly (within these degrees) from the previous wall and the
+# axes; any other angle stays free in whole degrees — no angle menu needed.
+MAGNET='magnet'
+MAGNET_STEPS=((90.0,4.0),(45.0,3.0),(15.0,1.5))
+
+
 class WallDrawTransaction:
     def __init__(
         self,
@@ -241,7 +247,7 @@ class WallDrawTransaction:
         self.z=z;self.height=height;self.thickness=thickness
         self.grid=grid;self.snap_tol=snap_tol
         self.snap_enabled=bool(snap_enabled)
-        self.angle_increment=(None if angle_increment is None else float(angle_increment))
+        self.angle_increment=(None if angle_increment is None else (MAGNET if angle_increment==MAGNET else float(angle_increment)))
         self.reference_angle_deg=float(reference_angle_deg)
         self.angle_enabled=bool(angle_enabled)
         self.min_length=max(0.0,float(min_length))
@@ -287,12 +293,42 @@ class WallDrawTransaction:
             if best is None or d<best[0]:best=(d,SnapPoint(hit[0],hit[1],float(self.z),'wall_on_axis',eid))
         return best[1] if best else None
 
+    def previous_direction(self):
+        """Direction (deg) from the start along the wall that ends there, or None (the corner's other side)."""
+        if not hasattr(self,'_previous_direction'):
+            self._previous_direction=None;best=1e-4
+            for e in self.doc.entities.values():
+                if e.kind!='wall' or abs(float(e.params.get('z',0.0))-float(self.z))>1e-5:continue
+                p=e.params;a=(float(p['x1']),float(p['y1']));b=(float(p['x2']),float(p['y2']))
+                for here,there in ((a,b),(b,a)):
+                    d=hypot(here[0]-self.start[0],here[1]-self.start[1])
+                    if d<=best and hypot(there[0]-here[0],there[1]-here[1])>1e-9:
+                        best=d;self._previous_direction=degrees(atan2(there[1]-here[1],there[0]-here[0]))
+        return self._previous_direction
+
+    def _direction(self,x,y):
+        """(angle deg, magnet step or 0) of the wall towards the pointer."""
+        sx,sy=self.start
+        raw=degrees(atan2(y-sy,x-sx))
+        if self.angle_increment==MAGNET:
+            bases=[b for b in (self.previous_direction(),self.reference_angle_deg,0.0) if b is not None]
+            for step,tol in MAGNET_STEPS:
+                for base in bases:
+                    near=base+round((raw-base)/step)*step
+                    if abs(raw-near)<=tol:
+                        return near,step
+            return float(round(raw)),0.0                       # free, in whole degrees
+        rel=raw-self.reference_angle_deg
+        return self.reference_angle_deg+round(rel/self.angle_increment)*self.angle_increment,float(self.angle_increment)
+
     def update(self,x,y):
         x=float(x);y=float(y)
         self.last_snap=None
         self.angle_snapped=False
+        self.magnet=0.0
         sx,sy=self.start
-        constrained=(self.angle_enabled and self.angle_increment is not None and self.angle_increment>0)
+        constrained=(self.angle_enabled and self.angle_increment is not None
+                     and (self.angle_increment==MAGNET or self.angle_increment>0))
 
         # 1. Corners close the outline: a wall end near another wall's end lands exactly on it (autosnap).
         corner=self._corner_near(x,y) if self.snap_enabled else None
@@ -300,8 +336,8 @@ class WallDrawTransaction:
             self.end=(corner.x,corner.y);self.last_snap=corner
         elif constrained and hypot(x-sx,y-sy)>1e-12:
             # 2. The angle (90° / 45° / 15°) is kept: snaps may set where the wall stops, never its direction.
-            rel=degrees(atan2(y-sy,x-sx))-self.reference_angle_deg
-            a=radians(self.reference_angle_deg+round(rel/self.angle_increment)*self.angle_increment)
+            deg,self.magnet=self._direction(x,y)
+            a=radians(deg)
             ux,uy=cos(a),sin(a)
             length=hypot(x-sx,y-sy)
             self.end=(sx+ux*length,sy+uy*length);self.angle_snapped=True
@@ -326,14 +362,21 @@ class WallDrawTransaction:
                 self.end=(x,y)
 
         dx=self.end[0]-self.start[0];dy=self.end[1]-self.start[1]
-        return HUD({
+        values={
             'length':hypot(dx,dy),
             'angle_deg':degrees(atan2(dy,dx)),
             'x':self.end[0],
             'y':self.end[1],
             'z':self.z,
             'angle_locked':1.0 if self.angle_snapped else 0.0,
-        })
+            'magnet':float(getattr(self,'magnet',0.0)),
+        }
+        # The corner mark: the angle between the wall that ends here and the new one (0–180°).
+        prev=self.previous_direction()
+        if prev is not None and hypot(dx,dy)>1e-9:
+            corner=abs((values['angle_deg']-prev+180.0)%360.0-180.0)
+            values['corner_deg']=corner;values['previous_deg']=prev
+        return HUD(values)
     def commit(self,exact_length:Optional[float]=None)->str:
         if self.cancelled:raise RuntimeError('transaction cancelled')
         sx,sy=self.start;ex,ey=self.end;dx,dy=ex-sx,ey-sy;L=hypot(dx,dy)

@@ -235,8 +235,8 @@ class PlanView(QGraphicsView):
         self.statusChanged.emit('Snap ON' if enabled else 'Snap OFF — Free mode')
     def set_wall_angle_increment(self, increment):
         self.controller.set_wall_angle_increment(increment)
-        label='Free' if increment is None else f'{float(increment):g}°'
-        self.statusChanged.emit(f'Wall angle: {label}')
+        label='ελεύθερη' if increment is None else ('μαγνήτες 90/45/15' if increment=='magnet' else f'{float(increment):g}°')
+        self.statusChanged.emit(f'Γωνία τοίχου: {label}')
     def set_wall_angle_reference(self, mode):
         self.controller.set_wall_angle_reference(mode)
         self.statusChanged.emit(f'Wall angle reference: {str(mode).title()}')
@@ -359,7 +359,7 @@ class PlanView(QGraphicsView):
             if kind=='angle':
                 selected=(
                     (current is None and value is None)
-                    or (current is not None and value is not None and abs(float(current)-float(value))<1e-9)
+                    or (current not in (None,'magnet') and value not in (None,'magnet') and abs(float(current)-float(value))<1e-9)
                 )
             danger=(kind=='command' and value=='delete')
             base='#ffe5e5' if danger else ('#cfe7ff' if selected else '#f7f7f7')
@@ -386,7 +386,7 @@ class PlanView(QGraphicsView):
             button.raise_()
             self._wall_angle_buttons.append(button)
 
-        label='Free' if current is None else f'{float(current):g}°'
+        label='Free' if current is None else ('Magnets' if current=='magnet' else f'{float(current):g}°')
         self.statusChanged.emit(
             f'Wall corner menu — {label} · Undo/Delete available · Shift = temporary Free'
         )
@@ -547,6 +547,9 @@ class PlanView(QGraphicsView):
         if p.role in ('drain','drain-node','drain-stack','drainage-point'):
             pen=QPen(QColor(150,80,30));pen.setWidthF(max(.015,float(dict(p.meta).get('diameter',50))/2500.) if p.role=='drain' else .015)
             if p.role=='drain' and dict(p.meta).get('kind')=='branch':pen.setStyle(Qt.PenStyle.DashLine)
+        if p.role=='angle-arc':
+            # Corner mark: blue on a magnet (90/45/15), grey for a free angle.
+            pen=QPen(QColor(20,110,220) if dict(p.meta).get('magnet') else QColor(120,120,120));pen.setWidthF(.02)
         if p.role in ('footing','tie-beam'):
             # Below the floor: hidden lines.
             pen=QPen(QColor(95,95,90));pen.setWidthF(.015);pen.setStyle(Qt.PenStyle.DashLine)

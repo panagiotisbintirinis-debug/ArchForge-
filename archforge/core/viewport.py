@@ -32,7 +32,7 @@ class IncrementalViewportAdapter:
 
 class PointerController:
     def __init__(self,doc,stack):
-        self.doc=doc;self.stack=stack;self.tool='select';self.active=None;self.component_definition=None;self.active_entity=None;self.active_handle=None;self.preview=PreviewState();self.construction_grid=.10;self.grid=self.construction_grid;self.snap_tolerance=.10;self.angle_increment=15.;self.wall_angle_increment=90.;self.wall_angle_reference='relative';self.snap_enabled=True;self.structural_preset={}
+        self.doc=doc;self.stack=stack;self.tool='select';self.active=None;self.component_definition=None;self.active_entity=None;self.active_handle=None;self.preview=PreviewState();self.construction_grid=.10;self.grid=self.construction_grid;self.snap_tolerance=.10;self.angle_increment=15.;self.wall_angle_increment='magnet';self.wall_angle_reference='relative';self.snap_enabled=True;self.structural_preset={}
     def cycle_option(self,step=1):
         # Tab / wheel during a live Stair or Ramp placement: next option.
         if isinstance(self.active,(StairPlaceTransaction,RampPlaceTransaction)):
@@ -51,7 +51,7 @@ class PointerController:
     def set_snap_enabled(self,enabled):
         self.snap_enabled=bool(enabled)
     def set_wall_angle_increment(self,increment):
-        self.wall_angle_increment=None if increment is None else float(increment)
+        self.wall_angle_increment=None if increment is None else ('magnet' if increment=='magnet' else float(increment))
         if isinstance(self.active,WallDrawTransaction):
             self.active.angle_increment=self.wall_angle_increment
     def set_wall_angle_reference(self,mode):
