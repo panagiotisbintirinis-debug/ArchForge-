@@ -184,7 +184,9 @@ def test_auto_tiled_roof_form_from_plan_and_gable_walls_follow():
     the auto roof should choose by the logic of the loads."""
     from archforge.structure.timber_roof import auto_roofs, gable_walls, planes, rafter_span, roof_mesh
     doc, _st, (left, right) = _two_storeys()
-    roofs = auto_roofs(doc)
+    # Default: the ground room beside the smaller upper floor is a veranda — no tiled roof there.
+    assert [round(p['eave_z'], 1) for p, _r in auto_roofs(doc)] == [5.4]
+    roofs = auto_roofs(doc, lower_storeys=True)                               # asked for: a roof there too
     forms = sorted((p['roof_form'], round(p['eave_z'], 1)) for p, _r in roofs)
     # Upper storey 5×6 (~square: hip) and the ground extension leaning on the storey above (shed).
     assert forms == [('hip', 5.4), ('shed', 2.7)]
@@ -210,10 +212,11 @@ def test_auto_tiled_roof_menu_creates_them_in_one_undo():
         texts = [a.text() for a in w._roof_tiled_menu.actions() if a.text()]
         assert texts[0] == 'Αυτόματα (μορφή από κάτοψη & φορτία)'
         made = w._auto_tiled_roofs()
-        assert sorted(e.params['roof_form'] for e in made) == ['hip', 'shed']
-        assert 'μονόρριχτη' in w.statusBar().currentMessage()
+        assert sorted(e.params['roof_form'] for e in made) == ['hip']          # the upper floor only
+        terraces = [e for e in w.doc.entities.values() if e.kind == 'room_roof']
+        assert len(terraces) == 1 and 'βεράντα' in w.statusBar().currentMessage()   # the ground room: a veranda
         assert w._auto_tiled_roofs() == []                                    # not twice
         w.stack.undo()
-        assert not any(e.kind == 'pitched_roof' for e in w.doc.entities.values())
+        assert not any(e.kind in ('pitched_roof', 'room_roof') for e in w.doc.entities.values())
     finally:
         w._mark_clean(); w.close(); app.processEvents()

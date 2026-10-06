@@ -68,3 +68,31 @@ def test_menu_click_and_mouse_menu_set_a_room_roof():
         assert len(_roofs(window.doc)[0]) == 1
     finally:
         window._mark_clean(); window.close(); app.processEvents()
+
+
+def _l_shaped_upper_floor(stack):
+    """Ground 9 × 6; upper floor an L (the corner 4 × 3 left as the ground floor's terrace)."""
+    for s in [(0, 0, 9, 0), (9, 0, 9, 6), (9, 6, 0, 6), (0, 6, 0, 0)]:
+        stack.execute(AddEntity(Entity('wall', {'x1': s[0], 'y1': s[1], 'x2': s[2], 'y2': s[3], 'z': 0.0, 'height': 3.0, 'thickness': 0.25})))
+    for s in [(0, 0, 9, 0), (9, 0, 9, 3), (9, 3, 5, 3), (5, 3, 5, 6), (5, 6, 0, 6), (0, 6, 0, 0), (5, 0, 5, 3)]:
+        stack.execute(AddEntity(Entity('wall', {'x1': s[0], 'y1': s[1], 'x2': s[2], 'y2': s[3], 'z': 3.0, 'height': 2.7, 'thickness': 0.25})))
+
+
+def test_auto_roof_on_an_l_shaped_floor_leaves_the_terrace_open_and_raises_no_gable_in_the_air():
+    from archforge.assistant.understanding import inside
+    from archforge.structure.timber_roof import auto_roofs, footprint_fill, gable_walls
+    doc = Document(); st = CommandStack(doc); doc.levels['Floor 2'] = 3.0; _l_shaped_upper_floor(st)
+    assert footprint_fill(doc, 3.0) < .85
+    roofs = [p for p, _r in auto_roofs(doc) if p['eave_z'] > 5]
+    assert len(roofs) == 2                                         # one per room of the L
+    for p in roofs:
+        box = [(p['x0'], p['y0']), (p['x1'], p['y0']), (p['x1'], p['y1']), (p['x0'], p['y1'])]
+        assert not inside(box, 7.0, 4.5)                           # the terrace corner stays uncovered
+        assert set(p['gables']) <= {'x0', 'x1', 'y0', 'y1'}
+        for verts, _t in gable_walls(p):                           # every gable stands on a wall line
+            xs = {round(v[0], 2) for v in verts}; ys = {round(v[1], 2) for v in verts}
+            assert xs <= {round(p['x0'], 2), round(p['x1'], 2), round(p['x0'] + .2, 2), round(p['x1'] - .2, 2)} or \
+                   ys <= {round(p['y0'], 2), round(p['y1'], 2), round(p['y0'] + .2, 2), round(p['y1'] - .2, 2)}
+    # A gable is never drawn on a side without a wall.
+    p = dict(roofs[0], gables=[])
+    assert gable_walls(p) == []

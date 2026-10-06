@@ -337,8 +337,12 @@ def gable_walls(p):
         return min(height_at(p, plane, x, y) for plane in roof_planes)
     out = []
     t = GABLE_THICKNESS
-    for (a, b, inward) in (((x0, y0), (x1, y0), (0, 1)), ((x1, y1), (x0, y1), (0, -1)),
-                           ((x0, y1), (x0, y0), (1, 0)), ((x1, y0), (x1, y1), (-1, 0))):
+    # Only on a wall: the sides that stand on walls (when known); never in the air or on a terrace.
+    on_walls = p.get("gables")
+    for (side, a, b, inward) in (("y0", (x0, y0), (x1, y0), (0, 1)), ("y1", (x1, y1), (x0, y1), (0, -1)),
+                                 ("x0", (x0, y1), (x0, y0), (1, 0)), ("x1", (x1, y0), (x1, y1), (-1, 0))):
+        if on_walls is not None and side not in on_walls:
+            continue
         pts = [a, ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2), b]
         tops = [roof_at(*q) for q in pts]
         if max(tops) - ez < 0.02:
@@ -406,12 +410,14 @@ def roof_mesh(p):
     return tuple(verts), tuple(tris), tuple(roles)
 
 
-def auto_roofs(doc):
+def auto_roofs(doc, lower_storeys=False):
     """Tiled roofs chosen by the plan and the loads: ``[(params, reason)]``.
 
-    * The top storey gets one roof over its footprint; any lower storey's rooms
-      with nothing above (extensions) get their own roof over each group of
-      adjoining rooms.
+    * The top storey gets one roof over its footprint (one per room when the
+      storey is an L / T).  A lower storey's rooms with nothing above are a
+      veranda / terrace (a smaller upper floor leaves them on purpose): they
+      get a flat roof slab, not a tiled roof — unless ``lower_storeys`` (or
+      «Κεραμοσκεπή σε χώρο» for one room).
     * Form: a roof footprint leaning on a taller wall (the storey above) is a
       shed (μονόρριχτη) rising towards that wall; a near-square footprint
       (long/short < 1.25) is hipped (τετράρριχτη: shortest rafters both ways);
@@ -424,8 +430,20 @@ def auto_roofs(doc):
     if not storeys:
         return out
     top = storeys[-1]
-    out.append(_auto_form(doc, default_params(doc, z=top)))
-    for z in storeys[:-1]:
+    if footprint_fill(doc, top) >= 0.85:
+        params, reason = _auto_form(doc, default_params(doc, z=top))
+        out.append((dict(params, gables=wall_sides(doc, params, z=top)), reason))
+    else:
+        # An L / T / stepped storey: one roof per room, so no roof (and no gable) over the terrace beside it.
+        walls = [e for e in doc.entities.values() if e.kind == "wall" and abs(float(e.params.get("z", 0)) - top) < 0.05]
+        t = max(float(w.params["thickness"]) for w in walls) / 2
+        height = max(float(w.params["height"]) for w in walls)
+        for f in doc.active_room_faces(z=top):
+            xs = [float(q[0]) for q in f.polygon]; ys = [float(q[1]) for q in f.polygon]
+            params, reason = _auto_form(doc, dict(default_params(doc, z=top), x0=min(xs) - t, y0=min(ys) - t,
+                                                  x1=max(xs) + t, y1=max(ys) + t, eave_z=top + height))
+            out.append((dict(params, gables=wall_sides(doc, params, z=top)), reason + " · ανά χώρο (όροφος σε σχήμα Γ/Τ)"))
+    for z in (storeys[:-1] if lower_storeys else []):
         faces = [f for f in doc.active_room_faces(z=z) if coverage(doc, f.polygon, z) < 0.5]
         groups = []
         for f in faces:
@@ -443,7 +461,8 @@ def auto_roofs(doc):
         height = max(float(w.params["height"]) for w in walls) if walls else 2.7
         for g in groups:
             params = dict(default_params(doc, z=top), x0=g[0] - t, y0=g[1] - t, x1=g[2] + t, y1=g[3] + t, eave_z=z + height)
-            out.append(_auto_form(doc, params))
+            params, reason = _auto_form(doc, params)
+            out.append((dict(params, gables=wall_sides(doc, params, z=z)), reason))
     return out
 
 
@@ -474,6 +493,44 @@ def _auto_form(doc, params):
     if max(w, d) / max(min(w, d), 1e-9) < 1.25:
         return dict(params, roof_form="hip"), "τετράρριχτη: σχεδόν τετράγωνη κάτοψη (μικρότερα ψαλίδια και στις δύο διευθύνσεις)"
     return dict(params, roof_form="gable"), "δίρριχτη: κορφιάς κατά τη μεγάλη πλευρά, τα ψαλίδια γεφυρώνουν το μικρό άνοιγμα"
+
+
+def wall_sides(doc, params, z=None, share=0.6):
+    """Sides of a roof frame ('y0', 'y1', 'x0', 'x1') standing on walls of the storey under it."""
+    x0, y0, x1, y1 = (float(params[k]) for k in ("x0", "y0", "x1", "y1"))
+    zb = float(params["eave_z"]) if z is None else float(z)
+    out = []
+    for side, (a, b) in {"y0": ((x0, y0), (x1, y0)), "y1": ((x0, y1), (x1, y1)),
+                         "x0": ((x0, y0), (x0, y1)), "x1": ((x1, y0), (x1, y1))}.items():
+        along = math.dist(a, b); covered = 0.0
+        for w in doc.entities.values():
+            if w.kind != "wall":
+                continue
+            p = w.params
+            top = float(p.get("z", 0.0)) + float(p.get("height", 0.0))
+            if z is None and abs(top - zb) > 0.3 or z is not None and abs(float(p.get("z", 0.0)) - zb) > 0.05:
+                continue
+            tol = float(p.get("thickness", .2)) / 2 + 0.05
+            wa, wb = (float(p["x1"]), float(p["y1"])), (float(p["x2"]), float(p["y2"]))
+            if side in ("y0", "y1") and abs(wa[1] - a[1]) <= tol + .15 and abs(wb[1] - a[1]) <= tol + .15:
+                covered += max(0.0, min(max(wa[0], wb[0]), x1) - max(min(wa[0], wb[0]), x0))
+            elif side in ("x0", "x1") and abs(wa[0] - a[0]) <= tol + .15 and abs(wb[0] - a[0]) <= tol + .15:
+                covered += max(0.0, min(max(wa[1], wb[1]), y1) - max(min(wa[1], wb[1]), y0))
+        if along > 0 and covered >= share * along:
+            out.append(side)
+    return out
+
+
+def footprint_fill(doc, z):
+    """Rooms' area / the area of their bounding rectangle (1.0 = a rectangle; an L or T is less)."""
+    faces = doc.active_room_faces(z=z)
+    if not faces:
+        return 1.0
+    area = sum(abs(sum(f.polygon[i][0] * f.polygon[(i + 1) % len(f.polygon)][1] - f.polygon[(i + 1) % len(f.polygon)][0] * f.polygon[i][1]
+                       for i in range(len(f.polygon)))) / 2 for f in faces)
+    xs = [q[0] for f in faces for q in f.polygon]; ys = [q[1] for f in faces for q in f.polygon]
+    box = (max(xs) - min(xs)) * (max(ys) - min(ys))
+    return area / box if box > 0 else 1.0
 
 
 def default_params(doc, level_name=None, z=None, form="gable"):

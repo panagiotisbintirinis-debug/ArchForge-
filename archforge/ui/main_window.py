@@ -1064,10 +1064,20 @@ class MainWindow(QMainWindow):
             entities.append(Entity('pitched_roof', params, name=f"Κεραμοσκεπή {FORMS[params['roof_form']].lower()}"))
             sec = size_rafter(params)['section']
             notes.append(reason + (f" · ψαλίδια {sec['b'] * 100:.0f}×{sec['h'] * 100:.0f}" if sec else ' · ⚠ ψαλίδια: καμία τυπική διατομή'))
-        if not entities:
+        # Lower storeys' rooms with nothing above: veranda / terrace slabs, not tiled roofs.
+        from archforge.architecture.roof_need import roof_plan
+        from archforge.core.commands import CompositeCommand
+        storeys = sorted({round(float(e.params.get('z', 0.0)), 4) for e in self.doc.entities.values() if e.kind == 'wall'})
+        lower = {f.signature for z in storeys[:-1] for f in self.doc.active_room_faces(z=z)}
+        terraces = [s for s in roof_plan(self.doc)['add'] if s in lower]
+        if not entities and not terraces:
             self.statusBar().showMessage('Οι κεραμοσκεπές υπάρχουν ήδη', 5000)
             return []
-        self.stack.execute(AddEntities(entities))
+        self.stack.execute(CompositeCommand([AddEntities(entities) if entities else None,
+                                             CreateRoomRoofs(terraces, thickness=.20, roof_type='flat') if terraces else None],
+                                            'Αυτόματες στέγες'))
+        if terraces:
+            notes.append(f"{len(terraces)} χώροι κάτω χωρίς όροφο από πάνω: βεράντα/ταράτσα (για κεραμοσκεπή: Στέγη → Κεραμοσκεπή σε χώρο)")
         self._redraw_views(all_views=True)
         self.statusBar().showMessage(' | '.join(notes) + ' — προς έλεγχο στατικού · Ctrl+Z για αναίρεση', 12000)
         return entities
@@ -1078,6 +1088,8 @@ class MainWindow(QMainWindow):
         storeys = sorted({round(float(e.params.get('z', 0.0)), 4) for e in self.doc.entities.values() if e.kind == 'wall'})
         try:
             params = default_params(self.doc, z=storeys[-1] if storeys else None, form=form)
+            from archforge.structure.timber_roof import wall_sides
+            params['gables'] = wall_sides(self.doc, params, z=storeys[-1])
         except ValueError as exc:
             QMessageBox.information(self, 'Κεραμοσκεπή', str(exc))
             return None

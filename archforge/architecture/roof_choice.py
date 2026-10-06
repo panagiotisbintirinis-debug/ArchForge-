@@ -29,8 +29,9 @@ def _room_box(doc, room, z):
 def _tiled_params(doc, room, z):
     from archforge.structure.timber_roof import _auto_form, default_params
     x0, y0, x1, y1, eave = _room_box(doc, room, z)
+    from archforge.structure.timber_roof import wall_sides
     params, reason = _auto_form(doc, dict(default_params(doc, z=z), x0=x0, y0=y0, x1=x1, y1=y1, eave_z=eave))
-    return params, reason
+    return dict(params, gables=wall_sides(doc, params, z=z)), reason
 
 
 def room_roof_command(doc, room, choice, z=None):
