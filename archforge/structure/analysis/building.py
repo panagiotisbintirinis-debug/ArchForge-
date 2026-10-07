@@ -93,6 +93,7 @@ def element_props(m: Member, settings):
 
 
 def read_members(doc):
+    from archforge.structure.marks import is_mark, is_unnamed
     members, excluded = {}, []
     counters = {"column": 0, "beam": 0}
 
@@ -117,8 +118,11 @@ def read_members(doc):
             continue
         material = "steel" if construction == "steel" else "rc"
         kind = "column" if e.kind == "structural_column" else "beam"
-        counters[kind] += 1
-        name = f"{'Κ' if kind == 'column' else 'Δ'}{counters[kind]}"
+        if is_mark(e.kind, e.name) or (e.name and not is_unnamed(e)):
+            name = e.name                         # the member's own mark — the same everywhere
+        else:
+            counters[kind] += 1
+            name = f"{'Κ' if kind == 'column' else 'Δ'}{counters[kind]}"
         prof = str(p.get("profile") or DEFAULT_PROFILE[e.kind]) if material == "steel" else ""
         if kind == "column":
             x, y, z = (float(p[k]) for k in ("x", "y", "z"))

@@ -1634,15 +1634,21 @@ class MainWindow(QMainWindow):
         self._clear_form()
         self._sync_tree_selection()
         if len(self.doc.selection) != 1:
-            self.form.addRow(QLabel(f'{len(self.doc.selection)} selected'))
+            self.form.addRow(QLabel(f'{len(self.doc.selection)} επιλεγμένα'))
             return
+        from archforge.ui.object_properties import param_label
+        from archforge.ui.project_outline import KIND_LABELS
         eid = self.doc.selection[0]
         entity = self.doc.get(eid)
-        self.form.addRow('Type', QLabel(entity.kind))
-        self.form.addRow('Name', QLabel(entity.name or entity.kind.title()))
+        self.form.addRow('Είδος', QLabel(KIND_LABELS.get(entity.kind, entity.kind)))
+        # Name (a column's/beam's mark Κ1, Δ1 …): typed here, one undo step.
+        from PySide6.QtWidgets import QLineEdit
+        name_edit = QLineEdit(entity.name or '')
+        name_edit.editingFinished.connect(lambda widget=name_edit: self._rename_entity(eid, widget.text()))
+        self.form.addRow('Όνομα', name_edit)
         if entity.parent_id and entity.parent_id in self.doc.entities:
             host = self.doc.get(entity.parent_id)
-            self.form.addRow('Host', QLabel(host.name or f'{host.kind.title()} {host.id[:8]}'))
+            self.form.addRow('Ανήκει σε', QLabel(host.name or KIND_LABELS.get(host.kind, host.kind)))
         params = dict(entity.params)
         if entity.kind == 'room_roof':
             # Roofs saved before the overhang field still get the editor.
@@ -1657,9 +1663,9 @@ class MainWindow(QMainWindow):
                 spin.editingFinished.connect(
                     lambda property_key=key, widget=spin: self._commit_property(eid, property_key, widget.value())
                 )
-                self.form.addRow(key, spin)
+                self.form.addRow(param_label(key), spin)
             elif entity.kind == 'room_floor' and key == 'room_signature':
-                self.form.addRow('Room', QLabel(str(value)))
+                self.form.addRow('Χώρος', QLabel(str(value)))
         if entity.kind == 'plumbing_point' and params.get('point_type') == 'water_supply':
             from archforge.mep.plumbing import DEFAULT_SYSTEM, PIPE_SYSTEMS
             combo = QComboBox()
@@ -1781,6 +1787,31 @@ class MainWindow(QMainWindow):
             button.setToolTip('Διαστάσεις, υλικά ανά τμήμα και Sculpt του αντικειμένου')
             button.clicked.connect(lambda _=False, entity_id=eid: self._open_object_modifier(entity_id))
             self.form.addRow(button)
+
+    def _rename_entity(self, eid, name):
+        from archforge.core.commands import RenameEntities
+        name = str(name).strip()
+        if eid not in self.doc.entities or not name or name == self.doc.get(eid).name:
+            return
+        clash = next((e for e in self.doc.entities.values() if e.id != eid and e.kind == self.doc.get(eid).kind and e.name == name), None)
+        if clash is not None and self.doc.get(eid).kind in ('structural_column', 'structural_beam'):
+            self.statusBar().showMessage(f'Το όνομα {name} υπάρχει ήδη σε άλλο μέλος', 6000)
+            self.refresh_inspector()
+            return
+        self.stack.execute(RenameEntities({eid: name}))
+        self._redraw_views(all_views=True)
+        self.statusBar().showMessage(f'Όνομα: {name}', 4000)
+
+    def _renumber_members(self):
+        """Δομικά → Αρίθμηση κολονών/δοκών (Κ1, Δ1 …) σε σειρά ανάγνωσης της κάτοψης."""
+        from archforge.core.commands import RenameEntities
+        from archforge.structure.marks import renumber
+        names = renumber(self.doc)
+        if names:
+            self.stack.execute(RenameEntities(names))
+            self._redraw_views(all_views=True)
+            self.refresh_inspector()
+        self.statusBar().showMessage(f'Αρίθμηση μελών: {len(names)} αλλαγές (τα ονόματα που έδωσες εσύ μένουν)', 6000)
 
     def _commit_property(self, eid, key, value):
         try:
@@ -1905,10 +1936,13 @@ class MainWindow(QMainWindow):
             return
 
         dialog = QDialog(self)
-        dialog.setWindowTitle(f'{entity.name or entity.kind.title()} Properties')
+        dialog.setWindowTitle(f'Ιδιότητες — {entity.name or entity.kind}')
         layout = QVBoxLayout(dialog)
         form = QFormLayout()
         layout.addLayout(form)
+        from PySide6.QtWidgets import QLineEdit
+        name_editor = QLineEdit(entity.name or '', dialog)
+        form.addRow('Όνομα', name_editor)
 
         current = property_values(entity)
         editors = {}
@@ -1927,33 +1961,33 @@ class MainWindow(QMainWindow):
         if entity.kind in ('structural_column','structural_beam'):
             role_editor = QComboBox(dialog)
             for label,value in (
-                ('Structural','structural'),
-                ('Pergola','pergola'),
-                ('Architectural / Decorative','architectural'),
+                ('Φέρον (στατικό)','structural'),
+                ('Πέργκολα','pergola'),
+                ('Αρχιτεκτονικό / διακοσμητικό','architectural'),
             ):
                 role_editor.addItem(label,value)
             role_idx = role_editor.findData(str(entity.params.get('role','structural')))
             if role_idx >= 0:
                 role_editor.setCurrentIndex(role_idx)
-            form.addRow('Role', role_editor)
+            form.addRow('Ρόλος', role_editor)
 
             construction_editor = QComboBox(dialog)
             for label,value in (
-                ('Reinforced Concrete','reinforced_concrete'),
-                ('Steel','steel'),
-                ('Timber','timber'),
-                ('Aluminium','aluminium'),
-                ('Generic','generic'),
+                ('Οπλισμένο σκυρόδεμα','reinforced_concrete'),
+                ('Χάλυβας','steel'),
+                ('Ξύλο','timber'),
+                ('Αλουμίνιο','aluminium'),
+                ('Γενικό','generic'),
             ):
                 construction_editor.addItem(label,value)
             construction_idx = construction_editor.findData(str(entity.params.get('construction','generic')))
             if construction_idx >= 0:
                 construction_editor.setCurrentIndex(construction_idx)
-            form.addRow('Construction', construction_editor)
+            form.addRow('Κατασκευή', construction_editor)
 
-            section_label = QLabel('Rectangular', dialog)
+            section_label = QLabel('Ορθογωνική', dialog)
             section_label.setToolTip('Only rectangular structural sections are geometrically implemented in this build.')
-            form.addRow('Section', section_label)
+            form.addRow('Διατομή', section_label)
 
         base_level_editor = None
         top_level_editor = None
@@ -1967,16 +2001,16 @@ class MainWindow(QMainWindow):
             base_idx=base_level_editor.findData(str(entity.params.get('base_level',self.doc.active_level_name())))
             if base_idx >= 0:
                 base_level_editor.setCurrentIndex(base_idx)
-            form.addRow('Base Level',base_level_editor)
+            form.addRow('Στάθμη βάσης',base_level_editor)
 
             top_level_editor=QComboBox(dialog)
-            top_level_editor.addItem('Unassigned','Unassigned')
+            top_level_editor.addItem('Ελεύθερο ύψος','Unassigned')
             for name,z in ordered_levels:
                 top_level_editor.addItem(f'{name} ({float(z):.2f} m)', str(name))
             top_idx=top_level_editor.findData(str(entity.params.get('top_level','Unassigned')))
             if top_idx >= 0:
                 top_level_editor.setCurrentIndex(top_idx)
-            form.addRow('Top Level',top_level_editor)
+            form.addRow('Στάθμη κορυφής',top_level_editor)
 
         elif entity.kind == 'structural_beam':
             ordered_levels=sorted(self.doc.levels.items(),key=lambda item:float(item[1]))
@@ -1986,7 +2020,7 @@ class MainWindow(QMainWindow):
             level_idx=beam_level_editor.findData(str(entity.params.get('level',self.doc.active_level_name())))
             if level_idx >= 0:
                 beam_level_editor.setCurrentIndex(level_idx)
-            form.addRow('Storey',beam_level_editor)
+            form.addRow('Όροφος',beam_level_editor)
 
         for spec in fields:
             spin = QDoubleSpinBox(dialog)
@@ -2063,13 +2097,14 @@ class MainWindow(QMainWindow):
             if not extra_changes:
                 extra_changes = None
             self._apply_object_properties(entity_id, values, extra_changes=extra_changes)
+            self._rename_entity(entity_id, name_editor.text())
         except Exception as exc:
-            QMessageBox.warning(dialog, 'Invalid dimensions', str(exc))
+            QMessageBox.warning(dialog, 'Μη έγκυρες διαστάσεις', str(exc))
             self.refresh_inspector()
             return
 
         self.statusBar().showMessage(
-            f'Updated {entity.name or entity.kind.title()} dimensions — Undo is available',
+            f'Ενημερώθηκε: {entity.name or entity.kind} — διαθέσιμη αναίρεση',
             3500,
         )
 
@@ -3306,6 +3341,24 @@ class MainWindow(QMainWindow):
         from archforge.project.brief import PHASES
         self.statusBar().showMessage(f'{len(ids)} στοιχεία → {PHASES[phase]}', 5000)
         return len(ids)
+
+    def _export_formwork(self, path=None):
+        """Δομικά → Φύλλο ξυλοτύπου: one A4 sheet per storey slab (columns, beams, slabs, axes)."""
+        from archforge.output.formwork import export_formwork_pdf
+        if path is None:
+            path, _ = QFileDialog.getSaveFileName(self, 'Φύλλο ξυλοτύπου', 'ξυλότυπος.pdf', 'PDF (*.pdf)')
+            if not path:
+                return None
+        if not str(path).lower().endswith('.pdf'):
+            path = f'{path}.pdf'
+        try:
+            result = export_formwork_pdf(self.doc, path)
+        except ValueError as exc:
+            QMessageBox.information(self, 'Ξυλότυπος', str(exc))
+            return None
+        self.statusBar().showMessage(f"Ξυλότυπος: {result['pages']} σελίδες, κλίμακα "
+                                     + ', '.join(f'1:{s}' for s in result['scales']) + f' → {path}', 9000)
+        return result
 
     def _show_slabs(self):
         """Slab reinforcement per room panel (Marcus), pre-design."""

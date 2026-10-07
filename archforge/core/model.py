@@ -970,6 +970,11 @@ class Document:
             raise ValueError('duplicate id')
         entity.params = validate_params(entity.kind, entity.params)
         self._validate_links(entity)
+        if entity.kind in ('structural_column', 'structural_beam'):
+            # Every column/beam carries its own mark (Κ1, Δ1 …) unless the user named it.
+            from archforge.structure.marks import is_unnamed, next_mark
+            if is_unnamed(entity):
+                entity.name = next_mark(self, entity.kind)
         self.entities[entity.id] = entity
         try:
             self._register_links(entity)

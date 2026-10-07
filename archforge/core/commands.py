@@ -42,6 +42,20 @@ class UpdateEntity(Command):
             _restore_document_state(doc,self.before_state,self.before_selection or [])
 
 @dataclass
+class RenameEntities(Command):
+    """Names (e.g. member marks Κ1, Δ1) of several entities as one undo step."""
+    names:Dict[str,str]; before:Dict[str,str]|None=None
+    def do(self,doc):
+        if self.before is None:
+            self.before={eid:doc.get(eid).name for eid in self.names}
+        for eid,name in self.names.items():
+            doc.get(eid).name=str(name);doc.mark_dirty(eid)
+    def undo(self,doc):
+        for eid,name in (self.before or {}).items():
+            if eid in doc.entities:
+                doc.get(eid).name=name;doc.mark_dirty(eid)
+
+@dataclass
 class UpdateEntities(Command):
     """Apply several semantic parameter updates as one undo/redo step."""
     changes:Dict[str,Dict[str,Any]]

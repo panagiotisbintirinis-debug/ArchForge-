@@ -360,4 +360,6 @@ def propose_frame(doc, settings=None):
         report["storeys"].append({"z": z, "level": level, "columns": new_cols, "beams": new_beams})
         report["columns"] += new_cols
         report["beams"] += new_beams
+    from archforge.structure.marks import name_new
+    name_new(doc, entities)                      # Κ1, Δ1 … in plan reading order
     return entities, report

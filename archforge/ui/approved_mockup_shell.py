@@ -247,7 +247,9 @@ def install_approved_mockup_shell(window):
                      ("Πρόταση φέροντος οργανισμού από τους τοίχους",lambda: window._propose_frame()),
                      ("Στοιχεία κτιρίου για στατική…",lambda: window._edit_structural_settings()),
                      ("Στατική ανάλυση φέροντος οργανισμού…",lambda: window._show_structural_analysis()),
-                     ("Οπλισμός πλακών…",lambda: window._show_slabs())):
+                     ("Οπλισμός πλακών…",lambda: window._show_slabs()),
+                     ("Αρίθμηση κολονών / δοκών (Κ1, Δ1 …)",lambda: window._renumber_members()),
+                     ("Φύλλο ξυλοτύπου (PDF)…",lambda: window._export_formwork())):
         a=QAction(text,window); a.triggered.connect(lambda _=False,r=run: r()); structure_menu.addAction(a)
     foundation_layer=QAction("Θεμελίωση στο 3D",window); foundation_layer.setCheckable(True); foundation_layer.setChecked(True)
     foundation_layer.toggled.connect(lambda on: window._set_layer_visible("foundation",on))

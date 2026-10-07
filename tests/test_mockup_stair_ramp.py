@@ -133,7 +133,7 @@ def test_roof_overhang_is_editable_in_properties_even_for_older_roofs():
     window.refresh_inspector()
     labels = [window.form.itemAt(i, window.form.ItemRole.LabelRole) for i in range(window.form.rowCount())]
     names = [w.widget().text() for w in labels if w is not None and w.widget() is not None]
-    assert 'overhang' in names
+    assert 'Προεξοχή' in names
     window._commit_property(roof.id, 'overhang', 0.4)
     assert window.doc.get(roof.id).params['overhang'] == 0.4
     _close(app, window)
