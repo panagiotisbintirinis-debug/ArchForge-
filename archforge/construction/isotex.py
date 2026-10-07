@@ -13,16 +13,18 @@ Rules for the take-off (stated so they can be checked):
   corners, ends and jambs come out of whole blocks).
 * Courses = ⌈height / 0.25⌉; the blocks cut at the jambs are two per course
   an opening spans (listed, already inside the total).
-* Concrete fill = net area × the block's l/m² from its data sheet.  Where
-  the data sheet value was not available it is estimated from the core
+* Concrete fill = net area × the block's l/m² from its data sheet.  A block
+  added later without a data sheet value would be estimated from the core
   thickness × 0.79 (the ratio of HB 25/16 and HB 30/19: 126 l / 16 cm and
-  151 l / 19 cm) and marked as an estimate.
+  151 l / 19 cm) and marked as an estimate; every block in the catalogue
+  below carries its data sheet value.
 * Reinforcement (vertical and horizontal bars), lintels over openings and
   the ring beam belong to the structural design and are not counted here.
 
-Values from Isotex's published data (data sheets / product pages / ETA
-08/0023), collected 2026-10: to be confirmed against the current data sheet
-of the block ordered.  Pre-design take-off, for review.
+Values locked 2026-10-07 from Isotex's data sheets and product pages
+(``DATA_SHEETS``; ETA 08/0023): concrete l/m², blocks kg/m², core and U as
+published.  To be confirmed against the current data sheet of the block
+ordered.  Pre-design take-off, for review.
 """
 from __future__ import annotations
 
@@ -32,7 +34,7 @@ BLOCK_LENGTH, BLOCK_HEIGHT = 0.50, 0.25
 BLOCKS_PER_M2 = 1.0 / (BLOCK_LENGTH * BLOCK_HEIGHT)      # 8
 WASTE = 0.03
 CORE_FILL_RATIO = 0.79                                   # l/m² per mm of core ÷ 10, from HB 25/16 and HB 30/19
-SOURCE = "Isotex, τεχνικά φυλλάδια / ETA 08/0023 (δημοσιευμένα στοιχεία, 2026-10)"
+SOURCE = "Isotex, τεχνικά φυλλάδια τεμαχίων / ETA 08/0023 (τιμές κλειδωμένες 2026-10-07)"
 PROVENANCE = ("Αναγωγή τεμαχίων Isotex: 8 τεμ./m² (όψη 50×25), καθαρό εμβαδόν τοίχων (άξονας × ύψος − ανοίγματα), "
               f"φύρα {WASTE:.0%}, σκυρόδεμα l/m² από το φυλλάδιο του τεμαχίου — οπλισμός, πρέκια και σενάζ στη στατική μελέτη. "
               "Τιμές από δημοσιευμένα στοιχεία Isotex: επιβεβαίωση με το τρέχον φυλλάδιο — προς έλεγχο μηχανικού")
@@ -41,9 +43,17 @@ PROVENANCE = ("Αναγωγή τεμαχίων Isotex: 8 τεμ./m² (όψη 50�
 BLOCKS = {
     "HB 25/16": ("Isotex HB 25/16 (χωρίς μόνωση)", 0.25, 0.00, 0.16, 126.0, 80.0, 0.79),
     "HB 30/19": ("Isotex HB 30/19 (χωρίς μόνωση)", 0.30, 0.00, 0.19, 151.0, 85.0, 0.68),
-    "HDIII 30/7": ("Isotex HDIII 30/7 (μόνωση γραφίτη 7 cm)", 0.30, 0.07, 0.14, 130.0, None, 0.30),
-    "HDIII 30/10": ("Isotex HDIII 30/10 (μόνωση γραφίτη 10 cm)", 0.30, 0.10, 0.12, 104.0, 80.0, None),
-    "HDIII 38/14": ("Isotex HDIII 38/14 (μόνωση γραφίτη 14 cm)", 0.38, 0.14, 0.15, None, None, 0.21),
+    "HDIII 30/7": ("Isotex HDIII 30/7 (μόνωση γραφίτη 7 cm)", 0.30, 0.07, 0.15, 130.0, 80.0, 0.34),
+    "HDIII 30/10": ("Isotex HDIII 30/10 (μόνωση γραφίτη 10 cm)", 0.30, 0.10, 0.12, 104.0, 80.0, 0.23),
+    "HDIII 38/14": ("Isotex HDIII 38/14 (μόνωση γραφίτη 14 cm)", 0.38, 0.14, 0.15, 130.0, 88.0, 0.21),
+}
+_SITE = "https://www.blocchiisotex.com"
+DATA_SHEETS = {   # where each locked value was read
+    "HB 25/16": "https://en.blocchiisotex.com/products/formwork-block-hb-25-16/",
+    "HB 30/19": _SITE + "/prodotti/blocco-cassero-hb-3019/",
+    "HDIII 30/7": _SITE + "/prodotti/blocco-cassero-hdiii-30-7-grafite/",
+    "HDIII 30/10": "https://en.blocchiisotex.com/products/hdiii-30-10-wood-cement-formwork-block-with-neopor-bmbcert-insulation-insert-from-basf/",
+    "HDIII 38/14": _SITE + "/wp-content/uploads/2024/02/SK-Tecnica-sito-Blocco-Isotex-HDIII-38.14-gr.pdf",
 }
 WALL_TYPE_PREFIX = "isotex_"
 

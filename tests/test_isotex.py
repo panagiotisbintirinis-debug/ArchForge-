@@ -8,7 +8,7 @@ import pytest
 from archforge.architecture.wall_types import WALL_TYPES, indicative_u, total_thickness
 from archforge.core.commands import AddEntity, CommandStack, UpdateEntity
 from archforge.core.model import Document, Entity
-from archforge.construction.isotex import (BLOCKS, BLOCKS_PER_M2, concrete_per_m2, count_wall, take_off_isotex,
+from archforge.construction.isotex import (BLOCKS, BLOCKS_PER_M2, DATA_SHEETS, concrete_per_m2, count_wall, take_off_isotex,
                                            wall_type_of)
 
 
@@ -28,8 +28,25 @@ def test_catalogue_with_and_without_insulation_as_wall_types():
         assert t in WALL_TYPES and total_thickness(t) == pytest.approx(total)
     assert indicative_u(wall_type_of('HB 25/16')) == pytest.approx(0.79)          # published U wins
     assert concrete_per_m2('HB 30/19') == (151.0, False)
-    litres, est = concrete_per_m2('HDIII 38/14')
-    assert est and litres == pytest.approx(150 * 0.79)
+    assert concrete_per_m2('HDIII 38/14') == (130.0, False)
+
+
+def test_catalogue_values_locked_from_the_data_sheets():
+    # code: core, l/m², kg/m², U — as published by Isotex (2026-10-07)
+    locked = {'HB 25/16': (0.16, 126.0, 80.0, 0.79), 'HB 30/19': (0.19, 151.0, 85.0, 0.68),
+              'HDIII 30/7': (0.15, 130.0, 80.0, 0.34), 'HDIII 30/10': (0.12, 104.0, 80.0, 0.23),
+              'HDIII 38/14': (0.15, 130.0, 88.0, 0.21)}
+    assert set(locked) == set(BLOCKS) == set(DATA_SHEETS)
+    for code, (core, litres, kg, u) in locked.items():
+        _label, total, eps, c, l, k, uu = BLOCKS[code]
+        assert (c, l, k, uu) == (core, litres, kg, u)
+        assert concrete_per_m2(code) == (litres, False)
+        assert indicative_u(wall_type_of(code)) == pytest.approx(u)
+        assert (total - eps - core) / 2 >= 0.04 - 1e-9          # wood-cement shells, 4–4.5 cm
+    assert BLOCKS['HDIII 38/14'][5] / BLOCKS_PER_M2 == pytest.approx(11.0)   # 11 kg per piece
+    doc = Document(); st = CommandStack(doc)
+    _wall(st, 0, 0, 4, 0, code='HDIII 38/14')
+    assert take_off_isotex(doc)['estimated'] == []
 
 
 def test_pieces_per_wall_net_of_openings_with_waste_and_concrete():
