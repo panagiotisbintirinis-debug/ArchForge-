@@ -197,3 +197,55 @@ def test_brief_dialog_lists_are_editable_and_typed_text_becomes_custom():
         assert interior_wall_defaults(window.doc)[1] == pytest.approx(0.15)
     finally:
         window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_changing_the_answers_adapts_the_drawn_walls_keeping_the_measured_face():
+    from archforge.architecture.brief_walls import apply_command, wall_changes
+    doc = Document(); st = CommandStack(doc)
+    e = _brief(st, interior_walls='brick_plaster')                          # double brick 0.28? (default system)
+    ids = _box(st, 10.0, 8.0, t=0.30, extra=[(5, 0, 5, 8)])
+    # Outer face: axis 0 → outside at -0.15. Switch to stone 54 cm: the outside must stay at -0.15.
+    st.execute(UpdateEntity(e.id, {'wall_system': 'stone_bearing'}))
+    cmd = apply_command(doc)
+    assert cmd is not None
+    st.execute(cmd)
+    south = doc.get(ids[0]).params
+    assert south['thickness'] == pytest.approx(0.54) and south['wall_type'] == 'stone_uninsulated'
+    assert south['y1'] - 0.27 == pytest.approx(-0.15)                        # outer face did not move
+    west = doc.get(ids[3]).params
+    assert west['x1'] - 0.27 == pytest.approx(-0.15)
+    assert (south['x1'], south['y1']) == pytest.approx((west['x1'], west['y2'])) or \
+           (south['x1'], south['y1']) == pytest.approx((west['x2'], west['y2']))   # the corner is joined again
+    partition = doc.get(ids[4]).params
+    assert partition['wall_type'] == 'brick_partition' and partition['y1'] == pytest.approx(south['y1'])  # T follows
+    assert wall_changes(doc) == {}                                             # nothing left to adapt
+    st.undo()
+    assert doc.get(ids[0]).params['thickness'] == pytest.approx(0.30)
+
+
+def test_existing_walls_of_a_renovation_are_never_changed():
+    from archforge.architecture.brief_walls import wall_changes
+    doc = Document(); st = CommandStack(doc)
+    _brief(st, project_type='renovation', measure='interior')
+    ids = _box(st, 6.0, 5.0, t=0.30)
+    st.execute(UpdateEntity(ids[0], {'phase': 'existing'}))
+    changes = wall_changes(doc)
+    assert ids[0] not in changes and ids[1] in changes
+
+
+def test_brief_dialog_applies_to_the_drawing_in_one_undo():
+    from PySide6.QtWidgets import QApplication
+    from archforge.ui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    try:
+        ids = _box(window.stack, 8.0, 6.0, t=0.30)
+        window._apply_project_brief({'project_type': 'new', 'wall_system': 'stone_bearing', 'interior_walls': 'brick_plaster',
+                                     'measure': 'exterior', 'floor_system': 'rc_slab'})
+        assert window.doc.get(ids[0]).params['thickness'] == pytest.approx(0.54)
+        assert 'προσαρμόστηκαν' in window.statusBar().currentMessage()
+        window.stack.undo()
+        assert window.doc.get(ids[0]).params['thickness'] == pytest.approx(0.30)
+        assert get_brief(window.doc) is None
+    finally:
+        window._mark_clean(); window.close(); app.processEvents()

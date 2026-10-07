@@ -3225,6 +3225,14 @@ class MainWindow(QMainWindow):
             self.stack.execute(AddEntity(entity))
         else:
             self.stack.execute(UpdateEntity(entity.id, dict(answers)))
+        # The drawing follows the answers: existing walls take the new system (same undo step).
+        from archforge.architecture.brief_walls import apply_command
+        rebuild = apply_command(self.doc)
+        if rebuild is not None:
+            self.stack.amend(rebuild)
+            n = sum(1 for c in rebuild.commands if self.doc.get(c.eid).kind == 'wall')
+            self._redraw_views(all_views=True)
+            self.statusBar().showMessage(f'Οι τοίχοι προσαρμόστηκαν στα Στοιχεία έργου{f" ({n})" if n else ""} — Ctrl+Z για αναίρεση', 7000)
         self._schedule_assistant_refresh()
         self._refresh_project_tree()
         return entity
