@@ -478,6 +478,10 @@ def _room_slab(doc,node):
  g=room_slab_geometry(doc,doc.get(node.entity_id))
  if g is None:raise ValueError('derived room element has no currently closed room')
  mesh=_polygon_prism(g['points'],g['z'],g['thickness'])
+ for extra in g.get('parts',())[1:]:
+  # A terrace in several pieces (around a smaller upper floor): one prism each.
+  m=_polygon_prism(extra,g['z'],g['thickness']);n=len(mesh.vertices)
+  mesh=MeshPayload(mesh.vertices+m.vertices,mesh.triangles+tuple((a+n,b+n,c+n) for a,b,c in m.triangles),mesh.triangle_surfaces+m.triangle_surfaces)
  if node.semantic_kind in ('room_floor','room_ceiling','room_roof'):
   mesh=_apply_vertical_openings_to_slab(doc,mesh,g['points'],g['z'],g['thickness'])
  return mesh

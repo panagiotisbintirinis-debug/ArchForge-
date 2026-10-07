@@ -520,6 +520,11 @@ def build_plan_frame(doc,preview=None):
         if not _entity_on_active_level(doc,doc.get(eid)):continue
         p=entity_primitive(doc,eid)
         if p:f.primitives.append(p)
+        if p and doc.get(eid).kind=='room_roof':
+            # A terrace in several pieces (around a smaller upper floor): the other pieces too.
+            from archforge.architecture.rooms import room_slab_geometry
+            for part in (room_slab_geometry(doc,doc.get(eid)) or {}).get('parts',())[1:]:
+                f.primitives.append(Primitive2D('polygon',tuple(part),entity_id=eid,role=p.role,meta=p.meta))
         if p and doc.get(eid).kind=='wall' and doc.get(eid).params.get('wall_type','generic')!='generic':
             # Layer boundaries of the wall assembly; insulation drawn dashed.
             from archforge.architecture.wall_types import layer_lines

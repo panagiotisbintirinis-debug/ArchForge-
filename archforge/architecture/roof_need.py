@@ -8,7 +8,7 @@ the user can decide.
 """
 from __future__ import annotations
 
-COVERED = 0.5
+COVERED = 0.98          # a room this much under the storey above needs no roof; less: a terrace on the open part
 
 
 def _inside(poly, x, y):

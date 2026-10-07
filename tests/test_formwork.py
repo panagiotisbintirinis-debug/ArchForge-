@@ -254,3 +254,34 @@ def test_roof_form_from_menu_leaves_terrace_rooms_alone():
         if e.kind == 'wall':
             doc2.add(Entity('wall', dict(e.params)))
     assert form_roofs(doc2, 'hip', 0.0)[0]['x1'] > 9.9
+
+
+def test_menu_roof_on_a_smaller_l_shaped_upper_floor():
+    import os
+    os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+    from PySide6.QtWidgets import QApplication
+    from archforge.architecture.roof_choice import form_roofs
+    from archforge.ui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    w = MainWindow()
+    doc = w.doc
+    doc.levels['Floor 2'] = 3.0
+
+    def wall(a, b, z):
+        doc.add(Entity('wall', {'x1': a[0], 'y1': a[1], 'x2': b[0], 'y2': b[1], 'thickness': .25, 'height': 3, 'z': z,
+                                'level': 'Ground' if z == 0 else 'Floor 2'}))
+    # Ground 10×8 in two rooms; the upper floor an L over it (west 5×8 + north-east 5×4), the south-east 5×4 left open.
+    for a, b in (((0, 0), (10, 0)), ((10, 0), (10, 8)), ((10, 8), (0, 8)), ((0, 8), (0, 0)), ((5, 0), (5, 8))):
+        wall(a, b, 0.0)
+    for a, b in (((0, 0), (5, 0)), ((5, 0), (5, 4)), ((5, 4), (10, 4)), ((10, 4), (10, 8)), ((10, 8), (0, 8)), ((0, 8), (0, 0)),
+                 ((5, 4), (5, 8))):
+        wall(a, b, 3.0)
+    roofs = form_roofs(doc, 'hip', 3.0)
+    assert len(roofs) == 2 and all(r['roof_form'] == 'hip' for r in roofs)          # per room, nothing over the open corner
+    assert not any(r['x0'] > 4.5 and r['y1'] < 4.5 for r in roofs)
+    w._create_pitched_roof('hip')
+    assert sum(e.kind == 'pitched_roof' for e in doc.entities.values()) == 2
+    assert any(e.kind == 'room_roof' for e in doc.entities.values())               # the open part below: terrace
+    w._undo()
+    assert not any(e.kind in ('pitched_roof', 'room_roof') for e in doc.entities.values())
+    w._mark_clean(); w.close(); app.processEvents()

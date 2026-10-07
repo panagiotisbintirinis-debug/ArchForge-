@@ -158,6 +158,14 @@ def room_slab_geometry(doc, slab_entity: Entity, tolerance: float = 1e-5) -> Opt
     if slab_entity.kind=='room_roof' and p.get('roof_type','flat')=='flat':
         neighbours=[tuple(f.polygon) for f in doc.active_room_faces(z=base_z,tolerance=tolerance) if f.signature!=face.signature]
         points=_flat_roof_outer_polygon(doc,face,tolerance,p.get('edge_offsets'),float(p.get('overhang',0.0)),neighbours)
+        # Under part of the storey above: the terrace is only the open part (plan and 3D alike).
+        from archforge.architecture.roof_clip import open_parts,upper_cover
+        parts=open_parts(points,upper_cover(doc,base_z,tolerance))
+        if parts:
+            parts=sorted(parts,key=lambda q:-abs(sum(q[i][0]*q[(i+1)%len(q)][1]-q[(i+1)%len(q)][0]*q[i][1] for i in range(len(q)))))
+            return {'points':[tuple(q) for q in parts[0]],'parts':[[tuple(q) for q in part] for part in parts],
+                    'z':z,'thickness':float(p['thickness']),'room_id':room_id,
+                    'room_signature':face.signature,'wall_ids':tuple(face.wall_ids)}
     return {'points':points,
             'z':z,
             'thickness':float(p['thickness']),

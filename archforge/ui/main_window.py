@@ -1202,15 +1202,22 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, 'Κεραμοσκεπή', str(exc))
             return None
         roofs = [Entity('pitched_roof', p, name=f"Κεραμοσκεπή {FORMS[p['roof_form']].lower()}") for p in all_params]
-        self.stack.execute(AddEntities(roofs))
+        # The part of a lower storey the upper one leaves open gets its terrace in the same step.
+        from archforge.architecture.roof_choice import uncovered_lower_rooms
+        from archforge.core.commands import CompositeCommand
+        terraces = uncovered_lower_rooms(self.doc)
+        self.stack.execute(CompositeCommand([AddEntities(roofs)] + ([CreateRoomRoofs(terraces, thickness=.20, roof_type='flat')] if terraces else []),
+                                            f"Κεραμοσκεπή {FORMS[form].lower()}"))
         roof, params = roofs[0], all_params[0]
         self.doc.select([r.id for r in roofs])
         self._redraw_views(all_views=True)
         self.refresh_inspector()
         sec = size_rafter(params)['section']
-        self.statusBar().showMessage(
-            f"Κεραμοσκεπή: ψαλίδια {sec['b'] * 100:.0f}×{sec['h'] * 100:.0f} ανά 60 cm — μορφή, κλίση, χιόνι στις Ιδιότητες · προς έλεγχο στατικού",
-            8000)
+        parts = [f"Κεραμοσκεπή {FORMS[form].lower()}" + (f" σε {len(roofs)} χώρους (όροφος σε σχήμα Γ/Τ ή με ταράτσα)" if len(roofs) > 1 else ''),
+                 (f"ψαλίδια {sec['b'] * 100:.0f}×{sec['h'] * 100:.0f} ανά 60 cm" if sec else '⚠ ψαλίδια: καμία τυπική διατομή')]
+        if terraces:
+            parts.append(f"{len(terraces)} χώροι του κάτω ορόφου χωρίς όροφο από πάνω: ταράτσα (για κεραμοσκεπή: Στέγη → Κεραμοσκεπή σε χώρο)")
+        self.statusBar().showMessage(' · '.join(parts) + ' — προς έλεγχο στατικού · Ctrl+Z για αναίρεση', 12000)
         return roof
 
     def _set_wall_type(self, entity_id, wall_type):
