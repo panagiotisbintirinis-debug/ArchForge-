@@ -166,7 +166,9 @@ def design_slabs(doc):
         ld = lx / d
         ok = ld <= ld_lim
         h_req = math.ceil((lx / ld_lim + 0.03) * 100) / 100
-        out.append({"storey": storey["name"], "room": r["name"], "signature": r["signature"], "lx": round(lx, 2),
+        out.append({"storey": storey["name"], "storey_z": float(storey["z"]), "cx": (x0 + x1) / 2, "cy": (y0 + y1) / 2,
+                    "bbox": (x0, y0, x1, y1), "main_bars": main[:2], "dist_bars": long_[:2],
+                    "room": r["name"], "signature": r["signature"], "lx": round(lx, 2),
                     "ly": round(ly, 2), "kind": kind, "h": h, "pd": round(pd, 2), "g": round(g, 2), "q": q,
                     "M_short": round(m_short, 2), "M_long": round(m_long, 2), "M_support": round(max(s_short, s_long), 2),
                     "bottom_short": _label(main), "bottom_long": _label(long_),
@@ -175,16 +177,42 @@ def design_slabs(doc):
                     "text": f"{r['name']}: πλάκα {h * 100:.0f} cm {kind}, κάτω {_label(main)} ({'x' if x_short else 'y'}) / "
                             f"{_label(long_)} ({'y' if x_short else 'x'})" + (f", άνω στηρίξεις {_label(support)}" if support else "")
                             + ("" if ok else f" ⚠ l/d {ld:.0f} > {ld_lim:.0f}: πάχος ≥ {max(h_req, 0.15) * 100:.0f} cm")})
+    # Slab marks Πλ1, Πλ2 … (lowest storey first, then plan reading order) — «Π» is for the footings.
+    for i, p in enumerate(sorted(out, key=lambda p: (round(p["storey_z"], 1), -round(p["cy"], 1), round(p["cx"], 1))), 1):
+        p["mark"] = f"Πλ{i}"
+        p["text"] = f"{p['mark']} " + p["text"]
+    # Openings (stair wells) in the panels: the bands that replace the cut reinforcement.
+    from archforge.structure.slab_openings import openings_in_slabs
+    for p in out:
+        p["openings"] = []
+    for o in openings_in_slabs(doc, out, h):
+        next(p for p in out if p["mark"] == o["slab"])["openings"].append(o)
+        if o["warning"]:
+            next(p for p in out if p["mark"] == o["slab"])["ok"] = False
     return {"panels": out, "ok": all(p["ok"] for p in out), "provenance": PROVENANCE}
 
 
 def slabs_html(result):
     rows = "".join(
-        f"<tr><td>{p['storey']}</td><td>{p['room']}</td><td>{p['lx']}×{p['ly']}</td><td>{p['kind']}</td><td>{p['h'] * 100:.0f}</td>"
+        f"<tr><td>{p['mark']}</td><td>{p['storey']}</td><td>{p['room']}</td><td>{p['lx']}×{p['ly']}</td><td>{p['kind']}</td><td>{p['h'] * 100:.0f}</td>"
         f"<td>{p['pd']}</td><td>{p['bottom_short']} ({p['short_dir']})</td><td>{p['bottom_long']}</td><td>{p['top_support']}</td>"
         f"<td>{p['l_d']} / {p['l_d_lim']:g}</td><td>{'✓' if p['ok'] else '⚠ ≥ ' + format(p['h_required'] * 100, '.0f') + ' cm'}</td></tr>"
         for p in result["panels"])
-    return ("<h3>Πλάκες (οπλισμός ανά φάτνωμα)</h3><table border=1 cellspacing=0 cellpadding=3><tr><th>Όροφος</th><th>Χώρος</th>"
+    return ("<h3>Πλάκες (οπλισμός ανά φάτνωμα)</h3><table border=1 cellspacing=0 cellpadding=3><tr><th>Πλάκα</th><th>Όροφος</th><th>Χώρος</th>"
             "<th>lx×ly (m)</th><th>Λειτουργία</th><th>h (cm)</th><th>pd (kN/m²)</th><th>Κάτω κύριος</th><th>Κάτω δευτ.</th>"
             "<th>Άνω στηρίξεις</th><th>l/d</th><th>Κατάσταση</th></tr>" + rows + "</table>"
-            f"<p><i>{result['provenance']}</i></p>") if result["panels"] else ""
+            + _openings_html(result) + f"<p><i>{result['provenance']}</i></p>") if result["panels"] else ""
+
+
+def _openings_html(result):
+    from archforge.structure.slab_openings import PROVENANCE as OPEN_PROVENANCE
+    ops = [o for p in result["panels"] for o in p.get("openings", ())]
+    if not ops:
+        return ""
+    rows = "".join(
+        f"<tr><td>{o['slab']}</td><td>{o['stair']}</td><td>{o['size'][0]:.2f}×{o['size'][1]:.2f}</td>"
+        f"<td>{'<br>'.join(b['text'] for b in o['bands']) or 'σε τοίχο/δοκό'}</td><td>{o['corner_bars'] or '—'}</td>"
+        f"<td>{'⚠ ' + o['warning'] if o['warning'] else '✓'}</td></tr>" for o in ops)
+    return ("<h3>Οπές πλακών (σκάλες): ζώνες ενίσχυσης</h3><table border=1 cellspacing=0 cellpadding=3><tr><th>Πλάκα</th>"
+            "<th>Σκάλα</th><th>Οπή (m)</th><th>Ζώνες ενίσχυσης</th><th>Γωνίες</th><th>Κατάσταση</th></tr>" + rows + "</table>"
+            f"<p><i>{OPEN_PROVENANCE}</i></p>")

@@ -106,7 +106,9 @@ def test_footings_show_in_plan_3d_tree_and_report():
         for n in nodes:
             yield n['label']
             yield from labels(n['children'])
-    assert any(l.startswith('Θεμελίωση (9 πέδιλα, 12 συνδετήριες)') for l in labels([project_outline(doc)]))
+    all_labels = list(labels([project_outline(doc)]))
+    assert any(l.startswith('Θεμελίωση ·') for l in all_labels)
+    assert 'Πέδιλα (9)' in all_labels and 'Συνδετήριες δοκοί (12)' in all_labels
 
 
 def test_frame_and_foundation_concrete_go_into_the_priced_list():

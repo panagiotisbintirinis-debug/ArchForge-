@@ -166,6 +166,14 @@ def _categorise(ids, doc):
     return out
 
 
+def slab_line(p):
+    """«Πλ1 Κουζίνα 4.00×5.00 h18 · δύο διευθύνσεων · κάτω Ø8/20 (x) / Ø8/25 (y) · άνω Ø10/20»."""
+    other = "y" if p["short_dir"] == "x" else "x"
+    text = (f"{p.get('mark', '')} {p['room']} {p['lx']:.2f}×{p['ly']:.2f} h{float(p['h']) * 100:.0f} · {p['kind']} · "
+            f"κάτω {p['bottom_short']} ({p['short_dir']}) / {p['bottom_long']} ({other}) · άνω {p['top_support']}")
+    return text + ("" if p["ok"] else f" · ⚠ πάχος ≥ {float(p['h_required']) * 100:.0f} cm")
+
+
 def _labels_from_analysis(doc):
     """Member names (Κ1, Δ1 …) shared with the structural analysis, plus its results when up to date."""
     labels = {}
@@ -221,7 +229,16 @@ def project_outline(doc, title="Έργο"):
     mep = _mep_summary(doc)
     placed = set()
     children = []
-    for storey in reading["storeys"]:
+    # Slabs belong to the load-bearing structure once there is one (each panel with its reinforcement).
+    framed = any(e.kind in ("structural_column", "structural_beam") for e in doc.entities.values())
+    slab_panels = []
+    if framed:
+        try:
+            from archforge.structure.slabs import design_slabs
+            slab_panels = design_slabs(doc)["panels"]
+        except Exception:
+            slab_panels = []
+    for k, storey in enumerate(reading["storeys"]):
         name, z = storey["name"], storey["z"]
         groups = []
         # Rooms and what is inside them.
@@ -265,25 +282,42 @@ def project_outline(doc, title="Έργο"):
         beams = [i for i in storey["beams"] if i not in placed]
         structure = [i for i, e in doc.entities.items() if e.kind in ("structural_support", "structural_load")
                      and i not in placed and entity_level(doc, e) == name]
-        if cols or beams or structure:
+        slabs = [p for p in slab_panels if p["storey"] == name]
+        from archforge.structure.analysis import last_result
+        fd = (last_result(doc) or {}).get("foundation") or {}
+        fts = [f for f in fd.get("footings", ()) if abs(float(f.get("z", 0.0)) - float(storey["z"])) < 0.05]
+        if cols or beams or structure or slabs:
             sub = []
             for title_, ids in (("Κολώνες", cols), ("Δοκοί", beams), ("Στηρίξεις & φορτία", structure)):
                 if ids:
                     ids = sorted(ids, key=lambda i: _natural(labels.get(i, _label(doc.get(i)))))
                     sub.append(_group(title_, ids, doc, name, labels))
                     placed.update(ids)
-            # Foundation under this storey (from the up-to-date analysis): footings, tie beams.
-            from archforge.structure.analysis import last_result
-            fd = (last_result(doc) or {}).get("foundation") or {}
-            fts = [f for f in fd.get("footings", ()) if abs(float(f.get("z", 0.0)) - float(storey["z"])) < 0.05]
+            # The slab over this storey: one panel per room, with its reinforcement (pre-design).
+            if slabs:
+                m3 = sum(float(p["h"]) * float(p["lx"]) * float(p["ly"]) for p in slabs)
+                sub.append(_node(f"Πλάκες οροφής ({len(slabs)}) · {m3:.2f} m³", None, name,
+                                 [_node(slab_line(p), None, name,
+                                        [_node(f"Οπή σκάλας {o['size'][0]:.2f}×{o['size'][1]:.2f} ({o['stair']})"
+                                               + (f" ⚠ {o['warning']}" if o["warning"] else ""), o["stair_id"], name,
+                                               [_node(b["text"], None, name) for b in o["bands"]]
+                                               + ([_node("Γωνίες: " + o["corner_bars"], None, name)] if o["corner_bars"] else []))
+                                         for o in p.get("openings", ())],
+                                        signature=p["signature"]) for p in slabs]))
+            # Foundation under this storey (from the last analysis): footings and tie beams with their steel.
             if fts:
                 ties = [t for t in fd.get("ties", ()) if abs(float(t.get("z", 0.0)) - float(storey["z"])) < 0.05]
-                sub.append(_node(f"Θεμελίωση ({len(fts)} πέδιλα, {len(ties)} συνδετήριες) · {fd['concrete_m3']} m³", None, name,
-                                 [_node(f"{f['name']} ({f.get('column', '')}) {f['B_m']:.2f}×{f['B_m']:.2f} h{f['h_m']:.2f} {f['mesh']}",
-                                        f.get("column_id") or None, name) for f in fts]
-                                 + [_node(f"{t['name']} {t['from']}–{t['to']} {t['section']} {t['bars']} {t['stirrups']}", None, name)
-                                    for t in ties]))
-            groups.append(_node(f"Φέρων οργανισμός ({len(cols) + len(beams) + len(structure)})", None, name, sub))
+                found = [_node(f"Πέδιλα ({len(fts)})", None, name,
+                               [_node(f"{f['name']} ({f.get('column', '')}) {f['B_m']:.2f}×{f['B_m']:.2f} h{f['h_m']:.2f} · "
+                                      f"κάτω σχάρα {f['mesh']} και στις δύο διευθύνσεις", f.get("column_id") or None, name) for f in fts])]
+                if ties:
+                    found.append(_node(f"Συνδετήριες δοκοί ({len(ties)})", None, name,
+                                       [_node(f"{t['name']} {t['from']}–{t['to']} {t['section']} · L {t['length_m']:.2f} m · "
+                                              f"{t['bars']} · συνδ. {t['stirrups']}", None, name) for t in ties]))
+                sub.append(_node(f"Θεμελίωση · {fd['concrete_m3']} m³ σκυρόδεμα", None, name, found))
+            elif k == 0 and (cols or beams):
+                sub.append(_node("Θεμελίωση: Δομικά → «Υπολογισμός φέροντα» για πέδιλα και συνδετήριες", None, name))
+            groups.append(_node(f"Φέρων οργανισμός ({len(cols) + len(beams) + len(structure) + len(slabs)})", None, name, sub))
         # Everything else on this storey (outside rooms).
         rest = [i for i, e in doc.entities.items() if i not in placed and e.kind not in SITE
                 and entity_level(doc, e) == name and e.kind not in ("structural_design", "project_brief")]

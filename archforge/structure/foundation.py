@@ -67,6 +67,8 @@ def _bars(as_req, minimum=(4, 14)):
 def design_footings(footings, settings):
     fck, fctm, _E = CONCRETE[settings["concrete"]]
     out = []
+    # Π1, Π2 … in plan reading order (top-to-bottom, left-to-right), like the columns Κ1, Κ2 … above them.
+    footings = sorted(footings, key=lambda f: (-round(float(f["y"]), 1), round(float(f["x"]), 1)))
     for i, f in enumerate(footings, 1):
         B, h = float(f["B_m"]), float(f["h_m"])
         c = float(f.get("column_m", 0.30))
