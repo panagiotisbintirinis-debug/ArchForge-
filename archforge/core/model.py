@@ -416,6 +416,13 @@ def _terrain_points(v):
     return out
 
 
+def _plot_boundary(v):
+    out = [[_finite(p[0]), _finite(p[1])] for p in (v or ())]
+    if out and len(out) < 3:
+        raise ValueError('plot boundary needs at least 3 corners')
+    return out
+
+
 def _wall_surface_role(v):
     # Wall-hosted MEP mounts use the signed-offset roles; mechanical mounts
     # keep using the semantic surface catalog roles (interior, exterior, ...).
@@ -593,7 +600,8 @@ SCHEMAS = {
     'terrain': {
         'x0': _finite, 'y0': _finite, 'x1': _finite, 'y1': _finite,
         'elevation': _finite, 'slope_x': _finite, 'slope_y': _finite, 'thickness': _positive,
-        'points': _terrain_points, 'blend_radius': _positive,
+        'points': _terrain_points, 'blend_radius': _positive, 'boundary': _plot_boundary,
+        'altitude_ref': _finite,
     },
     'site_path': {
         'x1': _finite, 'y1': _finite, 'x2': _finite, 'y2': _finite, 'z': _finite,

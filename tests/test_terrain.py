@@ -155,7 +155,9 @@ def test_terrain_menu_and_clicking_elevation_points_in_the_plan(monkeypatch):
     app = QApplication.instance() or QApplication([])
     window = MainWindow()
     labels = [a.text() for a in window._mockup_terrain_menu.actions() if a.text()]
-    assert labels[:4] == ['Δημιουργία εδάφους', 'Προδιαγραφές εδάφους…', 'Διαγραφή εδάφους', 'Υψομετρικά σημεία']
+    assert labels[:6] == ['Δημιουργία εδάφους', 'Προδιαγραφές εδάφους…', 'Διαγραφή εδάφους',
+                          'Οικόπεδο: σχεδίαση ορίων (κλικ στις κορυφές)',
+                          'Εισαγωγή τοπογραφικού μηχανικού (DXF / σημεία X Y Z)…', 'Υψομετρικά σημεία']
     next(a for a in window._mockup_terrain_menu.actions() if a.text() == 'Υψομετρικά σημεία').trigger()
     assert window.plan_view.controller.tool == 'terrain_point'
     monkeypatch.setattr(QInputDialog, 'getDouble', lambda *a, **k: (0.8, True))
@@ -168,5 +170,28 @@ def test_terrain_menu_and_clicking_elevation_points_in_the_plan(monkeypatch):
     window._undo()
     assert not window._terrain_entity().params.get('points')
     next(a for a in window._mockup_terrain_menu.actions() if a.text() == 'Διαγραφή εδάφους').trigger()
+    assert window._terrain_entity() is None
+    window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_drawing_the_plot_boundary_by_clicking_corners():
+    import os
+    os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+    from PySide6.QtWidgets import QApplication
+    from archforge.ui.main_window import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    next(a for a in window._mockup_terrain_menu.actions() if a.text().startswith('Οικόπεδο')).trigger()
+    assert window.plan_view.controller.tool == 'plot_point'
+    for x, y in ((-20, -10), (25, -10), (30, 15), (-20, 18)):
+        window.plan_view.sitePointRequested.emit('plot_point', float(x), float(y))
+    assert len(window.plan_view.plot_draft) == 4 and window._terrain_entity() is None
+    window.plan_view.sitePointRequested.emit('plot_point', -20.1, -10.1)    # back on the first corner
+    terrain = window._terrain_entity()
+    assert terrain.params['boundary'] == [[-20, -10], [25, -10], [30, 15], [-20, 18]]
+    assert terrain.params['x0'] <= -22 and terrain.params['x1'] >= 32
+    assert not window.plan_view.plot_draft
+    window._undo()
     assert window._terrain_entity() is None
     window._mark_clean(); window.close(); app.processEvents()

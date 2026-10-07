@@ -581,6 +581,57 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(message, 6000)
         return existing.id
 
+    def _plot_vertex(self, x, y):
+        """Οικόπεδο: one corner per click; a click on the first corner closes the outline."""
+        from archforge.site.survey import with_boundary, _area
+        from archforge.site.terrain import default_terrain_params
+        draft = self.plan_view.plot_draft = list(getattr(self.plan_view, 'plot_draft', None) or [])
+        if len(draft) >= 3 and ((x - draft[0][0]) ** 2 + (y - draft[0][1]) ** 2) ** .5 < .35:
+            self.plan_view.plot_draft = None
+            terrain = self._terrain_entity()
+            if terrain is None:
+                params = with_boundary(default_terrain_params(self.doc), draft)
+                terrain = Entity('terrain', params, name='Έδαφος')
+                self.stack.execute(AddEntity(terrain))
+            else:
+                self.stack.execute(UpdateEntity(terrain.id, with_boundary(terrain.params, draft)))
+            self.plan_view.controller.set_tool('select')
+            self._redraw_views(all_views=True)
+            self.statusBar().showMessage(f'Οικόπεδο: {len(draft)} κορυφές, {abs(_area(draft)):.1f} m²', 8000)
+            return
+        draft.append((float(x), float(y)))
+        self.plan_view.redraw()
+        self.statusBar().showMessage(
+            f'Κορυφή {len(draft)} — συνέχισε· κλικ στην πρώτη κορυφή για κλείσιμο, Esc για ακύρωση', 8000)
+
+    def _import_survey(self):
+        """Τοπογραφικό μηχανικού (DXF ή σημεία X Y Z) → έδαφος και όριο οικοπέδου."""
+        from PySide6.QtWidgets import QFileDialog
+        from archforge.site.survey import read_survey_file, terrain_from_survey
+        path, _ = QFileDialog.getOpenFileName(
+            self, 'Εισαγωγή τοπογραφικού', '', 'Τοπογραφικό (*.dxf *.csv *.txt *.xyz);;Όλα (*.*)')
+        if not path:
+            return
+        try:
+            points, boundary = read_survey_file(path)
+            params = terrain_from_survey(self.doc, points, boundary)
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, 'Τοπογραφικό', str(exc))
+            return
+        terrain = self._terrain_entity()
+        if terrain is None:
+            self.stack.execute(AddEntity(Entity('terrain', params, name='Έδαφος')))
+        else:
+            self.stack.execute(UpdateEntity(terrain.id, params))
+        self._redraw_views(all_views=True)
+        QMessageBox.information(self, 'Τοπογραφικό', (
+            f"{len(params['points'])} υψομετρικά σημεία"
+            + (f", όριο οικοπέδου με {len(params['boundary'])} κορυφές" if params.get('boundary') else ', χωρίς κλειστό όριο')
+            + f".\n±0.00 ισογείου = απόλυτο υψόμετρο {params['altitude_ref']:.2f} m "
+            f"(15 εκ. πάνω από το έδαφος στο κέντρο του κτιρίου).\n"
+            f"Μετατόπιση συντεταγμένων: X {params['geo_origin'][0]:.2f}, Y {params['geo_origin'][1]:.2f}.\n"
+            "Προς έλεγχο μηχανικού: η θέση του κτιρίου στο οικόπεδο."))
+
     def _terrain_entity(self):
         return next((e for e in self.doc.entities.values() if e.kind == 'terrain'), None)
 
@@ -708,6 +759,9 @@ class MainWindow(QMainWindow):
             return
         if str(tool).startswith('vent_'):
             self._place_ventilation_point(tool[len('vent_'):], x, y)
+            return
+        if tool == 'plot_point':
+            self._plot_vertex(x, y)
             return
         if tool == 'terrain_point':
             terrain = self._terrain_entity()
@@ -1414,6 +1468,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f'Ήλιος: ύψος {el:.1f}°, αζιμούθιο {az:.0f}°', 5000)
 
     def _cancel_interactions(self):
+        self.plan_view.plot_draft = None
         self.plan_view.controller.cancel()
         self.plan_view._mouse_down = False
         self.plan_view._view_drag = None

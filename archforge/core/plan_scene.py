@@ -473,6 +473,9 @@ def _lower_storey_underlay(doc,f,tolerance=1e-5):
         ))
 
 
+_CONTOURS={'key':None,'value':[]}
+
+
 def build_plan_frame(doc,preview=None):
     f=PlanFrame()
     _lower_storey_underlay(doc,f)
@@ -489,7 +492,25 @@ def build_plan_frame(doc,preview=None):
         pass
     for eid,e in doc.entities.items():
         if e.kind!='terrain' or not e.visible or not _entity_on_active_level(doc,e):continue
+        # The plot: its boundary with the area, and the ground's contour lines.
+        bnd=e.params.get('boundary') or ()
+        if len(bnd)>=3:
+            pts=tuple((float(x),float(y)) for x,y in bnd)
+            f.primitives.append(Primitive2D('polyline',pts+(pts[0],),entity_id=eid,role='plot-boundary'))
+            area=abs(sum(pts[i][0]*pts[(i+1)%len(pts)][1]-pts[(i+1)%len(pts)][0]*pts[i][1] for i in range(len(pts))))/2
+            f.primitives.append(Primitive2D('label',((min(x for x,_ in pts)+.3,max(y for _,y in pts)-.3),),role='plot-label',
+                                            meta=(('text',f'Οικόπεδο {area:.1f} m²'),)))
+        if e.params.get('points') and len(e.params['points'])>3:
+            from archforge.site.survey import contours
+            key=(e.id,repr(sorted(e.params.items())))
+            if _CONTOURS.get('key')!=key:
+                _CONTOURS['key'],_CONTOURS['value']=key,contours(e.params)
+            for level,segment in _CONTOURS['value']:
+                f.primitives.append(Primitive2D('polyline',tuple(segment),role='contour',meta=(('z',level),)))
+        survey=len(e.params.get('points') or ())>40
         for px,py,pz in e.params.get('points') or ():
+            if survey:
+                continue                       # a survey: the contours say it; hundreds of labels would hide the plan
             f.primitives.append(Primitive2D('ellipse',((float(px),float(py)),),.12,.12,0.,eid,'terrain'))
             f.primitives.append(Primitive2D('label',((float(px)+.15,float(py)+.15),),role='terrain-label',
                                             meta=(('text',f'{float(pz):+.2f}'),)))

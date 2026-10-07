@@ -20,7 +20,7 @@ class PlanView(QGraphicsView):
     VIEW_LINE_TOOLS={'view_section':'section','view_camera':'camera'}
     # Single-click site tools: (tool, x, y) handled by the main window.
     sitePointRequested=Signal(str,float,float)
-    SITE_POINT_TOOLS=('terrain_point','plant_tree','plant_shrub','library_place')
+    SITE_POINT_TOOLS=('terrain_point','plot_point','plant_tree','plant_shrub','library_place')
     # Drag tools for site strips: (tool, x1, y1, x2, y2).
     siteLineRequested=Signal(str,float,float,float,float)
     SITE_LINE_TOOLS=('path_path','path_sidewalk','path_road','pergola_timber','pergola_aluminium')
@@ -501,6 +501,14 @@ class PlanView(QGraphicsView):
             pen=QPen(QColor(200,60,40));pen.setWidthF(.05);pen.setStyle(Qt.PenStyle.DashLine)
             (ax,ay),(bx,by)=drag;self._scene.addLine(ax,ay,bx,by,pen).setZValue(30)
             dot=QPen(QColor(200,60,40));dot.setWidthF(.05);self._scene.addEllipse(ax-.12,ay-.12,.24,.24,dot,QBrush(QColor(200,60,40))).setZValue(30)
+        draft=getattr(self,'plot_draft',None)
+        if draft:
+            # Plot outline being drawn: corners so far, the first one ringed (click it to close).
+            pen=QPen(QColor(170,40,40));pen.setWidthF(.04);pen.setStyle(Qt.PenStyle.DashDotLine)
+            for (ax,ay),(bx,by) in zip(draft,draft[1:]):self._scene.addLine(ax,ay,bx,by,pen).setZValue(35)
+            for i,(ax,ay) in enumerate(draft):
+                r=.3 if i==0 else .1
+                self._scene.addEllipse(ax-r,ay-r,2*r,2*r,pen,QBrush(QColor(170,40,40,60 if i==0 else 160))).setZValue(35)
         marker=getattr(self,'assistant_marker',None)
         if marker is not None:
             # Assistant marker: where the human pointed (UI state, not part of the Document).
@@ -555,6 +563,13 @@ class PlanView(QGraphicsView):
         if p.role=='angle-arc':
             # Corner mark: blue on a magnet (90/45/15), grey for a free angle.
             pen=QPen(QColor(20,110,220) if dict(p.meta).get('magnet') else QColor(120,120,120));pen.setWidthF(.02)
+        if p.role=='plot-boundary':
+            # The plot's legal outline: dash-dot, like on the survey.
+            pen=QPen(QColor(170,40,40));pen.setWidthF(.04);pen.setStyle(Qt.PenStyle.DashDotLine)
+        if p.role=='contour':
+            # Contour lines: thin brown, every 1 m (or the chosen step) a little stronger.
+            z=float(dict(p.meta).get('z',0.));major=abs(z-round(z))<1e-6
+            pen=QPen(QColor(150,110,60,200 if major else 120));pen.setWidthF(.02 if major else .01)
         if p.role in ('footing','tie-beam'):
             # Below the floor: hidden lines.
             pen=QPen(QColor(95,95,90));pen.setWidthF(.015);pen.setStyle(Qt.PenStyle.DashLine)
@@ -595,7 +610,7 @@ class PlanView(QGraphicsView):
             meta=dict(p.meta);text=str(meta.get('text',''));cx,cy=p.points[0];item=self._scene.addText(text);item.setDefaultTextColor(QColor(55,80,65));item.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations,True);item.setPos(cx,cy);item.setTransformOriginPoint(item.boundingRect().center());item.setScale(1.0);item.setZValue(8);return
         if item is not None:
             container=bool(p.entity_id) and p.entity_id in self.doc.entities and self.doc.get(p.entity_id).kind in self.CONTAINER_KINDS
-            item.setZValue(-20 if context else (-10 if room else (10 if opening else (20 if preview else (-5 if container else 0)))))
+            item.setZValue(-30 if p.role=='contour' else -20 if context else (-10 if room else (10 if opening else (20 if preview else (-5 if container else 0)))))
             if p.entity_id and not preview:self._entity_items[item]=p.entity_id
     def _draw_handle(self,h):
         r=.09;it=self._scene.addEllipse(h.x-r,h.y-r,2*r,2*r,QPen(QColor(20,90,180),0),QBrush(QColor(255,255,255)));it.setZValue(50);self._handle_items[it]=h

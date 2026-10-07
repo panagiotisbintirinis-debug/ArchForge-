@@ -176,6 +176,10 @@ def install_approved_mockup_shell(window):
         ("Προδιαγραφές εδάφους…",window._show_terrain_specification),
         ("Διαγραφή εδάφους",window._delete_terrain),
         (None,None),
+        ("Οικόπεδο: σχεδίαση ορίων (κλικ στις κορυφές)",lambda: window._start_site_tool(
+            "plot_point","Κλικ σε κάθε κορυφή του οικοπέδου — κλικ στην πρώτη για κλείσιμο, Esc ακύρωση")),
+        ("Εισαγωγή τοπογραφικού μηχανικού (DXF / σημεία X Y Z)…",window._import_survey),
+        (None,None),
         ("Υψομετρικά σημεία",lambda: window._start_site_tool(
             "terrain_point","Κλικ στην κάτοψη και δώσε υψόμετρο — Esc για τέλος")),
         (None,None),
