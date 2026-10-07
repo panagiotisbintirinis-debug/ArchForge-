@@ -622,4 +622,4 @@ class PlanView(QGraphicsView):
             s['x']-r,s['y']-r,2*r,2*r,QPen(color,0)
         ).setZValue(70)
     def _draw_hud(self,hud):
-        text='  '.join(f'{k}: {v:.3f}' for k,v in hud.items() if isinstance(v,(int,float)));it=self._scene.addText(text);it.setDefaultTextColor(QColor(20,20,20));it.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations,True);it.setPos(self.mapToScene(self.viewport().rect().topLeft()));it.setZValue(100)
+        from archforge.ui.hud_text import hud_text;text=hud_text(hud);it=self._scene.addText(text);it.setDefaultTextColor(QColor(20,20,20));it.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations,True);it.setPos(self.mapToScene(self.viewport().rect().topLeft()));it.setZValue(100)

@@ -272,6 +272,8 @@ class PointerController:
         if isinstance(self.active,WallDrawTransaction):
             self.active.snap_enabled=self.snap_enabled and not ev.shift
             self.active.angle_enabled=not ev.shift
+            # Ctrl: no corner autosnap (the angle magnet stays) — to stop near a corner on purpose.
+            self.active.corner_enabled=not ev.ctrl
             hud=self.active.update(x,y);sx,sy=self.active.start;ex,ey=self.active.end
             snap_info=self._snap_dict(self.active.last_snap)
             if snap_info is None and self.active.angle_snapped:
