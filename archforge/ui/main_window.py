@@ -2913,6 +2913,7 @@ class MainWindow(QMainWindow):
         from archforge.structure.analysis.sections import CONCRETE, STEEL_GRADES
         from archforge.structure.analysis.settings import (IMPORTANCE, OCCUPANCIES, ROOF_ACCESS, SOILS, SYSTEMS,
                                                            ZONES, design_entity, get_settings)
+        from archforge.structure.foundation import FOUNDATION_TYPES
         current = get_settings(self.doc)
         dialog = QDialog(self)
         dialog.setWindowTitle('Στοιχεία κτιρίου για στατική')
@@ -2927,6 +2928,7 @@ class MainWindow(QMainWindow):
             ('importance', 'Σπουδαιότητα', {k: f'Σ{k} (γI = {v})' for k, v in IMPORTANCE.items()}),
             ('concrete', 'Σκυρόδεμα', {k: k for k in CONCRETE}),
             ('steel_grade', 'Χάλυβας διατομών', {k: k for k in STEEL_GRADES}),
+            ('foundation_type', 'Θεμελίωση', FOUNDATION_TYPES),
         )
         for key, label, options in choices:
             combo = QComboBox(dialog)

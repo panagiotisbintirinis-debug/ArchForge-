@@ -357,12 +357,14 @@ def _choice(options, label):
 def _structural_design_schema():
     from archforge.structure.analysis.sections import CONCRETE, STEEL_GRADES
     from archforge.structure.analysis.settings import IMPORTANCE, OCCUPANCIES, ROOF_ACCESS, SOILS, SYSTEMS, ZONES
+    from archforge.structure.foundation import FOUNDATION_TYPES
     return {'system': _choice(SYSTEMS, 'system'), 'occupancy': _choice(OCCUPANCIES, 'occupancy'),
             'roof_access': _choice(ROOF_ACCESS, 'roof access'), 'seismic_zone': _choice(ZONES, 'seismic zone'),
             'soil': _choice(SOILS, 'soil'), 'importance': _choice(IMPORTANCE, 'importance class'),
             'concrete': _choice(CONCRETE, 'concrete'), 'steel_grade': _choice(STEEL_GRADES, 'steel grade'),
             'slab_thickness': _positive, 'finishes': _nonnegative, 'partitions': _nonnegative,
-            'roof_finishes': _nonnegative, 'soil_pressure': _positive}
+            'roof_finishes': _nonnegative, 'soil_pressure': _positive,
+            'foundation_type': _choice(FOUNDATION_TYPES, 'foundation type')}
 
 
 def _structural_support_type(v):

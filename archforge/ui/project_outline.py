@@ -305,11 +305,18 @@ def project_outline(doc, title="Έργο"):
                                          for o in p.get("openings", ())],
                                         signature=p["signature"]) for p in slabs]))
             # Foundation under this storey (from the last analysis): footings and tie beams with their steel.
-            if fts:
+            strips = [s_ for s_ in fd.get("strips", ()) if abs(float(s_.get("z", 0.0)) - float(storey["z"])) < 0.05]
+            if fts or strips:
                 ties = [t for t in fd.get("ties", ()) if abs(float(t.get("z", 0.0)) - float(storey["z"])) < 0.05]
                 found = [_node(f"Πέδιλα ({len(fts)})", None, name,
                                [_node(f"{f['name']} ({f.get('column', '')}) {f['B_m']:.2f}×{f['B_m']:.2f} h{f['h_m']:.2f} · "
-                                      f"κάτω σχάρα {f['mesh']} και στις δύο διευθύνσεις", f.get("column_id") or None, name) for f in fts])]
+                                      f"κάτω σχάρα {f['mesh']} και στις δύο διευθύνσεις", f.get("column_id") or None, name) for f in fts])] if fts else []
+                if strips:
+                    found.append(_node(f"Πεδιλοδοκοί ({len(strips)})", None, name,
+                                       [_node(f"{s_['name']} ({'–'.join(s_['columns'])}) {s_['section']} · L {s_['length_m']:.2f} m · "
+                                              f"πέλμα {s_['flange_mesh']} εγκάρσια + {s_['flange_dist']} · κορμός {s_['bars_top']} άνω + "
+                                              f"{s_['bars_bottom']} κάτω · συνδ. {s_['stirrups']}"
+                                              + (f" · πλευρικά {s_['skin']}" if s_['skin'] != '—' else ''), None, name) for s_ in strips]))
                 if ties:
                     found.append(_node(f"Συνδετήριες δοκοί ({len(ties)})", None, name,
                                        [_node(f"{t['name']} {t['from']}–{t['to']} {t['section']} · L {t['length_m']:.2f} m · "

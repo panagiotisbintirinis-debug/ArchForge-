@@ -641,6 +641,19 @@ def build_plan_frame(doc,preview=None):
                                             entity_id=ft.get('column_id') or None,meta=(('name',ft['name']),)))
             f.primitives.append(Primitive2D('label',((x-h+.05,y-h-.25),),role='footing-label',
                                             meta=(('text',f"{ft['name']} {ft['B_m']:.2f}×{ft['B_m']:.2f} h{ft['h_m']:.2f} {ft['mesh']}"),)))
+        for sp in fd.get('strips',()):
+            if abs(float(sp.get('z',0.0))-level)>.05:
+                continue
+            # Strip footing: flange outline (hidden) and the web, mark along it.
+            (ax,ay),(bx,by)=sp['a'],sp['b']
+            L=math.hypot(bx-ax,by-ay) or 1.0
+            ux,uy=(bx-ax)/L,(by-ay)/L
+            for half in (float(sp['B_m'])/2,float(sp['bw_m'])/2):
+                nx,ny=-uy*half,ux*half
+                f.primitives.append(Primitive2D('polyline',((ax+nx,ay+ny),(bx+nx,by+ny),(bx-nx,by-ny),(ax-nx,ay-ny),(ax+nx,ay+ny)),
+                                                role='footing',meta=(('name',sp['name']),)))
+            f.primitives.append(Primitive2D('label',((ax+ux*.6-uy*(float(sp['B_m'])/2+.25),ay+uy*.6+ux*(float(sp['B_m'])/2+.25)),),role='footing-label',
+                                            meta=(('text',f"{sp['name']} {sp['section']} {sp['bars_top']}+{sp['bars_bottom']} {sp['stirrups']}"),)))
         for t in fd.get('ties',()):
             if abs(float(t.get('z',0.0))-level)>.05:
                 continue

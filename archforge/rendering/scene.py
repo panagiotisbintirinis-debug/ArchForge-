@@ -345,6 +345,15 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                 top, bottom = levels(ft)
                 box(((ft["x"] - h, ft["y"] - h), (ft["x"] + h, ft["y"] - h), (ft["x"] + h, ft["y"] + h), (ft["x"] - h, ft["y"] + h)),
                     bottom, top)
+            for sp in fd.get("strips", ()):
+                (ax, ay), (bx, by) = sp["a"], sp["b"]
+                L = math.hypot(bx - ax, by - ay) or 1.0
+                ux, uy = (bx - ax) / L, (by - ay) / L
+                z = float(sp.get("z", 0.0))
+                for half, z0, z1 in ((float(sp["B_m"]) / 2, z - float(sp["H_m"]), z - float(sp["H_m"]) + float(sp["hf_m"])),
+                                     (float(sp["bw_m"]) / 2, z - float(sp["H_m"]) + float(sp["hf_m"]), z)):
+                    nx, ny = -uy * half, ux * half
+                    box(((ax + nx, ay + ny), (bx + nx, by + ny), (bx - nx, by - ny), (ax - nx, ay - ny)), z0, z1)
             for t in fd.get("ties", ()):
                 (ax, ay), (bx, by) = t["a"], t["b"]
                 L = math.hypot(bx - ax, by - ay) or 1.0

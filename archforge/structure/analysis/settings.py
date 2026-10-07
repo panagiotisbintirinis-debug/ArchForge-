@@ -18,7 +18,7 @@ IMPORTANCE = {"1": 0.8, "2": 1.0, "3": 1.2, "4": 1.4}
 DEFAULTS = {"system": "reinforced_concrete", "occupancy": "residential", "roof_access": "accessible",
             "seismic_zone": "1", "soil": "B", "importance": "2", "concrete": "C25/30", "steel_grade": "S275",
             "slab_thickness": 0.18, "finishes": 1.5, "partitions": 1.0, "roof_finishes": 2.0,
-            "soil_pressure": 200.0}
+            "soil_pressure": 200.0, "foundation_type": "auto"}
 
 
 def design_entity(doc):

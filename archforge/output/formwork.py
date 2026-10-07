@@ -281,17 +281,21 @@ def foundation_of(doc):
         fd = (analyze_cached(doc) or {}).get("foundation")
     except Exception:
         return None
-    return fd if fd and fd.get("footings") else None
+    return fd if fd and (fd.get("footings") or fd.get("strips")) else None
 
 
 def foundation_page(sh, doc, fd, sheet_no, project, date):
     """Ξυλότυπος θεμελίωσης: footings B×B with their mesh, tie beams with bars and stirrups, the columns on them."""
     from archforge.structure.foundation import TIE_B, PROVENANCE
-    fts, ties = fd["footings"], fd["ties"]
+    fts, ties, strips = fd["footings"], fd["ties"], fd.get("strips", ())
     pts = []
     for f in fts:
         B = float(f["B_m"]) / 2
         pts += [(f["x"] - B, f["y"] - B), (f["x"] + B, f["y"] + B)]
+    for sp in strips:
+        B = float(sp["B_m"]) / 2
+        for q in (sp["a"], sp["b"]):
+            pts += [(q[0] - B, q[1] - B), (q[0] + B, q[1] + B)]
     xs = [q[0] for q in pts]; ys = [q[1] for q in pts]
     x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
     margin = 2.6
@@ -303,7 +307,8 @@ def foundation_page(sh, doc, fd, sheet_no, project, date):
 
     def to_mm(x, y):
         return ox + (x - cx) * k, oy - (y - cy) * k
-    sh.text(12, 8, "Ξυλότυπος θεμελίωσης (πέδιλα και συνδετήριες δοκοί)", size=13, bold=True, w=230)
+    kinds = [k_ for k_, have in (("πέδιλα", fts), ("πεδιλοδοκοί", strips), ("συνδετήριες δοκοί", ties)) if have]
+    sh.text(12, 8, f"Ξυλότυπος θεμελίωσης ({', '.join(kinds)})", size=13, bold=True, w=230)
     # Tie beams first (under the footings' labels).
     for t in ties:
         (ax, ay), (bx, by) = t["a"], t["b"]
@@ -322,6 +327,29 @@ def foundation_page(sh, doc, fd, sheet_no, project, date):
             ang += 180
         sh.text(mx, my, f"{t['name']} {t['section']} · {t['bars']} · Ø8/20".replace("Ø8/20", t["stirrups"]), size=5.8, bold=True,
                 align="center", w=50, angle=ang)
+    # Strip footings: flange (thin) and web (bold), mark along them.
+    for sp in strips:
+        (ax, ay), (bx, by) = sp["a"], sp["b"]
+        L = math.hypot(bx - ax, by - ay) or 1.0
+        ux, uy = (bx - ax) / L, (by - ay) / L
+        for half, width, fill in ((float(sp["B_m"]) / 2, .25, QColor(255, 255, 255)), (float(sp["bw_m"]) / 2, .35, QColor(225, 225, 225))):
+            nx, ny = -uy * half, ux * half
+            sh.poly([to_mm(*q) for q in ((ax + nx, ay + ny), (bx + nx, by + ny), (bx - nx, by - ny), (ax - nx, ay - ny))],
+                    color=MEMBER_INK, width=width, fill=fill)
+        sx, sy = -uy, ux
+        if sy > 1e-9 or (abs(sy) <= 1e-9 and sx > 0):
+            sx, sy = -sx, -sy
+        off = float(sp["B_m"]) / 2 + .25
+        mx, my = to_mm((ax + bx) / 2 + sx * off + ux * L * .2, (ay + by) / 2 + sy * off + uy * L * .2)
+        ang = -math.degrees(math.atan2(uy, ux))
+        if ang > 90.001 or ang < -89.999:
+            ang += 180
+        sh.text(mx, my, f"{sp['name']} {sp['section']} · {sp['bars_top']}+{sp['bars_bottom']} · {sp['stirrups']}", size=5.8,
+                bold=True, align="center", w=70, angle=ang)
+    for sp in strips:                                           # columns standing on the strips
+        for (x, y), name in zip(sp.get("column_xy", ()), sp["columns"]):
+            c = float(sp["bw_m"]) / 2 - .05
+            sh.poly([to_mm(x - c, y - c), to_mm(x + c, y - c), to_mm(x + c, y + c), to_mm(x - c, y + c)], width=.2, fill=MEMBER_INK)
     # Footings: B×B outline, mesh drawn as a few bars, the column on top.
     for f in fts:
         B = float(f["B_m"]) / 2
@@ -339,18 +367,23 @@ def foundation_page(sh, doc, fd, sheet_no, project, date):
         sh.text(tx + .8, ty + .4, f"{f['B_m']:.2f}×{f['B_m']:.2f} h{f['h_m']:.2f}", size=5.6, w=30, color=QColor(70, 70, 70))
         sh.text(tx + .8, ty + 2.8, f"σχάρα {f['mesh']}", size=5.6, w=30, color=BAND_INK)
     # Axis dimensions between footings.
-    ax_ = _axes([f["x"] for f in fts]); ay_ = _axes([f["y"] for f in fts])
+    axis_pts = [(f["x"], f["y"]) for f in fts] + [tuple(c) for sp in strips for c in sp.get("column_xy", ())]
+    ax_ = _axes([q[0] for q in axis_pts]); ay_ = _axes([q[1] for q in axis_pts])
     for a_, b_ in zip(ax_, ax_[1:]):
         _dimension(sh, (a_, y1 + .1), (b_, y1 + .1), (0, 1), 6.0, b_ - a_, to_mm)
     for a_, b_ in zip(ay_, ay_[1:]):
         _dimension(sh, (x0 - .1, a_), (x0 - .1, b_), (-1, 0), 6.0, b_ - a_, to_mm)
     rows = [[f["name"], f"{f['B_m']:.2f}×{f['B_m']:.2f}×{f['h_m']:.2f}", f["mesh"] + " ×2", f"{f['concrete_m3']:.2f}"] for f in fts]
+    rows += [[sp["name"], sp["section"].replace("Τ ", ""), f"{sp['bars_top']}+{sp['bars_bottom']} {sp['stirrups']}", f"{sp['concrete_m3']:.2f}"]
+             for sp in strips]
     rows += [[t["name"], t["section"], f"{t['bars']} + {t['stirrups']}", f"{t['concrete_m3']:.2f}"] for t in ties]
     cols = [("Στοιχείο", 14, "left"), ("Διαστάσεις", 24, "center"), ("Οπλισμός", 26, "left"), ("m³", 10, "right")]
     _table(sh, 202, 16, cols, rows[:MAX_ROWS], row_h=4.4, size=6.2)
     import textwrap
     notes = [f"Σκυρόδεμα θεμελίωσης: {fd['concrete_m3']} m³", "Πέδιλα: κάτω σχάρα και στις δύο διευθύνσεις, επικάλυψη 5 cm",
              "Συνδετήριες: άνω/κάτω οπλισμός συμμετρικός, συνδ. κλειστοί", PROVENANCE]
+    if strips:
+        notes.insert(2, "Πεδιλοδοκοί: ανεστραμμένο Τ (πέλμα B/hf · κορμός bw/H σε cm), πέλμα εγκάρσια σχάρα + Ø10/20 διαμήκης")
     if len(rows) > MAX_ROWS:
         notes.insert(0, f"+{len(rows) - MAX_ROWS} στοιχεία εκτός πίνακα")
     lines = [ln for t in notes for ln in textwrap.wrap(t, 58)]

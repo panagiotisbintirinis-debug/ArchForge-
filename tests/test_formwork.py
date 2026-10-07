@@ -178,3 +178,55 @@ def test_footings_numbered_like_the_columns_and_foundation_sheet(tmp_path):
     assert p1['column'] == 'Κ1'
     r = export_formwork_pdf(doc, tmp_path / 'x.pdf')
     assert r['pages'] == 2                                   # θεμελίωση + οροφή ισογείου
+
+
+def test_strip_footings_where_pads_crowd_or_on_request(tmp_path):
+    from PySide6.QtWidgets import QApplication
+    from archforge.structure.analysis import analyze
+    from archforge.structure.analysis.settings import get_settings
+    from archforge.structure.foundation import design_foundation, foundation_html
+    from archforge.output.formwork import foundation_page, Sheet
+    doc = _framed()
+    r = analyze(doc)
+    s = get_settings(doc)
+    auto = design_foundation(r['footings'], s)
+    assert not auto['strips'] and len(auto['footings']) == 9          # 5 m apart: pads and ties
+    s['foundation_type'] = 'strips'
+    fd = design_foundation(r['footings'], s)
+    assert len(fd['strips']) == 6 and not fd['footings'] and not fd['ties']
+    sp = fd['strips'][0]
+    assert sp['B_m'] >= 0.80 and sp['H_m'] >= 0.80 and sp['bw_m'] >= 0.40 and sp['hf_m'] >= 0.30
+    assert sp['bars_top'].endswith(('Ø16', 'Ø18', 'Ø20', 'Ø22', 'Ø25')) and sp['stirrups'].startswith('Ø')
+    assert sp['sigma_kPa'] <= float(s['soil_pressure']) + 1e-6
+    assert 'Πεδιλοδοκοί' in foundation_html(fd)
+    # Crowded pads (a weak soil makes them big): auto merges them into strips, ties only where none.
+    s.update(foundation_type='auto')
+    big = [dict(f, B_m=4.7) if f['x'] > 6 else dict(f) for f in r['footings']]     # east pads 4.7 m: < 0.50 m apart
+    crowded = design_foundation(big, s)
+    assert crowded['strips']
+    covered = {frozenset(p) for sp in crowded['strips'] for p in zip(sp['members'], sp['members'][1:])}
+    assert all(frozenset(t['pair']) not in covered for t in crowded['ties'])
+    assert crowded['footings'] and crowded['ties']                       # the rest stay pads with ties
+
+
+def test_strips_on_the_sheet_tree_and_3d(tmp_path):
+    from PySide6.QtWidgets import QApplication
+    from archforge.core.commands import AddEntity
+    from archforge.output.formwork import export_formwork_pdf
+    from archforge.structure.analysis import analyze_cached
+    from archforge.ui.project_outline import project_outline
+    app = QApplication.instance() or QApplication([])
+    doc = _framed()
+    doc.add(Entity('structural_design', {'foundation_type': 'strips'}))
+    fd = analyze_cached(doc)['foundation']
+    assert fd['strips']
+
+    def walk(n):
+        yield n['label']
+        for c in n['children']:
+            yield from walk(c)
+    labels = list(walk(project_outline(doc)))
+    assert any(l.startswith('Πεδιλοδοκοί (6)') for l in labels)
+    assert any(l.startswith('ΠΔ1 ') and 'κορμός' in l and 'πέλμα' in l for l in labels)
+    r = export_formwork_pdf(doc, tmp_path / 'p.pdf')
+    assert r['pages'] == 2
