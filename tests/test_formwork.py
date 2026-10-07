@@ -230,3 +230,27 @@ def test_strips_on_the_sheet_tree_and_3d(tmp_path):
     assert any(l.startswith('ΠΔ1 ') and 'κορμός' in l and 'πέλμα' in l for l in labels)
     r = export_formwork_pdf(doc, tmp_path / 'p.pdf')
     assert r['pages'] == 2
+
+
+def test_roof_form_from_menu_leaves_terrace_rooms_alone():
+    from archforge.architecture.roof_choice import form_roofs, room_roof_command
+    from archforge.assistant.understanding import read_drawing
+    from archforge.core.commands import CommandStack
+    doc = Document()
+    # Two rooms side by side: west 6×8, east 4×4 (the east one becomes a terrace).
+    for a, b in (((0, 0), (6, 0)), ((6, 0), (10, 0)), ((10, 0), (10, 4)), ((10, 4), (6, 4)), ((6, 4), (6, 8)),
+                 ((6, 8), (0, 8)), ((0, 8), (0, 0)), ((6, 0), (6, 4))):
+        doc.add(Entity('wall', {'x1': a[0], 'y1': a[1], 'x2': b[0], 'y2': b[1], 'thickness': .25, 'height': 3, 'z': 0, 'level': 'Ground'}))
+    rooms = read_drawing(doc)['storeys'][0]['rooms']
+    east = next(r for r in rooms if min(q[0] for q in r['polygon']) > 5)
+    cmd, _msg = room_roof_command(doc, east, 'terrace', z=0.0)
+    CommandStack(doc).execute(cmd)
+    roofs = form_roofs(doc, 'hip', 0.0)
+    assert len(roofs) == 1 and roofs[0]['roof_form'] == 'hip'
+    assert roofs[0]['x1'] < 6.5                                   # stops at the west room, terrace left out
+    # No terrace: the whole storey as before.
+    doc2 = Document()
+    for e in doc.entities.values():
+        if e.kind == 'wall':
+            doc2.add(Entity('wall', dict(e.params)))
+    assert form_roofs(doc2, 'hip', 0.0)[0]['x1'] > 9.9

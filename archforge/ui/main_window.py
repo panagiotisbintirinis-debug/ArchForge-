@@ -1189,18 +1189,22 @@ class MainWindow(QMainWindow):
 
     def _create_pitched_roof(self, form='gable'):
         """Timber tiled roof over the TOP storey's walls — never under a storey (one undoable command)."""
-        from archforge.structure.timber_roof import FORMS, default_params, size_rafter
+        from archforge.architecture.roof_choice import form_roofs
+        from archforge.core.commands import AddEntities
+        from archforge.structure.timber_roof import FORMS, size_rafter
         storeys = sorted({round(float(e.params.get('z', 0.0)), 4) for e in self.doc.entities.values() if e.kind == 'wall'})
         try:
-            params = default_params(self.doc, z=storeys[-1] if storeys else None, form=form)
-            from archforge.structure.timber_roof import wall_sides
-            params['gables'] = wall_sides(self.doc, params, z=storeys[-1])
+            if not storeys:
+                raise ValueError('Σχεδίασε πρώτα τοίχους')
+            # Rooms chosen as terrace keep their slab: the roof covers the others only.
+            all_params = form_roofs(self.doc, form, storeys[-1])
         except ValueError as exc:
             QMessageBox.information(self, 'Κεραμοσκεπή', str(exc))
             return None
-        roof = Entity('pitched_roof', params, name=f"Κεραμοσκεπή {FORMS[params['roof_form']].lower()}")
-        self.stack.execute(AddEntity(roof))
-        self.doc.select([roof.id])
+        roofs = [Entity('pitched_roof', p, name=f"Κεραμοσκεπή {FORMS[p['roof_form']].lower()}") for p in all_params]
+        self.stack.execute(AddEntities(roofs))
+        roof, params = roofs[0], all_params[0]
+        self.doc.select([r.id for r in roofs])
         self._redraw_views(all_views=True)
         self.refresh_inspector()
         sec = size_rafter(params)['section']

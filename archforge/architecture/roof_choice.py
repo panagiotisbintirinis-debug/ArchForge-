@@ -84,3 +84,36 @@ def room_roof_command(doc, room, choice, z=None):
     if not commands:
         return None, f"{room['name']}: έχει ήδη {CHOICES[choice].lower()}"
     return CompositeCommand(commands, f"Στέγη χώρου: {CHOICES[choice]}"), " · ".join(notes)
+
+
+def form_roofs(doc, form, z):
+    """Tiled roofs of the chosen form over the storey at ``z`` — never over a room chosen as terrace.
+
+    No terrace: one roof over the whole storey (as before).  With terraces: one
+    roof over the other rooms together when their outline holds no terrace,
+    else one roof per room.  Returns ``[params]``.
+    """
+    from archforge.assistant.understanding import read_drawing
+    from archforge.structure.timber_roof import default_params, wall_sides
+    storey = next((s for s in read_drawing(doc)["storeys"] if abs(s["z"] - z) < 1e-6), None)
+    terraces = {e.params.get("room_signature") for e in doc.entities.values()
+                if e.kind == "room_roof" and str(e.params.get("roof_type", "flat")) == "flat"}
+    rooms = storey["rooms"] if storey else []
+    flat_rooms = [r for r in rooms if r["signature"] in terraces]
+    if not flat_rooms:
+        params = default_params(doc, z=z, form=form)
+        return [dict(params, gables=wall_sides(doc, params, z=z))]
+    others = [r for r in rooms if r["signature"] not in terraces]
+    if not others:
+        raise ValueError("Όλοι οι χώροι του ορόφου έχουν ταράτσα — Στέγη → «Κεραμοσκεπή σε χώρο» για να αλλάξεις κάποιον")
+    xs = [q[0] for r in others for q in r["polygon"]]; ys = [q[1] for r in others for q in r["polygon"]]
+    union = [(min(xs), min(ys)), (max(xs), min(ys)), (max(xs), max(ys)), (min(xs), max(ys))]
+    groups = [[{"polygon": union, "signature": "", "name": ""}]] if not any(
+        inside(union, *centroid(r["polygon"])) for r in flat_rooms) else [[r] for r in others]
+    out = []
+    for (room,) in groups:
+        params, _reason = _tiled_params(doc, room, z)
+        params = dict(params, roof_form=form)
+        params["gables"] = wall_sides(doc, params, z=z)
+        out.append(params)
+    return out
