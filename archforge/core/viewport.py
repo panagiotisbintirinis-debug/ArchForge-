@@ -44,7 +44,7 @@ class PointerController:
         return False
     def set_tool(self,tool):
         if self.active is not None:self.cancel()
-        self.tool=tool;self.preview=PreviewState()
+        self.tool=tool;self.preview=PreviewState();self.opening_preset=None
     def set_component_definition(self,definition):
         self.component_definition=None if definition is None else dict(definition)
 
@@ -221,10 +221,14 @@ class PointerController:
         if self.tool in ('door','window','opening_rect','opening_arch'):
             opening_kind='opening' if self.tool.startswith('opening_') else self.tool
             opening_shape='arch' if self.tool=='opening_arch' else 'rectangle'
+            preset=getattr(self,'opening_preset',None)
+            preset=preset if preset and preset.get('kind')==opening_kind else {}
             self.active=OpeningPlaceTransaction(
                 self.doc,self.stack,opening_kind,x,y,
                 tolerance=max(self.snap_tolerance,.35),
                 shape=opening_shape,
+                width=preset.get('width'),height=preset.get('height'),sill=preset.get('sill'),
+                extra=preset.get('params'),name=preset.get('name'),
             )
             hud=self.active.update(x,y);seg=self.active.preview_segment()
             geom={

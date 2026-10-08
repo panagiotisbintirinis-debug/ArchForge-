@@ -494,6 +494,18 @@ class Entity:
 _ROOM_SLAB = {'room_signature': _room_signature, 'thickness': _positive, 'offset_z': _finite}
 _OPENING = {'offset': _finite, 'surface_u': _finite, 'width': _positive, 'height': _positive, 'sill': _finite, 'flat_margin': _nonnegative}
 _ARCH_OPENING = {**_OPENING, 'shape': _opening_shape, 'arch_rise': _positive}
+
+
+def _joinery(key):
+    # Door/window joinery parameters (architecture/joinery.py), all optional.
+    def check(v):
+        from archforge.architecture.joinery import validate_choice
+        return validate_choice(key, v)
+    return check
+
+
+_JOINERY_OPENING = {**_OPENING, **{k: _joinery(k) for k in (
+    'opening_type', 'hinge', 'swing', 'leaves', 'bars_h', 'bars_v', 'transom', 'shading', 'ledge', 'finish')}}
 SCHEMAS = {
     'box': {'x': _finite, 'y': _finite, 'z': _finite, 'width': _positive, 'depth': _positive, 'height': _positive, 'rotation': _finite},
     'wall': {'x1': _finite, 'y1': _finite, 'z': _finite, 'x2': _finite, 'y2': _finite, 'height': _positive, 'thickness': _positive, 'wall_type': _wall_type},
@@ -537,8 +549,8 @@ SCHEMAS = {
     'room_ceiling': _ROOM_SLAB,
     'room_foundation': _ROOM_SLAB,
     'room_roof': {**_ROOM_SLAB, 'roof_type': _nonempty, 'overhang': _nonnegative},
-    'door': _OPENING,
-    'window': _OPENING,
+    'door': _JOINERY_OPENING,
+    'window': _JOINERY_OPENING,
     'opening': _ARCH_OPENING,
     'organic_opening_patch': {'opening_id': _nonempty, 'host_id': _nonempty, 'status': _nonempty},
     'structural_column': {

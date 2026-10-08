@@ -1953,6 +1953,7 @@ class PBRViewport(QWidget):
             self._cancel_ramp_from_web()
         if str(tool) not in ("stair", "ramp"):
             self._set_stair_candidate_params(())
+        self.opening_preset = None
         self.active_tool = str(tool)
         if self.web_view is not None:
             script = (
@@ -2793,6 +2794,8 @@ class PBRViewport(QWidget):
                 if semantic_kind == "opening":
                     raise ValueError("architectural openings require a wall host")
                 raise ValueError("doors/windows require a wall or pod host")
+            preset = getattr(self, "opening_preset", None)
+            preset = preset if preset and preset.get("kind") == semantic_kind else {}
             tx = OpeningPlaceTransaction(
                 self.doc,
                 self.stack,
@@ -2801,6 +2804,8 @@ class PBRViewport(QWidget):
                 point[1],
                 tolerance=max(0.5, float(host.params.get("thickness", 0.0)) + 0.25),
                 shape=shape,
+                width=preset.get("width"), height=preset.get("height"), sill=preset.get("sill"),
+                extra=preset.get("params"), name=preset.get("name"),
             )
             if tx.host_id != entity_id:
                 raise ValueError("opening placement resolved to a different nearby host")

@@ -526,6 +526,9 @@ class PlanView(QGraphicsView):
             (QColor(180,90,20) if opening else (QColor(40,150,70) if preview else (QColor(95,140,60) if terrain else QColor(45,55,65))))
         )
         pen.setWidthF(.022 if context else (.06 if opening else (.04 if preview else .035)));item=None
+        if opening and dict(p.meta).get('typed'):
+            # Typed joinery draws its own symbol; keep the pick line light.
+            pen=QPen(QColor(180,90,20,110));pen.setWidthF(.02)
         if preview and dict(p.meta).get('fits') is False:pen=QPen(QColor(210,40,40));pen.setWidthF(.05)
         if p.role=='library-symbol':pen=QPen(QColor(40,45,55));pen.setWidthF(.012)
         if p.role in ('cabinet','cabinet-front'):pen=QPen(QColor(40,45,55));pen.setWidthF(.012)
@@ -565,6 +568,9 @@ class PlanView(QGraphicsView):
         if p.role in ('wall-layer','wall-insulation'):
             pen=QPen(QColor(120,110,95) if p.role=='wall-layer' else QColor(200,150,40));pen.setWidthF(.008)
             if p.role=='wall-insulation':pen.setStyle(Qt.PenStyle.DashLine)
+        if p.role in ('opening-symbol','opening-symbol-hidden'):
+            pen=QPen(QColor(40,45,55));pen.setWidthF(.018 if dict(p.meta).get('style')=='solid' else .01)
+            if p.role=='opening-symbol-hidden':pen.setStyle(Qt.PenStyle.DashLine)
         if p.role=='cabinet-wall':
             pen=QPen(QColor(70,80,95));pen.setWidthF(.01);pen.setStyle(Qt.PenStyle.DashLine)
         if p.role=='library-object' and self._has_symbol(p.entity_id):

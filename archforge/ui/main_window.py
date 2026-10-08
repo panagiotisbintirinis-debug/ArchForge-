@@ -1254,6 +1254,11 @@ class MainWindow(QMainWindow):
                      ('Ηλεκτρολογικά', [(v[0], ('tool', f'elec_{k}')) for k, v in ELEC.items()]),
                      ('Εξαερισμοί', [(v[0], ('tool', f'vent_{k}')) for k, v in VENT.items()])]),
         ]
+        from archforge.architecture.joinery import PRESETS as JOINERY
+        themes.append(('Κουφώματα', [
+            ('Παράθυρα', [(name, ('opening', key)) for key, kind, name, *_ in JOINERY if kind == 'window']),
+            ('Πόρτες', [(name, ('opening', key)) for key, kind, name, *_ in JOINERY if kind == 'door']),
+        ]))
         rest = [(cat, items) for cat, items in by_cat.items() if items]
         if rest:
             themes.append(('Εισαγωγές & λοιπά', rest))
@@ -1320,6 +1325,9 @@ class MainWindow(QMainWindow):
             return definition
         if kind == 'tool':
             return self._start_site_tool(action[1], f'{item.text(0)}: κλικ στην κάτοψη — Esc για τέλος')
+        if kind == 'opening':
+            from archforge.ui.opening_properties import start_preset
+            return start_preset(self, action[1])
         if kind == 'material':
             return self._apply_material_to_selection(action[1])
         return None
@@ -1592,7 +1600,10 @@ class MainWindow(QMainWindow):
         if entity.kind == 'room_roof':
             # Roofs saved before the overhang field still get the editor.
             params.setdefault('overhang', 0.0)
+        from archforge.architecture.joinery import KEYS as joinery_keys
         for key, value in params.items():
+            if entity.kind in ('door', 'window') and key in joinery_keys:
+                continue  # Κουφώματα: δικές τους γραμμές (ui/opening_properties.py).
             if isinstance(value, (int, float)):
                 spin = QDoubleSpinBox()
                 spin.setDecimals(4)
@@ -1624,6 +1635,10 @@ class MainWindow(QMainWindow):
             phase_combo.currentIndexChanged.connect(
                 lambda _i, widget=phase_combo, entity_id=eid: self._set_phase([entity_id], widget.currentData()))
             self.form.addRow('Φάση', phase_combo)
+        if entity.kind in ('door', 'window') and entity.parent_id in self.doc.entities \
+                and self.doc.get(entity.parent_id).kind == 'wall':
+            from archforge.ui.opening_properties import add_opening_rows
+            add_opening_rows(self, self.form, entity)
         if entity.kind in ('structural_column', 'structural_beam'):
             from archforge.structure.analysis import fresh_result
             result = fresh_result(self.doc)
@@ -2283,7 +2298,7 @@ class MainWindow(QMainWindow):
             'wall', 'floor', 'room_floor', 'room_roof', 'room_ceiling',
             'room_foundation', 'box', 'pod', 'stair', 'ramp',
             'structural_column', 'structural_beam',
-            'mechanical_part', 'mesh', 'library_object', 'cabinet',
+            'mechanical_part', 'mesh', 'library_object', 'cabinet', 'door', 'window',
         }
         if entity.kind not in supported:
             self.statusBar().showMessage(
@@ -2321,10 +2336,13 @@ class MainWindow(QMainWindow):
                     target.setCurrentIndex(index)
             layout.addWidget(QLabel('Εφαρμογή σε'))
             layout.addWidget(target)
-        elif entity.kind == 'cabinet':
-            from archforge.kitchen.cabinets import ROLE_NAMES
+        elif entity.kind in ('cabinet', 'door', 'window'):
+            if entity.kind == 'cabinet':
+                from archforge.kitchen.cabinets import ROLE_NAMES
+            else:
+                from archforge.architecture.joinery import ROLE_NAMES
             target = QComboBox(dialog)
-            target.addItem('Όλο το ντουλάπι', 'all')
+            target.addItem('Όλο το ντουλάπι' if entity.kind == 'cabinet' else 'Όλο το κούφωμα', 'all')
             for role, label in ROLE_NAMES.items():
                 target.addItem(label, role)
             if part_role:
@@ -2354,7 +2372,7 @@ class MainWindow(QMainWindow):
         state = {'material_id': None}
 
         def current_material_id():
-            if entity.kind in ('library_object', 'cabinet') and target is not None and target.currentData() != 'all':
+            if entity.kind in ('library_object', 'cabinet', 'door', 'window') and target is not None and target.currentData() != 'all':
                 surface_map = entity.params.get('surface_materials') or {}
                 return str(surface_map.get(str(target.currentData())) or entity.params.get('material_id', '') or '')
             if entity.kind != 'wall' or target is None:
@@ -2456,13 +2474,13 @@ class MainWindow(QMainWindow):
                 surface_map[mode] = str(material_id)
                 target_label = 'Side A' if mode == 'exterior' else 'Side B'
             changes['surface_materials'] = surface_map
-        elif entity.kind in ('library_object', 'cabinet') and target is not None and target.currentData() != 'all':
+        elif entity.kind in ('library_object', 'cabinet', 'door', 'window') and target is not None and target.currentData() != 'all':
             role = str(target.currentData())
             surface_map = dict(entity.params.get('surface_materials') or {})
             surface_map[role] = str(material_id)
             changes['surface_materials'] = surface_map
             target_label = target.currentText().split('  (')[0]
-        elif entity.kind in ('library_object', 'cabinet'):
+        elif entity.kind in ('library_object', 'cabinet', 'door', 'window'):
             # Whole object: one finish everywhere, part overrides cleared.
             changes['material_id'] = str(material_id)
             changes['surface_materials'] = {}

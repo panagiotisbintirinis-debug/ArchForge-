@@ -243,9 +243,19 @@ def _plan_page(sh, doc, storey, sheet_no, project, date):
         sh.poly([to_mm(*q) for q in poly], color=INK, width=.3, fill=POCHE)
     # Openings.
     outward = {w.id: n for w, n in exterior_walls(doc, z)}
+    from archforge.architecture.joinery import plan_symbol_world
     for u0, u1, e, f in holes:
         (axx, ayy), (ux, uy), (nx, ny), t = f["a"], f["u"], f["n"], f["t"]
         P = lambda u, s: to_mm(axx + ux * u + nx * s, ayy + uy * u + ny * s)
+        symbol = plan_symbol_world(doc, e)
+        if symbol:
+            # Typed joinery: the same symbol as the plan view (architecture/joinery.py).
+            for style, pts in symbol:
+                mm = [to_mm(*q) for q in pts]
+                for a_, b_ in zip(mm, mm[1:]):
+                    sh.line(*a_, *b_, width={"solid": .25, "thin": .13}.get(style, .13),
+                            style=Qt.PenStyle.DashLine if style == "dashed" else Qt.PenStyle.SolidLine)
+            continue
         if e.kind == "window":
             for s in (t / 2, -t / 2, 0.0):
                 sh.line(*P(u0, s), *P(u1, s), width=.18 if s else .12)

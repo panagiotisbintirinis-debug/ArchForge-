@@ -60,6 +60,16 @@ def opening_fixture_parts(doc, opening) -> List[Tuple[str, Tuple, Tuple]]:
     def add(key, *extent):
         boxes.setdefault(key, []).append(_box(*extent))
 
+    from archforge.architecture.joinery import inside_sign, is_typed, joinery_boxes
+    if is_typed(o):
+        # Typed joinery (architecture/joinery.py): boxes per role in the
+        # opening's frame (u along, s > 0 towards the inside, z up).
+        sign_in = inside_sign(doc, host)
+        for role, lo, hi in joinery_boxes(opening.kind, dict(o, width=u1 - u0, height=z1 - z0), t, sign_in):
+            s0, s1 = sorted((lo[1] * sign_in, hi[1] * sign_in))
+            add(f'{opening.kind}_{role}', u0 + lo[0], u0 + hi[0], s0, s1, z0 + lo[2], z0 + hi[2])
+        return _parts(boxes, x1, y1, ux, uy, nx, ny, zb)
+
     door = opening.kind == 'door'
     frame = 'door_frame' if door else 'window_frame'
     add(frame, u0, u0 + fw, -fd, fd, z0, z1)
@@ -78,6 +88,10 @@ def opening_fixture_parts(doc, opening) -> List[Tuple[str, Tuple, Tuple]]:
         else:
             add('window_glass', inner0, inner1, -GLASS / 2, GLASS / 2, z0 + fw, z1 - fw)
 
+    return _parts(boxes, x1, y1, ux, uy, nx, ny, zb)
+
+
+def _parts(boxes, x1, y1, ux, uy, nx, ny, zb):
     parts = []
     for key, items in boxes.items():
         verts: List[Tuple[float, float, float]] = []; tris: List[Tuple[int, int, int]] = []

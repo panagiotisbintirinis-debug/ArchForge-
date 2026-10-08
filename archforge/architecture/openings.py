@@ -14,6 +14,9 @@ def validate_opening(wall_params, opening_params, kind="window"):
     if offset-width/2 < 0 or offset+width/2 > length: raise ValueError("opening must fit within host wall")
     if sill < 0 or sill+height > wall_params["height"]: raise ValueError("opening must fit within wall height")
     if kind=="door" and abs(sill)>1e-12: raise ValueError("door sill must be zero")
+    if kind in ("door","window"):
+        from archforge.architecture.joinery import validate_joinery
+        validate_joinery(kind,opening_params,wall_length=length)
     if kind=="opening":
         shape=str(opening_params.get("shape","rectangle")).lower()
         if shape not in ("rectangle","arch"):

@@ -18,6 +18,15 @@ _MATERIALS: Mapping[str, dict] = {
     "door_frame": {"color": "#5a4636", "roughness": 0.6, "metalness": 0.0},
     "door_leaf": {"color": "#7a5c43", "roughness": 0.55, "metalness": 0.0},
     "window_glass": {"color": "#a9c3d2", "roughness": 0.03, "metalness": 0.1, "opacity": 0.28},
+    # Typed joinery roles (architecture/joinery.py); frame/leaf colours come from the finish.
+    "window_leaf": {"color": "#3d4247", "roughness": 0.38, "metalness": 0.55},
+    "window_handle": {"color": "#b8bcc0", "roughness": 0.3, "metalness": 0.85},
+    "window_shading": {"color": "#3d4247", "roughness": 0.45, "metalness": 0.35},
+    "window_sill": {"color": "#e6e2da", "roughness": 0.3, "metalness": 0.0},
+    "door_glass": {"color": "#a9c3d2", "roughness": 0.03, "metalness": 0.1, "opacity": 0.28},
+    "door_handle": {"color": "#b8bcc0", "roughness": 0.3, "metalness": 0.85},
+    "door_shading": {"color": "#3d4247", "roughness": 0.45, "metalness": 0.35},
+    "door_sill": {"color": "#e6e2da", "roughness": 0.3, "metalness": 0.0},
     "plant_trunk": {"color": "#6b4a2f", "roughness": 0.9, "metalness": 0.0},
     "library_object": {"color": "#b9b2a6", "roughness": 0.6, "metalness": 0.0},
     "roof_plate": {"color": "#8a6038", "roughness": 0.8, "metalness": 0.0},
@@ -392,7 +401,17 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                 parts = opening_fixture_parts(doc, entity)
             except (KeyError, ValueError, TypeError):
                 continue
+            typed = _is_typed_opening(entity)
             for key, verts, tris in parts:
+                material = _material(key, entity.id in selected, entity=None, doc=doc)
+                if typed:
+                    # Joinery roles (κάσα, φύλλο, τζάμι, …): finish of the type,
+                    # palette override per role in surface_materials.
+                    from archforge.architecture.joinery import material_look
+                    role = key.split('_', 1)[1]
+                    material = _material(key, entity.id in selected, entity=entity, doc=doc, surface_role=role)
+                    if not _surface_material_id(entity, role):
+                        material.update(material_look(entity.params, entity.kind, role))
                 objects.append({
                     "id": str(entity.id),
                     "render_part": f"{entity.id}:{key}",
@@ -400,6 +419,11 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                     "vertices": [[float(x), float(y), float(z)] for x, y, z in verts],
                     "triangles": [[int(a), int(b), int(c)] for a, b, c in tris],
                     "surfaces": [key] * len(tris),
-                    "material": _material(key, entity.id in selected, entity=None, doc=doc),
+                    "material": material,
                 })
     return {"objects": objects}
+
+
+def _is_typed_opening(entity):
+    from archforge.architecture.joinery import is_typed
+    return is_typed(entity.params)

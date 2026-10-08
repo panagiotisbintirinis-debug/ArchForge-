@@ -314,7 +314,9 @@ def entity_primitive(doc,eid):
     if e.kind in ('door','window','opening'):
         seg=_opening_segment(doc,e)
         if seg is None:return None
-        a,b=seg;return Primitive2D('line',(a,b),entity_id=eid,role='opening',meta=(('semantic',e.kind),('host',e.parent_id)))
+        a,b=seg
+        typed=e.kind in ('door','window') and str(p.get('opening_type','basic'))!='basic'
+        return Primitive2D('line',(a,b),entity_id=eid,role='opening',meta=(('semantic',e.kind),('host',e.parent_id))+((('typed',True),) if typed else ()))
     if e.kind=='arboreal_branch':
         from archforge.organic.arboreal import arboreal_branch_geometry
         geom=arboreal_branch_geometry(doc,eid)
@@ -518,6 +520,13 @@ def build_plan_frame(doc,preview=None):
                 c=cabinet_footprint(q)
                 f.primitives.append(Primitive2D('polyline',(c[0],c[2]),entity_id=eid,role='cabinet-wall'))
                 f.primitives.append(Primitive2D('polyline',(c[1],c[3]),entity_id=eid,role='cabinet-wall'))
+        if p and doc.get(eid).kind in ('door','window'):
+            # Typed joinery: plan symbol with the opening direction (architecture/joinery.py).
+            from archforge.architecture.joinery import plan_symbol_world
+            for style,pts in plan_symbol_world(doc,doc.get(eid)):
+                f.primitives.append(Primitive2D('polyline',tuple(pts),entity_id=eid,
+                                                role='opening-symbol-hidden' if style=='dashed' else 'opening-symbol',
+                                                meta=(('style',style),)))
         if p and doc.get(eid).kind=='library_object':
             # The derived 2D symbol (outline + inner lines) of the same asset.
             from archforge.library.objects import plan_symbol_world

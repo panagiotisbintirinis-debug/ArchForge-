@@ -898,7 +898,7 @@ class OpeningPlaceTransaction:
     """Attach a door/window frame or a frame-free architectural opening."""
     def __init__(
         self,doc,stack,kind,x,y,tolerance=0.35,width=None,height=None,sill=None,
-        flat_margin=0.25,shape='rectangle',arch_rise=None,
+        flat_margin=0.25,shape='rectangle',arch_rise=None,extra=None,name=None,
     ):
         if kind not in ('door','window','opening'):
             raise ValueError('opening kind must be door, window, or opening')
@@ -912,6 +912,8 @@ class OpeningPlaceTransaction:
         self.arch_rise=float(
             arch_rise if arch_rise is not None else min(self.width/2.0,self.height)
         )
+        # Joinery preset (architecture/joinery.py): type parameters and a Greek name.
+        self.extra=dict(extra or {}) if kind in ('door','window') else {};self.name=name
         self.host_id=None;self.host_kind=None;self.preview={}
         self.update(x,y)
 
@@ -930,7 +932,7 @@ class OpeningPlaceTransaction:
 
         self.host_id=hit['host_id'];self.host_kind=hit['host_kind']
         if host.kind=='wall':
-            p={'offset':hit['offset'],'width':self.width,'height':self.height,'sill':self.sill}
+            p={'offset':hit['offset'],'width':self.width,'height':self.height,'sill':self.sill,**self.extra}
             if self.kind=='opening':
                 p.update({'shape':self.shape,'arch_rise':self.arch_rise,'flat_margin':0.0})
             try:
@@ -968,7 +970,7 @@ class OpeningPlaceTransaction:
             validate_pod_opening(host.params,self.preview,self.kind)
         else:
             raise ValueError('free architectural opening must be placed on a wall')
-        name={'door':'Door','window':'Window','opening':'Opening'}[self.kind]
+        name=self.name or {'door':'Door','window':'Window','opening':'Opening'}[self.kind]
         e=Entity(self.kind,dict(self.preview),name=name,parent_id=self.host_id)
         if host.kind=='pod':
             from .opening_commands import AddOpeningEntity

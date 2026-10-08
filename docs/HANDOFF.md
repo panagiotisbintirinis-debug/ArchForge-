@@ -134,7 +134,7 @@
    - πλάκες (οπλισμός), θεμελίωση με συνδετήριες/πεδιλοδοκούς, ξύλινα/μεταλλικά κόμβοι· εξαγωγή τεύχους PDF.
    Μετά, Βοηθός: διαιρέσεις πλακιδίων/γυψοσανίδας, σκάλα Blondel.
 3. Από το WORKLOG:
-   - L8 κουφώματα· L9 κάγκελα· L10 υφές/χρώματα·
+   - ~~L8 κουφώματα~~ ✅ (`architecture/joinery.py`)· L9 κάγκελα· L10 υφές/χρώματα·
    - L7 υπόλοιπα (γωνιακά ντουλάπια, ανοιχτά ράφια, εσωτερικά ντουλάπας)·
    - R2–R7 ρεαλισμός·
    - εκκρεμότητες από τις προβολές (16, 17).
@@ -155,6 +155,7 @@
 - **`archforge/ui/marking_menu.py`:** `build_menu` (περιεχόμενο ανά εργασία, κοινό 2D/3D), `run`, `wheel`, `MarkingMenu` (Qt)· στο 3D `showMarkingMenu`/`markingWheel` στο `pbr_viewport.py`· ενέργειες `mm:*` περνούν από `_handle_object_context_action`.
 - **`archforge/ui/project_outline.py`:** δέντρο κατασκευής από την ίδια ανάγνωση (`read_drawing`) — κάθε οντότητα μία φορά· ονόματα μελών από τη στατική· `_sync_tree_selection` στο `main_window.py`.
 - **`archforge/kitchen/cabinets.py`:** παραμετρικά ντουλάπια και ντουλάπες.
+- **`archforge/architecture/joinery.py`:** κουφώματα (τύποι, `joinery_boxes` 3D ανά ρόλο, `plan_symbol` κάτοψης, `inside_sign`, `PRESETS`)· Ιδιότητες στο `ui/opening_properties.py`· χωρίς `opening_type` το παλιό `rendering/fixtures.py`.
 - **`archforge/architecture/wall_types.py`:** συνθέσεις τοίχων.
 - **`archforge/mep/plumbing.py`:**
   - Router: `_Grid` (A* σε κάναβο 20 cm, modes floor/wall) και `_grow` (δέντρο).
