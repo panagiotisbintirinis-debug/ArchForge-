@@ -705,6 +705,9 @@ SCHEMAS = {
         'handrail_size': _positive, 'post_spacing': _positive, 'gap': _positive, 'base_height': _nonnegative,
         'metal': _railing_choice('METALS', 'metal'),
     },
+    'drywall_ceiling': {'points': _polygon, 'level_z': _finite, 'room_id': _nonempty, 'drop': _positive,
+                        'board': _nonempty, 'layers': _positive_int, 'insulation': _nonnegative, 'cove': _flag,
+                        'cove_width': _positive, 'cove_depth': _positive},
     'slab_opening': {'points': _polygon, 'level_z': _finite, 'room_id': _nonempty,
                      'cuts': _slab_choice('validate_cuts'), 'use': _slab_choice('validate_use')},
 }
@@ -759,6 +762,9 @@ def validate_params(kind, params):
     if kind == 'railing':
         from archforge.architecture.railings import validate as validate_railing
         validate_railing(out)
+    if kind == 'drywall_ceiling':
+        from archforge.construction.drywall import validate as validate_drywall
+        validate_drywall(out)
     if kind == 'slab_opening':
         from archforge.architecture.storey_slabs import validate_opening
         validate_opening(out)
@@ -947,6 +953,8 @@ class Document:
                 if related.kind in ('room_floor', 'room_roof', 'room_ceiling') and related.id != entity.id \
                         and (entity.kind == 'slab_opening' or related.params.get('scope') == 'storey'):
                     self.mark_dirty(related.id)
+                elif related.kind == 'drywall_ceiling' and entity.kind == 'wall':
+                    self.mark_dirty(related.id)       # a room ceiling follows its walls
         elif entity.kind in ('stair', 'ramp'):
             # Vertical circulation geometry can cut any slab occupying the
             # upper-floor plane. In legacy/current projects this may include

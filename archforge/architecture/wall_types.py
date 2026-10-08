@@ -48,6 +48,9 @@ WALL_TYPES = {
 # Isotex wood-cement formwork blocks (construction/isotex.py): with or without a graphite EPS insert.
 from archforge.construction.isotex import wall_type_layers as _isotex_layers  # noqa: E402
 WALL_TYPES.update(_isotex_layers())
+# ICF: EPS formwork blocks on both faces with a concrete core (construction/icf.py).
+from archforge.construction.icf import wall_type_layers as _icf_layers  # noqa: E402
+WALL_TYPES.update(_icf_layers())
 
 
 def layers(wall_type):

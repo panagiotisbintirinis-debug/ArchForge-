@@ -28,7 +28,10 @@ class PlanView(QGraphicsView):
     railingRequested=Signal(str,object,bool)
     # Slab opening / atrium tool: drag a rectangle or click a polygon -> outline points.
     slabOpeningRequested=Signal(object)
-    def _slab_tool(self):return self.controller.tool=='slab_opening'
+    # Suspended plasterboard ceiling ('drywall_ceiling'): same drawing as the slab opening -> outline points.
+    drywallCeilingRequested=Signal(object)
+    def _slab_tool(self):return self.controller.tool in ('slab_opening','drywall_ceiling')
+    def _slab_word(self):return 'Ψευδοροφή' if self.controller.tool=='drywall_ceiling' else 'Οπή πλάκας'
     def _slab_draft_get(self):
         if getattr(self,'_slab_draft',None) is None:
             from archforge.ui.slab_tools import SlabDraft
@@ -36,7 +39,7 @@ class PlanView(QGraphicsView):
         return self._slab_draft
     def finish_slab_opening(self,points=None):
         draft=self._slab_draft_get();points=points or draft.finish();self._slab_draft=None;self.redraw()
-        if points:self.slabOpeningRequested.emit([list(q) for q in points])
+        if points:(self.drywallCeilingRequested if self.controller.tool=='drywall_ceiling' else self.slabOpeningRequested).emit([list(q) for q in points])
     def _railing_tool(self):return str(self.controller.tool).startswith('railing_')
     def _railing_press(self,event):
         from archforge.ui.railing_draft import RailingDraft
@@ -211,7 +214,7 @@ class PlanView(QGraphicsView):
         if self._slab_tool():
             ev=self._scene_to_plane(event.position().toPoint());self._slab_draft_get().down(ev.a,ev.b);self._mouse_down=True
             self.redraw();event.accept();return
-        if self.controller.tool in self.SITE_POINT_TOOLS or str(self.controller.tool).startswith(('plumb_','elec_','vent_','assist_','drain_','roofroom_','railingstair_')):
+        if self.controller.tool in self.SITE_POINT_TOOLS or str(self.controller.tool).startswith(('plumb_','elec_','vent_','assist_','drain_','roofroom_','railingstair_','drywallroom')):
             ev=self._scene_to_plane(event.position().toPoint())
             self.sitePointRequested.emit(self.controller.tool,float(ev.a),float(ev.b));event.accept();return
         if self.controller.tool in self.VIEW_LINE_TOOLS or self.controller.tool in self.SITE_LINE_TOOLS:
@@ -258,7 +261,7 @@ class PlanView(QGraphicsView):
         if self._overlay('move',event):return
         if self._slab_tool() and getattr(self,'_slab_draft',None) is not None:
             ev=self._scene_to_plane(event.position().toPoint());self._slab_draft.move(ev.a,ev.b)
-            self.statusChanged.emit('Οπή πλάκας: '+self._slab_draft.label());self.redraw();return
+            self.statusChanged.emit(self._slab_word()+': '+self._slab_draft.label());self.redraw();return
         if self._railing_tool() and getattr(self,'_railing_draft',None) is not None:
             ev=self._scene_to_plane(event.position().toPoint())
             self._railing_draft.move(ev.a,ev.b,bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier));self.redraw();return
@@ -290,7 +293,7 @@ class PlanView(QGraphicsView):
             done=self._slab_draft.up(ev.a,ev.b)
             if done:self.finish_slab_opening(done)
             else:
-                self.statusChanged.emit('Οπή πλάκας: κλικ στην επόμενη γωνία · διπλό κλικ / Enter / κλικ στην πρώτη = κλείσιμο · Esc = ακύρωση');self.redraw()
+                self.statusChanged.emit(self._slab_word()+': κλικ στην επόμενη γωνία · διπλό κλικ / Enter / κλικ στην πρώτη = κλείσιμο · Esc = ακύρωση');self.redraw()
             event.accept();return
         if event.button()==Qt.MouseButton.LeftButton and self._mouse_down and getattr(self,'_view_drag',None):
             self._mouse_down=False;ev=self._scene_to_plane(event.position().toPoint())
@@ -695,6 +698,9 @@ class PlanView(QGraphicsView):
         if p.role=='library-object' and self._has_symbol(p.entity_id):
             # Footprint stays for picking; the symbol carries the drawing.
             pen=QPen(QColor(150,160,170,90));pen.setWidthF(.006)
+        if p.role in ('drywall-ceiling','drywall-ceiling-step'):
+            # Suspended ceiling: above the cut plane, dashed.
+            pen=QPen(QColor(70,110,150));pen.setWidthF(.016 if p.role=='drywall-ceiling' else .01);pen.setStyle(Qt.PenStyle.DashLine)
         if p.role in ('slab-opening','slab-opening-cross'):
             # Void in the slab: thin cross; dashed when the void is in the slab above (roof only).
             pen=QPen(QColor(60,65,75));pen.setWidthF(.018 if p.role=='slab-opening' else .012)
@@ -720,7 +726,7 @@ class PlanView(QGraphicsView):
             brush=QBrush(
                 QColor(160,160,160,18)
                 if context else
-                (QColor(90,180,120,28) if room else (QColor(150,140,125,70) if p.role=='site-path' else (QColor(255,255,255,1) if p.role=='library-object' else (QColor(236,230,220,120) if p.role=='cabinet' else (QColor(0,0,0,0) if p.role in ('cabinet-wall','joists-area') else (QColor(255,255,255,90) if p.role=='slab-opening' else QColor(80,160,220,40)))))))
+                (QColor(90,180,120,28) if room else (QColor(150,140,125,70) if p.role=='site-path' else (QColor(255,255,255,1) if p.role=='library-object' else (QColor(236,230,220,120) if p.role=='cabinet' else (QColor(0,0,0,0) if p.role in ('cabinet-wall','joists-area') else (QColor(70,110,150,14) if p.role=='drywall-ceiling' else (QColor(255,255,255,90) if p.role=='slab-opening' else QColor(80,160,220,40))))))))
             )
             room_pen=QPen(QColor(110,150,120));room_pen.setWidthF(.015)
             item=self._scene.addPolygon(QPolygonF([QPointF(x,y) for x,y in p.points]),room_pen if room else pen,brush)

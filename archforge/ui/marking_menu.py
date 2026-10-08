@@ -147,7 +147,8 @@ def _slab_entries():
     # Slab openings (architecture/storey_slabs.py): the room under the cursor, or a drawn outline.
     return [_e("mm:slab:atrium", "Αίθριο σε αυτόν τον χώρο", "panel"),
             _e("mm:slab:inner_balcony", "Κενό πλάκας (εσωτερικό μπαλκόνι) σε αυτόν τον χώρο", "panel"),
-            _e("mm:slab:draw", "Οπή πλάκας (σχεδίαση)", "panel")]
+            _e("mm:slab:draw", "Οπή πλάκας (σχεδίαση)", "panel"),
+            _e("mm:drywall:room", "Ψευδοροφή γυψοσανίδας σε αυτόν τον χώρο", "panel")]
 
 
 def _fit(entries):
@@ -227,6 +228,9 @@ def run(window, view, entity_id, action_id, plan_xy=None):
             slab_tools.start_opening_tool(window)
         elif plan_xy is not None:
             slab_tools.room_opening(window, *plan_xy, use=arg)
+    elif group == "drywall" and plan_xy is not None:
+        from archforge.ui.drywall_tools import place_in_room
+        place_in_room(window, *plan_xy)
     elif group == "structure":
         (window._design_structure if arg == "design" else window._propose_frame)()
     elif group == "analyze":

@@ -66,6 +66,7 @@ _MATERIALS: Mapping[str, dict] = {
     "railing_infill": {"color": "#33373b", "roughness": 0.55, "metalness": 0.35},
     "railing_glass": {"color": "#a9c3d2", "roughness": 0.03, "metalness": 0.1, "opacity": 0.3},
     "railing_base": {"color": "#c9c4bb", "roughness": 0.85, "metalness": 0.0},
+    "drywall_ceiling": {"color": "#f3f1ec", "roughness": 0.85, "metalness": 0.0},
     "room_ceiling": {"color": "#dedbd2", "roughness": 0.78, "metalness": 0.01},
     "room_foundation": {"color": "#9ea4aa", "roughness": 0.9, "metalness": 0.0},
     "room_roof": {"color": "#8f979f", "roughness": 0.68, "metalness": 0.02},
