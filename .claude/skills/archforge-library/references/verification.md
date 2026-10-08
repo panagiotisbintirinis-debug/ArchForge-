@@ -33,3 +33,7 @@ Every object entering the library passes this loop, whatever its source (Home De
 | Khronos `SheenWoodLeatherSofa` | Grey | WebP/KTX textures are not read; the colour is missing, the geometry is fine. |
 | Plan symbol | Jagged raster outline; noisy step-lines on curved backs | Douglas–Peucker 1.6 cells; inner lines shorter than 10 cells dropped. |
 | HD catalog meshes | Parts of grouped sets come out at local origins | Each part is imported as a separate item; placement inside the group is not decoded. |
+| ArchForge core, 2026-10-08 (77 νέα) | Χαρτοθήκη μαζί με πιγκάλ: δύο αντικείμενα σε ένα, η χαρτοθήκη αιωρούνταν | Ένα αντικείμενο ανά τεμάχιο· ό,τι κρέμεται στον τοίχο γίνεται ξεχωριστό αντικείμενο και ανεβαίνει με το z |
+| ArchForge core | Ελιά = μπάλα πάνω σε ξυλάκι (topiary) | Κορώνα από 3 ελλειψοειδή που επικαλύπτονται, χοντρός κορμός |
+| ArchForge core | Κρεμαστό έπιπλο μπάνιου ξεκινούσε στα 30 cm: η βάση κανονικοποιείται στο 0 και το ύψος βγήκε λάθος | Πόδια ως το δάπεδο ή δήλωση ύψους χωρίς το κενό· το z το δίνει ο χρήστης |
+| ArchForge core | Πτυσσόμενο παραβάν με φύλλα σε δύο επίπεδα: ασύνδετα στην κάτοψη | Φύλλα σε ένα επίπεδο (ανοιχτό) |
