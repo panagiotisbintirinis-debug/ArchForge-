@@ -18,6 +18,9 @@ class MoveTransaction:
         missing = [eid for eid in self.ids if eid not in doc.entities]
         if missing:
             raise KeyError(f"Entities not found: {missing}")
+        # What sits on a moved piece (hob, hood, its water point) moves with it.
+        from archforge.assistant.room_layout import followers
+        self.ids += followers(doc, self.ids)
         self.origin = origin if origin is not None else (0.0, 0.0, 0.0)
         self.grid = grid
         self.snap_tol = snap_tol
@@ -95,6 +98,14 @@ class MoveTransaction:
                             min(self.snap_tol, 0.06),
                             exclude=set(self.ids),
                         )
+                    elif entity.kind in ('cabinet', 'library_object'):
+                        # Cabinets and fixtures click onto the wall behind them and onto the neighbour.
+                        from archforge.assistant.fixture_snap import snap_correction
+                        moved = dict(self.before[eid], x=float(self.before[eid]['x']) + proposed_dx,
+                                     y=float(self.before[eid]['y']) + proposed_dy)
+                        found = snap_correction(self.doc, eid, moved, ignore=set(self.ids))
+                        candidate_snap = None if found is None else {
+                            'correction': found[:2], 'kind': found[2], 'distance': -1.0}
                     elif entity.kind == 'wall':
                         p = self.before[eid]
                         probes = (
@@ -172,7 +183,7 @@ class MoveTransaction:
         for eid in self.ids:
             p = self.before[eid].copy()
             e = self.doc.get(eid)
-            if e.kind in ('box', 'mechanical_part'):
+            if e.kind in ('box', 'mechanical_part', 'cabinet', 'library_object', 'plumbing_point', 'ventilation_point'):
                 p['x'] = p['x'] + self.dx
                 p['y'] = p['y'] + self.dy
                 p['z'] = p['z'] + self.dz

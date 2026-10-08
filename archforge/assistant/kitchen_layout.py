@@ -187,7 +187,7 @@ def candidates(runs, cuts, shape="auto"):
         weight = {"L": 0.0, "U": 0.4, "I": 0.8}[sh]
         if sh == "U" and _u_clear(runs, legs) < U_CLEAR:
             weight += 5.0
-        return weight - min(total, 7.0) - (0.6 if window else 0.0)
+        return weight - min(total, 5.5) - (0.6 if window else 0.0)
     return sorted(out, key=cheap)
 
 

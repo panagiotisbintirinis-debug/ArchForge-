@@ -85,8 +85,8 @@ def library_entity(name, run, s_mid, depth, z, role, *, size=None, label=None):
                   name=label or name)
 
 
-def cabinet_entity(cabinet_type, run, s0, width, z, role, name=None, **extra):
-    """A parametric cabinet with its back on ``run``'s face, from ``s0`` along it (``z`` = floor; a
+def cabinet_entity(cabinet_type, run, s0, width, level, role, name=None, **extra):
+    """A parametric cabinet with its back on ``run``'s face, from ``s0`` along it (``level`` = floor; a
     wall unit's own ``z`` is its height above the floor)."""
     from archforge.core.model import Entity
     from archforge.kitchen.cabinets import TYPES, auto_doors, default_params
@@ -95,7 +95,7 @@ def cabinet_entity(cabinet_type, run, s0, width, z, role, name=None, **extra):
     if "doors" not in extra and p["doors"]:
         p["doors"] = auto_doors(cabinet_type, width)
     x, y = run.point(s0 + width / 2, float(p["depth"]) / 2)
-    p.update(x=x, y=y, rotation=run.rotation, z=float(z) + (float(p["z"]) if cabinet_type == "wall" else 0.0),
+    p.update(x=x, y=y, rotation=run.rotation, z=float(level) + (float(p["z"]) if cabinet_type == "wall" else 0.0),
              layout_role=role)
     return Entity("cabinet", p, name=name or TYPES[cabinet_type][0])
 

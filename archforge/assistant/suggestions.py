@@ -141,6 +141,9 @@ def propose(doc, reading=None):
         from archforge.mep.electrical import route_cables_cached
         for w in route_cables_cached(doc)["report"]["warnings"]:
             out.append(Proposal(f"M-2:{w}", "warning", w, "Από τα κυκλώματα.", "Βλ. Πίνακας κυκλωμάτων"))
+    # LAY-1: a kitchen / bath laid out by the assistant whose walls moved → re-fit it.
+    from archforge.assistant.room_layout import refit_proposals
+    out += refit_proposals(doc)
     order = {"warning": 0, "hint": 1, "info": 2}
     return sorted(out, key=lambda p: (order[p.severity], p.key))
 

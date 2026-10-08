@@ -77,6 +77,10 @@ def build_menu(window, view, entity_id=None):
         if plan.controller.active is not None and hasattr(plan.controller.active, "start"):
             entries.append(_e("mm:wall:cancel", "Ακύρωση τμήματος", danger=True))
         return {"center": f"Τοίχος · γωνία {_angle_label(current)}", "entries": entries, "wheel": "angle"}
+    # «Κουζίνα / Μπάνιο εδώ» of the assistant: apply, variants, shape, discard.
+    if view == "plan" and str(tool).startswith("layout_") and getattr(window, "_layout_assist", None) is not None:
+        from archforge.ui.layout_assist import marking_entries
+        return marking_entries(window)
     # An object under the cursor: its own actions.
     if entity_id and entity_id in window.doc.entities:
         from archforge.assistant.target import describe_entity
@@ -94,6 +98,9 @@ def build_menu(window, view, entity_id=None):
         entries.append(_e("mm:assist:entity", "📍 Βοηθός εδώ", "panel"))
         if entity.kind in ("structural_column", "structural_beam"):
             entries.append(_e("mm:analyze", "Στατική ανάλυση", "panel"))
+        if entity.params.get("layout_id"):
+            entries.append(_e("mm:layout:refit", "Αναπροσαρμογή διάταξης", "panel"))
+            entries.append(_e("mm:layout:delete_all", "Διαγραφή όλης της διάταξης", "panel", danger=True))
         return {"center": describe_entity(window.doc, entity), "entries": _fit(entries), "wheel": None}
     # A submenu asked from the empty-space menu (kitchen, stairs, structure), shown once.
     sub = getattr(window, "_marking_submenu", None)
@@ -121,6 +128,8 @@ def build_menu(window, view, entity_id=None):
     entries.append(_e("mm:sculpt:on", "Sculpt", "panel"))
     if view == "plan":
         entries.append(_e("mm:assist:point", "📍 Βοηθός εδώ", "panel"))
+        entries.append(_e("mm:layout:kitchen", "Κουζίνα εδώ…", "panel"))
+        entries.append(_e("mm:layout:bath", "Μπάνιο εδώ…", "panel"))
         entries.append(_e("mm:roofroom:tiled", "Κεραμοσκεπή σε αυτόν τον χώρο", "panel"))
         entries.append(_e("mm:roofroom:terrace", "Ταράτσα σε αυτόν τον χώρο", "panel"))
     if any(e.kind in ("structural_column", "structural_beam") for e in window.doc.entities.values()):
@@ -193,6 +202,9 @@ def run(window, view, entity_id, action_id, plan_xy=None):
             i = getattr(window, "_kitchen_wheel", 0) if arg == "current" else int(arg)
             window._kitchen_wheel = i % len(names)
             window._place_kitchen_item(names[i % len(names)])
+    elif group == "layout":
+        from archforge.ui.layout_assist import run as layout_run
+        layout_run(window, arg, entity_id, plan_xy)
     elif group == "roofroom" and plan_xy is not None:
         window._set_room_roof(arg, *plan_xy)
     elif group == "structure":
