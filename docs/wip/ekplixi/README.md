@@ -6,7 +6,7 @@
 
 | Κομμάτι | Αρχεία εδώ | Κατάσταση |
 |---|---|---|
-| Αυτόματη αποθήκευση & επαναφορά | archforge/project/autosave.py (351), archforge/ui/autosave_glue.py (218), tests/test_autosave.py (230) | σχεδόν έτοιμο — τα τεστ του έτρεχαν· έμενε έλεγχος κλεισίματος και η σύνδεση στο main_window |
+| Αυτόματη αποθήκευση & επαναφορά | archforge/project/autosave.py (351), archforge/ui/autosave_glue.py (218), tests/test_autosave.py.wip (230 — μετονόμασε σε .py όταν μπει στο tests/) | σχεδόν έτοιμο — τα τεστ του έτρεχαν· έμενε έλεγχος κλεισίματος και η σύνδεση στο main_window |
 | Φυλλάδιο ακινήτου (μεσίτες) | archforge/output/brochure.py (708) | γραμμένο, **χωρίς τεστ και χωρίς οπτικό έλεγχο** |
 | Όψεις + πίνακας κουφωμάτων | archforge/output/elevations.py (627) | γραμμένο, **χωρίς τεστ και οπτικό έλεγχο** |
 | Πρότυπα έργων | archforge/project/templates.py (397) | μισό (σταμάτησε στις στέγες), χωρίς τεστ |
