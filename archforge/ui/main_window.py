@@ -1656,6 +1656,9 @@ class MainWindow(QMainWindow):
             self.form.removeRow(0)
 
     def refresh_inspector(self):
+        if hasattr(self, '_layers_dock'):
+            from .layers_panel import inspector_lock
+            inspector_lock(self)        # locked layer: properties shown, not editable
         self._clear_form()
         self._sync_tree_selection()
         if len(self.doc.selection) != 1:
@@ -3267,6 +3270,9 @@ class MainWindow(QMainWindow):
         self.stack.listeners.append(self._on_document_changed)
         for view in (self.plan_view, self.pbr_view, self.structural_view):
             view.rebind(self.doc, self.stack)
+        if hasattr(self, '_layers_dock'):
+            from .layers_panel import on_project_replaced
+            on_project_replaced(self)   # old project without layers: the defaults
         self.current_path = path
         self._mark_clean()
         if getattr(self, 'autosave', None) is not None:

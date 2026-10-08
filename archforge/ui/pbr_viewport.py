@@ -2898,6 +2898,10 @@ class PBRViewport(QWidget):
             payload["objects"] = structural_payload_objects(payload.get("objects", ()), self.doc)
         else:
             payload["objects"] = architectural_payload_objects(payload.get("objects", ()), self.doc)
+        if not self.structural_only:
+            # Layers / environment (core/layers.py): hidden out, locked unpickable, dim faint.
+            from archforge.core.layers import apply_to_scene_objects
+            payload["objects"] = apply_to_scene_objects(self.doc, payload.get("objects", ()))
         hidden = getattr(self, "hidden_layers", set())
         if hidden:
             payload["objects"] = [o for o in payload.get("objects", ()) if o.get("layer") not in hidden]

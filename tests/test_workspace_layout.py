@@ -34,7 +34,7 @@ def _close(app, window):
 def test_every_bar_and_panel_moves_floats_and_closes_and_the_bottom_strip_is_gone():
     app, window = _window()
     bars = [b for b in window.findChildren(QToolBar) if b.isVisible()]
-    assert {b.windowTitle() for b in bars} == {'Εργαλεία σχεδίασης', 'Όροφος', 'Προβολή', 'Κάνναβος & έλξη'}
+    assert {b.windowTitle() for b in bars} == {'Εργαλεία σχεδίασης', 'Όροφος', 'Προβολή', 'Κάνναβος & έλξη', 'Περιβάλλον'}
     for bar in bars:
         assert bar.isMovable() and bar.isFloatable() and bar.allowedAreas() == Qt.ToolBarArea.AllToolBarAreas
     names = {d.objectName() for d in window.findChildren(QDockWidget)}
