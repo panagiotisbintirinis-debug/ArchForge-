@@ -198,6 +198,8 @@ class MoveTransaction:
                 p['cx'] = p['cx'] + self.dx
                 p['cy'] = p['cy'] + self.dy
                 p['floor_level'] = p['floor_level'] + self.dz
+            elif e.kind == 'slab_opening' and p.get('points'):
+                p['points'] = [(qx + self.dx, qy + self.dy) for qx, qy in p['points']]
             elif e.kind in ('floor', 'room'):
                 p['points'] = [(qx + self.dx, qy + self.dy) for qx, qy in p['points']]
                 p['z'] = p['z'] + self.dz

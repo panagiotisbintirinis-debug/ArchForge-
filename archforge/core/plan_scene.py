@@ -124,6 +124,8 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
     if e.kind=='pod':return abs(float(p.get('floor_level',0.0))-z)<=tolerance
     if e.kind in ('floor','room'):return abs(float(p.get('z',0.0))-z)<=tolerance
     if e.kind=='mep_terminal':return abs(float(p.get('level_z',0.0))-z)<=tolerance
+    if e.kind=='slab_opening' or (e.kind in ('room_floor','room_roof','room_ceiling') and p.get('scope')=='storey'):
+        return abs(float(p.get('level_z',0.0))-z)<=tolerance
     if e.kind=='structural_column':
         return str(p.get('base_level',''))==doc.active_level_name() or abs(float(p.get('z',0.0))-z)<=tolerance
     if e.kind=='structural_beam':
@@ -308,6 +310,8 @@ def entity_primitive(doc,eid):
         g=room_slab_geometry(doc,e)
         if g is None:return None
         role=e.kind.replace('_','-')
+        islands=g.get('islands') or ()
+        cut=(('islands',tuple((tuple(o),tuple(tuple(h) for h in hs)) for o,hs in islands)),) if len(islands)>1 or any(hs for _o,hs in islands) else ()
         return Primitive2D(
             'polygon',
             tuple(g['points']),
@@ -318,8 +322,15 @@ def entity_primitive(doc,eid):
                 ('signature',g['room_signature']),
                 ('thickness',g['thickness']),
                 ('z',g['z']),
-            ),
+            )+cut,
         )
+    if e.kind=='slab_opening':
+        from archforge.architecture.storey_slabs import opening_polygon
+        poly=opening_polygon(doc,e)
+        if not poly:return None
+        # Above the cut plane (roof only): dashed, as a void in the slab over the storey.
+        return Primitive2D('polygon',tuple(poly),entity_id=eid,role='slab-opening',
+                           meta=(('semantic','slab_opening'),('above',p.get('cuts')=='roof'),('use',p.get('use','void'))))
     if e.kind in ('door','window','opening'):
         seg=_opening_segment(doc,e)
         if seg is None:return None
@@ -348,6 +359,8 @@ def selection_handles(doc):
                 Handle2D(mx,my,eid,'move','move'),
             ])
         elif e.kind=='mep_terminal':out.append(Handle2D(float(p['x']),float(p['y']),eid,'move','move'))
+        elif e.kind=='slab_opening' and p.get('points'):
+            pts=p['points'];out.append(Handle2D(sum(q[0] for q in pts)/len(pts),sum(q[1] for q in pts)/len(pts),eid,'move','move'))
         elif e.kind=='box':out.extend(_box_handles(eid,p))
         elif e.kind=='pod':out.extend(_pod_handles(eid,p))
         elif e.kind=='arboreal_branch':
@@ -510,6 +523,11 @@ def build_plan_frame(doc,preview=None):
         if not _entity_on_active_level(doc,doc.get(eid)):continue
         p=entity_primitive(doc,eid)
         if p:f.primitives.append(p)
+        if p and p.role=='slab-opening':
+            # Void in the slab: diagonal cross (Greek drafting practice).
+            from archforge.architecture.storey_slabs import plan_cross
+            for a,b in plan_cross(list(p.points)):
+                f.primitives.append(Primitive2D('line',(a,b),entity_id=eid,role='slab-opening-cross',meta=p.meta))
         if p and doc.get(eid).kind=='wall' and doc.get(eid).params.get('wall_type','generic')!='generic':
             # Layer boundaries of the wall assembly; insulation drawn dashed.
             from archforge.architecture.wall_types import layer_lines

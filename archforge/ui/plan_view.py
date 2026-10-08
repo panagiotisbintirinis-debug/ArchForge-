@@ -26,6 +26,17 @@ class PlanView(QGraphicsView):
     SITE_LINE_TOOLS=('path_path','path_sidewalk','path_road','pergola_timber','pergola_aluminium')
     # Railing tools ('railing_<type>'): click corners, double click / Enter to finish -> (tool, points, closed).
     railingRequested=Signal(str,object,bool)
+    # Slab opening / atrium tool: drag a rectangle or click a polygon -> outline points.
+    slabOpeningRequested=Signal(object)
+    def _slab_tool(self):return self.controller.tool=='slab_opening'
+    def _slab_draft_get(self):
+        if getattr(self,'_slab_draft',None) is None:
+            from archforge.ui.slab_tools import SlabDraft
+            self._slab_draft=SlabDraft()
+        return self._slab_draft
+    def finish_slab_opening(self,points=None):
+        draft=self._slab_draft_get();points=points or draft.finish();self._slab_draft=None;self.redraw()
+        if points:self.slabOpeningRequested.emit([list(q) for q in points])
     def _railing_tool(self):return str(self.controller.tool).startswith('railing_')
     def _railing_press(self,event):
         from archforge.ui.railing_draft import RailingDraft
@@ -61,7 +72,7 @@ class PlanView(QGraphicsView):
         self.setRenderHint(QPainter.RenderHint.Antialiasing,True);self.setDragMode(QGraphicsView.DragMode.NoDrag);self.setMouseTracking(True);self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse);self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter);self.setBackgroundBrush(QColor(248,248,248))
         self._mouse_down=False;self._handle_items={};self._entity_items={};self._active_handle=None;self._hud_item=None;self._wall_angle_buttons=[];self._wall_menu_target_entity=None;self.scale(55.0,-55.0);self.redraw()
     def rebind(self,doc,stack):self.doc=doc;self.stack=stack;self.controller=PointerController(doc,stack);self.redraw()
-    def set_tool(self,tool):self.controller.set_tool(tool);self._active_handle=None;self._railing_draft=None;self.statusChanged.emit(f'Tool: {tool}');self.redraw()
+    def set_tool(self,tool):self.controller.set_tool(tool);self._active_handle=None;self._railing_draft=None;self._slab_draft=None;self.statusChanged.emit(f'Tool: {tool}');self.redraw()
     # Things that carry other things (slabs, roofs, joists, ground): picked only
     # when nothing more specific (a stair, a cabinet, an MEP point…) is under the cursor.
     CONTAINER_KINDS=('room_floor','room_ceiling','room_foundation','room_roof','floor','room',
@@ -112,6 +123,7 @@ class PlanView(QGraphicsView):
         self.scale(1.15 if event.angleDelta().y()>0 else 1/1.15,1.15 if event.angleDelta().y()>0 else 1/1.15)
     def mouseDoubleClickEvent(self,event):
         if event.button()==Qt.MouseButton.LeftButton and self._railing_tool():self.finish_railing();event.accept();return
+        if event.button()==Qt.MouseButton.LeftButton and self._slab_tool():self.finish_slab_opening();event.accept();return
         if event.button()==Qt.MouseButton.LeftButton:
             hit=self.itemAt(event.position().toPoint());eid=self._entity_items.get(hit)
             if eid and eid in self.doc.entities:
@@ -174,6 +186,9 @@ class PlanView(QGraphicsView):
             self._hide_wall_angle_radial();self.hide_marking_menu()
         if event.button()!=Qt.MouseButton.LeftButton:super().mousePressEvent(event);return
         if self._railing_tool():self._railing_press(event);event.accept();return
+        if self._slab_tool():
+            ev=self._scene_to_plane(event.position().toPoint());self._slab_draft_get().down(ev.a,ev.b);self._mouse_down=True
+            self.redraw();event.accept();return
         if self.controller.tool in self.SITE_POINT_TOOLS or str(self.controller.tool).startswith(('plumb_','elec_','vent_','assist_','drain_','roofroom_','railingstair_')):
             ev=self._scene_to_plane(event.position().toPoint())
             self.sitePointRequested.emit(self.controller.tool,float(ev.a),float(ev.b));event.accept();return
@@ -214,6 +229,9 @@ class PlanView(QGraphicsView):
             return
         self.redraw()
     def mouseMoveEvent(self,event):
+        if self._slab_tool() and getattr(self,'_slab_draft',None) is not None:
+            ev=self._scene_to_plane(event.position().toPoint());self._slab_draft.move(ev.a,ev.b)
+            self.statusChanged.emit('Οπή πλάκας: '+self._slab_draft.label());self.redraw();return
         if self._railing_tool() and getattr(self,'_railing_draft',None) is not None:
             ev=self._scene_to_plane(event.position().toPoint())
             self._railing_draft.move(ev.a,ev.b,bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier));self.redraw();return
@@ -232,6 +250,13 @@ class PlanView(QGraphicsView):
             p=self.mapToScene(event.position().toPoint());self.statusChanged.emit(f'X {p.x():.3f}   Y {p.y():.3f}')
         super().mouseMoveEvent(event)
     def mouseReleaseEvent(self,event):
+        if event.button()==Qt.MouseButton.LeftButton and self._slab_tool() and getattr(self,'_slab_draft',None) is not None:
+            self._mouse_down=False;ev=self._scene_to_plane(event.position().toPoint())
+            done=self._slab_draft.up(ev.a,ev.b)
+            if done:self.finish_slab_opening(done)
+            else:
+                self.statusChanged.emit('Οπή πλάκας: κλικ στην επόμενη γωνία · διπλό κλικ / Enter / κλικ στην πρώτη = κλείσιμο · Esc = ακύρωση');self.redraw()
+            event.accept();return
         if event.button()==Qt.MouseButton.LeftButton and self._mouse_down and getattr(self,'_view_drag',None):
             self._mouse_down=False;ev=self._scene_to_plane(event.position().toPoint())
             self.end_view_line(ev.a,ev.b);event.accept();return
@@ -250,7 +275,8 @@ class PlanView(QGraphicsView):
         if self.controller.tool in ('stair','ramp') and self.controller.active is not None:return False
         return super().focusNextPrevChild(next)
     def keyPressEvent(self,event):
-        if event.key()==Qt.Key.Key_Escape:self.controller.cancel();self._mouse_down=False;self._railing_draft=None;self.redraw();return
+        if event.key()==Qt.Key.Key_Escape:self.controller.cancel();self._mouse_down=False;self._railing_draft=None;self._slab_draft=None;self.redraw();return
+        if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self._slab_tool():self.finish_slab_opening();event.accept();return
         if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self._railing_tool():self.finish_railing();event.accept();return
         if event.key() in (Qt.Key.Key_Tab,Qt.Key.Key_Space) and self.controller.cycle_option(1):
             self.redraw();event.accept();return
@@ -524,6 +550,17 @@ class PlanView(QGraphicsView):
             path=QPainterPath(QPointF(*pts[0]))
             for q in pts[1:]:path.lineTo(QPointF(*q))
             self._scene.addPath(path,pen).setZValue(30)
+        slab=getattr(self,'_slab_draft',None)
+        if slab is not None and len(slab.preview())>=2:
+            # Opening being drawn: dashed ghost with its size and area.
+            pen=QPen(QColor(200,60,40));pen.setWidthF(.035);pen.setStyle(Qt.PenStyle.DashLine);pts=slab.preview()
+            path=QPainterPath(QPointF(*pts[0]))
+            for q in pts[1:]:path.lineTo(QPointF(*q))
+            if len(pts)>=3:path.closeSubpath()
+            self._scene.addPath(path,pen,QBrush(QColor(200,60,40,30))).setZValue(30)
+            label=self._scene.addText(slab.label());label.setDefaultTextColor(QColor(170,40,30))
+            label.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations,True)
+            label.setPos(max(q[0] for q in pts),max(q[1] for q in pts));label.setZValue(31)
         drag=getattr(self,'_view_drag',None)
         if drag:
             # Section/camera line: dashed from the eye point along the view.
@@ -606,7 +643,20 @@ class PlanView(QGraphicsView):
         if p.role=='library-object' and self._has_symbol(p.entity_id):
             # Footprint stays for picking; the symbol carries the drawing.
             pen=QPen(QColor(150,160,170,90));pen.setWidthF(.006)
-        if p.kind=='line':a,b=p.points;item=self._scene.addLine(a[0],a[1],b[0],b[1],pen)
+        if p.role in ('slab-opening','slab-opening-cross'):
+            # Void in the slab: thin cross; dashed when the void is in the slab above (roof only).
+            pen=QPen(QColor(60,65,75));pen.setWidthF(.018 if p.role=='slab-opening' else .012)
+            if dict(p.meta).get('above'):pen.setStyle(Qt.PenStyle.DashLine)
+        if p.kind=='polygon' and dict(p.meta).get('islands'):
+            # Slab with openings / several parts: one path, holes left empty.
+            path=QPainterPath();path.setFillRule(Qt.FillRule.OddEvenFill)
+            for outer,holes in dict(p.meta)['islands']:
+                for loop in (outer,)+tuple(holes):
+                    path.moveTo(QPointF(*loop[0]))
+                    for q in loop[1:]:path.lineTo(QPointF(*q))
+                    path.closeSubpath()
+            item=self._scene.addPath(path,pen,QBrush(QColor(80,160,220,40)))
+        elif p.kind=='line':a,b=p.points;item=self._scene.addLine(a[0],a[1],b[0],b[1],pen)
         elif p.kind=='polyline':
             if len(p.points)>=2:
                 path=QPainterPath(QPointF(p.points[0][0],p.points[0][1]))
@@ -618,7 +668,7 @@ class PlanView(QGraphicsView):
             brush=QBrush(
                 QColor(160,160,160,18)
                 if context else
-                (QColor(90,180,120,28) if room else (QColor(150,140,125,70) if p.role=='site-path' else (QColor(255,255,255,1) if p.role=='library-object' else (QColor(236,230,220,120) if p.role=='cabinet' else (QColor(0,0,0,0) if p.role in ('cabinet-wall','joists-area') else QColor(80,160,220,40))))))
+                (QColor(90,180,120,28) if room else (QColor(150,140,125,70) if p.role=='site-path' else (QColor(255,255,255,1) if p.role=='library-object' else (QColor(236,230,220,120) if p.role=='cabinet' else (QColor(0,0,0,0) if p.role in ('cabinet-wall','joists-area') else (QColor(255,255,255,90) if p.role=='slab-opening' else QColor(80,160,220,40)))))))
             )
             room_pen=QPen(QColor(110,150,120));room_pen.setWidthF(.015)
             item=self._scene.addPolygon(QPolygonF([QPointF(x,y) for x,y in p.points]),room_pen if room else pen,brush)

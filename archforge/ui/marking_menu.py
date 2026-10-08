@@ -90,6 +90,10 @@ def build_menu(window, view, entity_id=None):
         entries.append(_e("mm:assist:entity", "📍 Βοηθός εδώ", "panel"))
         if entity.kind in ("structural_column", "structural_beam"):
             entries.append(_e("mm:analyze", "Στατική ανάλυση", "panel"))
+        if entity.kind == "slab_opening":
+            entries.insert(1, _e("mm:slab:railing", "Κάγκελο γύρω από την οπή"))
+        if entity.kind in ("room_floor", "room_roof", "room_ceiling") and view == "plan":
+            entries += _slab_entries()
         return {"center": describe_entity(window.doc, entity), "entries": _fit(entries), "wheel": None}
     # A submenu asked from the empty-space menu (kitchen, stairs, structure), shown once.
     sub = getattr(window, "_marking_submenu", None)
@@ -119,10 +123,18 @@ def build_menu(window, view, entity_id=None):
         entries.append(_e("mm:assist:point", "📍 Βοηθός εδώ", "panel"))
         entries.append(_e("mm:roofroom:tiled", "Κεραμοσκεπή σε αυτόν τον χώρο", "panel"))
         entries.append(_e("mm:roofroom:terrace", "Ταράτσα σε αυτόν τον χώρο", "panel"))
+        entries += _slab_entries()
     if any(e.kind in ("structural_column", "structural_beam") for e in window.doc.entities.values()):
         entries.append(_e("mm:analyze", "Στατική ανάλυση", "panel"))
     entries.append(_e("mm:undo", "Αναίρεση", "panel"))
     return {"center": "Σχεδίαση", "entries": _fit(entries), "wheel": None}
+
+
+def _slab_entries():
+    # Slab openings (architecture/storey_slabs.py): the room under the cursor, or a drawn outline.
+    return [_e("mm:slab:atrium", "Αίθριο σε αυτόν τον χώρο", "panel"),
+            _e("mm:slab:inner_balcony", "Κενό πλάκας (εσωτερικό μπαλκόνι) σε αυτόν τον χώρο", "panel"),
+            _e("mm:slab:draw", "Οπή πλάκας (σχεδίαση)", "panel")]
 
 
 def _fit(entries):
@@ -185,6 +197,14 @@ def run(window, view, entity_id, action_id, plan_xy=None):
             window._place_kitchen_item(names[i % len(names)])
     elif group == "roofroom" and plan_xy is not None:
         window._set_room_roof(arg, *plan_xy)
+    elif group == "slab":
+        from archforge.ui import slab_tools
+        if arg == "railing" and entity_id:
+            slab_tools.opening_railing(window, entity_id)
+        elif arg == "draw":
+            slab_tools.start_opening_tool(window)
+        elif plan_xy is not None:
+            slab_tools.room_opening(window, *plan_xy, use=arg)
     elif group == "structure":
         (window._design_structure if arg == "design" else window._propose_frame)()
     elif group == "analyze":

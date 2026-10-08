@@ -42,11 +42,11 @@ def test_auto_roof_skips_rooms_under_the_upper_storey():
             w.stack.execute(AddEntity(Entity(e.kind, dict(e.params))))
         w._create_flat_roofs()
         roofs = [e for e in w.doc.entities.values() if e.kind == 'room_roof']
-        from archforge.architecture.roof_need import room_face_of
-        assert len(roofs) == 1
-        face, _z = room_face_of(w.doc, roofs[0])
-        assert min(p[0] for p in face.polygon) >= 4.9                    # the right room (nothing above it)
-        assert 'παραλείφθηκαν 1' in w.statusBar().currentMessage()
+        from archforge.architecture.rooms import room_slab_geometry
+        assert len(roofs) == 1 and roofs[0].params['scope'] == 'storey'      # one roof slab for the storey (SL1)
+        g = room_slab_geometry(w.doc, roofs[0])
+        assert min(p[0] for p in g['points']) >= 4.9                     # only over the right room (nothing above it)
+        assert g['area'] < 5.3 * 6.3
     finally:
         w._mark_clean(); w.close(); app.processEvents()
 
