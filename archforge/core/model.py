@@ -863,6 +863,8 @@ class Document:
         self.room_data = {}
         self.room_bindings = {}
         self.surface_modifiers = {}
+        # Layers / working environment: view state saved with the project, outside undo (core/layers.py).
+        self.view_layers = {}
         self._change_serial = 0
         self._dirty_generation: Dict[str, int] = {}
 
@@ -1305,6 +1307,7 @@ class Document:
             'room_data': copy.deepcopy(self.room_data),
             'room_bindings': copy.deepcopy(self.room_bindings),
             'surface_modifiers': [modifier_to_dict(m) for m in self.surface_modifiers.values()],
+            'view_layers': copy.deepcopy(self.view_layers),
         }
 
     @classmethod
@@ -1337,6 +1340,8 @@ class Document:
         doc.constructions = data.get('constructions', {})
         doc.room_data = copy.deepcopy(data.get('room_data', {}))
         doc.room_bindings = copy.deepcopy(data.get('room_bindings', {}))
+        from .layers import view_layers_from_dict
+        doc.view_layers = view_layers_from_dict(data.get('view_layers'))
         deferred = []
         for raw in data.get('entities', []):
             if raw.get('kind') in ('door', 'window', 'opening', 'structural_support', 'structural_load', 'organic_opening_patch', 'mechanical_joint', 'mechanical_mount'):

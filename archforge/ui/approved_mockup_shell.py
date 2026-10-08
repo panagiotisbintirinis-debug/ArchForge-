@@ -657,4 +657,9 @@ def install_approved_mockup_shell(window):
     window.view_menu.addAction(simultaneous)
     window._simultaneous_action=simultaneous
     # Every bar and panel movable / floatable / closable; the layout is remembered (Προβολή → Επαναφορά διάταξης).
-    install_workspace_layout(window,(ribbon,floor_bar,camera,snap_bar),(project_dock,window.dock,assistant_dock))
+    # Layers panel and the Αρχιτεκτονικό / Φέρων / Η/Μ environments (view state, layers_panel.py).
+    from archforge.ui.layers_panel import install_layers, install_menu
+    workspace_bar,layers_dock=install_layers(window)
+    window.tabifyDockWidget(assistant_dock,layers_dock); window.dock.raise_()
+    install_workspace_layout(window,(ribbon,floor_bar,camera,snap_bar,workspace_bar),(project_dock,window.dock,assistant_dock,layers_dock))
+    install_menu(window)

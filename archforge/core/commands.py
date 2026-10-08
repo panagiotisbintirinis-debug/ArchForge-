@@ -814,11 +814,16 @@ class CommandStack:
     @property
     def can_redo(self) -> bool:
         return bool(self.undone)
-    def execute(self,c):c.do(self.doc);self.done.append(c);self.undone.clear();self._notify()
+    def _check_layers(self,c):
+        # A locked layer (Layers panel / environment) refuses changes to its entities.
+        from .layers import check_command
+        check_command(self.doc,c)
+    def execute(self,c):self._check_layers(c);c.do(self.doc);self.done.append(c);self.undone.clear();self._notify()
     def amend(self,c):
         """Run ``c`` as part of the last step: one undo removes both (e.g. a wall and its dimension reference)."""
         if not self.done:
             return self.execute(c)
+        self._check_layers(c)
         c.do(self.doc)
         last=self.done.pop()
         self.done.append(CompositeCommand([last,c]))

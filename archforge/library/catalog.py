@@ -373,7 +373,7 @@ def garden_table():
 
 
 def specs():
-    from archforge.library import catalog_more
+    from archforge.library import catalog_more, catalog_photo
     return [
         sofa(210, FABRIC_GREY, "Καναπές τριθέσιος"), sofa(160, FABRIC_BLUE, "Καναπές διθέσιος"),
         armchair(), coffee_table(), tv_unit(), bookcase(),
@@ -388,10 +388,11 @@ def specs():
         plant_pot(), floor_mirror(), vase(),
         garden_bench(), planter(), sun_lounger(), parasol(), garden_table(),
         *catalog_more.specs(),
+        *catalog_photo.specs(),
     ]
 
 
-CORE_VERSION = 2
+CORE_VERSION = 3
 
 
 def seed_core_library(force=False):

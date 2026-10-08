@@ -569,7 +569,7 @@ class PlanView(QGraphicsView):
         )
 
     def redraw(self):
-        self._scene.clear();self._handle_items.clear();self._entity_items.clear();self._draw_grid();frame=build_plan_frame(self.doc,self.controller.preview);self._frame=frame
+        self._scene.clear();self._handle_items.clear();self._entity_items.clear();self._draw_grid();frame=build_plan_frame(self.doc,self.controller.preview,layers=not self.structural_only);self._frame=frame
         if self.structural_only:
             structural_ids={
                 eid for eid,e in self.doc.entities.items()
@@ -817,11 +817,15 @@ class PlanView(QGraphicsView):
                 # Distance of a dragged wall: blue and bold, like the angle mark.
                 f=item.font();f.setBold(True);f.setPointSizeF(f.pointSizeF()*1.25);item.setFont(f)
                 item.setDefaultTextColor(QColor(210,40,40) if text.startswith('⚠') else QColor(20,110,220))
-            item.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations,True);item.setPos(cx,cy);item.setTransformOriginPoint(item.boundingRect().center());item.setScale(1.0);item.setZValue(8);return
+            item.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations,True);item.setPos(cx,cy);item.setTransformOriginPoint(item.boundingRect().center());item.setScale(1.0);item.setZValue(8);
+            if dict(p.meta).get('layer_dim'):item.setOpacity(.3)
+            return
         if item is not None:
             container=bool(p.entity_id) and p.entity_id in self.doc.entities and self.doc.get(p.entity_id).kind in self.CONTAINER_KINDS
             item.setZValue(-20 if context else (-10 if room else (10 if opening else (20 if preview else (-5 if container else 0)))))
             if p.entity_id and not preview:self._entity_items[item]=p.entity_id
+            # Dim layer (Layers panel / environment): a faint reference under the work.
+            if dict(p.meta).get('layer_dim'):item.setOpacity(.28);item.setZValue(-30)
     def _draw_rotate_dial(self,preview):
         # Live rotation: dial round the pivot, a ray at the new angle and the angle in degrees.
         hud=preview.hud;px,py=float(hud.get('pivot_x',0.)),float(hud.get('pivot_y',0.));a=float(hud.get('angle_deg',0.))
@@ -832,7 +836,7 @@ class PlanView(QGraphicsView):
             tick=QPen(QColor(230,120,20));tick.setWidthF(.015 if k%6 else .03)
             self._scene.addLine(px+math.cos(t)*(r-q),py+math.sin(t)*(r-q),px+math.cos(t)*r,py+math.sin(t)*r,tick).setZValue(55)
         ray=QPen(QColor(230,120,20));ray.setWidthF(.03)
-        t=math.radians(a-90);self._scene.addLine(px,py,px+math.cos(t)*r,py+math.sin(t)*r,ray).setZValue(56)
+        t=math.radians(float(getattr(self.controller,'_rotate_start_angle',-90.))+a);self._scene.addLine(px,py,px+math.cos(t)*r,py+math.sin(t)*r,ray).setZValue(56)
         label=self._scene.addText(f'{a:+.0f}°');label.setDefaultTextColor(QColor(200,90,10))
         f=label.font();f.setBold(True);f.setPointSizeF(f.pointSizeF()*1.3);label.setFont(f)
         label.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations,True);label.setPos(px+r*.75,py+r*.95);label.setZValue(57)

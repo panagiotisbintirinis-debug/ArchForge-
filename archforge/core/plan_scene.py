@@ -535,7 +535,7 @@ def _lower_storey_underlay(doc,f,tolerance=1e-5):
         ))
 
 
-def build_plan_frame(doc,preview=None):
+def build_plan_frame(doc,preview=None,layers=True):
     f=PlanFrame()
     _lower_storey_underlay(doc,f)
     try:
@@ -764,5 +764,9 @@ def build_plan_frame(doc,preview=None):
                 text=f"{VENT[e.params['point_type']][4]} Ø{info.get('diameter','')} → {where}"
                 f.primitives.append(Primitive2D('label',((float(e.params['x'])+.15,float(e.params['y'])+.30),),entity_id=eid,role='ventilation-label',meta=(('text',text),)))
     f.handles=selection_handles(doc)
+    if layers:
+        # Layers / environment (core/layers.py): hidden out, locked unpickable, dim faint.
+        from .layers import apply_to_frame
+        apply_to_frame(doc,f)
     if preview:f.primitives.extend(preview_primitives(preview));f.hud=dict(preview.hud);f.snap=preview.snap
     return f
