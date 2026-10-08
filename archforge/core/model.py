@@ -295,6 +295,29 @@ def _cabinet_handle(v):
     return v
 
 
+def _cabinet_front_style(v):
+    from archforge.kitchen.cabinets import FRONT_STYLES
+    v = str(v)
+    if v not in FRONT_STYLES:
+        raise ValueError(f'front style must be one of {", ".join(FRONT_STYLES)}')
+    return v
+
+
+def _cabinet_mechanism(v):
+    from archforge.kitchen.cabinets import MECHANISMS
+    v = str(v)
+    if v not in MECHANISMS:
+        raise ValueError(f'mechanism must be one of {", ".join(MECHANISMS)}')
+    return v
+
+
+def _cabinet_blind_side(v):
+    v = str(v)
+    if v not in ('left', 'right'):
+        raise ValueError('blind side must be left or right')
+    return v
+
+
 def _positive_int(v):
     value = int(v)
     if value <= 0:
@@ -654,6 +677,7 @@ SCHEMAS = {
         'width': _positive, 'depth': _positive, 'height': _positive, 'plinth': _nonnegative,
         'cabinet_type': _cabinet_type, 'doors': _count, 'drawers': _count, 'shelves': _count,
         'worktop': _unit_interval, 'handle': _cabinet_handle,
+        'front_style': _cabinet_front_style, 'mechanism': _cabinet_mechanism, 'blind_side': _cabinet_blind_side,
     },
     'library_object': {
         'x': _finite, 'y': _finite, 'z': _finite, 'rotation': _finite,

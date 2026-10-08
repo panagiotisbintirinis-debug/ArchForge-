@@ -236,12 +236,13 @@ class CabinetModifierDialog(QDialog):
 
     Size changes keep panel thicknesses and gaps; the number of doors follows
     the width unless the user sets it.  Finishes are per role (carcass,
-    fronts, handles, plinth, worktop...) from the shared palette.
+    fronts, handles, plinth, worktop...) from the shared palette.  Front
+    style, handle and mechanism are choices of the same entity (one undo).
     """
 
     def __init__(self, window, entity_id):
         from PySide6.QtWidgets import QComboBox, QSpinBox
-        from archforge.kitchen.cabinets import HANDLES, TYPES
+        from archforge.kitchen.cabinets import BLIND_SIDES, FRONT_STYLES, HANDLE_NAMES, TYPES
         super().__init__(window)
         self.window = window
         self.entity_id = str(entity_id)
@@ -282,10 +283,23 @@ class CabinetModifierDialog(QDialog):
         self.worktop.toggled.connect(lambda on: self.set_param("worktop", 1.0 if on else 0.0))
         form.addRow(self.worktop)
         self.handle = QComboBox()
-        for h, label in zip(HANDLES, ("Μπάρα", "Πόμολο", "Χωρίς (push)")):
+        for h, label in HANDLE_NAMES.items():
             self.handle.addItem(label, h)
         self.handle.currentIndexChanged.connect(lambda _i: self.set_param("handle", self.handle.currentData()))
         form.addRow("Χερούλι", self.handle)
+        self.front_style = QComboBox()
+        for key, label in FRONT_STYLES.items():
+            self.front_style.addItem(label, key)
+        self.front_style.currentIndexChanged.connect(lambda _i: self.set_param("front_style", self.front_style.currentData()))
+        form.addRow("Πρόσοψη", self.front_style)
+        self.mechanism = QComboBox()          # filled per type in refresh()
+        self.mechanism.currentIndexChanged.connect(lambda _i: self.set_param("mechanism", self.mechanism.currentData()))
+        form.addRow("Μηχανισμός", self.mechanism)
+        self.blind_side = QComboBox()
+        for key, label in BLIND_SIDES.items():
+            self.blind_side.addItem(label, key)
+        self.blind_side.currentIndexChanged.connect(lambda _i: self.set_param("blind_side", self.blind_side.currentData()))
+        form.addRow("Τυφλό τμήμα", self.blind_side)
         layout.addWidget(box)
         mat = QGroupBox("Υλικά (παλέτα)")
         mv = QVBoxLayout(mat)
@@ -315,7 +329,7 @@ class CabinetModifierDialog(QDialog):
         self.refresh()
 
     def refresh(self):
-        from archforge.kitchen.cabinets import ROLE_NAMES, TYPES
+        from archforge.kitchen.cabinets import MECHANISMS, ROLE_NAMES, TYPES, cabinet_roles, mechanisms_for
         if self.entity_id not in self.window.doc.entities:
             self.close()
             return
@@ -330,14 +344,16 @@ class CabinetModifierDialog(QDialog):
         self.rotation.setValue(float(p.get("rotation", 0.0)))
         self.worktop.setChecked(bool(p.get("worktop", 0.0)))
         self.handle.setCurrentIndex(self.handle.findData(p.get("handle", "bar")))
+        self.front_style.setCurrentIndex(self.front_style.findData(p.get("front_style", "flat")))
+        self.mechanism.clear()
+        for key in mechanisms_for(p["cabinet_type"]):
+            self.mechanism.addItem(MECHANISMS[key][0], key)
+        self.mechanism.setCurrentIndex(max(0, self.mechanism.findData(p.get("mechanism", "none"))))
+        self.blind_side.setCurrentIndex(self.blind_side.findData(p.get("blind_side", "left")))
+        self.blind_side.setEnabled(p["cabinet_type"] == "corner_blind")
         self.parts.clear()
         overrides = p.get("surface_materials") or {}
-        from archforge.kitchen.cabinets import cabinet_boxes
-        present = []
-        for role, _lo, _hi in cabinet_boxes(p):
-            if role not in present:
-                present.append(role)
-        for role in present:
+        for role in cabinet_roles(p):
             mid = overrides.get(role) or p.get("material_id")
             finish = MATERIAL_PRESETS.get(mid, {}).get("name", "αρχικό")
             item = QListWidgetItem(f"{ROLE_NAMES.get(role, role)}:  {finish}")
@@ -353,9 +369,9 @@ class CabinetModifierDialog(QDialog):
         """Change one parameter; width also re-derives the door count."""
         if self._building:
             return
-        from archforge.kitchen.cabinets import TYPES, auto_doors
+        from archforge.kitchen.cabinets import DEFAULT_MECHANISM, TYPES, auto_doors, mechanisms_for
         p = self.entity.params
-        if p.get(key) == value:
+        if p.get(key, {"front_style": "flat", "mechanism": "none", "blind_side": "left"}.get(key)) == value:
             return
         changes = {key: value}
         if key == "width" and int(p.get("doors", 0)) == auto_doors(p["cabinet_type"], float(p["width"])):
@@ -365,6 +381,13 @@ class CabinetModifierDialog(QDialog):
             changes.update({k: d[k] for k in ("depth", "height", "plinth", "drawers", "shelves", "worktop")})
             changes["doors"] = auto_doors(value, float(p["width"])) if d["doors"] else 0
             changes["z"] = float(p["z"]) + (d["z"] - TYPES[p["cabinet_type"]][1]["z"])
+            if value in ("corner", "corner_blind") or p["cabinet_type"] in ("corner", "corner_blind"):
+                changes["width"] = d["width"]           # corner units have their own plan size
+                changes["doors"] = auto_doors(value, d["width"]) if d["doors"] else 0
+            if p.get("mechanism", "none") not in mechanisms_for(value) or value in DEFAULT_MECHANISM:
+                changes["mechanism"] = DEFAULT_MECHANISM.get(value, "none")
+            if value == "corner_blind":
+                changes["blind_side"] = p.get("blind_side", "left")
         self._execute(UpdateEntity(self.entity_id, changes))
 
     def choose_material(self, role):
@@ -384,3 +407,24 @@ class CabinetModifierDialog(QDialog):
 
     def reset_materials(self):
         self._execute(UpdateEntity(self.entity_id, {"material_id": "", "surface_materials": {}}))
+
+
+def add_cabinet_choices(window, form, entity_id):
+    """Front style, handle and mechanism of a cabinet in the Inspector (Ιδιότητες)."""
+    from PySide6.QtWidgets import QComboBox
+    from archforge.kitchen.cabinets import FRONT_STYLES, HANDLE_NAMES, MECHANISMS, mechanisms_for
+    p = window.doc.get(entity_id).params
+    choices = (("front_style", "Πρόσοψη", FRONT_STYLES, "flat"),
+               ("handle", "Χερούλι", HANDLE_NAMES, "bar"),
+               ("mechanism", "Μηχανισμός", {k: MECHANISMS[k][0] for k in mechanisms_for(p["cabinet_type"])}, "none"))
+    combos = {}
+    for key, label, options, default in choices:
+        combo = QComboBox()
+        for value, name in options.items():
+            combo.addItem(name, value)
+        combo.setCurrentIndex(max(0, combo.findData(p.get(key, default))))
+        combo.currentIndexChanged.connect(
+            lambda _i, k=key, w=combo: window._set_entity_choice(entity_id, k, w.currentData()))
+        form.addRow(label, combo)
+        combos[key] = combo
+    return combos

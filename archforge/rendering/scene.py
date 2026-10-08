@@ -57,6 +57,8 @@ _MATERIALS: Mapping[str, dict] = {
     "cabinet_plinth": {"color": "#3b3b3b", "roughness": 0.7, "metalness": 0.0},
     "cabinet_worktop": {"color": "#77716a", "roughness": 0.35, "metalness": 0.0},
     "cabinet_rail": {"color": "#b5b7ba", "roughness": 0.25, "metalness": 0.9},
+    "cabinet_glass": {"color": "#b9d3de", "roughness": 0.05, "metalness": 0.1, "opacity": 0.35},
+    "cabinet_mechanism": {"color": "#c9ccd0", "roughness": 0.3, "metalness": 0.8},
     "plant_canopy": {"color": "#4f7a3a", "roughness": 0.85, "metalness": 0.0},
     # Railings: the type / finish sets the look per role (railings.role_material).
     "railing_handrail": {"color": "#33373b", "roughness": 0.55, "metalness": 0.35},

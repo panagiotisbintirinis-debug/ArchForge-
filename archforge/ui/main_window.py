@@ -1811,6 +1811,9 @@ class MainWindow(QMainWindow):
             button.setToolTip('Διαστάσεις, υλικά ανά τμήμα και Sculpt του αντικειμένου')
             button.clicked.connect(lambda _=False, entity_id=eid: self._open_object_modifier(entity_id))
             self.form.addRow(button)
+        if entity.kind == 'cabinet':
+            from .object_modifier import add_cabinet_choices
+            self._cabinet_choices = add_cabinet_choices(self, self.form, eid)   # front style, handle, mechanism
 
     def _commit_property(self, eid, key, value):
         try:
