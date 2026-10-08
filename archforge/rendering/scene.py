@@ -49,6 +49,12 @@ _MATERIALS: Mapping[str, dict] = {
     "cabinet_worktop": {"color": "#77716a", "roughness": 0.35, "metalness": 0.0},
     "cabinet_rail": {"color": "#b5b7ba", "roughness": 0.25, "metalness": 0.9},
     "plant_canopy": {"color": "#4f7a3a", "roughness": 0.85, "metalness": 0.0},
+    # Railings: the type / finish sets the look per role (railings.role_material).
+    "railing_handrail": {"color": "#33373b", "roughness": 0.55, "metalness": 0.35},
+    "railing_post": {"color": "#33373b", "roughness": 0.55, "metalness": 0.35},
+    "railing_infill": {"color": "#33373b", "roughness": 0.55, "metalness": 0.35},
+    "railing_glass": {"color": "#a9c3d2", "roughness": 0.03, "metalness": 0.1, "opacity": 0.3},
+    "railing_base": {"color": "#c9c4bb", "roughness": 0.85, "metalness": 0.0},
     "room_ceiling": {"color": "#dedbd2", "roughness": 0.78, "metalness": 0.01},
     "room_foundation": {"color": "#9ea4aa", "roughness": 0.9, "metalness": 0.0},
     "room_roof": {"color": "#8f979f", "roughness": 0.68, "metalness": 0.02},
@@ -185,6 +191,20 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                     "material": _material(f"cabinet_{role}", body.entity_id in selected, entity=entity, doc=doc,
                                           surface_role=role),
                 })
+            continue
+        if body.semantic_kind == "railing" and entity is not None:
+            # One derived mesh per role (handrail, posts, infill, glass, base); a palette
+            # finish per role lives in surface_materials, like cabinets and wall faces.
+            from archforge.architecture.railings import role_material
+            groups = {}
+            for tri, role in zip(mesh.triangles, mesh.triangle_surfaces):
+                groups.setdefault(str(role), []).append([int(tri[0]), int(tri[1]), int(tri[2])])
+            for role, tris in groups.items():
+                material = _material(f"railing_{role}", body.entity_id in selected, entity=entity, doc=doc, surface_role=role)
+                if not _surface_material_id(entity, role):
+                    material.update(role_material(entity.params, role))
+                objects.append({"id": str(body.entity_id), "render_part": f"{body.entity_id}:{role}", "kind": "railing",
+                                "vertices": vertices, "triangles": tris, "surfaces": [role] * len(tris), "material": material})
             continue
         if body.semantic_kind == "library_object" and entity is not None:
             # One derived mesh per material part of the referenced asset. A part

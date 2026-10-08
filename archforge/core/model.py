@@ -435,6 +435,26 @@ def _kitchen_role(v):
     return _nonempty(v)
 
 
+def _railing_points(v):
+    from archforge.architecture.railings import validate_points
+    return validate_points(v)
+
+
+def _railing_choice(table, label):
+    def check(v):
+        from archforge.architecture import railings
+        v = str(v)
+        options = getattr(railings, table)
+        if v not in options:
+            raise ValueError(f'{label} must be one of {", ".join(options)}')
+        return v
+    return check
+
+
+def _flag(v):
+    return 1 if int(round(float(v))) else 0
+
+
 def _load_direction(v):
     vec = _vec3(v)
     length = math.sqrt(sum(float(x) * float(x) for x in vec))
@@ -634,6 +654,12 @@ SCHEMAS = {
         'rotation': _finite, 'role': _kitchen_role, 'run_id': _nonempty,
         'roughness': _unit_interval, 'metallic': _unit_interval,
     },
+    'railing': {
+        'points': _railing_points, 'z': _finite, 'closed': _flag, 'height': _positive,
+        'railing_type': _railing_choice('TYPES', 'railing type'), 'handrail': _railing_choice('HANDRAILS', 'handrail'),
+        'handrail_size': _positive, 'post_spacing': _positive, 'gap': _positive, 'base_height': _nonnegative,
+        'metal': _railing_choice('METALS', 'metal'),
+    },
 }
 
 
@@ -683,6 +709,9 @@ def validate_params(kind, params):
             raise ValueError('structural beam is missing required fields: ' + ', '.join(sorted(missing)))
         if math.hypot(float(out['x2'])-float(out['x1']), float(out['y2'])-float(out['y1'])) <= 1e-9:
             raise ValueError('structural beam must have non-zero plan length')
+    if kind == 'railing':
+        from archforge.architecture.railings import validate as validate_railing
+        validate_railing(out)
     if kind == 'mesh':
         required = {'vertices', 'faces', 'matrix'}
         missing = required - set(out)

@@ -361,6 +361,16 @@ def install_approved_mockup_shell(window):
         a.triggered.connect(lambda _=False,m=mat,t=text: window._start_site_tool(f"pergola_{m}",f"Πέργκολα {t.lower()}: σύρε το ορθογώνιο στην κάτοψη (πλευρά σε τοίχο = στερεώνεται εκεί), Esc για τέλος"))
         pergola.addAction(a)
     menus["Κατασκευή"].addMenu(pergola)
+    # Railings: one entry per type (click the corners), and the railing of a stair (click the stair).
+    from archforge.architecture.railings import TYPES as RAILINGS
+    railing=QMenu("Κάγκελα",elements); elements.addMenu(railing); window._mockup_railing_menu=railing
+    for key,spec in RAILINGS.items():
+        a=QAction(spec["label"],railing); a.triggered.connect(lambda _=False,k=key: window._start_railing_tool(k)); railing.addAction(a)
+    railing.addSeparator()
+    a=QAction("Κάγκελο σκάλας (κλικ σε σκάλα)",railing)
+    a.triggered.connect(lambda: window._start_site_tool("railingstair_balusters","Κάγκελο σκάλας: κλικ πάνω στη σκάλα — μπαίνει στις ελεύθερες πλευρές, Esc για τέλος"))
+    railing.addAction(a)
+    menus["Κατασκευή"].addMenu(railing)
     # Structure: columns, beams, footings as one submenu.
     structural=QMenu("Δομικά: κολόνες, δοκάρια, βάσεις",elements); elements.addMenu(structural)
     window._mockup_structural_submenu=structural

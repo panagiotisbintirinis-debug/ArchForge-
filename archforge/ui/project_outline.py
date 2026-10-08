@@ -15,6 +15,7 @@ CATEGORIES = (
     ("Τοίχοι", ("wall",)),
     ("Ανοίγματα", ("door", "window", "opening")),
     ("Σκάλες & ράμπες", ("stair", "ramp")),
+    ("Κάγκελα", ("railing",)),
     ("Δομικά", ("structural_column", "structural_beam", "structural_support", "structural_load")),
     ("Πλάκες & στέγες", ("floor", "room_floor", "room_ceiling", "room_foundation", "room_roof")),
     ("Ντουλάπια & κουζίνα", ("cabinet", "kitchen_part")),
@@ -29,6 +30,7 @@ KIND_LABELS = {
     "room_floor": "Δάπεδο", "room_ceiling": "Οροφή", "room_foundation": "Θεμέλιο", "room_roof": "Στέγη",
     "cabinet": "Ντουλάπι", "kitchen_part": "Κομμάτι κουζίνας", "library_object": "Αντικείμενο",
     "box": "Κουτί", "terrain": "Έδαφος", "plant": "Φυτό", "site_path": "Μονοπάτι", "pod": "Pod",
+    "railing": "Κάγκελο",
 }
 
 
