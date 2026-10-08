@@ -21,8 +21,13 @@ check them):
   eq. 7.16 (K = 1.0 / 1.3 / 1.5 for 0 / 1 / 2 continuous edges, ρ = required
   steel), capped at 40·K.
 
+Openings (``slab_opening``: atrium, inner balcony, void) are taken out of the
+panel area; a panel left with < 10 % of its area is no slab at all (atrium).
+Openings are not designed: «ενίσχυση περιμετρικά της οπής — προς έλεγχο
+μηχανικού» (trimmer bars round the opening, by the engineer).
+
 Status: pre-design for review by a structural engineer.  No punching,
-cantilevers, openings in the slab or point loads.
+cantilevers, design of slab openings or point loads.
 """
 from __future__ import annotations
 
@@ -33,6 +38,7 @@ from archforge.structure.analysis.sections import CONCRETE, FYK, fyd
 PROVENANCE = ("Προδιάσταση πλακών: μέθοδος Marcus (κατανομή φορτίου και μείωση στρέψης), συντελεστές ροπών "
               "συνεχείας pl²/8 – /12 – /14,2 – /24, EN 1992-1-1 (As,min, l/d εξ. 7.16) — προς έλεγχο από στατικό μηχανικό")
 BARS = (8, 10, 12)
+REINFORCEMENT_NOTE = "ενίσχυση περιμετρικά της οπής — προς έλεγχο μηχανικού"
 SPACINGS = (0.25, 0.20, 0.175, 0.15, 0.125, 0.10, 0.075)
 
 
@@ -94,6 +100,19 @@ def panels(doc):
     return out
 
 
+def _panel_openings(doc, storey_z, polygon, storeys):
+    """Area (m²) of the slab openings over a room: its storey's roof cuts and the floor cuts of the storey above."""
+    from archforge.architecture.storey_slabs import openings_for
+    from archforge.geometry.regions import islands_area, region
+    cuts = [poly for _e, poly in openings_for(doc, storey_z, "roof")]
+    above = [z for z in storeys if z > storey_z + 0.5]
+    if above:
+        cuts += [poly for _e, poly in openings_for(doc, min(above), "floor")]
+    if not cuts:
+        return 0.0
+    return max(0.0, _area(polygon) - islands_area(region([polygon], cuts)))
+
+
 def design_slabs(doc):
     """``{"panels": [...], "provenance": str, "ok": bool}``."""
     from archforge.structure.analysis.settings import OCCUPANCIES, ROOF_ACCESS, get_settings
@@ -101,7 +120,11 @@ def design_slabs(doc):
     h = float(s["slab_thickness"])
     fck, fctm, _E = CONCRETE[s["concrete"]]
     out = []
+    storeys = sorted({float(st["z"]) for st, _r, _t, _rs in panels(doc)})
     for storey, r, top, rooms in panels(doc):
+        hole = _panel_openings(doc, float(storey["z"]), r["polygon"], storeys)
+        if hole > 0.9 * _area(r["polygon"]):
+            continue                                        # atrium: no slab over this room
         xs = [p[0] for p in r["polygon"]]
         ys = [p[1] for p in r["polygon"]]
         x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
@@ -174,7 +197,9 @@ def design_slabs(doc):
                     "l_d": round(ld, 1), "l_d_lim": ld_lim, "ok": ok, "h_required": max(h_req, 0.15),
                     "text": f"{r['name']}: πλάκα {h * 100:.0f} cm {kind}, κάτω {_label(main)} ({'x' if x_short else 'y'}) / "
                             f"{_label(long_)} ({'y' if x_short else 'x'})" + (f", άνω στηρίξεις {_label(support)}" if support else "")
-                            + ("" if ok else f" ⚠ l/d {ld:.0f} > {ld_lim:.0f}: πάχος ≥ {max(h_req, 0.15) * 100:.0f} cm")})
+                            + ("" if ok else f" ⚠ l/d {ld:.0f} > {ld_lim:.0f}: πάχος ≥ {max(h_req, 0.15) * 100:.0f} cm")
+                            + (f" · οπή {hole:.2f} m²: {REINFORCEMENT_NOTE}" if hole > 0 else ""),
+                    "opening_m2": round(hole, 2), "net_m2": round(_area(r["polygon"]) - hole, 2)})
     return {"panels": out, "ok": all(p["ok"] for p in out), "provenance": PROVENANCE}
 
 
@@ -182,7 +207,7 @@ def slabs_html(result):
     rows = "".join(
         f"<tr><td>{p['storey']}</td><td>{p['room']}</td><td>{p['lx']}×{p['ly']}</td><td>{p['kind']}</td><td>{p['h'] * 100:.0f}</td>"
         f"<td>{p['pd']}</td><td>{p['bottom_short']} ({p['short_dir']})</td><td>{p['bottom_long']}</td><td>{p['top_support']}</td>"
-        f"<td>{p['l_d']} / {p['l_d_lim']:g}</td><td>{'✓' if p['ok'] else '⚠ ≥ ' + format(p['h_required'] * 100, '.0f') + ' cm'}</td></tr>"
+        f"<td>{p['l_d']} / {p['l_d_lim']:g}</td><td>{'✓' if p['ok'] else '⚠ ≥ ' + format(p['h_required'] * 100, '.0f') + ' cm'}{('<br>οπή ' + format(p['opening_m2'], '.2f') + ' m²: ' + REINFORCEMENT_NOTE) if p.get('opening_m2') else ''}</td></tr>"
         for p in result["panels"])
     return ("<h3>Πλάκες (οπλισμός ανά φάτνωμα)</h3><table border=1 cellspacing=0 cellpadding=3><tr><th>Όροφος</th><th>Χώρος</th>"
             "<th>lx×ly (m)</th><th>Λειτουργία</th><th>h (cm)</th><th>pd (kN/m²)</th><th>Κάτω κύριος</th><th>Κάτω δευτ.</th>"

@@ -92,6 +92,11 @@ def roof_plan(doc):
     for e in doc.entities.values():
         if e.kind != "room_roof":
             continue
+        if e.params.get("scope") == "storey":
+            # A storey roof follows the plan: it covers exactly the rooms that need it.
+            from archforge.architecture.storey_slabs import storey_faces
+            roofed.update(f.signature for f in storey_faces(doc, "room_roof", float(e.params["level_z"])))
+            continue
         found = room_face_of(doc, e)
         if found is None:
             continue

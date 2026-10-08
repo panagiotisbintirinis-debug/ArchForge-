@@ -17,6 +17,9 @@ from archforge.core.interaction import OpeningPlaceTransaction, StairPlaceTransa
 from archforge.rendering.scene import build_pbr_scene_payload
 from archforge.ui.object_context_menu import object_context_actions
 
+# Camera presets as the status bar names them.
+CAMERA_LABELS = {"orbit": "3D προοπτική", "top": "πάνω", "front": "πρόσοψη", "side": "πλάγια", "iso30": "αξονομετρική",
+                 "eye": "περιήγηση", "dollhouse": "κουκλόσπιτο", "ortho": "ορθογραφική", "cutaway": "τομή"}
 
 STRUCTURAL_VIEW_KINDS = frozenset({
     "structural_column", "structural_beam",
@@ -1912,7 +1915,7 @@ class PBRViewport(QWidget):
         if not ok:
             self.statusChanged.emit("PBR Preview HTML failed to load")
             return
-        self.statusChanged.emit("PBR Preview ready")
+        self.statusChanged.emit("3D έτοιμο")
         self.set_render_technique(self._technique)
         self.set_axes_visible(self._axes_visible)
         self.set_auto_rotate(self._auto_rotate)
@@ -1943,7 +1946,7 @@ class PBRViewport(QWidget):
                 + ");"
             )
             self.web_view.page().runJavaScript(script)
-        self.statusChanged.emit("Snap ON" if self._snap_enabled else "Snap OFF — Free mode")
+        self.statusChanged.emit("Έλξη ενεργή" if self._snap_enabled else "Έλξη ανενεργή — ελεύθερη σχεδίαση")
 
     def set_tool(self, tool: str) -> None:
         # Leaving Stair/Ramp drops a half-placed one, so its HUD and ghost never stay behind.
@@ -2667,7 +2670,7 @@ class PBRViewport(QWidget):
             self.web_view.page().runJavaScript(
                 "if (typeof fitCamera === 'function') fitCamera();"
             )
-        self.statusChanged.emit("PBR camera: fit")
+        self.statusChanged.emit("3D: όλο το κτίριο στην οθόνη")
 
     def set_camera_preset(self, mode: str) -> None:
         allowed = ("cutaway", "top", "front", "side", "iso30", "eye", "orbit", "dollhouse", "ortho")
@@ -2686,7 +2689,7 @@ class PBRViewport(QWidget):
                 + json.dumps(mode)
                 + ");"
             )
-        self.statusChanged.emit(f"PBR camera: {mode}")
+        self.statusChanged.emit(f"3D προβολή: {CAMERA_LABELS.get(mode, mode)}")
 
     def set_sun(self, hour, month=None) -> None:
         """Physical sky with the sun at solar ``hour`` of ``month`` (38° N);

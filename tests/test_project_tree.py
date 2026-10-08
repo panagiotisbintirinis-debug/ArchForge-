@@ -89,9 +89,9 @@ def test_construction_tree_lists_every_entity_once_in_its_place():
             if hit:
                 return hit
     room_path = find(out, wc.id)
-    assert any(p.startswith('Room 1 · WC') and '12.00 m²' in p for p in room_path)      # inside its room, use inferred
+    assert any(p.startswith('Χώρος 1 · WC') and '12.00 m²' in p for p in room_path)      # inside its room, use inferred
     wall_path = find(out, win.id)
-    assert any(p.startswith('Εξωτερικοί (4)') for p in wall_path) and wall_path[-2].startswith('Τοίχος Ν · Room 1 · 4.00 m')    # facing south, room named
+    assert any(p.startswith('Εξωτερικοί (4)') for p in wall_path) and wall_path[-2].startswith('Τοίχος Ν · Χώρος 1 · 4.00 m')    # facing south, room named
     ids = []
 
     def collect(n):
@@ -146,7 +146,7 @@ def test_tree_groups_and_rooms_select_in_the_drawing_and_can_be_deleted():
         walls_group = find('Τοίχοι')
         window._project_tree_clicked(walls_group)
         assert set(ids) <= set(window.doc.selection) or set(window.doc.selection) == set(window._tree_item_ids(walls_group))
-        room = find('Room 1')
+        room = find('Χώρος 1')
         window._project_tree_clicked(room)
         assert len(window.doc.selection) == 4                      # the room's walls light up
         # The tiled roof is listed under the storey it covers, not the ground floor.

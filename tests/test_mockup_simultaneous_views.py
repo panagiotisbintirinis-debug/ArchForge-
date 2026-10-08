@@ -30,7 +30,7 @@ def test_simultaneous_2d_3d_shows_both_real_editors_and_can_switch_back():
     window._simultaneous_action.setChecked(False)
     app.processEvents()
     central = window._central_tabs
-    assert [central.tabText(i) for i in range(central.count())] == ['2D Σχεδίαση', '3D / Structural']
+    assert [central.tabText(i) for i in range(central.count())] == ['2D Σχεδίαση', '3D / Στατικά']
     assert window.plan_view.isVisible()
 
     window._simultaneous_action.setChecked(True)
@@ -101,18 +101,19 @@ def test_ribbon_selectors_and_camera_snap_controls_are_visible_on_a_laptop_width
     window.show()
     app.processEvents()
 
-    for name in ('floor_selector', 'render_technique'):
-        assert getattr(window, name).isVisible(), name
+    # The storey selector stays on the bar; the render style moved into the «Στυλ ▾» popup.
+    assert window.floor_selector.isVisible()
+    assert window._mockup_style_button.isVisible() and window._mockup_view_button.isVisible()
     # Sculpt operation / brush size moved to the mouse menu; the ribbon keeps a margin
     # under 1280 px so nothing falls into the overflow on Windows fonts either.
     from PySide6.QtWidgets import QToolBar
-    ribbon = next(tb for tb in window.findChildren(QToolBar) if tb.windowTitle() == 'Mockup Ribbon')
+    ribbon = next(tb for tb in window.findChildren(QToolBar) if tb.windowTitle() == 'Εργαλεία σχεδίασης')
     assert ribbon.sizeHint().width() <= 1150
     assert not window.sculpt_operation.isVisible() and not window.sculpt_radius.isVisible()
     boxes = {cb.text(): cb for cb in window.findChildren(QCheckBox)}
-    assert boxes['Snap'].isVisible()
-    assert boxes['Grid'].isVisible()
-    assert boxes['Snap'].isChecked() == window.snap_action.isChecked()
+    assert boxes['Έλξη'].isVisible()
+    assert boxes['Κάνναβος'].isVisible()
+    assert boxes['Έλξη'].isChecked() == window.snap_action.isChecked()
 
     window._mark_clean()
     window.close()

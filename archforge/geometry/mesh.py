@@ -477,7 +477,10 @@ def _room_slab(doc,node):
  from archforge.architecture.rooms import room_slab_geometry
  g=room_slab_geometry(doc,doc.get(node.entity_id))
  if g is None:raise ValueError('derived room element has no currently closed room')
- mesh=_polygon_prism(g['points'],g['z'],g['thickness'])
+ if g.get('islands') and (len(g['islands'])>1 or g['islands'][0][1]):
+  from .regions import prism_with_holes
+  mesh=MeshPayload(*prism_with_holes(g['islands'],g['z'],g['thickness']))   # storey slab / slab with openings
+ else:mesh=_polygon_prism(g['points'],g['z'],g['thickness'])
  if node.semantic_kind in ('room_floor','room_ceiling','room_roof'):
   mesh=_apply_vertical_openings_to_slab(doc,mesh,g['points'],g['z'],g['thickness'])
  return mesh

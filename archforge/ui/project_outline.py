@@ -17,7 +17,7 @@ CATEGORIES = (
     ("Σκάλες & ράμπες", ("stair", "ramp")),
     ("Κάγκελα", ("railing",)),
     ("Δομικά", ("structural_column", "structural_beam", "structural_support", "structural_load")),
-    ("Πλάκες & στέγες", ("floor", "room_floor", "room_ceiling", "room_foundation", "room_roof")),
+    ("Πλάκες & στέγες", ("floor", "room_floor", "room_ceiling", "room_foundation", "room_roof", "slab_opening")),
     ("Ντουλάπια & κουζίνα", ("cabinet", "kitchen_part")),
     ("Έπιπλα", ("library_object", "box")),
     ("Μηχανολογικά", ("mep_terminal", "mechanical_part", "mechanical_joint", "mechanical_mount", "mesh")),
@@ -30,8 +30,13 @@ KIND_LABELS = {
     "room_floor": "Δάπεδο", "room_ceiling": "Οροφή", "room_foundation": "Θεμέλιο", "room_roof": "Στέγη",
     "cabinet": "Ντουλάπι", "kitchen_part": "Κομμάτι κουζίνας", "library_object": "Αντικείμενο",
     "box": "Κουτί", "terrain": "Έδαφος", "plant": "Φυτό", "site_path": "Μονοπάτι", "pod": "Pod",
-    "railing": "Κάγκελο",
+    "railing": "Κάγκελο", "slab_opening": "Οπή πλάκας",
 }
+
+
+def _level_label(name):
+    from archforge.output.pdf import level_name
+    return level_name(name)
 
 
 def _levels(doc):
@@ -84,9 +89,13 @@ GENERIC_NAMES = {"Wall", "Column", "Beam", "Stair", "Ramp", "Door", "Window", "O
                  "Structural_Column", "Structural_Beam", "Box", "Pod"}
 
 
+# Stored English default names shown in Greek (the stored name itself is not changed).
+DISPLAY_NAMES = {"Auto Floor": "Δάπεδο (αυτόματο)", "Flat Roof": "Δώμα", "Auto Roof": "Δώμα"}
+
+
 def _label(entity):
     if entity.name and entity.name not in GENERIC_NAMES:
-        return entity.name
+        return DISPLAY_NAMES.get(entity.name, entity.name)
     p, k = entity.params, entity.kind
     base = KIND_LABELS.get(k, k)
     if k == "wall":
@@ -295,7 +304,8 @@ def project_outline(doc, title="Έργο"):
         summary = f"{storey['walls']} τοίχοι {storey['wall_length_m']:.1f} m · {len(storey['rooms'])} χώροι"
         if storey["columns"] or storey["beams"]:
             summary += f" · {len(storey['columns'])} κολώνες · {len(storey['beams'])} δοκοί"
-        children.append(_node(f"{name}  ({z:+.2f} m) · {summary}" if storey["walls"] or storey["columns"] else f"{name}  ({z:+.2f} m)",
+        shown = _level_label(name)
+        children.append(_node(f"{shown}  ({z:+.2f} m) · {summary}" if storey["walls"] or storey["columns"] else f"{shown}  ({z:+.2f} m)",
                               None, name, groups))
     # Derived networks (whole building): one line each, from the same points.
     if mep:
