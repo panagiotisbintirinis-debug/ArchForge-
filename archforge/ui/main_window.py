@@ -76,6 +76,8 @@ class MainWindow(QMainWindow):
         install_approved_mockup_shell(self)
         self._install_autosave()
         slab_tools.install_menus(self)
+        from archforge.ui.layout_assist import install_layout_assist
+        install_layout_assist(self)      # «Κουζίνα / Μπάνιο εδώ…» of the Βοηθός
         self._refresh_library_panel()
         if not os.environ.get('PYTEST_CURRENT_TEST'):
             # First run builds the shipped core library in the background.
@@ -1493,6 +1495,8 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f'Ήλιος: ύψος {el:.1f}°, αζιμούθιο {az:.0f}°', 5000)
 
     def _cancel_interactions(self):
+        if getattr(self, '_layout_assist', None) is not None:
+            self._layout_assist.cancel()
         self.plan_view.controller.cancel()
         self.plan_view._mouse_down = False
         self.plan_view._view_drag = None
@@ -2587,6 +2591,9 @@ class MainWindow(QMainWindow):
         )
 
     def _delete_selection(self):
+        assist = getattr(self, '_layout_assist', None)
+        if assist is not None and assist.discard():
+            return                       # Delete on the assistant's ghost: throw the proposal away
         ids = list(self.doc.selection)
         if not ids:
             self.statusBar().showMessage('Nothing selected to delete', 2500)
