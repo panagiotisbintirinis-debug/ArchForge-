@@ -452,4 +452,211 @@ def specs():
         painting(), curtain(), small_plant(),
         coat_stand(), shoe_cabinet(), hall_console(),
         masonry_bbq(), garden_armchair(), fountain(), hot_tub(), swing_set(), outdoor_shower(), garden_bollard(),
+        *specs_third(),
+    ]
+
+
+# ================================================================== third set (2026-10-08)
+def corner_bathtub():
+    # corner bath 140×140, rim 58
+    return {"name": "Μπανιέρα τετράγωνη 140×140", "category": ("Μπάνιο",), "expect_cm": [140, 140, 58], "parts": [
+        R((0, 0, 0), (140, 140, 58), 6, CERAMIC, "πορσελάνη"),
+        E((80, 80, 58.01), (52, 52, 0.4), "#dfe4e7", "πορσελάνη")]}
+
+
+def double_vanity():
+    # 120 double vanity, counter 85, two vessel basins
+    w, d, h = 120, 50, 85
+    return {"name": "Έπιπλο μπάνιου διπλό 120 με επικαθήμενους", "category": ("Μπάνιο",), "expect_cm": [w, d, h + 25],
+            "parts": [
+                *legs(4, 6, w - 4, d - 4, 30, 3, CHROME),
+                B((1, 2, 30), (w - 1, d, 82), OAK, "έπιπλο"),
+                B((2, 1.5, 32), (w / 2 - 1, 2, 56), OAK, "συρτάρια"), B((w / 2 + 1, 1.5, 32), (w - 2, 2, 56), OAK, "συρτάρια"),
+                B((2, 1.5, 58), (w / 2 - 1, 2, 80), OAK, "συρτάρια"), B((w / 2 + 1, 1.5, 58), (w - 2, 2, 80), OAK, "συρτάρια"),
+                B((0, 0, 82), (w, d, h), STONE, "πάγκος"),
+                *[T((x, 25, h), 17, 20, 14, CERAMIC, "νιπτήρες", 28) for x in (30, 90)],
+                *[C((x, 44, h), 1.5, 25, CHROME, "μπαταρίες", segments=10) for x in (30, 90)]]}
+
+
+def shower_enclosure():
+    # 120×80 enclosure with sliding door, 195 high
+    w, d = 120, 80
+    return {"name": "Ντουζιέρα 120×80 με συρόμενη πόρτα", "category": ("Μπάνιο",), "expect_cm": [w, d, 198], "parts": [
+        B((0, 0, 0), (w, d, 3), CERAMIC, "βάση"),
+        B((0, 0, 3), (62, 1, 198), GLASS, "γυαλί"), B((58, 1.5, 3), (w, 2.5, 198), GLASS, "γυαλί"),
+        B((0, 1, 3), (1, d, 198), GLASS, "γυαλί"),
+        B((0, 0, 195), (w, 2.5, 198), CHROME, "οδηγός"),
+        B((60, 2.5, 95), (62, 5, 125), CHROME, "χερούλι"),
+        C((100, 70, 190), 9, 2, CHROME, "μπαταρία", segments=20)]}
+
+
+def bath_screen():
+    return {"name": "Διαχωριστικό μπανιέρας 80×140", "category": ("Μπάνιο",), "expect_cm": [80, 2, 140], "parts": [
+        B((0, 0, 0), (80, 1, 140), GLASS, "γυαλί"), B((0, 1, 0), (3, 2, 140), CHROME, "προφίλ")]}
+
+
+def toilet_brush():
+    return {"name": "Πιγκάλ WC", "category": ("Μπάνιο",), "expect_cm": [12, 12, 40], "parts": [
+        C((6, 6, 0), 6, 30, CHROME, "μέταλλο", segments=16), C((6, 6, 30), 1, 10, CHROME, "μέταλλο", segments=8)]}
+
+
+def laundry_basket():
+    return {"name": "Καλάθι απλύτων", "category": ("Μπάνιο",), "expect_cm": [40, 40, 60], "parts": [
+        T((20, 20, 0), 17, 20, 56, "#b8a27a", "ψάθα", 24), C((20, 20, 56), 20, 4, "#9c875f", "καπάκι", segments=24)]}
+
+
+def bathroom_shelf():
+    parts = [B((0, 0, 0), (2, 30, 160), WHITE, "σκελετός"), B((38, 0, 0), (40, 30, 160), WHITE, "σκελετός")]
+    parts += [B((2, 0, 10 + k * 36), (38, 30, 12 + k * 36), WHITE, "ράφια") for k in range(5)]
+    parts += [R((6, 4, 48), (18, 26, 64), 3, "#d6e3ea", "πετσέτες"), R((20, 4, 48), (34, 26, 64), 3, "#e8d9c4", "πετσέτες")]
+    return {"name": "Ραφιέρα μπάνιου 40", "category": ("Μπάνιο",), "expect_cm": [40, 30, 160], "parts": parts}
+
+
+def chaise_longue():
+    # chaise 160 long, seat 42
+    return {"name": "Σεζλόνγκ", "category": ("Σαλόνι",), "expect_cm": [70, 160, 85], "parts": [
+        *legs(4, 4, 66, 156, 12, 4, WALNUT, round_=True),
+        R((0, 0, 12), (70, 160, 40), 5, FABRIC_SAND, "ύφασμα"),
+        R((0, 115, 40), (70, 160, 85), 10, FABRIC_SAND, "ύφασμα"),
+        R((4, 4, 40), (66, 115, 46), 6, FABRIC_SAND, "ύφασμα")]}
+
+
+def recliner():
+    w, d = 85, 95
+    return {"name": "Πολυθρόνα ανάκλισης", "category": ("Σαλόνι",), "expect_cm": [w, d, 105], "parts": [
+        R((0, 0, 0), (w, d, 44), 5, LEATHER_DARK, "δέρμα"),
+        R((16, 4, 44), (w - 16, d - 24, 54), 6, LEATHER_DARK, "δέρμα"),
+        R((4, d - 26, 44), (w - 4, d, 105), 10, LEATHER_DARK, "δέρμα"),
+        R((0, 6, 44), (16, d, 68), 6, LEATHER_DARK, "δέρμα"), R((w - 16, 6, 44), (w, d, 68), 6, LEATHER_DARK, "δέρμα")]}
+
+
+LEATHER_DARK = "#4a3426"
+
+
+def tv_wall_unit():
+    # TV wall: low unit 240 + side tall + top shelf
+    w, d, h = 240, 40, 180
+    return {"name": "Σύνθεση TV 240", "category": ("Σαλόνι",), "expect_cm": [w, d, h], "parts": [
+        B((0, 0, 0), (w, d, 45), WHITE, "σώμα"),
+        *[B((2 + k * 59, -0.0, 3), (2 + k * 59 + 58, 0.5, 43), OAK, "πρόσοψη") for k in range(4)],
+        B((0, 5, 45), (40, d, h), WHITE, "σώμα"), B((2, 4.5, 47), (38, 5, h - 2), OAK, "πρόσοψη"),
+        B((40, 15, 140), (w, d, 145), OAK, "ράφι")]}
+
+
+def chest_of_drawers_tall():
+    w, d, h = 60, 45, 120
+    parts = [*legs(3, 5, w - 3, d - 3, 10, 4, WALNUT), B((0, 2.5, 10), (w, d, h), WHITE, "σώμα")]
+    for k in range(5):
+        z0 = 12 + k * (h - 14) / 5
+        parts += [B((2, 2, z0), (w - 2, 2.5, z0 + (h - 14) / 5 - 1), WHITE, "συρτάρια"),
+                  B((w / 2 - 6, 0, z0 + 12), (w / 2 + 6, 2, z0 + 13.5), WALNUT, "χερούλια")]
+    return {"name": "Σιφονιέρα 5 συρτάρια", "category": ("Υπνοδωμάτιο",), "expect_cm": [w, d, h], "parts": parts}
+
+
+def bar_table():
+    return {"name": "Τραπέζι μπαρ Ø70", "category": ("Τραπεζαρία",), "expect_cm": [70, 70, 105], "parts": [
+        C((35, 35, 102), 35, 3, OAK, "ξύλο", segments=36), T((35, 35, 3), 3, 3, 99, BLACK, "βάση", 12),
+        C((35, 35, 0), 24, 3, BLACK, "βάση", segments=28)]}
+
+
+def armchair_dining():
+    w, d = 55, 55
+    return {"name": "Καρέκλα με μπράτσα", "category": ("Τραπεζαρία",), "expect_cm": [w, d, 82], "parts": [
+        *legs(2, 2, w - 2, d - 2, 44, 3.5, OAK, round_=True),
+        R((0, 0, 44), (w, d, 48), 3, FABRIC_GREY, "κάθισμα"),
+        R((0, d - 6, 48), (w, d, 82), 3, FABRIC_GREY, "κάθισμα"),
+        R((0, 4, 48), (5, d, 66), 2, FABRIC_GREY, "κάθισμα"), R((w - 5, 4, 48), (w, d, 66), 2, FABRIC_GREY, "κάθισμα")]}
+
+
+def kids_bed_storage():
+    # 90×190 child bed with drawers under
+    w, L = 100, 200
+    return {"name": "Παιδικό κρεβάτι 90×190 με συρτάρια", "category": ("Παιδικό",), "expect_cm": [w, L, 80], "parts": [
+        B((0, 0, 0), (w, L, 32), WHITE, "σκελετός"),
+        B((2, -0.0, 3), (w - 2, 0.5, 29), "#9cc3d5", "συρτάρια"),
+        R((5, 5, 32), (w - 5, L - 5, 47), 3, MATTRESS, "στρώμα"),
+        B((0, L - 6, 32), (w, L, 80), WHITE, "κεφαλάρι"), B((0, 0, 32), (w, 4, 55), WHITE, "κεφαλάρι"),
+        R((10, L - 50, 47), (w - 10, L - 10, 57), 4, "#f3d9a4", "μαξιλάρι")]}
+
+
+def toy_chest():
+    return {"name": "Μπαούλο παιχνιδιών", "category": ("Παιδικό",), "expect_cm": [80, 40, 45], "parts": [
+        R((0, 0, 0), (80, 40, 42), 3, "#e7c35a", "σώμα"), R((0, 0, 42), (80, 40, 45), 3, "#d36b4a", "καπάκι")]}
+
+
+def round_mirror():
+    return {"name": "Καθρέφτης τοίχου στρογγυλός Ø70", "category": ("Διακόσμηση", "Μπάνιο"), "expect_cm": [70, 3, 70], "parts": [
+        C((35, 1, 35), 35, 2, COPPER, "κορνίζα", axis="y", segments=40),
+        C((35, 0, 35), 32, 1, GLASS, "καθρέφτης", axis="y", segments=40)]}
+
+
+def wall_clock():
+    return {"name": "Ρολόι τοίχου Ø40", "category": ("Διακόσμηση",), "expect_cm": [40, 5, 40], "parts": [
+        C((20, 1, 20), 20, 4, BLACK, "κορνίζα", axis="y", segments=36),
+        C((20, 0, 20), 18, 1, WHITE, "καντράν", axis="y", segments=36),
+        B((19.5, -0.0, 20), (20.5, 0.01, 33), BLACK, "δείκτες")]}
+
+
+def olive_tree():
+    # potted olive tree, pot Ø60; crown of three overlapping masses
+    return {"name": "Ελιά σε γλάστρα", "category": ("Διακόσμηση", "Εξωτερικοί χώροι"), "expect_cm": [113, 90, 220], "parts": [
+        T((60, 60, 0), 24, 30, 50, TERRACOTTA, "γλάστρα", 28),
+        T((60, 60, 50), 9, 6, 80, "#6b5a45", "κορμός", 10),
+        T((60, 60, 120), 5, 3, 45, "#6b5a45", "κορμός", 8),
+        E((45, 60, 160), (40, 35, 35), "#8a9a6a", "φύλλωμα"),
+        E((78, 55, 172), (40, 38, 32), "#7d8f5a", "φύλλωμα"),
+        E((60, 72, 192), (38, 35, 28), "#94a275", "φύλλωμα")]}
+
+
+def sculpture_vases():
+    return {"name": "Σετ διακοσμητικά βάζα", "category": ("Διακόσμηση",), "expect_cm": [40, 15, 35], "parts": [
+        T((7.5, 7.5, 0), 5, 7.5, 35, "#d9cbb6", "κεραμικό", 20),
+        E((22, 7.5, 10), (6, 6, 10), "#4b6a7a", "κεραμικό"),
+        T((34, 7.5, 0), 6, 3, 22, "#a8603c", "κεραμικό", 20)]}
+
+
+def room_divider():
+    # folding screen, 3 panels 50×180, shown opened flat
+    parts = []
+    for k in range(3):
+        x0 = k * 50
+        parts += [B((x0, 0.2, 0), (x0 + 50, 3, 180), OAK, "κορνίζα"),
+                  B((x0 + 4, 0, 8), (x0 + 46, 3.2, 172), LINEN_CURTAIN, "πανί")]
+    return {"name": "Παραβάν 3 φύλλων", "category": ("Διακόσμηση",), "expect_cm": [150, 3.2, 180], "parts": parts}
+
+
+def ladder_shelf():
+    parts = [B((0, 0, 0), (3, 40, 180), OAK, "ξύλο"), B((57, 0, 0), (60, 40, 180), OAK, "ξύλο")]
+    parts += [B((3, 40 - (40 - 8 * k) , 20 + k * 40), (57, 40, 22 + k * 40), OAK, "ξύλο") for k in range(4)]
+    return {"name": "Ραφιέρα σκάλα", "category": ("Διακόσμηση", "Σαλόνι"), "expect_cm": [60, 40, 180], "parts": parts}
+
+
+def floating_shelf():
+    return {"name": "Ράφι τοίχου 100", "category": ("Διακόσμηση",), "expect_cm": [100, 25, 22], "parts": [
+        B((0, 0, 0), (100, 25, 4), OAK, "ξύλο"),
+        B((10, 6, 4), (16, 20, 22), "#7d3b2f", "βιβλία"), B((16, 6, 4), (21, 20, 20), "#2f4f6b", "βιβλία"),
+        E((70, 12, 10), (6, 6, 6), "#4b6a7a", "βάζο")]}
+
+
+def cushions_throw():
+    return {"name": "Μαξιλάρια διακοσμητικά (σετ 3)", "category": ("Διακόσμηση", "Σαλόνι"), "expect_cm": [130, 15, 45], "parts": [
+        R((0, 0, 0), (45, 15, 45), 6, "#c7a35a", "ύφασμα"), R((45, 0, 0), (90, 15, 45), 6, "#4b5d7a", "ύφασμα"),
+        R((90, 0, 0), (130, 15, 40), 6, "#b65a48", "ύφασμα")]}
+
+
+def outdoor_sofa():
+    w, d = 200, 85
+    return {"name": "Καναπές κήπου διθέσιος", "category": ("Εξωτερικοί χώροι",), "expect_cm": [w, d, 75], "parts": [
+        B((0, 0, 0), (w, d, 35), "#6b6258", "σκελετός"),
+        R((12, 4, 35), (w - 12, d - 18, 45), 5, "#e5ded1", "μαξιλάρια"),
+        R((0, d - 18, 35), (w, d, 75), 5, "#6b6258", "σκελετός"),
+        R((0, 0, 35), (12, d, 60), 4, "#6b6258", "σκελετός"), R((w - 12, 0, 35), (w, d, 60), 4, "#6b6258", "σκελετός")]}
+
+
+def specs_third():
+    return [
+        corner_bathtub(), double_vanity(), shower_enclosure(), bath_screen(), toilet_brush(), laundry_basket(),
+        bathroom_shelf(), chaise_longue(), recliner(), tv_wall_unit(), chest_of_drawers_tall(), bar_table(),
+        armchair_dining(), kids_bed_storage(), toy_chest(), round_mirror(), wall_clock(), olive_tree(), sculpture_vases(),
+        room_divider(), ladder_shelf(), floating_shelf(), cushions_throw(), outdoor_sofa(),
     ]

@@ -405,7 +405,7 @@ def seed_core_library(force=False):
         tris, colors, names = builder.build(spec)
         asset_id, _size = store_asset(spec["name"], tris, {
             "source": "archforge-core", "license": "project", "redistributable": True,
-            "reference": "standard furniture dimensions; online pictures as visual reference only",
+            "reference": spec.get("reference", "standard furniture dimensions; online pictures as visual reference only"),
         }, colors=colors, category=spec["category"], part_names=names)
         ids.append(asset_id)
     marker.parent.mkdir(parents=True, exist_ok=True)

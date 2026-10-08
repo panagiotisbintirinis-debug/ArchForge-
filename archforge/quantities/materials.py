@@ -75,6 +75,26 @@ def structure_list(doc):
     return [row for row in rows if row[2] is None or row[2] > 0]
 
 
+def railing_list(doc):
+    """Railings in running metres per type and height (along the slope on a flight)."""
+    from archforge.architecture.railings import HANDRAILS, TYPES, length
+    by = {}
+    for e in doc.entities.values():
+        if e.kind != "railing":
+            continue
+        p = e.params
+        dz = [float(q[2]) if len(q) > 2 else 0.0 for q in p["points"]]
+        sloped = max(dz) - min(dz) > 1e-6
+        key = (TYPES[p["railing_type"]]["label"], float(p["height"]), sloped, HANDRAILS.get(p.get("handrail"), ""))
+        by[key] = by.get(key, 0.0) + length(p)
+    rows = []
+    for (label, height, sloped, handrail), metres in sorted(by.items()):
+        where = "σκάλας" if sloped else "οριζόντιο"
+        rail = f", κουπαστή {handrail.lower()}" if handrail and handrail != "Χωρίς" else ""
+        rows.append((f"Κάγκελο {label.lower()} {where}, ύψος {height * 100:.0f} cm{rail}", "m", round(metres, 2)))
+    return rows
+
+
 def all_lists(doc):
     """``[(sheet name, title, rows, notes)]`` for the lists that have quantities."""
     from archforge.construction.isotex import PROVENANCE as ISOTEX
@@ -83,7 +103,9 @@ def all_lists(doc):
             ("Isotex", "Λίστα Isotex — τεμάχια, σκυρόδεμα, εργασίες", isotex_list(doc), (ISOTEX,)),
             ("Επιμέτρηση", "Επιμέτρηση εργασιών (σύνολα έργου)", takeoff_list(doc), ("Ανά χώρο: Κατασκευή → Επιμέτρηση εργασιών.",)),
             ("Αποχέτευση", "Αποχέτευση — σωλήνες και εξαρτήματα", drainage_list(doc), ("Προμελέτη — προς έλεγχο μηχανολόγου.",)),
-            ("Φέρων", "Φέρων οργανισμός και θεμελίωση", structure_list(doc), ("Προμελέτη — προς έλεγχο στατικού μηχανικού.",))):
+            ("Φέρων", "Φέρων οργανισμός και θεμελίωση", structure_list(doc), ("Προμελέτη — προς έλεγχο στατικού μηχανικού.",)),
+            ("Κάγκελα", "Κάγκελα — τρέχοντα μέτρα ανά τύπο", railing_list(doc),
+             ("Τιμή ανά τρέχον μέτρο από τον προμηθευτή (με ορθοστάτες, στερέωση, τοποθέτηση).",))):
         if rows:
             out.append((name, title, rows, ("Συμπλήρωσε τις κίτρινες στήλες (τιμή μονάδας και ό,τι ποσότητα λείπει)· "
                                             "τα σύνολα βγαίνουν αυτόματα.",) + tuple(notes)))

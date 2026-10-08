@@ -570,6 +570,9 @@ def _payload(doc,node):
  if k=='library_object':
   from archforge.library.objects import library_object_mesh
   v,t,r=library_object_mesh(p);return MeshPayload(v,t,r)
+ if k=='railing':
+  from archforge.architecture.railings import railing_mesh
+  v,t,r=railing_mesh(p);return MeshPayload(v,t,r)
  if k=='terrain':
   from archforge.site.terrain import terrain_mesh
   v,t,r=terrain_mesh(p);return MeshPayload(v,t,r)

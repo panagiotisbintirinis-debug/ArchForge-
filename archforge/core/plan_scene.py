@@ -177,6 +177,10 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
         owner=max([float(v) for v in doc.levels.values() if float(v)<=cz+tolerance]+[min([float(v) for v in doc.levels.values()]+[0.0])])
         return abs(owner-z)<=tolerance
     if e.kind in ('plant','site_path','library_object'):return abs(float(p.get('z',0.0))-z)<=tolerance
+    if e.kind=='railing':
+        # Its storey, and (a stair railing) the storey its walking line reaches.
+        rz=float(p.get('z',0.0))
+        return abs(rz-z)<=tolerance or any(abs(rz+(float(q[2]) if len(q)>2 else 0.0)-z)<=max(tolerance,.02) for q in p.get('points',()))
     if e.kind=='terrain':
         # The site belongs to the lowest storey's plan only.
         lowest=min([float(v) for v in doc.levels.values()]+[0.0])
@@ -190,6 +194,11 @@ def entity_primitive(doc,eid):
     if e.kind=='site_path':
         from archforge.site.paths import path_outline
         return Primitive2D('polygon',tuple(path_outline(p)),entity_id=eid,role='site-path')
+    if e.kind=='railing':
+        from archforge.architecture.railings import plan_outline
+        rings=plan_outline(p)
+        if len(rings)==1:return Primitive2D('polygon',tuple(rings[0]),entity_id=eid,role='railing',meta=(('railing_type',p.get('railing_type','')),))
+        return Primitive2D('polyline',tuple(rings[0]),entity_id=eid,role='railing',meta=(('railing_type',p.get('railing_type','')),))
     if e.kind=='plant':
         r=float(p['canopy'])/2.0
         return Primitive2D('ellipse',((float(p['x']),float(p['y'])),),r,r,0.,eid,'plant')
@@ -527,6 +536,14 @@ def build_plan_frame(doc,preview=None):
                 f.primitives.append(Primitive2D('polyline',tuple(pts),entity_id=eid,
                                                 role='opening-symbol-hidden' if style=='dashed' else 'opening-symbol',
                                                 meta=(('style',style),)))
+        if p and doc.get(eid).kind=='railing':
+            # Inner ring of a closed railing and the posts, from the same parameters as the 3D.
+            from archforge.architecture.railings import plan_outline,plan_posts
+            q=doc.get(eid).params
+            for ring in plan_outline(q)[1:]:
+                f.primitives.append(Primitive2D('polyline',tuple(ring),entity_id=eid,role='railing'))
+            for sq in plan_posts(q):
+                f.primitives.append(Primitive2D('polyline',tuple(sq),entity_id=eid,role='railing-post'))
         if p and doc.get(eid).kind=='library_object':
             # The derived 2D symbol (outline + inner lines) of the same asset.
             from archforge.library.objects import plan_symbol_world

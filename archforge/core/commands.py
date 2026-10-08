@@ -91,6 +91,7 @@ class MoveEntities(Command):
             if e.kind in ('box','mechanical_part','library_object','kitchen_part','cabinet','plumbing_point','electrical_point','ventilation_point','drainage_point'):doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy,'z':p['z']+self.dz})
             elif e.kind=='pitched_roof':doc.update(i,{'x0':p['x0']+self.dx,'x1':p['x1']+self.dx,'y0':p['y0']+self.dy,'y1':p['y1']+self.dy,'eave_z':p['eave_z']+self.dz})
             elif e.kind=='plant':doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy,'z':p['z']+self.dz})
+            elif e.kind=='railing':doc.update(i,{'points':[[q[0]+self.dx,q[1]+self.dy,*q[2:]] for q in p['points']],'z':p['z']+self.dz})
             elif e.kind=='structural_column':doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy})
             elif e.kind=='mep_terminal':doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy,'elevation':p['elevation']+self.dz})
             elif e.kind=='wall':doc.update(i,{'x1':p['x1']+self.dx,'x2':p['x2']+self.dx,'y1':p['y1']+self.dy,'y2':p['y2']+self.dy,'z':p['z']+self.dz})
@@ -179,6 +180,12 @@ class RotateEntities(Command):
                 nx1, ny1 = rot_beam(p['x1'], p['y1'])
                 nx2, ny2 = rot_beam(p['x2'], p['y2'])
                 doc.update(i, {'x1': nx1, 'y1': ny1, 'x2': nx2, 'y2': ny2})
+            elif e.kind == 'railing':
+                pts = p['points']
+                px, py = self.pivot if self.pivot is not None else (
+                    sum(q[0] for q in pts) / len(pts), sum(q[1] for q in pts) / len(pts))
+                doc.update(i, {'points': [[px + (q[0] - px) * c - (q[1] - py) * s,
+                                           py + (q[0] - px) * s + (q[1] - py) * c, *q[2:]] for q in pts]})
             elif e.kind in ('stair', 'ramp'):
                 px, py = self.pivot if self.pivot is not None else (p['x'], p['y'])
                 dx, dy = float(p['x']) - px, float(p['y']) - py

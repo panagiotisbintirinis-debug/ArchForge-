@@ -24,6 +24,22 @@ class PlanView(QGraphicsView):
     # Drag tools for site strips: (tool, x1, y1, x2, y2).
     siteLineRequested=Signal(str,float,float,float,float)
     SITE_LINE_TOOLS=('path_path','path_sidewalk','path_road','pergola_timber','pergola_aluminium')
+    # Railing tools ('railing_<type>'): click corners, double click / Enter to finish -> (tool, points, closed).
+    railingRequested=Signal(str,object,bool)
+    def _railing_tool(self):return str(self.controller.tool).startswith('railing_')
+    def _railing_press(self,event):
+        from archforge.ui.railing_draft import RailingDraft
+        if getattr(self,'_railing_draft',None) is None:self._railing_draft=RailingDraft()
+        ev=self._scene_to_plane(event.position().toPoint())
+        if self._railing_draft.add(ev.a,ev.b,bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)):self.finish_railing();return
+        self.statusChanged.emit('Κάγκελο: κλικ στην επόμενη γωνία · διπλό κλικ / Enter = τέλος · κλικ στο πρώτο σημείο = κλειστό · Shift = ορθή γωνία · Esc = ακύρωση')
+        self.redraw()
+    def finish_railing(self):
+        draft=getattr(self,'_railing_draft',None);self._railing_draft=None
+        done=draft.finish() if draft is not None else None
+        self.redraw()
+        if done is None:self.statusChanged.emit('Κάγκελο: χρειάζονται τουλάχιστον δύο σημεία');return
+        self.railingRequested.emit(self.controller.tool,done[0],done[1])
     def begin_view_line(self,x,y):self._view_drag=[(float(x),float(y)),(float(x),float(y))];self.redraw()
     def move_view_line(self,x,y):
         if getattr(self,'_view_drag',None):self._view_drag[1]=(float(x),float(y));self.redraw()
@@ -45,7 +61,7 @@ class PlanView(QGraphicsView):
         self.setRenderHint(QPainter.RenderHint.Antialiasing,True);self.setDragMode(QGraphicsView.DragMode.NoDrag);self.setMouseTracking(True);self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse);self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter);self.setBackgroundBrush(QColor(248,248,248))
         self._mouse_down=False;self._handle_items={};self._entity_items={};self._active_handle=None;self._hud_item=None;self._wall_angle_buttons=[];self._wall_menu_target_entity=None;self.scale(55.0,-55.0);self.redraw()
     def rebind(self,doc,stack):self.doc=doc;self.stack=stack;self.controller=PointerController(doc,stack);self.redraw()
-    def set_tool(self,tool):self.controller.set_tool(tool);self._active_handle=None;self.statusChanged.emit(f'Tool: {tool}');self.redraw()
+    def set_tool(self,tool):self.controller.set_tool(tool);self._active_handle=None;self._railing_draft=None;self.statusChanged.emit(f'Tool: {tool}');self.redraw()
     # Things that carry other things (slabs, roofs, joists, ground): picked only
     # when nothing more specific (a stair, a cabinet, an MEP point…) is under the cursor.
     CONTAINER_KINDS=('room_floor','room_ceiling','room_foundation','room_roof','floor','room',
@@ -95,6 +111,7 @@ class PlanView(QGraphicsView):
             self.redraw();event.accept();return
         self.scale(1.15 if event.angleDelta().y()>0 else 1/1.15,1.15 if event.angleDelta().y()>0 else 1/1.15)
     def mouseDoubleClickEvent(self,event):
+        if event.button()==Qt.MouseButton.LeftButton and self._railing_tool():self.finish_railing();event.accept();return
         if event.button()==Qt.MouseButton.LeftButton:
             hit=self.itemAt(event.position().toPoint());eid=self._entity_items.get(hit)
             if eid and eid in self.doc.entities:
@@ -156,7 +173,8 @@ class PlanView(QGraphicsView):
         if event.button()==Qt.MouseButton.LeftButton:
             self._hide_wall_angle_radial();self.hide_marking_menu()
         if event.button()!=Qt.MouseButton.LeftButton:super().mousePressEvent(event);return
-        if self.controller.tool in self.SITE_POINT_TOOLS or str(self.controller.tool).startswith(('plumb_','elec_','vent_','assist_','drain_','roofroom_')):
+        if self._railing_tool():self._railing_press(event);event.accept();return
+        if self.controller.tool in self.SITE_POINT_TOOLS or str(self.controller.tool).startswith(('plumb_','elec_','vent_','assist_','drain_','roofroom_','railingstair_')):
             ev=self._scene_to_plane(event.position().toPoint())
             self.sitePointRequested.emit(self.controller.tool,float(ev.a),float(ev.b));event.accept();return
         if self.controller.tool in self.VIEW_LINE_TOOLS or self.controller.tool in self.SITE_LINE_TOOLS:
@@ -196,6 +214,9 @@ class PlanView(QGraphicsView):
             return
         self.redraw()
     def mouseMoveEvent(self,event):
+        if self._railing_tool() and getattr(self,'_railing_draft',None) is not None:
+            ev=self._scene_to_plane(event.position().toPoint())
+            self._railing_draft.move(ev.a,ev.b,bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier));self.redraw();return
         if self._mouse_down and getattr(self,'_view_drag',None):
             ev=self._scene_to_plane(event.position().toPoint());self.move_view_line(ev.a,ev.b);return
         if self._mouse_down and self.controller.active is not None:
@@ -229,7 +250,8 @@ class PlanView(QGraphicsView):
         if self.controller.tool in ('stair','ramp') and self.controller.active is not None:return False
         return super().focusNextPrevChild(next)
     def keyPressEvent(self,event):
-        if event.key()==Qt.Key.Key_Escape:self.controller.cancel();self._mouse_down=False;self.redraw();return
+        if event.key()==Qt.Key.Key_Escape:self.controller.cancel();self._mouse_down=False;self._railing_draft=None;self.redraw();return
+        if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self._railing_tool():self.finish_railing();event.accept();return
         if event.key() in (Qt.Key.Key_Tab,Qt.Key.Key_Space) and self.controller.cycle_option(1):
             self.redraw();event.accept();return
         super().keyPressEvent(event)
@@ -495,6 +517,13 @@ class PlanView(QGraphicsView):
         for h in frame.handles:self._draw_handle(h)
         if frame.snap:self._draw_snap(frame.snap)
         if frame.hud:self._draw_hud(frame.hud)
+        draft=getattr(self,'_railing_draft',None)
+        if draft is not None and len(draft.preview())>=2:
+            # Railing being drawn: dashed line through the corners and to the cursor.
+            pen=QPen(QColor(40,150,70));pen.setWidthF(.04);pen.setStyle(Qt.PenStyle.DashLine);pts=draft.preview()
+            path=QPainterPath(QPointF(*pts[0]))
+            for q in pts[1:]:path.lineTo(QPointF(*q))
+            self._scene.addPath(path,pen).setZValue(30)
         drag=getattr(self,'_view_drag',None)
         if drag:
             # Section/camera line: dashed from the eye point along the view.
@@ -532,6 +561,7 @@ class PlanView(QGraphicsView):
         if preview and dict(p.meta).get('fits') is False:pen=QPen(QColor(210,40,40));pen.setWidthF(.05)
         if p.role=='library-symbol':pen=QPen(QColor(40,45,55));pen.setWidthF(.012)
         if p.role in ('cabinet','cabinet-front'):pen=QPen(QColor(40,45,55));pen.setWidthF(.012)
+        if p.role in ('railing','railing-post'):pen=QPen(QColor(40,45,55));pen.setWidthF(.01)
         if p.role in ('pipe-cold','pipe-hot'):
             pen=QPen(QColor(31,111,209) if p.role=='pipe-cold' else QColor(209,48,31))
             pen.setWidthF(.035 if dict(p.meta).get('diameter',16)>=20 else .02)

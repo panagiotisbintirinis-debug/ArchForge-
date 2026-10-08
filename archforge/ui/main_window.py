@@ -59,6 +59,7 @@ class MainWindow(QMainWindow):
         self.plan_view.viewLineRequested.connect(self._apply_view_line)
         self.plan_view.sitePointRequested.connect(self._place_site_point)
         self.plan_view.siteLineRequested.connect(self._place_site_line)
+        self.plan_view.railingRequested.connect(self._place_railing)
         # Esc always cancels what is in progress, in 2D and 3D alike.
         self._escape_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
         self._escape_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
@@ -647,6 +648,62 @@ class MainWindow(QMainWindow):
                                      f"{report['rafters']} τεγίδες{fixed} — Ctrl+Z για αναίρεση", 8000)
         return entities
 
+    def _start_railing_tool(self, railing_type):
+        from archforge.architecture.railings import TYPES
+        self.plan_view._railing_draft = None
+        self._start_site_tool(f'railing_{railing_type}', f"{TYPES[railing_type]['label']}: κλικ στις γωνίες στην κάτοψη, "
+                              'διπλό κλικ / Enter = τέλος, κλικ στο πρώτο σημείο = κλειστό, Esc = ακύρωση')
+
+    def _place_railing(self, tool, points, closed=False):
+        """One railing along the clicked points of the active storey — one undo."""
+        from archforge.architecture.railings import TYPES, default_params, length
+        railing_type = str(tool)[len('railing_'):]
+        try:
+            params = default_params(railing_type, points, z=float(self.doc.work_plane.origin[2]), closed=1 if closed else 0)
+            railing = Entity('railing', params, name=TYPES[railing_type]['label'])
+            self.stack.execute(AddEntity(railing))
+        except (KeyError, ValueError) as exc:
+            self.statusBar().showMessage(f'Κάγκελο: {exc}', 6000)
+            return None
+        self.doc.select([railing.id])
+        self._redraw_views(all_views=True)
+        self._refresh_project_tree()
+        self.refresh_inspector()
+        self.statusBar().showMessage(f"{railing.name} {length(params):.2f} m — ύψος, κουπαστή, υλικά στις Ιδιότητες · "
+                                     'Ctrl+Z για αναίρεση', 8000)
+        return railing
+
+    def _place_stair_railing(self, railing_type, x, y):
+        """Railings on the open sides of the stair clicked in the plan — one undo."""
+        from archforge.architecture.railings import TYPES, stair_railings
+        from archforge.architecture.stairs import candidate_from_params, stair_footprint
+        from archforge.core.commands import AddEntities
+        from archforge.core.plan_scene import _entity_on_active_level
+
+        def inside(poly):
+            xs, ys = [q[0] for q in poly], [q[1] for q in poly]
+            return min(xs) <= x <= max(xs) and min(ys) <= y <= max(ys)
+        stair = next((e for e in self.doc.entities.values() if e.kind == 'stair' and _entity_on_active_level(self.doc, e)
+                      and inside(stair_footprint(candidate_from_params(e.params)))), None)
+        if stair is None:
+            self.statusBar().showMessage('Κάγκελο σκάλας: κλικ πάνω σε μια σκάλα της κάτοψης', 6000)
+            return None
+        try:
+            params = stair_railings(self.doc, stair, railing_type)
+        except ValueError as exc:
+            self.statusBar().showMessage(str(exc), 6000)
+            return None
+        if not params:
+            self.statusBar().showMessage('Η σκάλα έχει τοίχο και στις δύο πλευρές — δεν χρειάζεται κάγκελο', 6000)
+            return None
+        entities = [Entity('railing', p, name=f"{TYPES[railing_type]['label']} σκάλας") for p in params]
+        self.stack.execute(AddEntities(entities))
+        self._redraw_views(all_views=True)
+        self._refresh_project_tree()
+        self.statusBar().showMessage(f'Κάγκελο σκάλας: {len(entities)} τμήματα, κουπαστή 90 cm πάνω από τη μύτη — '
+                                     'Ctrl+Z για αναίρεση', 8000)
+        return entities
+
     def _set_room_roof(self, choice, x, y):
         """Tiled roof or terrace for the room at (x, y) of the active storey — one undo."""
         from archforge.architecture.roof_choice import room_roof_command
@@ -679,6 +736,9 @@ class MainWindow(QMainWindow):
             return
         if tool == 'library_place':
             self._place_library_object(x, y)
+            return
+        if str(tool).startswith('railingstair_'):
+            self._place_stair_railing(tool[len('railingstair_'):], x, y)
             return
         if tool in ('roofroom_tiled', 'roofroom_terrace'):
             self._set_room_roof(tool.split('_', 1)[1], x, y)
@@ -1223,6 +1283,7 @@ class MainWindow(QMainWindow):
                     item = QListWidgetItem(f"  ■ {spec['name']}")
                     item.setData(Qt.ItemDataRole.UserRole, material_id)
                     item.setForeground(QColor(str(spec['color'])))
+                    item.setToolTip('Χρήση: ' + ', '.join(spec.get('use', ())))
                     mats.addItem(item)
 
     def _library_outline(self):
@@ -1241,9 +1302,12 @@ class MainWindow(QMainWindow):
                 (f"{r['name']}  {w:.0f}×{d:.0f}×{h:.0f}", ('asset', r['id'])))
         for items in by_cat.values():
             items.sort(key=lambda t: t[0].lower())
+        from archforge.architecture.railings import TYPES as RAILINGS
         themes = [
             ('Δομικά', [(None, [(label, ('structural', tool, preset))
-                                for label, tool, preset in getattr(self, '_structural_presets', ())])]),
+                                for label, tool, preset in getattr(self, '_structural_presets', ())]),
+                        ('Κάγκελα', [(v['label'], ('railing', k)) for k, v in RAILINGS.items()]
+                         + [('Κάγκελο σκάλας (κλικ σε σκάλα)', ('tool', 'railingstair_balusters'))])]),
             ('Κουζίνα', [('Ντουλάπια', [(label, ('cabinet', label)) for label in getattr(self, '_kitchen_defs', {})]),
                          ('Συσκευές', by_cat.pop('Συσκευές', []))]),
             ('Έπιπλα', [(cat, by_cat.pop(cat)) for cat in ('Σαλόνι', 'Τραπεζαρία', 'Υπνοδωμάτιο', 'Παιδικό', 'Γραφείο', 'Φωτισμός', 'Διακόσμηση', 'Είσοδος')
@@ -1316,6 +1380,8 @@ class MainWindow(QMainWindow):
             return self._choose_library_asset(action[1])
         if kind == 'structural':
             return self._start_structural_preset(action[1], action[2])
+        if kind == 'railing':
+            return self._start_railing_tool(action[1])
         if kind == 'cabinet':
             definition = getattr(self, '_kitchen_defs', {}).get(action[1])
             if definition:
@@ -1425,6 +1491,7 @@ class MainWindow(QMainWindow):
         self.plan_view.controller.cancel()
         self.plan_view._mouse_down = False
         self.plan_view._view_drag = None
+        self.plan_view._railing_draft = None
         self.plan_view.redraw()
         for view in (self.pbr_view, self.structural_view):
             view.cancel_interaction()
@@ -1601,7 +1668,7 @@ class MainWindow(QMainWindow):
             # Roofs saved before the overhang field still get the editor.
             params.setdefault('overhang', 0.0)
         from archforge.architecture.joinery import KEYS as joinery_keys
-        for key, value in params.items():
+        for key, value in (() if entity.kind == 'railing' else params.items()):
             if entity.kind in ('door', 'window') and key in joinery_keys:
                 continue  # Κουφώματα: δικές τους γραμμές (ui/opening_properties.py).
             if isinstance(value, (int, float)):
@@ -1736,6 +1803,9 @@ class MainWindow(QMainWindow):
                 label = QLabel(text)
                 label.setWordWrap(True)
                 self.form.addRow('Στρώσεις (έξω→μέσα)', label)
+        if entity.kind == 'railing':
+            from archforge.ui.railing_panel import add_railing_rows
+            add_railing_rows(self, eid)
         if entity.kind in ('library_object', 'cabinet'):
             button = QPushButton('Object Modifier…')
             button.setToolTip('Διαστάσεις, υλικά ανά τμήμα και Sculpt του αντικειμένου')
@@ -2302,27 +2372,27 @@ class MainWindow(QMainWindow):
         }
         if entity.kind not in supported:
             self.statusBar().showMessage(
-                f'Materials are not available yet for {entity.kind}',
+                f'Δεν υπάρχουν ακόμη υλικά για {entity.kind}',
                 3000,
             )
             return
 
         dialog = QDialog(self)
-        dialog.setWindowTitle(f'Materials / Surfaces — {entity.name or entity.kind.title()}')
+        dialog.setWindowTitle(f'Υλικά / επιφάνειες — {entity.name or entity.kind.title()}')
         dialog.resize(450, 500)
         layout = QVBoxLayout(dialog)
 
         target = None
         if entity.kind == 'wall':
             target = QComboBox(dialog)
-            target.addItem('Side A', 'exterior')
-            target.addItem('Side B', 'interior')
-            target.addItem('Both Sides', 'both')
+            target.addItem('Πλευρά Α', 'exterior')
+            target.addItem('Πλευρά Β', 'interior')
+            target.addItem('Και οι δύο πλευρές', 'both')
             target.setToolTip(
-                'Wall finishes are face-specific. Side A and Side B are the two '
-                'sides of the wall; room-aware names will replace these labels later.'
+                'Το τελείωμα είναι ανά πλευρά του τοίχου: Α και Β είναι οι δύο '
+                'πλευρές του (αργότερα με το όνομα του χώρου).'
             )
-            layout.addWidget(QLabel('Apply to'))
+            layout.addWidget(QLabel('Εφαρμογή σε'))
             layout.addWidget(target)
         elif entity.kind == 'library_object':
             from archforge.library.objects import asset_parts
@@ -2364,7 +2434,7 @@ class MainWindow(QMainWindow):
         materials = QListWidget(dialog)
         layout.addWidget(materials)
 
-        preview = QLabel('Surface preview')
+        preview = QLabel('Προεπισκόπηση επιφάνειας')
         preview.setMinimumHeight(52)
         preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(preview)
@@ -2394,8 +2464,8 @@ class MainWindow(QMainWindow):
         def update_current_label():
             material_id = current_material_id()
             spec = MATERIAL_PRESETS.get(material_id, {})
-            current_label = spec.get('name', 'Default by object type')
-            current.setText(f'Current: {current_label}')
+            current_label = spec.get('name', 'προεπιλογή του στοιχείου')
+            current.setText(f'Τρέχον: {current_label}')
             return material_id
 
         def fill_materials(category_name):
@@ -2405,8 +2475,9 @@ class MainWindow(QMainWindow):
                 item = QListWidgetItem(str(spec['name']))
                 item.setData(Qt.ItemDataRole.UserRole, material_id)
                 item.setToolTip(
-                    f"roughness {float(spec.get('roughness', 0.0)):.2f} · "
-                    f"metalness {float(spec.get('metalness', 0.0)):.2f}"
+                    f"τραχύτητα {float(spec.get('roughness', 0.0)):.2f} · "
+                    f"μεταλλικότητα {float(spec.get('metalness', 0.0)):.2f} · "
+                    f"χρήση: {', '.join(spec.get('use', ())) or '—'}"
                 )
                 materials.addItem(item)
                 if material_id == selected_id:
@@ -2422,7 +2493,7 @@ class MainWindow(QMainWindow):
             state['material_id'] = material_id
             spec = MATERIAL_PRESETS[material_id]
             preview.setText(
-                f"{spec['name']}  ·  rough {float(spec['roughness']):.2f}  ·  metal {float(spec['metalness']):.2f}"
+                f"{spec['name']}  ·  τραχ. {float(spec['roughness']):.2f}  ·  μετ. {float(spec['metalness']):.2f}"
             )
             preview.setStyleSheet(
                 f"background: {spec['color']}; border: 1px solid #747b82; "
@@ -2469,10 +2540,10 @@ class MainWindow(QMainWindow):
             if mode == 'both':
                 surface_map['exterior'] = str(material_id)
                 surface_map['interior'] = str(material_id)
-                target_label = 'both wall sides'
+                target_label = 'και τις δύο πλευρές'
             else:
                 surface_map[mode] = str(material_id)
-                target_label = 'Side A' if mode == 'exterior' else 'Side B'
+                target_label = 'πλευρά Α' if mode == 'exterior' else 'πλευρά Β'
             changes['surface_materials'] = surface_map
         elif entity.kind in ('library_object', 'cabinet', 'door', 'window') and target is not None and target.currentData() != 'all':
             role = str(target.currentData())
@@ -2493,7 +2564,7 @@ class MainWindow(QMainWindow):
         self.refresh_inspector()
         spec = MATERIAL_PRESETS[str(material_id)]
         self.statusBar().showMessage(
-            f"Applied {spec['name']} to {target_label} — Undo is available",
+            f"{spec['name']} → {target_label} — αναίρεση με Ctrl+Z",
             3500,
         )
 
