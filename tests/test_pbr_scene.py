@@ -86,7 +86,7 @@ def test_pbr_scene_payload_uses_authoritative_entity_material_assignment():
     material = payload['objects'][0]['material']
 
     assert material['material_id'] == 'wood_oak'
-    assert material['material_name'] == 'Natural Oak'
+    assert material['material_name'] == 'Δρυς φυσική'
     assert material['color'] == '#b98755'
     assert material['roughness'] == 0.64
     assert material['metalness'] == 0.0
