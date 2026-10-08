@@ -49,7 +49,7 @@ KIND_LAYERS = {
     'door': 'openings', 'window': 'openings', 'opening': 'openings',
     'room': 'rooms', 'floor': 'slabs',
     'room_floor': 'slabs', 'room_ceiling': 'slabs', 'room_roof': 'slabs', 'pitched_roof': 'slabs',
-    'slab_opening': 'slabs', 'ceiling_joists': 'slabs',
+    'slab_opening': 'slabs', 'ceiling_joists': 'slabs', 'drywall_ceiling': 'slabs',
     'room_foundation': 'foundation',
     'stair': 'stairs', 'ramp': 'stairs', 'railing': 'stairs',
     'library_object': 'furniture',
