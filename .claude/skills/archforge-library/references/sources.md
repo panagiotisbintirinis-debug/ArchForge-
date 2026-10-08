@@ -15,7 +15,10 @@
 - Run `scripts/find_reference_photos.py "<generic object name>" --out <scratch dir>`. It searches Openverse (CC0, public domain, CC-BY, CC-BY-SA; Wikimedia Commons and Flickr CC included) and saves thumbnails and `sources.json` (title, creator, licence, page).
 - Look at the thumbnails (Read the images), pick one or more, model the generic type, and put the chosen photo's page URL in the spec's `reference` field. The core library stores it in the asset's provenance.
 - The photos stay in the scratch folder: never commit them, never use them as textures.
-- Network: the cloud sandbox needs `api.openverse.org` in the environment's allowed domains (blocked as of 2026-10-08; Wikimedia, Unsplash, Pexels and Pixabay are blocked too). Without it, build from standard dimensions and say so.
+- Network: the cloud sandbox needs `api.openverse.org` in the environment's allowed domains (open since 2026-10-08; thumbnails come from Openverse itself). Openverse answers 403 to the default Python agent, so the script sends its own User-Agent. Some queries ("rattan …", "outdoor …", "pizza oven …") get a Cloudflare challenge (403) every time: rephrase them ("wicker chair", "garden furniture set", "wood fired oven").
+- Without the network, build from standard dimensions and say so.
+- Solids for photo work (`builder.py`): `beam` (box from a to b: slanted backs, splayed legs, A-frames, tambour slats), `torus` (rings, hoops, handles; partial arcs are capped), `lathe` (turned shapes; a profile that goes up the outside and back down the inside gives an open bowl, vase or shade).
+- Use `scripts/find_reference_photos.py` per type, then compare each model with its photo side by side (photo | `asset_preview` sheet) and fix what looks wrong. The photo set is `archforge/library/catalog_photo.py` (96 items, 2026-10-08).
 
 ## 2. Online models with an open licence (shippable with attribution)
 - Reachable from the agent sandbox: **`raw.githubusercontent.com`** only.
