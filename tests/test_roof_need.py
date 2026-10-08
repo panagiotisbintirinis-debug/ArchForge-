@@ -92,7 +92,7 @@ def test_roof_menu_auto_and_fix_roofs_in_one_undo():
         texts = [a.text() for a in w._roof_menu.actions() if a.text()]
         assert texts[:3] == ['Με κεραμίδια (ξύλινη στέγη)', 'Χωρίς κεραμίδια (επίπεδη / δώμα)', 'Οροφή σοφίτας κάτω από κεραμοσκεπή']
         assert 'Διόρθωση στεγών' in texts and 'Διαγραφή όλων των στεγών' in texts
-        assert [a.text() for a in w._roof_tiled_menu.actions() if a.text()] == ['Αυτόματα (μορφή από κάτοψη & φορτία)', 'Δίρριχτη', 'Τετράρριχτη', 'Μονόρριχτη']
+        assert [a.text() for a in w._roof_tiled_menu.actions() if a.text()] == ['Αυτόματα (μορφή από κάτοψη && φορτία)', 'Δίρριχτη', 'Τετράρριχτη', 'Μονόρριχτη']
         # A wrong roof under the upper storey (as the old Flat Roof made) …
         left = min(w.doc.active_room_faces(z=0.0), key=lambda f: min(p[0] for p in f.polygon))
         w.stack.execute(CreateRoomRoofs([left.signature]))
@@ -210,7 +210,7 @@ def test_auto_tiled_roof_menu_creates_them_in_one_undo():
     app, w = _window_with(doc)
     try:
         texts = [a.text() for a in w._roof_tiled_menu.actions() if a.text()]
-        assert texts[0] == 'Αυτόματα (μορφή από κάτοψη & φορτία)'
+        assert texts[0] == 'Αυτόματα (μορφή από κάτοψη && φορτία)'
         made = w._auto_tiled_roofs()
         assert sorted(e.params['roof_form'] for e in made) == ['hip']          # the upper floor only
         terraces = [e for e in w.doc.entities.values() if e.kind == 'room_roof']

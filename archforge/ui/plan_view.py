@@ -139,12 +139,20 @@ class PlanView(QGraphicsView):
         if self.controller.cycle_option(-1 if event.angleDelta().y()>0 else 1):
             self.redraw();event.accept();return
         self.scale(1.15 if event.angleDelta().y()>0 else 1/1.15,1.15 if event.angleDelta().y()>0 else 1/1.15)
+        self._update_label_visibility()
     def _overlay(self,kind,event):
         # Overlay tool (the assistant's kitchen/bath guide lines, fixture drag): gets the mouse first.
         tool=getattr(self,'overlay_tool',None)
         return tool is not None and bool(tool.handle(self,kind,event))
+    def _wall_chain_active(self):
+        return getattr(self.controller,'wall_chain',None) is not None and self.controller.active is not None
+    def finish_wall_chain(self):
+        count=(self.controller.wall_chain or {}).get('count',0)
+        self.controller.finish_wall_chain();self._mouse_down=False;self.redraw()
+        self.statusChanged.emit(f'Τοίχοι: έγιναν {count} · Ctrl+Z = αναίρεση του τελευταίου' if count else 'Τοίχος: ακυρώθηκε')
     def mouseDoubleClickEvent(self,event):
         if self._overlay('dclick',event):event.accept();return
+        if event.button()==Qt.MouseButton.LeftButton and self._wall_chain_active():self.finish_wall_chain();event.accept();return
         if event.button()==Qt.MouseButton.LeftButton and self._railing_tool():self.finish_railing();event.accept();return
         if event.button()==Qt.MouseButton.LeftButton and self._slab_tool():self.finish_slab_opening();event.accept();return
         if event.button()==Qt.MouseButton.LeftButton:
@@ -156,6 +164,7 @@ class PlanView(QGraphicsView):
 
     def contextMenuEvent(self,event):
         if self._overlay('context',event):event.accept();return
+        if self._wall_chain_active():self.finish_wall_chain();event.accept();return
         window=getattr(self,'marking_menu_window',None)
         if window is not None:
             # One task-dependent mouse menu (marking menu), shared with the 3D view.
@@ -272,7 +281,7 @@ class PlanView(QGraphicsView):
             try:self.controller.begin_wall_move(press[0],press[1],press[2])
             except ValueError as exc:self.statusChanged.emit(str(exc))
             self._wall_press=None
-        if self._mouse_down and self.controller.active is not None:
+        if (self._mouse_down or self._wall_chain_active()) and self.controller.active is not None:
             ev=self._scene_to_plane(event.position().toPoint())
             ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
             ev.ctrl=bool(event.modifiers()&Qt.KeyboardModifier.ControlModifier)
@@ -305,9 +314,14 @@ class PlanView(QGraphicsView):
                 ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
                 ev.ctrl=bool(event.modifiers()&Qt.KeyboardModifier.ControlModifier)
                 moved_wall=getattr(self.controller.active,'distance',None) if self.controller.preview.kind=='wall-move' else None
+                chain=self._wall_chain_active()
                 try:
                     self.controller.pointer_up(ev)
                     if getattr(self.controller,'last_warning',None):self.statusChanged.emit(self.controller.last_warning)
+                    elif chain and not self._wall_chain_active():
+                        self.statusChanged.emit('Τοίχοι: το περίγραμμα έκλεισε · Ctrl+Z = αναίρεση του τελευταίου τοίχου')
+                    elif self._wall_chain_active():
+                        self.statusChanged.emit('Τοίχος: κλικ στην επόμενη γωνία · κλικ στο πρώτο σημείο = κλείσιμο · διπλό κλικ / δεξί κλικ / Enter = τέλος · Esc = ακύρωση')
                 except ValueError as exc:self.statusChanged.emit(str(exc));self.controller.cancel()
                 self._active_handle=None;self.redraw()
                 if moved_wall is not None:
@@ -324,6 +338,7 @@ class PlanView(QGraphicsView):
     def keyPressEvent(self,event):
         if self._overlay('key',event):event.accept();return
         if event.key()==Qt.Key.Key_Escape:self.controller.cancel();self._mouse_down=False;self._wall_press=None;self._railing_draft=None;self._slab_draft=None;self.redraw();return
+        if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self._wall_chain_active():self.finish_wall_chain();event.accept();return
         if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self._slab_tool():self.finish_slab_opening();event.accept();return
         if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self._railing_tool():self.finish_railing();event.accept();return
         if event.key() in (Qt.Key.Key_Tab,Qt.Key.Key_Space) and self.controller.cycle_option(1):
@@ -491,7 +506,19 @@ class PlanView(QGraphicsView):
             f'Wall corner menu — {label} · Undo/Delete available · Shift = temporary Free'
         )
 
+    def _label_scale(self):
+        """Current px per metre, corrected for a font larger than the one plan_scene's label boxes assume."""
+        if not hasattr(PlanView,'_label_font_factor'):
+            from PySide6.QtGui import QFontMetricsF
+            from archforge.core.plan_scene import LABEL_CHAR_PX,LABEL_LINE_PX
+            fm=QFontMetricsF(QGraphicsTextItem().font())
+            PlanView._label_font_factor=max(1.0,fm.horizontalAdvance('ΣΔ1 25/50 4Ø14')/14/LABEL_CHAR_PX,fm.lineSpacing()/LABEL_LINE_PX)
+        return abs(self.transform().m11())/PlanView._label_font_factor
+    def _update_label_visibility(self):
+        scale=self._label_scale()
+        for item,min_scale in getattr(self,'_scaled_labels',()):item.setVisible(scale>=min_scale)
     def redraw(self):
+        self._scaled_labels=[]
         self._scene.clear();self._handle_items.clear();self._entity_items.clear();self._draw_grid();frame=build_plan_frame(self.doc,self.controller.preview,layers=not self.structural_only);self._frame=frame
         if self.structural_only:
             structural_ids={
@@ -515,7 +542,7 @@ class PlanView(QGraphicsView):
                     continue
                 if p.entity_id and p.entity_id in self.doc.entities:
                     entity=self.doc.get(p.entity_id)
-                    if entity.kind in context_kinds:
+                    if entity.kind in context_kinds and p.role!='stair':
                         # Architectural geometry remains visible only as orientation
                         # context. It has no entity id in this view, so Structural mode
                         # cannot accidentally edit architectural objects.
@@ -701,6 +728,10 @@ class PlanView(QGraphicsView):
         if p.role in ('drywall-ceiling','drywall-ceiling-step'):
             # Suspended ceiling: above the cut plane, dashed.
             pen=QPen(QColor(70,110,150));pen.setWidthF(.016 if p.role=='drywall-ceiling' else .01);pen.setStyle(Qt.PenStyle.DashLine)
+        if p.role=='stair':pen=QPen(QColor(0,0,0,0));pen.setWidthF(.01)     # pick area only: the symbol is drawn below
+        if p.role.startswith('stair-'):
+            pen=QPen(QColor(45,55,65));pen.setWidthF({'stair-opening':.03,'stair-cut':.016,'stair-walk':.012,'stair-walk-hidden':.012}.get(p.role,.014))
+            if p.role in ('stair-hidden','stair-walk-hidden'):pen.setStyle(Qt.PenStyle.DashLine)
         if p.role in ('slab-opening','slab-opening-cross'):
             # Void in the slab: thin cross; dashed when the void is in the slab above (roof only).
             pen=QPen(QColor(60,65,75));pen.setWidthF(.018 if p.role=='slab-opening' else .012)
@@ -726,7 +757,7 @@ class PlanView(QGraphicsView):
             brush=QBrush(
                 QColor(160,160,160,18)
                 if context else
-                (QColor(90,180,120,28) if room else (QColor(150,140,125,70) if p.role=='site-path' else (QColor(255,255,255,1) if p.role=='library-object' else (QColor(236,230,220,120) if p.role=='cabinet' else (QColor(0,0,0,0) if p.role in ('cabinet-wall','joists-area') else (QColor(70,110,150,14) if p.role=='drywall-ceiling' else (QColor(255,255,255,90) if p.role=='slab-opening' else QColor(80,160,220,40))))))))
+                (QColor(90,180,120,28) if room else (QColor(150,140,125,70) if p.role=='site-path' else (QColor(255,255,255,1) if p.role=='library-object' else (QColor(236,230,220,120) if p.role=='cabinet' else (QColor(0,0,0,0) if p.role in ('cabinet-wall','joists-area') else (QColor(70,110,150,14) if p.role=='drywall-ceiling' else (QColor(255,255,255,90) if p.role=='slab-opening' else (QColor(255,255,255,1) if p.role=='stair' else QColor(80,160,220,40)))))))))
             )
             room_pen=QPen(QColor(110,150,120));room_pen.setWidthF(.015)
             item=self._scene.addPolygon(QPolygonF([QPointF(x,y) for x,y in p.points]),room_pen if room else pen,brush)
@@ -742,6 +773,13 @@ class PlanView(QGraphicsView):
                 f=item.font();f.setBold(True);f.setPointSizeF(f.pointSizeF()*1.25);item.setFont(f)
                 item.setDefaultTextColor(QColor(210,40,40) if text.startswith('⚠') else QColor(20,110,220))
             item.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations,True);item.setPos(cx,cy);item.setTransformOriginPoint(item.boundingRect().center());item.setScale(1.0);item.setZValue(8);
+            if meta.get('align'):
+                # Placed label (plan_scene.place_labels): this point of the text box sits on the anchor.
+                from PySide6.QtGui import QTransform
+                hx,vy=meta['align'];r=item.boundingRect();item.setTransform(QTransform.fromTranslate(-hx*r.width(),-vy*r.height()))
+            if meta.get('min_scale'):
+                # Hidden while zoomed out past the scale where it would overlap another label.
+                self._scaled_labels.append((item,float(meta['min_scale'])));item.setVisible(self._label_scale()>=float(meta['min_scale']))
             if dict(p.meta).get('layer_dim'):item.setOpacity(.3)
             return
         if item is not None:

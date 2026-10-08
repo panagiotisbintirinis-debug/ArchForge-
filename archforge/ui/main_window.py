@@ -1700,6 +1700,8 @@ class MainWindow(QMainWindow):
         for key, value in (() if entity.kind in ('railing', 'drywall_ceiling') or slab_tools.is_slab_panel(entity) else params.items()):
             if entity.kind in ('door', 'window') and key in joinery_keys:
                 continue  # Κουφώματα: δικές τους γραμμές (ui/opening_properties.py).
+            if entity.kind == 'stair' and key == 'plan_numbers':
+                continue  # checkbox below
             if isinstance(value, (int, float)):
                 spin = QDoubleSpinBox()
                 spin.setDecimals(4)
@@ -1731,6 +1733,12 @@ class MainWindow(QMainWindow):
             phase_combo.currentIndexChanged.connect(
                 lambda _i, widget=phase_combo, entity_id=eid: self._set_phase([entity_id], widget.currentData()))
             self.form.addRow('Φάση', phase_combo)
+        if entity.kind == 'stair':
+            from PySide6.QtWidgets import QCheckBox
+            numbers = QCheckBox('Αρίθμηση σκαλοπατιών στην κάτοψη')
+            numbers.setChecked(bool(params.get('plan_numbers', 0)))
+            numbers.toggled.connect(lambda on, entity_id=eid: self._commit_property(entity_id, 'plan_numbers', 1 if on else 0))
+            self.form.addRow(numbers)
         if entity.kind in ('door', 'window') and entity.parent_id in self.doc.entities \
                 and self.doc.get(entity.parent_id).kind == 'wall':
             from archforge.ui.opening_properties import add_opening_rows
@@ -2674,7 +2682,7 @@ class MainWindow(QMainWindow):
         self.doc.select([])
         self._redraw_views(all_views=True)
         self.refresh_inspector()
-        self.statusBar().showMessage(f'Active floor: {name} — {elevation:.2f} m', 3000)
+        self.statusBar().showMessage(f'Ενεργός όροφος: {name} — {elevation:.2f} m', 3000)
 
     def _add_floor_level(self):
         from archforge.architecture.stairs import discover_building_levels

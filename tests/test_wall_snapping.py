@@ -159,7 +159,7 @@ def test_wall_draw_rejects_accidental_tiny_segment():
     tx.update(0.024,0.0)
 
     import pytest
-    with pytest.raises(ValueError, match='too short'):
+    with pytest.raises(ValueError, match='πολύ κοντός'):
         tx.commit()
 
     assert not d.entities

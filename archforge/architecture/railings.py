@@ -474,11 +474,11 @@ def _flights(c):
     if c.layout == 'l':
         turn = float(c.turn_direction)
         return [((0.0, 0.0), (1.0, 0.0), first, 0, first * r),
-                ((first * t + c.landing_depth / 2, turn * c.landing_depth), (0.0, turn), second, first, rise)]
+                ((first * t + c.landing_depth / 2, turn * c.landing_depth / 2), (0.0, turn), second, first, rise)]
     if c.layout == 'u':
         offset = c.turn_direction * (c.width + 0.20)
         return [((0.0, 0.0), (1.0, 0.0), first, 0, first * r),
-                ((first * t + c.landing_depth, offset), (-1.0, 0.0), second, first, rise)]
+                ((first * t, offset), (-1.0, 0.0), second, first, rise)]
     raise ValueError('Κάγκελο σε σπιράλ σκάλα: δεν υποστηρίζεται ακόμη — σχεδίασέ το με σημεία')
 
 

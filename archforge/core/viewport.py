@@ -32,7 +32,7 @@ class IncrementalViewportAdapter:
 
 class PointerController:
     def __init__(self,doc,stack):
-        self.doc=doc;self.stack=stack;self.tool='select';self.active=None;self.component_definition=None;self.active_entity=None;self.active_handle=None;self.preview=PreviewState();self.construction_grid=.10;self.grid=self.construction_grid;self.snap_tolerance=.10;self.angle_increment=15.;self.wall_angle_increment='magnet';self.wall_angle_reference='relative';self.snap_enabled=True;self.structural_preset={}
+        self.doc=doc;self.stack=stack;self.tool='select';self.active=None;self.component_definition=None;self.active_entity=None;self.active_handle=None;self.preview=PreviewState();self.construction_grid=.10;self.grid=self.construction_grid;self.snap_tolerance=.10;self.angle_increment=15.;self.wall_angle_increment='magnet';self.wall_angle_reference='relative';self.snap_enabled=True;self.structural_preset={};self.wall_chain=None
     def cycle_option(self,step=1):
         # Tab / wheel during a live Stair or Ramp placement: next option.
         if isinstance(self.active,(StairPlaceTransaction,RampPlaceTransaction)):
@@ -74,54 +74,60 @@ class PointerController:
         seg=tx.preview_segment();geom={'opening_kind':tx.kind,'host_id':tx.host_id,'params':copy.deepcopy(tx.preview)}
         if seg:geom.update({'x1':seg[0][0],'y1':seg[0][1],'x2':seg[1][0],'y2':seg[1][1]})
         return PreviewState(kind,geom,{},None,getattr(tx,'eid',None))
+    def _begin_wall(self,sp,x,y,shift=False):
+        sx,sy=(sp.x,sp.y) if sp else (x,y)
+        geometry_snap_enabled=self.snap_enabled and not shift
+        reference_angle=0.0
+        if sp is not None and sp.entity_id and sp.entity_id in self.doc.entities:
+            ref=self.doc.get(sp.entity_id)
+            if ref.kind=='wall':
+                import math
+                rp=ref.params
+                reference_angle=math.degrees(math.atan2(
+                    float(rp['y2'])-float(rp['y1']),
+                    float(rp['x2'])-float(rp['x1']),
+                ))
+        # The project brief (wall system) sets what the wall tool draws.
+        from archforge.project.brief import wall_defaults
+        brief_type,brief_thickness=wall_defaults(self.doc)
+        self.active=WallDrawTransaction(
+            self.doc,self.stack,(sx,sy),
+            z=self.doc.work_plane.origin[2],
+            thickness=brief_thickness,
+            grid=self.grid,
+            snap_tol=self.snap_tolerance,
+            snap_enabled=geometry_snap_enabled,
+            angle_increment=self.wall_angle_increment,
+            reference_angle_deg=(0.0 if self.wall_angle_reference=='global' else reference_angle),
+            angle_enabled=not shift,
+        )
+        self.active.source_reference_angle_deg=reference_angle
+        self.active.wall_type=brief_type
+        # The line drawn is a face of the wall (brief: exterior / interior dimensions).
+        from archforge.project.brief import get_brief
+        brief=get_brief(self.doc)
+        self.active.reference=brief['measure'] if brief else None
+        self.preview=PreviewState(
+            'wall',
+            {'x1':sx,'y1':sy,'x2':sx,'y2':sy,'z':self.doc.work_plane.origin[2]},
+            {
+                'reference_angle_deg':(
+                    0.0 if self.wall_angle_reference=='global' else reference_angle
+                ),
+                'angle_reference_relative':1.0 if self.wall_angle_reference=='relative' else 0.0,
+            },
+            self._snap_dict(sp),
+        )
+        return self.preview
     def pointer_down(self,ev):
         x,y=self._plan_xy(ev)
+        if self.tool=='wall' and self.wall_chain is not None and isinstance(self.active,WallDrawTransaction):
+            # Click-click walls: the press of the next corner only ends the rubber segment (on release).
+            return self.preview
         if self.tool=='wall':
             geometry_snap_enabled=self.snap_enabled and not ev.shift
             sp=best_snap(self.doc,x,y,self.snap_tolerance,self.grid) if geometry_snap_enabled else None
-            sx,sy=(sp.x,sp.y) if sp else (x,y)
-            reference_angle=0.0
-            if sp is not None and sp.entity_id and sp.entity_id in self.doc.entities:
-                ref=self.doc.get(sp.entity_id)
-                if ref.kind=='wall':
-                    import math
-                    rp=ref.params
-                    reference_angle=math.degrees(math.atan2(
-                        float(rp['y2'])-float(rp['y1']),
-                        float(rp['x2'])-float(rp['x1']),
-                    ))
-            # The project brief (wall system) sets what the wall tool draws.
-            from archforge.project.brief import wall_defaults
-            brief_type,brief_thickness=wall_defaults(self.doc)
-            self.active=WallDrawTransaction(
-                self.doc,self.stack,(sx,sy),
-                z=self.doc.work_plane.origin[2],
-                thickness=brief_thickness,
-                grid=self.grid,
-                snap_tol=self.snap_tolerance,
-                snap_enabled=geometry_snap_enabled,
-                angle_increment=self.wall_angle_increment,
-                reference_angle_deg=(0.0 if self.wall_angle_reference=='global' else reference_angle),
-                angle_enabled=not ev.shift,
-            )
-            self.active.source_reference_angle_deg=reference_angle
-            self.active.wall_type=brief_type
-            # The line drawn is a face of the wall (brief: exterior / interior dimensions).
-            from archforge.project.brief import get_brief
-            brief=get_brief(self.doc)
-            self.active.reference=brief['measure'] if brief else None
-            self.preview=PreviewState(
-                'wall',
-                {'x1':sx,'y1':sy,'x2':sx,'y2':sy,'z':self.doc.work_plane.origin[2]},
-                {
-                    'reference_angle_deg':(
-                        0.0 if self.wall_angle_reference=='global' else reference_angle
-                    ),
-                    'angle_reference_relative':1.0 if self.wall_angle_reference=='relative' else 0.0,
-                },
-                self._snap_dict(sp),
-            )
-            return self.preview
+            return self._begin_wall(sp,x,y,ev.shift)
         if self.tool=='component':
             if not self.component_definition:return self.preview
             from archforge.components.placement import ComponentPlaceTransaction
@@ -370,25 +376,25 @@ class PointerController:
         self.last_warning=None
         self.pointer_move(ev);committed_id=None
         if isinstance(self.active,WallDrawTransaction):
-            from archforge.project.brief import interior_wall_defaults,wall_is_interior
-            interior=interior_wall_defaults(self.doc)
-            faces_before=self.doc.active_room_faces(z=self.active.z) if interior else []
-            committed_id=self.active.commit((exact or {}).get('length'))
-            if committed_id and interior and committed_id in self.doc.entities and wall_is_interior(faces_before,self.doc.get(committed_id).params):
-                # A wall inside a closed space is a partition: the brief's interior wall type — same undo step.
-                from archforge.core.commands import UpdateEntity
-                itype,ithick,bearing=interior
-                self.stack.amend(UpdateEntity(committed_id,{'wall_type':itype,'thickness':ithick,'load_bearing':bool(bearing)}))
-            if committed_id and committed_id in self.doc.entities:
-                # A wall ending on (or crossing) another one splits it there — same undo step.
-                self._split_at_junctions(committed_id)
-            if committed_id and getattr(self.active,'reference',None):
-                # A wall that closes a space moves onto its axis — same undo step as the wall.
-                from archforge.architecture.dimension_reference import ApplyDimensionReference
-                apply=ApplyDimensionReference(self.active.z)
-                from archforge.architecture.dimension_reference import plan as reference_plan
-                if any(reference_plan(self.doc,self.active.z)):
-                    self.stack.amend(apply)
+            tx=self.active
+            import math
+            if exact is None and math.hypot(tx.end[0]-tx.start[0],tx.end[1]-tx.start[1])<tx.min_length:
+                if self.wall_chain is None:
+                    # A click without a drag: click-click walls, one corner per click.
+                    self.wall_chain={'first':tuple(tx.start),'count':0}
+                    return self.preview
+                # A second click on the same corner (double click): the chain ends.
+                self.finish_wall_chain();return self.preview
+            committed_id=self._commit_wall(exact)
+            if self.wall_chain is not None:
+                self.wall_chain['count']+=1
+                ex,ey=tx.end;fx,fy=self.wall_chain['first']
+                if committed_id is None or math.hypot(ex-fx,ey-fy)<1e-6:
+                    # Back on the first corner: the outline is closed.
+                    self.finish_wall_chain();result=self.preview;result.entity_id=committed_id;return result
+                from .snapping import SnapPoint
+                self._begin_wall(SnapPoint(ex,ey,float(tx.z),'endpoint',committed_id),ex,ey,ev.shift)
+                result=copy.deepcopy(self.preview);result.entity_id=committed_id;return result
         elif self.active.__class__.__name__=='WallMoveTransaction':
             committed_id=self.active.commit();self.preview=PreviewState()
         elif isinstance(self.active,(ConnectedWallEndpointStretchTransaction,WallEndpointStretchTransaction,StructuralBeamEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction,OpeningEditTransaction)):
@@ -405,6 +411,32 @@ class PointerController:
         elif isinstance(self.active,MoveTransaction):
             if abs(self.active.dx)>1e-12 or abs(self.active.dy)>1e-12 or abs(self.active.dz)>1e-12:self.active.commit()
         result=self.preview;result.entity_id=committed_id;self.active=None;return result
+    def _commit_wall(self,exact=None):
+        committed_id=None
+        from archforge.project.brief import interior_wall_defaults,wall_is_interior
+        interior=interior_wall_defaults(self.doc)
+        faces_before=self.doc.active_room_faces(z=self.active.z) if interior else []
+        committed_id=self.active.commit((exact or {}).get('length'))
+        if committed_id and interior and committed_id in self.doc.entities and wall_is_interior(faces_before,self.doc.get(committed_id).params):
+            # A wall inside a closed space is a partition: the brief's interior wall type — same undo step.
+            from archforge.core.commands import UpdateEntity
+            itype,ithick,bearing=interior
+            self.stack.amend(UpdateEntity(committed_id,{'wall_type':itype,'thickness':ithick,'load_bearing':bool(bearing)}))
+        if committed_id and committed_id in self.doc.entities:
+            # A wall ending on (or crossing) another one splits it there — same undo step.
+            self._split_at_junctions(committed_id)
+        if committed_id and getattr(self.active,'reference',None):
+            # A wall that closes a space moves onto its axis — same undo step as the wall.
+            from archforge.architecture.dimension_reference import ApplyDimensionReference
+            apply=ApplyDimensionReference(self.active.z)
+            from archforge.architecture.dimension_reference import plan as reference_plan
+            if any(reference_plan(self.doc,self.active.z)):
+                self.stack.amend(apply)
+        return committed_id
+    def finish_wall_chain(self):
+        """End click-click walls: drop the rubber segment, keep the walls already made."""
+        if isinstance(self.active,WallDrawTransaction):self.active.cancel()
+        self.active=None;self.wall_chain=None;self.preview=PreviewState()
     def begin_wall_move(self,eid,a,b):
         """Dragging a wall's body: it moves perpendicular to its axis with what is joined to it."""
         from archforge.architecture.wall_edit import WallMoveTransaction
@@ -419,4 +451,4 @@ class PointerController:
         if cuts:self.stack.amend(SplitWalls(cuts))
     def cancel(self):
         if hasattr(self.active,'cancel'):self.active.cancel()
-        self.active=None;self.preview=PreviewState()
+        self.active=None;self.wall_chain=None;self.preview=PreviewState()

@@ -34,7 +34,7 @@ class ObjectModifierDialog(QDialog):
         self.header.setWordWrap(True)
         layout.addWidget(self.header)
 
-        size_box = QGroupBox("Διαστάσεις & θέση")
+        size_box = QGroupBox("Διαστάσεις && θέση")
         form = QFormLayout(size_box)
         self.size_spins = {}
         for key, label in zip(SIZE_KEYS, ("Πλάτος (cm)", "Βάθος (cm)", "Ύψος (cm)")):
@@ -252,7 +252,7 @@ class CabinetModifierDialog(QDialog):
         layout = QVBoxLayout(self)
         self.header = QLabel()
         layout.addWidget(self.header)
-        box = QGroupBox("Τύπος & διαστάσεις")
+        box = QGroupBox("Τύπος && διαστάσεις")
         form = QFormLayout(box)
         self.kind = QComboBox()
         for key, (name, _d) in TYPES.items():
