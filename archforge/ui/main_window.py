@@ -165,7 +165,7 @@ class MainWindow(QMainWindow):
         # routed to an invisible 3D widget.
         plan_tools = {'select','wall','door','window','opening_rect','opening_arch','stair','ramp','move','stretch','rotate','component'}
         # Tools the 3D Scene places by clicking on the model itself.
-        pbr_tools = {'select','door','window','opening_rect','opening_arch','stair','ramp','move','rotate'}
+        pbr_tools = {'select','wall','door','window','opening_rect','opening_arch','stair','ramp','move','rotate'}
         central = getattr(self, '_central_tabs', None)
         simultaneous = getattr(self, '_simultaneous_action', None)
         simultaneous = simultaneous is not None and simultaneous.isChecked()
