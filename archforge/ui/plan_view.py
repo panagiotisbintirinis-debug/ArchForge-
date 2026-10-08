@@ -136,7 +136,12 @@ class PlanView(QGraphicsView):
         if self.controller.cycle_option(-1 if event.angleDelta().y()>0 else 1):
             self.redraw();event.accept();return
         self.scale(1.15 if event.angleDelta().y()>0 else 1/1.15,1.15 if event.angleDelta().y()>0 else 1/1.15)
+    def _overlay(self,kind,event):
+        # Overlay tool (the assistant's kitchen/bath guide lines, fixture drag): gets the mouse first.
+        tool=getattr(self,'overlay_tool',None)
+        return tool is not None and bool(tool.handle(self,kind,event))
     def mouseDoubleClickEvent(self,event):
+        if self._overlay('dclick',event):event.accept();return
         if event.button()==Qt.MouseButton.LeftButton and self._railing_tool():self.finish_railing();event.accept();return
         if event.button()==Qt.MouseButton.LeftButton and self._slab_tool():self.finish_slab_opening();event.accept();return
         if event.button()==Qt.MouseButton.LeftButton:
@@ -147,6 +152,7 @@ class PlanView(QGraphicsView):
         super().mouseDoubleClickEvent(event)
 
     def contextMenuEvent(self,event):
+        if self._overlay('context',event):event.accept();return
         window=getattr(self,'marking_menu_window',None)
         if window is not None:
             # One task-dependent mouse menu (marking menu), shared with the 3D view.
@@ -200,6 +206,7 @@ class PlanView(QGraphicsView):
         if event.button()==Qt.MouseButton.LeftButton:
             self._hide_wall_angle_radial();self.hide_marking_menu()
         if event.button()!=Qt.MouseButton.LeftButton:super().mousePressEvent(event);return
+        if self._overlay('press',event):event.accept();return
         if self._railing_tool():self._railing_press(event);event.accept();return
         if self._slab_tool():
             ev=self._scene_to_plane(event.position().toPoint());self._slab_draft_get().down(ev.a,ev.b);self._mouse_down=True
@@ -248,6 +255,7 @@ class PlanView(QGraphicsView):
         self.redraw()
     def mouseMoveEvent(self,event):
         p=self.mapToScene(event.position().toPoint());self._cursor_xy=(p.x(),p.y());self.viewport().update()
+        if self._overlay('move',event):return
         if self._slab_tool() and getattr(self,'_slab_draft',None) is not None:
             ev=self._scene_to_plane(event.position().toPoint());self._slab_draft.move(ev.a,ev.b)
             self.statusChanged.emit('Οπή πλάκας: '+self._slab_draft.label());self.redraw();return
@@ -276,6 +284,7 @@ class PlanView(QGraphicsView):
             p=self.mapToScene(event.position().toPoint());self.statusChanged.emit(f'X {p.x():.3f}   Y {p.y():.3f}')
         super().mouseMoveEvent(event)
     def mouseReleaseEvent(self,event):
+        if self._overlay('release',event):event.accept();return
         if event.button()==Qt.MouseButton.LeftButton and self._slab_tool() and getattr(self,'_slab_draft',None) is not None:
             self._mouse_down=False;ev=self._scene_to_plane(event.position().toPoint())
             done=self._slab_draft.up(ev.a,ev.b)
@@ -307,8 +316,10 @@ class PlanView(QGraphicsView):
     def focusNextPrevChild(self,next):
         # Tab cycles Stair/Ramp options instead of moving keyboard focus.
         if self.controller.tool in ('stair','ramp') and self.controller.active is not None:return False
+        if str(self.controller.tool).startswith('layout_'):return False     # Tab = next layout variant
         return super().focusNextPrevChild(next)
     def keyPressEvent(self,event):
+        if self._overlay('key',event):event.accept();return
         if event.key()==Qt.Key.Key_Escape:self.controller.cancel();self._mouse_down=False;self._wall_press=None;self._railing_draft=None;self._slab_draft=None;self.redraw();return
         if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self._slab_tool():self.finish_slab_opening();event.accept();return
         if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self._railing_tool():self.finish_railing();event.accept();return
@@ -601,6 +612,8 @@ class PlanView(QGraphicsView):
             pen=QPen(QColor(200,60,40));pen.setWidthF(.05);pen.setStyle(Qt.PenStyle.DashLine)
             (ax,ay),(bx,by)=drag;self._scene.addLine(ax,ay,bx,by,pen).setZValue(30)
             dot=QPen(QColor(200,60,40));dot.setWidthF(.05);self._scene.addEllipse(ax-.12,ay-.12,.24,.24,dot,QBrush(QColor(200,60,40))).setZValue(30)
+        overlay=getattr(self,'overlay_tool',None)
+        if overlay is not None:overlay.paint(self)
         marker=getattr(self,'assistant_marker',None)
         if marker is not None:
             # Assistant marker: where the human pointed (UI state, not part of the Document).
