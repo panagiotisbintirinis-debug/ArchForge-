@@ -510,6 +510,82 @@ def _lower_storey_underlay(doc,f,tolerance=1e-5):
         ))
 
 
+# Structural labels keep a constant size on screen (pixels), so their box in metres
+# depends on the zoom. Estimated from Qt's default 9 pt font (measured: ≈6.8 px per
+# character, 15.5 px per line, 8 px of margins).
+LABEL_CHAR_PX=6.8;LABEL_LINE_PX=15.5;LABEL_MARGIN_PX=8.0
+# px per metre: below it the structural labels hide (no carpet of text when zoomed out).
+LABEL_MIN_SCALE=40.0
+_LABEL_SCALES=(1.0,1.25,1.6,2.0,2.5,3.2,4.0,5.0,6.4,8.0)
+
+def label_box(anchor,align,text,scale):
+    """(x0,y0,x1,y1) in metres of a label drawn at ``scale`` px/m.
+
+    ``align`` (hx,vy) is the point of the text box on the anchor: (0,0) top-left
+    (text below-right of the anchor), (1,1) bottom-right, (.5,1) centred above.
+    The box shrinks towards its anchor as the view zooms in, so labels apart at
+    one zoom stay apart at every closer zoom.
+    """
+    lines=str(text).split('\n')
+    w=(LABEL_MARGIN_PX+LABEL_CHAR_PX*max(len(q) for q in lines))/scale
+    h=(LABEL_MARGIN_PX+LABEL_LINE_PX*len(lines))/scale
+    (x,y),(hx,vy)=anchor,align
+    return (x-hx*w,y-(1-vy)*h,x+(1-hx)*w,y+vy*h)
+
+from functools import lru_cache
+@lru_cache(maxsize=8)
+def place_labels(items):
+    """Simple label collision avoidance: ``items`` = ((text, ((anchor, align), ...)), ...) in priority order.
+
+    Each label takes its first candidate position that overlaps no label placed
+    before it; if none fits at the base zoom, the closest zoom where one fits is
+    kept as its ``min_scale`` (the view hides it until then). Returns
+    ((anchor, align, min_scale), ...).
+    """
+    placed=[];cells={};out=[];cell=1.0
+    def keys(b):
+        for i in range(int(math.floor(b[0]/cell)),int(math.floor(b[2]/cell))+1):
+            for j in range(int(math.floor(b[1]/cell)),int(math.floor(b[3]/cell))+1):
+                yield (i,j)
+    def free(text,anchor,align,scale):
+        b=label_box(anchor,align,text,scale);seen=set()
+        for k in keys(b):
+            for n in cells.get(k,()):
+                if n in seen:continue
+                seen.add(n);t2,a2,al2,s2=placed[n];o=label_box(a2,al2,t2,max(scale,s2))
+                if b[0]<o[2] and o[0]<b[2] and b[1]<o[3] and o[1]<b[3]:return False
+        return True
+    for text,candidates in items:
+        choice=None
+        for factor in _LABEL_SCALES:
+            scale=LABEL_MIN_SCALE*factor
+            for anchor,align in candidates:
+                if free(text,anchor,align,scale):choice=(anchor,align,scale);break
+            if choice:break
+        if choice is None:
+            anchor,align=candidates[0];choice=(anchor,align,LABEL_MIN_SCALE*_LABEL_SCALES[-1]*2)
+        n=len(placed);placed.append((text,)+choice)
+        for k in keys(label_box(choice[0],choice[1],text,choice[2])):cells.setdefault(k,[]).append(n)
+        out.append(choice)
+    return tuple(out)
+
+def _corner_candidates(x,y,hx,hy,gap=.05,order=('ne','se','nw','sw')):
+    spots={'ne':((x+hx+gap,y+hy+gap),(0.,1.)),'se':((x+hx+gap,y-hy-gap),(0.,0.)),
+           'nw':((x-hx-gap,y+hy+gap),(1.,1.)),'sw':((x-hx-gap,y-hy-gap),(1.,0.))}
+    return tuple(spots[k] for k in order)
+
+def _axis_candidates(a,b,offset,first_side=1):
+    """Beside a member's axis, on one side then the other, at mid then at the quarters."""
+    (ax,ay),(bx,by)=a,b;L=math.hypot(bx-ax,by-ay) or 1.0;nx,ny=-(by-ay)/L,(bx-ax)/L
+    out=[]
+    for t in (.5,.25,.75):
+        for side in (first_side,-first_side):
+            sx,sy=nx*side,ny*side
+            hx=0. if sx>.35 else (1. if sx<-.35 else .5)
+            vy=1. if sy>.35 else (0. if sy<-.35 else .5)
+            out.append(((ax+(bx-ax)*t+sx*offset,ay+(by-ay)*t+sy*offset),(hx,vy)))
+    return tuple(out)
+
 def build_plan_frame(doc,preview=None,layers=True):
     f=PlanFrame()
     _lower_storey_underlay(doc,f)
@@ -536,6 +612,18 @@ def build_plan_frame(doc,preview=None,layers=True):
         if not _entity_on_active_level(doc,doc.get(eid)):continue
         p=entity_primitive(doc,eid)
         if p:f.primitives.append(p)
+        if p and doc.get(eid).kind=='stair':
+            # Plan symbol of the stair for this storey: the flight it starts (ΑΝ, cut at ~1,10 m)
+            # or the one arriving from below (opening + visible steps, ΚΑΤ) — architecture/stairs.py.
+            from archforge.architecture.stairs import candidate_from_params,stair_plan_symbol
+            q=doc.get(eid).params;level=float(doc.work_plane.origin[2])
+            view='lower' if abs(float(q.get('lower_z',0.0))-level)<=1e-5 else 'upper'
+            lines,labels=stair_plan_symbol(candidate_from_params(q),view,numbers=bool(q.get('plan_numbers',0)))
+            for style,pts in lines:
+                f.primitives.append(Primitive2D('polyline',tuple(pts),entity_id=eid,role='stair-'+style,meta=(('view',view),)))
+            for text,at,kind in labels:
+                f.primitives.append(Primitive2D('label',(at,),entity_id=eid,role='stair-label',
+                                                meta=(('text',text),('align',(.5,.5)),('kind',kind))))
         if p and p.role=='slab-opening':
             # Void in the slab: diagonal cross (Greek drafting practice).
             from archforge.architecture.storey_slabs import plan_cross
@@ -652,6 +740,7 @@ def build_plan_frame(doc,preview=None,layers=True):
         from archforge.structure.analysis import fresh_result
         result=fresh_result(doc)
         level=float(doc.work_plane.origin[2])
+        specs=[]                                     # (priority, text, candidates, entity id, role)
         for eid,info in (result or {}).get('members',{}).items():
             e=doc.entities.get(eid)
             if e is None:
@@ -660,15 +749,16 @@ def build_plan_frame(doc,preview=None,layers=True):
             if e.kind=='structural_column':
                 if abs(float(p['z'])-level)>.05:
                     continue
-                at=(float(p['x'])+float(p['width'])/2+.05,float(p['y'])-float(p['depth'])/2-.25)
-                bars=info.get('bars');extra=f" {bars['n']}Ø{bars['d']}" if bars else ''
+                cands=_corner_candidates(float(p['x']),float(p['y']),float(p['width'])/2,float(p['depth'])/2)
+                bars=info.get('bars');extra=f" {bars['n']}Ø{bars['d']}" if bars else '';rank=0
             else:
                 if abs(float(doc.levels.get(str(p.get('level')),-1e9))-level)>.05:
                     continue
-                at=((float(p['x1'])+float(p['x2']))/2+.1,(float(p['y1'])+float(p['y2']))/2+.1)
-                extra=''
+                # Beam above / left of its axis; the tie beam on the same axis takes the other side.
+                cands=_axis_candidates((float(p['x1']),float(p['y1'])),(float(p['x2']),float(p['y2'])),float(p.get('width',.25))/2+.05)
+                extra='';rank=1
             text=f"{info['name']} {info.get('section','')}{extra}"+('' if info.get('ok',True) else ' ⚠')
-            f.primitives.append(Primitive2D('label',(at,),entity_id=eid,role='structural-label',meta=(('text',text),)))
+            specs.append((rank,text,cands,eid,'structural-label'))
         # Foundation under the base storey: footings and tie beams (hidden lines), from the same analysis.
         from archforge.structure.analysis import last_result
         fd=(last_result(doc) or {}).get('foundation') or {}
@@ -678,8 +768,9 @@ def build_plan_frame(doc,preview=None,layers=True):
             x,y,h=float(ft['x']),float(ft['y']),float(ft['B_m'])/2
             f.primitives.append(Primitive2D('polyline',((x-h,y-h),(x+h,y-h),(x+h,y+h),(x-h,y+h),(x-h,y-h)),role='footing',
                                             entity_id=ft.get('column_id') or None,meta=(('name',ft['name']),)))
-            f.primitives.append(Primitive2D('label',((x-h+.05,y-h-.25),),role='footing-label',
-                                            meta=(('text',f"{ft['name']} {ft['B_m']:.2f}×{ft['B_m']:.2f} h{ft['h_m']:.2f} {ft['mesh']}"),)))
+            # Two lines, at the corner diagonal to the column's label.
+            specs.append((2,f"{ft['name']} {ft['B_m']:.2f}×{ft['B_m']:.2f}\nh{ft['h_m']:.2f} {ft['mesh']}",
+                          _corner_candidates(x,y,h,h,order=('sw','nw','se','ne')),'','footing-label'))
         for t in fd.get('ties',()):
             if abs(float(t.get('z',0.0))-level)>.05:
                 continue
@@ -688,8 +779,12 @@ def build_plan_frame(doc,preview=None,layers=True):
             nx,ny=-(by-ay)/L*.125,(bx-ax)/L*.125
             for s_ in (1,-1):
                 f.primitives.append(Primitive2D('polyline',((ax+nx*s_,ay+ny*s_),(bx+nx*s_,by+ny*s_)),role='tie-beam',meta=(('name',t['name']),)))
-            f.primitives.append(Primitive2D('label',(((ax+bx)/2+.05,(ay+by)/2+.18),),role='footing-label',
-                                            meta=(('text',f"{t['name']} {t['section']} {t['bars']}"),)))
+            specs.append((3,f"{t['name']} {t['section']} {t['bars']}",_axis_candidates((ax,ay),(bx,by),.175,first_side=-1),'','footing-label'))
+        specs.sort(key=lambda q:q[0])
+        placed=place_labels(tuple((text,cands) for _r,text,cands,_e,_role in specs))
+        for (_r,text,_c,eid,role),(anchor,align,min_scale) in zip(specs,placed):
+            f.primitives.append(Primitive2D('label',(anchor,),entity_id=eid,role=role,
+                                            meta=(('text',text),('align',align),('min_scale',min_scale))))
     # Derived drainage of the active storey: sloped pipes with Φ and slope, fittings.
     if any(e.kind=='plumbing_point' for e in doc.entities.values()):
         from archforge.mep.drainage import SLOPE,_floor_of as drain_floor,route_drainage_cached

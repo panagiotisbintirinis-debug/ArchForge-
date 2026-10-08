@@ -399,7 +399,7 @@ class WallDrawTransaction:
             ex=sx+dx/L*exact_length;ey=sy+dy/L*exact_length;L=exact_length
         if L < self.min_length:
             raise ValueError(
-                f'wall drag is too short ({L:.3f} m); move at least {self.min_length:.2f} m'
+                f'Ο τοίχος είναι πολύ κοντός ({L*100:.1f} cm)· τράβηξε ή κάνε κλικ τουλάχιστον {self.min_length*100:.0f} cm πιο πέρα'
             )
         params={'x1':sx,'y1':sy,'x2':ex,'y2':ey,'z':self.z,'height':self.height,'thickness':self.thickness}
         if getattr(self,'wall_type',None):params['wall_type']=self.wall_type

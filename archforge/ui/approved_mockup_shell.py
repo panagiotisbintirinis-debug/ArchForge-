@@ -161,7 +161,7 @@ def install_approved_mockup_shell(window):
     file_menu.addSeparator()
     pdf_action=QAction("Εξαγωγή PDF (κατόψεις, επιμέτρηση, προσφορά)…",window); pdf_action.triggered.connect(lambda: window._export_pdf())
     file_menu.addAction(pdf_action); window._pdf_action=pdf_action
-    prices_action=QAction("Τιμές & προσφορά…",window); prices_action.triggered.connect(lambda: window._edit_prices())
+    prices_action=QAction("Τιμές && προσφορά…",window); prices_action.triggered.connect(lambda: window._edit_prices())
     file_menu.addAction(prices_action); window._prices_action=prices_action
     file_menu.addAction(window.export_stl_action)
     edit_menu=menus["Επεξεργασία"]
@@ -213,7 +213,7 @@ def install_approved_mockup_shell(window):
     menus["Κατασκευή"].addAction(prices_action); menus["Κατασκευή"].addAction(pdf_action)
     tiled=QMenu("Με κεραμίδια (ξύλινη στέγη)",roof_menu); roof_menu.addMenu(tiled); window._roof_tiled_menu=tiled
     from archforge.structure.timber_roof import FORMS
-    auto_tiled=QAction("Αυτόματα (μορφή από κάτοψη & φορτία)",window)
+    auto_tiled=QAction("Αυτόματα (μορφή από κάτοψη && φορτία)",window)
     auto_tiled.triggered.connect(lambda: window._auto_tiled_roofs()); tiled.addAction(auto_tiled); tiled.addSeparator()
     for form,label in FORMS.items():
         a=QAction(label,window); a.triggered.connect(lambda _=False,f=form: window._create_pitched_roof(f)); tiled.addAction(a)
@@ -307,7 +307,7 @@ def install_approved_mockup_shell(window):
     ao.toggled.connect(window.pbr_view.set_ambient_occlusion)
     menus["Απεικόνιση"].addAction(ao)
     window._mockup_ao_action=ao
-    sun_menu=QMenu("Ήλιος & ουρανός",menus["Απεικόνιση"]); menus["Απεικόνιση"].addMenu(sun_menu)
+    sun_menu=QMenu("Ήλιος && ουρανός",menus["Απεικόνιση"]); menus["Απεικόνιση"].addMenu(sun_menu)
     sun_group=QActionGroup(sun_menu); sun_group.setExclusive(True)
     for text,hour in (("Πρωί (09:00)",9.0),("Μεσημέρι (11:00)",11.0),("Απόγευμα (17:00)",17.0),
                       ("Δειλινό (19:00)",19.0),("Χωρίς ουρανό (στούντιο)",None)):
@@ -335,7 +335,7 @@ def install_approved_mockup_shell(window):
     def tool_action(text,tool,parent):
         a=QAction(text,parent); a.triggered.connect(lambda _=False,t=tool: window._set_active_tool(t)); return a
     for label,tool,icon,tip in (("Επιλογή","select","select","Κλικ σε αντικείμενο: επιλογή · σύρε τις λαβές για αλλαγή"),
-                                ("Τοίχος","wall","wall","Σύρε από γωνία σε γωνία · Shift = ελεύθερη γωνία · Esc = ακύρωση")):
+                                ("Τοίχος","wall","wall","Κλικ στις γωνίες (ή σύρε) · διπλό κλικ / Enter = τέλος · Shift = ελεύθερη γωνία · Esc = ακύρωση")):
         a=tool_action(label,tool,window); a.setIcon(make_icon(icon)); a.setToolTip(tip); ribbon.addAction(a)
     # One menu for what goes into / along the walls: doors, windows, openings, stairs, kitchen, structure.
     elements=QMenu("Στοιχεία",window); window._mockup_elements_menu=elements

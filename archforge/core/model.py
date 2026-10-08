@@ -578,6 +578,7 @@ SCHEMAS = {
         'landing_depth': _positive,
         'turn_direction': _turn_direction,
         'opening_margin': _nonnegative,
+        'plan_numbers': _flag,          # numbered steps in the plan symbol (optional)
     },
     'ramp': {
         'x': _finite,

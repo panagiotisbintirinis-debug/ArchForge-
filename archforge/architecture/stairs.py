@@ -237,12 +237,14 @@ def stair_centerline(candidate: StairCandidate) -> Tuple[Point2, ...]:
         second = n - first
         p1 = first * t
         offset = turn * (w + 0.20)
+        # The second flight starts from the landing's near edge, back alongside the first.
         local = (
             (0.0, 0.0),
             (p1, 0.0),
-            (p1 + landing, 0.0),
-            (p1 + landing, offset),
-            (p1 + landing - second * t, offset),
+            (p1 + landing / 2.0, 0.0),
+            (p1 + landing / 2.0, offset),
+            (p1, offset),
+            (p1 - second * t, offset),
         )
     elif candidate.layout == 'spiral':
         radius = max(w * 0.95, 0.85)
@@ -553,3 +555,287 @@ def next_level_above(doc, z: float):
         if float(item['elevation']) > float(z) + 1e-6
     ]
     return levels[0] if levels else None
+
+
+# ---------------------------------------------------------------------------
+# Plan symbol (κάτοψη), from the same layout as the 3D steps (geometry/mesh._stair_mesh).
+
+# Greek drafting practice: the plan is cut ~1,10–1,20 m above the floor; the flight
+# is broken there with a diagonal zig-zag line, what lies above is dashed.
+PLAN_CUT_HEIGHT = 1.10
+
+
+def _spiral_radii(candidate: StairCandidate) -> Tuple[float, float]:
+    w = candidate.width
+    return max(0.12, w * 0.20), max(w, 0.85) + w * 0.45
+
+
+def stair_treads(candidate: StairCandidate):
+    """Plan of the steps in world coordinates.
+
+    Returns ``(treads, landings)``: ``treads`` = ``[(index, (s0, e0, e1, s1))]``
+    where ``s0-s1`` is the riser (start) edge and ``e0-e1`` its far (nosing of the
+    next step) edge; tread ``index`` tops out at ``lower_z + (index + 1) · riser``.
+    ``landings`` = ``[(index of the tread before it, polygon)]``. Spiral treads
+    carry arc points: ``(s0, *outer arc, e0, e1, *inner arc, s1)``.
+    """
+    c = candidate
+    n, t, w, L = c.tread_count, c.tread_depth, c.width, c.landing_depth
+    turn = float(c.turn_direction)
+    hw = w / 2.0
+    world = lambda pts: tuple(_local_to_world(c, x, y) for x, y in pts)
+    if c.layout == 'spiral':
+        inner, outer = _spiral_radii(c)
+        sweep = turn * 2.0 * pi
+        treads = []
+        for i in range(n):
+            a0, a1 = sweep * i / n, sweep * (i + 1) / n
+            arc = [a0 + (a1 - a0) * q / 4 for q in range(5)]
+            # s0 (outer start) … e0 (outer end), e1 (inner end) … s1 (inner start).
+            outer_arc = [(outer * cos(a), outer * sin(a)) for a in arc]
+            inner_back = [(inner * cos(a), inner * sin(a)) for a in reversed(arc)]
+            treads.append((i, world(outer_arc + inner_back)))
+        return treads, []
+    first = max(1, n // 2)
+    second = n - first
+    p1 = first * t
+    local = []
+    landings = []
+    flight = lambda i: ((i * t, -turn * hw), ((i + 1) * t, -turn * hw), ((i + 1) * t, turn * hw), (i * t, turn * hw))
+    if c.layout == 'straight':
+        local = [(i, flight(i)) for i in range(n)]
+    elif c.layout == 'l':
+        local = [(i, flight(i)) for i in range(first)]
+        cx = p1 + L / 2.0
+        landings.append((first - 1, ((p1, -L / 2.0), (p1 + L, -L / 2.0), (p1 + L, L / 2.0), (p1, L / 2.0))))
+        for j in range(second):
+            y0, y1 = turn * (L / 2.0 + j * t), turn * (L / 2.0 + (j + 1) * t)
+            local.append((first + j, ((cx + hw, y0), (cx + hw, y1), (cx - hw, y1), (cx - hw, y0))))
+    elif c.layout == 'u':
+        offset = turn * (w + 0.20)
+        local = [(i, flight(i)) for i in range(first)]
+        lo, hi = min(0.0, offset) - hw, max(0.0, offset) + hw
+        landings.append((first - 1, ((p1, lo), (p1 + L, lo), (p1 + L, hi), (p1, hi))))
+        for j in range(second):
+            x0, x1 = p1 - j * t, p1 - (j + 1) * t
+            local.append((first + j, ((x0, offset + turn * hw), (x1, offset + turn * hw), (x1, offset - turn * hw), (x0, offset - turn * hw))))
+    else:
+        raise ValueError(f'unsupported stair layout: {c.layout}')
+    return [(i, world(q)) for i, q in local], [(k, world(q)) for k, q in landings]
+
+
+def _mid(a: Point2, b: Point2) -> Point2:
+    return ((a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0)
+
+
+def _edges(quad):
+    """(start edge, end edge) of a tread: s0-s1 and e0-e1."""
+    if len(quad) == 4:
+        s0, e0, e1, s1 = quad
+    else:
+        half = len(quad) // 2
+        s0, e0, e1, s1 = quad[0], quad[half - 1], quad[half], quad[-1]
+    return (s0, s1), (e0, e1)
+
+
+def _walking_line(candidate: StairCandidate, treads):
+    """Walking line through the middle of every riser, turning in the middle of the
+    landings; with the index in it of each tread's start."""
+    pts: List[Point2] = []
+    starts = []
+    L = candidate.landing_depth
+    for k, (_i, quad) in enumerate(treads):
+        (s0, s1), (e0, e1) = _edges(quad)
+        start, end = _mid(s0, s1), _mid(e0, e1)
+        if pts and hypot(pts[-1][0] - start[0], pts[-1][1] - start[1]) > 1e-6:
+            # A landing: go on along the flight, turn in its middle, come into the next flight.
+            prev = pts[-1]
+            (ps0, ps1), _pe = _edges(treads[k - 1][1])
+            pstart = _mid(ps0, ps1)
+            du = (prev[0] - pstart[0], prev[1] - pstart[1])
+            dn = hypot(*du) or 1.0
+            dv = (end[0] - start[0], end[1] - start[1])
+            dm = hypot(*dv) or 1.0
+            a = (prev[0] + du[0] / dn * L / 2.0, prev[1] + du[1] / dn * L / 2.0)
+            b = (start[0] - dv[0] / dm * L / 2.0, start[1] - dv[1] / dm * L / 2.0)
+            pts.append(a)
+            if hypot(a[0] - b[0], a[1] - b[1]) > 1e-6:
+                pts.append(b)
+        if not pts or hypot(pts[-1][0] - start[0], pts[-1][1] - start[1]) > 1e-6:
+            pts.append(start)
+        starts.append(len(pts) - 1)
+        pts.append(end)
+    return pts, starts
+
+
+def _arrow_head(tip: Point2, back: Point2, size: float = 0.18) -> Tuple[Point2, ...]:
+    dx, dy = tip[0] - back[0], tip[1] - back[1]
+    d = hypot(dx, dy) or 1.0
+    ux, uy = dx / d, dy / d
+    bx, by = tip[0] - ux * size, tip[1] - uy * size
+    return ((bx - uy * size * 0.5, by + ux * size * 0.5), tip, (bx + uy * size * 0.5, by - ux * size * 0.5))
+
+
+def _break_line(quad) -> Tuple[Point2, ...]:
+    """Diagonal zig-zag cut line across a tread (riser corner to the opposite far corner)."""
+    (s0, _s1), (_e0, e1) = _edges(quad)
+    dx, dy = e1[0] - s0[0], e1[1] - s0[1]
+    d = hypot(dx, dy) or 1.0
+    nx, ny = -dy / d, dx / d
+    z = min(0.12, d * 0.12)
+    p = lambda u, o: (s0[0] + dx * u + nx * o, s0[1] + dy * u + ny * o)
+    # A little past the stair's sides, with the Z break in the middle.
+    return (p(-0.10, 0.0), p(0.44, 0.0), p(0.48, z), p(0.52, -z), p(0.56, 0.0), p(1.10, 0.0))
+
+
+def _strictly_inside(point: Point2, convex, eps: float = 1e-7) -> bool:
+    sign = 0.0
+    n = len(convex)
+    for i in range(n):
+        a, b = convex[i], convex[(i + 1) % n]
+        cross = (b[0] - a[0]) * (point[1] - a[1]) - (b[1] - a[1]) * (point[0] - a[0])
+        if abs(cross) <= eps * max(1.0, hypot(b[0] - a[0], b[1] - a[1])):
+            return False
+        if sign == 0.0:
+            sign = 1.0 if cross > 0 else -1.0
+        elif cross * sign < 0:
+            return False
+    return True
+
+
+def _union_outline(polygons) -> List[Tuple[Point2, Point2]]:
+    """Boundary segments of a union of convex polygons (edge pieces not inside another piece)."""
+    polys = [tuple((float(x), float(y)) for x, y in q) for q in polygons if len(q) >= 3]
+    segments = []
+    for k, poly in enumerate(polys):
+        for a, b in zip(poly, poly[1:] + poly[:1]):
+            cuts = [0.0, 1.0]
+            rx, ry = b[0] - a[0], b[1] - a[1]
+            for m, other in enumerate(polys):
+                if m == k:
+                    continue
+                for c_, d_ in zip(other, other[1:] + other[:1]):
+                    sx, sy = d_[0] - c_[0], d_[1] - c_[1]
+                    den = rx * sy - ry * sx
+                    if abs(den) < 1e-12:
+                        continue
+                    u = ((c_[0] - a[0]) * sy - (c_[1] - a[1]) * sx) / den
+                    v = ((c_[0] - a[0]) * ry - (c_[1] - a[1]) * rx) / den
+                    if 0.0 < u < 1.0 and -1e-9 <= v <= 1.0 + 1e-9:
+                        cuts.append(u)
+            cuts.sort()
+            for u0, u1 in zip(cuts, cuts[1:]):
+                if u1 - u0 < 1e-9:
+                    continue
+                um = (u0 + u1) / 2.0
+                mid = (a[0] + rx * um, a[1] + ry * um)
+                if any(_strictly_inside(mid, other) for m, other in enumerate(polys) if m != k):
+                    continue
+                seg = ((a[0] + rx * u0, a[1] + ry * u0), (a[0] + rx * u1, a[1] + ry * u1))
+                # Shared edges of touching pieces: keep one copy.
+                if not any(hypot(seg[0][0] - q[1][0], seg[0][1] - q[1][1]) + hypot(seg[1][0] - q[0][0], seg[1][1] - q[0][1]) < 1e-6
+                           or hypot(seg[0][0] - q[0][0], seg[0][1] - q[0][1]) + hypot(seg[1][0] - q[1][0], seg[1][1] - q[1][1]) < 1e-6
+                           for q in segments):
+                    segments.append(seg)
+    return segments
+
+
+def _dot(p: Point2, radius: float = 0.05) -> Tuple[Point2, ...]:
+    m = 12 if radius < 0.2 else 48
+    return tuple((p[0] + radius * cos(2 * pi * q / m), p[1] + radius * sin(2 * pi * q / m)) for q in range(m + 1))
+
+
+def _beyond(a: Point2, b: Point2, distance: float = 0.22) -> Point2:
+    """A point past ``b`` on the line a→b (where «ΑΝ» / «ΚΑΤ» goes)."""
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    d = hypot(dx, dy) or 1.0
+    return (b[0] + dx / d * distance, b[1] + dy / d * distance)
+
+
+def stair_cut_index(candidate: StairCandidate, cut_height: float = PLAN_CUT_HEIGHT) -> int:
+    """Number of treads below the plan cut of the lower storey (at least 1, at most all but one)."""
+    n = candidate.tread_count
+    if n <= 1:
+        return n
+    return max(1, min(n - 1, int(floor(float(cut_height) / max(1e-9, candidate.riser_height) + 1e-9))))
+
+
+def stair_plan_symbol(candidate: StairCandidate, view: str = 'lower', numbers: bool = False,
+                      cut_height: float = PLAN_CUT_HEIGHT):
+    """2D plan symbol of a stair on the storey it starts from (``'lower'``) or reaches (``'upper'``).
+
+    Lower storey: steps up to the cut solid, above it dashed, a diagonal zig-zag
+    break line, walking line from a dot on the first riser, arrow and «ΑΝ».
+    Upper storey: outline of the slab opening, the steps seen through it (those
+    above the lower storey's cut) solid, walking line downwards, arrow and «ΚΑΤ».
+    Returns ``(lines, labels)``: ``[(style, points)]`` with style in ``tread /
+    hidden / landing / cut / walk / walk-hidden / arrow / opening`` and
+    ``[(text, point, kind)]`` with kind ``direction`` or ``number``.
+    """
+    c = candidate
+    treads, landings = stair_treads(c)
+    n = len(treads)
+    k = stair_cut_index(c, cut_height)
+    upper = view == 'upper'
+    lines = []
+    labels = []
+    centre = lambda quad: (sum(q[0] for q in quad) / len(quad), sum(q[1] for q in quad) / len(quad))
+    pieces = stair_opening_polygons(c) if upper and c.layout != 'spiral' else ()
+    uncovered = lambda poly: any(_point_in_polygon(centre(poly), piece) for piece in pieces)
+    if pieces:
+        # Seen from above: the steps over the lower storey's cut that the slab opening uncovers.
+        while k < n - 1 and not uncovered(treads[k][1]):
+            k += 1
+    seen_landing = None
+    for i, quad in treads:
+        closed = tuple(quad) + (quad[0],)
+        if not upper:
+            lines.append(('tread' if i < k else 'hidden', closed))
+        elif i >= k:
+            lines.append(('tread', closed))
+    for after, poly in landings:
+        closed = tuple(poly) + (poly[0],)
+        if upper:
+            if after >= k - 1 or (pieces and uncovered(poly)):
+                lines.append(('landing', closed))
+                if after == k - 1 or (after < k and seen_landing is None):
+                    seen_landing = after
+        else:
+            lines.append(('landing' if after < k else 'hidden', closed))
+    if c.layout == 'spiral':
+        # The newel (κεντρικός στύλος).
+        inner, _outer = _spiral_radii(c)
+        lines.append(('tread', _dot(c.origin, inner)))
+    walk, starts = _walking_line(c, treads)
+    cut_at = starts[k] if k < n else len(walk) - 1
+    if upper and seen_landing is not None and seen_landing < k:
+        cut_at = min(cut_at, starts[seen_landing] + 1)       # the walk down ends on the landing's edge
+    if upper:
+        if c.layout == 'spiral':
+            # Round well around the spiral (the 3D cut approximates it with short pieces).
+            lines.append(('opening', _dot(c.origin, _spiral_radii(c)[1] + 0.05)))
+        else:
+            for a, b in _union_outline(stair_opening_polygons(c)):
+                lines.append(('opening', (a, b)))
+        part = walk[cut_at:]
+        lines.append(('walk', tuple(part)))
+        lines.append(('arrow', _arrow_head(part[0], part[1])))
+        lines.append(('walk', _dot(part[-1])))
+        labels.append(('ΚΑΤ', _beyond(part[-2], part[-1]), 'direction'))
+    else:
+        if k < n:
+            lines.append(('cut', _break_line(treads[k][1])))
+        lines.append(('walk', tuple(walk[:cut_at + 1])))
+        if cut_at < len(walk) - 1:
+            lines.append(('walk-hidden', tuple(walk[cut_at:])))
+        lines.append(('arrow', _arrow_head(walk[-1], walk[-2])))
+        lines.append(('walk', _dot(walk[0])))
+        labels.append(('ΑΝ', _beyond(walk[1], walk[0]), 'direction'))
+    if numbers:
+        for i, quad in treads:
+            if upper and i < k:
+                continue
+            # Beside the walking line, on the left half of the tread.
+            (s0, _s1), (e0, _e1) = _edges(quad)
+            labels.append((str(i + 1), _mid(centre(quad), _mid(s0, e0)), 'number'))
+    return lines, labels

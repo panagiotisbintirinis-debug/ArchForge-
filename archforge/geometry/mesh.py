@@ -305,11 +305,12 @@ def _stair_mesh(p):
   first=max(1,n//2);second=n-first
   for i in range(first):add_step((i+.5)*t,0.0,0.0,i)
   landing_x=first*t+candidate.landing_depth/2.0
-  lx,ly=world(landing_x,turn*candidate.landing_depth/2.0)
+  # Landing centred on the first flight's axis; the second flight leaves from its side.
+  lx,ly=world(landing_x,0.0)
   meshes.append(_oriented_prism(lx,ly,z0,candidate.landing_depth,candidate.landing_depth,first*r,angle))
   for j in range(second):
    local_x=first*t+candidate.landing_depth/2.0
-   local_y=turn*(candidate.landing_depth+(j+.5)*t)
+   local_y=turn*(candidate.landing_depth/2.0+(j+.5)*t)
    add_step(local_x,local_y,90.0*turn,first+j)
  elif candidate.layout=='u':
   first=max(1,n//2);second=n-first;offset=turn*(width+0.20)
@@ -319,7 +320,7 @@ def _stair_mesh(p):
   lx,ly=world(landing_x,landing_y)
   meshes.append(_oriented_prism(lx,ly,z0,abs(offset)+width,candidate.landing_depth,first*r,angle))
   for j in range(second):
-   local_x=first*t+candidate.landing_depth-(j+.5)*t
+   local_x=first*t-(j+.5)*t                     # back alongside the first flight, from the landing's edge
    add_step(local_x,offset,180.0,first+j)
  elif candidate.layout=='spiral':
   inner=max(0.12,width*.20);outer=max(width,0.85)+width*.45
