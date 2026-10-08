@@ -256,8 +256,9 @@ def add_rows(window, eid):
 def install_menus(window):
     """«Οπή πλάκας / αίθριο» in Αυτόματα ▾ (next to Δάπεδα / Δώμα) and in the Κατασκευή menu."""
     from PySide6.QtGui import QAction
-    targets = [getattr(window, '_mockup_auto_menu', None)]
-    targets += [a.menu() for a in window.menuBar().actions() if a.text().replace('&', '') == 'Κατασκευή' and a.menu()]
+    # Keep the menu bar's actions alive while their menus are used (PySide drops the wrappers otherwise).
+    bar_actions = [a for a in window.menuBar().actions() if a.text().replace('&', '') == 'Κατασκευή' and a.menu()]
+    targets = [getattr(window, '_mockup_auto_menu', None)] + [a.menu() for a in bar_actions][:1]
     window._slab_opening_actions = []
     for menu in targets:
         if menu is None:

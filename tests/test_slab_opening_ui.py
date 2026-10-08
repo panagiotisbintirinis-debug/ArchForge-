@@ -76,3 +76,17 @@ def test_right_click_room_becomes_atrium_and_railing_in_one_click(window):
     assert len(railing) == 1 and railing[0].params['closed'] == 1 and railing[0].params['height'] == 1.0
     w.doc.select([atrium.id]); w._delete_selection()
     assert atrium.id not in w.doc.entities
+
+
+def test_slab_opening_command_is_in_the_construction_menu_of_the_real_window():
+    """Regression: the Κατασκευή entry was silently dropped (PySide wrapper lifetime)."""
+    from PySide6.QtWidgets import QApplication
+    from archforge.ui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    try:
+        menus = {m.title().replace('&', '') for a in window._slab_opening_actions for m in a.associatedObjects()
+                 if hasattr(m, 'title')}
+        assert 'Κατασκευή' in menus and 'Αυτόματα' in menus
+    finally:
+        window._mark_clean(); window.close(); app.processEvents()
