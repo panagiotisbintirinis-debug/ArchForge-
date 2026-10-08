@@ -94,13 +94,18 @@ def test_door_and_window_work_directly_in_the_3d_scene(tool):
     _close(app, window)
 
 
-def test_wall_tool_from_3d_returns_to_the_2d_plan():
+def test_wall_tool_from_3d_stays_in_3d():
+    # Owner (2026-10-08): «οι τοίχοι θα πρέπει να δουλεύονται και στο 3D» (3D2, wall_edit_3d.py).
     app, window = _window()
     window._set_pbr_camera('orbit')
     window._set_active_tool('wall')
-    assert window._central_tabs.currentIndex() == 0
-    assert window.view is window.plan_view
-    assert window.plan_view.controller.tool == 'wall'
+    assert window._central_tabs.currentIndex() == 1
+    assert window.view is window.pbr_view
+    assert window.pbr_view.active_tool == 'wall'
+    window._set_pbr_camera('orbit')
+    window._central_tabs.setCurrentIndex(0)
+    window._set_active_tool('wall')           # from the plan it still draws in the plan
+    assert window.view is window.plan_view and window.plan_view.controller.tool == 'wall'
     _close(app, window)
 
 
