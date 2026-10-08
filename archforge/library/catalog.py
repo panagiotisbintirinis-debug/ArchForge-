@@ -18,8 +18,8 @@ WHITE, CERAMIC, GLASS, LINEN, MATTRESS = "#f2f0eb", "#f5f5f2", "#bcd3d8", "#e9e2
 GREEN, TERRACOTTA, STONE, APPLIANCE = "#4f7a3a", "#b5653b", "#8c8780", "#e6e7e8"
 GLASS_DARK, LAMP = "#2f3337", "#f3e9c9"
 
-CATEGORIES = ("Σαλόνι", "Τραπεζαρία", "Υπνοδωμάτιο", "Μπάνιο", "Συσκευές", "Γραφείο", "Φωτισμός",
-              "Διακόσμηση", "Εξωτερικοί χώροι")
+CATEGORIES = ("Σαλόνι", "Τραπεζαρία", "Υπνοδωμάτιο", "Παιδικό", "Μπάνιο", "Συσκευές", "Γραφείο", "Φωτισμός",
+              "Διακόσμηση", "Είσοδος", "Εξωτερικοί χώροι")
 
 
 def B(lo, hi, color, part):
@@ -373,6 +373,7 @@ def garden_table():
 
 
 def specs():
+    from archforge.library import catalog_more
     return [
         sofa(210, FABRIC_GREY, "Καναπές τριθέσιος"), sofa(160, FABRIC_BLUE, "Καναπές διθέσιος"),
         armchair(), coffee_table(), tv_unit(), bookcase(),
@@ -386,10 +387,11 @@ def specs():
         floor_lamp(), table_lamp(),
         plant_pot(), floor_mirror(), vase(),
         garden_bench(), planter(), sun_lounger(), parasol(), garden_table(),
+        *catalog_more.specs(),
     ]
 
 
-CORE_VERSION = 1
+CORE_VERSION = 2
 
 
 def seed_core_library(force=False):

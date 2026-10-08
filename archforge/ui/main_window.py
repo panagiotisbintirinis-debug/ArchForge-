@@ -1246,7 +1246,7 @@ class MainWindow(QMainWindow):
                                 for label, tool, preset in getattr(self, '_structural_presets', ())])]),
             ('Κουζίνα', [('Ντουλάπια', [(label, ('cabinet', label)) for label in getattr(self, '_kitchen_defs', {})]),
                          ('Συσκευές', by_cat.pop('Συσκευές', []))]),
-            ('Έπιπλα', [(cat, by_cat.pop(cat)) for cat in ('Σαλόνι', 'Τραπεζαρία', 'Υπνοδωμάτιο', 'Γραφείο', 'Φωτισμός', 'Διακόσμηση')
+            ('Έπιπλα', [(cat, by_cat.pop(cat)) for cat in ('Σαλόνι', 'Τραπεζαρία', 'Υπνοδωμάτιο', 'Παιδικό', 'Γραφείο', 'Φωτισμός', 'Διακόσμηση', 'Είσοδος')
                         if cat in by_cat]),
             ('Μπάνιο', [(None, by_cat.pop('Μπάνιο', []))]),
             ('Εξωτερικοί χώροι', [(None, by_cat.pop('Εξωτερικοί χώροι', []))]),
