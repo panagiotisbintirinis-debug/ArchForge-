@@ -11,6 +11,10 @@ Rules (stated so the quantities can be checked):
   openings below 2.10 m); the rest of the wall is painted.  Floor tiles in
   every room unless the room's floor finish says wood/parquet.
 * Skirting: net perimeter minus door widths (not in tiled wet rooms).
+* Slab openings (atrium, inner balcony, void): their part of the room is
+  taken out of the floor (floor cuts of the storey) and of the ceiling
+  (roof cuts of the storey, floor cuts of the storey above).  Slabs: net
+  area and concrete volume of every slab after its openings.
 * Renovation: walls marked for demolition give demolition m² and m³; new
   openings in existing walls are listed as openings to cut.
 """
@@ -82,16 +86,55 @@ def _room_height(doc, poly, z):
     return min(hs) if hs else 2.7
 
 
+def _cut_area(doc, net, z, target, storeys):
+    from archforge.architecture.storey_slabs import openings_for
+    from archforge.geometry.regions import islands_area, region
+    cuts = [poly for _e, poly in openings_for(doc, z, target)]
+    if target == "roof":
+        above = [s for s in storeys if s > z + 0.5]
+        if above:
+            cuts += [poly for _e, poly in openings_for(doc, min(above), "floor")]
+    if not cuts:
+        return 0.0
+    return max(0.0, abs(_area(net)) - islands_area(region([net], cuts)))
+
+
+def slab_quantities(doc):
+    """Concrete slabs after their openings: ``[{"name", "area_m2", "openings_m2", "volume_m3"}]``."""
+    from archforge.architecture.rooms import room_slab_geometry
+    from archforge.geometry.regions import islands_area
+    out = []
+    for e in doc.entities.values():
+        if e.kind not in ("room_floor", "room_roof", "room_ceiling", "room_foundation"):
+            continue
+        try:
+            g = room_slab_geometry(doc, e)
+        except (ValueError, KeyError):
+            g = None
+        if g is None:
+            continue
+        islands = g.get("islands") or [(g["points"], [])]
+        net = islands_area(islands)
+        gross = sum(abs(_area(o)) for o, _h in islands)
+        out.append({"name": e.name or e.kind, "area_m2": round(net, 2), "openings_m2": round(gross - net, 2),
+                    "volume_m3": round(net * float(g["thickness"]), 2)})
+    return out
+
+
 def take_off(doc):
     """``{"rooms": [...], "demolition": {...}, "totals": {...}, "provenance": str}``."""
     from archforge.assistant.understanding import read_drawing
     reading = read_drawing(doc)
     rooms = []
+    storeys = sorted(float(s["z"]) for s in reading["storeys"])
     for storey in reading["storeys"]:
         z = storey["z"]
         for r in storey["rooms"]:
             net = net_polygon(doc, r["polygon"], z)
             floor = abs(_area(net))
+            floor_cut = _cut_area(doc, net, z, "floor", storeys)
+            ceiling = max(0.0, floor - _cut_area(doc, net, z, "roof", storeys))
+            floor = max(0.0, floor - floor_cut)
             perim = sum(math.dist(net[i], net[(i + 1) % len(net)]) for i in range(len(net)))
             h = _room_height(doc, r["polygon"], z)
             openings, door_w, below = 0.0, 0.0, 0.0
@@ -110,9 +153,9 @@ def take_off(doc):
             wood = any(k in finish for k in ("ξύλ", "ξυλ", "wood", "parquet", "πάρκε", "παρκε"))
             rooms.append({
                 "storey": storey["name"], "name": r["name"], "use": r["use"], "height_m": round(h, 2),
-                "floor_m2": round(floor, 2), "perimeter_m": round(perim, 2), "ceiling_m2": round(floor, 2),
+                "floor_m2": round(floor, 2), "perimeter_m": round(perim, 2), "ceiling_m2": round(ceiling, 2),
                 "walls_m2": round(walls, 2), "openings_m2": round(openings, 2),
-                "paint_walls_m2": round(walls - wall_tiles, 2), "paint_ceiling_m2": round(floor, 2),
+                "paint_walls_m2": round(walls - wall_tiles, 2), "paint_ceiling_m2": round(ceiling, 2),
                 "floor_tiles_m2": 0.0 if wood else round(floor, 2), "wood_floor_m2": round(floor, 2) if wood else 0.0,
                 "wall_tiles_m2": round(wall_tiles, 2), "skirting_m": 0.0 if wet else round(max(0.0, perim - door_w), 2),
             })
@@ -132,7 +175,7 @@ def take_off(doc):
     keys = ("floor_m2", "ceiling_m2", "walls_m2", "paint_walls_m2", "paint_ceiling_m2", "floor_tiles_m2",
             "wood_floor_m2", "wall_tiles_m2", "skirting_m")
     totals = {k: round(sum(r[k] for r in rooms), 2) for k in keys}
-    return {"rooms": rooms, "demolition": demo, "totals": totals, "provenance": PROVENANCE}
+    return {"rooms": rooms, "demolition": demo, "totals": totals, "slabs": slab_quantities(doc), "provenance": PROVENANCE}
 
 
 COLUMNS = (("storey", "Όροφος"), ("name", "Χώρος"), ("floor_m2", "Δάπεδο m²"), ("perimeter_m", "Περίμετρος m"),
@@ -155,4 +198,7 @@ def to_csv(result):
     w.writerow([])
     w.writerow(["Καθαιρέσεις τοίχων m²", str(d["walls_m2"]).replace(".", ","), "m³", str(d["walls_m3"]).replace(".", ",")])
     w.writerow(["Διανοίξεις σε υφιστάμενους τοίχους", d["openings_to_cut"], "m²", str(d["openings_to_cut_m2"]).replace(".", ",")])
+    for s in result.get("slabs", ()):
+        w.writerow([s["name"], "m²", str(s["area_m2"]).replace(".", ","), "οπές m²", str(s["openings_m2"]).replace(".", ","),
+                    "m³", str(s["volume_m3"]).replace(".", ",")])
     return buf.getvalue()

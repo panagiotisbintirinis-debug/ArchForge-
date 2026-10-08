@@ -534,7 +534,16 @@ class Entity:
         return copy.deepcopy(self)
 
 
-_ROOM_SLAB = {'room_signature': _room_signature, 'thickness': _positive, 'offset_z': _finite}
+def _slab_choice(name):
+    # Storey slabs and slab openings (architecture/storey_slabs.py).
+    def check(v):
+        from archforge.architecture import storey_slabs
+        return getattr(storey_slabs, name)(v)
+    return check
+
+
+_ROOM_SLAB = {'room_signature': _room_signature, 'thickness': _positive, 'offset_z': _finite,
+              'scope': _slab_choice('validate_scope'), 'level_z': _finite}
 _OPENING = {'offset': _finite, 'surface_u': _finite, 'width': _positive, 'height': _positive, 'sill': _finite, 'flat_margin': _nonnegative}
 _ARCH_OPENING = {**_OPENING, 'shape': _opening_shape, 'arch_rise': _positive}
 
@@ -696,6 +705,8 @@ SCHEMAS = {
         'handrail_size': _positive, 'post_spacing': _positive, 'gap': _positive, 'base_height': _nonnegative,
         'metal': _railing_choice('METALS', 'metal'),
     },
+    'slab_opening': {'points': _polygon, 'level_z': _finite, 'room_id': _nonempty,
+                     'cuts': _slab_choice('validate_cuts'), 'use': _slab_choice('validate_use')},
 }
 
 
@@ -748,6 +759,11 @@ def validate_params(kind, params):
     if kind == 'railing':
         from archforge.architecture.railings import validate as validate_railing
         validate_railing(out)
+    if kind == 'slab_opening':
+        from archforge.architecture.storey_slabs import validate_opening
+        validate_opening(out)
+    if kind in ('room_floor', 'room_roof', 'room_ceiling') and out.get('scope') == 'storey' and 'level_z' not in out:
+        raise ValueError('storey slab needs level_z')
     if kind == 'mesh':
         required = {'vertices', 'faces', 'matrix'}
         missing = required - set(out)
@@ -923,6 +939,13 @@ class Document:
             # Plants (and other site elements) stand on the ground surface.
             for related in self.entities.values():
                 if related.kind in ('plant', 'site_path'):
+                    self.mark_dirty(related.id)
+        elif entity.kind in ('wall', 'slab_opening', 'pitched_roof', 'room_floor', 'room_roof'):
+            # Storey slabs derive from every wall of their storey (and the roofs / slabs
+            # around them); slab openings cut any slab of their storey.
+            for related in self.entities.values():
+                if related.kind in ('room_floor', 'room_roof', 'room_ceiling') and related.id != entity.id \
+                        and (entity.kind == 'slab_opening' or related.params.get('scope') == 'storey'):
                     self.mark_dirty(related.id)
         elif entity.kind in ('stair', 'ramp'):
             # Vertical circulation geometry can cut any slab occupying the

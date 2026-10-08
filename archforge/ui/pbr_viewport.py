@@ -16,7 +16,12 @@ from archforge.geometry.sculpt_transaction import SculptTransaction
 from archforge.core.interaction import OpeningPlaceTransaction, StairPlaceTransaction, RampPlaceTransaction, MoveTransaction, RotateTransaction, StructuralColumnPlaceTransaction, StructuralBeamDrawTransaction
 from archforge.rendering.scene import build_pbr_scene_payload
 from archforge.ui.object_context_menu import object_context_actions
+from archforge.ui import wall_edit_3d
+from archforge.ui.wall_edit_3d_js import wall_edit_3d_js
 
+# Camera presets as the status bar names them.
+CAMERA_LABELS = {"orbit": "3D προοπτική", "top": "πάνω", "front": "πρόσοψη", "side": "πλάγια", "iso30": "αξονομετρική",
+                 "eye": "περιήγηση", "dollhouse": "κουκλόσπιτο", "ortho": "ορθογραφική", "cutaway": "τομή"}
 
 STRUCTURAL_VIEW_KINDS = frozenset({
     "structural_column", "structural_beam",
@@ -1114,6 +1119,8 @@ function pointOnHorizontalPlane(event, z) {
   return raycaster.ray.intersectPlane(plane, target) ? target : null;
 }
 
+/*__ARCHFORGE_WALL_EDIT_3D__*/
+
 renderer.domElement.addEventListener("pointerdown", (event) => {
   if (!bridge) return;
   if (event.button !== 2) hideMarkingMenu();
@@ -1381,7 +1388,7 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
 
 renderer.domElement.addEventListener("dblclick", (event) => {
   if (!bridge || sculpting || stairing || ramping || movingEntity || rotatingEntity) return;
-  if (activeTool === "door" || activeTool === "window" || activeTool === "opening_rect" || activeTool === "opening_arch" || activeTool === "sculpt" || activeTool === "stair" || activeTool === "ramp" || activeTool === "move" || activeTool === "rotate") return;
+  if (activeTool === "door" || activeTool === "window" || activeTool === "opening_rect" || activeTool === "opening_arch" || activeTool === "sculpt" || activeTool === "stair" || activeTool === "ramp" || activeTool === "move" || activeTool === "rotate" || activeTool === "wall") return;
   const hit = pickForSelection(event);
   if (!hit || !hit.face) return;
   bridge.selectEntity(hit.object.userData.entityId || "");
@@ -1689,7 +1696,8 @@ _THREE_BUNDLE_PATH = Path(__file__).with_name("vendor") / "three_bundle.js"
 def pbr_page_html() -> str:
     """The 3D Scene page with the bundled three.js inlined (offline desktop)."""
     bundle = _THREE_BUNDLE_PATH.read_text(encoding="utf-8")
-    return _PBR_HTML.replace("/*__ARCHFORGE_THREE_BUNDLE__*/", bundle, 1)
+    page = _PBR_HTML.replace("/*__ARCHFORGE_WALL_EDIT_3D__*/", wall_edit_3d_js(), 1)
+    return page.replace("/*__ARCHFORGE_THREE_BUNDLE__*/", bundle, 1)
 
 class PBRInteractionBridge(QObject):
     """WebGL pointer bridge into ArchForge's existing semantic sculpt transaction."""
@@ -1795,6 +1803,10 @@ class PBRInteractionBridge(QObject):
         self.viewport._cancel_ramp_from_web()
 
     @Slot(str)
+    def wallEvent(self, payload_json: str) -> None:
+        self.viewport._wall_event_from_web(payload_json)
+
+    @Slot(str)
     def reportStatus(self, message: str) -> None:
         self.viewport.statusChanged.emit(str(message))
 
@@ -1878,6 +1890,8 @@ class PBRViewport(QWidget):
         self._rotate_tx = None
         self._rotate_start_angle_deg = 0.0
         self._snap_enabled = True
+        # Walls drawn / edited in 3D through the plan's transactions (wall_edit_3d.py).
+        self.wall_editor = wall_edit_3d.Wall3DEditor(doc, stack)
         self.channel = None
         self.bridge = None
         layout = QVBoxLayout(self)
@@ -1912,7 +1926,7 @@ class PBRViewport(QWidget):
         if not ok:
             self.statusChanged.emit("PBR Preview HTML failed to load")
             return
-        self.statusChanged.emit("PBR Preview ready")
+        self.statusChanged.emit("3D έτοιμο")
         self.set_render_technique(self._technique)
         self.set_axes_visible(self._axes_visible)
         self.set_auto_rotate(self._auto_rotate)
@@ -1931,11 +1945,13 @@ class PBRViewport(QWidget):
     def rebind(self, doc, stack) -> None:
         self.doc = doc
         self.stack = stack
+        self.wall_editor.rebind(doc, stack)
         self._evaluation_cache.clear()
         self.redraw(force_full=True)
 
     def set_snap_enabled(self, enabled: bool) -> None:
         self._snap_enabled = bool(enabled)
+        self.wall_editor.set_snap_enabled(self._snap_enabled)
         if self.web_view is not None:
             script = (
                 "if (window.setSnapEnabled) window.setSnapEnabled("
@@ -1943,7 +1959,7 @@ class PBRViewport(QWidget):
                 + ");"
             )
             self.web_view.page().runJavaScript(script)
-        self.statusChanged.emit("Snap ON" if self._snap_enabled else "Snap OFF — Free mode")
+        self.statusChanged.emit("Έλξη ενεργή" if self._snap_enabled else "Έλξη ανενεργή — ελεύθερη σχεδίαση")
 
     def set_tool(self, tool: str) -> None:
         # Leaving Stair/Ramp drops a half-placed one, so its HUD and ghost never stay behind.
@@ -1953,6 +1969,8 @@ class PBRViewport(QWidget):
             self._cancel_ramp_from_web()
         if str(tool) not in ("stair", "ramp"):
             self._set_stair_candidate_params(())
+        if str(tool) != "wall" or self.wall_editor.editing:
+            self._push_wall_ghost(self.wall_editor.cancel_all())
         self.opening_preset = None
         self.active_tool = str(tool)
         if self.web_view is not None:
@@ -2159,6 +2177,7 @@ class PBRViewport(QWidget):
         if getattr(self, '_ramp_tx', None) is not None:
             self._cancel_ramp_from_web()
         self._set_stair_candidate_params(())
+        self._push_wall_ghost(self.wall_editor.cancel_all())
         if self.web_view is not None:
             self.web_view.page().runJavaScript(
                 "if (window.archforgeResetInteraction) window.archforgeResetInteraction();"
@@ -2667,7 +2686,7 @@ class PBRViewport(QWidget):
             self.web_view.page().runJavaScript(
                 "if (typeof fitCamera === 'function') fitCamera();"
             )
-        self.statusChanged.emit("PBR camera: fit")
+        self.statusChanged.emit("3D: όλο το κτίριο στην οθόνη")
 
     def set_camera_preset(self, mode: str) -> None:
         allowed = ("cutaway", "top", "front", "side", "iso30", "eye", "orbit", "dollhouse", "ortho")
@@ -2686,7 +2705,7 @@ class PBRViewport(QWidget):
                 + json.dumps(mode)
                 + ");"
             )
-        self.statusChanged.emit(f"PBR camera: {mode}")
+        self.statusChanged.emit(f"3D προβολή: {CAMERA_LABELS.get(mode, mode)}")
 
     def set_sun(self, hour, month=None) -> None:
         """Physical sky with the sun at solar ``hour`` of ``month`` (38° N);
@@ -2772,6 +2791,27 @@ class PBRViewport(QWidget):
             )
 
 
+    def _push_wall_ghost(self, ghost) -> None:
+        if self.web_view is None or not ghost:
+            return
+        script = wall_edit_3d.opening_script(ghost) if "opening" in ghost else wall_edit_3d.ghost_script(ghost)
+        self.web_view.page().runJavaScript(script)
+
+    def _wall_event_from_web(self, payload_json: str) -> None:
+        """Wall tool / wall handles / opening ghost in 3D: the plan's transactions, one undo each."""
+        try:
+            ghost = self.wall_editor.handle_event(payload_json, getattr(self, "opening_preset", None))
+        except Exception as exc:
+            ghost = self.wall_editor.handle_cancel()
+            self.statusChanged.emit(f"Τοίχος στο 3D: {exc}")
+        self._push_wall_ghost(ghost)
+        if ghost.get("status"):
+            self.statusChanged.emit(ghost["status"])
+        if ghost.get("committed"):
+            self._evaluation_cache.clear()
+            self.redraw(force_full=False)
+            self.selectionChangedByView.emit()
+
     def _place_opening_from_web(self, kind: str, payload_json: str) -> None:
         tool_kind = str(kind)
         if tool_kind in ("opening_rect", "opening_arch"):
@@ -2810,6 +2850,7 @@ class PBRViewport(QWidget):
             if tx.host_id != entity_id:
                 raise ValueError("opening placement resolved to a different nearby host")
             opening_id = tx.commit()
+            self._push_wall_ghost({"opening": None})
             self._evaluation_cache.clear()
             self.doc.select([opening_id])
             self.selectionChangedByView.emit()
@@ -2869,3 +2910,5 @@ class PBRViewport(QWidget):
             + ");"
         )
         self.web_view.page().runJavaScript(script)
+        if not self.structural_only:
+            self.web_view.page().runJavaScript(wall_edit_3d.handles_script(self.wall_editor.handles_payload()))

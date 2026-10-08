@@ -68,6 +68,7 @@ ENTITY_MENUS = {
     'structural_support': (None, 'delete'),
     'structural_load': (None, 'delete'),
     'mesh': ('properties', 'materials', None, 'delete'),
+    'slab_opening': ('properties', 'move', None, 'delete'),
 }
 
 

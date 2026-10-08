@@ -148,6 +148,9 @@ def room_slab_geometry(doc, slab_entity: Entity, tolerance: float = 1e-5) -> Opt
     if slab_entity.kind not in ROOM_SLAB_KINDS:
         raise ValueError('entity is not a derived room slab')
     p=slab_entity.params
+    if p.get('scope')=='storey':
+        from archforge.architecture.storey_slabs import storey_slab_geometry
+        return storey_slab_geometry(doc,slab_entity,tolerance=tolerance)
     room_id=p.get('room_id')
     found=find_room_face_by_id(doc,room_id,tolerance=tolerance) if room_id else find_room_face(doc,p['room_signature'],tolerance=tolerance)
     if found is None:
@@ -158,12 +161,13 @@ def room_slab_geometry(doc, slab_entity: Entity, tolerance: float = 1e-5) -> Opt
     if slab_entity.kind=='room_roof' and p.get('roof_type','flat')=='flat':
         neighbours=[tuple(f.polygon) for f in doc.active_room_faces(z=base_z,tolerance=tolerance) if f.signature!=face.signature]
         points=_flat_roof_outer_polygon(doc,face,tolerance,p.get('edge_offsets'),float(p.get('overhang',0.0)),neighbours)
-    return {'points':points,
+    from archforge.architecture.storey_slabs import cut_room_slab
+    return cut_room_slab(doc,slab_entity,{'points':points,
             'z':z,
             'thickness':float(p['thickness']),
             'room_id':room_id,
             'room_signature':face.signature,
-            'wall_ids':tuple(face.wall_ids)}
+            'wall_ids':tuple(face.wall_ids)},tolerance=tolerance)
 
 
 def room_floor_geometry(doc, floor_entity: Entity, tolerance: float = 1e-5) -> Optional[dict]:

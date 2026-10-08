@@ -117,7 +117,7 @@ def read_drawing(doc):
         for i, face in enumerate(faces):
             poly = [(float(p[0]), float(p[1])) for p in face.polygon]
             meta = doc.room_metadata(face.signature) if hasattr(doc, "room_metadata") else {}
-            room = {"signature": face.signature, "name": meta.get("name") or f"Room {i + 1}", "polygon": poly,
+            room = {"signature": face.signature, "name": meta.get("name") or f"Χώρος {i + 1}", "polygon": poly,
                     "area_m2": round(area(poly), 2), "centroid": centroid(poly),
                     "size_m": (round(max(p[0] for p in poly) - min(p[0] for p in poly), 2),
                                round(max(p[1] for p in poly) - min(p[1] for p in poly), 2)),

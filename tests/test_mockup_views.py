@@ -33,15 +33,18 @@ def _close(app, window):
 
 def test_views_strip_and_menu_offer_every_view():
     app, window = _window()
-    labels = ['3D Προοπτική', 'Top', 'Front', 'Side', 'Doll House', 'Ορθογραφική',
-              'Τομή', 'Εσωτερική Όψη', 'Render (PBR)', 'Walkthrough']
+    labels = ['3D Προοπτική', 'Πάνω', 'Πρόσοψη', 'Πλάγια', 'Κουκλόσπιτο (χωρίς στέγη)', 'Ορθογραφική',
+              'Τομή', 'Εσωτερική Όψη', 'Ρεαλιστική απεικόνιση', 'Περιήγηση']
     assert list(window._mockup_view_actions) == labels
     assert [a.text() for a in window._mockup_views_menu.actions()] == labels
+    # The same views open from the «Προβολή ▾» popup on the view bar (the bottom strip is gone).
+    assert [a.text() for a in window._mockup_view_popup.actions()] == labels
+    assert window._mockup_view_button.menu() is window._mockup_view_popup
     _close(app, window)
 
 
-@pytest.mark.parametrize('label,preset', [('Doll House', 'dollhouse'), ('Ορθογραφική', 'ortho'),
-                                          ('Top', 'top'), ('Walkthrough', 'eye')])
+@pytest.mark.parametrize('label,preset', [('Κουκλόσπιτο (χωρίς στέγη)', 'dollhouse'), ('Ορθογραφική', 'ortho'),
+                                          ('Πάνω', 'top'), ('Περιήγηση', 'eye')])
 def test_preset_views_switch_to_the_3d_scene(label, preset):
     app, window = _window()
     window._mockup_view_actions[label]()
@@ -91,13 +94,18 @@ def test_door_and_window_work_directly_in_the_3d_scene(tool):
     _close(app, window)
 
 
-def test_wall_tool_from_3d_returns_to_the_2d_plan():
+def test_wall_tool_from_3d_stays_in_3d():
+    # Owner (2026-10-08): «οι τοίχοι θα πρέπει να δουλεύονται και στο 3D» (3D2, wall_edit_3d.py).
     app, window = _window()
     window._set_pbr_camera('orbit')
     window._set_active_tool('wall')
-    assert window._central_tabs.currentIndex() == 0
-    assert window.view is window.plan_view
-    assert window.plan_view.controller.tool == 'wall'
+    assert window._central_tabs.currentIndex() == 1
+    assert window.view is window.pbr_view
+    assert window.pbr_view.active_tool == 'wall'
+    window._set_pbr_camera('orbit')
+    window._central_tabs.setCurrentIndex(0)
+    window._set_active_tool('wall')           # from the plan it still draws in the plan
+    assert window.view is window.plan_view and window.plan_view.controller.tool == 'wall'
     _close(app, window)
 
 
