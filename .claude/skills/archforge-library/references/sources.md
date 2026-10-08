@@ -10,6 +10,13 @@
   - Do not make exact replicas of distinctive designer pieces that may be protected as registered designs. Model the generic type.
   - Get dimensions from the photo's proportions, anchored to one known size (seat height 45 cm, door 210 cm, worktop 90 cm). Record that anchor in the spec.
 
+### Finding the reference photo (owner, 2026-10-08)
+"Από φωτογραφία" means: search online for photos of the object that are openly visible to everyone, and build our own model from them. The owner expects variety, so look at several photos per type.
+- Run `scripts/find_reference_photos.py "<generic object name>" --out <scratch dir>`. It searches Openverse (CC0, public domain, CC-BY, CC-BY-SA; Wikimedia Commons and Flickr CC included) and saves thumbnails and `sources.json` (title, creator, licence, page).
+- Look at the thumbnails (Read the images), pick one or more, model the generic type, and put the chosen photo's page URL in the spec's `reference` field. The core library stores it in the asset's provenance.
+- The photos stay in the scratch folder: never commit them, never use them as textures.
+- Network: the cloud sandbox needs `api.openverse.org` in the environment's allowed domains (blocked as of 2026-10-08; Wikimedia, Unsplash, Pexels and Pixabay are blocked too). Without it, build from standard dimensions and say so.
+
 ## 2. Online models with an open licence (shippable with attribution)
 - Reachable from the agent sandbox: **`raw.githubusercontent.com`** only.
   - Blocked by the environment's network policy: Poly Haven, ambientCG, Kenney, Sketchfab.
