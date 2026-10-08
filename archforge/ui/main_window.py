@@ -25,6 +25,7 @@ from .object_properties import property_fields, property_values, property_change
 from .workspace_docks import WorkspaceDockSpec, install_workspace_dock, add_workspace_toggles
 from .workspace_layout import level_label, param_label
 from .approved_mockup_shell import install_approved_mockup_shell
+from . import slab_tools
 
 
 class MainWindow(QMainWindow):
@@ -61,6 +62,7 @@ class MainWindow(QMainWindow):
         self.plan_view.sitePointRequested.connect(self._place_site_point)
         self.plan_view.siteLineRequested.connect(self._place_site_line)
         self.plan_view.railingRequested.connect(self._place_railing)
+        self.plan_view.slabOpeningRequested.connect(lambda pts: slab_tools.place_opening(self, pts))
         # Esc always cancels what is in progress, in 2D and 3D alike.
         self._escape_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
         self._escape_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
@@ -72,6 +74,7 @@ class MainWindow(QMainWindow):
         self._build_view_menu()
         self._build_inspector()
         install_approved_mockup_shell(self)
+        slab_tools.install_menus(self)
         self._refresh_library_panel()
         if not os.environ.get('PYTEST_CURRENT_TEST'):
             # First run builds the shipped core library in the background.
@@ -1677,7 +1680,7 @@ class MainWindow(QMainWindow):
             # Roofs saved before the overhang field still get the editor.
             params.setdefault('overhang', 0.0)
         from archforge.architecture.joinery import KEYS as joinery_keys
-        for key, value in (() if entity.kind == 'railing' else params.items()):
+        for key, value in (() if entity.kind == 'railing' or slab_tools.is_slab_panel(entity) else params.items()):
             if entity.kind in ('door', 'window') and key in joinery_keys:
                 continue  # Κουφώματα: δικές τους γραμμές (ui/opening_properties.py).
             if isinstance(value, (int, float)):
@@ -1815,6 +1818,8 @@ class MainWindow(QMainWindow):
         if entity.kind == 'railing':
             from archforge.ui.railing_panel import add_railing_rows
             add_railing_rows(self, eid)
+        if slab_tools.is_slab_panel(entity):
+            slab_tools.add_rows(self, eid)
         if entity.kind in ('library_object', 'cabinet'):
             button = QPushButton('Object Modifier…')
             button.setToolTip('Διαστάσεις, υλικά ανά τμήμα και Sculpt του αντικειμένου')
@@ -2683,6 +2688,10 @@ class MainWindow(QMainWindow):
         )
 
     def _create_auto_floors(self):
+        # One floor slab over the whole storey (union of its rooms), replacing per-room floors.
+        return slab_tools.auto_storey_slab(self, 'room_floor')
+
+    def _create_room_floors_legacy(self):
         faces = self.doc.active_room_faces()
         if not faces:
             self.statusBar().showMessage('No closed rooms on the current work plane', 4000)
@@ -2759,6 +2768,10 @@ class MainWindow(QMainWindow):
         return len(ids)
 
     def _create_flat_roofs(self):
+        # One roof slab (δώμα) over every room of the storey that needs a roof, replacing per-room ones.
+        return slab_tools.auto_storey_slab(self, 'room_roof')
+
+    def _create_room_flat_roofs_legacy(self):
         faces = self.doc.active_room_faces()
         if not faces:
             self.statusBar().showMessage(
