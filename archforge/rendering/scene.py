@@ -111,6 +111,8 @@ def _material(kind: str, selected: bool, entity=None, doc=None, surface_role: st
             "material_id": str(material_id),
             "material_name": str(custom.get("name", material_id)),
         })
+        if "opacity" in custom:  # glass presets
+            spec["opacity"] = custom["opacity"]
     if selected:
         # Keep the real surface visible while selected; use a subtle emissive
         # accent instead of replacing the material with selection blue.

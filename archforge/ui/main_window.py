@@ -1283,6 +1283,7 @@ class MainWindow(QMainWindow):
                     item = QListWidgetItem(f"  ■ {spec['name']}")
                     item.setData(Qt.ItemDataRole.UserRole, material_id)
                     item.setForeground(QColor(str(spec['color'])))
+                    item.setToolTip('Χρήση: ' + ', '.join(spec.get('use', ())))
                     mats.addItem(item)
 
     def _library_outline(self):
@@ -2356,27 +2357,27 @@ class MainWindow(QMainWindow):
         }
         if entity.kind not in supported:
             self.statusBar().showMessage(
-                f'Materials are not available yet for {entity.kind}',
+                f'Δεν υπάρχουν ακόμη υλικά για {entity.kind}',
                 3000,
             )
             return
 
         dialog = QDialog(self)
-        dialog.setWindowTitle(f'Materials / Surfaces — {entity.name or entity.kind.title()}')
+        dialog.setWindowTitle(f'Υλικά / επιφάνειες — {entity.name or entity.kind.title()}')
         dialog.resize(450, 500)
         layout = QVBoxLayout(dialog)
 
         target = None
         if entity.kind == 'wall':
             target = QComboBox(dialog)
-            target.addItem('Side A', 'exterior')
-            target.addItem('Side B', 'interior')
-            target.addItem('Both Sides', 'both')
+            target.addItem('Πλευρά Α', 'exterior')
+            target.addItem('Πλευρά Β', 'interior')
+            target.addItem('Και οι δύο πλευρές', 'both')
             target.setToolTip(
-                'Wall finishes are face-specific. Side A and Side B are the two '
-                'sides of the wall; room-aware names will replace these labels later.'
+                'Το τελείωμα είναι ανά πλευρά του τοίχου: Α και Β είναι οι δύο '
+                'πλευρές του (αργότερα με το όνομα του χώρου).'
             )
-            layout.addWidget(QLabel('Apply to'))
+            layout.addWidget(QLabel('Εφαρμογή σε'))
             layout.addWidget(target)
         elif entity.kind == 'library_object':
             from archforge.library.objects import asset_parts
@@ -2415,7 +2416,7 @@ class MainWindow(QMainWindow):
         materials = QListWidget(dialog)
         layout.addWidget(materials)
 
-        preview = QLabel('Surface preview')
+        preview = QLabel('Προεπισκόπηση επιφάνειας')
         preview.setMinimumHeight(52)
         preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(preview)
@@ -2445,8 +2446,8 @@ class MainWindow(QMainWindow):
         def update_current_label():
             material_id = current_material_id()
             spec = MATERIAL_PRESETS.get(material_id, {})
-            current_label = spec.get('name', 'Default by object type')
-            current.setText(f'Current: {current_label}')
+            current_label = spec.get('name', 'προεπιλογή του στοιχείου')
+            current.setText(f'Τρέχον: {current_label}')
             return material_id
 
         def fill_materials(category_name):
@@ -2456,8 +2457,9 @@ class MainWindow(QMainWindow):
                 item = QListWidgetItem(str(spec['name']))
                 item.setData(Qt.ItemDataRole.UserRole, material_id)
                 item.setToolTip(
-                    f"roughness {float(spec.get('roughness', 0.0)):.2f} · "
-                    f"metalness {float(spec.get('metalness', 0.0)):.2f}"
+                    f"τραχύτητα {float(spec.get('roughness', 0.0)):.2f} · "
+                    f"μεταλλικότητα {float(spec.get('metalness', 0.0)):.2f} · "
+                    f"χρήση: {', '.join(spec.get('use', ())) or '—'}"
                 )
                 materials.addItem(item)
                 if material_id == selected_id:
@@ -2473,7 +2475,7 @@ class MainWindow(QMainWindow):
             state['material_id'] = material_id
             spec = MATERIAL_PRESETS[material_id]
             preview.setText(
-                f"{spec['name']}  ·  rough {float(spec['roughness']):.2f}  ·  metal {float(spec['metalness']):.2f}"
+                f"{spec['name']}  ·  τραχ. {float(spec['roughness']):.2f}  ·  μετ. {float(spec['metalness']):.2f}"
             )
             preview.setStyleSheet(
                 f"background: {spec['color']}; border: 1px solid #747b82; "
@@ -2520,10 +2522,10 @@ class MainWindow(QMainWindow):
             if mode == 'both':
                 surface_map['exterior'] = str(material_id)
                 surface_map['interior'] = str(material_id)
-                target_label = 'both wall sides'
+                target_label = 'και τις δύο πλευρές'
             else:
                 surface_map[mode] = str(material_id)
-                target_label = 'Side A' if mode == 'exterior' else 'Side B'
+                target_label = 'πλευρά Α' if mode == 'exterior' else 'πλευρά Β'
             changes['surface_materials'] = surface_map
         elif entity.kind in ('library_object', 'cabinet') and target is not None and target.currentData() != 'all':
             role = str(target.currentData())
@@ -2544,7 +2546,7 @@ class MainWindow(QMainWindow):
         self.refresh_inspector()
         spec = MATERIAL_PRESETS[str(material_id)]
         self.statusBar().showMessage(
-            f"Applied {spec['name']} to {target_label} — Undo is available",
+            f"{spec['name']} → {target_label} — αναίρεση με Ctrl+Z",
             3500,
         )
 
