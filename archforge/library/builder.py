@@ -8,6 +8,9 @@ one closed solid with a colour and a material-part name:
   cylinder     base, radius, height, axis  (axis "z" default, or "x"/"y")
   taper        base, r0, r1, height        (vertical frustum)
   ellipsoid    center, radii               (cushions, basins, shades)
+  beam         a, b, width, thickness      (box along a→b: slanted backs, splayed legs, arcs)
+  torus        center, radius, tube, axis, arc   (rings, handles, hoops; arc < 360 is capped)
+  lathe        base, profile [(r, z), ...] (turned shapes: vases, amphorae, urns, lamp bases)
 
 Specs are tiny, deterministic and project-owned, so the core library ships
 with ArchForge and is rebuilt identically on every machine.
@@ -85,6 +88,80 @@ def ellipsoid(center, radii, rings=8, segments=16):
     return tris
 
 
+def _sub(a, b):
+    return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
+
+
+def _cross(a, b):
+    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
+
+
+def _unit(a):
+    n = math.sqrt(sum(c * c for c in a))
+    return tuple(c / n for c in a)
+
+
+def beam(a, b, width, thickness):
+    """Box of width x thickness whose centre line runs from a to b.
+
+    The width lies horizontal (across the slope), so a slanted chair back or a
+    splayed leg keeps its broad face where a person expects it.
+    """
+    d = _unit(_sub(b, a))
+    length = math.dist(a, b)
+    ref = (0.0, 1.0, 0.0) if abs(d[2]) > 0.999 else (0.0, 0.0, 1.0)
+    s = _unit(_cross(d, ref))
+    t = _cross(d, s)                       # (s, t, d) right-handed
+
+    def at(x, y, z):
+        return tuple(a[i] + s[i] * x + t[i] * y + d[i] * z for i in range(3))
+    # box() winds its faces inwards; reversed here so the beam faces outwards.
+    return [(at(*tri[0]), at(*tri[2]), at(*tri[1]))
+            for tri in box((-width / 2, -thickness / 2, 0.0), (width / 2, thickness / 2, length))]
+
+
+def torus(center, radius, tube, axis="z", arc=360.0, start=0.0, segments=24, sides=10):
+    """Ring of major ``radius`` and tube radius ``tube``; a partial arc is closed by flat caps."""
+    full = arc >= 360.0
+    steps = segments if full else max(2, int(round(segments * arc / 360.0)))
+    count = steps if full else steps + 1
+    rings = []
+    for k in range(count):
+        u = math.radians(start + arc * k / steps)
+        rings.append([((radius + tube * math.cos(2 * math.pi * j / sides)) * math.cos(u),
+                       (radius + tube * math.cos(2 * math.pi * j / sides)) * math.sin(u),
+                       tube * math.sin(2 * math.pi * j / sides)) for j in range(sides)])
+    tris = []
+    for k in range(steps):
+        r0, r1 = rings[k], rings[(k + 1) % count]
+        for j in range(sides):
+            n = (j + 1) % sides
+            tris += [(r0[j], r1[j], r1[n]), (r0[j], r1[n], r0[n])]
+    if not full:
+        for ring, centre, flip in ((rings[0], math.radians(start), True), (rings[-1], math.radians(start + arc), False)):
+            c = (radius * math.cos(centre), radius * math.sin(centre), 0.0)
+            for j in range(sides):
+                n = (j + 1) % sides
+                tris.append((c, ring[j], ring[n]) if flip else (c, ring[n], ring[j]))
+    return [tuple(_orient(v, center, axis) for v in t) for t in tris]
+
+
+def lathe(base, profile, segments=24):
+    """Surface of revolution about a vertical axis; profile is (radius, z) from bottom to top."""
+    ring = [(math.cos(2 * math.pi * k / segments), math.sin(2 * math.pi * k / segments)) for k in range(segments)]
+    loops = [[(r * c, r * s, z) for c, s in ring] for r, z in profile]
+    tris = []
+    for lo, hi in zip(loops, loops[1:]):
+        for k in range(segments):
+            n = (k + 1) % segments
+            tris += [(lo[k], lo[n], hi[n]), (lo[k], hi[n], hi[k])]
+    z0, z1 = profile[0][1], profile[-1][1]
+    for k in range(segments):
+        n = (k + 1) % segments
+        tris += [((0.0, 0.0, z0), loops[0][n], loops[0][k]), ((0.0, 0.0, z1), loops[-1][k], loops[-1][n])]
+    return [tuple((base[0] + x, base[1] + y, base[2] + z) for x, y, z in t) for t in tris]
+
+
 def part_triangles(part):
     shape = part["shape"]
     if shape == "box":
@@ -98,6 +175,13 @@ def part_triangles(part):
         return frustum(part["base"], part["r0"], part["r1"], part["height"], part.get("segments", 20))
     if shape == "ellipsoid":
         return ellipsoid(part["center"], part["radii"], part.get("rings", 8), part.get("segments", 16))
+    if shape == "beam":
+        return beam(part["a"], part["b"], part["width"], part["thickness"])
+    if shape == "torus":
+        return torus(part["center"], part["radius"], part["tube"], part.get("axis", "z"), part.get("arc", 360.0),
+                     part.get("start", 0.0), part.get("segments", 24), part.get("sides", 10))
+    if shape == "lathe":
+        return lathe(part["base"], part["profile"], part.get("segments", 24))
     raise ValueError(f"unknown shape {shape!r}")
 
 

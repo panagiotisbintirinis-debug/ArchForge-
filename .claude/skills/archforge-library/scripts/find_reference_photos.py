@@ -27,12 +27,18 @@ import urllib.request
 
 API = "https://api.openverse.org/v1/images/"
 OPEN_LICENCES = {"cc0", "pdm", "by", "by-sa"}          # no NC / ND
+# Openverse answers 403 to the default "Python-urllib" agent: name ourselves.
+HEADERS = {"User-Agent": "ArchForge-reference-finder/1.0 (library reference photos)"}
+
+
+def fetch(url, opener=urllib.request.urlopen):
+    return opener(urllib.request.Request(url, headers=HEADERS), timeout=30)
 
 
 def search(query, count=8, opener=urllib.request.urlopen):
     params = urllib.parse.urlencode({"q": query, "page_size": max(1, min(count * 2, 40)),
                                      "license": ",".join(sorted(OPEN_LICENCES)), "mature": "false"})
-    with opener(f"{API}?{params}", timeout=30) as response:
+    with fetch(f"{API}?{params}", opener) as response:
         data = json.load(response)
     return pick(data.get("results", []), count)
 
@@ -67,7 +73,7 @@ def main():
     for k, item in enumerate(found):
         name = out / f"{k:02d}.jpg"
         try:
-            with urllib.request.urlopen(item["thumbnail"], timeout=30) as response:
+            with fetch(item["thumbnail"]) as response:
                 name.write_bytes(response.read())
             item["file"] = name.name
         except OSError as exc:
