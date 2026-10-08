@@ -30,7 +30,7 @@ _KIND_ROLES:Dict[str,Tuple[Tuple[str,bool,bool,str],...]]={
  'ventilation_point':(('marker',False,False,'ventilation device'),),
  'drainage_point':(('marker',False,False,'drainage fitting'),),
  'ceiling_joists':(('joist',False,False,'timber joist'),),
- 'cabinet':tuple((r,False,False,f'cabinet {r}') for r in ('carcass','shelf','front','handle','plinth','worktop','rail')),
+ 'cabinet':tuple((r,False,False,f'cabinet {r}') for r in ('carcass','shelf','front','handle','plinth','worktop','rail','glass','mechanism')),
  'library_object':(('body',True,False,'library object surface (sculptable; coordinates local to the object)'),('placeholder',False,False,'box shown while the library asset is missing')),
  'terrain':(('top',False,False,'site ground surface'),('bottom',False,False,'site ground underside'),('side',False,False,'site ground edge'))}
 def surface_catalog(doc,owner_id):

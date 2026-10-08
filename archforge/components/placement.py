@@ -39,7 +39,7 @@ class ComponentPlaceTransaction:
         from archforge.kitchen.cabinets import default_params, fit_problem, snap_to_neighbours, snap_to_side_walls, wall_aligned
         d=self.definition
         p=default_params(d['cabinet_type'],x,y,rotation=float(d.get('rotation',0.0)),width=d.get('width'))
-        for key in ('depth','height','plinth','doors','drawers','shelves','worktop','handle'):
+        for key in ('depth','height','plinth','doors','drawers','shelves','worktop','handle','front_style','mechanism','blind_side'):
             if key in d:p[key]=d[key]
         if p['cabinet_type']!='wall':p['z']=self.z
         else:p['z']=self.z+float(d.get('z',p['z']))

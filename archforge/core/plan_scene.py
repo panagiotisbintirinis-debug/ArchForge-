@@ -510,9 +510,12 @@ def build_plan_frame(doc,preview=None):
                 if role in ('ridge','hip'):
                     f.primitives.append(Primitive2D('polyline',((a[0],a[1]),(b[0],b[1])),entity_id=eid,role='roof-ridge'))
         if p and doc.get(eid).kind=='cabinet':
-            from archforge.kitchen.cabinets import front_line,footprint as cabinet_footprint
+            from archforge.kitchen.cabinets import front_line,footprint as cabinet_footprint,plan_marks
             q=doc.get(eid).params
             f.primitives.append(Primitive2D('polyline',tuple(front_line(q)),entity_id=eid,role='cabinet-front'))
+            # Mechanisms that show in plan (carousel, half-moon trays): hidden (dashed) lines.
+            for pts in plan_marks(q):
+                f.primitives.append(Primitive2D('polyline',tuple(pts),entity_id=eid,role='cabinet-wall'))
             if q.get('cabinet_type')=='wall':
                 # Plan convention for cabinets above the work plane: dashed outline and a cross.
                 c=cabinet_footprint(q)

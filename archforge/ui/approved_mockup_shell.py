@@ -62,6 +62,15 @@ def _project_panel(window):
         "Ψηλό ντουλάπι": dict(name="Ψηλό ντουλάπι",entity="cabinet",cabinet_type="tall",role="cabinet",width=.60,depth=.60,height=2.10),
         "Ντουλάπα": dict(name="Ντουλάπα",entity="cabinet",cabinet_type="wardrobe",role="cabinet",width=1.00,depth=.60,height=2.40),
         "Νησίδα": dict(name="Νησίδα",entity="cabinet",cabinet_type="base",role="cabinet",width=1.20,depth=.90,height=.86),
+        # Corner units and mechanisms (same parametric cabinet; style/mechanism editable in Ιδιότητες).
+        "Γωνιακό Γ 90×90 με καρουζέλ": dict(name="Γωνιακό ντουλάπι βάσης (Γ)",entity="cabinet",cabinet_type="corner",role="cabinet",width=.90,depth=.90,height=.86,mechanism="carousel"),
+        "Γωνιακό τυφλό με φασόλι": dict(name="Γωνιακό τυφλό ντουλάπι",entity="cabinet",cabinet_type="corner_blind",role="cabinet",width=1.10,depth=.60,height=.86,mechanism="half_moon"),
+        "Συρόμενο καλάθι (cargo) 20": dict(name="Συρόμενο καλάθι",entity="cabinet",cabinet_type="base",role="cabinet",width=.20,depth=.60,height=.86,mechanism="cargo"),
+        "Νεροχύτη με κάδους": dict(name="Ντουλάπι νεροχύτη με κάδους",entity="cabinet",cabinet_type="sink",role="cabinet",width=.80,depth=.60,height=.86,mechanism="bin"),
+        "Με εσωτερικά συρτάρια": dict(name="Ντουλάπι με εσωτερικά συρτάρια",entity="cabinet",cabinet_type="base",role="cabinet",width=.60,depth=.60,height=.86,mechanism="inner_drawers"),
+        "Κρεμαστό ανακλινόμενο": dict(name="Κρεμαστό ανακλινόμενο",entity="cabinet",cabinet_type="wall",role="cabinet",width=.90,depth=.35,height=.36,z=1.81,mechanism="lift_up",shelves=0),
+        "Κρεμαστό βιτρίνα": dict(name="Κρεμαστό βιτρίνα",entity="cabinet",cabinet_type="wall",role="cabinet",width=.60,depth=.35,height=.72,front_style="glass"),
+        "Ψηλή συρόμενη αποθήκη": dict(name="Ψηλή συρόμενη αποθήκη",entity="cabinet",cabinet_type="tall",role="cabinet",width=.40,depth=.60,height=2.10,mechanism="larder"),
     }
     # Appliances come from the core library (real 3D + plan symbol).
     appliances={"Κουζίνα με φούρνο":"Κουζίνα με φούρνο 60","Εστία":"Εστία κεραμική 60","Ψυγείο":"Ψυγειοκαταψύκτης 60",

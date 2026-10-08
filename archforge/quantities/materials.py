@@ -75,6 +75,34 @@ def structure_list(doc):
     return [row for row in rows if row[2] is None or row[2] > 0]
 
 
+def kitchen_list(doc):
+    """Cabinets by type and size, their mechanisms and handles (pieces; gola/edge profiles in metres)."""
+    from archforge.kitchen.cabinets import FRONT_STYLES, MECHANISMS, TYPES, cabinet_boxes, mechanism
+    counts = {}
+
+    def add(desc, unit, qty):
+        counts[(desc, unit)] = counts.get((desc, unit), 0) + qty
+
+    for e in doc.entities.values():
+        if e.kind != "cabinet":
+            continue
+        p = e.params
+        kind, style, handle = p["cabinet_type"], p.get("front_style", "flat"), p.get("handle", "bar")
+        size = f"{float(p['width']) * 100:.0f}×{float(p['depth']) * 100:.0f}×{float(p['height']) * 100:.0f} cm"
+        add(f"{TYPES[kind][0]} {size} — πρόσοψη {FRONT_STYLES[style].lower()}", "τεμ.", 1)
+        mech = mechanism(p)
+        if mech != "none":
+            add(f"Μηχανισμός: {MECHANISMS[mech][0]}", "τεμ.", 1)
+        bars = [max(hi[i] - lo[i] for i in range(3)) for role, lo, hi in cabinet_boxes(p) if role == "handle"]
+        if style == "gola":
+            add("Προφίλ gola αλουμινίου", "m", sum(bars))
+        elif handle == "edge":
+            add("Προφίλ ακμής (χερούλι)", "m", sum(bars))
+        elif handle in ("bar", "knob"):
+            add("Χερούλι " + ("μπάρα" if handle == "bar" else "πόμολο"), "τεμ.", len(bars))
+    return [(desc, unit, round(q, 2) if unit == "m" else q) for (desc, unit), q in sorted(counts.items()) if q]
+
+
 def all_lists(doc):
     """``[(sheet name, title, rows, notes)]`` for the lists that have quantities."""
     from archforge.construction.isotex import PROVENANCE as ISOTEX
@@ -83,7 +111,9 @@ def all_lists(doc):
             ("Isotex", "Λίστα Isotex — τεμάχια, σκυρόδεμα, εργασίες", isotex_list(doc), (ISOTEX,)),
             ("Επιμέτρηση", "Επιμέτρηση εργασιών (σύνολα έργου)", takeoff_list(doc), ("Ανά χώρο: Κατασκευή → Επιμέτρηση εργασιών.",)),
             ("Αποχέτευση", "Αποχέτευση — σωλήνες και εξαρτήματα", drainage_list(doc), ("Προμελέτη — προς έλεγχο μηχανολόγου.",)),
-            ("Φέρων", "Φέρων οργανισμός και θεμελίωση", structure_list(doc), ("Προμελέτη — προς έλεγχο στατικού μηχανικού.",))):
+            ("Φέρων", "Φέρων οργανισμός και θεμελίωση", structure_list(doc), ("Προμελέτη — προς έλεγχο στατικού μηχανικού.",)),
+            ("Κουζίνα", "Ντουλάπια κουζίνας — κουφάρια, μηχανισμοί, χερούλια", kitchen_list(doc),
+             ("Ενδεικτικές διαστάσεις ευρωπαϊκής πρακτικής, γενικοί τύποι χωρίς μάρκα.",))):
         if rows:
             out.append((name, title, rows, ("Συμπλήρωσε τις κίτρινες στήλες (τιμή μονάδας και ό,τι ποσότητα λείπει)· "
                                             "τα σύνολα βγαίνουν αυτόματα.",) + tuple(notes)))
