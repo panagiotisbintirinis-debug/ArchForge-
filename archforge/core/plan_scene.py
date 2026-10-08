@@ -373,7 +373,32 @@ def selection_handles(doc):
             if seg is None:continue
             a,b=seg;mx=(a[0]+b[0])/2;my=(a[1]+b[1])/2
             out.extend([Handle2D(a[0],a[1],eid,'left','stretch'),Handle2D(b[0],b[1],eid,'right','stretch'),Handle2D(mx,my,eid,'move','move')])
+            if e.kind in ('door','window'):
+                # Small handle on the swing arc: a click turns the opening the other way (one undo).
+                flip=_swing_handle_point(doc,e,a,b)
+                if flip:out.append(Handle2D(flip[0],flip[1],eid,'flip_swing','flip'))
+    if len(doc.selection)==1 and doc.selection[0] in doc.entities:
+        # Round rotation handle in front of the selected object (object_ops).
+        from archforge.core.object_ops import ROTATABLE_KINDS,rotate_handle_point
+        e=doc.get(doc.selection[0])
+        if e.kind in ROTATABLE_KINDS and not e.locked and str(e.params.get('phase','new'))!='existing' and _entity_on_active_level(doc,e):
+            try:
+                hx,hy=rotate_handle_point(doc,e.id);out.append(Handle2D(hx,hy,e.id,'rotate','rotate'))
+            except (KeyError,ValueError,TypeError):pass
     return out
+def _swing_handle_point(doc,e,a,b):
+    """Point on the side the door/window opens to, half a leaf out from the wall."""
+    host=doc.entities.get(e.parent_id)
+    if host is None or host.kind!='wall':return None
+    from archforge.architecture.joinery import SWINGING,inside_sign,resolved
+    r=resolved(e.kind,e.params)
+    if e.kind=='window' and r['opening_type'] not in SWINGING:return None
+    L=math.hypot(b[0]-a[0],b[1]-a[1])
+    if L<1e-9:return None
+    nx,ny=-(b[1]-a[1])/L,(b[0]-a[0])/L
+    side=inside_sign(doc,host)*(1 if r['swing']=='in' else -1)
+    reach=float(host.params.get('thickness',.2))/2+min(.45,L*.45)
+    return ((a[0]+b[0])/2+nx*side*reach,(a[1]+b[1])/2+ny*side*reach)
 def preview_primitives(preview):
     g=preview.geometry
     if preview.kind=='wall' and g:

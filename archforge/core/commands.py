@@ -146,6 +146,13 @@ class RotateEntities(Command):
                     doc.update(i, {'cx': ncx, 'cy': ncy, 'rotation': (p.get('rotation', 0.0) + self.angle) % 360.0})
                 else:
                     doc.update(i, {'rotation': (p.get('rotation', 0.0) + self.angle) % 360.0})
+            elif e.kind in ('kitchen_part', 'plant', 'plumbing_point', 'electrical_point', 'ventilation_point',
+                            'drainage_point', 'mep_terminal'):
+                # Other placed pieces (object_ops.XY_KINDS): turn about the pivot, own rotation if any.
+                from archforge.core.object_ops import rotated_params
+                about = self.pivot if self.pivot is not None else (p['x'], p['y'])
+                new = rotated_params(e.kind, p, self.angle, about)
+                doc.update(i, {k: new[k] for k in ('x', 'y', 'rotation') if k in new})
             elif e.kind in ('box', 'library_object', 'cabinet'):
                 px, py = self.pivot if self.pivot is not None else (p['x'], p['y'])
                 if self.pivot is not None:

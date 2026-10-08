@@ -1498,6 +1498,10 @@ class MainWindow(QMainWindow):
         if getattr(self, '_layout_assist', None) is not None:
             self._layout_assist.cancel()
         self.plan_view.controller.cancel()
+        self.plan_view.carry_leave()          # Library item in hand (library_drag.py)
+        if getattr(self.plan_view, '_restore_select', False):
+            self.plan_view._restore_select = False
+            self.plan_view.controller.set_tool('select')
         self.plan_view._mouse_down = False
         self.plan_view._view_drag = None
         self.plan_view._railing_draft = None
@@ -2297,8 +2301,10 @@ class MainWindow(QMainWindow):
         if action_id in ('move', 'stretch', 'rotate'):
             entity = self.doc.get(entity_id)
             if self.view is self.pbr_view:
+                from archforge.core.object_ops import ROTATABLE_KINDS, USER_PLACED_KINDS
                 if action_id == 'move' and entity.kind in {
-                    'stair', 'ramp', 'wall', 'box', 'pod', 'structural_column', 'structural_beam', 'floor', 'room', 'mechanical_part'
+                    'stair', 'ramp', 'wall', 'box', 'pod', 'structural_column', 'structural_beam', 'floor', 'room', 'mechanical_part',
+                    *USER_PLACED_KINDS
                 }:
                     self.pbr_view.set_tool('move')
                     self.statusBar().showMessage(
@@ -2307,7 +2313,7 @@ class MainWindow(QMainWindow):
                     )
                     return
                 if action_id == 'rotate' and entity.kind in {
-                    'stair', 'ramp', 'wall', 'box', 'pod', 'structural_column', 'structural_beam'
+                    'stair', 'ramp', 'wall', 'box', 'pod', 'structural_column', 'structural_beam', *ROTATABLE_KINDS
                 }:
                     self.pbr_view.set_tool('rotate')
                     self.statusBar().showMessage(
@@ -2608,7 +2614,7 @@ class MainWindow(QMainWindow):
                 )
             self._redraw_views(all_views=True)
             self.refresh_inspector()
-            self.statusBar().showMessage(f'Deleted {len(ids)} object(s) — Undo is available', 3500)
+            self.statusBar().showMessage(f'Διαγράφηκαν {len(ids)} — Ctrl+Z = αναίρεση', 3500)
         except Exception as exc:
             QMessageBox.warning(self, 'Delete failed', str(exc))
 

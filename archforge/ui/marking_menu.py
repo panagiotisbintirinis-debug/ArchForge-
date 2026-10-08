@@ -91,6 +91,10 @@ def build_menu(window, view, entity_id=None):
                                 "rotate": "Περιστροφή", "materials": "Υλικά", "support": "Στήριξη…",
                                 "load": "Φορτίο…", "delete": "Διαγραφή"}.get(a["id"], a["label"]),
                       danger=a["id"] == "delete") for a in actions]
+        from archforge.ui.object_menu import marking_entries as object_entries
+        for action_id, label in reversed(object_entries(entity)):
+            # Placed objects: turn 90°, mirror, duplicate; doors/windows: hinge side, swing (object_menu.py).
+            entries.insert(max(0, len(entries) - 1), _e(action_id, label))
         if entity.kind == "wall" and view == "plan":
             # Walls move with what is joined to them and split where you click (wall_edit.py).
             entries.insert(len(entries) - 1, _e("mm:wall:moveby", "Μετακίνηση κατά…"))
@@ -187,6 +191,9 @@ def run(window, view, entity_id, action_id, plan_xy=None):
             window._choose_stair_layout(None if arg == "auto" else arg)
     elif group == "angle":
         window.plan_view._choose_wall_angle(None if arg == "free" else (arg if arg == "magnet" else float(arg)))
+    elif group == "obj" and entity_id:
+        from archforge.ui.object_menu import run_object_op
+        run_object_op(window, entity_id, arg)
     elif group == "wall" and arg == "cancel":
         window.plan_view._wall_radial_command("delete")
     elif group == "wall" and arg in ("moveby", "split"):

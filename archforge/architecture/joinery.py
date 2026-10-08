@@ -118,6 +118,11 @@ def validate_choice(key, value):
         if not 0 <= v <= 8:
             raise ValueError(f"{key} must be between 0 and 8")
         return v
+    if key == "open_angle":
+        v = float(value)
+        if not math.isfinite(v) or not 0 <= v <= 180:
+            raise ValueError("open_angle must be between 0 and 180")
+        return v
     if key == "transom":
         v = float(value)
         if not math.isfinite(v) or v < 0:
@@ -303,14 +308,64 @@ def _shutter_leaf(out, u0, u1, s0, s1, z0, z1):
             _box(out, "shading", u0 + st, u1 - st, sm0, sm1, zc - 0.006, zc + 0.006)
 
 
-def joinery_boxes(kind, params, t, sign_in=1):
+# «Ανοιχτά κουφώματα στο 3D»: γωνία φύλλου όταν το κούφωμα δεν έχει δική του (open_angle).
+OPEN_ANGLE_DEFAULT = 70.0
+
+
+def joinery_boxes_posed(kind, params, t, sign_in=1, angle=0.0):
+    """Όπως ``joinery_boxes`` αλλά με τα φύλλα ανοιχτά: ``[(role, lo, hi, pose)]``.
+
+    ``pose`` = None (ακίνητο), ``("rot", u, s, θ)`` (περιστροφή γύρω από τον
+    μεντεσέ στο σημείο (u, s), θ σε rad, θετική = από u προς s) ή
+    ``("slide", du)`` (συρόμενο/χωνευτό φύλλο).  ``angle`` σε μοίρες· τα
+    συρόμενα ανοίγουν κατά angle/90 του δρόμου τους.
+    """
+    moves = []
+    out = joinery_boxes(kind, params, t, sign_in, moves=moves)
+    posed = [(role, lo, hi, None) for role, lo, hi in out]
+    a = max(0.0, min(180.0, float(angle)))
+    if a <= 1e-9:
+        return posed
+    frac = min(1.0, a / 90.0)
+    for i0, i1, move in moves:
+        if move[0] == "rot":
+            _k, pu, ps, sign = move
+            pose = ("rot", pu, ps, sign * math.radians(a))
+        else:
+            pose = ("slide", move[1] * frac)
+        for i in range(i0, i1):
+            role, lo, hi, _p = posed[i]
+            posed[i] = (role, lo, hi, pose)
+    return posed
+
+
+def pose_point(pose, u, s):
+    """Σημείο (u, s) ενός φύλλου στη θέση ``pose``."""
+    if pose is None:
+        return u, s
+    if pose[0] == "slide":
+        return u + pose[1], s
+    _k, pu, ps, th = pose
+    c, sn = math.cos(th), math.sin(th)
+    du, ds = u - pu, s - ps
+    return pu + du * c - ds * sn, ps + du * sn + ds * c
+
+
+def _swing_sign(hinge_at_b, sw):
+    # Το ελεύθερο άκρο πηγαίνει προς τη φορά sw: από το b (u < 0) θέλει θ = -sw.
+    return -sw if hinge_at_b else sw
+
+
+def joinery_boxes(kind, params, t, sign_in=1, moves=None):
     """Κουτιά ``[(role, lo, hi)]`` στο τοπικό πλαίσιο (u, s, z) του ανοίγματος.
 
     ``sign_in``: +1 αν το «μέσα» είναι η +n πλευρά του τοίχου (βλ. inside_sign)·
-    χρειάζεται για να βγαίνουν σωστά αριστερά/δεξιά.
+    χρειάζεται για να βγαίνουν σωστά αριστερά/δεξιά.  ``moves``: αν δοθεί
+    λίστα, γεμίζει με ``(i0, i1, κίνηση)`` ανά φύλλο (βλ. joinery_boxes_posed).
     """
     r = resolved(kind, params)
     r["_sign_in"] = sign_in
+    r["_moves"] = moves if moves is not None else []
     W, H = float(params["width"]), float(params["height"])
     typ, n = r["opening_type"], r["leaves"]
     out = []
@@ -366,25 +421,32 @@ def joinery_boxes(kind, params, t, sign_in=1):
             # Αρμός ~4 mm ανάμεσα στα φύλλα που συναντιούνται.
             a = ui0 + k * lw + (GAP / 2 if k else 0.0)
             b = ui0 + (k + 1) * lw - (GAP / 2 if k < n - 1 else 0.0)
+            i0 = len(out)
             _sash(out, a, b, zi0, zi1, s0, s1, r["bars_h"], r["bars_v"], bottom=bottom)
+            hb = _hinge_at_w(r, n, k)
             if k == active:
                 at_w = _hinge_at_w(r, n, k)
                 uc = a + SASH / 2 if at_w else b - SASH / 2
                 # Χερούλι στον ορθοστάτη κλεισίματος, από την πλευρά που ανοίγει (μέσα).
                 face_s = s1 if sw > 0 else s0
                 _lever(out, uc, face_s, sw, zh, (0, -1) if not door else ((1, 0) if at_w else (-1, 0)))
+            r["_moves"].append((i0, len(out), ("rot", b if hb else a, s1 if sw > 0 else s0, _swing_sign(hb, sw))))
     elif sliding:
         ov = SASH  # επικάλυψη στα σημεία συνάντησης
         lw = (ui1 - ui0 + (n - 1) * ov) / n
         for k in range(n):
             a = ui0 + k * (lw - ov)
             sc = -TRACK if k % 2 == 0 else TRACK
+            i0 = len(out)
             _sash(out, a, a + lw, zi0, zi1, sc - TRACK_D / 2, sc + TRACK_D / 2, r["bars_h"], r["bars_v"],
                   bottom=bottom)
             # Χούφτα στον ορθοστάτη προς την κάσα (ακραία φύλλα), αλλιώς στον αριστερό.
             uc = a + lw - SASH / 2 if k == n - 1 else a + SASH / 2
             _box(out, "handle", uc - 0.012, uc + 0.012, sc + TRACK_D / 2, sc + TRACK_D / 2 + 0.018,
                  zh - 0.10, zh + 0.10)
+            if k % 2:
+                # Τα φύλλα του εσωτερικού οδηγού σύρονται πάνω από το προηγούμενο.
+                r["_moves"].append((i0, len(out), ("slide", -(lw - ov))))
     if r["shading"] == "shutters":
         # Ανοιχτά εξωτερικά παντζούρια, διπλωμένα πάνω στην όψη δίπλα στο άνοιγμα.
         ns = 1 if W <= 0.8 else 2
@@ -438,6 +500,8 @@ def _door_boxes(out, r, W, H, t):
         uc = ui0 + 0.05 if at_w else ui1 - 0.05      # χούφτα στο ελεύθερο άκρο
         for f, d in ((s1, 1), (s0, -1)):
             _box(out, "handle", uc - 0.0125, uc + 0.0125, f, f + d * 0.004, HANDLE_Z - 0.075, HANDLE_Z + 0.075)
+        # Χωνευτή: το φύλλο (μετά τα 3 κομμάτια της κάσας) μπαίνει στη θήκη, αφήνει 10 cm έξω.
+        r["_moves"].append((3, len(out), ("slide", (1 if at_w else -1) * max(0.0, ui1 - ui0 - 0.10))))
         return out
     if typ == "folding":
         at_w = _at_end(r["hinge"], 1, sign_in)
@@ -458,6 +522,8 @@ def _door_boxes(out, r, W, H, t):
     active = (n - 1 if at_w else 0) if n > 1 else 0
     for k in range(n):
         a, b = ui0 + k * lw + (GAP / 2 if k else 0), ui0 + (k + 1) * lw - (GAP / 2 if k < n - 1 else 0)
+        i0 = len(out)
+        hb = (at_w if n == 1 else (k == n - 1)) if (n == 1 or k in (0, n - 1)) else at_w
         _box(out, "leaf", a, b, s0, s1, zb, ztop)
         if typ == "interior_panel":
             # Δύο ταμπλάδες ανά όψη (κάτω μεγαλύτερος), εσοχή 12 cm από τα άκρα.
@@ -477,6 +543,7 @@ def _door_boxes(out, r, W, H, t):
             toward = (1, 0) if hinge_here else (-1, 0)
             _lever(out, uc, s1, 1, HANDLE_Z, toward)
             _lever(out, uc, s0, -1, HANDLE_Z, toward)
+        r["_moves"].append((i0, len(out), ("rot", b if hb else a, face, _swing_sign(hb, sw))))
     return out
 
 

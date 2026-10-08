@@ -15,6 +15,23 @@ FRAME_FACE = 0.06     # visible frame width (m)
 FRAME_DEPTH = 0.08    # frame depth across the wall (m)
 GLASS = 0.012
 LEAF = 0.04
+# «Ανοιχτά κουφώματα στο 3D» (Προβολή): view choice, not Document; the angle
+# of each door/window is its own ``open_angle`` when it has one.
+SHOW_OPEN = False
+
+
+def set_show_open(on):
+    global SHOW_OPEN
+    SHOW_OPEN = bool(on)
+
+
+def display_angle(params):
+    """Leaf angle shown in 3D (degrees): the opening's own, else the view choice."""
+    own = float(params.get('open_angle', 0.0) or 0.0)
+    if own > 0:
+        return own
+    from archforge.architecture.joinery import OPEN_ANGLE_DEFAULT
+    return OPEN_ANGLE_DEFAULT if SHOW_OPEN else 0.0
 
 
 def _box(u0, u1, n0, n1, z0, z1):
@@ -60,14 +77,23 @@ def opening_fixture_parts(doc, opening) -> List[Tuple[str, Tuple, Tuple]]:
     def add(key, *extent):
         boxes.setdefault(key, []).append(_box(*extent))
 
-    from archforge.architecture.joinery import inside_sign, is_typed, joinery_boxes
+    from archforge.architecture.joinery import inside_sign, is_typed, joinery_boxes_posed, pose_point
     if is_typed(o):
         # Typed joinery (architecture/joinery.py): boxes per role in the
-        # opening's frame (u along, s > 0 towards the inside, z up).
+        # opening's frame (u along, s > 0 towards the inside, z up); open
+        # leaves turn about their hinge / slide (pose, local frame first).
         sign_in = inside_sign(doc, host)
-        for role, lo, hi in joinery_boxes(opening.kind, dict(o, width=u1 - u0, height=z1 - z0), t, sign_in):
-            s0, s1 = sorted((lo[1] * sign_in, hi[1] * sign_in))
-            add(f'{opening.kind}_{role}', u0 + lo[0], u0 + hi[0], s0, s1, z0 + lo[2], z0 + hi[2])
+        posed = joinery_boxes_posed(opening.kind, dict(o, width=u1 - u0, height=z1 - z0), t, sign_in,
+                                    display_angle(o))
+        for role, lo, hi, pose in posed:
+            corners, tris = _box(lo[0], hi[0], lo[1], hi[1], lo[2], hi[2])
+            moved = []
+            for u, s, z in corners:
+                u, s = pose_point(pose, u, s)
+                moved.append((u0 + u, s * sign_in, z0 + z))
+            if sign_in < 0:
+                tris = [(a, c, b) for a, b, c in tris]       # the mirror keeps faces outward
+            boxes.setdefault(f'{opening.kind}_{role}', []).append((moved, tris))
         return _parts(boxes, x1, y1, ux, uy, nx, ny, zb)
 
     door = opening.kind == 'door'
