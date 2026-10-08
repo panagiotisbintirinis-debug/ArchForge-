@@ -245,6 +245,10 @@ class PointerController:
             if len(ids)==1 and self.doc.get(ids[0]).kind in ('door','window','opening'):
                 self.active=OpeningEditTransaction(self.doc,self.stack,ids[0],'move')
                 hud=self.active.update(x,y);seg=self.active.preview_segment();geom={'opening_kind':self.active.kind,'host_id':self.active.host_id,'params':copy.deepcopy(self.active.preview),'x1':seg[0][0],'y1':seg[0][1],'x2':seg[1][0],'y2':seg[1][1]};self.preview=PreviewState('opening-edit',geom,hud.values,None,ids[0]);return self.preview
+            if len(ids)==1 and self.doc.get(ids[0]).kind=='wall':
+                # A wall joined to others moves perpendicular to itself and keeps its junctions.
+                from archforge.architecture.wall_edit import is_joined
+                if is_joined(self.doc,ids[0]):return self.begin_wall_move(ids[0],ev.a,ev.b)
             self.active=MoveTransaction(self.doc,self.stack,ids,origin=(x,y,self.doc.work_plane.origin[2]),grid=self.grid,snap_tol=self.snap_tolerance);self.preview=PreviewState('move',{'entities':copy.deepcopy(self.active.preview)},{'dx':0.,'dy':0.,'distance':0.},None);return self.preview
         if self.tool=='stretch':
             if not self.active_entity or self.active_entity not in self.doc.entities:return self.preview
@@ -289,6 +293,8 @@ class PointerController:
                 hud.values,
                 snap_info,
             )
+        elif self.active.__class__.__name__=='WallMoveTransaction':
+            self.preview=PreviewState('wall-move',self.active.update(x,y),{},None,self.active.eid)
         elif isinstance(self.active,ConnectedWallEndpointStretchTransaction):
             hud=self.active.update(x,y);geom=copy.deepcopy(self.active.preview);geom['entities']=copy.deepcopy(self.active.previews);self.preview=PreviewState('stretch',geom,hud.values,None,self.active.eid)
         elif isinstance(self.active,WallEndpointStretchTransaction):hud=self.active.update(x,y);self.preview=PreviewState('stretch',copy.deepcopy(self.active.preview),hud.values,None,self.active.eid)
@@ -361,6 +367,7 @@ class PointerController:
         return self.preview
     def pointer_up(self,ev,exact=None):
         if self.active is None:return self.preview
+        self.last_warning=None
         self.pointer_move(ev);committed_id=None
         if isinstance(self.active,WallDrawTransaction):
             from archforge.project.brief import interior_wall_defaults,wall_is_interior
@@ -372,6 +379,9 @@ class PointerController:
                 from archforge.core.commands import UpdateEntity
                 itype,ithick,bearing=interior
                 self.stack.amend(UpdateEntity(committed_id,{'wall_type':itype,'thickness':ithick,'load_bearing':bool(bearing)}))
+            if committed_id and committed_id in self.doc.entities:
+                # A wall ending on (or crossing) another one splits it there — same undo step.
+                self._split_at_junctions(committed_id)
             if committed_id and getattr(self.active,'reference',None):
                 # A wall that closes a space moves onto its axis — same undo step as the wall.
                 from archforge.architecture.dimension_reference import ApplyDimensionReference
@@ -379,7 +389,12 @@ class PointerController:
                 from archforge.architecture.dimension_reference import plan as reference_plan
                 if any(reference_plan(self.doc,self.active.z)):
                     self.stack.amend(apply)
-        elif isinstance(self.active,(ConnectedWallEndpointStretchTransaction,WallEndpointStretchTransaction,StructuralBeamEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction,OpeningEditTransaction)):self.active.commit();committed_id=getattr(self.active,'eid',None)
+        elif self.active.__class__.__name__=='WallMoveTransaction':
+            committed_id=self.active.commit();self.preview=PreviewState()
+        elif isinstance(self.active,(ConnectedWallEndpointStretchTransaction,WallEndpointStretchTransaction,StructuralBeamEndpointStretchTransaction,BoxStretchTransaction,PodStretchTransaction,RotateTransaction,OpeningEditTransaction)):
+            self.active.commit();committed_id=getattr(self.active,'eid',None)
+            if isinstance(self.active,(ConnectedWallEndpointStretchTransaction,WallEndpointStretchTransaction)) and committed_id in self.doc.entities:
+                self._split_at_junctions(committed_id)
         elif self.active.__class__.__name__=='ComponentPlaceTransaction':committed_id=self.active.commit()
         elif isinstance(self.active,StructuralColumnPlaceTransaction):committed_id=self.active.commit()
         elif isinstance(self.active,StructuralBeamDrawTransaction):committed_id=self.active.commit()
@@ -390,6 +405,18 @@ class PointerController:
         elif isinstance(self.active,MoveTransaction):
             if abs(self.active.dx)>1e-12 or abs(self.active.dy)>1e-12 or abs(self.active.dz)>1e-12:self.active.commit()
         result=self.preview;result.entity_id=committed_id;self.active=None;return result
+    def begin_wall_move(self,eid,a,b):
+        """Dragging a wall's body: it moves perpendicular to its axis with what is joined to it."""
+        from archforge.architecture.wall_edit import WallMoveTransaction
+        x,y=self._plan_xy(PointerEvent(a,b))
+        self.active=WallMoveTransaction(self.doc,self.stack,eid,x,y)
+        self.preview=PreviewState('wall-move',self.active.preview(),{},None,eid)
+        return self.preview
+    def _split_at_junctions(self,eid):
+        from archforge.architecture.wall_edit import SplitWalls,junction_cuts
+        cuts,warnings=junction_cuts(self.doc,eid)
+        self.last_warning=' · '.join(warnings) or None
+        if cuts:self.stack.amend(SplitWalls(cuts))
     def cancel(self):
         if hasattr(self.active,'cancel'):self.active.cancel()
         self.active=None;self.preview=PreviewState()

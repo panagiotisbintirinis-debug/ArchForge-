@@ -26,7 +26,7 @@ QStatusBar { background:#FFFFFF; border-top:1px solid #D8DEE8; }
 QSplitter::handle { background:#F1F4F8; }
 """
 
-MENUS=("Αρχείο","Επεξεργασία","Προβολή","Σχεδίαση","Κατασκευή","Έδαφος","Βιβλιοθήκη","Δομικά","Υλικά","Sculpt","Κουζίνα","Μηχανολογικά","AI","Rendering","Βοήθεια")
+MENUS=("Αρχείο","Επεξεργασία","Προβολή","Σχεδίαση","Κατασκευή","Έδαφος","Βιβλιοθήκη","Δομικά","Υλικά","Γλυπτική","Κουζίνα","Μηχανολογικά","Βοηθός AI","Απεικόνιση","Βοήθεια")
 
 def _card(title, widget):
     f=QFrame(); f.setObjectName("card")
@@ -128,11 +128,6 @@ def _project_panel(window):
     window._refresh_library_tree()
     window.project_tree=tree
     return box
-
-def _thumb_strip(names):
-    w=QListWidget(); w.setFlow(QListWidget.LeftToRight); w.setWrapping(False); w.setFixedHeight(92)
-    for n in names: w.addItem(QListWidgetItem(n))
-    return w
 
 def _adopt(toolbar, widget):
     """Move a widget from a hidden legacy toolbar into ``toolbar``.
@@ -310,9 +305,9 @@ def install_approved_mockup_shell(window):
     window._mockup_library_menu=library_menu
     ao=QAction("Σκιές επαφής (Ambient Occlusion)",window); ao.setCheckable(True); ao.setChecked(True)
     ao.toggled.connect(window.pbr_view.set_ambient_occlusion)
-    menus["Rendering"].addAction(ao)
+    menus["Απεικόνιση"].addAction(ao)
     window._mockup_ao_action=ao
-    sun_menu=QMenu("Ήλιος & ουρανός",menus["Rendering"]); menus["Rendering"].addMenu(sun_menu)
+    sun_menu=QMenu("Ήλιος & ουρανός",menus["Απεικόνιση"]); menus["Απεικόνιση"].addMenu(sun_menu)
     sun_group=QActionGroup(sun_menu); sun_group.setExclusive(True)
     for text,hour in (("Πρωί (09:00)",9.0),("Μεσημέρι (11:00)",11.0),("Απόγευμα (17:00)",17.0),
                       ("Δειλινό (19:00)",19.0),("Χωρίς ουρανό (στούντιο)",None)):
@@ -333,13 +328,15 @@ def install_approved_mockup_shell(window):
         tb.hide()
         tb.toggleViewAction().setVisible(False)
 
-    ribbon=QToolBar("Mockup Ribbon",window); ribbon.setObjectName("ribbon"); ribbon.setWindowTitle("Mockup Ribbon")
-    ribbon.setMovable(True); ribbon.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+    from archforge.ui.workspace_layout import make_icon, popup_button, build_menu, install_workspace_layout
+    ribbon=QToolBar("Εργαλεία σχεδίασης",window); ribbon.setObjectName("ribbon")
+    ribbon.setMovable(True); ribbon.setToolButtonStyle(Qt.ToolButtonTextUnderIcon); ribbon.setIconSize(QSize(30,30))
 
     def tool_action(text,tool,parent):
         a=QAction(text,parent); a.triggered.connect(lambda _=False,t=tool: window._set_active_tool(t)); return a
-    for label,tool in (("Επιλογή","select"),("Τοίχος","wall")):
-        ribbon.addAction(tool_action(label,tool,window))
+    for label,tool,icon,tip in (("Επιλογή","select","select","Κλικ σε αντικείμενο: επιλογή · σύρε τις λαβές για αλλαγή"),
+                                ("Τοίχος","wall","wall","Σύρε από γωνία σε γωνία · Shift = ελεύθερη γωνία · Esc = ακύρωση")):
+        a=tool_action(label,tool,window); a.setIcon(make_icon(icon)); a.setToolTip(tip); ribbon.addAction(a)
     # One menu for what goes into / along the walls: doors, windows, openings, stairs, kitchen, structure.
     elements=QMenu("Στοιχεία",window); window._mockup_elements_menu=elements
     for text,tool in (("Πόρτα","door"),("Παράθυρο","window"),("Άνοιγμα","opening_rect")):
@@ -388,11 +385,13 @@ def install_approved_mockup_shell(window):
     footings=QAction("Βάσεις (πέδιλα, συνδετήριες) — υπολογισμός φέροντα",structural)
     footings.triggered.connect(lambda: window._design_structure()); structural.addAction(footings)
     button=QToolButton(ribbon); button.setText("Στοιχεία"); button.setToolTip("Πόρτες, παράθυρα, ανοίγματα, σκάλες, κουζίνα, δομικά")
+    button.setIcon(make_icon("elements"))
     button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup); button.setMenu(elements)
     button.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
     ribbon.addWidget(button); window._mockup_elements_button=button; window._mockup_circulation_button=button
-    for label,tool in (("Sculpt","sculpt"),("Υλικά","materials")):
-        a=QAction(label,window)
+    for label,tool in (("Γλυπτική","sculpt"),("Υλικά","materials")):
+        a=QAction(make_icon(tool),label,window)
+        a.setToolTip("Γλυπτική: πλάσε την επιφάνεια με το ποντίκι (δεξί κλικ: εργασία, ροδέλα: πινέλο)" if tool=="sculpt" else "Υλικό στο επιλεγμένο αντικείμενο")
         if tool=="sculpt": a.triggered.connect(lambda _=False: window.sculpt_action.toggle())
         else: a.triggered.connect(window._open_selected_materials)
         ribbon.addAction(a)
@@ -413,45 +412,57 @@ def install_approved_mockup_shell(window):
     window._mockup_terrain_action=terrain
     window._mockup_flat_roof_action=flat_roof
     auto_button=QToolButton(ribbon); auto_button.setText("Αυτόματα"); auto_button.setToolTip("Δάπεδα, δώμα, έδαφος")
+    auto_button.setIcon(make_icon("auto"))
     auto_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup); auto_button.setMenu(auto)
     auto_button.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
     ribbon.addSeparator(); ribbon.addWidget(auto_button)
     window.addToolBar(Qt.TopToolBarArea,ribbon)
 
-    # Second row: storey/display, camera and snapping. A single row needs
-    # ~1700 px, so on a laptop these controls fell into the hidden overflow.
-    camera=QToolBar("Mockup Camera",window); camera.setObjectName("camera"); camera.setMovable(True)
-    add_floor=QAction("+ Όροφος",window); add_floor.triggered.connect(window._add_floor_level); camera.addAction(add_floor)
+    # Second row, three bars the human can drag apart (or float, or hide):
+    # storey · view (Προβολή ▾ / Στυλ ▾ popups + camera presets) · grid and snapping.
+    floor_bar=QToolBar("Όροφος",window); floor_bar.setObjectName("floor_bar"); floor_bar.setIconSize(QSize(22,22))
+    floor_bar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+    add_floor=QAction(make_icon("floor_add"),"Όροφος",window); add_floor.setToolTip("Νέος όροφος πάνω από τον τελευταίο")
+    add_floor.triggered.connect(window._add_floor_level); floor_bar.addAction(add_floor)
     window._mockup_add_floor_action=add_floor
-    camera.addWidget(QLabel("Όροφος: ")); _adopt(camera,window.floor_selector)
-    camera.addWidget(QLabel("  Απεικόνιση: ")); _adopt(camera,window.render_technique)
-    camera.addSeparator(); camera.addWidget(QLabel("Κάμερα: "))
-    for label,mode in (("Top","top"),("Front","front"),("Side","side"),("3D","orbit")):
-        a=QAction(label,window); a.triggered.connect(lambda _=False,m=mode: window._set_pbr_camera(m)); camera.addAction(a)
-    camera.addSeparator()
-    grid=QCheckBox("Grid"); grid.setChecked(True); camera.addWidget(grid)
-    snap=QCheckBox("Snap"); snap.setChecked(window.snap_action.isChecked()); snap.toggled.connect(window.snap_action.setChecked); window.snap_action.toggled.connect(snap.setChecked); camera.addWidget(snap)
-    snap_size=QComboBox(); snap_size.addItems(("0.10 m","0.05 m","0.25 m","0.50 m")); camera.addWidget(QLabel("  Snap: ")); camera.addWidget(snap_size)
+    floor_bar.addWidget(QLabel(" Σχεδιάζω στο: ")); _adopt(floor_bar,window.floor_selector)
+    camera=QToolBar("Προβολή",window); camera.setObjectName("camera"); camera.setMovable(True)
+    camera.setIconSize(QSize(22,22)); camera.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+    window._mockup_camera_actions={}
+    for label,mode,icon,tip in (("Πάνω","top","top","3D από πάνω"),("Πρόσοψη","front","front","3D: πρόσοψη"),
+                                ("Πλάγια","side","side","3D: πλάγια όψη"),("3D","orbit","orbit","3D προοπτική — σύρε για περιστροφή")):
+        a=QAction(make_icon(icon),label,window); a.setToolTip(tip)
+        a.triggered.connect(lambda _=False,m=mode: window._set_pbr_camera(m)); camera.addAction(a)
+        window._mockup_camera_actions[label]=a
+    snap_bar=QToolBar("Κάνναβος & έλξη",window); snap_bar.setObjectName("snap_bar")
+    grid=QCheckBox("Κάνναβος"); grid.setChecked(True); grid.setToolTip("Γραμμές κανάβου στην κάτοψη")
+    grid.toggled.connect(window.plan_view.set_grid_visible); snap_bar.addWidget(grid)
+    snap=QCheckBox("Έλξη"); snap.setToolTip("Το ποντίκι «κουμπώνει» σε γωνίες, άκρα και στον κάνναβο (Shift = ελεύθερα)")
+    snap.setChecked(window.snap_action.isChecked()); snap.toggled.connect(window.snap_action.setChecked); window.snap_action.toggled.connect(snap.setChecked); snap_bar.addWidget(snap)
+    snap_size=QComboBox(); snap_size.addItems(("0.10 m","0.05 m","0.25 m","0.50 m")); snap_size.setToolTip("Βήμα κανάβου και έλξης")
+    snap_size.currentTextChanged.connect(lambda t: window.plan_view.set_grid_step(float(t.split()[0])))
+    snap_bar.addWidget(QLabel("  Βήμα: ")); snap_bar.addWidget(snap_size)
+    window._mockup_grid_check=grid; window._mockup_snap_check=snap; window._mockup_snap_size=snap_size
     # Own row: sharing the ribbon row squeezed Grid/Snap into the overflow.
     window.addToolBarBreak(Qt.TopToolBarArea)
-    window.addToolBar(Qt.TopToolBarArea,camera)
+    for bar in (floor_bar,camera,snap_bar): window.addToolBar(Qt.TopToolBarArea,bar)
     # Columns / beams / footings also as the first submenu of the Δομικά menu.
     first=window._structure_menu.actions()[0] if window._structure_menu.actions() else None
     window._structure_menu.insertMenu(first,window._mockup_structural_submenu)
     # The bars can be dragged anywhere (or floated) and hidden; Προβολή → Γραμμές εργαλείων brings them back.
     bars=QMenu("Γραμμές εργαλείων",window.view_menu); window.view_menu.addMenu(bars); window._toolbars_menu=bars
-    for bar,text in ((ribbon,"Εργαλεία σχεδίασης"),(camera,"Όροφος, κάμερα, snap")):
-        toggle=bar.toggleViewAction(); toggle.setText(text); toggle.setVisible(True); bars.addAction(toggle)
+    for bar in (ribbon,floor_bar,camera,snap_bar):
+        toggle=bar.toggleViewAction(); toggle.setText(bar.windowTitle()); toggle.setVisible(True); bars.addAction(toggle)
     lock=QAction("Κλείδωμα θέσης",window); lock.setCheckable(True)
-    lock.toggled.connect(lambda on: [b.setMovable(not on) for b in (ribbon,camera)])
+    lock.toggled.connect(lambda on: [b.setMovable(not on) for b in (ribbon,floor_bar,camera,snap_bar)])
     bars.addSeparator(); bars.addAction(lock); window._toolbars_lock_action=lock
-    window._mockup_ribbon=ribbon; window._mockup_camera_bar=camera
+    window._mockup_ribbon=ribbon; window._mockup_camera_bar=camera; window._mockup_floor_bar=floor_bar; window._mockup_snap_bar=snap_bar
 
     # The real editors are mounted simultaneously, exactly where the supplied
     # prototype had PlanView and PBRViewport placeholders.
     right_tabs=QTabWidget()
     right_tabs.addTab(window.pbr_view,"3D Σκηνή")
-    right_tabs.addTab(window.structural_view,"Structural")
+    right_tabs.addTab(window.structural_view,"Στατικά")
     window.tabs=right_tabs
     right_tabs.currentChanged.connect(window._on_tab_changed)
 
@@ -471,7 +482,7 @@ def install_approved_mockup_shell(window):
     window.plan_view.viewport().update()
     central_tabs=QTabWidget()
     central_tabs.addTab(plan_card,"2D Σχεδίαση")
-    central_tabs.addTab(right_tabs,"3D / Structural")
+    central_tabs.addTab(right_tabs,"3D / Στατικά")
     central_tabs.setCurrentIndex(0)
 
     def central_changed(index):
@@ -489,26 +500,53 @@ def install_approved_mockup_shell(window):
             elif window.view is window.structural_view: window.structural_view.activate()
     central_tabs.currentChanged.connect(central_changed)
 
-    strips=QHBoxLayout(); strips.setSpacing(6)
     # Every view is live: camera presets, Doll House / Ortho overviews, and the
     # Section / Interior views that are dragged as a line in the 2D plan.
+    # They open from «Προβολή ▾» on the view bar (no bottom strip eating height).
     view_specs=(
-        ("3D Προοπτική",lambda: window._set_pbr_camera("orbit")),
-        ("Top",lambda: window._set_pbr_camera("top")),
-        ("Front",lambda: window._set_pbr_camera("front")),
-        ("Side",lambda: window._set_pbr_camera("side")),
-        ("Doll House",lambda: window._set_pbr_camera("dollhouse")),
-        ("Ορθογραφική",lambda: window._set_pbr_camera("ortho")),
-        ("Τομή",lambda: window._start_view_line_tool("section")),
-        ("Εσωτερική Όψη",lambda: window._start_view_line_tool("camera")),
-        ("Render (PBR)",lambda: (window._set_render_style_from_workspace("pbr"),window._set_pbr_camera("orbit"))),
-        ("Walkthrough",lambda: window._set_pbr_camera("eye")),
+        ("3D Προοπτική",lambda: window._set_pbr_camera("orbit"),"orbit"),
+        ("Πάνω",lambda: window._set_pbr_camera("top"),"top"),
+        ("Πρόσοψη",lambda: window._set_pbr_camera("front"),"front"),
+        ("Πλάγια",lambda: window._set_pbr_camera("side"),"side"),
+        ("Κουκλόσπιτο (χωρίς στέγη)",lambda: window._set_pbr_camera("dollhouse"),"views"),
+        ("Ορθογραφική",lambda: window._set_pbr_camera("ortho"),"views"),
+        ("Τομή",lambda: window._start_view_line_tool("section"),"elements"),
+        ("Εσωτερική Όψη",lambda: window._start_view_line_tool("camera"),"views"),
+        ("Ρεαλιστική απεικόνιση",lambda: (window._set_render_style_from_workspace("pbr"),window._set_pbr_camera("orbit")),"style"),
+        ("Περιήγηση",lambda: window._set_pbr_camera("eye"),"select"),
     )
-    views=_thumb_strip(tuple(label for label,_ in view_specs))
-    view_actions=dict(view_specs)
-    views.itemClicked.connect(lambda item: view_actions[item.text()]())
+    view_actions={label:run for label,run,_icon in view_specs}
     window._mockup_view_actions=view_actions
-    styles=_thumb_strip(("Ρεαλιστικό","Φυσικό φως","Βραδινό","Clay","Sketch"))
+    first_camera=camera.actions()[0]
+    view_popup=build_menu(window,"Προβολή",view_specs)
+    window._mockup_view_popup=view_popup
+    window._mockup_view_button=popup_button(camera,"Προβολή","views",view_popup,
+                                            "Όλες οι προβολές: 3D, όψεις, κουκλόσπιτο, τομή, εσωτερική όψη, περιήγηση")
+    # Styles = what the 3D scene really offers: material look with the sun at an hour, studio light, technical, glass.
+    def style(technique,hour=False):
+        def run():
+            window._set_render_style_from_workspace(technique)
+            if hour is not False: window.pbr_view.set_sun(hour)
+            window._show_3d_view()
+        return run
+    style_specs=(
+        ("Ρεαλιστικό (μεσημέρι)",style("pbr",11.0),"style"),
+        ("Φυσικό φως (απόγευμα)",style("pbr",17.0),"style"),
+        ("Βραδινό (δειλινό)",style("pbr",19.0),"style"),
+        ("Στούντιο (ουδέτερο φως)",style("pbr",None),"views"),
+        ("Τεχνικό (χωρίς σκιές)",style("technical"),"grid"),
+        ("Γυάλινο (φαίνονται τα Η/Μ)",style("glass"),"materials"),
+    )
+    window._mockup_style_actions={label:run for label,run,_icon in style_specs}
+    style_popup=build_menu(window,"Στυλ",style_specs,checkable=True)
+    style_popup.actions()[0].setChecked(True)
+    window._mockup_style_popup=style_popup
+    window._mockup_style_button=popup_button(camera,"Στυλ","style",style_popup,"Στυλ απεικόνισης του 3D: φως, ώρα, τεχνικό, γυάλινο")
+    # Popups first, then a separator and the quick camera buttons.
+    for w in (window._mockup_view_button,window._mockup_style_button):
+        for a in camera.actions():
+            if camera.widgetForAction(a) is w: camera.removeAction(a); camera.insertAction(first_camera,a)
+    camera.insertSeparator(first_camera)
 
     center=QWidget(); cv=QVBoxLayout(center); cv.setContentsMargins(0,0,0,0); cv.setSpacing(6)
     cv.addWidget(central_tabs,1)
@@ -548,7 +586,7 @@ def install_approved_mockup_shell(window):
                 if idx>=0: central_tabs.removeTab(idx)
                 split.deleteLater()
             if central_tabs.indexOf(plan_card)<0: central_tabs.insertTab(0,plan_card,"2D Σχεδίαση")
-            if central_tabs.indexOf(right_tabs)<0: central_tabs.insertTab(1,right_tabs,"3D / Structural")
+            if central_tabs.indexOf(right_tabs)<0: central_tabs.insertTab(1,right_tabs,"3D / Στατικά")
             central_tabs.setCurrentWidget(plan_card)
             window._mockup_center_split=None
             _show_plan()
@@ -562,20 +600,12 @@ def install_approved_mockup_shell(window):
     project_dock=QDockWidget("Έργο / Βιβλιοθήκη",window)
     project_dock.setObjectName("approved_project_library")
     project_dock.setWidget(left)
-    project_dock.setAllowedAreas(Qt.LeftDockWidgetArea|Qt.RightDockWidgetArea)
+    project_dock.setAllowedAreas(Qt.AllDockWidgetAreas)
     window.addDockWidget(Qt.LeftDockWidgetArea,project_dock)
 
     window.dock.setWindowTitle("Ιδιότητες")
     window.dock.setObjectName("approved_properties")
     window.addDockWidget(Qt.RightDockWidgetArea,window.dock)
-
-    bottom=QWidget(); bv=QHBoxLayout(bottom); bv.setContentsMargins(0,0,0,0); bv.setSpacing(6)
-    bv.addWidget(_card("Προβολές",views),6); bv.addWidget(_card("Στυλ Rendering",styles),4)
-    views_dock=QDockWidget("Προβολές / Στυλ Rendering",window)
-    views_dock.setObjectName("approved_views_rendering")
-    views_dock.setWidget(bottom)
-    views_dock.setAllowedAreas(Qt.BottomDockWidgetArea|Qt.TopDockWidgetArea)
-    window.addDockWidget(Qt.BottomDockWidgetArea,views_dock)
 
     # Βοηθός: live proposals over the whole Document, tabbed with the Properties.
     assistant_dock=QDockWidget("Βοηθός",window)
@@ -591,31 +621,27 @@ def install_approved_mockup_shell(window):
         view.marking_menu_window=window
     window._schedule_assistant_refresh()
 
-    for d in (project_dock,window.dock,views_dock,assistant_dock):
-        d.setFeatures(QDockWidget.DockWidgetClosable|QDockWidget.DockWidgetMovable|QDockWidget.DockWidgetFloatable)
-
     # Restore buttons/menu: Προβολή -> Παράθυρα.
     panels=window.view_menu.addMenu("Παράθυρα")
-    for d in (project_dock,window.dock,assistant_dock,views_dock):
+    for d in (project_dock,window.dock,assistant_dock):
         panels.addAction(d.toggleViewAction())
     # Workspace docks built before the shell (Library, AI, ...) lost their
     # toggles with the old View menu; keep them recoverable here too.
-    extra=[d for d in getattr(window,"workspace_docks",()) if d not in (project_dock,window.dock,views_dock,assistant_dock)]
+    extra=[d for d in getattr(window,"workspace_docks",()) if d not in (project_dock,window.dock,assistant_dock)]
     if extra:
         panels.addSeparator()
         for d in extra: panels.addAction(d.toggleViewAction())
 
     window.resizeDocks([project_dock],[270],Qt.Horizontal)
     window.resizeDocks([window.dock],[280],Qt.Horizontal)
-    window.resizeDocks([views_dock],[120],Qt.Vertical)
     window.view=window.plan_view
     window._mockup_right_tabs=right_tabs
-    window._approved_docks=(project_dock,window.dock,views_dock)
+    window._approved_docks=(project_dock,window.dock,assistant_dock)
     window._central_tabs=central_tabs
     window._update_plan_title()
 
     views_menu=QMenu("3D Προβολές",window.view_menu); window.view_menu.addMenu(views_menu)
-    for label,run in view_specs:
+    for label,run,_icon in view_specs:
         a=QAction(label,views_menu); a.triggered.connect(lambda _=False,r=run: r()); views_menu.addAction(a)
     window._mockup_views_menu=views_menu
 
@@ -626,3 +652,5 @@ def install_approved_mockup_shell(window):
     window.view_menu.addSeparator()
     window.view_menu.addAction(simultaneous)
     window._simultaneous_action=simultaneous
+    # Every bar and panel movable / floatable / closable; the layout is remembered (Προβολή → Επαναφορά διάταξης).
+    install_workspace_layout(window,(ribbon,floor_bar,camera,snap_bar),(project_dock,window.dock,assistant_dock))

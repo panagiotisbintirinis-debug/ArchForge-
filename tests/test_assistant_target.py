@@ -78,7 +78,7 @@ def test_panel_marker_and_text_in_the_app():
         window._start_site_tool('assist_point', '')
         window.plan_view.sitePointRequested.emit('assist_point', 6.5, 2.0)
         assert window.plan_view.assistant_marker == (6.5, 2.0)
-        assert 'Room' in window.assistant_target_label.text() and window.assistant_actions.count() >= 2
+        assert 'Χώρος' in window.assistant_target_label.text() and window.assistant_actions.count() >= 2
         window.assistant_text.setText('ανεμιστήρα απαγωγής')
         window._assistant_ask()
         assert any(e.kind == 'ventilation_point' for e in window.doc.entities.values())

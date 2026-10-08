@@ -422,6 +422,19 @@ def preview_primitives(preview):
             )
         ]
     if preview.kind in ('opening','opening-edit') and {'x1','y1','x2','y2'}<=set(g):return [Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),entity_id=preview.entity_id or '',role='preview',meta=(('semantic',g.get('opening_kind','opening')),))]
+    if preview.kind=='wall-move' and g:
+        # Dragged wall: moved/stretched wall lines, the objects riding along, the distance.
+        bad=bool(g.get('problem'))
+        out=[Primitive2D('line',((p['x1'],p['y1']),(p['x2'],p['y2'])),entity_id=eid,role='preview',meta=(('fits',not bad),))
+             for eid,p in g.get('walls',{}).items()]
+        out+=[Primitive2D('polygon',tuple(pts),entity_id=oid,role='preview') for oid,pts in g.get('objects',{}).items() if len(pts)>2]
+        out+=[Primitive2D('line',tuple(seg),role='wall-move-opening') for seg in g.get('openings',())]
+        a,b=g['from'],g['to']
+        out.append(Primitive2D('polyline',(tuple(a),tuple(b)),role='wall-move-arrow'))
+        d=float(g.get('distance',0.0))
+        text=f"{'⚠ '+g['problem'] if bad else ('↔ ' if abs(a[1]-b[1])<abs(a[0]-b[0])+1e-9 else '↕ ')+format(abs(d)*100,'.0f')+' cm'}"
+        out.append(Primitive2D('label',((b[0]+.15,b[1]+.15),),role='wall-move-label',meta=(('text',text),)))
+        return out
     if preview.kind=='stretch' and 'entities' in g:
         out=[]
         for eid,p in g['entities'].items():
@@ -491,7 +504,7 @@ def build_plan_frame(doc,preview=None):
         from archforge.architecture.topology import room_metrics
         for index,face in enumerate(doc.active_room_faces(),start=1):
             m=room_metrics(face.polygon);data=doc.room_metadata(face.signature)
-            name=data.get('name') or f'Room {index}';use=data.get('use','')
+            name=data.get('name') or f'Χώρος {index}';use=data.get('use','')
             label=name+(f' — {use}' if use else '')+f'\n{m["area"]:.2f} m²'
             meta=(('semantic','derived-room'),('signature',face.signature),('wall_ids',face.wall_ids),('area',m['area']),('perimeter',m['perimeter']),('name',name),('use',use))
             f.primitives.append(Primitive2D('polygon',tuple(face.polygon),role='derived-room',meta=meta))

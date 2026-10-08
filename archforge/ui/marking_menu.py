@@ -87,6 +87,10 @@ def build_menu(window, view, entity_id=None):
                                 "rotate": "Περιστροφή", "materials": "Υλικά", "support": "Στήριξη…",
                                 "load": "Φορτίο…", "delete": "Διαγραφή"}.get(a["id"], a["label"]),
                       danger=a["id"] == "delete") for a in actions]
+        if entity.kind == "wall" and view == "plan":
+            # Walls move with what is joined to them and split where you click (wall_edit.py).
+            entries.insert(len(entries) - 1, _e("mm:wall:moveby", "Μετακίνηση κατά…"))
+            entries.insert(len(entries) - 1, _e("mm:wall:split", "Διαχωρισμός εδώ"))
         entries.append(_e("mm:assist:entity", "📍 Βοηθός εδώ", "panel"))
         if entity.kind in ("structural_column", "structural_beam"):
             entries.append(_e("mm:analyze", "Στατική ανάλυση", "panel"))
@@ -164,6 +168,12 @@ def run(window, view, entity_id, action_id, plan_xy=None):
         window.plan_view._choose_wall_angle(None if arg == "free" else (arg if arg == "magnet" else float(arg)))
     elif group == "wall" and arg == "cancel":
         window.plan_view._wall_radial_command("delete")
+    elif group == "wall" and arg in ("moveby", "split"):
+        from archforge.ui import wall_edit_actions
+        if arg == "moveby":
+            wall_edit_actions.move_by_dialog(window, entity_id)
+        else:
+            wall_edit_actions.split_here(window, entity_id, plan_xy)
     elif group == "assist":
         if arg == "entity" and entity_id:
             window.doc.select([entity_id])
