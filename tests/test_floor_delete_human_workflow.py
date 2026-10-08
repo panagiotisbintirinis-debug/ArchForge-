@@ -473,6 +473,7 @@ def test_structural_role_and_construction_update_undoably():
         id='role-col',
     )
     window.doc.add(col)
+    window._set_workspace('structure')      # columns are edited in the «Φέρων» environment (LAY1)
 
     window._apply_object_properties(
         col.id,

@@ -489,7 +489,7 @@ class PlanView(QGraphicsView):
         )
 
     def redraw(self):
-        self._scene.clear();self._handle_items.clear();self._entity_items.clear();self._draw_grid();frame=build_plan_frame(self.doc,self.controller.preview);self._frame=frame
+        self._scene.clear();self._handle_items.clear();self._entity_items.clear();self._draw_grid();frame=build_plan_frame(self.doc,self.controller.preview,layers=not self.structural_only);self._frame=frame
         if self.structural_only:
             structural_ids={
                 eid for eid,e in self.doc.entities.items()
@@ -735,11 +735,15 @@ class PlanView(QGraphicsView):
                 # Distance of a dragged wall: blue and bold, like the angle mark.
                 f=item.font();f.setBold(True);f.setPointSizeF(f.pointSizeF()*1.25);item.setFont(f)
                 item.setDefaultTextColor(QColor(210,40,40) if text.startswith('⚠') else QColor(20,110,220))
-            item.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations,True);item.setPos(cx,cy);item.setTransformOriginPoint(item.boundingRect().center());item.setScale(1.0);item.setZValue(8);return
+            item.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations,True);item.setPos(cx,cy);item.setTransformOriginPoint(item.boundingRect().center());item.setScale(1.0);item.setZValue(8);
+            if dict(p.meta).get('layer_dim'):item.setOpacity(.3)
+            return
         if item is not None:
             container=bool(p.entity_id) and p.entity_id in self.doc.entities and self.doc.get(p.entity_id).kind in self.CONTAINER_KINDS
             item.setZValue(-20 if context else (-10 if room else (10 if opening else (20 if preview else (-5 if container else 0)))))
             if p.entity_id and not preview:self._entity_items[item]=p.entity_id
+            # Dim layer (Layers panel / environment): a faint reference under the work.
+            if dict(p.meta).get('layer_dim'):item.setOpacity(.28);item.setZValue(-30)
     def _draw_handle(self,h):
         r=.09;it=self._scene.addEllipse(h.x-r,h.y-r,2*r,2*r,QPen(QColor(20,90,180),0),QBrush(QColor(255,255,255)));it.setZValue(50);self._handle_items[it]=h
     def _draw_snap(self,s):
