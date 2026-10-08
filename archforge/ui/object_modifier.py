@@ -43,7 +43,7 @@ class ObjectModifierDialog(QDialog):
         self.header.setWordWrap(True)
         layout.addWidget(self.header)
 
-        size_box = QGroupBox("Διαστάσεις & θέση")
+        size_box = QGroupBox("Διαστάσεις && θέση")
         form = QFormLayout(size_box)
         self.size_spins = {}
         for key, label in zip(SIZE_KEYS, ("Πλάτος (cm)", "Βάθος (cm)", "Ύψος (cm)")):
@@ -185,7 +185,10 @@ class ObjectModifierDialog(QDialog):
         self.part_label.setText(f"Τμήμα: {self.parts.currentItem().text() if self.parts.currentItem() else role}")
 
     def apply_palette(self, material_id):
-        self.set_part_material(self.preview.selected_role or self._current_part(), material_id)
+        role = self.preview.selected_role or self._current_part()
+        self.set_part_material(role, material_id)
+        if role:
+            self.pick_part(role)
 
     def _current_modifier(self):
         item = self.modifiers.currentItem()
@@ -418,7 +421,10 @@ class CabinetModifierDialog(QDialog):
         self.part_label.setText(f"Τμήμα: {ROLE_NAMES.get(role, role)}")
 
     def apply_palette(self, material_id):
-        self.set_role_material(self.preview.selected_role or self._current_role(), material_id)
+        role = self.preview.selected_role or self._current_role()
+        self.set_role_material(role, material_id)
+        if role:
+            self.pick_part(role)
 
     def set_param(self, key, value):
         """Change one parameter; width also re-derives the door count."""
@@ -490,9 +496,11 @@ def visual_column(dialog):
         from PySide6.QtGui import QColor
         dialog.palette.clear()
         for material_id, spec in materials_in_category(category):
-            item = QListWidgetItem(f"■ {spec['name']}")
+            from PySide6.QtGui import QIcon, QPixmap
+            swatch = QPixmap(18, 18)
+            swatch.fill(QColor(str(spec.get('color', '#999999'))))
+            item = QListWidgetItem(QIcon(swatch), str(spec['name']))
             item.setData(Qt.ItemDataRole.UserRole, material_id)
-            item.setForeground(QColor(str(spec.get('color', '#333333'))))
             dialog.palette.addItem(item)
     dialog.palette_category.currentTextChanged.connect(fill)
     fill(dialog.palette_category.currentText())

@@ -300,7 +300,7 @@ def install_approved_mockup_shell(window):
     mep_menu.addAction(layer); window.view_menu.addAction(layer); window._mep_layer_action=layer
     library_menu=menus["Βιβλιοθήκη"]
     for text,run in (("Τοποθέτηση αντικειμένου…",lambda: window._choose_library_asset()),
-                     ("Object Modifier (επιλεγμένο)…",lambda: window._open_object_modifier()),
+                     ("Επεξεργασία αντικειμένου (επιλεγμένο)…",lambda: window._open_object_modifier()),
                      ("Εισαγωγή μοντέλου glTF/GLB…",lambda: window._import_gltf_model()),
                      ("Εισαγωγή από Home Designer (.calib/.calibz)…",lambda: window._import_hd_catalog())):
         a=QAction(text,window); a.triggered.connect(lambda _=False,r=run: r()); library_menu.addAction(a)

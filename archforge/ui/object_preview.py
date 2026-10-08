@@ -113,7 +113,7 @@ class ObjectPreview(QWidget):
     def _scale_center(self):
         w, d, h = (max(MIN_SIZE, v) for v in self.sizes().values())
         size = math.sqrt(w * w + d * d + h * h)
-        return min(self.width(), self.height()) * 0.62 / max(size, 1e-6), (0.0, 0.0, h / 2)
+        return min(self.width(), self.height() - 40) * 0.88 / max(size, 1e-6), (0.0, 0.0, h / 2)
 
     def project(self, q):
         right, up, fwd = self._basis()
@@ -166,9 +166,8 @@ class ObjectPreview(QWidget):
             base = self._colors[i] if i < len(self._colors) else QColor(200, 200, 200)
             color = QColor(int(base.red() * shade), int(base.green() * shade), int(base.blue() * shade))
             chosen = self.selected_role is not None and roles[i] == self.selected_role
-            if chosen:
-                color = QColor(min(255, color.red() + 40), min(255, color.green() + 20), max(0, color.blue() - 30))
-            painter.setPen(QPen(color, 0.6))
+            # The picked part keeps its colour and gets an orange outline.
+            painter.setPen(QPen(QColor(240, 130, 20, 110), 0.9) if chosen else QPen(color, 0.6))
             painter.setBrush(QBrush(color))
             painter.drawPolygon(poly)
             self._screen_tris.append((poly, roles[i]))
@@ -189,7 +188,10 @@ class ObjectPreview(QWidget):
             r = 8 if self._drag_handle != key else 10
             painter.drawEllipse(QPointF(ex, ey), r, r)
             painter.drawText(QPointF(ex - 4, ey + 4), HANDLE_NAMES[key])
-            painter.drawText(QPointF(ex + 12, ey + 4), f"{s[key] * 100:.0f} cm")
+            text = f"{s[key] * 100:.0f} cm"
+            box = painter.fontMetrics().boundingRect(text).adjusted(-3, -2, 3, 2).translated(int(ex + 12), int(ey + 4))
+            painter.fillRect(box, QColor(255, 255, 255, 220))
+            painter.drawText(QPointF(ex + 12, ey + 4), text)
             self._handles[key] = (ex, ey)
         painter.setPen(QPen(QColor(90, 90, 90)))
         font.setBold(False)

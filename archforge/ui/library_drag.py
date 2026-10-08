@@ -298,6 +298,21 @@ class LibraryCarry:
             front = QPen(color)
             front.setWidthF(.05)
             scene.addLine(ax, ay, bx, by, front).setZValue(61)       # μέτωπο
+            if self.kind == 'asset':
+                # Το σύμβολο κάτοψης του αντικειμένου μέσα στο φάντασμα (ίδια πηγή με την κάτοψη).
+                from PySide6.QtGui import QPainterPath
+                from archforge.library.objects import plan_symbol_world
+                thin = QPen(color.darker(120))
+                thin.setWidthF(.012)
+                for closed, line in plan_symbol_world(g['params']):
+                    if len(line) < 2:
+                        continue
+                    path = QPainterPath(QPointF(*line[0]))
+                    for q in line[1:]:
+                        path.lineTo(QPointF(*q))
+                    if closed:
+                        path.closeSubpath()
+                    scene.addPath(path, thin).setZValue(61)
             anchor = (max(q[0] for q in poly), max(q[1] for q in poly))
         elif g and g.get('line'):
             (ax, ay), (bx, by) = g['line']

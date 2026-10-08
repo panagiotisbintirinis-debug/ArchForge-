@@ -846,7 +846,10 @@ class PlanView(QGraphicsView):
             r=.13;pen=QPen(QColor(230,120,20));pen.setWidthF(.03)
             it=self._scene.addEllipse(h.x-r,h.y-r,2*r,2*r,pen,QBrush(QColor(255,240,220)));it.setZValue(52);self._handle_items[it]=h
             arc=QPainterPath();arc.arcMoveTo(h.x-r*.6,h.y-r*.6,r*1.2,r*1.2,30);arc.arcTo(h.x-r*.6,h.y-r*.6,r*1.2,r*1.2,30,270)
-            self._scene.addPath(arc,pen).setZValue(53);return
+            self._scene.addPath(arc,pen).setZValue(53)
+            from PySide6.QtGui import QPolygonF
+            end=arc.currentPosition();head=QPolygonF([QPointF(end.x()-.045,end.y()+.01),QPointF(end.x()+.045,end.y()+.01),QPointF(end.x(),end.y()-.05)])
+            self._scene.addPolygon(head,pen,QBrush(QColor(230,120,20))).setZValue(53);return
         if h.handle=='flip_swing':
             # Swing flip: small blue diamond on the arc side (click = other way).
             from PySide6.QtGui import QPolygonF

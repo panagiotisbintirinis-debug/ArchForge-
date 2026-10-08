@@ -381,7 +381,7 @@ def selection_handles(doc):
         # Round rotation handle in front of the selected object (object_ops).
         from archforge.core.object_ops import ROTATABLE_KINDS,rotate_handle_point
         e=doc.get(doc.selection[0])
-        if e.kind in ROTATABLE_KINDS and not e.locked and str(e.params.get('phase','new'))!='existing' and _entity_on_active_level(doc,e):
+        if e.kind in ROTATABLE_KINDS and (not e.kind.startswith('structural_') or e.params.get('role')=='pergola') and not e.locked and str(e.params.get('phase','new'))!='existing' and _entity_on_active_level(doc,e):
             try:
                 hx,hy=rotate_handle_point(doc,e.id);out.append(Handle2D(hx,hy,e.id,'rotate','rotate'))
             except (KeyError,ValueError,TypeError):pass

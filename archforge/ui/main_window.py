@@ -1833,7 +1833,7 @@ class MainWindow(QMainWindow):
         if slab_tools.is_slab_panel(entity):
             slab_tools.add_rows(self, eid)
         if entity.kind in ('library_object', 'cabinet'):
-            button = QPushButton('Object Modifier…')
+            button = QPushButton('Επεξεργασία αντικειμένου (οπτικά)…')
             button.setToolTip('Διαστάσεις, υλικά ανά τμήμα και Sculpt του αντικειμένου')
             button.clicked.connect(lambda _=False, entity_id=eid: self._open_object_modifier(entity_id))
             self.form.addRow(button)
