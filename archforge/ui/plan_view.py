@@ -60,8 +60,23 @@ class PlanView(QGraphicsView):
         self._scene=QGraphicsScene();super().__init__(self._scene,parent);self.doc=doc;self.stack=stack;self.controller=PointerController(doc,stack);self.structural_only=bool(structural_only)
         self.setRenderHint(QPainter.RenderHint.Antialiasing,True);self.setDragMode(QGraphicsView.DragMode.NoDrag);self.setMouseTracking(True);self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse);self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter);self.setBackgroundBrush(QColor(248,248,248))
         self._mouse_down=False;self._handle_items={};self._entity_items={};self._active_handle=None;self._hud_item=None;self._wall_angle_buttons=[];self._wall_menu_target_entity=None;self.scale(55.0,-55.0);self.redraw()
-    def rebind(self,doc,stack):self.doc=doc;self.stack=stack;self.controller=PointerController(doc,stack);self.redraw()
-    def set_tool(self,tool):self.controller.set_tool(tool);self._active_handle=None;self._railing_draft=None;self.statusChanged.emit(f'Tool: {tool}');self.redraw()
+    def rebind(self,doc,stack):
+        self.doc=doc;self.stack=stack;self.controller=PointerController(doc,stack)
+        if getattr(self,'_grid_step',None):self.controller.grid=self.controller.construction_grid=self._grid_step
+        self.redraw()
+    TOOL_LABELS={'select':'Επιλογή','wall':'Τοίχος','door':'Πόρτα','window':'Παράθυρο','opening_rect':'Άνοιγμα','stair':'Σκάλα',
+                 'ramp':'Ράμπα','structural_column':'Κολόνα','structural_beam':'Δοκός','component':'Τοποθέτηση','move':'Μετακίνηση',
+                 'rotate':'Περιστροφή','stretch':'Τέντωμα'}
+    def set_tool(self,tool):self.controller.set_tool(tool);self._active_handle=None;self._railing_draft=None;self.statusChanged.emit(f'Εργαλείο: {self.TOOL_LABELS.get(tool,tool)}');self.redraw()
+    # Grid lines on/off and the grid/snap step (Κάνναβος & έλξη bar): view state, not Document.
+    def set_grid_visible(self,on):self._show_grid=bool(on);self.redraw()
+    def set_grid_step(self,step):
+        self._grid_step=float(step);self.controller.grid=self.controller.construction_grid=self._grid_step;self.redraw()
+    def drawForeground(self,painter,rect):
+        # Rulers, scale bar, cursor X/Y, live measures and the empty-project hint, in screen pixels.
+        from archforge.ui.plan_overlay import paint_overlay
+        painter.save();painter.resetTransform();paint_overlay(self,painter);painter.restore()
+    def leaveEvent(self,event):self._cursor_xy=None;self.viewport().update();super().leaveEvent(event)
     # Things that carry other things (slabs, roofs, joists, ground): picked only
     # when nothing more specific (a stair, a cabinet, an MEP point…) is under the cursor.
     CONTAINER_KINDS=('room_floor','room_ceiling','room_foundation','room_roof','floor','room',
@@ -214,6 +229,7 @@ class PlanView(QGraphicsView):
             return
         self.redraw()
     def mouseMoveEvent(self,event):
+        p=self.mapToScene(event.position().toPoint());self._cursor_xy=(p.x(),p.y());self.viewport().update()
         if self._railing_tool() and getattr(self,'_railing_draft',None) is not None:
             ev=self._scene_to_plane(event.position().toPoint())
             self._railing_draft.move(ev.a,ev.b,bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier));self.redraw();return
@@ -257,7 +273,7 @@ class PlanView(QGraphicsView):
         super().keyPressEvent(event)
     def set_snap_enabled(self, enabled):
         self.controller.set_snap_enabled(enabled)
-        self.statusChanged.emit('Snap ON' if enabled else 'Snap OFF — Free mode')
+        self.statusChanged.emit('Έλξη ενεργή' if enabled else 'Έλξη ανενεργή — ελεύθερη σχεδίαση')
     def set_wall_angle_increment(self, increment):
         self.controller.set_wall_angle_increment(increment)
         label='ελεύθερη' if increment is None else ('μαγνήτες 90/45/15' if increment=='magnet' else f'{float(increment):g}°')
@@ -539,6 +555,7 @@ class PlanView(QGraphicsView):
         r=self.mapToScene(self.viewport().rect()).boundingRect();self._scene.setSceneRect(r.adjusted(-5,-5,5,5))
         self.previewChanged.emit(copy.deepcopy(self.controller.preview))
     def _draw_grid(self):
+        if not getattr(self,'_show_grid',True):return
         extent=100;pen=QPen(QColor(225,225,225));pen.setWidthF(0);axis=QPen(QColor(160,160,160));axis.setWidthF(0)
         for i in range(-extent,extent+1):self._scene.addLine(i,-extent,i,extent,axis if i==0 else pen).setZValue(-100);self._scene.addLine(-extent,i,extent,i,axis if i==0 else pen).setZValue(-100)
     def _has_symbol(self,entity_id):
@@ -643,4 +660,5 @@ class PlanView(QGraphicsView):
             s['x']-r,s['y']-r,2*r,2*r,QPen(color,0)
         ).setZValue(70)
     def _draw_hud(self,hud):
-        text='  '.join(f'{k}: {v:.3f}' for k,v in hud.items() if isinstance(v,(int,float)));it=self._scene.addText(text);it.setDefaultTextColor(QColor(20,20,20));it.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations,True);it.setPos(self.mapToScene(self.viewport().rect().topLeft()));it.setZValue(100)
+        # The live measures are painted over the view in Greek (plan_overlay.hud_text), not as raw keys.
+        self.viewport().update()

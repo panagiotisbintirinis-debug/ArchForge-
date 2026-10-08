@@ -59,9 +59,9 @@ def _closed_room(doc, prefix, z):
 def test_ui_removes_redundant_front_elevation_tab_but_keeps_pbr_front_camera():
     window = MainWindow()
     central = [window._central_tabs.tabText(i) for i in range(window._central_tabs.count())]
-    assert central == ['2D Σχεδίαση', '3D / Structural']
+    assert central == ['2D Σχεδίαση', '3D / Στατικά']
     labels = [window.tabs.tabText(i) for i in range(window.tabs.count())]
-    assert labels == ['3D Σκηνή', 'Structural']
+    assert labels == ['3D Σκηνή', 'Στατικά']
 
     action_labels = {
         action.text()
@@ -382,7 +382,7 @@ def test_wall_with_hosted_door_can_grow_10cm_and_redraw():
 def test_structure_toolbar_and_shared_structural_tab_exist():
     window=MainWindow()
     labels=[window.tabs.tabText(i) for i in range(window.tabs.count())]
-    assert labels==['3D Σκηνή','Structural']
+    assert labels==['3D Σκηνή','Στατικά']
     assert window.tabs.widget(1) is window.structural_view
 
     toolbar_texts=[
@@ -510,7 +510,7 @@ def test_plan_title_follows_the_active_floor():
     window = MainWindow()
     assert window._plan_title.text() == 'Κάτοψη - Ισόγειο'
     window.stack.execute(CreateFloorLevel('Floor 2', 2.7))
-    assert window._plan_title.text() == 'Κάτοψη - Floor 2'
+    assert window._plan_title.text() == 'Κάτοψη - 1ος όροφος'
     window._undo()
     assert window._plan_title.text() == 'Κάτοψη - Ισόγειο'
     _close_clean(window)
