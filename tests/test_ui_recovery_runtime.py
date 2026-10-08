@@ -88,9 +88,9 @@ def test_recovery_launcher_exists_and_main_window_constructs():
         # Approved mockup shell: 2D plan is the central default editor; the
         # 3D and Structural editors share the second central tab.
         central = window._central_tabs
-        assert [central.tabText(i) for i in range(central.count())] == ['2D Σχεδίαση', '3D / Structural']
+        assert [central.tabText(i) for i in range(central.count())] == ['2D Σχεδίαση', '3D / Στατικά']
         assert central.widget(0).isAncestorOf(window.plan_view)
-        assert [window.tabs.tabText(i) for i in range(window.tabs.count())] == ['3D Σκηνή', 'Structural']
+        assert [window.tabs.tabText(i) for i in range(window.tabs.count())] == ['3D Σκηνή', 'Στατικά']
         assert window.tabs.widget(0) is window.pbr_view
         assert window.tabs.widget(1) is window.structural_view
         assert window.axes_action.isCheckable()

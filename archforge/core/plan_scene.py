@@ -504,7 +504,7 @@ def build_plan_frame(doc,preview=None):
         from archforge.architecture.topology import room_metrics
         for index,face in enumerate(doc.active_room_faces(),start=1):
             m=room_metrics(face.polygon);data=doc.room_metadata(face.signature)
-            name=data.get('name') or f'Room {index}';use=data.get('use','')
+            name=data.get('name') or f'Χώρος {index}';use=data.get('use','')
             label=name+(f' — {use}' if use else '')+f'\n{m["area"]:.2f} m²'
             meta=(('semantic','derived-room'),('signature',face.signature),('wall_ids',face.wall_ids),('area',m['area']),('perimeter',m['perimeter']),('name',name),('use',use))
             f.primitives.append(Primitive2D('polygon',tuple(face.polygon),role='derived-room',meta=meta))

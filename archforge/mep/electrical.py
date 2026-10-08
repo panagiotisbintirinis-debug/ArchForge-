@@ -97,7 +97,7 @@ def _room_of(doc, x, y, floor):
             if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
                 inside = not inside
         if inside:
-            return doc.room_metadata(face.signature).get("name") or f"Room {k + 1}"
+            return doc.room_metadata(face.signature).get("name") or f"Χώρος {k + 1}"
     return None
 
 

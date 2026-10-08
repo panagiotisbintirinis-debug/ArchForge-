@@ -23,6 +23,7 @@ from .plan_view import PlanView
 from .pbr_viewport import PBRViewport
 from .object_properties import property_fields, property_values, property_changes
 from .workspace_docks import WorkspaceDockSpec, install_workspace_dock, add_workspace_toggles
+from .workspace_layout import level_label, param_label
 from .approved_mockup_shell import install_approved_mockup_shell
 
 
@@ -202,9 +203,9 @@ class MainWindow(QMainWindow):
         self.pbr_view.set_snap_enabled(enabled)
         self.structural_view.set_snap_enabled(enabled)
         self.statusBar().showMessage(
-            'Snap ON — wall faces/endpoints/midpoints | Shift = Free | Ctrl = X/Y constraint'
+            'Έλξη ενεργή — γωνίες, άκρα, μέσα και παρειές τοίχων · Shift = ελεύθερα · Ctrl = μόνο X/Y'
             if enabled
-            else 'Snap OFF — Free placement | Ctrl still constrains X/Y',
+            else 'Έλξη ανενεργή — ελεύθερη τοποθέτηση · Ctrl = μόνο X/Y',
             4500,
         )
 
@@ -389,9 +390,9 @@ class MainWindow(QMainWindow):
         toolbar.addSeparator()
 
         self.render_technique = QComboBox()
-        self.render_technique.addItem('PBR', 'pbr')
-        self.render_technique.addItem('Technical', 'technical')
-        self.render_technique.addItem('Glass', 'glass')
+        self.render_technique.addItem('Ρεαλιστικό', 'pbr')
+        self.render_technique.addItem('Τεχνικό', 'technical')
+        self.render_technique.addItem('Γυάλινο', 'glass')
         self.render_technique.currentIndexChanged.connect(
             lambda _index: self.pbr_view.set_render_technique(
                 self.render_technique.currentData()
@@ -977,7 +978,7 @@ class MainWindow(QMainWindow):
         if levels_list is not None:
             levels_list.clear()
             for name, z in _levels(self.doc):
-                item = QListWidgetItem(f'{name}   {z:+.2f} m')
+                item = QListWidgetItem(f'{level_label(name)}   {z:+.2f} m')
                 item.setData(Qt.ItemDataRole.UserRole, name)
                 levels_list.addItem(item)
         materials_list = getattr(self, '_project_materials_list', None)
@@ -1654,15 +1655,23 @@ class MainWindow(QMainWindow):
         self._clear_form()
         self._sync_tree_selection()
         if len(self.doc.selection) != 1:
-            self.form.addRow(QLabel(f'{len(self.doc.selection)} selected'))
+            count = len(self.doc.selection)
+            self.form.addRow(QLabel('Καμία επιλογή' if not count else f'{count} επιλεγμένα'))
+            if not count:
+                hint = QLabel('Κάνε κλικ σε ένα αντικείμενο στην κάτοψη ή στο 3D\nγια να δεις και να αλλάξεις τις ιδιότητές του.')
+                hint.setStyleSheet('color:#5B6778;')
+                self.form.addRow(hint)
             return
         eid = self.doc.selection[0]
         entity = self.doc.get(eid)
-        self.form.addRow('Type', QLabel(entity.kind))
-        self.form.addRow('Name', QLabel(entity.name or entity.kind.title()))
+        from archforge.ui.project_outline import KIND_LABELS
+        self.form.addRow('Τύπος', QLabel(KIND_LABELS.get(entity.kind, entity.kind)))
+        from archforge.ui.project_outline import DISPLAY_NAMES, GENERIC_NAMES
+        shown = DISPLAY_NAMES.get(entity.name, entity.name) if entity.name not in GENERIC_NAMES else ''
+        self.form.addRow('Όνομα', QLabel(shown or KIND_LABELS.get(entity.kind, entity.kind.title())))
         if entity.parent_id and entity.parent_id in self.doc.entities:
             host = self.doc.get(entity.parent_id)
-            self.form.addRow('Host', QLabel(host.name or f'{host.kind.title()} {host.id[:8]}'))
+            self.form.addRow('Ανήκει σε', QLabel(host.name or f'{KIND_LABELS.get(host.kind, host.kind.title())} {host.id[:8]}'))
         params = dict(entity.params)
         if entity.kind == 'room_roof':
             # Roofs saved before the overhang field still get the editor.
@@ -1680,9 +1689,9 @@ class MainWindow(QMainWindow):
                 spin.editingFinished.connect(
                     lambda property_key=key, widget=spin: self._commit_property(eid, property_key, widget.value())
                 )
-                self.form.addRow(key, spin)
+                self.form.addRow(param_label(key), spin)
             elif entity.kind == 'room_floor' and key == 'room_signature':
-                self.form.addRow('Room', QLabel(str(value)))
+                self.form.addRow('Χώρος', QLabel(str(value)))
         if entity.kind == 'plumbing_point' and params.get('point_type') == 'water_supply':
             from archforge.mep.plumbing import DEFAULT_SYSTEM, PIPE_SYSTEMS
             combo = QComboBox()
@@ -2604,7 +2613,7 @@ class MainWindow(QMainWindow):
             name = str(item['name'])
             elevation = float(item['elevation'])
             inferred = bool(item.get('inferred', False))
-            label = f'{name}  ({elevation:.2f} m)'
+            label = f'{level_label(name)}  ({elevation:.2f} m)'
             if inferred:
                 label += ' *'
             self.floor_selector.addItem(label, (name, elevation, inferred))
@@ -2807,7 +2816,7 @@ class MainWindow(QMainWindow):
         if label is None:
             return
         name = self.doc.active_level_name()
-        label.setText('Κάτοψη - ' + ('Ισόγειο' if name in ('Ground', 'XY') else name))
+        label.setText('Κάτοψη - ' + level_label(name))
 
     def _build_assistant_panel(self):
         """Βοηθός: live proposals from rules and solvers over the whole Document (no AI, no network)."""
@@ -3226,6 +3235,9 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         if self._confirm_destructive_action():
+            from .workspace_layout import persistence_enabled, save_layout
+            if persistence_enabled():
+                save_layout(self)       # where the human left the bars and panels
             event.accept()
         else:
             event.ignore()
