@@ -576,6 +576,9 @@ def _payload(doc,node):
  if k=='railing':
   from archforge.architecture.railings import railing_mesh
   v,t,r=railing_mesh(p);return MeshPayload(v,t,r)
+ if k=='drywall_ceiling':
+  from archforge.construction.drywall import ceiling_mesh
+  v,t,r=ceiling_mesh(doc,p);return MeshPayload(v,t,r)
  if k=='terrain':
   from archforge.site.terrain import terrain_mesh
   v,t,r=terrain_mesh(p);return MeshPayload(v,t,r)

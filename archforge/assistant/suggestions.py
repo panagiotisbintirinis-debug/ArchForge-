@@ -125,6 +125,7 @@ def propose(doc, reading=None):
     out += _brief(doc)
     out += _interior_walls(doc)
     out += _isotex(doc)
+    out += _icf(doc)
     out += _structural(doc)
     out += _roofs(doc)
     if any(e.kind == "ventilation_point" for e in doc.entities.values()):
@@ -156,9 +157,11 @@ def _structural(doc):
         if any(e.kind == "wall" for e in doc.entities.values()):
             from archforge.project.brief import get_brief
             timber = get_brief(doc)["floor_system"] == "timber"
-            isotex = str(get_brief(doc)["wall_system"]).startswith("isotex_")
-            return [Proposal("S-4", "info", "Isotex = φέρων οργανισμός: χωρίς κολόνες" if isotex else "Φέρουσα τοιχοποιία: χωρίς κολόνες",
-                             ("Τα Isotex είναι τοιχώματα οπλισμένου σκυροδέματος σε μόνιμο καλούπι ξυλοτσιμέντου: φέρουν τα βάρη "
+            isotex = str(get_brief(doc)["wall_system"]).startswith(("isotex_", "icf_"))
+            system = "ICF" if str(get_brief(doc)["wall_system"]).startswith("icf_") else "Isotex"
+            return [Proposal("S-4", "info", f"{system} = φέρων οργανισμός: χωρίς κολόνες" if isotex else "Φέρουσα τοιχοποιία: χωρίς κολόνες",
+                             (("Τα ICF είναι τοιχώματα οπλισμένου σκυροδέματος σε μόνιμο καλούπι EPS" if system == "ICF" else
+                               "Τα Isotex είναι τοιχώματα οπλισμένου σκυροδέματος σε μόνιμο καλούπι ξυλοτσιμέντου") + ": φέρουν τα βάρη "
                               "και τον σεισμό· οπλισμός τοιχωμάτων, πρέκια και σενάζ από τη στατική μελέτη. " if isotex else
                               "Οι πέτρινοι/συμπαγείς τοίχοι φέρουν τα βάρη. ") + (
                                  "Πατώματα ξύλινα: δοκίδες ανά χώρο (Βοηθός → Διανομή δοκίδων)." if timber else
@@ -280,6 +283,20 @@ def _isotex(doc):
     return [Proposal("I-1", "info", f"Isotex: {t['blocks']} τεμάχια, {t['concrete_m3']} m³ σκυρόδεμα",
                      f"{detail} · {t['net_m2']} m² καθαρού τοίχου σε {t['walls']} τοίχους. «Εφαρμογή» = αναλυτικά ανά τοίχο/όροφο.",
                      r["source"], tuple(w["wall"] for w in r["walls"]), None, run="isotex")]
+
+
+
+def _icf(doc):
+    """I-2: ICF walls drawn — straight / corner blocks and concrete (take-off), shown on «Εφαρμογή»."""
+    if not any(e.kind == "wall" and str(e.params.get("wall_type", "")).startswith("icf_") for e in doc.entities.values()):
+        return []
+    from archforge.construction.icf import take_off_icf
+    r = take_off_icf(doc)
+    t = r["totals"]
+    return [Proposal("I-2", "info", f"ICF: {int(t['blocks'])} ευθέα + {int(t['corner_blocks'])} γωνιακά, {t['concrete_m3']} m³ σκυρόδεμα",
+                     f"{t['net_m2']} m² καθαρού τοίχου σε {t['walls']} τοίχους, κλεισίματα {t['closures_m']} m. "
+                     "«Εφαρμογή» = αναλυτικά ανά τοίχο/όροφο.",
+                     r["source"], tuple(w["wall"] for w in r["walls"]), None, run="icf")]
 
 
 def _update(entity_id, params):

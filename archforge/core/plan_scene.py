@@ -124,7 +124,7 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
     if e.kind=='pod':return abs(float(p.get('floor_level',0.0))-z)<=tolerance
     if e.kind in ('floor','room'):return abs(float(p.get('z',0.0))-z)<=tolerance
     if e.kind=='mep_terminal':return abs(float(p.get('level_z',0.0))-z)<=tolerance
-    if e.kind=='slab_opening' or (e.kind in ('room_floor','room_roof','room_ceiling') and p.get('scope')=='storey'):
+    if e.kind in ('slab_opening','drywall_ceiling') or (e.kind in ('room_floor','room_roof','room_ceiling') and p.get('scope')=='storey'):
         return abs(float(p.get('level_z',0.0))-z)<=tolerance
     if e.kind=='structural_column':
         return str(p.get('base_level',''))==doc.active_level_name() or abs(float(p.get('z',0.0))-z)<=tolerance
@@ -324,6 +324,12 @@ def entity_primitive(doc,eid):
                 ('z',g['z']),
             )+cut,
         )
+    if e.kind=='drywall_ceiling':
+        # Suspended ceiling: above the cut plane, dashed (Greek practice for Ψ/Ο).
+        from archforge.construction.drywall import outline
+        poly=outline(doc,e)
+        if not poly:return None
+        return Primitive2D('polygon',tuple(poly),entity_id=eid,role='drywall-ceiling',meta=(('semantic','drywall_ceiling'),('board',p.get('board','standard'))))
     if e.kind=='slab_opening':
         from archforge.architecture.storey_slabs import opening_polygon
         poly=opening_polygon(doc,e)
@@ -541,6 +547,15 @@ def build_plan_frame(doc,preview=None,layers=True):
             from archforge.architecture.storey_slabs import plan_cross
             for a,b in plan_cross(list(p.points)):
                 f.primitives.append(Primitive2D('line',(a,b),entity_id=eid,role='slab-opening-cross',meta=p.meta))
+        if p and p.role=='drywall-ceiling':
+            # Step of a cove ceiling (dashed inner line) and the level label «Ψ/Ο +2,60».
+            from archforge.construction.drywall import ceiling_level,inner_outline
+            q=doc.get(eid).params
+            inner=inner_outline(list(p.points),float(q.get('cove_width',.30))) if int(q.get('cove',0)) else None
+            if inner:f.primitives.append(Primitive2D('polyline',tuple(inner)+(inner[0],),entity_id=eid,role='drywall-ceiling-step'))
+            xs=[a for a,_b in p.points];ys=[b for _a,b in p.points]
+            text=f"Ψ/Ο +{ceiling_level(doc,q):.2f}".replace('.',',')
+            f.primitives.append(Primitive2D('label',((min(xs)+.08,min(ys)+.30),),entity_id=eid,role='drywall-ceiling-label',meta=(('text',text),)))
         if p and doc.get(eid).kind=='wall' and doc.get(eid).params.get('wall_type','generic')!='generic':
             # Layer boundaries of the wall assembly; insulation drawn dashed.
             from archforge.architecture.wall_types import layer_lines

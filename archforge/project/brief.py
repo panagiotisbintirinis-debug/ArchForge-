@@ -34,6 +34,10 @@ WALL_SYSTEMS = {
 from archforge.construction.isotex import BLOCKS as _ISOTEX, wall_type_of as _isotex_type  # noqa: E402
 for _code, _spec in _ISOTEX.items():
     WALL_SYSTEMS[_isotex_type(_code)] = (_spec[0] + " — φέρουσα", _isotex_type(_code), None, True)
+# ICF: reinforced concrete walls in EPS formwork blocks (load-bearing, no columns).
+from archforge.construction.icf import BLOCKS as _ICF, wall_type_of as _icf_type  # noqa: E402
+for _code, _spec in _ICF.items():
+    WALL_SYSTEMS[_icf_type(_code)] = (_spec[0] + " — φέρων οργανισμός", _icf_type(_code), None, True)
 # interior walls: label, wall type, load-bearing
 INTERIOR_WALLS = {
     "drywall_single": ("Γυψοσανίδα μονή (10 cm)", "drywall_100", False),

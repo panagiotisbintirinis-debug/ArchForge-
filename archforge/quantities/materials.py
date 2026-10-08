@@ -2,7 +2,7 @@
 
 Each list is ``[(description, unit, quantity)]`` (quantity None = from another
 study, e.g. reinforcement from the structural design).  Isotex has its own
-list.  ``write_workbook`` writes them as sheets of one .xlsx whose totals are
+list, and so do ICF and plasterboard (ceilings, stud walls).  ``write_workbook`` writes them as sheets of one .xlsx whose totals are
 Excel formulas (quantity × unit price, SUM).
 """
 from __future__ import annotations
@@ -125,10 +125,15 @@ def kitchen_list(doc):
 
 def all_lists(doc):
     """``[(sheet name, title, rows, notes)]`` for the lists that have quantities."""
+    from archforge.construction.drywall import PROVENANCE as DRYWALL, SOURCES as DRYWALL_SOURCES, drywall_list
+    from archforge.construction.icf import PROVENANCE as ICF, icf_list
     from archforge.construction.isotex import PROVENANCE as ISOTEX
     out = []
     for name, title, rows, notes in (
             ("Isotex", "Λίστα Isotex — τεμάχια, σκυρόδεμα, εργασίες", isotex_list(doc), (ISOTEX,)),
+            ("ICF", "Λίστα ICF — ευθέα και γωνιακά τεμάχια, σκυρόδεμα, εργασίες", icf_list(doc), (ICF,)),
+            ("Γυψοσανίδες", "Γυψοσανίδες — ψευδοροφές CD/UD και τοίχοι CW/UW", drywall_list(doc),
+             (DRYWALL, "Πηγές: " + DRYWALL_SOURCES)),
             ("Επιμέτρηση", "Επιμέτρηση εργασιών (σύνολα έργου)", takeoff_list(doc), ("Ανά χώρο: Κατασκευή → Επιμέτρηση εργασιών.",)),
             ("Αποχέτευση", "Αποχέτευση — σωλήνες και εξαρτήματα", drainage_list(doc), ("Προμελέτη — προς έλεγχο μηχανολόγου.",)),
             ("Φέρων", "Φέρων οργανισμός και θεμελίωση", structure_list(doc), ("Προμελέτη — προς έλεγχο στατικού μηχανικού.",)),

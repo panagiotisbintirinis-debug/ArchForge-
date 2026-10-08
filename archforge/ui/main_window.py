@@ -63,6 +63,8 @@ class MainWindow(QMainWindow):
         self.plan_view.siteLineRequested.connect(self._place_site_line)
         self.plan_view.railingRequested.connect(self._place_railing)
         self.plan_view.slabOpeningRequested.connect(lambda pts: slab_tools.place_opening(self, pts))
+        from archforge.ui import drywall_tools
+        self.plan_view.drywallCeilingRequested.connect(lambda pts: drywall_tools.place_drawn(self, pts))
         # Esc always cancels what is in progress, in 2D and 3D alike.
         self._escape_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
         self._escape_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
@@ -76,6 +78,7 @@ class MainWindow(QMainWindow):
         install_approved_mockup_shell(self)
         self._install_autosave()
         slab_tools.install_menus(self)
+        drywall_tools.install_menus(self)  # Ψευδοροφή γυψοσανίδας, ICF / γυψοσανίδες αναγωγή
         from archforge.ui.layout_assist import install_layout_assist
         install_layout_assist(self)      # «Κουζίνα / Μπάνιο εδώ…» of the Βοηθός
         self._refresh_library_panel()
@@ -750,6 +753,10 @@ class MainWindow(QMainWindow):
         if tool in ('roofroom_tiled', 'roofroom_terrace'):
             self._set_room_roof(tool.split('_', 1)[1], x, y)
             return
+        if tool == 'drywallroom':
+            from archforge.ui.drywall_tools import place_in_room
+            place_in_room(self, x, y)
+            return
         if str(tool).startswith('elec_'):
             self._place_electrical_point(tool[len('elec_'):], x, y)
             return
@@ -1314,7 +1321,9 @@ class MainWindow(QMainWindow):
             ('Δομικά', [(None, [(label, ('structural', tool, preset))
                                 for label, tool, preset in getattr(self, '_structural_presets', ())]),
                         ('Κάγκελα', [(v['label'], ('railing', k)) for k, v in RAILINGS.items()]
-                         + [('Κάγκελο σκάλας (κλικ σε σκάλα)', ('tool', 'railingstair_balusters'))])]),
+                         + [('Κάγκελο σκάλας (κλικ σε σκάλα)', ('tool', 'railingstair_balusters'))]),
+                        ('Ψευδοροφές γυψοσανίδας', [('Ψευδοροφή σε χώρο (κλικ στον χώρο)', ('tool', 'drywallroom')),
+                                                    ('Ψευδοροφή — σχεδίαση (ορθογώνιο/πολύγωνο)', ('tool', 'drywall_ceiling'))])]),
             ('Κουζίνα', [('Ντουλάπια', [(label, ('cabinet', label)) for label in getattr(self, '_kitchen_defs', {})]),
                          ('Συσκευές', by_cat.pop('Συσκευές', []))]),
             ('Έπιπλα', [(cat, by_cat.pop(cat)) for cat in ('Σαλόνι', 'Τραπεζαρία', 'Υπνοδωμάτιο', 'Παιδικό', 'Γραφείο', 'Φωτισμός', 'Διακόσμηση', 'Είσοδος')
@@ -1688,7 +1697,7 @@ class MainWindow(QMainWindow):
             # Roofs saved before the overhang field still get the editor.
             params.setdefault('overhang', 0.0)
         from archforge.architecture.joinery import KEYS as joinery_keys
-        for key, value in (() if entity.kind == 'railing' or slab_tools.is_slab_panel(entity) else params.items()):
+        for key, value in (() if entity.kind in ('railing', 'drywall_ceiling') or slab_tools.is_slab_panel(entity) else params.items()):
             if entity.kind in ('door', 'window') and key in joinery_keys:
                 continue  # Κουφώματα: δικές τους γραμμές (ui/opening_properties.py).
             if isinstance(value, (int, float)):
@@ -1828,6 +1837,9 @@ class MainWindow(QMainWindow):
             add_railing_rows(self, eid)
         if slab_tools.is_slab_panel(entity):
             slab_tools.add_rows(self, eid)
+        if entity.kind == 'drywall_ceiling':
+            from archforge.ui.drywall_tools import add_rows as add_drywall_rows
+            add_drywall_rows(self, eid)
         if entity.kind in ('library_object', 'cabinet'):
             button = QPushButton('Object Modifier…')
             button.setToolTip('Διαστάσεις, υλικά ανά τμήμα και Sculpt του αντικειμένου')
@@ -3152,6 +3164,10 @@ class MainWindow(QMainWindow):
             return
         if p.run == 'isotex':
             self._show_isotex()
+            return
+        if p.run == 'icf':
+            from archforge.ui.drywall_tools import show_icf
+            show_icf(self)
             return
         if p.run == 'design':
             self._design_structure()
