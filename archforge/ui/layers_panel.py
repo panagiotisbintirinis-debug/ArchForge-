@@ -128,7 +128,7 @@ def _panel(window):
         switch.addWidget(button)
     outer.addLayout(switch)
     grid = QGridLayout(); grid.setHorizontalSpacing(6); grid.setVerticalSpacing(2)
-    for col, text in enumerate(('Layer', 'Ορατό', 'Κλείδωμα', 'Αχνό', '')):
+    for col, text in enumerate(('Κατηγορία', 'Ορατό', 'Κλείδωμα', 'Αχνό', '')):
         head = QLabel(f'<b>{text}</b>'); grid.addWidget(head, 0, col)
     rows = {}
     tips = {'visible': 'Φαίνεται στην κάτοψη και στο 3D', 'locked': 'Φαίνεται αλλά δεν επιλέγεται και δεν αλλάζει',
@@ -173,7 +173,7 @@ def _environment_bar(window):
     add('structure', 'Κολόνα', lambda: window._set_active_tool('structural_column'), 'Κλικ στην κάτοψη για κολόνα')
     add('structure', 'Δοκός', lambda: window._set_active_tool('structural_beam'), 'Σύρε από κολόνα σε κολόνα')
     add('structure', 'Πρόταση φέροντος', lambda: window._propose_frame(), 'Κολόνες και δοκοί από τους τοίχους (ένα undo)')
-    add('structure', 'Πέδιλα & υπολογισμός', lambda: window._design_structure(), 'Κολόνες, δοκοί, πέδιλα, συνδετήριες (ένα undo)')
+    add('structure', 'Πέδιλα && υπολογισμός', lambda: window._design_structure(), 'Κολόνες, δοκοί, πέδιλα, συνδετήριες (ένα undo)')
     add('structure', 'Στατική', lambda: window._show_structural_analysis(), 'Στατική ανάλυση φέροντος οργανισμού')
     for attr, label in (('_mockup_plumbing_menu', 'Υδραυλικά'), ('_mockup_electrical_menu', 'Ηλεκτρολογικά'),
                         ('_mockup_drainage_menu', 'Αποχετεύσεις'), ('_mockup_ventilation_menu', 'Εξαερισμοί')):
@@ -192,10 +192,25 @@ def install_layers(window):
     """Environment bar + Layers panel; returns them so the shell lays them out with the others."""
     L.ensure_view_layers(window.doc)
     bar = _environment_bar(window)
-    window.addToolBar(Qt.ToolBarArea.TopToolBarArea, bar)
+    second_row = getattr(window, '_mockup_floor_bar', None)
+    if second_row is not None:
+        # First row, next to the drawing tools: the second row is full on a laptop screen.
+        window.removeToolBarBreak(second_row)
+        window.insertToolBar(second_row, bar)
+        window.insertToolBarBreak(second_row)
+    else:
+        window.addToolBar(Qt.ToolBarArea.TopToolBarArea, bar)
     dock = QDockWidget('Layers', window); dock.setObjectName('layers_panel')
     dock.setWidget(_panel(window))
     window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
+    bars_menu = getattr(window, '_toolbars_menu', None)
+    if bars_menu is not None:
+        toggle = bar.toggleViewAction(); toggle.setText(bar.windowTitle())
+        first = bars_menu.actions()[4] if len(bars_menu.actions()) > 4 else None
+        bars_menu.insertAction(first, toggle) if first is not None else bars_menu.addAction(toggle)
+    lock = getattr(window, '_toolbars_lock_action', None)
+    if lock is not None:
+        lock.toggled.connect(lambda on: bar.setMovable(not on))
     window._layers_dock = dock
     window._workspace_bar = bar
     window._set_workspace = lambda name: set_workspace(window, name)
