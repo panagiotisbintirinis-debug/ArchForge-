@@ -192,6 +192,9 @@ class PlanView(QGraphicsView):
             eid=self._entity_items.get(hit)
             if eid:self.doc.select([eid],add=bool(event.modifiers()&Qt.KeyboardModifier.ControlModifier))
             elif not(event.modifiers()&Qt.KeyboardModifier.ControlModifier):self.doc.select([])
+            # Pressing on a wall's body: a drag moves it perpendicular to its axis (wall_edit.py).
+            ev=self._scene_to_plane(event.position().toPoint())
+            self._wall_press=(eid,ev.a,ev.b,event.position()) if eid and self.doc.get(eid).kind=='wall' and not(event.modifiers()&Qt.KeyboardModifier.ControlModifier) else None
             self.selectionChangedByView.emit();self.redraw();return
         elif self.controller.tool=='move':
             if not self._acquire_move_target(hit):self._mouse_down=False;self.redraw();return
@@ -219,6 +222,11 @@ class PlanView(QGraphicsView):
             self._railing_draft.move(ev.a,ev.b,bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier));self.redraw();return
         if self._mouse_down and getattr(self,'_view_drag',None):
             ev=self._scene_to_plane(event.position().toPoint());self.move_view_line(ev.a,ev.b);return
+        press=getattr(self,'_wall_press',None)
+        if self._mouse_down and press and self.controller.active is None and (event.position()-press[3]).manhattanLength()>6:
+            try:self.controller.begin_wall_move(press[0],press[1],press[2])
+            except ValueError as exc:self.statusChanged.emit(str(exc))
+            self._wall_press=None
         if self._mouse_down and self.controller.active is not None:
             ev=self._scene_to_plane(event.position().toPoint())
             ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
@@ -226,7 +234,9 @@ class PlanView(QGraphicsView):
             try:
                 self.controller.pointer_move(ev);self.redraw()
                 problem=getattr(self.controller.active,'problem',None)
-                if problem:self.statusChanged.emit(f'⚠ Δεν χωράει: {problem} — μετακίνησε ή άλλαξε πλάτος')
+                if self.controller.preview.kind=='wall-move':
+                    self.statusChanged.emit(f'⚠ {problem}' if problem else f'Μετακίνηση τοίχου {self.controller.active.distance*100:+.0f} cm — αφήνεις για να γίνει · Esc = ακύρωση')
+                elif problem:self.statusChanged.emit(f'⚠ Δεν χωράει: {problem} — μετακίνησε ή άλλαξε πλάτος')
             except ValueError as exc:self.statusChanged.emit(str(exc))
         else:
             p=self.mapToScene(event.position().toPoint());self.statusChanged.emit(f'X {p.x():.3f}   Y {p.y():.3f}')
@@ -236,21 +246,29 @@ class PlanView(QGraphicsView):
             self._mouse_down=False;ev=self._scene_to_plane(event.position().toPoint())
             self.end_view_line(ev.a,ev.b);event.accept();return
         if event.button()==Qt.MouseButton.LeftButton and self._mouse_down:
-            self._mouse_down=False
+            self._mouse_down=False;self._wall_press=None
             if self.controller.active is not None:
                 ev=self._scene_to_plane(event.position().toPoint())
                 ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
                 ev.ctrl=bool(event.modifiers()&Qt.KeyboardModifier.ControlModifier)
-                try:self.controller.pointer_up(ev)
+                moved_wall=getattr(self.controller.active,'distance',None) if self.controller.preview.kind=='wall-move' else None
+                try:
+                    self.controller.pointer_up(ev)
+                    if getattr(self.controller,'last_warning',None):self.statusChanged.emit(self.controller.last_warning)
                 except ValueError as exc:self.statusChanged.emit(str(exc));self.controller.cancel()
-                self._active_handle=None;self.redraw();return
+                self._active_handle=None;self.redraw()
+                if moved_wall is not None:
+                    self.selectionChangedByView.emit()
+                    if self.controller.preview.kind!='wall-move' and abs(moved_wall)>1e-9:
+                        self.statusChanged.emit(f'Ο τοίχος μετακινήθηκε {moved_wall*100:+.0f} cm — μαζί οι ενωμένοι τοίχοι, πόρτες/παράθυρα και ό,τι ακουμπά πάνω του · Ctrl+Z = αναίρεση')
+                return
         super().mouseReleaseEvent(event)
     def focusNextPrevChild(self,next):
         # Tab cycles Stair/Ramp options instead of moving keyboard focus.
         if self.controller.tool in ('stair','ramp') and self.controller.active is not None:return False
         return super().focusNextPrevChild(next)
     def keyPressEvent(self,event):
-        if event.key()==Qt.Key.Key_Escape:self.controller.cancel();self._mouse_down=False;self._railing_draft=None;self.redraw();return
+        if event.key()==Qt.Key.Key_Escape:self.controller.cancel();self._mouse_down=False;self._wall_press=None;self._railing_draft=None;self.redraw();return
         if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self._railing_tool():self.finish_railing();event.accept();return
         if event.key() in (Qt.Key.Key_Tab,Qt.Key.Key_Space) and self.controller.cycle_option(1):
             self.redraw();event.accept();return
@@ -585,6 +603,10 @@ class PlanView(QGraphicsView):
         if p.role in ('drain','drain-node','drain-stack','drainage-point'):
             pen=QPen(QColor(150,80,30));pen.setWidthF(max(.015,float(dict(p.meta).get('diameter',50))/2500.) if p.role=='drain' else .015)
             if p.role=='drain' and dict(p.meta).get('kind')=='branch':pen.setStyle(Qt.PenStyle.DashLine)
+        if p.role=='wall-move-opening':
+            pen=QPen(QColor(180,90,20,170));pen.setWidthF(.07)
+        if p.role=='wall-move-arrow':
+            pen=QPen(QColor(20,110,220));pen.setWidthF(.025);pen.setStyle(Qt.PenStyle.DashLine)
         if p.role=='angle-arc':
             # Corner mark: blue on a magnet (90/45/15), grey for a free angle.
             pen=QPen(QColor(20,110,220) if dict(p.meta).get('magnet') else QColor(120,120,120));pen.setWidthF(.02)
@@ -628,7 +650,12 @@ class PlanView(QGraphicsView):
                 QBrush(QColor(160,160,160,14) if context else QColor(170,120,210,30))
             )
         elif p.kind=='label':
-            meta=dict(p.meta);text=str(meta.get('text',''));cx,cy=p.points[0];item=self._scene.addText(text);item.setDefaultTextColor(QColor(55,80,65));item.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations,True);item.setPos(cx,cy);item.setTransformOriginPoint(item.boundingRect().center());item.setScale(1.0);item.setZValue(8);return
+            meta=dict(p.meta);text=str(meta.get('text',''));cx,cy=p.points[0];item=self._scene.addText(text);item.setDefaultTextColor(QColor(55,80,65))
+            if p.role=='wall-move-label':
+                # Distance of a dragged wall: blue and bold, like the angle mark.
+                f=item.font();f.setBold(True);f.setPointSizeF(f.pointSizeF()*1.25);item.setFont(f)
+                item.setDefaultTextColor(QColor(210,40,40) if text.startswith('⚠') else QColor(20,110,220))
+            item.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations,True);item.setPos(cx,cy);item.setTransformOriginPoint(item.boundingRect().center());item.setScale(1.0);item.setZValue(8);return
         if item is not None:
             container=bool(p.entity_id) and p.entity_id in self.doc.entities and self.doc.get(p.entity_id).kind in self.CONTAINER_KINDS
             item.setZValue(-20 if context else (-10 if room else (10 if opening else (20 if preview else (-5 if container else 0)))))
