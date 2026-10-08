@@ -71,6 +71,7 @@ class MainWindow(QMainWindow):
         self._build_view_menu()
         self._build_inspector()
         install_approved_mockup_shell(self)
+        self._install_autosave()
         self._refresh_library_panel()
         if not os.environ.get('PYTEST_CURRENT_TEST'):
             # First run builds the shipped core library in the background.
@@ -3162,6 +3163,9 @@ class MainWindow(QMainWindow):
         return entity
 
     def _on_document_changed(self):
+        if getattr(self, 'autosave', None) is not None:
+            self.autosave.note_change()
+            self.setWindowModified(True)
         self._schedule_assistant_refresh()
         self._update_plan_title()
         self._refresh_project_tree()
@@ -3210,8 +3214,8 @@ class MainWindow(QMainWindow):
             return True
         choice = QMessageBox.warning(
             self,
-            'Unsaved changes',
-            'The current project has unsaved changes. Save them before continuing?',
+            'Μη αποθηκευμένες αλλαγές',
+            'Το έργο έχει αλλαγές που δεν έχουν αποθηκευτεί. Να αποθηκευτούν πριν συνεχίσεις;',
             QMessageBox.StandardButton.Save
             | QMessageBox.StandardButton.Discard
             | QMessageBox.StandardButton.Cancel,
@@ -3226,6 +3230,8 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         if self._confirm_destructive_action():
+            if getattr(self, 'autosave', None) is not None:
+                self.autosave.shutdown()     # normal close: no recovery file left
             event.accept()
         else:
             event.ignore()
@@ -3238,6 +3244,10 @@ class MainWindow(QMainWindow):
             view.rebind(self.doc, self.stack)
         self.current_path = path
         self._mark_clean()
+        if getattr(self, 'autosave', None) is not None:
+            self.autosave.discard()
+            self._update_window_title()
+        self._refresh_project_tree()     # opened / recovered project: its own tree and name
         self._refresh_floor_selector()
         self._redraw_views(all_views=True)
         self.refresh_inspector()
@@ -3504,28 +3514,181 @@ class MainWindow(QMainWindow):
         if not path.lower().endswith('.archforge'):
             path += '.archforge'
         try:
-            self.doc.save(path)
+            # Backup of the previous file (.bak, last 3), then an atomic write.
+            from archforge.project.persistence import save_project
+            save_project(self.doc, path)
         except Exception as exc:
-            QMessageBox.critical(self, 'Save failed', str(exc))
+            QMessageBox.critical(self, 'Η αποθήκευση απέτυχε',
+                                 f'Το έργο δεν αποθηκεύτηκε στο «{os.path.basename(path)}».\n{exc}\n\n'
+                                 'Το προηγούμενο αρχείο έμεινε όπως ήταν.')
             return False
         self.current_path = path
         self._mark_clean()
-        self.statusBar().showMessage(f'Saved {os.path.basename(path)}', 3000)
+        if getattr(self, 'autosave', None) is not None:
+            self.autosave.discard()
+            self._update_window_title()
+        self.statusBar().showMessage(f'Αποθηκεύτηκε: {os.path.basename(path)}', 3000)
         return True
 
-    def open(self):
-        path, _ = QFileDialog.getOpenFileName(self, 'Open ArchForge Project', '', 'ArchForge Project (*.archforge)')
+    def open(self, path=None):
+        if not path:
+            path, _ = QFileDialog.getOpenFileName(
+                self, 'Άνοιγμα έργου ArchForge', '',
+                'Έργο ArchForge (*.archforge);;Αντίγραφα ασφαλείας (*.bak *.bak2 *.bak3)')
         if not path:
             return False
         if not self._confirm_destructive_action():
             return False
+        return self._open_checked(path)
+
+    # ------------------------------------------------ project file check, autosave, recovery
+    def _open_checked(self, path, project_path=None):
+        """Open with the file check: a bad file never crashes, the human sees what was loaded."""
+        from archforge.project.persistence import ProjectFileError, load_project
+        project_path = project_path or path
+        for suffix in ('.bak', '.bak2', '.bak3'):
+            # Opening a backup directly: saving goes back to the project it belongs to.
+            if project_path == path and path.endswith('.archforge' + suffix):
+                project_path = path[:-len(suffix)]
         try:
-            doc = Document.load(path)
-        except Exception as exc:
-            QMessageBox.critical(self, 'Open failed', str(exc))
-            return False
-        self._replace_project(doc, path)
+            report = load_project(path)
+        except ProjectFileError as exc:
+            return self._offer_backup(project_path, str(exc), exclude=path)
+        self._replace_project(report.doc, project_path)
+        if project_path != path or not report.ok:
+            self._clean_state = None     # differs from the file on disk: «μη αποθηκευμένο»
+            self.setWindowModified(True)
+        if not report.ok:
+            self._offer_backup(project_path, report.message(), exclude=path, loaded=True)
+        elif report.notes:
+            self._show_message(QMessageBox.Icon.Information, 'Έλεγχος αρχείου έργου', report.message())
+        where = f' — η αποθήκευση γράφει στο {os.path.basename(project_path)}' if project_path != path else ''
+        self.statusBar().showMessage(f'Άνοιξε: {os.path.basename(path)} · {report.loaded} στοιχεία{where}', 6000)
         return True
+
+    def _offer_backup(self, project_path, message, exclude=None, loaded=False):
+        """The file check found a problem: say what, and offer the newest backup."""
+        import datetime
+        from archforge.project.persistence import existing_backups
+        backups = [p for p in existing_backups(project_path) if p != exclude]
+        box = QMessageBox(QMessageBox.Icon.Warning, 'Έλεγχος αρχείου έργου', message, parent=self)
+        backup_button = None
+        if backups:
+            when = datetime.datetime.fromtimestamp(os.path.getmtime(backups[0])).strftime('%d/%m/%Y %H:%M')
+            box.setInformativeText(f'Υπάρχει αντίγραφο ασφαλείας από {when}.')
+            backup_button = box.addButton('Άνοιγμα αντιγράφου ασφαλείας', QMessageBox.ButtonRole.AcceptRole)
+        box.addButton('Συνέχεια με ό,τι φορτώθηκε' if loaded else 'Κλείσιμο', QMessageBox.ButtonRole.RejectRole)
+        self._file_check_box = box
+        if getattr(self, '_no_modal_dialogs', False):
+            return loaded
+        box.exec()
+        if backup_button is not None and box.clickedButton() is backup_button:
+            return self._open_checked(backups[0], project_path)
+        return loaded
+
+    def _show_message(self, icon, title, text):
+        box = QMessageBox(icon, title, text, parent=self)
+        self._file_check_box = box
+        if not getattr(self, '_no_modal_dialogs', False):
+            box.exec()
+
+    def _install_autosave(self):
+        from .autosave import Autosave
+        # Tests build many windows; they switch autosave on explicitly with their own data folder.
+        self.autosave = Autosave(self, enabled=not os.environ.get('PYTEST_CURRENT_TEST'))
+        self.recover_action = QAction('Ανάκτηση μη αποθηκευμένης εργασίας…', self)
+        self.recover_action.triggered.connect(lambda: self._offer_recovery(manual=True))
+        self.autosave_action = QAction('', self)
+        self.autosave_action.triggered.connect(self._edit_autosave_interval)
+        self._update_autosave_action()
+        self._update_window_title()
+        menu = getattr(self, '_mockup_menus', {}).get('Αρχείο')
+        if menu is not None:
+            menu.addSeparator()
+            menu.addAction(self.recover_action)
+            menu.addAction(self.autosave_action)
+        if self.autosave.enabled:
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(800, self._offer_recovery)
+
+    def _update_window_title(self):
+        """«ArchForge — έργο.archforge*»: which file, and whether it has unsaved work."""
+        name = os.path.basename(self.current_path) if self.current_path else 'Νέο έργο'
+        self.setWindowTitle(f'ArchForge — {name}[*]')
+        self.setWindowModified(self._clean_state is None or self._is_dirty())
+
+    def _update_autosave_action(self):
+        minutes = self.autosave.minutes
+        self.autosave_action.setText(
+            f'Αυτόματη αποθήκευση: κάθε {minutes:g} λεπτά…'.replace('.', ',', 1) if minutes > 0 else 'Αυτόματη αποθήκευση: ανενεργή…')
+
+    def _edit_autosave_interval(self):
+        minutes, ok = QInputDialog.getInt(
+            self, 'Αυτόματη αποθήκευση',
+            'Κάθε πόσα λεπτά να κρατιέται αντίγραφο ανάκτησης (0 = ποτέ);\n'
+            f'Επίσης μετά από κάθε {self.autosave.every_commands} ενέργειες.',
+            int(round(self.autosave.minutes)), 0, 60)
+        if ok:
+            self.autosave.set_minutes(minutes)
+            self._update_autosave_action()
+
+    def _ask_recovery(self, info):
+        """Greek question for one recovery file: 'recover', 'discard' or 'later'."""
+        box = QMessageBox(QMessageBox.Icon.Question, 'Ανάκτηση εργασίας',
+                          f'Βρέθηκε μη αποθηκευμένη εργασία από {info.when}\n'
+                          f'(έργο: {info.project_name}'
+                          + (f', {info.entity_count} στοιχεία' if info.entity_count is not None else '') + ').\n\n'
+                          'Το πρόγραμμα δεν έκλεισε κανονικά. Να ανακτηθεί;', parent=self)
+        recover = box.addButton('Ανάκτηση', QMessageBox.ButtonRole.AcceptRole)
+        discard = box.addButton('Απόρριψη', QMessageBox.ButtonRole.DestructiveRole)
+        box.addButton('Άνοιγμα αργότερα', QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(recover)
+        box.setInformativeText('Ανάκτηση: συνεχίζεις από εκεί που έμεινες (μετά «Αποθήκευση»).\n'
+                               'Απόρριψη: η εργασία αυτή διαγράφεται.\n'
+                               'Άνοιγμα αργότερα: κρατιέται — Αρχείο → Ανάκτηση μη αποθηκευμένης εργασίας.')
+        self._recovery_box = box
+        box.exec()
+        clicked = box.clickedButton()
+        return 'recover' if clicked is recover else 'discard' if clicked is discard else 'later'
+
+    def _offer_recovery(self, manual=False):
+        """On start (or from the File menu): offer work a crashed session left behind."""
+        from archforge.project.persistence import ProjectFileError, load_project_data
+        found = self.autosave.pending_recoveries()
+        if not found:
+            if manual:
+                self._show_message(QMessageBox.Icon.Information, 'Ανάκτηση εργασίας',
+                                   'Δεν υπάρχει μη αποθηκευμένη εργασία για ανάκτηση.')
+            return None
+        info = found[0]
+        for other in found[1:]:
+            self.autosave.release(other)     # offered one at a time, newest first
+        choice = self._ask_recovery(info)
+        if choice == 'recover':
+            if not self._confirm_destructive_action():
+                self.autosave.release(info)
+                return 'later'
+            try:
+                report = load_project_data(info.read_document_data(), info.path)
+            except ProjectFileError as exc:
+                self.autosave.release(info)
+                self._show_message(QMessageBox.Icon.Warning, 'Ανάκτηση εργασίας', str(exc))
+                return 'failed'
+            self._replace_project(report.doc, info.project_path)
+            # Recovered work is not in the project file yet: «μη αποθηκευμένο», same file name.
+            self._clean_state = None
+            self.setWindowModified(True)
+            self.autosave.drop(info)
+            self.autosave.save_now()         # this session now holds the recovered work
+            self.statusBar().showMessage(
+                f'Ανακτήθηκε η εργασία από {info.when} — αποθήκευσε για να γραφτεί στο έργο', 6000)
+            if not report.ok:
+                self._show_message(QMessageBox.Icon.Warning, 'Ανάκτηση εργασίας', report.message())
+        elif choice == 'discard':
+            self.autosave.drop(info)
+        else:
+            self.autosave.release(info)
+        return choice
 
     def export_stl(self):
         from archforge.geometry.fabrication import export_document_stl

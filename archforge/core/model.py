@@ -1284,8 +1284,22 @@ class Document:
         }
 
     @classmethod
-    def from_dict(cls, data):
+    def from_dict(cls, data, skipped=None):
+        # With a ``skipped`` list, an entity or surface modifier that fails
+        # its schema is reported there and left out instead of aborting the
+        # whole load (project file check on open, project/persistence.py).
         doc = cls()
+
+        def add(raw):
+            if skipped is None:
+                doc.add(Entity(**raw))
+                return
+            try:
+                doc.add(Entity(**raw))
+            except Exception as exc:
+                raw = raw if isinstance(raw, dict) else {}
+                skipped.append({'kind': str(raw.get('kind', '')), 'id': str(raw.get('id', '')),
+                                'name': str(raw.get('name', '')), 'reason': str(exc)})
         doc.levels = data.get('levels', {'Ground': 0.0})
         wp = data.get('work_plane')
         if wp:
@@ -1304,18 +1318,24 @@ class Document:
             if raw.get('kind') in ('door', 'window', 'opening', 'structural_support', 'structural_load', 'organic_opening_patch', 'mechanical_joint', 'mechanical_mount'):
                 deferred.append(raw)
             else:
-                doc.add(Entity(**raw))
+                add(raw)
         for raw in [r for r in deferred if r.get('kind') in ('door', 'window', 'opening', 'structural_support', 'structural_load')]:
-            doc.add(Entity(**raw))
+            add(raw)
         for raw in [r for r in deferred if r.get('kind') not in ('door', 'window', 'opening', 'structural_support', 'structural_load')]:
-            doc.add(Entity(**raw))
+            add(raw)
         for source, deps in data.get('dependencies', {}).items():
             for dep in deps:
                 if source in doc.entities and dep in doc.entities and dep not in doc.dependencies.get(source, set()):
                     doc.add_dependency(source, dep)
         from .modifiers import modifier_from_dict
         for raw in data.get('surface_modifiers', []):
-            doc.add_surface_modifier(modifier_from_dict(raw))
+            try:
+                doc.add_surface_modifier(modifier_from_dict(raw))
+            except Exception as exc:
+                if skipped is None:
+                    raise
+                skipped.append({'kind': 'surface_modifier', 'id': str(raw.get('id', '')) if isinstance(raw, dict) else '',
+                                'name': '', 'reason': str(exc)})
         doc.dirty.clear()
         doc._dirty_generation.clear()
         doc._change_serial = 0
