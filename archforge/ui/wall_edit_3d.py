@@ -5,7 +5,8 @@ wall, for openings).  Every rule is the plan's own: drawing runs the same
 ``PointerController`` wall tool (type from the project questions, interior walls,
 dimension reference when a space closes), an end handle runs the plan's stretch
 (``ConnectedWallEndpointStretchTransaction`` — joined walls follow), the middle handle
-moves the wall with ``MoveTransaction`` along its normal, the top handle sets the height
+moves the wall with the plan's ``WallMoveTransaction`` -> ``MoveWall`` (perpendicular to
+its axis; joined walls stretch, openings and objects against it ride along), the top handle sets the height
 with ``VerticalStretchTransaction``.  One gesture = one command = one undo; previews are
 plain dicts for the WebGL overlay and never touch the Document.
 
@@ -18,7 +19,8 @@ import copy
 import json
 import math
 
-from archforge.core.interaction import MoveTransaction, OpeningPlaceTransaction, VerticalStretchTransaction
+from archforge.architecture.wall_edit import WallMoveTransaction
+from archforge.core.interaction import OpeningPlaceTransaction, VerticalStretchTransaction
 from archforge.core.snapping import best_snap
 from archforge.core.viewport import PointerController, PointerEvent
 from archforge.core.wall_top_3d import vertical_height_from_ray
@@ -212,7 +214,10 @@ class Wall3DEditor:
 
     def handles_payload(self):
         wall = self.selected_wall()
-        return {"handles": self.handles(), "entity_id": wall.id if wall is not None else "", "floor_z": self.floor_z}
+        ids = [eid for eid in self.doc.selection if eid in self.doc.entities]
+        # 'selected': what Delete removes when the key lands in the 3D page.
+        return {"handles": self.handles(), "entity_id": wall.id if wall is not None else "", "floor_z": self.floor_z,
+                "selected": ids[0] if len(ids) == 1 else ""}
 
     def handle_down(self, handle, x, y, pxm=None):
         if self._edit is not None:
@@ -233,12 +238,8 @@ class Wall3DEditor:
             self._edit = edit
             ctl.pointer_down(self._ev(x, y))
         elif handle == "mid":
-            dx, dy = float(p["x2"]) - float(p["x1"]), float(p["y2"]) - float(p["y1"])
-            length = math.hypot(dx, dy) or 1.0
-            edit["normal"] = (-dy / length, dx / length)
-            edit["origin"] = (float(x), float(y))
-            edit["tx"] = MoveTransaction(self.doc, self.stack, [wall.id], origin=(float(x), float(y), self.floor_z))
-            edit["offset"] = 0.0
+            # The plan's own wall move (W2): one MoveWall, everything joined follows.
+            edit["tx"] = WallMoveTransaction(self.doc, self.stack, wall.id, float(x), float(y), step=MOVE_STEP)
             self._edit = edit
         else:
             edit["tx"] = VerticalStretchTransaction(self.doc, self.stack, wall.id)
@@ -256,13 +257,8 @@ class Wall3DEditor:
                 ev = self._ev(x, y, shift)
                 edit["ctl"].pointer_move(ev)
             elif handle == "mid":
-                nx, ny = edit["normal"]
-                ox, oy = edit["origin"]
-                d = (float(x) - ox) * nx + (float(y) - oy) * ny
-                if snap:
-                    d = round(d / MOVE_STEP) * MOVE_STEP
-                edit["offset"] = d
-                edit["tx"].update_delta(d * nx, d * ny)
+                edit["tx"].step = MOVE_STEP if snap else 0.01
+                edit["tx"].update(x, y)
             else:
                 p = self.doc.get(edit["eid"]).params
                 base = float(p.get("z", 0.0))
@@ -293,11 +289,11 @@ class Wall3DEditor:
             text = f"Μήκος {metres(math.hypot(p['x2'] - p['x1'], p['y2'] - p['y1']))}"
         elif handle == "mid":
             tx = edit["tx"]
-            if abs(tx.dx) < 1e-12 and abs(tx.dy) < 1e-12:
+            if abs(tx.distance) < 1e-9 or tx.problem:
                 tx.cancel()
-                return self._ghost()
+                return self._ghost(status=f"⚠ {tx.problem}" if tx.problem else None)
             tx.commit()
-            text = f"Παράλληλη μετακίνηση {metres(abs(edit['offset']))}"
+            text = f"Παράλληλη μετακίνηση {metres(abs(tx.distance))}"
         else:
             tx = edit["tx"]
             if not _changed(tx.before, tx.preview):
@@ -334,11 +330,21 @@ class Wall3DEditor:
             marker = {"pos": [p[f"x{n}"], p[f"y{n}"], float(p["z"])], "kind": "end"}
             return self._ghost(walls, marker, label, status=status)
         tx = edit["tx"]
-        p = tx.preview[edit["eid"]] if handle == "mid" else tx.preview
+        if handle == "mid":
+            plan = tx.preview()
+            walls = []
+            for wid, q in plan["walls"].items():
+                full = dict(self.doc.get(wid).params)
+                full.update(q)
+                walls.append(_wall_box(full, "bad" if plan["problem"] else "edit"))
+            p = self.doc.get(edit["eid"]).params
+            text = f"Μετατόπιση {metres(abs(plan['distance']))}" + (f" — {plan['problem']}" if plan["problem"] else "")
+            label = {"text": text, "pos": [plan["to"][0], plan["to"][1], float(p["z"]) + float(p["height"]) + 0.25]}
+            return self._ghost(walls, None, label, status=status)
+        p = tx.preview
         mx, my = (p["x1"] + p["x2"]) / 2, (p["y1"] + p["y2"]) / 2
         top = float(p["z"]) + float(p["height"])
-        text = (f"Μετατόπιση {metres(abs(edit['offset']))}" if handle == "mid"
-                else f"Ύψος {metres(p['height'])}")
+        text = f"Ύψος {metres(p['height'])}"
         return self._ghost([_wall_box(p, "edit")], None, {"text": text, "pos": [mx, my, top + 0.25]}, status=status)
 
     # -- door / window ghost on a wall ------------------------------------------

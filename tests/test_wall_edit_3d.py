@@ -153,6 +153,31 @@ def test_dragging_the_middle_moves_the_wall_parallel_only():
     assert not ed.handle_up().get('committed')      # no move, no undo step
 
 
+def test_middle_drag_is_the_plans_move_wall_joined_walls_stretch_in_one_undo():
+    doc = Document(); st = CommandStack(doc)
+    ids = _box(st)                            # front wall (0,0)-(6,0), sides join it
+    ed = Wall3DEditor(doc, st)
+    doc.select([ids[0]])
+    ed.handle_down('mid', 3.0, 0.0)
+    g = ed.handle_move(3.0, -1.0)
+    assert len(g['walls']) >= 3 and g['label']['text'].startswith('Μετατόπιση 1,00 m')
+    ed.handle_up()
+    assert doc.get(ids[0]).params['y1'] == pytest.approx(-1.0)
+    assert doc.get(ids[1]).params['y1'] == pytest.approx(-1.0) and doc.get(ids[3]).params['y2'] == pytest.approx(-1.0)
+    st.undo()
+    assert doc.get(ids[1]).params['y1'] == pytest.approx(0.0) and doc.get(ids[0]).params['y1'] == pytest.approx(0.0)
+
+
+def test_drawing_a_partition_in_3d_splits_the_wall_it_ends_on():
+    doc = Document(); st = CommandStack(doc)
+    _box(st)
+    ed = Wall3DEditor(doc, st)
+    ed.click(3.0, 0.0); ed.click(3.0, 4.0); ed.finish()
+    assert len(_walls(doc)) == 7                 # 4 + partition, front and back split at its axis
+    st.undo()
+    assert len(_walls(doc)) == 4
+
+
 def test_top_handle_sets_height_from_the_camera_ray_in_5cm_steps():
     doc = Document(); st = CommandStack(doc)
     w = Entity('wall', {'x1': 0.0, 'y1': 0.0, 'x2': 4.0, 'y2': 0.0, 'z': 0.0, 'height': 2.7, 'thickness': 0.2})

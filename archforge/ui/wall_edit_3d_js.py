@@ -19,6 +19,7 @@ const wallHandleRoot = new THREE.Group();
 wallHandleRoot.name = "wall-handles";
 scene.add(wallHandleRoot);
 const wallLabel = document.createElement("div");
+wallLabel.id = "wallLabel";
 wallLabel.style.cssText = "position:fixed;display:none;transform:translate(-50%,-100%);padding:3px 9px;border-radius:9px;" +
   "background:rgba(32,41,53,.88);color:#fff;font:600 13px Segoe UI,Arial,sans-serif;white-space:nowrap;pointer-events:none;z-index:30";
 document.body.appendChild(wallLabel);
@@ -26,6 +27,7 @@ const WALL_COLORS = {draw: 0x2f9cff, edit: 0xffa21f, ok: 0x35c26b, bad: 0xe0453a
 const OPENING_TOOLS = new Set(["door", "window", "opening_rect", "opening_arch"]);
 let wallFloorZ = 0;
 let wallDrawing = false;
+let wallSelectedId = "";
 let wallLabelPos = null;
 let wallOpeningLabel = null;
 let wallDrag = null;
@@ -66,7 +68,8 @@ function wallBoxMesh(box, opacity) {
   const geometry = new THREE.BoxGeometry(length, Math.max(0.01, box.thickness), Math.max(0.01, box.height));
   const material = new THREE.MeshStandardMaterial({
     color: WALL_COLORS[box.color] || WALL_COLORS.draw, roughness: 0.5, metalness: 0.0,
-    transparent: true, opacity: opacity, depthWrite: false
+    transparent: true, opacity: opacity, depthWrite: false,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2   // no flicker on the wall it covers
   });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.position.set((box.x1 + box.x2) / 2, (box.y1 + box.y2) / 2, box.z + box.height / 2);
@@ -94,6 +97,7 @@ window.archforgeSetWallGhost = function(payload) {
   payload = payload || {};
   if (payload.floor_z !== undefined) wallFloorZ = Number(payload.floor_z) || 0;
   wallDrawing = !!payload.drawing;
+  if (!payload.editing && !wallDrag) wallHandleRoot.visible = true;
   for (const box of payload.walls || []) {
     const mesh = wallBoxMesh(box, 0.55);
     if (mesh) wallGhostRoot.add(mesh);
@@ -113,7 +117,9 @@ window.archforgeSetOpeningGhost = function(opening) {
 
 window.archforgeSetWallHandles = function(payload) {
   wallClearGroup(wallHandleRoot);
+  wallHandleRoot.visible = true;
   payload = payload || {};
+  wallSelectedId = String(payload.selected || "");
   if (payload.floor_z !== undefined) wallFloorZ = Number(payload.floor_z) || 0;
   for (const h of payload.handles || []) {
     const top = h.kind === "top";
@@ -168,6 +174,12 @@ window.__archforgeFloorToScreen = function(x, y, z) {
   return [rect.left + (v.x + 1) / 2 * rect.width, rect.top + (1 - v.y) / 2 * rect.height];
 };
 
+// The rendered frame as PNG (screenshots where the GPU surface cannot be grabbed).
+window.__archforgeCanvasPng = function() {
+  if (useComposer()) composer.render(); else renderer.render(scene, camera);
+  return renderer.domElement.toDataURL("image/png");
+};
+
 function wallScheduleHover(payload) {
   wallHoverPending = payload;
   if (wallHoverScheduled) return;
@@ -218,6 +230,8 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
       if (!p) return;
       hideMarkingMenu();
       wallDrag = {handle: handleId, pointerId: event.pointerId};
+      wallHandleRoot.visible = false;          // the ghost shows the new place; handles come back after
+
       controls.enabled = false;
       if (renderer.domElement.setPointerCapture) renderer.domElement.setPointerCapture(event.pointerId);
       wallSend({type: "handle_down", handle: handleId, x: p.x, y: p.y, pxm: p.pxm});
@@ -301,6 +315,13 @@ renderer.domElement.addEventListener("contextmenu", (event) => {
 }, true);
 
 window.addEventListener("keydown", (event) => {
+  // Delete with the 3D page focused: the same Delete command as the menu (one undo).
+  if (event.key === "Delete" && bridge && wallSelectedId && !wallDrag && !wallDrawing) {
+    event.preventDefault();
+    bridge.contextAction(wallSelectedId, "delete");
+    wallSelectedId = "";
+    return;
+  }
   if (event.key !== "Escape" || !bridge) return;
   if (wallDrag) {
     wallDrag = null;
