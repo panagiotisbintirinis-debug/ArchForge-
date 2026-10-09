@@ -2152,7 +2152,7 @@ class PBRViewport(QWidget):
             # One task-dependent menu (shared with the plan): object, Sculpt or empty space.
             from archforge.ui.marking_menu import build_menu
             eid = entity_id if entity_id in self.doc.entities else ""
-            if eid and not window.sculpt_action.isChecked():
+            if eid and not window.sculpt_action.isChecked() and eid not in self.doc.selection:
                 self.doc.select([eid])
                 self.selectionChangedByView.emit()
             menu = build_menu(window, "pbr", eid or None)

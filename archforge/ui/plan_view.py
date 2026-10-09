@@ -177,7 +177,7 @@ class PlanView(QGraphicsView):
             busy=self.controller.tool=='wall' or window.sculpt_action.isChecked()
             if busy or not eid or eid not in self.doc.entities:
                 eid=None
-            else:
+            elif eid not in self.doc.selection:      # right click inside a multiple selection keeps it (Διαγραφή = all)
                 self.doc.select([eid]);self.controller.set_target(eid,None)
                 self.selectionChangedByView.emit();self.redraw()
             pos=event.pos()
