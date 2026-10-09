@@ -81,6 +81,8 @@ class MainWindow(QMainWindow):
         drywall_tools.install_menus(self)  # Ψευδοροφή γυψοσανίδας, ICF / γυψοσανίδες αναγωγή
         from archforge.ui.layout_assist import install_layout_assist
         install_layout_assist(self)      # «Κουζίνα / Μπάνιο εδώ…» of the Βοηθός
+        from archforge.ui import shortcuts
+        shortcuts.install(self)          # editable keyboard shortcuts (Επεξεργασία → Συντομεύσεις πληκτρολογίου…)
         self._refresh_library_panel()
         if not os.environ.get('PYTEST_CURRENT_TEST'):
             # First run builds the shipped core library in the background.
@@ -2400,6 +2402,9 @@ class MainWindow(QMainWindow):
         if entity_id not in self.doc.entities:
             return
 
+        if action_id == 'delete' and entity_id in self.doc.selection:
+            self._delete_selection()     # right click on one of several selected: delete them all
+            return
         self.doc.select([entity_id])
         self.refresh_inspector()
 
@@ -2727,7 +2732,11 @@ class MainWindow(QMainWindow):
             return                       # Delete on the assistant's ghost: throw the proposal away
         ids = list(self.doc.selection)
         if not ids:
-            self.statusBar().showMessage('Nothing selected to delete', 2500)
+            self.statusBar().showMessage('Δεν υπάρχει επιλογή για διαγραφή', 2500)
+            return
+        from archforge.core.object_ops import group_ids
+        ids = list(dict.fromkeys(i for eid in ids if eid in self.doc.entities for i in group_ids(self.doc, eid)))
+        if not ids:
             return
         try:
             self.stack.execute(DeleteEntities(ids))
@@ -2741,7 +2750,11 @@ class MainWindow(QMainWindow):
             self.refresh_inspector()
             self.statusBar().showMessage(f'Διαγράφηκαν {len(ids)} — Ctrl+Z = αναίρεση', 3500)
         except Exception as exc:
-            QMessageBox.warning(self, 'Delete failed', str(exc))
+            from archforge.core.layers import LayerLockedError
+            if isinstance(exc, LayerLockedError):
+                self.statusBar().showMessage(f'Δεν διαγράφηκε: {exc}', 6000)
+                return
+            QMessageBox.warning(self, 'Η διαγραφή απέτυχε', str(exc))
 
     def _refresh_floor_selector(self):
         if not hasattr(self, 'floor_selector'):

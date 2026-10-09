@@ -76,6 +76,8 @@ def build_menu(window, view, entity_id=None):
                     for v in ANGLES]
         if plan.controller.active is not None and hasattr(plan.controller.active, "start"):
             entries.append(_e("mm:wall:cancel", "Ακύρωση τμήματος", danger=True))
+        if _last_wall(window):
+            entries.append(_e("mm:wall:delete_last", "Διαγραφή τελευταίου τοίχου", "panel", danger=True))
         return {"center": f"Τοίχος · γωνία {_angle_label(current)}", "entries": entries, "wheel": "angle"}
     # «Κουζίνα / Μπάνιο εδώ» of the assistant: apply, variants, shape, discard.
     if view == "plan" and str(tool).startswith("layout_") and getattr(window, "_layout_assist", None) is not None:
@@ -89,8 +91,10 @@ def build_menu(window, view, entity_id=None):
         actions = [a for a in object_context_actions(entity.kind, view) if a is not None]
         entries = [_e(a["id"], {"properties": "Ιδιότητες", "move": "Μετακίνηση", "stretch": "Επιμήκυνση",
                                 "rotate": "Περιστροφή", "materials": "Υλικά", "support": "Στήριξη…",
-                                "load": "Φορτίο…", "delete": "Διαγραφή"}.get(a["id"], a["label"]),
+                                "load": "Φορτίο…", "delete": _delete_label(window, entity_id)}.get(a["id"], a["label"]),
                       danger=a["id"] == "delete") for a in actions]
+        if not any(e["id"] == "delete" for e in entries):
+            entries.append(_e("delete", _delete_label(window, entity_id), danger=True))   # every object can go
         from archforge.ui.object_menu import marking_entries as object_entries
         for action_id, label in reversed(object_entries(entity)):
             # Placed objects: turn 90°, mirror, duplicate; doors/windows: hinge side, swing (object_menu.py).
@@ -147,6 +151,18 @@ def build_menu(window, view, entity_id=None):
     return {"center": "Σχεδίαση", "entries": _fit(entries), "wheel": None}
 
 
+def _delete_label(window, entity_id):
+    from archforge.ui.shortcuts import hint
+    many = [i for i in window.doc.selection if i in window.doc.entities]
+    text = f"Διαγραφή {len(many)} επιλεγμένων" if entity_id in many and len(many) > 1 else "Διαγραφή"
+    return text + hint(window, "edit.delete")
+
+
+def _last_wall(window):
+    """The wall drawn last (the Document keeps insertion order), for «Διαγραφή τελευταίου τοίχου»."""
+    return next((i for i in reversed(list(window.doc.entities)) if window.doc.entities[i].kind == "wall"), None)
+
+
 def _slab_entries():
     # Slab openings (architecture/storey_slabs.py): the room under the cursor, or a drawn outline.
     return [_e("mm:slab:atrium", "Αίθριο σε αυτόν τον χώρο", "panel"),
@@ -197,6 +213,11 @@ def run(window, view, entity_id, action_id, plan_xy=None):
         run_object_op(window, entity_id, arg)
     elif group == "wall" and arg == "cancel":
         window.plan_view._wall_radial_command("delete")
+    elif group == "wall" and arg == "delete_last":
+        last = _last_wall(window)
+        if last:
+            window.doc.select([last])
+            window._delete_selection()
     elif group == "wall" and arg in ("moveby", "split"):
         from archforge.ui import wall_edit_actions
         if arg == "moveby":
