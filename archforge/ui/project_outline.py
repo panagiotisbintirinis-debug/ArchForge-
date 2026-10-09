@@ -481,10 +481,15 @@ def project_outline(doc, title="Έργο"):
 
 def used_materials(doc):
     """Palette materials actually assigned in the project: ``[(id, name, count)]``."""
-    from archforge.rendering.materials import MATERIAL_PRESETS
+    from archforge.rendering.materials import material_name
+    from archforge.rendering.user_materials import assignments, code_for, label
     counts = {}
     for e in doc.entities.values():
-        ids = [e.params.get("material_id")] + list((e.params.get("surface_materials") or {}).values())
-        for mid in {m for m in ids if m}:
-            counts[mid] = counts.get(mid, 0) + 1
-    return sorted(((m, MATERIAL_PRESETS.get(m, {}).get("name", m), n) for m, n in counts.items()), key=lambda t: t[1])
+        seen = set()
+        for role, mid in assignments(doc, e):
+            code = code_for(e, role, mid, doc)
+            key = (mid, label(material_name(mid, doc), code["code"], code["supplier"]))
+            if key not in seen:
+                seen.add(key)
+                counts[key] = counts.get(key, 0) + 1
+    return sorted(((m, name, n) for (m, name), n in counts.items()), key=lambda t: t[1])

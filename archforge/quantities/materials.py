@@ -124,6 +124,40 @@ def kitchen_list(doc):
     return [(desc, unit, round(q, 2) if unit == "m" else q) for (desc, unit), q in sorted(counts.items()) if q]
 
 
+def finishes_list(doc):
+    """Finishes as the order list reads them: «Μελαμίνη δρυς — κωδ. 1234 (Προμηθευτής)».
+
+    One row per material + supplier code.  A wall face counts its gross area
+    (length x height, openings not subtracted); any other element counts as
+    one piece, since its finished area is not measured here.
+    """
+    from archforge.rendering.materials import material_name
+    from archforge.rendering.user_materials import assignments, code_for, label
+
+    totals = {}
+
+    def add(desc, unit, qty):
+        totals[(desc, unit)] = totals.get((desc, unit), 0.0) + qty
+
+    def text(e, role, material_id):
+        code = code_for(e, role, material_id, doc)
+        return label(material_name(material_id, doc), code["code"], code["supplier"])
+
+    for e in doc.entities.values():
+        p = e.params
+        if e.kind == "wall":
+            surface = p.get("surface_materials") or {}
+            length = ((float(p["x2"]) - float(p["x1"])) ** 2 + (float(p["y2"]) - float(p["y1"])) ** 2) ** 0.5
+            for face in ("exterior", "interior"):
+                material_id = surface.get(face) or p.get("material_id")
+                if material_id:
+                    add(text(e, face, material_id) + " — όψη τοίχου (μικτό)", "m²", length * float(p.get("height", 0.0)))
+            continue
+        for role, material_id in assignments(doc, e):
+            add(text(e, role, material_id), "τεμ.", 1)
+    return [(desc, unit, round(q, 2) if unit == "m²" else int(q)) for (desc, unit), q in sorted(totals.items()) if q]
+
+
 def all_lists(doc):
     """``[(sheet name, title, rows, notes)]`` for the lists that have quantities."""
     from archforge.construction.drywall import PROVENANCE as DRYWALL, SOURCES as DRYWALL_SOURCES, drywall_list
@@ -141,7 +175,10 @@ def all_lists(doc):
             ("Κάγκελα", "Κάγκελα — τρέχοντα μέτρα ανά τύπο", railing_list(doc),
              ("Τιμή ανά τρέχον μέτρο από τον προμηθευτή (με ορθοστάτες, στερέωση, τοποθέτηση).",)),
             ("Κουζίνα", "Ντουλάπια κουζίνας — κουφάρια, μηχανισμοί, χερούλια", kitchen_list(doc),
-             ("Ενδεικτικές διαστάσεις ευρωπαϊκής πρακτικής, γενικοί τύποι χωρίς μάρκα.",))):
+             ("Ενδεικτικές διαστάσεις ευρωπαϊκής πρακτικής, γενικοί τύποι χωρίς μάρκα.",)),
+            ("Υλικά", "Υλικά και κωδικοί προμηθευτή (μελαμίνες, πάγκοι, τελειώματα)", finishes_list(doc),
+             ("Ο κωδικός και ο προμηθευτής είναι όσα έγραψες στα «Υλικά / επιφάνειες».",
+              "Τοίχοι: μικτό εμβαδόν όψης (χωρίς αφαίρεση ανοιγμάτων)· άλλα στοιχεία: πλήθος."))):
         if rows:
             out.append((name, title, rows, ("Συμπλήρωσε τις κίτρινες στήλες (τιμή μονάδας και ό,τι ποσότητα λείπει)· "
                                             "τα σύνολα βγαίνουν αυτόματα.",) + tuple(notes)))

@@ -114,7 +114,7 @@ def _material(kind: str, selected: bool, entity=None, doc=None, surface_role: st
             str(entity.params.get("construction", "generic"))
         )
 
-    custom = material_spec(material_id)
+    custom = material_spec(material_id, doc)
     if custom is not None:
         spec.update({
             "color": custom.get("color", spec.get("color")),

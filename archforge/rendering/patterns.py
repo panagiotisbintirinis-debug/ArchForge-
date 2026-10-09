@@ -2,8 +2,10 @@
 
 A material preset may carry a ``pattern`` dict (see ``rendering/materials.py``):
 
-    {"type": "rubble" | "ashlar" | "polygonal" | "slab" | "tiles" | "planks",
+    {"type": "rubble" | "ashlar" | "polygonal" | "slab" | "tiles" | "planks" | "speckle" | "grain",
      "unit_w": m, "unit_h": m,      # typical stone / tile size, real metres
+                                    # (speckle: grain size of granite / quartz;
+                                    #  grain: board length x width of a veneer leaf)
      "joint": m,                    # joint (mortar, grout) width, metres
      "joint_color": "#rrggbb",      # mortar / grout colour
      "offset": 0..1,                # row stagger in units of unit_w (tiles, planks)
@@ -31,7 +33,7 @@ import zlib
 from functools import lru_cache
 from typing import Mapping
 
-PATTERN_TYPES = ("rubble", "ashlar", "polygonal", "slab", "tiles", "planks")
+PATTERN_TYPES = ("rubble", "ashlar", "polygonal", "slab", "tiles", "planks", "speckle", "grain")
 
 # Greek names of the pattern types (tooltips, dialog).
 PATTERN_NAMES = {
@@ -40,7 +42,9 @@ PATTERN_NAMES = {
     "polygonal": "πολυγωνική πέτρα",
     "slab": "πλακοειδής πέτρα σε λεπτές στρώσεις",
     "tiles": "πλακάκια με αρμό",
-    "planks": "σανίδες / πλακάκια σανίδας",
+    "planks": "σανίδες / πλακάκια σανίδας / νερά ξύλου",
+    "speckle": "κόκκοι γρανίτη / χαλαζία",
+    "grain": "συνεχή νερά ξύλου (επένδυση μελαμίνης)",
 }
 
 _MAX_CELLS = 2500          # keeps the 3D payload and the canvas small
@@ -53,7 +57,8 @@ def validate_pattern(pattern) -> list[str]:
         return ["pattern is not a dict"]
     if pattern.get("type") not in PATTERN_TYPES:
         errors.append(f"unknown type {pattern.get('type')!r}")
-    for key, lo, hi in (("unit_w", 0.01, 3.0), ("unit_h", 0.005, 3.0), ("joint", 0.0, 0.08)):
+    lo_w = 0.001 if pattern.get("type") == "speckle" else 0.01
+    for key, lo, hi in (("unit_w", lo_w, 3.0), ("unit_h", min(lo_w, 0.005), 3.0), ("joint", 0.0, 0.08)):
         value = pattern.get(key)
         if not isinstance(value, (int, float)) or not (lo <= float(value) <= hi):
             errors.append(f"{key}={value!r} not in [{lo}, {hi}] m")
@@ -95,7 +100,8 @@ def _geometry_json(blob: str, color: str, seed: str) -> str:
     kind = p["type"]
     builder = {
         "tiles": _tiles, "planks": _tiles, "ashlar": _ashlar, "slab": _slab,
-        "rubble": _voronoi_stones, "polygonal": _voronoi_stones,
+        "rubble": _voronoi_stones, "polygonal": _voronoi_stones, "speckle": _speckle,
+        "grain": _wood_grain,
     }[kind]
     width, height, cells, lines = builder(p, color, rng)
     if float(p.get("veins", 0.0)) > 0:
@@ -126,6 +132,8 @@ def _relief(p) -> float:
     still, so the bump does not shimmer at a distance.
     """
     kind = p["type"]
+    if kind in ("speckle", "grain") or float(p["joint"]) <= 0.0:
+        return 0.0                      # one flush surface (decor paper, polished slab)
     if kind in ("rubble", "slab"):
         return 1.0
     if kind in ("polygonal", "ashlar"):
@@ -471,6 +479,78 @@ def _voronoi_stones(p, color, rng):
     return width, height, cells, []
 
 
+def _mix(color: str, other: str, t: float) -> str:
+    a, b = _rgb(color), _rgb(other)
+    return _hex(tuple(x + (y - x) * t for x, y in zip(a, b)))
+
+
+def _speckle(p, color, rng):
+    """Granite / quartz / stone-look decor: one slab with many small grains.
+
+    ``unit_w`` is the typical grain size; ``variation`` sets how strongly the
+    grains differ from the base (quartz faint, salt-and-pepper granite strong)
+    and how much of the surface they cover.
+    """
+    grain = float(p["unit_w"])
+    variation = float(p.get("variation", 0.3))
+    period = max(0.15, min(0.5, 60 * grain))
+    cells = [(_rect(0.0, 0.0, period, period, 0.0), color)]
+    coverage = 0.18 + 0.45 * variation
+    count = int(min(2200, coverage * period * period / (math.pi * (0.5 * grain) ** 2)))
+    dark = _mix(color, "#0b0b0c", 0.25 + 0.65 * variation)
+    light = _mix(color, "#f7f6f2", 0.20 + 0.70 * variation)
+    mid = shade(color, 0.0, rng.uniform(-0.02, 0.02), 0.5 * variation)
+    for _ in range(count):
+        x, y = rng.uniform(0, period), rng.uniform(0, period)
+        r = 0.5 * grain * rng.uniform(0.45, 1.35)
+        sides = rng.randint(5, 7)
+        start = rng.uniform(0, 6.28)
+        pts = [(x + r * rng.uniform(0.6, 1.0) * math.cos(start + 6.283 * k / sides),
+                y + r * rng.uniform(0.6, 1.0) * math.sin(start + 6.283 * k / sides)) for k in range(sides)]
+        pick = rng.random()
+        tone = dark if pick < 0.45 else (light if pick < 0.8 else mid)
+        cells.append((pts, shade(tone, rng.uniform(-0.08, 0.08))))
+    return period, period, cells, []
+
+
+def _wood_grain(p, color, rng):
+    """Continuous wood decor (melamine board): leaves of veneer side by side,
+    long fine streaks along the board and a few cathedral arches; no butt
+    joints, since a board shows one sheet of decor paper."""
+    length, leaf = float(p["unit_w"]), float(p["unit_h"])
+    variation = float(p.get("variation", 0.05))
+    leaves = max(3, round(0.6 / leaf))
+    width, height = length, leaves * leaf
+    cells, lines = [], []
+    for k in range(leaves):
+        y0 = k * leaf
+        tone = _cell_color(color, rng, variation, stone=False)
+        cells.append((_rect(0.0, y0, width, y0 + leaf, 0.0), tone))
+        # Straight-grain streaks: whole sine waves over the period, so they wrap.
+        for _ in range(rng.randint(7, 12)):
+            c = y0 + rng.uniform(0.04, 0.96) * leaf
+            amp = rng.uniform(0.01, 0.05) * leaf
+            waves = rng.randint(1, 3)
+            phase = rng.uniform(0, 6.28)
+            pts = [(width * t / 40.0, c + amp * math.sin(phase + waves * 6.2832 * t / 40.0)) for t in range(41)]
+            lines.append((pts, shade(tone, rng.choice((-0.18, -0.12, -0.07, 0.07))), rng.uniform(0.0006, 0.0018)))
+        # Flat-sawn leaves: nested arches (the «cathedral» figure).
+        if rng.random() < 0.5:
+            cx = rng.uniform(0.1, 0.9) * width
+            span = rng.uniform(0.25, 0.5) * width
+            for n in range(rng.randint(3, 5)):
+                half = 0.5 * leaf * (0.85 - 0.15 * n)
+                if half <= 0:
+                    break
+                tip = cx + span * (0.5 - 0.1 * n)
+                pts = []
+                for t in range(25):
+                    u = -1.0 + 2.0 * t / 24.0               # across the leaf
+                    pts.append((tip - span * u * u, y0 + 0.5 * leaf + half * u))   # parabola, tip at ``tip``
+                lines.append((pts, shade(tone, -0.16), rng.uniform(0.0008, 0.0016)))
+    return width, height, cells, _wrap_lines(lines, width, height)
+
+
 def _veins(p, color, rng, width, height):
     """Soft meandering veins across the period (marble look)."""
     amount = float(p.get("veins", 0.0))
@@ -487,5 +567,6 @@ def _veins(p, color, rng, width, height):
             x += step * math.cos(angle)
             y += step * math.sin(angle)
             pts.append((x, y))
-        lines.append((pts, vein, rng.uniform(0.0012, 0.004)))
+        # Whole-slab veins (worktops, 3 m slabs) are broader than a tile's.
+        lines.append((pts, vein, rng.uniform(0.0012, 0.004) * max(1.0, max(width, height) / 2.4)))
     return _wrap_lines(lines, width, height)
