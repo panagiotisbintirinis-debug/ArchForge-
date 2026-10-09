@@ -54,7 +54,28 @@ def test_preset_views_switch_to_the_3d_scene(label, preset):
     _close(app, window)
 
 
-@pytest.mark.parametrize('label,kind', [('Τομή', 'section'), ('Εσωτερική Όψη', 'camera')])
+def test_section_drag_is_the_cut_line_and_opens_its_drawing():
+    # FIX3: the drag is the section line itself (not «eye point + direction»): one section_line,
+    # its «Τομή Α-Α» tab; «Στο 3D» puts the clipping plane on that line.
+    app, window = _window()
+    window._mockup_view_actions['Τομή']()
+    assert window._central_tabs.currentIndex() == 0
+    plan = window.plan_view
+    plan.begin_view_line(2.0, -1.0)
+    plan.move_view_line(2.0, 1.0)
+    plan.end_view_line(2.0, 4.0)
+    lines = [e for e in window.doc.entities.values() if e.kind == 'section_line']
+    assert len(lines) == 1 and (lines[0].params['x1'], lines[0].params['y2']) == (2.0, 4.0)
+    assert window._central_tabs.currentWidget() is window._section_panel
+    from archforge.ui.section_view import section_in_3d
+    section_in_3d(window, lines[0].id)
+    assert window.pbr_view._view_line['kind'] == 'section' and window._central_tabs.currentIndex() == 1
+    window._mockup_view_actions['3D Προοπτική']()
+    assert window.pbr_view._view_line is None
+    _close(app, window)
+
+
+@pytest.mark.parametrize('label,kind', [('Εσωτερική Όψη', 'camera')])
 def test_line_views_are_dragged_in_the_plan_and_shown_in_3d(label, kind):
     app, window = _window()
     window._mockup_view_actions[label]()

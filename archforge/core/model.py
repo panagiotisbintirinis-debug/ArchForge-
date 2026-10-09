@@ -722,6 +722,8 @@ SCHEMAS = {
                         'cove_width': _positive, 'cove_depth': _positive},
     'slab_opening': {'points': _polygon, 'level_z': _finite, 'room_id': _nonempty,
                      'cuts': _slab_choice('validate_cuts'), 'use': _slab_choice('validate_use')},
+    # Section line drawn in the plan (output/section_cut.py): the drawing is derived, only the line is kept.
+    'section_line': {'x1': _finite, 'y1': _finite, 'x2': _finite, 'y2': _finite, 'flip': _flag, 'depth': _nonnegative},
 }
 
 

@@ -22,6 +22,7 @@ CATEGORIES = (
     ("Έπιπλα", ("library_object", "box")),
     ("Μηχανολογικά", ("mep_terminal", "mechanical_part", "mechanical_joint", "mechanical_mount", "mesh")),
     ("Οργανικά", ("pod", "arboreal_branch", "organic_junction", "organic_opening_patch")),
+    ("Τομές", ("section_line",)),
 )
 SITE = ("terrain", "plant", "site_path")
 KIND_LABELS = {
@@ -30,7 +31,7 @@ KIND_LABELS = {
     "room_floor": "Δάπεδο", "room_ceiling": "Οροφή", "room_foundation": "Θεμέλιο", "room_roof": "Στέγη",
     "cabinet": "Ντουλάπι", "kitchen_part": "Κομμάτι κουζίνας", "library_object": "Αντικείμενο",
     "box": "Κουτί", "terrain": "Έδαφος", "plant": "Φυτό", "site_path": "Μονοπάτι", "pod": "Pod",
-    "railing": "Κάγκελο", "slab_opening": "Οπή πλάκας", "drywall_ceiling": "Ψευδοροφή",
+    "railing": "Κάγκελο", "slab_opening": "Οπή πλάκας", "drywall_ceiling": "Ψευδοροφή", "section_line": "Γραμμή τομής",
 }
 
 
@@ -70,6 +71,10 @@ def entity_level(doc, entity, levels=None):
         return str(p["base_level"])
     if k == "structural_beam" and p.get("level") in names:
         return str(p["level"])
+    if k in ROOM_SLAB_KINDS and "level_z" not in p:
+        # A per-room slab sits on the storey of its room (a lost room: the lowest storey).
+        found = _slab_face(doc, entity)
+        return _owner(levels, found[1]) if found else levels[0][0]
     if k == "pitched_roof":
         # A tiled roof belongs to the storey it covers (its eaves sit on that storey's walls).
         return _owner(levels, float(p.get("eave_z", 0.0)) - 0.5)
@@ -93,7 +98,113 @@ GENERIC_NAMES = {"Wall", "Column", "Beam", "Stair", "Ramp", "Door", "Window", "O
 DISPLAY_NAMES = {"Auto Floor": "Δάπεδο (αυτόματο)", "Flat Roof": "Δώμα", "Auto Roof": "Δώμα"}
 
 
-def _label(entity):
+# --- Slabs: what they are and where (owner: «Auto Floor — ποιου δωματίου; ποιες διαστάσεις;») ---
+ROOM_SLAB_KINDS = ("room_floor", "room_roof", "room_ceiling", "room_foundation")
+SLAB_WORDS = {"room_floor": "Πλάκα δαπέδου", "room_roof": "Πλάκα δώματος", "room_ceiling": "Πλάκα οροφής",
+              "room_foundation": "Πλάκα θεμελίωσης", "floor": "Πλάκα"}
+ORPHAN_HINT = "χωρίς χώρο — διάγραψε ή Δάπεδα/Δώμα (αυτόματα) ξανά"
+
+
+def _slab_face(doc, entity):
+    from archforge.architecture.roof_need import room_face_of
+    try:
+        return room_face_of(doc, entity)
+    except Exception:
+        return None
+
+
+def _room_name(doc, face, z):
+    """«Χώρος 2» as the plan numbers it, with the name the user gave it: «Χώρος 2 (Σαλόνι)»."""
+    try:
+        faces = doc.active_room_faces(z=z)
+    except Exception:
+        faces = []
+    index = next((i for i, f in enumerate(faces, start=1) if f.signature == face.signature), None)
+    plain = f"Χώρος {index}" if index else "Χώρος"
+    given = (doc.room_metadata(face.signature) if hasattr(doc, "room_metadata") else {}).get("name")
+    return f"{plain} ({given})" if given and given != plain else plain
+
+
+def _num(v, digits=2):
+    return f"{v:.{digits}f}".replace(".", ",")
+
+
+def slab_info(doc, entity):
+    """What a slab is and where, from the live geometry (the stored name/kind are left alone):
+    ``{"what", "where", "size", "area", "thickness", "orphan"}``."""
+    p, k = entity.params, entity.kind
+    what = SLAB_WORDS.get(k, KIND_LABELS.get(k, k))
+    if k == "room_roof" and str(p.get("roof_type", "flat")) != "flat":
+        what = "Στέγη"
+    info = {"what": what, "where": None, "size": None, "area": None, "orphan": False,
+            "thickness": float(p["thickness"]) if "thickness" in p else None}
+    outline = None
+    if k in ROOM_SLAB_KINDS:
+        if p.get("scope") == "storey":
+            info["where"] = _level_label(_owner(_levels(doc), float(p.get("level_z", 0.0))))
+        else:
+            found = _slab_face(doc, entity)
+            if found is None:
+                info["orphan"] = True
+                return info
+            face, z = found
+            info["where"] = _room_name(doc, face, z)
+        try:
+            from archforge.architecture.rooms import room_slab_geometry
+            g = room_slab_geometry(doc, entity)
+        except Exception:
+            g = None
+        if g:
+            outline = [q for island, _holes in g.get("islands") or [(g["points"], [])] for q in island]
+            info["area"] = g.get("area")
+            if info["area"] is None:
+                from archforge.assistant.understanding import area
+                info["area"] = sum(abs(area(island)) - sum(abs(area(h)) for h in holes)
+                                   for island, holes in g.get("islands") or [(g["points"], [])])
+    elif k == "floor" and p.get("points"):
+        from archforge.assistant.understanding import area
+        outline = [tuple(q) for q in p["points"]]
+        info["area"] = abs(area(outline))
+    if outline:
+        xs, ys = [float(q[0]) for q in outline], [float(q[1]) for q in outline]
+        info["size"] = (max(xs) - min(xs), max(ys) - min(ys))
+    return info
+
+
+def slab_label(doc, entity):
+    """«Πλάκα δαπέδου — Χώρος 1 (Σαλόνι) · 4,60×4,90 m · 22,54 m² · 15 cm» (or ⚠ when its room is gone)."""
+    i = slab_info(doc, entity)
+    custom = entity.name and entity.name not in GENERIC_NAMES and entity.name not in DISPLAY_NAMES \
+        and not entity.name.startswith(("Auto ", "Πλάκα δαπέδου —", "Πλάκα δώματος —"))
+    head = f"{entity.name} ({i['what'].lower()})" if custom else i["what"]
+    if i["orphan"]:
+        return f"⚠ {head} {ORPHAN_HINT}"
+    parts = [head + (f" — {i['where']}" if i["where"] else "")]
+    if i["size"]:
+        parts.append(f"{_num(i['size'][0])}×{_num(i['size'][1])} m")
+    if i["area"] is not None:
+        parts.append(f"{_num(float(i['area']), 1)} m²")
+    if i["thickness"] is not None:
+        parts.append(f"{float(i['thickness']) * 100:.0f} cm")
+    return " · ".join(parts)
+
+
+def slab_rows(doc, entity):
+    """Properties rows of a per-room slab: ``[(label, text)]`` in Greek, from the live geometry."""
+    i = slab_info(doc, entity)
+    if i["orphan"]:
+        return [("Χώρος", f"⚠ {ORPHAN_HINT}")]
+    rows = [("Τι είναι", i["what"]), ("Χώρος" if entity.params.get("scope") != "storey" else "Όροφος", i["where"] or "—")]
+    if i["size"]:
+        rows.append(("Διαστάσεις", f"{_num(i['size'][0])} × {_num(i['size'][1])} m"))
+    if i["area"] is not None:
+        rows.append(("Εμβαδόν", f"{_num(float(i['area']))} m²"))
+    return rows
+
+
+def _label(entity, doc=None):
+    if doc is not None and entity.kind in ROOM_SLAB_KINDS + ("floor",):
+        return slab_label(doc, entity)
     if entity.name and entity.name not in GENERIC_NAMES:
         return DISPLAY_NAMES.get(entity.name, entity.name)
     p, k = entity.params, entity.kind
@@ -158,7 +269,7 @@ def _node(label, entity_id=None, level=None, children=None, signature=None):
 
 def _group(title, ids, doc, level, labels, extra=""):
     return _node(f"{title} ({len(ids)}){extra}", None, level,
-                 [_node(labels.get(i) or _label(doc.get(i)), i, level) for i in ids])
+                 [_node(labels.get(i) or _label(doc.get(i), doc), i, level) for i in ids])
 
 
 def _categorise(ids, doc):

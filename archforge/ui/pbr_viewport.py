@@ -111,6 +111,18 @@ def structural_payload_objects(objects, doc):
         out.append(item)
     return out
 
+# Doll House (κουκλόσπιτο): no roof or ceiling of any kind, and nothing above the active storey.
+DOLLHOUSE_HIDDEN_KINDS = ("room_roof", "room_ceiling", "pitched_roof", "drywall_ceiling", "ceiling_joists")
+
+
+def dollhouse_cut_z(doc):
+    """Height of the Doll House cut: just above the walls of the active storey (storeys above go)."""
+    z = float(doc.work_plane.origin[2])
+    tops = [float(e.params.get("z", 0.0)) + float(e.params.get("height", 0.0)) for e in doc.entities.values()
+            if e.kind == "wall" and abs(float(e.params.get("z", 0.0)) - z) < 1e-3]
+    return (max(tops) if tops else z + 3.0) + 0.02
+
+
 try:
     from PySide6.QtWebEngineWidgets import QWebEngineView
 except ImportError:  # pragma: no cover - optional module or native runtime dependency
@@ -565,7 +577,7 @@ composer.addPass(new OutputPass());
 let ambientOcclusion = true;
 window.setAmbientOcclusion = function(enabled) { ambientOcclusion = !!enabled; };
 function useComposer() {
-  return ambientOcclusion && activeTechnique === "pbr" && !sectionPlane;
+  return ambientOcclusion && activeTechnique === "pbr" && !sectionPlane && !dollhousePlane;
 }
 
 function resize() {
@@ -747,6 +759,20 @@ function sceneBounds() {
 let hiddenKinds = new Set();
 let sectionPlane = null;
 let activeViewLine = null;
+// Doll House: every roof and ceiling goes (flat and tiled, slabs, drywall, joists) and
+// a horizontal cut just above the active storey's walls hides the storeys above it.
+const DOLLHOUSE_HIDDEN = ["room_roof", "room_ceiling", "pitched_roof", "drywall_ceiling", "ceiling_joists"];
+let dollhousePlane = null;
+function clipPlanes() {
+  const planes = [];
+  if (sectionPlane) planes.push(sectionPlane);
+  if (dollhousePlane) planes.push(dollhousePlane);
+  return planes;
+}
+window.setDollhouseCut = function(z) {
+  dollhousePlane = (z === null || z === undefined) ? null : new THREE.Plane(new THREE.Vector3(0, 0, -1), Number(z));
+  applyViewState();
+};
 
 function meshShouldShow(mesh) {
   const kind = (mesh.userData && mesh.userData.kind) || "";
@@ -759,7 +785,7 @@ function applyViewState() {
   modelRoot.children.forEach((mesh) => {
     mesh.visible = meshShouldShow(mesh);
     if (mesh.material) {
-      mesh.material.clippingPlanes = sectionPlane ? [sectionPlane] : [];
+      mesh.material.clippingPlanes = clipPlanes();
       mesh.material.clipShadows = true;
       mesh.material.needsUpdate = true;
     }
@@ -793,6 +819,7 @@ function applyViewLine(line) {
   const ux = dx / len, uy = dy / len;
   activeViewLine = line;
   activeCameraPreset = "line";
+  dollhousePlane = null;
   controls.enabled = true;
   camera.up.set(0, 0, 1);
   setWalkMode(line.kind === "camera");
@@ -857,7 +884,8 @@ function setCameraPreset(mode) {
   activeViewLine = null;
   setWalkMode(mode === "eye");
   sectionPlane = null;
-  hiddenKinds = mode === "dollhouse" ? new Set(["room_roof", "room_ceiling"]) : new Set();
+  hiddenKinds = mode === "dollhouse" ? new Set(DOLLHOUSE_HIDDEN) : new Set();
+  if (mode !== "dollhouse") dollhousePlane = null;
   setLens(mode === "ortho" ? 8 : 48);
   controls.enabled = true;
   camera.up.set(0, 0, 1);
@@ -947,7 +975,7 @@ window.archforgeSetScene = function(payload, fit = true) {
     mesh.userData.surfaceRoles = item.surfaces || [];
     mesh.userData.renderPart = item.render_part || "";
     mesh.visible = meshShouldShow(mesh);
-    mesh.material.clippingPlanes = sectionPlane ? [sectionPlane] : [];
+    mesh.material.clippingPlanes = clipPlanes();
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     modelRoot.add(mesh);
@@ -2821,7 +2849,17 @@ class PBRViewport(QWidget):
                 + json.dumps(mode)
                 + ");"
             )
-        self.statusChanged.emit(f"3D προβολή: {CAMERA_LABELS.get(mode, mode)}")
+            self._push_dollhouse_cut()
+        self.statusChanged.emit(f"3D προβολή: {CAMERA_LABELS.get(mode, mode)}"
+                                + (" — χωρίς στέγες, μόνο ο ενεργός όροφος (άλλαξε όροφο στο «Σχεδιάζω στο»)"
+                                   if mode == "dollhouse" else ""))
+
+    def _push_dollhouse_cut(self) -> None:
+        if self.web_view is None:
+            return
+        z = dollhouse_cut_z(self.doc) if self._camera_preset == "dollhouse" and not self._view_line else None
+        self.web_view.page().runJavaScript(
+            "if (window.setDollhouseCut) window.setDollhouseCut(" + json.dumps(z) + ");")
 
     def set_sun(self, hour, month=None) -> None:
         """Physical sky with the sun at solar ``hour`` of ``month`` (38° N);
@@ -3030,5 +3068,7 @@ class PBRViewport(QWidget):
             + ");"
         )
         self.web_view.page().runJavaScript(script)
+        if getattr(self, "_camera_preset", None) == "dollhouse":
+            self._push_dollhouse_cut()          # follows the active storey
         if not self.structural_only:
             self.web_view.page().runJavaScript(wall_edit_3d.handles_script(self.wall_editor.handles_payload()))

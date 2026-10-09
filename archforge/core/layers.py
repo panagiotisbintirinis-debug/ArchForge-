@@ -55,7 +55,7 @@ KIND_LAYERS = {
     'library_object': 'furniture',
     'cabinet': 'kitchen', 'kitchen_part': 'kitchen',
     'box': 'other', 'mesh': 'other', 'mechanical_part': 'other', 'mechanical_joint': 'other',
-    'mechanical_mount': 'other', 'price_list': 'other',
+    'mechanical_mount': 'other', 'price_list': 'other', 'section_line': 'other',
     'structural_column': 'structure', 'structural_beam': 'structure', 'structural_support': 'structure',
     'structural_load': 'structure',
     'plumbing_point': 'plumbing', 'mep_terminal': 'plumbing',

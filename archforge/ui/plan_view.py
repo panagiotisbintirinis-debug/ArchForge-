@@ -372,7 +372,7 @@ class PlanView(QGraphicsView):
         if self._overlay('key',event):event.accept();return
         if event.key()==Qt.Key.Key_Escape and getattr(self,'_restore_select',False):
             self.controller.cancel();self._restore_select=False;self.controller.set_tool('select');self._mouse_down=False;self.redraw();return
-        if event.key()==Qt.Key.Key_Escape:self.controller.cancel();self._mouse_down=False;self._wall_press=None;self._railing_draft=None;self._slab_draft=None;self.redraw();return
+        if event.key()==Qt.Key.Key_Escape:self.controller.cancel();self._mouse_down=False;self._view_drag=None;self._wall_press=None;self._railing_draft=None;self._slab_draft=None;self.redraw();return
         if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self._wall_chain_active():self.finish_wall_chain();event.accept();return
         if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self._slab_tool():self.finish_slab_opening();event.accept();return
         if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self._railing_tool():self.finish_railing();event.accept();return
@@ -720,8 +720,23 @@ class PlanView(QGraphicsView):
         if drag:
             # Section/camera line: dashed from the eye point along the view.
             pen=QPen(QColor(200,60,40));pen.setWidthF(.05);pen.setStyle(Qt.PenStyle.DashLine)
-            (ax,ay),(bx,by)=drag;self._scene.addLine(ax,ay,bx,by,pen).setZValue(30)
-            dot=QPen(QColor(200,60,40));dot.setWidthF(.05);self._scene.addEllipse(ax-.12,ay-.12,.24,.24,dot,QBrush(QColor(200,60,40))).setZValue(30)
+            (ax,ay),(bx,by)=drag
+            if self.controller.tool=='view_section' and math.hypot(bx-ax,by-ay)>=.05:
+                # Section ghost: the cut line, arrows to where it will look, its letter and length.
+                from archforge.output.section_cut import next_section_name,plan_symbol,section_letter
+                pen.setStyle(Qt.PenStyle.DashDotLine);self._scene.addLine(ax,ay,bx,by,pen).setZValue(30)
+                sym=plan_symbol({'x1':ax,'y1':ay,'x2':bx,'y2':by},section_letter(next_section_name(self.doc)))
+                solid=QPen(QColor(200,60,40));solid.setWidthF(.04)
+                from PySide6.QtGui import QPolygonF
+                for tail,head,(w1,w2) in sym['arrows']:
+                    self._scene.addLine(tail[0],tail[1],head[0],head[1],solid).setZValue(30)
+                    self._scene.addPolygon(QPolygonF([QPointF(*head),QPointF(*w1),QPointF(*w2)]),solid,QBrush(QColor(200,60,40))).setZValue(30)
+                for text,(tx,ty) in sym['labels']+[(f'{math.hypot(bx-ax,by-ay):.2f} m'.replace('.',','),((ax+bx)/2,(ay+by)/2))]:
+                    t=self._scene.addText(text);t.setDefaultTextColor(QColor(200,40,40));f=t.font();f.setBold(True);t.setFont(f)
+                    t.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations,True);t.setPos(tx,ty);t.setZValue(31)
+            else:
+                self._scene.addLine(ax,ay,bx,by,pen).setZValue(30)
+                dot=QPen(QColor(200,60,40));dot.setWidthF(.05);self._scene.addEllipse(ax-.12,ay-.12,.24,.24,dot,QBrush(QColor(200,60,40))).setZValue(30)
         overlay=getattr(self,'overlay_tool',None)
         if overlay is not None:overlay.paint(self)
         if self.carry is not None:self.carry.paint(self)
@@ -751,6 +766,18 @@ class PlanView(QGraphicsView):
         prims=frame.primitives if frame is not None else ()
         return any(q.role=='library-symbol' and q.entity_id==entity_id for q in prims)
     def _draw_primitive(self,p:Primitive2D):
+        if p.role in ('section-line','section-arrow'):
+            # Section mark: red dash-dot cut line, filled arrows towards where the section looks.
+            sel=p.entity_id in (self.doc.selection or ());pen=QPen(QColor(200,40,40));pen.setWidthF(.06 if sel else .035)
+            if p.kind=='polygon':
+                from PySide6.QtGui import QPolygonF
+                item=self._scene.addPolygon(QPolygonF([QPointF(x,y) for x,y in p.points]),pen,QBrush(QColor(200,40,40)))
+            else:
+                if p.role=='section-line':pen.setStyle(Qt.PenStyle.DashDotLine)
+                (ax,ay),(bx,by)=p.points[0],p.points[-1];item=self._scene.addLine(ax,ay,bx,by,pen)
+            item.setZValue(25)
+            if p.entity_id:self._entity_items[item]=p.entity_id
+            return
         preview=p.role=='preview';opening=p.role=='opening';room=p.role=='derived-room';terrain=p.role in ('terrain','plant')
         # The storey below is drawn like structural context: faint grey.
         context=p.role in ('structural-context','floor-underlay')
@@ -865,6 +892,8 @@ class PlanView(QGraphicsView):
             )
         elif p.kind=='label':
             meta=dict(p.meta);text=str(meta.get('text',''));cx,cy=p.points[0];item=self._scene.addText(text);item.setDefaultTextColor(QColor(55,80,65))
+            if p.role=='section-label':
+                f=item.font();f.setBold(True);f.setPointSizeF(f.pointSizeF()*1.4);item.setFont(f);item.setDefaultTextColor(QColor(200,40,40))
             if p.role=='wall-move-label':
                 # Distance of a dragged wall: blue and bold, like the angle mark.
                 f=item.font();f.setBold(True);f.setPointSizeF(f.pointSizeF()*1.25);item.setFont(f)
