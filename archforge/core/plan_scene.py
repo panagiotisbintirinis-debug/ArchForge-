@@ -120,6 +120,7 @@ def _opening_segment(doc,e):
 def _entity_on_active_level(doc,e,tolerance=1e-5):
     """Keep FLOOR PLAN focused on the active storey while 3D remains whole-building."""
     z=float(doc.work_plane.origin[2]);p=e.params
+    if e.kind=='section_line':return True          # a section cuts every storey
     if e.kind=='wall':return abs(float(p.get('z',0.0))-z)<=tolerance
     if e.kind=='pod':return abs(float(p.get('floor_level',0.0))-z)<=tolerance
     if e.kind in ('floor','room'):return abs(float(p.get('z',0.0))-z)<=tolerance
@@ -193,6 +194,8 @@ def entity_primitive(doc,eid):
     e=doc.get(eid);p=e.params
     if not e.visible:return None
     if e.kind=='wall':return Primitive2D('line',((p['x1'],p['y1']),(p['x2'],p['y2'])),entity_id=eid,meta=(('thickness',p['thickness']),))
+    if e.kind=='section_line':
+        return Primitive2D('polyline',((float(p['x1']),float(p['y1'])),(float(p['x2']),float(p['y2']))),entity_id=eid,role='section-line')
     if e.kind=='site_path':
         from archforge.site.paths import path_outline
         return Primitive2D('polygon',tuple(path_outline(p)),entity_id=eid,role='site-path')
@@ -676,6 +679,15 @@ def build_plan_frame(doc,preview=None,layers=True):
             for text,at,kind in labels:
                 f.primitives.append(Primitive2D('label',(at,),entity_id=eid,role='stair-label',
                                                 meta=(('text',text),('align',(.5,.5)),('kind',kind))))
+        if p and p.role=='section-line':
+            # Section mark (output/section_cut.py): arrows where you look and the letter at both ends.
+            from archforge.output.section_cut import plan_symbol,section_letter
+            sym=plan_symbol(doc.get(eid).params,section_letter(doc.get(eid).name))
+            for tail,head,(w1,w2) in sym['arrows']:
+                f.primitives.append(Primitive2D('polyline',(tail,head),entity_id=eid,role='section-arrow'))
+                f.primitives.append(Primitive2D('polygon',(head,w1,w2),entity_id=eid,role='section-arrow'))
+            for text,at in sym['labels']:
+                f.primitives.append(Primitive2D('label',(at,),entity_id=eid,role='section-label',meta=(('text',text),('align',(.5,.5)))))
         if p and p.role=='slab-opening':
             # Void in the slab: diagonal cross (Greek drafting practice).
             from archforge.architecture.storey_slabs import plan_cross

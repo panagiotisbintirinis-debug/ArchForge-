@@ -1607,13 +1607,18 @@ class MainWindow(QMainWindow):
         tool = 'view_section' if kind == 'section' else 'view_camera'
         self.plan_view.controller.set_tool(tool)
         self.statusBar().showMessage(
-            'Τομή: τράβηξε γραμμή στην κάτοψη, από το σημείο κοπής προς την κατεύθυνση θέασης'
+            'Τομή: σύρε τη γραμμή τομής πάνω από το κτίριο (κοιτάς προς τα βέλη) · Esc = ακύρωση'
             if kind == 'section' else
             'Εσωτερική όψη: τράβηξε από το σημείο που στέκεσαι προς την κατεύθυνση που κοιτάς',
             8000,
         )
 
     def _apply_view_line(self, kind, x1, y1, x2, y2):
+        if kind == 'section':
+            # The drag is the cut line itself: a section line (one undo) and its drawing (ui/section_view.py).
+            from archforge.ui.section_view import create_section
+            create_section(self, x1, y1, x2, y2)
+            return
         try:
             self._show_3d_view()
             self.pbr_view.set_view_line(kind, x1, y1, x2, y2, z=float(self.doc.work_plane.origin[2]))
@@ -1776,7 +1781,7 @@ class MainWindow(QMainWindow):
             # Roofs saved before the overhang field still get the editor.
             params.setdefault('overhang', 0.0)
         from archforge.architecture.joinery import KEYS as joinery_keys
-        for key, value in (() if entity.kind in ('railing', 'drywall_ceiling') or slab_tools.is_slab_panel(entity) else params.items()):
+        for key, value in (() if entity.kind in ('railing', 'drywall_ceiling', 'section_line') or slab_tools.is_slab_panel(entity) else params.items()):
             if entity.kind in ('door', 'window') and key in joinery_keys:
                 continue  # Κουφώματα: δικές τους γραμμές (ui/opening_properties.py).
             if entity.kind == 'stair' and key == 'plan_numbers':
@@ -1791,8 +1796,14 @@ class MainWindow(QMainWindow):
                     lambda property_key=key, widget=spin: self._commit_property(eid, property_key, widget.value())
                 )
                 self.form.addRow(param_label(key), spin)
-            elif entity.kind == 'room_floor' and key == 'room_signature':
-                self.form.addRow('Χώρος', QLabel(str(value)))
+        if entity.kind in ('room_floor', 'room_roof', 'room_ceiling', 'room_foundation') and not slab_tools.is_slab_panel(entity):
+            # What the slab is and where: room by name, live sizes (never the room id).
+            from archforge.ui.project_outline import slab_rows
+            for label, text in slab_rows(self.doc, entity):
+                self.form.addRow(label, QLabel(text))
+        if entity.kind == 'section_line':
+            from archforge.ui.section_view import add_rows as section_rows
+            section_rows(self, eid)
         if entity.kind == 'plumbing_point' and params.get('point_type') == 'water_supply':
             from archforge.mep.plumbing import DEFAULT_SYSTEM, PIPE_SYSTEMS
             combo = QComboBox()

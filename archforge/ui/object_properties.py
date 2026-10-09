@@ -68,6 +68,7 @@ PARAM_LABELS = {
     'rotation': 'Περιστροφή (°)', 'length': 'Μήκος', 'sill': 'Ύψος ποδιάς', 'offset': 'Θέση στον τοίχο',
     'elevation': 'Υψόμετρο', 'slope_x': 'Κλίση X %', 'slope_y': 'Κλίση Y %', 'blend_radius': 'Ακτίνα επιρροής σημείων',
     'altitude_ref': 'Απόλυτο υψόμετρο ±0.00', 'overhang': 'Προεξοχή', 'diameter': 'Διάμετρος',
+    'offset_z': 'Ανύψωση (m)',
 }
 
 

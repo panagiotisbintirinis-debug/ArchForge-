@@ -230,6 +230,16 @@ def _roofs(doc):
                                 "Π.χ. ισόγεια προέκταση έξω από τον πάνω όροφο. «Εφαρμογή» = επίπεδη στέγη (δώμα) εκεί· "
                                 "για κεραμοσκεπή: Κατασκευή → Στέγη → Με κεραμίδια.", "Κανόνας στέγης: κάθε ακάλυπτος χώρος στεγάζεται",
                                 tuple(missing), lambda _doc, m=tuple(missing): CreateRoomRoofs(list(m), thickness=.20, roof_type="flat")))
+    # S-0: per-room slabs whose room is gone (walls moved/removed): nothing shows them, they only confuse.
+    orphans = tuple(e.id for e in doc.entities.values()
+                    if e.kind in ("room_floor", "room_roof", "room_ceiling", "room_foundation")
+                    and e.params.get("scope") != "storey" and room_face_of(doc, e) is None)
+    if orphans:
+        from archforge.core.commands import DeleteEntities
+        out.append(Proposal("S-0", "warning", f"Πλάκες χωρίς χώρο: {len(orphans)}",
+                            "Ο χώρος τους δεν υπάρχει πια (μετακινήθηκαν ή σβήστηκαν τοίχοι). «Εφαρμογή» = διαγραφή τους· "
+                            "μετά Αυτόματα → Δάπεδα/Δώμα για νέες πλάκες στους σημερινούς χώρους.",
+                            "Καθαρισμός πλακών", orphans, lambda _doc, ids=orphans: DeleteEntities(list(ids))))
     for e in doc.entities.values():
         if e.kind != "room_roof":
             continue
