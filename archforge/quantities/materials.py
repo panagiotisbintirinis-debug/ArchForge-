@@ -70,6 +70,7 @@ def structure_list(doc):
     rows = [("Σκυρόδεμα κολονών", "m³", round(cols, 2)), ("Σκυρόδεμα δοκαριών", "m³", round(beams, 2)),
             ("Σκυρόδεμα πεδίλων", "m³", round(sum(f["concrete_m3"] for f in fd.get("footings", ())), 2)),
             ("Σκυρόδεμα συνδετήριων δοκών", "m³", round(sum(t["concrete_m3"] for t in fd.get("ties", ())), 2)),
+            ("Σκυρόδεμα πεδιλοδοκών", "m³", round(sum(s["concrete_m3"] for s in fd.get("strips", ())), 2)),
             ("Οπλισμός B500C (φέρων και θεμελίωση) — από τη στατική μελέτη", "kg", None),
             ("Καλούπια (ξυλότυποι)", "m²", None)]
     return [row for row in rows if row[2] is None or row[2] > 0]

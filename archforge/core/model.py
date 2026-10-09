@@ -380,12 +380,14 @@ def _choice(options, label):
 def _structural_design_schema():
     from archforge.structure.analysis.sections import CONCRETE, STEEL_GRADES
     from archforge.structure.analysis.settings import IMPORTANCE, OCCUPANCIES, ROOF_ACCESS, SOILS, SYSTEMS, ZONES
+    from archforge.structure.foundation import FOUNDATION_TYPES
     return {'system': _choice(SYSTEMS, 'system'), 'occupancy': _choice(OCCUPANCIES, 'occupancy'),
             'roof_access': _choice(ROOF_ACCESS, 'roof access'), 'seismic_zone': _choice(ZONES, 'seismic zone'),
             'soil': _choice(SOILS, 'soil'), 'importance': _choice(IMPORTANCE, 'importance class'),
             'concrete': _choice(CONCRETE, 'concrete'), 'steel_grade': _choice(STEEL_GRADES, 'steel grade'),
             'slab_thickness': _positive, 'finishes': _nonnegative, 'partitions': _nonnegative,
-            'roof_finishes': _nonnegative, 'soil_pressure': _positive}
+            'roof_finishes': _nonnegative, 'soil_pressure': _positive,
+            'foundation_type': _choice(FOUNDATION_TYPES, 'foundation type')}
 
 
 def _structural_support_type(v):
@@ -436,6 +438,13 @@ def _terrain_points(v):
         if len(item) != 3:
             raise ValueError('terrain elevation point must be [x, y, z]')
         out.append([_finite(item[0]), _finite(item[1]), _finite(item[2])])
+    return out
+
+
+def _plot_boundary(v):
+    out = [[_finite(p[0]), _finite(p[1])] for p in (v or ())]
+    if out and len(out) < 3:
+        raise ValueError('plot boundary needs at least 3 corners')
     return out
 
 
@@ -659,7 +668,8 @@ SCHEMAS = {
     'terrain': {
         'x0': _finite, 'y0': _finite, 'x1': _finite, 'y1': _finite,
         'elevation': _finite, 'slope_x': _finite, 'slope_y': _finite, 'thickness': _positive,
-        'points': _terrain_points, 'blend_radius': _positive,
+        'points': _terrain_points, 'blend_radius': _positive, 'boundary': _plot_boundary,
+        'altitude_ref': _finite,
     },
     'site_path': {
         'x1': _finite, 'y1': _finite, 'x2': _finite, 'y2': _finite, 'z': _finite,
@@ -1062,6 +1072,11 @@ class Document:
             raise ValueError('duplicate id')
         entity.params = validate_params(entity.kind, entity.params)
         self._validate_links(entity)
+        if entity.kind in ('structural_column', 'structural_beam'):
+            # Every column/beam carries its own mark (Κ1, Δ1 …) unless the user named it.
+            from archforge.structure.marks import is_unnamed, next_mark
+            if is_unnamed(entity):
+                entity.name = next_mark(self, entity.kind)
         self.entities[entity.id] = entity
         try:
             self._register_links(entity)

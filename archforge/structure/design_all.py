@@ -63,6 +63,7 @@ def summary(out):
     failing = sum(not m.get("ok", True) for m in members)
     fd = r.get("foundation") or {}
     text = (f"Κολόνες {cols}, δοκάρια {beams}, πέδιλα {len(fd.get('footings', []))}, συνδετήριες {len(fd.get('ties', []))}"
+            + (f", πεδιλοδοκοί {len(fd['strips'])}" if fd.get('strips') else "")
             + (f" · αυξήθηκαν διατομές: {', '.join(out['resized'][:6])}" if out["resized"] else "")
             + (f" · ⚠ {failing} μέλη χωρίς επαρκή τυπική διατομή" if failing else " · όλα επαρκούν"))
     return text

@@ -272,9 +272,13 @@ class WallDrawTransaction:
 
     # A wall end near a corner closes onto it: corners pull from this far (m), not only from the snap tolerance.
     CORNER_CAPTURE=0.30
+    # The open end of the outline being drawn (a wall end nothing touches) pulls from farther: it closes the outline.
+    FREE_END_CAPTURE=1.0
 
     def _corner_near(self,x,y):
-        """Nearest wall end / corner of the active storey within the corner capture radius (not the start)."""
+        """Nearest wall end / corner of the active storey within the capture radius (not the start).
+
+        Free ends (the outline's open start) capture from FREE_END_CAPTURE, other corners from CORNER_CAPTURE."""
         from .snapping import SnapPoint
         radius=max(float(self.snap_tol),self.CORNER_CAPTURE);best=None
         for eid,e in self.doc.entities.items():
@@ -283,7 +287,10 @@ class WallDrawTransaction:
             for px,py in ((float(p['x1']),float(p['y1'])),(float(p['x2']),float(p['y2']))):
                 if hypot(px-self.start[0],py-self.start[1])<=max(self.min_length,1e-6):continue
                 d=hypot(px-x,py-y)
-                if d<=radius and (best is None or d<best[0]):best=(d,SnapPoint(px,py,float(self.z),'endpoint',eid))
+                reach=radius
+                if d<=self.FREE_END_CAPTURE and d>radius and not self._end_connected(eid,px,py):
+                    reach=self.FREE_END_CAPTURE
+                if d<=reach and (best is None or d<best[0]):best=(d,SnapPoint(px,py,float(self.z),'endpoint',eid))
         return best[1] if best else None
 
     def _ray_hits_wall(self,ux,uy,x,y):
@@ -346,7 +353,7 @@ class WallDrawTransaction:
                      and (self.angle_increment==MAGNET or self.angle_increment>0))
 
         # 1. Corners close the outline: a wall end near another wall's end lands exactly on it (autosnap).
-        corner=self._corner_near(x,y) if self.snap_enabled else None
+        corner=self._corner_near(x,y) if self.snap_enabled and getattr(self,'corner_enabled',True) else None
         if corner is not None:
             self.end=(corner.x,corner.y);self.last_snap=corner
         elif constrained and hypot(x-sx,y-sy)>1e-12:
@@ -407,7 +414,43 @@ class WallDrawTransaction:
         if getattr(self,'wall_type',None):params['wall_type']=self.wall_type
         if getattr(self,'reference',None) in ('exterior','interior'):params['reference']=self.reference
         e=Entity('wall',params,name='Wall')
-        self.stack.execute(AddEntity(e));return e.id
+        # Closing onto another wall just short of its end: the loose piece beyond is cut, the corner is clean.
+        trims=[t for t in (self._loose_tail(sx,sy),self._loose_tail(ex,ey)) if t]
+        if trims:
+            from .commands import CompositeCommand
+            self.stack.execute(CompositeCommand([AddEntity(e)]+[UpdateEntity(eid,ch) for eid,ch in trims],'Τοίχος (κλείσιμο γωνίας)'))
+            self.trimmed=[eid for eid,_ch in trims]
+        else:
+            self.stack.execute(AddEntity(e))
+        return e.id
+    # A tail up to this long (m), hanging free past the new corner, is cut when a wall closes onto its wall.
+    TAIL_MAX=1.5
+    def _loose_tail(self,px,py):
+        """(wall id, changes) cutting the free tail of the wall whose axis the point (px, py) lands on, or None."""
+        for eid,e in self.doc.entities.items():
+            if e.kind!='wall' or abs(float(e.params.get('z',0.0))-float(self.z))>1e-5:continue
+            p=e.params;ax,ay,bx,by=(float(p[k]) for k in ('x1','y1','x2','y2'))
+            L=hypot(bx-ax,by-ay)
+            if L<1e-9:continue
+            t=((px-ax)*(bx-ax)+(py-ay)*(by-ay))/(L*L)
+            if hypot(ax+(bx-ax)*t-px,ay+(by-ay)*t-py)>1e-3 or not (0.0<t<1.0):continue
+            for end,(qx,qy),tail in ((1,(ax,ay),t*L),(2,(bx,by),(1-t)*L)):
+                if tail<1e-3 or tail>self.TAIL_MAX or tail>=L/2:continue
+                if self._end_connected(eid,qx,qy):continue
+                if end==1 and any(o.parent_id==eid for o in self.doc.entities.values() if o.kind in ('door','window','opening')):
+                    continue                               # openings are measured from the start: leave it
+                return eid,{f'x{end}':float(px),f'y{end}':float(py)}
+        return None
+    def _end_connected(self,eid,qx,qy,tol=0.05):
+        """Does another wall touch the point (its end or its axis)?"""
+        for oid,o in self.doc.entities.items():
+            if oid==eid or o.kind!='wall' or abs(float(o.params.get('z',0.0))-float(self.z))>1e-5:continue
+            p=o.params;ax,ay,bx,by=(float(p[k]) for k in ('x1','y1','x2','y2'))
+            L=hypot(bx-ax,by-ay)
+            if L<1e-9:continue
+            t=max(0.0,min(1.0,((qx-ax)*(bx-ax)+(qy-ay)*(by-ay))/(L*L)))
+            if hypot(ax+(bx-ax)*t-qx,ay+(by-ay)*t-qy)<=tol:return True
+        return False
     def cancel(self):self.cancelled=True
 
 def _terrain_start_z(doc,origin,storey_z):

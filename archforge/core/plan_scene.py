@@ -617,6 +617,9 @@ def _axis_candidates(a,b,offset,first_side=1):
             out.append(((ax+(bx-ax)*t+sx*offset,ay+(by-ay)*t+sy*offset),(hx,vy)))
     return tuple(out)
 
+_CONTOURS={'key':None,'value':[]}
+
+
 def build_plan_frame(doc,preview=None,layers=True):
     f=PlanFrame()
     _lower_storey_underlay(doc,f)
@@ -633,7 +636,25 @@ def build_plan_frame(doc,preview=None,layers=True):
         pass
     for eid,e in doc.entities.items():
         if e.kind!='terrain' or not e.visible or not _entity_on_active_level(doc,e):continue
+        # The plot: its boundary with the area, and the ground's contour lines.
+        bnd=e.params.get('boundary') or ()
+        if len(bnd)>=3:
+            pts=tuple((float(x),float(y)) for x,y in bnd)
+            f.primitives.append(Primitive2D('polyline',pts+(pts[0],),entity_id=eid,role='plot-boundary'))
+            area=abs(sum(pts[i][0]*pts[(i+1)%len(pts)][1]-pts[(i+1)%len(pts)][0]*pts[i][1] for i in range(len(pts))))/2
+            f.primitives.append(Primitive2D('label',((min(x for x,_ in pts)+.3,max(y for _,y in pts)-.3),),role='plot-label',
+                                            meta=(('text',f'Οικόπεδο {area:.1f} m²'),)))
+        if e.params.get('points') and len(e.params['points'])>3:
+            from archforge.site.survey import contours
+            key=(e.id,repr(sorted(e.params.items())))
+            if _CONTOURS.get('key')!=key:
+                _CONTOURS['key'],_CONTOURS['value']=key,contours(e.params)
+            for level,segment in _CONTOURS['value']:
+                f.primitives.append(Primitive2D('polyline',tuple(segment),role='contour',meta=(('z',level),)))
+        survey=len(e.params.get('points') or ())>40
         for px,py,pz in e.params.get('points') or ():
+            if survey:
+                continue                       # a survey: the contours say it; hundreds of labels would hide the plan
             f.primitives.append(Primitive2D('ellipse',((float(px),float(py)),),.12,.12,0.,eid,'terrain'))
             f.primitives.append(Primitive2D('label',((float(px)+.15,float(py)+.15),),role='terrain-label',
                                             meta=(('text',f'{float(pz):+.2f}'),)))
@@ -669,6 +690,11 @@ def build_plan_frame(doc,preview=None,layers=True):
             xs=[a for a,_b in p.points];ys=[b for _a,b in p.points]
             text=f"Ψ/Ο +{ceiling_level(doc,q):.2f}".replace('.',',')
             f.primitives.append(Primitive2D('label',((min(xs)+.08,min(ys)+.30),),entity_id=eid,role='drywall-ceiling-label',meta=(('text',text),)))
+        if p and doc.get(eid).kind=='room_roof':
+            # A terrace in several pieces (around a smaller upper floor): the other pieces too.
+            from archforge.architecture.rooms import room_slab_geometry
+            for part in (room_slab_geometry(doc,doc.get(eid)) or {}).get('parts',())[1:]:
+                f.primitives.append(Primitive2D('polygon',tuple(part),entity_id=eid,role=p.role,meta=p.meta))
         if p and doc.get(eid).kind=='wall' and doc.get(eid).params.get('wall_type','generic')!='generic':
             # Layer boundaries of the wall assembly; insulation drawn dashed.
             from archforge.architecture.wall_types import layer_lines
@@ -811,6 +837,18 @@ def build_plan_frame(doc,preview=None,layers=True):
             # Two lines, at the corner diagonal to the column's label.
             specs.append((2,f"{ft['name']} {ft['B_m']:.2f}×{ft['B_m']:.2f}\nh{ft['h_m']:.2f} {ft['mesh']}",
                           _corner_candidates(x,y,h,h,order=('sw','nw','se','ne')),'','footing-label'))
+        for sp in fd.get('strips',()):
+            if abs(float(sp.get('z',0.0))-level)>.05:
+                continue
+            # Strip footing: flange outline (hidden) and the web, mark along it.
+            (ax,ay),(bx,by)=sp['a'],sp['b']
+            L=math.hypot(bx-ax,by-ay) or 1.0
+            ux,uy=(bx-ax)/L,(by-ay)/L
+            for half in (float(sp['B_m'])/2,float(sp['bw_m'])/2):
+                nx,ny=-uy*half,ux*half
+                f.primitives.append(Primitive2D('polyline',((ax+nx,ay+ny),(bx+nx,by+ny),(bx-nx,by-ny),(ax-nx,ay-ny),(ax+nx,ay+ny)),
+                                                role='footing',meta=(('name',sp['name']),)))
+            specs.append((3,f"{sp['name']} {sp['section']} {sp['bars_top']}+{sp['bars_bottom']} {sp['stirrups']}",_axis_candidates((ax,ay),(bx,by),float(sp['B_m'])/2+.25),'','footing-label'))
         for t in fd.get('ties',()):
             if abs(float(t.get('z',0.0))-level)>.05:
                 continue

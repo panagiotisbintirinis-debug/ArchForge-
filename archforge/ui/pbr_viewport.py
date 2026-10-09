@@ -117,6 +117,44 @@ except ImportError:  # pragma: no cover - optional module or native runtime depe
     QWebEngineView = None
 
 
+import re as _re
+
+# Windows draws WebGL through ANGLE → Direct3D; its HLSL compiler reports *warnings* (e.g. X4000
+# "use of potentially uninitialized variable (dyn_index_vec4_float4_int)") about the helper code
+# ANGLE generates for three.js's own shaders.  three.js forwards any non-empty program log as a
+# console warning.  These are not faults of the scene: they are kept out of the console, while
+# real shader errors and every other message still go through.
+_DRIVER_WARNING = _re.compile(r"\bwarning X\d{4}\b")
+
+
+def is_benign_console_message(message):
+    """True for a Direct3D compiler warning about generated shader code (no error in it)."""
+    text = str(message)
+    if "Program Info Log" not in text and not _DRIVER_WARNING.search(text):
+        return False
+    lowered = text.lower()
+    if "error" in lowered.replace("shadererror", ""):
+        return False
+    return bool(_DRIVER_WARNING.search(text))
+
+
+def _console_page_class():
+    from PySide6.QtWebEngineCore import QWebEnginePage
+
+    class ConsolePage(QWebEnginePage):
+        """Prints page messages like Qt does, except benign Direct3D shader warnings."""
+        suppressed = 0
+
+        def javaScriptConsoleMessage(self, level, message, line, source):
+            if is_benign_console_message(message):
+                ConsolePage.suppressed += 1
+                return
+            import sys
+            print(f"js: {message}", file=sys.stderr)
+
+    return ConsolePage
+
+
 _PBR_HTML = r"""<!doctype html>
 <html>
 <head>
@@ -1914,6 +1952,10 @@ class PBRViewport(QWidget):
             return
         self._placeholder.hide()
         self.web_view = QWebEngineView(self)
+        try:
+            self.web_view.setPage(_console_page_class()(self.web_view))
+        except Exception:                    # keep the default page if the subclass is unavailable
+            pass
         self._layout.addWidget(self.web_view)
         self.channel = QWebChannel(self.web_view.page())
         self.bridge = PBRInteractionBridge(self)

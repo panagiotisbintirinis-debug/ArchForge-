@@ -369,11 +369,11 @@ def _cover(sh, doc, project, client, date, storeys):
         sh.text(20, y, f"{level_name(s['name'])} (+{float(s['z']):.2f}) — {len(s['rooms'])} χώροι, {area:.2f} m² καθαρά", size=10, w=250); y += 6.5
     if storeys:
         sh.text(20, y + 2, f"Σύνολο: {total:.2f} m²", size=10, bold=True, w=250)
-    sh.text(20, 196, "Περιεχόμενα: κατόψεις ανά όροφο με διαστάσεις · επιμέτρηση ανά χώρο · προσφορά", size=8.5,
+    sh.text(20, 196, "Περιεχόμενα: κατόψεις ανά όροφο με διαστάσεις · ξυλότυποι · επιμέτρηση ανά χώρο · προσφορά", size=8.5,
             color=QColor(110, 110, 110), w=260)
 
 
-def export_pdf(doc, path, project=None, client=None, include=("cover", "plans", "takeoff", "quote")):
+def export_pdf(doc, path, project=None, client=None, include=("cover", "plans", "formwork", "takeoff", "quote")):
     """Write the PDF; returns ``{"pages": n, "path": path, "scales": [...]}``."""
     from archforge.assistant.understanding import read_drawing
     from archforge.quantities.quote import money, quote
@@ -402,6 +402,9 @@ def export_pdf(doc, path, project=None, client=None, include=("cover", "plans", 
     if "plans" in include:
         for s in storeys:
             new_page(); scales.append(_plan_page(sh, doc, s, pages, project, date))
+    if "formwork" in include:
+        from archforge.output.formwork import draw_formwork
+        scales += draw_formwork(sh, doc, new_page, project, date, lambda: pages)
     if "takeoff" in include:
         t = take_off(doc)
         cols = [("Όροφος", 26, "left"), ("Χώρος", 40, "left"), ("Δάπεδο m²", 24, "right"), ("Τοίχοι m²", 24, "right"),

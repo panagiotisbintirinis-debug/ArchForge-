@@ -16,6 +16,20 @@ from __future__ import annotations
 from archforge.assistant.understanding import centroid, inside
 
 CHOICES = {"tiled": "Κεραμοσκεπή", "terrace": "Ταράτσα (δώμα)"}
+FILL_TOGETHER = 0.85            # rooms must fill this share of their outline to share one roof (as the automatic roofs)
+
+
+def _area(poly):
+    return abs(sum(poly[i][0] * poly[(i + 1) % len(poly)][1] - poly[(i + 1) % len(poly)][0] * poly[i][1]
+                   for i in range(len(poly)))) / 2
+
+
+def uncovered_lower_rooms(doc):
+    """Signatures of lower storeys' rooms with no storey above and no roof yet (they get a terrace slab)."""
+    from archforge.architecture.roof_need import roof_plan
+    storeys = sorted({round(float(e.params.get("z", 0.0)), 4) for e in doc.entities.values() if e.kind == "wall"})
+    lower = {f.signature for z in storeys[:-1] for f in doc.active_room_faces(z=z)}
+    return [s for s in roof_plan(doc)["add"] if s in lower]
 
 
 def _room_box(doc, room, z):
@@ -84,3 +98,43 @@ def room_roof_command(doc, room, choice, z=None):
     if not commands:
         return None, f"{room['name']}: έχει ήδη {CHOICES[choice].lower()}"
     return CompositeCommand(commands, f"Στέγη χώρου: {CHOICES[choice]}"), " · ".join(notes)
+
+
+def form_roofs(doc, form, z):
+    """Tiled roofs of the chosen form over the storey at ``z`` — never over a room chosen as terrace.
+
+    No terrace: one roof over the whole storey (as before).  With terraces: one
+    roof over the other rooms together when their outline holds no terrace,
+    else one roof per room.  Returns ``[params]``.
+    """
+    from archforge.assistant.understanding import read_drawing
+    from archforge.structure.timber_roof import default_params, wall_sides
+    storey = next((s for s in read_drawing(doc)["storeys"] if abs(s["z"] - z) < 1e-6), None)
+    terraces = {e.params.get("room_signature") for e in doc.entities.values()
+                if e.kind == "room_roof" and str(e.params.get("roof_type", "flat")) == "flat"}
+    rooms = storey["rooms"] if storey else []
+    flat_rooms = [r for r in rooms if r["signature"] in terraces]
+    others = [r for r in rooms if r["signature"] not in terraces]
+    if rooms and not others:
+        raise ValueError("Όλοι οι χώροι του ορόφου έχουν ταράτσα — Στέγη → «Κεραμοσκεπή σε χώρο» για να αλλάξεις κάποιον")
+    if not others:
+        params = default_params(doc, z=z, form=form)
+        return [dict(params, gables=wall_sides(doc, params, z=z))]
+    xs = [q[0] for r in others for q in r["polygon"]]; ys = [q[1] for r in others for q in r["polygon"]]
+    union = [(min(xs), min(ys)), (max(xs), min(ys)), (max(xs), max(ys)), (min(xs), max(ys))]
+    box_area = (max(xs) - min(xs)) * (max(ys) - min(ys))
+    fill = sum(_area(r["polygon"]) for r in others) / box_area if box_area > 0 else 0.0
+    # One roof over the rooms together only when they fill their outline (a rectangle, not an L / T)
+    # and no terrace lies inside it; else one roof per room — never a roof over empty space.
+    together = fill >= FILL_TOGETHER and not any(inside(union, *centroid(r["polygon"])) for r in flat_rooms)
+    if together and not flat_rooms:
+        params = default_params(doc, z=z, form=form)
+        return [dict(params, gables=wall_sides(doc, params, z=z))]
+    groups = [[{"polygon": union, "signature": "", "name": ""}]] if together else [[r] for r in others]
+    out = []
+    for (room,) in groups:
+        params, _reason = _tiled_params(doc, room, z)
+        params = dict(params, roof_form=form)
+        params["gables"] = wall_sides(doc, params, z=z)
+        out.append(params)
+    return out

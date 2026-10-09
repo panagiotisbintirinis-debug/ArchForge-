@@ -7,58 +7,72 @@ from typing import Dict, Tuple
 # Future entity types/properties can be added here without rewriting the dialog.
 PROPERTY_FIELDS = {
     'wall': (
-        {'id': 'length', 'label': 'Length', 'unit': 'm', 'minimum': 0.01, 'step': 0.10},
-        {'id': 'height', 'label': 'Height', 'unit': 'm', 'minimum': 0.01, 'step': 0.10},
-        {'id': 'thickness', 'label': 'Thickness', 'unit': 'm', 'minimum': 0.01, 'step': 0.01},
+        {'id': 'length', 'label': 'Μήκος', 'unit': 'm', 'minimum': 0.01, 'step': 0.10},
+        {'id': 'height', 'label': 'Ύψος', 'unit': 'm', 'minimum': 0.01, 'step': 0.10},
+        {'id': 'thickness', 'label': 'Πάχος', 'unit': 'm', 'minimum': 0.01, 'step': 0.01},
     ),
     'door': (
-        {'id': 'width', 'label': 'Frame Width', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
-        {'id': 'height', 'label': 'Frame Height', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
+        {'id': 'width', 'label': 'Πλάτος κάσας', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
+        {'id': 'height', 'label': 'Ύψος κάσας', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
     ),
     'window': (
-        {'id': 'width', 'label': 'Frame Width', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
-        {'id': 'height', 'label': 'Frame Height', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
-        {'id': 'sill', 'label': 'Sill Height', 'unit': 'm', 'minimum': 0.0, 'step': 0.05},
+        {'id': 'width', 'label': 'Πλάτος κάσας', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
+        {'id': 'height', 'label': 'Ύψος κάσας', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
+        {'id': 'sill', 'label': 'Ύψος ποδιάς', 'unit': 'm', 'minimum': 0.0, 'step': 0.05},
     ),
     'opening': (
-        {'id': 'width', 'label': 'Opening Width', 'unit': 'm', 'minimum': 0.05, 'step': 0.05},
-        {'id': 'height', 'label': 'Opening Height', 'unit': 'm', 'minimum': 0.05, 'step': 0.05},
-        {'id': 'sill', 'label': 'Bottom Height', 'unit': 'm', 'minimum': 0.0, 'step': 0.05},
-        {'id': 'arch_rise', 'label': 'Arch Rise', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
+        {'id': 'width', 'label': 'Πλάτος ανοίγματος', 'unit': 'm', 'minimum': 0.05, 'step': 0.05},
+        {'id': 'height', 'label': 'Ύψος ανοίγματος', 'unit': 'm', 'minimum': 0.05, 'step': 0.05},
+        {'id': 'sill', 'label': 'Ύψος κάτω παρειάς', 'unit': 'm', 'minimum': 0.0, 'step': 0.05},
+        {'id': 'arch_rise', 'label': 'Βέλος τόξου', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
     ),
     'structural_column': (
-        {'id': 'width', 'label': 'Section Width', 'unit': 'm', 'minimum': 0.03, 'step': 0.01},
-        {'id': 'depth', 'label': 'Section Depth', 'unit': 'm', 'minimum': 0.03, 'step': 0.01},
-        {'id': 'height', 'label': 'Height', 'unit': 'm', 'minimum': 0.05, 'step': 0.05},
+        {'id': 'width', 'label': 'Πλάτος διατομής', 'unit': 'm', 'minimum': 0.03, 'step': 0.01},
+        {'id': 'depth', 'label': 'Βάθος διατομής', 'unit': 'm', 'minimum': 0.03, 'step': 0.01},
+        {'id': 'height', 'label': 'Ύψος', 'unit': 'm', 'minimum': 0.05, 'step': 0.05},
     ),
     'structural_beam': (
-        {'id': 'length', 'label': 'Length', 'unit': 'm', 'minimum': 0.05, 'step': 0.05},
-        {'id': 'width', 'label': 'Section Width', 'unit': 'm', 'minimum': 0.03, 'step': 0.01},
-        {'id': 'height', 'label': 'Section Height', 'unit': 'm', 'minimum': 0.03, 'step': 0.01},
-        {'id': 'z', 'label': 'Bottom Elevation', 'unit': 'm', 'minimum': -20.0, 'maximum': 100.0, 'step': 0.05},
+        {'id': 'length', 'label': 'Μήκος', 'unit': 'm', 'minimum': 0.05, 'step': 0.05},
+        {'id': 'width', 'label': 'Πλάτος διατομής', 'unit': 'm', 'minimum': 0.03, 'step': 0.01},
+        {'id': 'height', 'label': 'Ύψος διατομής', 'unit': 'm', 'minimum': 0.03, 'step': 0.01},
+        {'id': 'z', 'label': 'Στάθμη κάτω παρειάς', 'unit': 'm', 'minimum': -20.0, 'maximum': 100.0, 'step': 0.05},
     ),
     'box': (
-        {'id': 'width', 'label': 'Width', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
-        {'id': 'depth', 'label': 'Depth', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
-        {'id': 'height', 'label': 'Height', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
+        {'id': 'width', 'label': 'Πλάτος', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
+        {'id': 'depth', 'label': 'Βάθος', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
+        {'id': 'height', 'label': 'Ύψος', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
     ),
     'pod': (
-        {'id': 'diameter_x', 'label': 'Width', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
-        {'id': 'diameter_y', 'label': 'Depth', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
-        {'id': 'height', 'label': 'Height', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
-        {'id': 'shell_thickness', 'label': 'Shell Thickness', 'unit': 'm', 'minimum': 0.001, 'step': 0.01},
+        {'id': 'diameter_x', 'label': 'Πλάτος', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
+        {'id': 'diameter_y', 'label': 'Βάθος', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
+        {'id': 'height', 'label': 'Ύψος', 'unit': 'm', 'minimum': 0.01, 'step': 0.05},
+        {'id': 'shell_thickness', 'label': 'Πάχος κελύφους', 'unit': 'm', 'minimum': 0.001, 'step': 0.01},
     ),
     'mep_terminal': (
-        {'id': 'elevation', 'label': 'Elevation Above Floor', 'unit': 'm', 'minimum': -5.0, 'maximum': 20.0, 'step': 0.05},
-        {'id': 'diameter', 'label': 'Nominal Diameter', 'unit': 'm', 'minimum': 0.005, 'maximum': 0.50, 'step': 0.005},
+        {'id': 'elevation', 'label': 'Ύψος από δάπεδο', 'unit': 'm', 'minimum': -5.0, 'maximum': 20.0, 'step': 0.05},
+        {'id': 'diameter', 'label': 'Ονομαστική διάμετρος', 'unit': 'm', 'minimum': 0.005, 'maximum': 0.50, 'step': 0.005},
     ),
     'ramp': (
-        {'id': 'width', 'label': 'Width', 'unit': 'm', 'minimum': 0.50, 'step': 0.05},
-        {'id': 'slope_pct', 'label': 'Slope', 'unit': '%', 'minimum': 0.10, 'step': 0.50},
-        {'id': 'run_length', 'label': 'Run Length', 'unit': 'm', 'minimum': 0.10, 'step': 0.10},
-        {'id': 'thickness', 'label': 'Ramp Thickness', 'unit': 'm', 'minimum': 0.03, 'step': 0.01},
+        {'id': 'width', 'label': 'Πλάτος', 'unit': 'm', 'minimum': 0.50, 'step': 0.05},
+        {'id': 'slope_pct', 'label': 'Κλίση', 'unit': '%', 'minimum': 0.10, 'step': 0.50},
+        {'id': 'run_length', 'label': 'Μήκος ανάπτυξης', 'unit': 'm', 'minimum': 0.10, 'step': 0.10},
+        {'id': 'thickness', 'label': 'Πάχος ράμπας', 'unit': 'm', 'minimum': 0.03, 'step': 0.01},
     ),
 }
+
+
+# Greek names of raw parameters in the Properties panel (anything else shows its key).
+PARAM_LABELS = {
+    'x': 'X', 'y': 'Y', 'z': 'Στάθμη (z)', 'x1': 'X αρχής', 'y1': 'Y αρχής', 'x2': 'X τέλους', 'y2': 'Y τέλους',
+    'x0': 'X ελάχ.', 'y0': 'Y ελάχ.', 'width': 'Πλάτος', 'depth': 'Βάθος', 'height': 'Ύψος', 'thickness': 'Πάχος',
+    'rotation': 'Περιστροφή (°)', 'length': 'Μήκος', 'sill': 'Ύψος ποδιάς', 'offset': 'Θέση στον τοίχο',
+    'elevation': 'Υψόμετρο', 'slope_x': 'Κλίση X %', 'slope_y': 'Κλίση Y %', 'blend_radius': 'Ακτίνα επιρροής σημείων',
+    'altitude_ref': 'Απόλυτο υψόμετρο ±0.00', 'overhang': 'Προεξοχή', 'diameter': 'Διάμετρος',
+}
+
+
+def param_label(key: str) -> str:
+    return PARAM_LABELS.get(str(key), str(key))
 
 
 def property_fields(kind: str):

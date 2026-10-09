@@ -57,6 +57,15 @@ def plan(doc, z):
             shift[w.id] = -half if ref == "exterior" else half       # along the outward normal
     if not shift:
         return {}, {}
+    walls_out, openings_out = reconnect(doc, walls, normals, shift)
+    for wid in shift:
+        walls_out.setdefault(wid, {})["reference_applied"] = True
+    return walls_out, openings_out
+
+
+def reconnect(doc, walls, normals, shift):
+    """Move walls by ``shift[id]`` along their outward normal and re-join every end (corners by
+    intersecting the moved axes, T junctions onto the moved wall); doors and windows keep their place."""
     moved = {}
     for w in walls:
         (a, b) = _line(w.params)
@@ -92,10 +101,7 @@ def plan(doc, z):
                     q = hit
             ends.append(q)
         if any(math.dist(e, o) > 1e-9 for e, o in zip(ends, old)) or w.id in shift:
-            params = {"x1": ends[0][0], "y1": ends[0][1], "x2": ends[1][0], "y2": ends[1][1]}
-            if w.id in shift:
-                params["reference_applied"] = True
-            walls_out[w.id] = params
+            walls_out[w.id] = {"x1": ends[0][0], "y1": ends[0][1], "x2": ends[1][0], "y2": ends[1][1]}
             # Keep doors and windows where they are in the world.
             ux, uy = old[1][0] - old[0][0], old[1][1] - old[0][1]
             L = math.hypot(ux, uy) or 1.0
