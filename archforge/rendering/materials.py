@@ -19,7 +19,7 @@ from typing import Dict, Mapping
 #
 # ``use`` lists where the finish is normally applied (see ``MATERIAL_USES``).
 # ``opacity`` < 1 makes the surface see-through (glass).
-MATERIAL_USES = ("τοίχος", "πρόσοψη", "δάπεδο", "στέγη", "κούφωμα", "έπιπλο", "αυλή")
+MATERIAL_USES = ("τοίχος", "πρόσοψη", "δάπεδο", "στέγη", "κούφωμα", "έπιπλο", "πάγκος", "αυλή")
 
 MATERIAL_PRESETS: Dict[str, dict] = {}
 
@@ -100,10 +100,10 @@ _add("Σκυρόδεμα", {
 })
 
 _add("Μάρμαρα", {
-    "marble_thassos": ("Λευκό Θάσου", "#f3f2ee", 0.22, 0.00, "δάπεδο τοίχος έπιπλο"),
+    "marble_thassos": ("Λευκό Θάσου", "#f3f2ee", 0.22, 0.00, "δάπεδο τοίχος έπιπλο πάγκος"),
     "marble_dionysos": ("Μάρμαρο Διονύσου", "#e4e3df", 0.28, 0.00, "δάπεδο τοίχος πρόσοψη"),
     "marble_kavala": ("Μάρμαρο Καβάλας", "#e6e1d6", 0.28, 0.00, "δάπεδο τοίχος"),
-    "marble_black": ("Μαύρο μάρμαρο", "#1f1f21", 0.20, 0.00, "δάπεδο έπιπλο"),
+    "marble_black": ("Μαύρο μάρμαρο", "#1f1f21", 0.20, 0.00, "δάπεδο έπιπλο πάγκος"),
     "marble_grey": ("Γκρι μάρμαρο", "#8d8e8c", 0.28, 0.00, "δάπεδο τοίχος"),
     "marble_beige": ("Μπεζ μάρμαρο", "#dfcfb0", 0.28, 0.00, "δάπεδο τοίχος"),
 })
@@ -129,8 +129,50 @@ _add("Ξύλα", {
     "wood_pine": ("Πεύκο", "#d3a96e", 0.70, 0.00, "έπιπλο στέγη κούφωμα"),
     "wood_teak": ("Τικ", "#9a6a3c", 0.60, 0.00, "αυλή έπιπλο δάπεδο"),
     "wood_beech": ("Οξιά", "#c99a6c", 0.60, 0.00, "έπιπλο δάπεδο"),
-    "melamine_white": ("Μελαμίνη λευκή", "#eeede8", 0.45, 0.00, "έπιπλο"),
     "lacquer_white": ("Λάκα λευκή γυαλιστερή", "#f3f2ee", 0.15, 0.00, "έπιπλο"),
+})
+
+# Melamine boards (chipboard with a decor paper) and kitchen worktops: generic
+# decors only. The decor CODE a contractor orders by belongs to his supplier,
+# so it is typed by the user per surface («Κωδικός», ui/material_codes.py) or
+# comes with his own materials (rendering/user_materials.py), never shipped here.
+_add("Μελαμίνες", {
+    "melamine_white": ("Μελαμίνη λευκή", "#eeede8", 0.45, 0.00, "έπιπλο"),
+    "melamine_white_matt": ("Μελαμίνη λευκή ματ", "#ecebe5", 0.70, 0.00, "έπιπλο"),
+    "melamine_cream": ("Μελαμίνη κρεμ", "#e6dcc6", 0.55, 0.00, "έπιπλο"),
+    "melamine_mocha": ("Μελαμίνη μόκα", "#8c7462", 0.55, 0.00, "έπιπλο"),
+    "melamine_light_grey": ("Μελαμίνη γκρι ανοιχτή", "#c4c4c0", 0.55, 0.00, "έπιπλο"),
+    "melamine_anthracite": ("Μελαμίνη ανθρακί", "#46494c", 0.55, 0.00, "έπιπλο"),
+    "melamine_black": ("Μελαμίνη μαύρη", "#1f1f20", 0.55, 0.00, "έπιπλο"),
+    "melamine_oak_natural": ("Μελαμίνη δρυς φυσική", "#b88d5e", 0.62, 0.00, "έπιπλο"),
+    "melamine_oak_light": ("Μελαμίνη δρυς ανοιχτή", "#d4b994", 0.62, 0.00, "έπιπλο"),
+    "melamine_oak_dark": ("Μελαμίνη δρυς σκούρα", "#6f5137", 0.62, 0.00, "έπιπλο"),
+    "melamine_walnut": ("Μελαμίνη καρυδιά", "#6e4b35", 0.60, 0.00, "έπιπλο"),
+    "melamine_teak": ("Μελαμίνη τικ", "#9b6b40", 0.60, 0.00, "έπιπλο"),
+    "melamine_birch": ("Μελαμίνη σημύδα", "#dcc49e", 0.60, 0.00, "έπιπλο"),
+    "melamine_wenge": ("Μελαμίνη βέγκε (σκούρο εξωτικό ξύλο)", "#3d2c22", 0.60, 0.00, "έπιπλο"),
+    "melamine_concrete": ("Μελαμίνη τύπου τσιμέντου", "#a3a19c", 0.72, 0.00, "έπιπλο"),
+    "melamine_stone_grey": ("Μελαμίνη τύπου πέτρας γκρι", "#8d8a84", 0.70, 0.00, "έπιπλο"),
+    "melamine_marble_white": ("Μελαμίνη τύπου μαρμάρου λευκή", "#ebe9e4", 0.45, 0.00, "έπιπλο"),
+})
+
+_add("Πάγκοι κουζίνας", {
+    "worktop_laminate_white": ("Πάγκος λαμινέιτ λευκός", "#eceae4", 0.50, 0.00, "πάγκος έπιπλο"),
+    "worktop_laminate_oak": ("Πάγκος λαμινέιτ ξύλου δρυς", "#b48a5c", 0.55, 0.00, "πάγκος έπιπλο"),
+    "worktop_laminate_stone": ("Πάγκος λαμινέιτ πέτρας γκρι", "#8f8c86", 0.55, 0.00, "πάγκος έπιπλο"),
+    "worktop_compact_black": ("Πάγκος κόμπακτ μαύρος", "#202022", 0.45, 0.00, "πάγκος έπιπλο"),
+    "worktop_compact_white": ("Πάγκος κόμπακτ λευκός", "#efeee9", 0.45, 0.00, "πάγκος έπιπλο"),
+    "worktop_quartz_white": ("Πάγκος χαλαζία λευκός", "#f1f0eb", 0.20, 0.00, "πάγκος έπιπλο"),
+    "worktop_quartz_grey": ("Πάγκος χαλαζία γκρι", "#9d9c98", 0.22, 0.00, "πάγκος έπιπλο"),
+    "worktop_quartz_veined": ("Πάγκος χαλαζία λευκός με νερά", "#efeeea", 0.20, 0.00, "πάγκος έπιπλο"),
+    "worktop_granite_black": ("Πάγκος γρανίτη μαύρος", "#232325", 0.18, 0.00, "πάγκος έπιπλο"),
+    "worktop_granite_grey": ("Πάγκος γρανίτη γκρι", "#8a8985", 0.22, 0.00, "πάγκος έπιπλο"),
+    "worktop_granite_speckled": ("Πάγκος γρανίτη πιτσιλωτός (αλατοπίπερο)", "#b9b7b2", 0.22, 0.00, "πάγκος έπιπλο"),
+    "worktop_sintered_white": ("Πάγκος κεραμικός λευκός με νερά", "#f0efeb", 0.25, 0.00, "πάγκος έπιπλο"),
+    "worktop_sintered_dark": ("Πάγκος κεραμικός σκούρος με νερά", "#3a3a3b", 0.28, 0.00, "πάγκος έπιπλο"),
+    "worktop_solid_oak": ("Πάγκος μασίφ ξύλο δρυς", "#b58450", 0.55, 0.00, "πάγκος έπιπλο"),
+    "worktop_solid_walnut": ("Πάγκος μασίφ ξύλο καρυδιάς", "#6a4530", 0.55, 0.00, "πάγκος έπιπλο"),
+    "worktop_stainless": ("Πάγκος ανοξείδωτος", "#b7bdc1", 0.30, 0.85, "πάγκος έπιπλο"),
 })
 
 _add("Δάπεδα", {
@@ -258,6 +300,30 @@ _PATTERNS = {
     "garden_paver_beige": _p("tiles", 0.40, 0.40, 0.005, "#a39578", 0.06, offset=0.5),
     "garden_cobble_granite": _p("tiles", 0.10, 0.10, 0.008, "#5e5d59", 0.16, offset=0.5),
     "garden_cobble_concrete": _p("tiles", 0.20, 0.10, 0.004, "#6e4a3f", 0.10, offset=0.5),
+    # Μελαμίνες: decor paper of one board, grain along the length (2,80 m board)
+    "melamine_oak_natural": _p("grain", 2.40, 0.16, 0.0, "#8a6743", 0.06),
+    "melamine_oak_light": _p("grain", 2.40, 0.16, 0.0, "#ad906b", 0.05),
+    "melamine_oak_dark": _p("grain", 2.40, 0.16, 0.0, "#4d3726", 0.06),
+    "melamine_walnut": _p("grain", 2.40, 0.20, 0.0, "#4a3022", 0.07),
+    "melamine_teak": _p("grain", 2.40, 0.14, 0.0, "#734c2c", 0.06),
+    "melamine_birch": _p("grain", 2.40, 0.18, 0.0, "#bea27b", 0.04),
+    "melamine_wenge": _p("grain", 2.40, 0.10, 0.0, "#22180f", 0.06),
+    "melamine_concrete": _p("speckle", 0.004, 0.004, 0.0, "#a3a19c", 0.04),
+    "melamine_stone_grey": _p("speckle", 0.006, 0.006, 0.0, "#8d8a84", 0.25),
+    "melamine_marble_white": _p("tiles", 2.80, 2.07, 0.0, "#ebe9e4", 0.0, veins=0.5),
+    # Πάγκοι κουζίνας (one slab, no joint): granite/quartz grains, veins, staves
+    "worktop_laminate_oak": _p("grain", 2.40, 0.16, 0.0, "#86643f", 0.06),
+    "worktop_laminate_stone": _p("speckle", 0.005, 0.005, 0.0, "#8f8c86", 0.30),
+    "worktop_quartz_white": _p("speckle", 0.003, 0.003, 0.0, "#f1f0eb", 0.10),
+    "worktop_quartz_grey": _p("speckle", 0.003, 0.003, 0.0, "#9d9c98", 0.15),
+    "worktop_quartz_veined": _p("tiles", 3.00, 1.40, 0.0, "#efeeea", 0.0, veins=0.45),
+    "worktop_granite_black": _p("speckle", 0.004, 0.004, 0.0, "#232325", 0.45),
+    "worktop_granite_grey": _p("speckle", 0.006, 0.006, 0.0, "#8a8985", 0.60),
+    "worktop_granite_speckled": _p("speckle", 0.007, 0.007, 0.0, "#b9b7b2", 0.85),
+    "worktop_sintered_white": _p("tiles", 3.00, 1.40, 0.0, "#f0efeb", 0.0, veins=0.6),
+    "worktop_sintered_dark": _p("tiles", 3.00, 1.40, 0.0, "#3a3a3b", 0.0, veins=0.6),
+    "worktop_solid_oak": _p("planks", 1.00, 0.04, 0.0005, "#7d5a36", 0.12, offset=0.37),
+    "worktop_solid_walnut": _p("planks", 1.00, 0.04, 0.0005, "#3f2a1d", 0.12, offset=0.37),
 }
 for _material_id, _pattern in _PATTERNS.items():
     MATERIAL_PRESETS[_material_id]["pattern"] = _pattern
@@ -289,13 +355,47 @@ def materials_for_use(use: str):
     )
 
 
-def material_spec(material_id: str | None) -> Mapping[str, object] | None:
+def material_spec(material_id: str | None, doc=None) -> Mapping[str, object] | None:
+    """Preset, or the user's own material (``user_…``: the project's copy first)."""
     if not material_id:
         return None
     spec = MATERIAL_PRESETS.get(str(material_id))
+    if spec is None:
+        from archforge.rendering.user_materials import lookup
+        spec = lookup(str(material_id), doc)
     if spec is None:
         return None
     out = dict(spec)
     if "pattern" in out:
         out["pattern"] = dict(out["pattern"])
     return out
+
+
+def material_name(material_id, doc=None, default: str = "") -> str:
+    spec = material_spec(material_id, doc)
+    return str(spec["name"]) if spec else (default or str(material_id or ""))
+
+
+USER_MARK = "★"
+USER_CATEGORY = "★ Δικά μου υλικά"
+
+
+def picker_categories(doc=None):
+    """Categories of the materials dialog: the user's own first (when any), then the presets,
+    then categories that only user materials use."""
+    from archforge.rendering.user_materials import user_materials
+    mine = user_materials(doc)
+    cats = list(material_categories())
+    extra = [str(s["category"]) for s in mine.values() if str(s["category"]) not in cats]
+    return ((USER_CATEGORY,) if mine else ()) + tuple(cats) + tuple(dict.fromkeys(extra))
+
+
+def picker_materials(category: str, doc=None):
+    """``[(id, spec)]`` of a dialog category; user materials carry ``spec["user"]``."""
+    from archforge.rendering.user_materials import user_materials
+    mine = user_materials(doc)
+    if category == USER_CATEGORY:
+        return tuple(sorted(mine.items(), key=lambda kv: str(kv[1]["name"])))
+    presets = materials_in_category(category)
+    return presets + tuple((k, v) for k, v in sorted(mine.items(), key=lambda kv: str(kv[1]["name"]))
+                           if v.get("category") == category)

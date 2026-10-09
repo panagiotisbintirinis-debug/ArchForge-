@@ -11,7 +11,7 @@ from __future__ import annotations
 from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QBrush, QColor, QIcon, QImage, QLinearGradient, QPainter, QPen, QPixmap, QPolygonF
 
-from archforge.rendering.materials import MATERIAL_PRESETS
+from archforge.rendering.materials import material_spec
 from archforge.rendering.patterns import pattern_geometry, shade
 
 
@@ -19,6 +19,10 @@ def swatch_span(pattern) -> float:
     """Metres shown across a swatch: a few units, so a tile reads as a tile."""
     if not pattern:
         return 1.0
+    if pattern.get("type") == "grain":
+        return 0.8                       # a door-sized piece of board
+    if pattern.get("type") == "speckle":
+        return max(0.2, min(0.6, 60 * float(pattern["unit_w"])))
     return max(0.3, min(2.0, 6.0 * float(pattern["unit_w"])))
 
 
@@ -60,9 +64,11 @@ def paint_pattern(painter: QPainter, geometry: dict, width: int, height: int, pp
                 painter.setPen(Qt.PenStyle.NoPen)
 
 
-def material_swatch(material_id: str, width: int, height: int) -> QImage:
-    """Preview image of a material; patterned ones show joints at scale."""
-    spec = MATERIAL_PRESETS.get(str(material_id), {})
+def material_swatch(material_id: str, width: int, height: int, doc=None, spec=None) -> QImage:
+    """Preview image of a material; patterned ones show joints at scale.
+
+    ``spec`` previews a material not saved yet (the «Νέο υλικό» form)."""
+    spec = spec or material_spec(str(material_id), doc) or {}
     image = QImage(max(1, width), max(1, height), QImage.Format.Format_RGB32)
     image.fill(QColor(spec.get("color", "#9a9a9a")))
     pattern = spec.get("pattern")
@@ -76,5 +82,5 @@ def material_swatch(material_id: str, width: int, height: int) -> QImage:
     return image
 
 
-def material_icon(material_id: str, size: int = 28) -> QIcon:
-    return QIcon(QPixmap.fromImage(material_swatch(material_id, size, size)))
+def material_icon(material_id: str, size: int = 28, doc=None) -> QIcon:
+    return QIcon(QPixmap.fromImage(material_swatch(material_id, size, size, doc=doc)))

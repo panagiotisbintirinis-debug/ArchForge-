@@ -22,7 +22,7 @@ LEGACY_IDS = (
 
 
 def test_catalog_size_and_legacy_ids_kept():
-    assert 80 <= len(MATERIAL_PRESETS) <= 120
+    assert 140 <= len(MATERIAL_PRESETS) <= 180
     for material_id in LEGACY_IDS:
         assert material_id in MATERIAL_PRESETS, material_id
     assert re.fullmatch(r"[a-z0-9_]+", "".join(MATERIAL_PRESETS)) is not None

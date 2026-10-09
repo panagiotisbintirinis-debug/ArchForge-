@@ -1824,6 +1824,9 @@ class MainWindow(QMainWindow):
             phase_combo.currentIndexChanged.connect(
                 lambda _i, widget=phase_combo, entity_id=eid: self._set_phase([entity_id], widget.currentData()))
             self.form.addRow('Φάση', phase_combo)
+        if entity.params.get('material_id') or entity.params.get('surface_materials'):
+            from archforge.ui.material_codes import add_material_rows
+            add_material_rows(self, self.form, entity)   # finish + supplier code
         if entity.kind == 'stair':
             from PySide6.QtWidgets import QCheckBox
             numbers = QCheckBox('Αρίθμηση σκαλοπατιών στην κάτοψη')
@@ -2549,7 +2552,7 @@ class MainWindow(QMainWindow):
 
         dialog = QDialog(self)
         dialog.setWindowTitle(f'Υλικά / επιφάνειες — {entity.name or entity.kind.title()}')
-        dialog.resize(450, 500)
+        dialog.resize(560, 640)
         layout = QVBoxLayout(dialog)
 
         target = None
@@ -2596,10 +2599,21 @@ class MainWindow(QMainWindow):
         current = QLabel()
         layout.addWidget(current)
 
+        from archforge.rendering import user_materials as um
+        from archforge.rendering.materials import USER_MARK, material_spec, picker_categories, picker_materials
+
         category = QComboBox(dialog)
-        for name in material_categories():
-            category.addItem(name)
         layout.addWidget(category)
+
+        def fill_categories(keep=None):
+            category.blockSignals(True)
+            category.clear()
+            for name in picker_categories(self.doc):
+                category.addItem(name)
+            if keep:
+                category.setCurrentIndex(max(0, category.findText(keep)))
+            category.blockSignals(False)
+        fill_categories()
 
         from PySide6.QtCore import QSize
         from PySide6.QtGui import QPixmap
@@ -2644,21 +2658,41 @@ class MainWindow(QMainWindow):
                 or ''
             )
 
+        def code_roles():
+            """Keys of ``material_codes`` the dialog edits ('' = whole element)."""
+            if entity.kind == 'wall' and target is not None:
+                mode = str(target.currentData())
+                return ['exterior', 'interior'] if mode == 'both' else [mode]
+            if entity.kind in ('library_object', 'cabinet', 'door', 'window') and target is not None \
+                    and target.currentData() != 'all':
+                return [str(target.currentData())]
+            return ['']
+
+        def current_code():
+            role = code_roles()[0]
+            return um.code_for(entity, role, current_material_id(), self.doc)
+
         def update_current_label():
             material_id = current_material_id()
-            spec = MATERIAL_PRESETS.get(material_id, {})
-            current_label = spec.get('name', 'προεπιλογή του στοιχείου')
+            spec = material_spec(material_id, self.doc) or {}
+            code = current_code()
+            current_label = um.label(spec.get('name', 'προεπιλογή του στοιχείου'), code['code'], code['supplier'])
             current.setText(f'Τρέχον: {current_label}')
             return material_id
 
         def fill_materials(category_name):
-            selected_id = current_material_id()
+            selected_id = state.get('material_id') or current_material_id()
             materials.clear()
-            for material_id, spec in materials_in_category(category_name):
-                item = QListWidgetItem(material_icon(material_id, 32), str(spec['name']))
+            for material_id, spec in picker_materials(category_name, self.doc):
+                mine = um.is_user_material(material_id)
+                text = str(spec['name'])
+                if mine:
+                    text = f"{USER_MARK} {um.label(text, spec.get('code', ''), spec.get('supplier', ''))}"
+                item = QListWidgetItem(material_icon(material_id, 32, doc=self.doc), text)
                 item.setData(Qt.ItemDataRole.UserRole, material_id)
                 item.setToolTip(
-                    f"τραχύτητα {float(spec.get('roughness', 0.0)):.2f} · "
+                    ('Δικό σου υλικό · ' if mine else '')
+                    + f"τραχύτητα {float(spec.get('roughness', 0.0)):.2f} · "
                     f"μεταλλικότητα {float(spec.get('metalness', 0.0)):.2f} · "
                     f"χρήση: {', '.join(spec.get('use', ())) or '—'}"
                 )
@@ -2673,29 +2707,140 @@ class MainWindow(QMainWindow):
             if item is None:
                 return
             material_id = str(item.data(Qt.ItemDataRole.UserRole))
+            previous = state.get('material_id')
             state['material_id'] = material_id
-            spec = MATERIAL_PRESETS[material_id]
-            preview.setPixmap(QPixmap.fromImage(material_swatch(material_id, preview.width(), preview.height())))
-            text = f"<b>{spec['name']}</b>  ·  τραχ. {float(spec['roughness']):.2f}  ·  μετ. {float(spec['metalness']):.2f}"
+            spec = material_spec(material_id, self.doc) or {}
+            mine = um.is_user_material(material_id)
+            edit_button.setEnabled(mine)
+            delete_button.setEnabled(mine and material_id in um.user_materials())
+            # A user material brings its own code; switching away from it clears that auto-fill.
+            if mine and spec.get('code') and previous is not None and previous != material_id:
+                code_edit.setText(str(spec.get('code', '')))
+                supplier_edit.setText(str(spec.get('supplier', '')))
+            elif previous and um.is_user_material(previous) and previous != material_id:
+                before = material_spec(previous, self.doc) or {}
+                if code_edit.text() == str(before.get('code', '')):
+                    code_edit.clear()
+                    supplier_edit.clear()
+            preview.setPixmap(QPixmap.fromImage(material_swatch(material_id, preview.width(), preview.height(), doc=self.doc)))
+            text = f"<b>{spec.get('name', material_id)}</b>  ·  τραχ. {float(spec.get('roughness', 0)):.2f}  ·  μετ. {float(spec.get('metalness', 0)):.2f}"
             pattern = spec.get('pattern')
             if pattern:
                 size = f"{float(pattern['unit_w']) * 100:g}×{float(pattern['unit_h']) * 100:g} cm"
+                if pattern['type'] == 'grain':        # one board: no units, no joints
+                    unit = f"φύλλο νερών {float(pattern['unit_h']) * 100:g} cm"
+                elif pattern['type'] == 'speckle':
+                    unit = f"κόκκος περίπου {float(pattern['unit_w']) * 1000:g} mm"
+                elif float(pattern['joint']) <= 0:
+                    unit = f"πλάκα {size} χωρίς αρμό"
+                else:
+                    unit = f"μονάδα περίπου {size} · αρμός {float(pattern['joint']) * 1000:g} mm"
                 text += (
-                    f"<br>{PATTERN_NAMES.get(pattern['type'], '')} · μονάδα περίπου {size} · "
-                    f"αρμός {float(pattern['joint']) * 1000:g} mm · "
+                    f"<br>{PATTERN_NAMES.get(pattern['type'], '')} · {unit} · "
                     f"πλάτος δείγματος {swatch_span(pattern):.2f} m".replace('.', ',')
                 )
+            if mine:
+                text += '<br>★ Δικό σου υλικό' + (f" · βάση: {material_spec(spec.get('base'), self.doc)['name']}"
+                                                  if material_spec(spec.get('base'), self.doc) else '')
             preview_text.setText(text)
 
         def refresh_for_target():
             selected_id = update_current_label()
-            selected_spec = MATERIAL_PRESETS.get(selected_id, {})
+            state['material_id'] = None
+            code = current_code()
+            code_edit.setText(code['code'])
+            supplier_edit.setText(code['supplier'])
+            selected_spec = material_spec(selected_id, self.doc) or {}
             if selected_spec:
                 idx = category.findText(str(selected_spec.get('category', '')))
                 if idx >= 0:
                     category.setCurrentIndex(idx)
             fill_materials(category.currentText())
             refresh_preview()
+
+        # Supplier code of this surface: what is printed in the sample book.
+        from PySide6.QtWidgets import QFormLayout, QHBoxLayout, QLineEdit, QPushButton
+        code_form = QFormLayout()
+        code_edit = QLineEdit(dialog)
+        code_edit.setPlaceholderText('ο κωδικός του προμηθευτή (προαιρετικό)')
+        code_edit.setToolTip('Ο κωδικός με τον οποίο παραγγέλνεις, π.χ. από το δειγματολόγιο.\n'
+                             'Φαίνεται στις Ιδιότητες και στη λίστα υλικών.')
+        supplier_edit = QLineEdit(dialog)
+        supplier_edit.setPlaceholderText('προαιρετικό')
+        code_form.addRow('Κωδικός', code_edit)
+        code_form.addRow('Προμηθευτής', supplier_edit)
+        layout.addLayout(code_form)
+        self._materials_code = code_edit          # reachable from tests
+        self._materials_supplier = supplier_edit
+
+        # The user's own materials: new / edit / delete / import a code list.
+        own_row = QHBoxLayout()
+        new_button = QPushButton('Νέο υλικό…', dialog)
+        new_button.setToolTip('Δικό σου υλικό με όνομα, κωδικό, προμηθευτή και χρώμα')
+        edit_button = QPushButton('Επεξεργασία…', dialog)
+        delete_button = QPushButton('Διαγραφή', dialog)
+        delete_button.setToolTip('Αφαιρεί το δικό σου υλικό από τη λίστα (τα έργα που το έχουν το κρατούν)')
+        import_button = QPushButton('Εισαγωγή κωδικών από αρχείο…', dialog)
+        import_button.setToolTip('Λίστα κωδικών σε CSV (και από Excel): κωδικός;όνομα;χρώμα;κατηγορία;προμηθευτής')
+        for button in (new_button, edit_button, delete_button, import_button):
+            own_row.addWidget(button)
+        layout.addLayout(own_row)
+        self._materials_buttons = {'new': new_button, 'edit': edit_button, 'delete': delete_button,
+                                   'import': import_button}
+
+        def show_material(material_id):
+            spec = material_spec(material_id, self.doc) or {}
+            fill_categories(str(spec.get('category') or category.currentText()))
+            state['material_id'] = material_id
+            fill_materials(category.currentText())
+
+        def new_material():
+            from archforge.ui.material_codes import UserMaterialDialog
+            current_cat = category.currentText()
+            form = UserMaterialDialog(dialog, category='' if current_cat.startswith(USER_MARK) else current_cat)
+            self._user_material_dialog = form
+            if form.exec() == QDialog.DialogCode.Accepted and form.material_id:
+                show_material(form.material_id)
+
+        def edit_material():
+            from archforge.ui.material_codes import UserMaterialDialog
+            material_id = state.get('material_id')
+            if not um.is_user_material(material_id):
+                return
+            form = UserMaterialDialog(dialog, material_id, material_spec(material_id, self.doc))
+            self._user_material_dialog = form
+            if form.exec() == QDialog.DialogCode.Accepted:
+                state['material_id'] = None
+                show_material(form.material_id)
+
+        def delete_material():
+            material_id = state.get('material_id')
+            if not um.is_user_material(material_id):
+                return
+            name = (material_spec(material_id, self.doc) or {}).get('name', material_id)
+            answer = QMessageBox.question(dialog, 'Διαγραφή υλικού',
+                                          f'Να διαγραφεί το «{name}» από τα δικά σου υλικά;\n'
+                                          'Τα έργα που το χρησιμοποιούν το κρατούν.')
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+            um.delete_material(material_id)
+            state['material_id'] = None
+            fill_categories(category.currentText())
+            fill_materials(category.currentText())
+
+        def import_codes():
+            from archforge.rendering.materials import USER_CATEGORY
+            from archforge.ui.material_codes import import_codes as run_import
+            count = run_import(dialog)
+            if count:
+                fill_categories(USER_CATEGORY)
+                fill_materials(category.currentText())
+                self.statusBar().showMessage(f'Εισήχθησαν {count} κωδικοί στα «Δικά μου υλικά»', 4000)
+
+        new_button.clicked.connect(new_material)
+        edit_button.clicked.connect(edit_material)
+        delete_button.clicked.connect(delete_material)
+        import_button.clicked.connect(import_codes)
 
         category.currentTextChanged.connect(fill_materials)
         materials.currentItemChanged.connect(lambda *_: refresh_preview())
@@ -2722,7 +2867,15 @@ class MainWindow(QMainWindow):
             return
 
         changes = {}
-        target_label = entity.kind.title()
+        from archforge.ui.project_outline import KIND_LABELS
+        roles = code_roles()
+        codes = um.codes_of(entity)
+        if roles == [''] and entity.kind in ('library_object', 'cabinet', 'door', 'window'):
+            codes = {}                       # whole object: part codes go with the part finishes
+        new_codes = um.with_code(codes, roles, code_edit.text(), supplier_edit.text())
+        if new_codes != um.codes_of(entity):
+            changes['material_codes'] = new_codes
+        target_label = entity.name or KIND_LABELS.get(entity.kind, entity.kind)
         if entity.kind == 'wall' and target is not None:
             mode = str(target.currentData())
             surface_map = dict(entity.params.get('surface_materials') or {})
@@ -2747,13 +2900,17 @@ class MainWindow(QMainWindow):
         else:
             changes['material_id'] = str(material_id)
 
-        self.stack.execute(UpdateEntity(entity_id, changes))
+        # A user material travels with the project (same look on another PC): one undo step.
+        from archforge.core.commands import CompositeCommand
+        carry = um.carry_command(self.doc, str(material_id))
+        update = UpdateEntity(entity_id, changes)
+        self.stack.execute(CompositeCommand([carry, update], label='Υλικό') if carry else update)
         self.doc.select([entity_id])
         self._redraw_views(all_views=True)
         self.refresh_inspector()
-        spec = MATERIAL_PRESETS[str(material_id)]
+        spec = material_spec(str(material_id), self.doc) or {}
         self.statusBar().showMessage(
-            f"{spec['name']} → {target_label} — αναίρεση με Ctrl+Z",
+            f"{um.label(spec.get('name', material_id), code_edit.text().strip())} → {target_label} — αναίρεση με Ctrl+Z",
             3500,
         )
 
@@ -3459,6 +3616,8 @@ class MainWindow(QMainWindow):
             from .layers_panel import on_project_replaced
             on_project_replaced(self)   # old project without layers: the defaults
         self.current_path = path
+        from archforge.rendering.user_materials import adopt_project
+        adopt_project(self.doc)          # the project's own materials are pickable here too
         self._mark_clean()
         if getattr(self, 'autosave', None) is not None:
             self.autosave.discard()
