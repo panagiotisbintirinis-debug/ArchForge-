@@ -145,7 +145,7 @@ _CACHE = {}
 def _fingerprint(doc, entity):
     keys = []
     for e in doc.entities.values():
-        if e.kind in ('wall', 'slab_opening', 'pitched_roof') or (e.kind in SLAB_KINDS and e.params.get('scope') != 'storey'):
+        if e.kind in ('wall', 'slab_opening', 'pitched_roof') or (e.kind in SLAB_KINDS and e.id != entity.id):
             keys.append((e.id, e.kind, e.visible, repr(sorted(e.params.items()))))
     return hash((tuple(sorted(keys)), repr(sorted(entity.params.items())), repr(sorted(doc.room_bindings))))
 
@@ -175,7 +175,9 @@ def storey_faces(doc, kind, level_z):
         if f.signature in own:
             continue
         if kind == 'room_roof':
-            if under_pitched_roof(doc, f.polygon, level_z) or coverage(doc, f.polygon, level_z) >= COVERED:
+            # The slab over a storey is one plate, under a terrace or under the next storey alike
+            # (owner: «πάλι μέρη της πλάκας εξαφανίζονται»); only a tiled roof replaces it.
+            if under_pitched_roof(doc, f.polygon, level_z):
                 continue
         out.append(f)
     return out
@@ -234,6 +236,21 @@ def _roof_islands(doc, faces, level_z, atria, overhang, edge_offsets, tolerance)
     return group_loops(region_loops(offsets, inside, tolerance))
 
 
+def _slab_over_storey_below(doc, level_z, tolerance=1e-5):
+    """Outer loops of the storey roof slabs that end at ``level_z`` (the plate this storey stands on)."""
+    out = []
+    for e in doc.entities.values():
+        if e.kind != 'room_roof' or e.params.get('scope') != 'storey':
+            continue
+        lz = float(e.params['level_z'])
+        if lz >= level_z - 1e-4 or abs(lz + float(e.params.get('offset_z', 0.0)) - level_z) > .05:
+            continue
+        g = storey_slab_geometry(doc, e, tolerance)
+        if g:
+            out += [outer for outer, _holes in g['islands']]
+    return out
+
+
 def storey_slab_geometry(doc, entity, tolerance=1e-5):
     """Live outline of a storey slab: ``{'islands', 'points', 'holes', 'z', 'thickness', …}`` or None."""
     fp = _fingerprint(doc, entity)
@@ -254,7 +271,10 @@ def storey_slab_geometry(doc, entity, tolerance=1e-5):
             if drawn and islands:
                 islands = region([o for o, _h in islands], [h for _o, hs in islands for h in hs] + drawn, tolerance)
         else:
-            islands = region([f.polygon for f in faces], rooms + drawn, tolerance)
+            # Above another storey the floor plate is the slab over that storey: only what overhangs it
+            # (cantilever, balcony) is left to this floor slab, so nothing is counted twice.
+            below = [poly for poly in _slab_over_storey_below(doc, level_z, tolerance)]
+            islands = region([f.polygon for f in faces], rooms + drawn + below, tolerance)
         if islands:
             islands.sort(key=lambda isl: -abs(signed_area(isl[0])))
             wall_ids = tuple(dict.fromkeys(w for f in faces for w in f.wall_ids))

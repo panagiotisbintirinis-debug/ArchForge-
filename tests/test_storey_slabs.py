@@ -93,7 +93,8 @@ def test_storey_slab_follows_walls_and_is_marked_dirty():
     assert room_slab_geometry(doc, slab)['area'] > area + 5
 
 
-def test_storey_roof_only_over_uncovered_rooms_and_to_outer_wall_face():
+def test_slab_over_a_storey_is_one_plate_under_terrace_and_upper_storey_alike():
+    """Owner: «πάλι μέρη της πλάκας εξαφανίζονται» — the roof slab skipped the part under the next storey."""
     doc = Document()
     st = CommandStack(doc)
     doc.levels['Floor 2'] = 3.0
@@ -104,11 +105,29 @@ def test_storey_roof_only_over_uncovered_rooms_and_to_outer_wall_face():
     st.execute(command)
     g = room_slab_geometry(doc, roof)
     xs = [p[0] for p in g['points']]
-    # Right room only (left one is under the upper storey): from the axis at x = 5 to the outer face 10.125.
-    assert min(xs) == pytest.approx(5.0) and max(xs) == pytest.approx(10 + T / 2)
+    # Both rooms, the one under the upper storey too, to the outer wall faces.
+    assert min(xs) == pytest.approx(-T / 2) and max(xs) == pytest.approx(10 + T / 2)
     assert g['z'] == pytest.approx(3.0)
+    # The upper storey stands on that plate: its own floor slab adds nothing (no double slab, no double m²).
+    command, upper_floor = S.storey_slab_command(doc, 'room_floor', 3.0, 'Floor 2')
+    st.execute(command)
+    assert room_slab_geometry(doc, upper_floor) is None
     from archforge.architecture.roof_need import roof_plan
     assert roof_plan(doc)['add'] == [f.signature for f in doc.active_room_faces(z=3.0)]
+
+
+def test_upper_floor_slab_keeps_only_what_overhangs_the_storey_below():
+    doc = Document()
+    st = CommandStack(doc)
+    doc.levels['Floor 2'] = 3.0
+    chain(st, [(0, 0), (5, 0), (5, 6), (0, 6)])
+    chain(st, [(0, 0), (7, 0), (7, 6), (0, 6)], z=3.0)               # 2 m cantilever / balcony
+    st.execute(S.storey_slab_command(doc, 'room_roof', 0.0)[0])
+    command, upper_floor = S.storey_slab_command(doc, 'room_floor', 3.0, 'Floor 2')
+    st.execute(command)
+    g = room_slab_geometry(doc, upper_floor)
+    xs = [p[0] for p in g['points']]
+    assert min(xs) == pytest.approx(5 + T / 2, abs=1e-3) and max(xs) == pytest.approx(7.0, abs=1e-3)
 
 
 def test_drawn_opening_cuts_floor_mesh_plan_and_takeoff():

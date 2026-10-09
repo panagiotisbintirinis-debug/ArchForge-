@@ -30,7 +30,7 @@ def test_only_the_uncovered_room_needs_a_roof():
     assert roof_needed(doc, upper.signature)[0] is True                 # top storey: nothing above
 
 
-def test_auto_roof_skips_rooms_under_the_upper_storey():
+def test_auto_roof_is_one_plate_over_the_whole_storey():
     from PySide6.QtWidgets import QApplication
     from archforge.ui.main_window import MainWindow
     app = QApplication.instance() or QApplication([])
@@ -45,8 +45,8 @@ def test_auto_roof_skips_rooms_under_the_upper_storey():
         from archforge.architecture.rooms import room_slab_geometry
         assert len(roofs) == 1 and roofs[0].params['scope'] == 'storey'      # one roof slab for the storey (SL1)
         g = room_slab_geometry(w.doc, roofs[0])
-        assert min(p[0] for p in g['points']) >= 4.9                     # only over the right room (nothing above it)
-        assert g['area'] < 5.3 * 6.3
+        # One plate over the whole storey, under the upper storey too (owner: parts of the slab vanished).
+        assert min(p[0] for p in g['points']) < 0.1 and g['area'] > 10 * 6
     finally:
         w._mark_clean(); w.close(); app.processEvents()
 
