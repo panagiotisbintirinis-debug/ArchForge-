@@ -124,6 +124,8 @@ def _project_panel(window):
     ltree.itemDoubleClicked.connect(lambda item,_c: window._library_tree_action(item))
     lsearch.textChanged.connect(window._filter_library_tree)
     window._library_tree=ltree; window._library_search=lsearch
+    from archforge.ui.library_drag import install_tree_carry
+    install_tree_carry(window,ltree)     # σύρσιμο φύλλου στην κάτοψη / στο 3D
     lay.addWidget(_card("Έργο",tabs),5); lay.addWidget(_card("Βιβλιοθήκη",browser),6)
     window._refresh_library_tree()
     window.project_tree=tree
@@ -298,7 +300,7 @@ def install_approved_mockup_shell(window):
     mep_menu.addAction(layer); window.view_menu.addAction(layer); window._mep_layer_action=layer
     library_menu=menus["Βιβλιοθήκη"]
     for text,run in (("Τοποθέτηση αντικειμένου…",lambda: window._choose_library_asset()),
-                     ("Object Modifier (επιλεγμένο)…",lambda: window._open_object_modifier()),
+                     ("Επεξεργασία αντικειμένου (επιλεγμένο)…",lambda: window._open_object_modifier()),
                      ("Εισαγωγή μοντέλου glTF/GLB…",lambda: window._import_gltf_model()),
                      ("Εισαγωγή από Home Designer (.calib/.calibz)…",lambda: window._import_hd_catalog())):
         a=QAction(text,window); a.triggered.connect(lambda _=False,r=run: r()); library_menu.addAction(a)
@@ -541,6 +543,8 @@ def install_approved_mockup_shell(window):
     style_popup=build_menu(window,"Στυλ",style_specs,checkable=True)
     style_popup.actions()[0].setChecked(True)
     window._mockup_style_popup=style_popup
+    from archforge.ui.object_menu import add_open_joinery_action
+    add_open_joinery_action(window,style_popup,getattr(window,"view_menu",None))
     window._mockup_style_button=popup_button(camera,"Στυλ","style",style_popup,"Στυλ απεικόνισης του 3D: φως, ώρα, τεχνικό, γυάλινο")
     # Popups first, then a separator and the quick camera buttons.
     for w in (window._mockup_view_button,window._mockup_style_button):

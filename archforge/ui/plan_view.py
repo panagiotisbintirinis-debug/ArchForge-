@@ -73,7 +73,7 @@ class PlanView(QGraphicsView):
     def __init__(self,doc:Document,stack:CommandStack,parent=None,structural_only=False):
         self._scene=QGraphicsScene();super().__init__(self._scene,parent);self.doc=doc;self.stack=stack;self.controller=PointerController(doc,stack);self.structural_only=bool(structural_only)
         self.setRenderHint(QPainter.RenderHint.Antialiasing,True);self.setDragMode(QGraphicsView.DragMode.NoDrag);self.setMouseTracking(True);self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse);self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter);self.setBackgroundBrush(QColor(248,248,248))
-        self._mouse_down=False;self._handle_items={};self._entity_items={};self._active_handle=None;self._hud_item=None;self._wall_angle_buttons=[];self._wall_menu_target_entity=None;self.scale(55.0,-55.0);self.redraw()
+        self._mouse_down=False;self._handle_items={};self._entity_items={};self._active_handle=None;self._hud_item=None;self._wall_angle_buttons=[];self._wall_menu_target_entity=None;self.scale(55.0,-55.0);self.setAcceptDrops(True);self.viewport().setAcceptDrops(True);self.redraw()
     def rebind(self,doc,stack):
         self.doc=doc;self.stack=stack;self.controller=PointerController(doc,stack)
         if getattr(self,'_grid_step',None):self.controller.grid=self.controller.construction_grid=self._grid_step
@@ -135,6 +135,10 @@ class PlanView(QGraphicsView):
         self.selectionChangedByView.emit()
         return eid is not None
     def wheelEvent(self,event):
+        if self.carry is not None:
+            # A Library item in hand: the wheel turns it 15° before it is dropped.
+            from archforge.ui.library_drag import TURN_STEP
+            self.carry.turn_by(TURN_STEP if event.angleDelta().y()>0 else -TURN_STEP);self.redraw();self.statusChanged.emit(self.carry.label());event.accept();return
         # During a live Stair/Ramp placement the wheel picks the next option.
         if self.controller.cycle_option(-1 if event.angleDelta().y()>0 else 1):
             self.redraw();event.accept();return
@@ -233,7 +237,14 @@ class PlanView(QGraphicsView):
         if hit in self._handle_items:
             h=self._handle_items[hit];self._active_handle=h
             self.doc.select([h.entity_id]);self.selectionChangedByView.emit()
-            if h.handle=='move' or h.cursor=='move':
+            if h.handle=='flip_swing':
+                # Click on the swing arc: opens the other way; Shift/Ctrl = other hinge side (one undo).
+                key='hinge' if event.modifiers()&(Qt.KeyboardModifier.ShiftModifier|Qt.KeyboardModifier.ControlModifier) else 'swing'
+                self._mouse_down=False;self._active_handle=None;self.run_object_op(h.entity_id,key);event.accept();return
+            if h.handle=='rotate':
+                # Round handle: drag turns the object about its centre (15° steps, Shift free).
+                self.controller.set_tool('rotate');self.controller.set_target(h.entity_id,None);self._restore_select=True
+            elif h.handle=='move' or h.cursor=='move':
                 self.controller.set_tool('move');self.controller.set_target(h.entity_id,h.handle)
             else:
                 self.controller.set_tool('stretch');self.controller.set_target(h.entity_id,h.handle)
@@ -244,6 +255,9 @@ class PlanView(QGraphicsView):
             # Pressing on a wall's body: a drag moves it perpendicular to its axis (wall_edit.py).
             ev=self._scene_to_plane(event.position().toPoint())
             self._wall_press=(eid,ev.a,ev.b,event.position()) if eid and self.doc.get(eid).kind=='wall' and not(event.modifiers()&Qt.KeyboardModifier.ControlModifier) else None
+            # Pressing on a placed object's body: a drag moves it (with snapping), like a handle.
+            from archforge.core.object_ops import USER_PLACED_KINDS
+            self._body_press=(eid,event.position()) if eid and self.doc.get(eid).kind in USER_PLACED_KINDS and not self.doc.get(eid).locked and not(event.modifiers()&Qt.KeyboardModifier.ControlModifier) else None
             self.selectionChangedByView.emit();self.redraw();return
         elif self.controller.tool=='move':
             if not self._acquire_move_target(hit):self._mouse_down=False;self.redraw();return
@@ -276,6 +290,12 @@ class PlanView(QGraphicsView):
             self._railing_draft.move(ev.a,ev.b,bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier));self.redraw();return
         if self._mouse_down and getattr(self,'_view_drag',None):
             ev=self._scene_to_plane(event.position().toPoint());self.move_view_line(ev.a,ev.b);return
+        body=getattr(self,'_body_press',None)
+        if self._mouse_down and body and self.controller.active is None and (event.position()-body[1]).manhattanLength()>6:
+            self._body_press=None;self.doc.select([body[0]]);self.controller.set_tool('move');self.controller.set_target(body[0],None);self._restore_select=True
+            start=self._scene_to_plane(body[1].toPoint())
+            try:self.controller.pointer_down(start)
+            except (ValueError,RuntimeError) as exc:self.statusChanged.emit(str(exc));self.controller.set_tool('select');self._restore_select=False
         press=getattr(self,'_wall_press',None)
         if self._mouse_down and press and self.controller.active is None and (event.position()-press[3]).manhattanLength()>6:
             try:self.controller.begin_wall_move(press[0],press[1],press[2])
@@ -291,6 +311,10 @@ class PlanView(QGraphicsView):
                 if self.controller.preview.kind=='wall-move':
                     self.statusChanged.emit(f'⚠ {problem}' if problem else f'Μετακίνηση τοίχου {self.controller.active.distance*100:+.0f} cm — αφήνεις για να γίνει · Esc = ακύρωση')
                 elif problem:self.statusChanged.emit(f'⚠ Δεν χωράει: {problem} — μετακίνησε ή άλλαξε πλάτος')
+                elif self.controller.preview.kind=='rotate':
+                    self.statusChanged.emit(f"Περιστροφή {float(self.controller.preview.hud.get('angle_deg',0.)):+.0f}° — έλξη 15° · Shift = ελεύθερα · Esc = ακύρωση")
+                elif self.controller.preview.kind=='move':
+                    hud=self.controller.preview.hud;self.statusChanged.emit(f"Μετακίνηση ΔX {float(hud.get('dx',0.))*100:+.0f} cm · ΔY {float(hud.get('dy',0.))*100:+.0f} cm — αφήνεις για να γίνει · Esc = ακύρωση")
             except ValueError as exc:self.statusChanged.emit(str(exc))
         else:
             p=self.mapToScene(event.position().toPoint());self.statusChanged.emit(f'X {p.x():.3f}   Y {p.y():.3f}')
@@ -308,7 +332,9 @@ class PlanView(QGraphicsView):
             self._mouse_down=False;ev=self._scene_to_plane(event.position().toPoint())
             self.end_view_line(ev.a,ev.b);event.accept();return
         if event.button()==Qt.MouseButton.LeftButton and self._mouse_down:
-            self._mouse_down=False;self._wall_press=None
+            self._mouse_down=False;self._wall_press=None;self._body_press=None
+            if self.controller.active is None and getattr(self,'_restore_select',False):
+                self._restore_select=False;self.controller.set_tool('select')
             if self.controller.active is not None:
                 ev=self._scene_to_plane(event.position().toPoint())
                 ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
@@ -323,7 +349,10 @@ class PlanView(QGraphicsView):
                     elif self._wall_chain_active():
                         self.statusChanged.emit('Τοίχος: κλικ στην επόμενη γωνία · κλικ στο πρώτο σημείο = κλείσιμο · διπλό κλικ / δεξί κλικ / Enter = τέλος · Esc = ακύρωση')
                 except ValueError as exc:self.statusChanged.emit(str(exc));self.controller.cancel()
-                self._active_handle=None;self.redraw()
+                self._active_handle=None
+                if getattr(self,'_restore_select',False):
+                    self._restore_select=False;self.controller.set_tool('select');self.selectionChangedByView.emit()
+                self.redraw()
                 if moved_wall is not None:
                     self.selectionChangedByView.emit()
                     if self.controller.preview.kind!='wall-move' and abs(moved_wall)>1e-9:
@@ -336,7 +365,13 @@ class PlanView(QGraphicsView):
         if str(self.controller.tool).startswith('layout_'):return False     # Tab = next layout variant
         return super().focusNextPrevChild(next)
     def keyPressEvent(self,event):
+        if self.carry is not None and event.key() in (Qt.Key.Key_Escape,Qt.Key.Key_R):
+            if event.key()==Qt.Key.Key_R:self.carry.turn_by(90.0);self.statusChanged.emit(self.carry.label())
+            else:self.carry=None;self.statusChanged.emit('Σύρσιμο ακυρώθηκε')
+            self.redraw();event.accept();return
         if self._overlay('key',event):event.accept();return
+        if event.key()==Qt.Key.Key_Escape and getattr(self,'_restore_select',False):
+            self.controller.cancel();self._restore_select=False;self.controller.set_tool('select');self._mouse_down=False;self.redraw();return
         if event.key()==Qt.Key.Key_Escape:self.controller.cancel();self._mouse_down=False;self._wall_press=None;self._railing_draft=None;self._slab_draft=None;self.redraw();return
         if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self._wall_chain_active():self.finish_wall_chain();event.accept();return
         if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self._slab_tool():self.finish_slab_opening();event.accept();return
@@ -344,6 +379,51 @@ class PlanView(QGraphicsView):
         if event.key() in (Qt.Key.Key_Tab,Qt.Key.Key_Space) and self.controller.cycle_option(1):
             self.redraw();event.accept();return
         super().keyPressEvent(event)
+    # ---- Library drag (library_drag.py): ghost under the cursor, one command on drop.
+    carry=None
+    def _plan_xy_at(self,pos):return self.controller._plan_xy(self._scene_to_plane(pos))
+    def carry_move(self,carry,pos):
+        self.carry=carry;x,y=self._plan_xy_at(pos);carry.move(x,y,free=carry.free);self.redraw();self.statusChanged.emit(carry.label())
+    def carry_leave(self):
+        if self.carry is not None:self.carry=None;self.redraw()
+    def carry_drop(self,carry,pos):
+        x,y=self._plan_xy_at(pos);target=None
+        if carry.kind=='material':
+            eid=self._entity_items.get(self.itemAt(pos))
+            if not eid or eid not in self.doc.entities or self.doc.get(eid).kind in self.CONTAINER_KINDS:
+                from archforge.ui.library_drag import wall_at
+                eid=wall_at(self.doc,x,y) or eid       # walls are drawn as outlines: pick inside the thickness too
+            target=(eid,None) if eid and eid in self.doc.entities else None
+        self.carry=None;done=carry.drop(x,y,target);self.redraw();self.selectionChangedByView.emit();return done
+    def _drag_carry(self,event):
+        from archforge.ui.library_drag import LibraryCarry,action_from_mime,droppable
+        action=action_from_mime(event.mimeData());window=getattr(self,'marking_menu_window',None)
+        if not droppable(action) or window is None:return None
+        if self.carry is None or self.carry.action!=tuple(action):self.carry=LibraryCarry(window,action)
+        self.carry.free=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier);return self.carry
+    def dragEnterEvent(self,event):
+        carry=self._drag_carry(event)
+        if carry is None:super().dragEnterEvent(event);return
+        self.carry_move(carry,event.position().toPoint());event.acceptProposedAction()
+    def dragMoveEvent(self,event):
+        carry=self._drag_carry(event)
+        if carry is None:super().dragMoveEvent(event);return
+        self.carry_move(carry,event.position().toPoint());event.acceptProposedAction()
+    def dragLeaveEvent(self,event):self.carry_leave();event.accept()
+    def dropEvent(self,event):
+        carry=self._drag_carry(event)
+        if carry is None:super().dropEvent(event);return
+        self.carry_drop(carry,event.position().toPoint());event.acceptProposedAction()
+    def run_object_op(self,eid,op):
+        """Mouse-menu / handle actions on a placed object (object_ops): one command each."""
+        window=getattr(self,'marking_menu_window',None)
+        if window is not None:
+            from archforge.ui.object_menu import run_object_op
+            return run_object_op(window,eid,op)
+        from archforge.core import object_ops
+        command=object_ops.flip_command(self.doc,eid,op) if op in ('hinge','swing') else None
+        if command is not None:self.stack.execute(command);self.redraw()
+        return command
     def set_snap_enabled(self, enabled):
         self.controller.set_snap_enabled(enabled)
         self.statusChanged.emit('Έλξη ενεργή' if enabled else 'Έλξη ανενεργή — ελεύθερη σχεδίαση')
@@ -644,6 +724,8 @@ class PlanView(QGraphicsView):
             dot=QPen(QColor(200,60,40));dot.setWidthF(.05);self._scene.addEllipse(ax-.12,ay-.12,.24,.24,dot,QBrush(QColor(200,60,40))).setZValue(30)
         overlay=getattr(self,'overlay_tool',None)
         if overlay is not None:overlay.paint(self)
+        if self.carry is not None:self.carry.paint(self)
+        if self.controller.preview.kind=='rotate' and self.controller.active is not None:self._draw_rotate_dial(self.controller.preview)
         marker=getattr(self,'assistant_marker',None)
         if marker is not None:
             # Assistant marker: where the human pointed (UI state, not part of the Document).
@@ -788,7 +870,36 @@ class PlanView(QGraphicsView):
             if p.entity_id and not preview:self._entity_items[item]=p.entity_id
             # Dim layer (Layers panel / environment): a faint reference under the work.
             if dict(p.meta).get('layer_dim'):item.setOpacity(.28);item.setZValue(-30)
+    def _draw_rotate_dial(self,preview):
+        # Live rotation: dial round the pivot, a ray at the new angle and the angle in degrees.
+        hud=preview.hud;px,py=float(hud.get('pivot_x',0.)),float(hud.get('pivot_y',0.));a=float(hud.get('angle_deg',0.))
+        pen=QPen(QColor(230,120,20));pen.setWidthF(.025);pen.setStyle(Qt.PenStyle.DashLine);r=.6
+        self._scene.addEllipse(px-r,py-r,2*r,2*r,pen).setZValue(55)
+        for k in range(24):
+            t=math.radians(k*15);q=.08 if k%6==0 else .04
+            tick=QPen(QColor(230,120,20));tick.setWidthF(.015 if k%6 else .03)
+            self._scene.addLine(px+math.cos(t)*(r-q),py+math.sin(t)*(r-q),px+math.cos(t)*r,py+math.sin(t)*r,tick).setZValue(55)
+        ray=QPen(QColor(230,120,20));ray.setWidthF(.03)
+        t=math.radians(float(getattr(self.controller,'_rotate_start_angle',-90.))+a);self._scene.addLine(px,py,px+math.cos(t)*r,py+math.sin(t)*r,ray).setZValue(56)
+        label=self._scene.addText(f'{a:+.0f}°');label.setDefaultTextColor(QColor(200,90,10))
+        f=label.font();f.setBold(True);f.setPointSizeF(f.pointSizeF()*1.3);label.setFont(f)
+        label.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations,True);label.setPos(px+r*.75,py+r*.95);label.setZValue(57)
     def _draw_handle(self,h):
+        if h.handle=='rotate':
+            # Rotation handle: orange ring with an arrow mark (drag = turn).
+            r=.13;pen=QPen(QColor(230,120,20));pen.setWidthF(.03)
+            it=self._scene.addEllipse(h.x-r,h.y-r,2*r,2*r,pen,QBrush(QColor(255,240,220)));it.setZValue(52);self._handle_items[it]=h
+            arc=QPainterPath();arc.arcMoveTo(h.x-r*.6,h.y-r*.6,r*1.2,r*1.2,30);arc.arcTo(h.x-r*.6,h.y-r*.6,r*1.2,r*1.2,30,270)
+            self._scene.addPath(arc,pen).setZValue(53)
+            from PySide6.QtGui import QPolygonF
+            end=arc.currentPosition();head=QPolygonF([QPointF(end.x()-.045,end.y()+.01),QPointF(end.x()+.045,end.y()+.01),QPointF(end.x(),end.y()-.05)])
+            self._scene.addPolygon(head,pen,QBrush(QColor(230,120,20))).setZValue(53);return
+        if h.handle=='flip_swing':
+            # Swing flip: small blue diamond on the arc side (click = other way).
+            from PySide6.QtGui import QPolygonF
+            r=.09;pen=QPen(QColor(20,90,180));pen.setWidthF(.02)
+            it=self._scene.addPolygon(QPolygonF([QPointF(h.x,h.y-r),QPointF(h.x+r,h.y),QPointF(h.x,h.y+r),QPointF(h.x-r,h.y)]),pen,QBrush(QColor(210,230,255)))
+            it.setZValue(52);self._handle_items[it]=h;return
         r=.09;it=self._scene.addEllipse(h.x-r,h.y-r,2*r,2*r,QPen(QColor(20,90,180),0),QBrush(QColor(255,255,255)));it.setZValue(50);self._handle_items[it]=h
     def _draw_snap(self,s):
         r=.08

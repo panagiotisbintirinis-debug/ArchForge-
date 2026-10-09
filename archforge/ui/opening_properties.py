@@ -65,6 +65,14 @@ def add_opening_rows(window, form, entity):
         swing = _combo(joinery.SWINGS, r['swing'])
         swing.currentIndexChanged.connect(lambda _i, w=swing: _apply(window, eid, {'swing': w.currentData()}))
         form.addRow('Φορά ανοίγματος', swing)
+    if typ in joinery.SWINGING or typ in joinery.SLIDING or typ == 'pocket':
+        # Γωνία ανοίγματος στο 3D (0 = κλειστό· τα συρόμενα σύρονται κατά γωνία/90).
+        opened = QSpinBox()
+        opened.setRange(0, 180)
+        opened.setSuffix('°')
+        opened.setValue(int(round(float(p.get('open_angle', 0.0) or 0.0))))
+        opened.editingFinished.connect(lambda w=opened: _apply(window, eid, {'open_angle': float(w.value())}))
+        form.addRow('Ανοιχτό στο 3D (0 = κλειστό)', opened)
     if typ in joinery.GLAZED:
         for key, label in (('bars_v', 'Καΐτια κάθετα'), ('bars_h', 'Καΐτια οριζόντια')):
             spin = QSpinBox()
@@ -93,7 +101,7 @@ def add_opening_rows(window, form, entity):
     button = QPushButton('Χρώμα ανά τμήμα (κάσα, φύλλο, τζάμι…)')
     button.clicked.connect(lambda _=False: window._open_materials(eid))
     form.addRow(button)
-    return set(joinery.KEYS)
+    return set(joinery.KEYS) | {'open_angle'}
 
 
 def start_preset(window, key):

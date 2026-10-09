@@ -907,6 +907,7 @@ window.archforgeSetScene = function(payload, fit = true) {
     mesh.userData.entityId = item.id || "";
     mesh.userData.kind = item.kind || "";
     mesh.userData.surfaceRoles = item.surfaces || [];
+    mesh.userData.renderPart = item.render_part || "";
     mesh.visible = meshShouldShow(mesh);
     mesh.material.clippingPlanes = sectionPlane ? [sectionPlane] : [];
     mesh.castShadow = true;
@@ -1161,8 +1162,7 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     const hit = pickForSelection(event);
     if (!hit || !hit.face) return;
     const kind = hit.object.userData.kind || "";
-    const supported = ["stair", "ramp", "wall", "box", "pod", "floor", "room", "mechanical_part"];
-    if (!supported.includes(kind)) {
+    if (!MOVABLE_3D.includes(kind)) {
       bridge.reportStatus("Move in 3D is not supported for " + kind);
       event.preventDefault();
       event.stopPropagation();
@@ -1217,8 +1217,7 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     const hit = pickForSelection(event);
     if (!hit || !hit.face) return;
     const kind = hit.object.userData.kind || "";
-    const supported = ["stair", "ramp", "wall", "box", "pod"];
-    if (!supported.includes(kind)) {
+    if (!ROTATABLE_3D.includes(kind)) {
       bridge.reportStatus("Rotate in 3D is not supported for " + kind);
       event.preventDefault();
       event.stopPropagation();
@@ -1696,7 +1695,8 @@ _THREE_BUNDLE_PATH = Path(__file__).with_name("vendor") / "three_bundle.js"
 def pbr_page_html() -> str:
     """The 3D Scene page with the bundled three.js inlined (offline desktop)."""
     bundle = _THREE_BUNDLE_PATH.read_text(encoding="utf-8")
-    page = _PBR_HTML.replace("/*__ARCHFORGE_WALL_EDIT_3D__*/", wall_edit_3d_js(), 1)
+    from archforge.ui.library_drag import js_3d
+    page = _PBR_HTML.replace("/*__ARCHFORGE_WALL_EDIT_3D__*/", wall_edit_3d_js() + js_3d(), 1)
     return page.replace("/*__ARCHFORGE_THREE_BUNDLE__*/", bundle, 1)
 
 class PBRInteractionBridge(QObject):
@@ -1920,7 +1920,78 @@ class PBRViewport(QWidget):
         self.channel.registerObject("renderBridge", self.bridge)
         self.web_view.page().setWebChannel(self.channel)
         self.web_view.loadFinished.connect(self._on_load_finished)
+        # Library items dropped on the 3D view (QMimeData, library_drag.py).
+        self.web_view.setAcceptDrops(True)
+        self.web_view.installEventFilter(self)
         self.web_view.setHtml(pbr_page_html(), QUrl("https://archforge.local/"))
+
+    # ------------------------------------------------ library drag (library_drag.py)
+    carry = None
+
+    def eventFilter(self, obj, event):
+        from PySide6.QtCore import QEvent
+        t = event.type()
+        if t in (QEvent.Type.DragEnter, QEvent.Type.DragMove, QEvent.Type.Drop, QEvent.Type.DragLeave):
+            from archforge.ui.library_drag import LibraryCarry, action_from_mime, droppable
+            if t == QEvent.Type.DragLeave:
+                self.carry_leave()
+                return False
+            action = action_from_mime(event.mimeData())
+            window = getattr(self, "marking_menu_window", None)
+            if not droppable(action) or window is None:
+                return False
+            if self.carry is None or self.carry.action != action:
+                self.carry = LibraryCarry(window, action)
+            pos = event.position().toPoint()
+            if t == QEvent.Type.Drop:
+                self.carry_drop(self.carry, pos)
+            else:
+                self.carry_move(self.carry, pos)
+            event.acceptProposedAction()
+            return True
+        return super().eventFilter(obj, event)
+
+    def _drop_pick(self, pos, done):
+        """Point and object under ``pos`` (async, from the page): ``done(dict)``."""
+        if self.web_view is None:
+            done({})
+            return
+        script = f"window.afDropPick ? window.afDropPick({float(pos.x())}, {float(pos.y())}) : '{{}}'"
+        self.web_view.page().runJavaScript(script, 0, lambda raw: done(json.loads(raw or "{}") if isinstance(raw, str) else {}))
+
+    def carry_move(self, carry, pos):
+        self.carry = carry
+
+        def show(hit):
+            if self.carry is not carry or hit.get("x") is None:
+                return
+            carry.move(hit["x"], hit["y"], free=carry.free)
+            carry._last_hit = hit
+            box = carry.ghost_box()
+            if self.web_view is not None:
+                self.web_view.page().runJavaScript(
+                    "if (window.afDropGhost) window.afDropGhost(" + json.dumps(box) + ");")
+            self.statusChanged.emit(carry.label())
+        self._drop_pick(pos, show)
+
+    def carry_leave(self):
+        self.carry = None
+        if self.web_view is not None:
+            self.web_view.page().runJavaScript("if (window.afDropGhost) window.afDropGhost(null);")
+
+    def carry_drop(self, carry, pos):
+        def place(hit):
+            self.carry_leave()
+            hit = hit if hit.get("x") is not None else getattr(carry, "_last_hit", {}) or {}
+            if hit.get("x") is None:
+                self.statusChanged.emit("Δεν βρέθηκε σημείο στο δάπεδο κάτω από τον κέρσορα")
+                return
+            target = (hit.get("id"), hit.get("role") or None) if hit.get("id") else None
+            x, y = (hit.get("hx", hit["x"]), hit.get("hy", hit["y"])) if carry.kind == "material" and target else (hit["x"], hit["y"])
+            carry.drop(x, y, target)
+            self._evaluation_cache.clear()
+            self.redraw(force_full=True)
+        self._drop_pick(pos, place)
 
     def _on_load_finished(self, ok: bool) -> None:
         if not ok:
@@ -2385,7 +2456,9 @@ class PBRViewport(QWidget):
             self.statusChanged.emit("Move target no longer exists")
             return
         entity = self.doc.get(entity_id)
-        supported = {"stair", "ramp", "wall", "box", "pod", "floor", "room", "mechanical_part", "structural_column", "structural_beam"}
+        from archforge.core.object_ops import USER_PLACED_KINDS
+        supported = {"stair", "ramp", "wall", "box", "pod", "floor", "room", "mechanical_part", "structural_column", "structural_beam",
+                     *USER_PLACED_KINDS}
         if entity.kind not in supported:
             self.statusChanged.emit(f"Move in 3D is not supported for {entity.kind}")
             return
@@ -2483,7 +2556,8 @@ class PBRViewport(QWidget):
             self.statusChanged.emit("Rotate target no longer exists")
             return
         entity = self.doc.get(entity_id)
-        supported = {"stair", "ramp", "wall", "box", "pod", "structural_column", "structural_beam"}
+        from archforge.core.object_ops import ROTATABLE_KINDS
+        supported = {"stair", "ramp", "wall", "box", "pod", "structural_column", "structural_beam", *ROTATABLE_KINDS}
         if entity.kind not in supported:
             self.statusChanged.emit(f"Rotate in 3D is not supported for {entity.kind}")
             return

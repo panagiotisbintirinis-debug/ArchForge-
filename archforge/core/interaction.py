@@ -20,6 +20,8 @@ class MoveTransaction:
             raise KeyError(f"Entities not found: {missing}")
         # What sits on a moved piece (hob, hood, its water point) moves with it.
         from archforge.assistant.room_layout import followers
+        from archforge.core.object_ops import group_ids
+        self.ids = list(dict.fromkeys(g for eid in self.ids for g in group_ids(doc, eid)))
         self.ids += followers(doc, self.ids)
         self.origin = origin if origin is not None else (0.0, 0.0, 0.0)
         self.grid = grid
@@ -633,6 +635,9 @@ class RotateTransaction:
     def __init__(self,doc,stack,eid,pivot=None,angle_increment=15.0):
         self.doc,self.stack,self.eid=doc,stack,eid;self.before=doc.get(eid).params.copy();self.preview=self.before.copy();self.angle_increment=float(angle_increment) if angle_increment else None;self.angle=0.0;e=doc.get(eid);p=e.params
         if pivot is not None:self.pivot=pivot
+        elif p.get('role')=='pergola':
+            from archforge.core.object_ops import group_ids,pivot as group_pivot
+            self.pivot=group_pivot(doc,group_ids(doc,eid))
         elif e.kind in ('box','structural_column'):self.pivot=(p['x'],p['y'])
         elif e.kind=='pod':self.pivot=(p['cx'],p['cy'])
         elif e.kind in ('wall','structural_beam'):self.pivot=((p['x1']+p['x2'])/2,(p['y1']+p['y2'])/2)
@@ -644,7 +649,11 @@ class RotateTransaction:
             from archforge.architecture.ramps import candidate_from_params,ramp_footprint
             poly=ramp_footprint(candidate_from_params(p))
             self.pivot=((min(q[0] for q in poly)+max(q[0] for q in poly))/2,(min(q[1] for q in poly)+max(q[1] for q in poly))/2)
-        else:raise ValueError('rotation unsupported for entity kind')
+        else:
+            # Everything else the user places (object_ops): its centre; a pergola turns as one.
+            from archforge.core.object_ops import ROTATABLE_KINDS,group_ids,pivot as group_pivot
+            if e.kind not in ROTATABLE_KINDS:raise ValueError('rotation unsupported for entity kind')
+            self.pivot=group_pivot(doc,group_ids(doc,eid))
     def update_angle(self,angle_deg,snap=True):
         a=float(angle_deg)
         if snap and self.angle_increment:a=round(a/self.angle_increment)*self.angle_increment
@@ -661,9 +670,16 @@ class RotateTransaction:
             p['x']=px+dx*c-dy*s
             p['y']=py+dx*s+dy*c
             p['angle_deg']=(float(p.get('angle_deg',0.0))+a)%360.0
+        elif e.kind=='railing':
+            p['points']=[[px+(q[0]-px)*c-(q[1]-py)*s,py+(q[0]-px)*s+(q[1]-py)*c,*q[2:]] for q in p['points']]
+        else:
+            from archforge.core.object_ops import rotated_params
+            p=rotated_params(e.kind,p,a,(px,py)) or p
         self.preview=p;return HUD({'angle_deg':a,'pivot_x':px,'pivot_y':py})
     def update_pointer(self,x,y,start_angle_deg=0.0,snap=True):return self.update_angle(degrees(atan2(y-self.pivot[1],x-self.pivot[0]))-float(start_angle_deg),snap)
-    def commit(self):self.stack.execute(RotateEntities([self.eid],self.angle,pivot=self.pivot))
+    def commit(self):
+        from archforge.core.object_ops import group_ids
+        self.stack.execute(RotateEntities(group_ids(self.doc,self.eid),self.angle,pivot=self.pivot))
     def cancel(self):self.preview=self.before.copy()
 
 class WallEndpointStretchTransaction:

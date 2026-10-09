@@ -557,7 +557,8 @@ def _joinery(key):
 
 
 _JOINERY_OPENING = {**_OPENING, **{k: _joinery(k) for k in (
-    'opening_type', 'hinge', 'swing', 'leaves', 'bars_h', 'bars_v', 'transom', 'shading', 'ledge', 'finish')}}
+    'opening_type', 'hinge', 'swing', 'leaves', 'bars_h', 'bars_v', 'transom', 'shading', 'ledge', 'finish')},
+    'open_angle': _joinery('open_angle')}
 SCHEMAS = {
     'box': {'x': _finite, 'y': _finite, 'z': _finite, 'width': _positive, 'depth': _positive, 'height': _positive, 'rotation': _finite},
     'wall': {'x1': _finite, 'y1': _finite, 'z': _finite, 'x2': _finite, 'y2': _finite, 'height': _positive, 'thickness': _positive, 'wall_type': _wall_type},
@@ -692,7 +693,7 @@ SCHEMAS = {
     'library_object': {
         'x': _finite, 'y': _finite, 'z': _finite, 'rotation': _finite,
         'width': _positive, 'depth': _positive, 'height': _positive,
-        'uniform': _unit_interval, 'asset': _nonempty,
+        'uniform': _unit_interval, 'asset': _nonempty, 'mirror': _unit_interval,
     },
     'kitchen_part': {
         'x': _finite, 'y': _finite, 'z': _finite,

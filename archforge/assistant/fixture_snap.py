@@ -57,9 +57,12 @@ def _wall_faces(doc, level, rotation):
     return out
 
 
-def snap_correction(doc, eid, params, ignore=()):
-    """``(dx, dy, kind)`` that makes the moved piece touch the wall / its neighbour, or None."""
-    e = doc.get(eid)
+def snap_correction(doc, eid, params, ignore=(), entity=None):
+    """``(dx, dy, kind)`` that makes the moved piece touch the wall / its neighbour, or None.
+
+    ``entity``: a piece not in the Document yet (dragged from the Library).
+    """
+    e = entity if entity is not None else doc.get(eid)
     if not snappable(doc, e):
         return None
     x, y = float(params["x"]), float(params["y"])

@@ -34,6 +34,10 @@ def library_object_mesh(params):
         local = [(x * sx, y * sy, z * sz) for x, y, z in asset["vertices"]]
         tris = [tuple(t) for t in asset["triangles"]]
         role = "body"
+        if params.get("mirror"):
+            # Mirror image about the object's own depth axis (object_ops.mirror_command).
+            local = [(-x, y, z) for x, y, z in local]
+            tris = [(a, c, b) for a, b, c in tris]
     a = math.radians(float(params.get("rotation", 0.0)))
     c, s = math.cos(a), math.sin(a)
     ox, oy, oz = (float(params[k]) for k in ("x", "y", "z"))
@@ -69,8 +73,10 @@ def _scale_rotate(params, asset):
     c, s = math.cos(a), math.sin(a)
     x0, y0 = float(params["x"]), float(params["y"])
 
+    m = -1.0 if params.get("mirror") else 1.0
+
     def to_world(q):
-        px, py = q[0] * w / nw, q[1] * d / nd
+        px, py = m * q[0] * w / nw, q[1] * d / nd
         return (x0 + c * px - s * py, y0 + s * px + c * py)
     return to_world
 

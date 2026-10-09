@@ -1,6 +1,12 @@
 """Object Modifier: one panel for editing a placed library object.
 
 Linked to the Inspector (it opens from there and every change refreshes it).
+On the left a live 3D preview (object_preview.py): drag the Π/Β/Υ handles to
+resize, drag empty space to turn the view, click a part to pick it for the
+palette next to it.  One undo per gesture: the preview follows the mouse
+live, the Document changes once when the handle is released (or a palette
+swatch is clicked) — so Ctrl+Z undoes exactly the move the user made, and
+the undo history is not flooded with intermediate sizes.
 Size and placement, the palette material of each part, and the object's
 sculpt modifiers are all edited through the shared commands, so every action
 is undoable and an equivalent AI edit would converge on the same Document
@@ -26,10 +32,13 @@ class ObjectModifierDialog(QDialog):
         super().__init__(window)
         self.window = window
         self.entity_id = str(entity_id)
-        self.setWindowTitle("Object Modifier")
-        self.resize(430, 640)
+        self.setWindowTitle("Επεξεργασία αντικειμένου")
+        self.resize(900, 680)
         self._building = False
-        layout = QVBoxLayout(self)
+        outer = QHBoxLayout(self)
+        outer.addLayout(visual_column(self), 3)
+        layout = QVBoxLayout()
+        outer.addLayout(layout, 2)
         self.header = QLabel()
         self.header.setWordWrap(True)
         layout.addWidget(self.header)
@@ -125,6 +134,7 @@ class ObjectModifierDialog(QDialog):
         if asset is None:
             text += "<br><i>το αρχείο του αντικειμένου λείπει από αυτόν τον υπολογιστή (εμφανίζεται κουτί)</i>"
         self.header.setText(text)
+        self.preview.set_entity(self.entity)
         for key, spin in self.size_spins.items():
             spin.setValue(float(p[key]) * 100.0)
         self.lock.setChecked(bool(p.get("uniform", 1.0)))
@@ -142,6 +152,8 @@ class ObjectModifierDialog(QDialog):
             item.setForeground(Qt.GlobalColor.black)
             item.setToolTip(color)
             self.parts.addItem(item)
+            if role == self.preview.selected_role:
+                self.parts.setCurrentItem(item)
         self.modifiers.clear()
         for mid, mod in self.window.doc.surface_modifiers.items():
             if mod.target.owner_id != self.entity_id:
@@ -157,6 +169,26 @@ class ObjectModifierDialog(QDialog):
     def _current_part(self):
         item = self.parts.currentItem()
         return item.data(Qt.ItemDataRole.UserRole) if item else None
+
+    # ------------------------------------------------------------ visual
+    def apply_sizes(self, changes):
+        """Λαβή της προεπισκόπησης αφέθηκε: το νέο μέγεθος στο έργο — ένα undo."""
+        changes = {k: float(v) for k, v in changes.items() if k in SIZE_KEYS and float(v) > 0}
+        if changes:
+            self._execute(UpdateEntity(self.entity_id, changes))
+
+    def pick_part(self, role):
+        self.preview.selected_role = role
+        for i in range(self.parts.count()):
+            if self.parts.item(i).data(Qt.ItemDataRole.UserRole) == role:
+                self.parts.setCurrentRow(i)
+        self.part_label.setText(f"Τμήμα: {self.parts.currentItem().text() if self.parts.currentItem() else role}")
+
+    def apply_palette(self, material_id):
+        role = self.preview.selected_role or self._current_part()
+        self.set_part_material(role, material_id)
+        if role:
+            self.pick_part(role)
 
     def _current_modifier(self):
         item = self.modifiers.currentItem()
@@ -246,10 +278,13 @@ class CabinetModifierDialog(QDialog):
         super().__init__(window)
         self.window = window
         self.entity_id = str(entity_id)
-        self.setWindowTitle("Object Modifier — ντουλάπι")
-        self.resize(420, 640)
+        self.setWindowTitle("Επεξεργασία αντικειμένου — ντουλάπι")
+        self.resize(900, 680)
         self._building = False
-        layout = QVBoxLayout(self)
+        outer = QHBoxLayout(self)
+        outer.addLayout(visual_column(self), 3)
+        layout = QVBoxLayout()
+        outer.addLayout(layout, 2)
         self.header = QLabel()
         layout.addWidget(self.header)
         box = QGroupBox("Τύπος && διαστάσεις")
@@ -336,6 +371,7 @@ class CabinetModifierDialog(QDialog):
         self._building = True
         p = self.entity.params
         self.header.setText(f"<b>{self.entity.name or TYPES[p['cabinet_type']][0]}</b>")
+        self.preview.set_entity(self.entity)
         self.kind.setCurrentIndex(self.kind.findData(p["cabinet_type"]))
         for key, spin in self.cm.items():
             spin.setValue(float(p.get(key, 0.0)) * 100.0)
@@ -359,11 +395,36 @@ class CabinetModifierDialog(QDialog):
             item = QListWidgetItem(f"{ROLE_NAMES.get(role, role)}:  {finish}")
             item.setData(Qt.ItemDataRole.UserRole, role)
             self.parts.addItem(item)
+            if role == self.preview.selected_role:
+                self.parts.setCurrentItem(item)
         self._building = False
 
     def _current_role(self):
         item = self.parts.currentItem()
         return item.data(Qt.ItemDataRole.UserRole) if item else None
+
+    def apply_sizes(self, changes):
+        """Λαβή αφέθηκε: μία αλλαγή μεγέθους (οι πόρτες ακολουθούν το πλάτος) — ένα undo."""
+        changes = {k: float(v) for k, v in changes.items() if k in ("width", "depth", "height") and float(v) > 0}
+        if len(changes) == 1:
+            key, value = next(iter(changes.items()))
+            self.set_param(key, value)
+        elif changes:
+            self._execute(UpdateEntity(self.entity_id, changes))
+
+    def pick_part(self, role):
+        from archforge.kitchen.cabinets import ROLE_NAMES
+        self.preview.selected_role = role
+        for i in range(self.parts.count()):
+            if self.parts.item(i).data(Qt.ItemDataRole.UserRole) == role:
+                self.parts.setCurrentRow(i)
+        self.part_label.setText(f"Τμήμα: {ROLE_NAMES.get(role, role)}")
+
+    def apply_palette(self, material_id):
+        role = self.preview.selected_role or self._current_role()
+        self.set_role_material(role, material_id)
+        if role:
+            self.pick_part(role)
 
     def set_param(self, key, value):
         """Change one parameter; width also re-derives the door count."""
@@ -407,6 +468,45 @@ class CabinetModifierDialog(QDialog):
 
     def reset_materials(self):
         self._execute(UpdateEntity(self.entity_id, {"material_id": "", "surface_materials": {}}))
+
+
+def visual_column(dialog):
+    """Αριστερή στήλη: προεπισκόπηση 3D με λαβές και παλέτα υλικών για το επιλεγμένο τμήμα."""
+    from PySide6.QtWidgets import QComboBox
+    from archforge.rendering.materials import material_categories, materials_in_category
+    from archforge.ui.object_preview import ObjectPreview
+    column = QVBoxLayout()
+    dialog.preview = ObjectPreview(dialog)
+    dialog.preview.sizeCommitted.connect(dialog.apply_sizes)
+    dialog.preview.partPicked.connect(dialog.pick_part)
+    column.addWidget(dialog.preview, 5)
+    dialog.part_label = QLabel("Τμήμα: όλο το αντικείμενο — κλικ σε τμήμα της προεπισκόπησης")
+    column.addWidget(dialog.part_label)
+    row = QHBoxLayout()
+    row.addWidget(QLabel("Παλέτα"))
+    dialog.palette_category = QComboBox()
+    for name in material_categories():
+        dialog.palette_category.addItem(name)
+    row.addWidget(dialog.palette_category, 1)
+    column.addLayout(row)
+    dialog.palette = QListWidget()
+    dialog.palette.setToolTip("Κλικ σε υλικό: εφαρμογή στο επιλεγμένο τμήμα (ένα undo)")
+
+    def fill(category):
+        from PySide6.QtGui import QColor
+        dialog.palette.clear()
+        for material_id, spec in materials_in_category(category):
+            from PySide6.QtGui import QIcon, QPixmap
+            swatch = QPixmap(18, 18)
+            swatch.fill(QColor(str(spec.get('color', '#999999'))))
+            item = QListWidgetItem(QIcon(swatch), str(spec['name']))
+            item.setData(Qt.ItemDataRole.UserRole, material_id)
+            dialog.palette.addItem(item)
+    dialog.palette_category.currentTextChanged.connect(fill)
+    fill(dialog.palette_category.currentText())
+    dialog.palette.itemClicked.connect(lambda item: dialog.apply_palette(item.data(Qt.ItemDataRole.UserRole)))
+    column.addWidget(dialog.palette, 3)
+    return column
 
 
 def add_cabinet_choices(window, form, entity_id):
