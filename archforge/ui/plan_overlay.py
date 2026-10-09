@@ -24,7 +24,8 @@ HUD_LABELS = {
 }
 
 EMPTY_HINT = ("Ξεκίνα: Τοίχος → κλικ στις γωνίες (ή σύρε)",
-              "κλικ στο πρώτο σημείο = κλείσιμο · διπλό κλικ / Enter = τέλος · ροδέλα = ζουμ · Esc = ακύρωση")
+              "κλικ στο πρώτο σημείο = κλείσιμο · διπλό κλικ / Enter = τέλος · Esc = ακύρωση",
+              "ροδέλα = ζουμ · κράτα πατημένο (ή μεσαίο κουμπί) και σύρε = μετακίνηση σχεδίου")
 
 
 def hud_text(hud):
@@ -124,10 +125,12 @@ def paint_overlay(view, painter):
     if not view.doc.entities and not getattr(view, "structural_only", False) and view.controller.active is None:
         big = QFont(font); big.setPointSizeF(12); big.setBold(True)
         small = QFont(font); small.setPointSizeF(10)
-        w = max(QFontMetrics(big).horizontalAdvance(EMPTY_HINT[0]), QFontMetrics(small).horizontalAdvance(EMPTY_HINT[1])) + 40
-        rect = QRectF((vp.width() - w) / 2, vp.height() * 0.30, w, 62)
+        lines = EMPTY_HINT[1:]
+        w = max([QFontMetrics(big).horizontalAdvance(EMPTY_HINT[0])] + [QFontMetrics(small).horizontalAdvance(t) for t in lines]) + 40
+        rect = QRectF((vp.width() - w) / 2, vp.height() * 0.30, w, 40 + 22 * len(lines))
         _chip(painter, rect, QColor(255, 255, 255, 235), QColor(47, 107, 214))
         painter.setPen(QPen(QColor(25, 45, 80), 1)); painter.setFont(big)
-        painter.drawText(rect.adjusted(0, 8, 0, -30), Qt.AlignmentFlag.AlignCenter, EMPTY_HINT[0])
+        painter.drawText(QRectF(rect.x(), rect.y() + 8, rect.width(), 24), Qt.AlignmentFlag.AlignCenter, EMPTY_HINT[0])
         painter.setPen(QPen(ink, 1)); painter.setFont(small)
-        painter.drawText(rect.adjusted(0, 32, 0, -6), Qt.AlignmentFlag.AlignCenter, EMPTY_HINT[1])
+        for k, text in enumerate(lines):
+            painter.drawText(QRectF(rect.x(), rect.y() + 34 + 22 * k, rect.width(), 20), Qt.AlignmentFlag.AlignCenter, text)

@@ -219,9 +219,34 @@ class PlanView(QGraphicsView):
         if chosen in action_map:self.contextActionRequested.emit(eid,action_map[chosen])
         event.accept()
 
+    # Pan: hold the left button still (long press) or drag with the middle button / wheel pressed.
+    LONG_PRESS_MS=400
+    def _pan_begin(self,pos):
+        from PySide6.QtGui import QCursor
+        self._panning=pos;self._long_press=None
+        self.viewport().setCursor(QCursor(Qt.CursorShape.ClosedHandCursor))
+        self.statusChanged.emit('Μετακίνηση σχεδίου — σύρε · άφησε το κουμπί για τέλος')
+    def _pan_end(self):
+        self._panning=None;self._mouse_down=False;self._wall_press=None;self._body_press=None
+        self.viewport().unsetCursor();self.statusChanged.emit('')
+    def _long_press_fire(self,token):
+        lp=getattr(self,'_long_press',None)
+        if lp is None or lp[0]!=token or getattr(self,'_panning',None) is not None:return
+        from PySide6.QtWidgets import QApplication
+        if not QApplication.mouseButtons()&Qt.MouseButton.LeftButton:return
+        if self.controller.active is not None and self.controller.active is not lp[2]:
+            self.controller.cancel()          # what this press started (a wall, a move) gives way to the pan
+        self._railing_draft=None if lp[3] else getattr(self,'_railing_draft',None)
+        self._pan_begin(lp[1]);self.redraw()
     def mousePressEvent(self,event):
+        if event.button()==Qt.MouseButton.MiddleButton:
+            self._pan_begin(event.position());event.accept();return
         if event.button()==Qt.MouseButton.LeftButton:
             self._hide_wall_angle_radial();self.hide_marking_menu()
+            from PySide6.QtCore import QTimer
+            token=object()
+            self._long_press=(token,event.position(),self.controller.active,getattr(self,'_railing_draft',None) is None)
+            QTimer.singleShot(self.LONG_PRESS_MS,lambda t=token:self._long_press_fire(t))
         if event.button()!=Qt.MouseButton.LeftButton:super().mousePressEvent(event);return
         if self._overlay('press',event):event.accept();return
         if self._railing_tool():self._railing_press(event);event.accept();return
@@ -281,6 +306,14 @@ class PlanView(QGraphicsView):
             return
         self.redraw()
     def mouseMoveEvent(self,event):
+        pan=getattr(self,'_panning',None)
+        if pan is not None:
+            d=event.position()-pan;self._panning=event.position()
+            self.horizontalScrollBar().setValue(self.horizontalScrollBar().value()-round(d.x()))
+            self.verticalScrollBar().setValue(self.verticalScrollBar().value()-round(d.y()))
+            event.accept();return
+        lp=getattr(self,'_long_press',None)
+        if lp is not None and (event.position()-lp[1]).manhattanLength()>self.CLICK_PX:self._long_press=None
         p=self.mapToScene(event.position().toPoint());self._cursor_xy=(p.x(),p.y());self.viewport().update()
         if self._overlay('move',event):return
         if self._slab_tool() and getattr(self,'_slab_draft',None) is not None:
@@ -321,6 +354,9 @@ class PlanView(QGraphicsView):
             p=self.mapToScene(event.position().toPoint());self.statusChanged.emit(f'X {p.x():.3f}   Y {p.y():.3f}')
         super().mouseMoveEvent(event)
     def mouseReleaseEvent(self,event):
+        self._long_press=None
+        if getattr(self,'_panning',None) is not None:
+            self._pan_end();self.redraw();event.accept();return
         if self._overlay('release',event):event.accept();return
         if event.button()==Qt.MouseButton.LeftButton and self._slab_tool() and getattr(self,'_slab_draft',None) is not None:
             self._mouse_down=False;ev=self._scene_to_plane(event.position().toPoint())
