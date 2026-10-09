@@ -698,6 +698,167 @@ window.setRampPreview = function(payload) {
   stairHud.style.display = "block";
 };
 
+// Stone / tile patterns (archforge/rendering/patterns.py): Python sends one
+// repeating period in metres per pattern_key; here it becomes a canvas texture
+// (+ bump map), built once and shared, repeated at real size through the
+// metric UVs of withMetricUVs().
+const patternGeo = {};
+const patternTextures = new Map();
+
+function patternRandom(seed) {          // mulberry32: deterministic speckle
+  let a = seed >>> 0;
+  return function() {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function patternShade(hex, f) {
+  const h = String(hex || "#808080").replace("#", "");
+  const ch = (i) => Math.max(0, Math.min(255, Math.round(parseInt(h.substr(i, 2), 16) * (1 + f))));
+  return "rgb(" + ch(0) + "," + ch(2) + "," + ch(4) + ")";
+}
+
+function patternPaint(ctx, g, sx, sy, H, bump) {
+  const path = (pts, dx, dy) => {
+    ctx.beginPath();
+    pts.forEach((p, i) => {
+      const x = p[0] * sx + dx, y = H - p[1] * sy + dy;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+  };
+  ctx.fillStyle = bump ? "#000000" : g.joint_color;
+  ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  // Stones stand out of the mortar: a soft shadow down-right of each one.
+  const shadow = g.relief >= 0.5 ? Math.max(1, g.relief * g.joint * 0.45 * sx) : 0;
+  for (const cell of g.cells) {
+    if (bump) {
+      path(cell.pts, 0, 0);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+      continue;
+    }
+    if (shadow) {
+      path(cell.pts, shadow, shadow);
+      ctx.fillStyle = patternShade(g.joint_color, -0.45);
+      ctx.fill();
+    }
+    path(cell.pts, 0, 0);
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const p of cell.pts) {
+      x0 = Math.min(x0, p[0] * sx); x1 = Math.max(x1, p[0] * sx);
+      y0 = Math.min(y0, H - p[1] * sy); y1 = Math.max(y1, H - p[1] * sy);
+    }
+    const k = 0.10 * g.relief;
+    const grad = ctx.createLinearGradient(x0, y0, x1, y1);
+    grad.addColorStop(0, patternShade(cell.color, k));
+    grad.addColorStop(1, patternShade(cell.color, -k));
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+  if (!bump) {
+    ctx.lineCap = "round";
+    for (const line of g.lines) {
+      ctx.beginPath();
+      line.pts.forEach((p, i) => {
+        const x = p[0] * sx, y = H - p[1] * sy;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.strokeStyle = line.color;
+      ctx.lineWidth = Math.max(0.8, line.width * sx);
+      ctx.globalAlpha = 0.75;
+      ctx.stroke();
+      ctx.globalAlpha = 1.0;
+    }
+  }
+}
+
+function patternTexturesFor(key) {
+  if (patternTextures.has(key)) return patternTextures.get(key);
+  const g = patternGeo[key];
+  if (!g || !g.cells) return null;
+  // About 1024 px per period, at most ~1000 px per metre; power-of-two sides
+  // so every mip level halves evenly (no shimmer on small mosaics far away).
+  const ppm = Math.min(1000, 1024 / Math.max(g.width, g.height));
+  const pot = (v) => Math.min(1024, Math.max(16, Math.pow(2, Math.round(Math.log2(Math.max(1, v))))));
+  const W = pot(g.width * ppm), H = pot(g.height * ppm);
+  const sx = W / g.width, sy = H / g.height;
+  const colorCanvas = document.createElement("canvas");
+  colorCanvas.width = W; colorCanvas.height = H;
+  const ctx = colorCanvas.getContext("2d");
+  patternPaint(ctx, g, sx, sy, H, false);
+  if (g.noise > 0) {
+    // Fine grain so stone and tile do not look like plastic.
+    let seed = 0;
+    for (let i = 0; i < key.length; i++) seed = (seed * 31 + key.charCodeAt(i)) >>> 0;
+    const rnd = patternRandom(seed);
+    const img = ctx.getImageData(0, 0, W, H);
+    const d = img.data, amp = g.noise * 255;
+    for (let i = 0; i < d.length; i += 4) {
+      const n = (rnd() - 0.5) * 2 * amp;
+      d[i] += n; d[i + 1] += n; d[i + 2] += n;
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+  const sharp = document.createElement("canvas");
+  sharp.width = W; sharp.height = H;
+  patternPaint(sharp.getContext("2d"), g, sx, sy, H, true);
+  const bumpCanvas = document.createElement("canvas");
+  bumpCanvas.width = W; bumpCanvas.height = H;
+  const bctx = bumpCanvas.getContext("2d");
+  // Rounded arrises: the blurred step reads as a bevel in the bump map.
+  bctx.filter = "blur(" + Math.max(1, g.joint * sx * (g.relief >= 0.5 ? 0.6 : 0.35)).toFixed(1) + "px)";
+  bctx.drawImage(sharp, 0, 0);
+  const aniso = renderer.capabilities.getMaxAnisotropy();
+  const make = (canvas, srgb) => {
+    const t = new THREE.CanvasTexture(canvas);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(1 / g.width, 1 / g.height);   // UVs are metres: one period = width x height m
+    t.anisotropy = aniso;
+    if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+    t.needsUpdate = true;
+    return t;
+  };
+  const out = {map: make(colorCanvas, true), bump: make(bumpCanvas, false), relief: g.relief};
+  patternTextures.set(key, out);
+  return out;
+}
+
+// Metric UVs for patterned meshes: u, v in metres on every face.  Vertical
+// faces run u along the face (any wall angle) and v up; flat faces use plan
+// x, y; sloped faces run v up the slope.  Per triangle, so corners do not
+// smear; triangle order is kept, so faceIndex -> surface role still holds.
+function withMetricUVs(geometry) {
+  const g = geometry.index ? geometry.toNonIndexed() : geometry;
+  if (g !== geometry) geometry.dispose();
+  const pos = g.attributes.position;
+  const uv = new Float32Array(pos.count * 2);
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  const n = new THREE.Vector3(), t = new THREE.Vector3(), bt = new THREE.Vector3();
+  const e1 = new THREE.Vector3(), e2 = new THREE.Vector3();
+  for (let i = 0; i + 2 < pos.count; i += 3) {
+    a.fromBufferAttribute(pos, i); b.fromBufferAttribute(pos, i + 1); c.fromBufferAttribute(pos, i + 2);
+    n.crossVectors(e1.subVectors(b, a), e2.subVectors(c, a));
+    if (n.lengthSq() < 1e-20) n.set(0, 0, 1); else n.normalize();
+    const flat = Math.abs(n.z) > 0.9;
+    if (!flat) {
+      t.set(-n.y, n.x, 0).normalize();
+      bt.crossVectors(n, t);
+      if (bt.z < 0) { bt.negate(); t.negate(); }
+    }
+    for (let k = 0; k < 3; k++) {
+      const p = k === 0 ? a : (k === 1 ? b : c);
+      uv[(i + k) * 2] = flat ? p.x : p.dot(t);
+      uv[(i + k) * 2 + 1] = flat ? p.y : p.dot(bt);
+    }
+  }
+  g.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+  return g;
+}
+
 function materialFor(spec) {
   const opacity = Number(spec.opacity ?? 1.0);
   const material = new THREE.MeshStandardMaterial({
@@ -708,6 +869,15 @@ function materialFor(spec) {
     emissiveIntensity: Number(spec.emissiveIntensity ?? 0.0),
     side: THREE.DoubleSide
   });
+  const textures = spec.pattern_key ? patternTexturesFor(spec.pattern_key) : null;
+  if (textures) {
+    // The canvas carries every stone's own tone; the colour only tints.
+    material.map = textures.map;
+    material.color.set(0xffffff);
+    material.bumpMap = textures.bump;
+    material.bumpScale = 1.5 * textures.relief;
+    material.userData.patterned = true;
+  }
   // Glass: see-through but still reflects the sky/environment.
   material.userData.baseOpacity = opacity;
   if (opacity < 1.0) {
@@ -958,6 +1128,7 @@ function fitSunShadow() {
 window.archforgeSetScene = function(payload, fit = true) {
   disposeModel();
   const objects = (payload && payload.objects) || [];
+  Object.assign(patternGeo, (payload && payload.patterns) || {});
   for (const item of objects) {
     const positions = [];
     for (const v of item.vertices) positions.push(v[0], v[1], v[2]);
@@ -967,8 +1138,10 @@ window.archforgeSetScene = function(payload, fit = true) {
     geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
     geometry.setIndex(indices);
     geometry.computeVertexNormals();
-    geometry.computeBoundingSphere();
-    const mesh = new THREE.Mesh(geometry, materialFor(item.material || {}));
+    const spec = item.material || {};
+    const geom = (spec.pattern_key && patternGeo[spec.pattern_key]) ? withMetricUVs(geometry) : geometry;
+    geom.computeBoundingSphere();
+    const mesh = new THREE.Mesh(geom, materialFor(spec));
     mesh.name = item.id || item.kind || "entity";
     mesh.userData.entityId = item.id || "";
     mesh.userData.kind = item.kind || "";

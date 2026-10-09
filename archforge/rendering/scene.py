@@ -125,6 +125,12 @@ def _material(kind: str, selected: bool, entity=None, doc=None, surface_role: st
         })
         if "opacity" in custom:  # glass presets
             spec["opacity"] = custom["opacity"]
+        if custom.get("pattern"):
+            # Stone / tile joints at real size (rendering/patterns.py); the
+            # geometry itself travels once per scene in payload["patterns"].
+            from archforge.rendering.patterns import pattern_key
+            spec["pattern"] = dict(custom["pattern"])
+            spec["pattern_key"] = pattern_key(str(material_id), custom["pattern"], str(spec["color"]))
     if selected:
         # Keep the real surface visible while selected; use a subtle emissive
         # accent instead of replacing the material with selection blue.
@@ -455,7 +461,24 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                     "surfaces": [key] * len(tris),
                     "material": material,
                 })
-    return {"objects": objects}
+    payload = {"objects": objects}
+    patterns = _scene_patterns(objects)
+    if patterns:
+        payload["patterns"] = patterns
+    return payload
+
+
+def _scene_patterns(objects) -> dict:
+    """Pattern geometry per ``pattern_key`` used in the scene (sent once, not per mesh)."""
+    from archforge.rendering.patterns import pattern_geometry
+    out = {}
+    for obj in objects:
+        material = obj.get("material") or {}
+        key = material.get("pattern_key")
+        if key and key not in out:
+            out[key] = pattern_geometry(material["pattern"], str(material.get("color", "#9a9a9a")),
+                                        seed=str(material.get("material_id", "")))
+    return out
 
 
 def _is_typed_opening(entity):

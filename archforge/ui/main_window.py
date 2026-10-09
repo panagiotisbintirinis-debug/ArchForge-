@@ -2600,13 +2600,26 @@ class MainWindow(QMainWindow):
             category.addItem(name)
         layout.addWidget(category)
 
+        from PySide6.QtCore import QSize
+        from PySide6.QtGui import QPixmap
+        from archforge.rendering.patterns import PATTERN_NAMES
+        from archforge.ui.pattern_swatch import material_icon, material_swatch, swatch_span
+
         materials = QListWidget(dialog)
+        materials.setIconSize(QSize(32, 32))
         layout.addWidget(materials)
 
-        preview = QLabel('Προεπισκόπηση επιφάνειας')
-        preview.setMinimumHeight(52)
-        preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(preview)
+        # Swatch of the surface: stone and tile joints at scale (patterns.py).
+        preview = QLabel(dialog)
+        preview.setFixedSize(360, 120)
+        preview.setStyleSheet('border: 1px solid #747b82;')
+        layout.addWidget(preview, 0, Qt.AlignmentFlag.AlignHCenter)
+        preview_text = QLabel('Προεπισκόπηση επιφάνειας', dialog)
+        preview_text.setWordWrap(True)
+        preview_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(preview_text)
+        self._materials_list = materials        # reachable from tests
+        self._materials_preview = preview
 
         state = {'material_id': None}
 
@@ -2641,7 +2654,7 @@ class MainWindow(QMainWindow):
             selected_id = current_material_id()
             materials.clear()
             for material_id, spec in materials_in_category(category_name):
-                item = QListWidgetItem(str(spec['name']))
+                item = QListWidgetItem(material_icon(material_id, 32), str(spec['name']))
                 item.setData(Qt.ItemDataRole.UserRole, material_id)
                 item.setToolTip(
                     f"τραχύτητα {float(spec.get('roughness', 0.0)):.2f} · "
@@ -2661,13 +2674,17 @@ class MainWindow(QMainWindow):
             material_id = str(item.data(Qt.ItemDataRole.UserRole))
             state['material_id'] = material_id
             spec = MATERIAL_PRESETS[material_id]
-            preview.setText(
-                f"{spec['name']}  ·  τραχ. {float(spec['roughness']):.2f}  ·  μετ. {float(spec['metalness']):.2f}"
-            )
-            preview.setStyleSheet(
-                f"background: {spec['color']}; border: 1px solid #747b82; "
-                "padding: 8px; font-weight: 600;"
-            )
+            preview.setPixmap(QPixmap.fromImage(material_swatch(material_id, preview.width(), preview.height())))
+            text = f"<b>{spec['name']}</b>  ·  τραχ. {float(spec['roughness']):.2f}  ·  μετ. {float(spec['metalness']):.2f}"
+            pattern = spec.get('pattern')
+            if pattern:
+                size = f"{float(pattern['unit_w']) * 100:g}×{float(pattern['unit_h']) * 100:g} cm"
+                text += (
+                    f"<br>{PATTERN_NAMES.get(pattern['type'], '')} · μονάδα περίπου {size} · "
+                    f"αρμός {float(pattern['joint']) * 1000:g} mm · "
+                    f"πλάτος δείγματος {swatch_span(pattern):.2f} m".replace('.', ',')
+                )
+            preview_text.setText(text)
 
         def refresh_for_target():
             selected_id = update_current_label()
@@ -2691,6 +2708,8 @@ class MainWindow(QMainWindow):
             | QDialogButtonBox.StandardButton.Cancel,
             parent=dialog,
         )
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText('Εφαρμογή')
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText('Άκυρο')
         buttons.accepted.connect(dialog.accept)
         buttons.rejected.connect(dialog.reject)
         layout.addWidget(buttons)

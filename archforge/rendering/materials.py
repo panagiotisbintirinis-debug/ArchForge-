@@ -5,9 +5,10 @@ from typing import Dict, Mapping
 
 # Built-in ArchForge surface library.
 #
-# These are intentionally texture-free PBR presets. A material id is stored on
-# the authoritative entity, while this catalog provides stable visual defaults.
-# Later texture maps can be added to the same records without changing projects.
+# These are image-free PBR presets. A material id is stored on the
+# authoritative entity, while this catalog provides stable visual defaults.
+# Stone, brick, tile and marble presets also carry a procedural ``pattern``
+# (joints at real size, see rendering/patterns.py); no image files needed.
 #
 # Ids are stable (saved projects store them) and never renamed; names and
 # categories are what the user sees, in Greek. Generic types only, no brands:
@@ -201,6 +202,70 @@ _add("Περιβάλλων χώρος", {
     "garden_deck": ("Ξύλινο δάπεδο εξωτερικού χώρου", "#8a6040", 0.75, 0.00, "αυλή"),
 })
 
+# Visible patterns (rendering/patterns.py): joints at real size in metres.
+# Stones: a different masonry per stone type; tiles: the usual Greek sizes
+# (60x60, 30x60, 20x20, metro 7.5x15, wood-look 20x120, cement-look 60x120).
+def _p(kind, w, h, joint, joint_color, variation, offset=0.0, veins=0.0):
+    pattern = {"type": kind, "unit_w": w, "unit_h": h, "joint": joint,
+               "joint_color": joint_color, "offset": offset, "variation": variation}
+    if veins:
+        pattern["veins"] = veins
+    return pattern
+
+
+_PATTERNS = {
+    # Πέτρα
+    "limestone_light": _p("ashlar", 0.40, 0.22, 0.012, "#d9d2c3", 0.16),
+    "stone_dark": _p("rubble", 0.30, 0.20, 0.022, "#9a958a", 0.28),
+    "stone_pelion": _p("slab", 0.40, 0.065, 0.008, "#3a3934", 0.26),
+    "stone_karystos": _p("polygonal", 0.45, 0.45, 0.016, "#bab5a9", 0.22),
+    "sandstone": _p("ashlar", 0.50, 0.25, 0.010, "#ddd2bb", 0.15),
+    "stone_drywall": _p("rubble", 0.32, 0.18, 0.020, "#38342e", 0.26),
+    "stone_cladding": _p("slab", 0.35, 0.075, 0.007, "#4a443b", 0.22),
+    "stone_poros": _p("ashlar", 0.50, 0.25, 0.012, "#e6dfcd", 0.10),
+    # Τούβλο (running bond)
+    "brick_exposed": _p("tiles", 0.25, 0.06, 0.010, "#cdc4b4", 0.12, offset=0.5),
+    "brick_light": _p("tiles", 0.25, 0.06, 0.010, "#d8d0c2", 0.10, offset=0.5),
+    "brick_dark": _p("tiles", 0.25, 0.06, 0.010, "#a49c90", 0.12, offset=0.5),
+    "brick_old": _p("tiles", 0.25, 0.055, 0.012, "#c8bda8", 0.20, offset=0.5),
+    # Μάρμαρα (slabs with veins)
+    "marble_thassos": _p("tiles", 0.60, 0.60, 0.0015, "#dcdad4", 0.02, veins=0.25),
+    "marble_dionysos": _p("tiles", 0.60, 0.60, 0.0015, "#cfcdc7", 0.03, veins=0.6),
+    "marble_kavala": _p("tiles", 0.60, 0.60, 0.0015, "#d2ccbf", 0.04, veins=0.5),
+    "marble_black": _p("tiles", 0.60, 0.60, 0.0015, "#2c2c2e", 0.04, veins=0.5),
+    "marble_grey": _p("tiles", 0.60, 1.20, 0.0015, "#7a7b79", 0.04, veins=0.5),
+    "marble_beige": _p("tiles", 0.60, 0.60, 0.0015, "#c9b998", 0.05, veins=0.4),
+    # Πλακάκια
+    "ceramic_light": _p("tiles", 0.33, 0.33, 0.003, "#a39f95", 0.03),
+    "terracotta": _p("tiles", 0.30, 0.30, 0.008, "#cbbfad", 0.12),
+    "slate_tile": _p("tiles", 0.60, 0.30, 0.004, "#3b4044", 0.12),
+    "porcelain_matt_white": _p("tiles", 0.60, 0.60, 0.003, "#a8a49b", 0.02),
+    "porcelain_gloss_white": _p("tiles", 0.60, 0.30, 0.003, "#b3afa7", 0.015),
+    "tile_wood_look": _p("planks", 1.20, 0.20, 0.002, "#6b533d", 0.10, offset=1 / 3),
+    "tile_cement_look": _p("tiles", 1.20, 0.60, 0.003, "#7b7974", 0.05),
+    "tile_mosaic_glass": _p("tiles", 0.025, 0.025, 0.002, "#e6e4de", 0.18),
+    "tile_bath_white": _p("tiles", 0.15, 0.075, 0.002, "#b0ada6", 0.025, offset=0.5),
+    "tile_hydraulic": _p("tiles", 0.20, 0.20, 0.002, "#cdc9c0", 0.08),
+    # Θερμοπρόσοψη & επενδύσεις (ανοιχτός αρμός)
+    "facade_ceramic_terracotta": _p("tiles", 0.60, 0.30, 0.008, "#2f2a26", 0.08),
+    "facade_ceramic_grey": _p("tiles", 0.60, 0.30, 0.008, "#2f2f2e", 0.06),
+    "facade_marble": _p("tiles", 0.60, 0.40, 0.005, "#3a3936", 0.04, veins=0.3),
+    # Δάπεδα
+    "floor_vinyl_oak": _p("planks", 1.22, 0.18, 0.001, "#5c4532", 0.10, offset=1 / 3),
+    "floor_laminate_oak": _p("planks", 1.38, 0.19, 0.001, "#5e4733", 0.10, offset=0.4),
+    # Περιβάλλων χώρος
+    "garden_paver_grey": _p("tiles", 0.40, 0.40, 0.005, "#7c7a75", 0.06),
+    "garden_paver_beige": _p("tiles", 0.40, 0.40, 0.005, "#a39578", 0.06, offset=0.5),
+    "garden_cobble_granite": _p("tiles", 0.10, 0.10, 0.008, "#5e5d59", 0.16, offset=0.5),
+    "garden_cobble_concrete": _p("tiles", 0.20, 0.10, 0.004, "#6e4a3f", 0.10, offset=0.5),
+}
+for _material_id, _pattern in _PATTERNS.items():
+    MATERIAL_PRESETS[_material_id]["pattern"] = _pattern
+
+# Categories whose every material must show a pattern.
+PATTERNED_CATEGORIES = ("Πέτρα", "Πλακάκια", "Τούβλο", "Μάρμαρα")
+
+
 def material_categories():
     # In the order declared above, not alphabetical: paints first, garden last.
     return tuple(dict.fromkeys(str(spec["category"]) for spec in MATERIAL_PRESETS.values()))
@@ -228,4 +293,9 @@ def material_spec(material_id: str | None) -> Mapping[str, object] | None:
     if not material_id:
         return None
     spec = MATERIAL_PRESETS.get(str(material_id))
-    return None if spec is None else dict(spec)
+    if spec is None:
+        return None
+    out = dict(spec)
+    if "pattern" in out:
+        out["pattern"] = dict(out["pattern"])
+    return out
