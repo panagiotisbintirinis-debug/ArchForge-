@@ -164,3 +164,34 @@ def test_tree_groups_and_rooms_select_in_the_drawing_and_can_be_deleted():
         assert roof.id in window.doc.entities
     finally:
         window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_clicking_an_element_of_another_storey_survives_the_tree_rebuild():
+    """Owner (Windows): RuntimeError 'QTreeWidgetItem already deleted' in _tree_item_ids."""
+    from PySide6.QtWidgets import QApplication
+    from archforge.ui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(); window._no_modal_dialogs = True
+    try:
+        _walls(window.stack)
+        window.doc.levels['Floor 2'] = 2.7
+        upper = _walls(window.stack, 2.7)
+        window._refresh_project_tree()
+        switch = window._activate_level_by_name
+        window._activate_level_by_name = lambda name: (switch(name), window._refresh_project_tree())  # as on Windows
+        tree = window.project_tree
+
+        def leaves(item):
+            for i in range(item.childCount()):
+                c = item.child(i)
+                yield c
+                yield from leaves(c)
+        item = next(c for c in leaves(tree.invisibleRootItem())
+                    if c.data(0, 0x0100) in upper and c.data(0, 0x0100 + 1) == 'Floor 2')
+        window._project_tree_clicked(item)
+        assert window.doc.selection and window.doc.selection[0] in upper
+        item = next(c for c in leaves(tree.invisibleRootItem())
+                    if c.data(0, 0x0100) in upper and c.data(0, 0x0100 + 1) == 'Floor 2')
+        assert window._project_tree_menu(tree.visualItemRect(item).center()) is not None
+    finally:
+        window._mark_clean(); window.close(); app.processEvents()

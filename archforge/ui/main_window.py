@@ -1102,10 +1102,11 @@ class MainWindow(QMainWindow):
 
     def _project_tree_clicked(self, item):
         """Tree → drawing: select what the node stands for, on its storey, and show its properties."""
+        # Read the node before switching storey: the switch rebuilds the tree and deletes ``item``.
         level = item.data(0, Qt.ItemDataRole.UserRole + 1)
+        ids = self._tree_item_ids(item)
         if level:
             self._activate_level_by_name(level)
-        ids = self._tree_item_ids(item)
         if not ids:
             return
         self.doc.select(ids)
@@ -1123,8 +1124,8 @@ class MainWindow(QMainWindow):
         item = tree.itemAt(pos)
         if item is None:
             return None
-        self._project_tree_clicked(item)
         ids = self._tree_item_ids(item)
+        self._project_tree_clicked(item)
         if not ids:
             return None
         menu = QMenu(tree)
