@@ -86,3 +86,29 @@ def test_chain_follows_the_brief_and_splits_on_a_tee():
     assert len(walls) == 3                           # the old wall split in two
     new = [w for w in walls if abs(w.params['x1'] - 3) < 1e-6 and abs(w.params['x2'] - 3) < 1e-6]
     assert new and new[0].params.get('wall_type') not in (None, 'generic')
+
+
+def test_hand_tremor_while_clicking_in_the_plan_view_draws_no_tiny_walls():
+    """Owner (Windows): clicks moved the mouse a few pixels and left 5–30 cm walls everywhere."""
+    from PySide6.QtCore import QPoint, QPointF, Qt
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QApplication
+    from archforge.ui.plan_view import PlanView
+    app = QApplication.instance() or QApplication([])
+    d = Document(); stack = CommandStack(d); view = PlanView(d, stack); view.resize(900, 700); view.show()
+    view.controller.set_tool('wall'); vp = view.viewport()
+
+    def click(x, y, jitter):
+        p = view.mapFromScene(QPointF(x, y)); q = p + QPoint(*jitter)
+        QTest.mouseMove(vp, p)
+        QTest.mousePress(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, p)
+        QTest.mouseMove(vp, q)
+        QTest.mouseRelease(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, q)
+        app.processEvents()
+
+    for (x, y), j in zip(((0, 0), (8, 0), (8, 6), (0, 6), (0, 0)), ((3, -2), (-4, 3), (2, 4), (-3, -3), (4, 1))):
+        click(x, y, j)
+    lengths = sorted(round(((w.params['x2'] - w.params['x1']) ** 2 + (w.params['y2'] - w.params['y1']) ** 2) ** .5, 2)
+                     for w in _walls(d))
+    assert lengths == [6.0, 6.0, 8.0, 8.0]
+    view.close()

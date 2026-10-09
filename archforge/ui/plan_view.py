@@ -148,6 +148,7 @@ class PlanView(QGraphicsView):
         # Overlay tool (the assistant's kitchen/bath guide lines, fixture drag): gets the mouse first.
         tool=getattr(self,'overlay_tool',None)
         return tool is not None and bool(tool.handle(self,kind,event))
+    CLICK_PX=8   # press → release within this many screen pixels is a click, not a drag
     def _wall_chain_active(self):
         return getattr(self.controller,'wall_chain',None) is not None and self.controller.active is not None
     def finish_wall_chain(self):
@@ -233,7 +234,7 @@ class PlanView(QGraphicsView):
         if self.controller.tool in self.VIEW_LINE_TOOLS or self.controller.tool in self.SITE_LINE_TOOLS:
             ev=self._scene_to_plane(event.position().toPoint());self._mouse_down=True
             self.begin_view_line(ev.a,ev.b);event.accept();return
-        self._mouse_down=True;hit=self.itemAt(event.position().toPoint())
+        self._mouse_down=True;self._press_pos=event.position();hit=self.itemAt(event.position().toPoint())
         if hit in self._handle_items:
             h=self._handle_items[hit];self._active_handle=h
             self.doc.select([h.entity_id]);self.selectionChangedByView.emit()
@@ -336,7 +337,13 @@ class PlanView(QGraphicsView):
             if self.controller.active is None and getattr(self,'_restore_select',False):
                 self._restore_select=False;self.controller.set_tool('select')
             if self.controller.active is not None:
-                ev=self._scene_to_plane(event.position().toPoint())
+                pos=event.position()
+                press=getattr(self,'_press_pos',None)
+                if self.controller.tool=='wall' and press is not None and (pos-press).manhattanLength()<=self.CLICK_PX:
+                    # A click is a click on screen, whatever the zoom: hand tremor of a few pixels
+                    # must not draw a 5 cm wall (Windows mice move a little while clicking).
+                    pos=press
+                ev=self._scene_to_plane(pos.toPoint())
                 ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
                 ev.ctrl=bool(event.modifiers()&Qt.KeyboardModifier.ControlModifier)
                 moved_wall=getattr(self.controller.active,'distance',None) if self.controller.preview.kind=='wall-move' else None
