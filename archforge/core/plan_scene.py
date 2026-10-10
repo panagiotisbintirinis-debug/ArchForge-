@@ -121,6 +121,7 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
     """Keep FLOOR PLAN focused on the active storey while 3D remains whole-building."""
     z=float(doc.work_plane.origin[2]);p=e.params
     if e.kind=='section_line':return True          # a section cuts every storey
+    if e.kind=='camera':return abs(float(p.get('level_z',0.0))-z)<=tolerance
     if e.kind=='wall':return abs(float(p.get('z',0.0))-z)<=tolerance
     if e.kind=='pod':return abs(float(p.get('floor_level',0.0))-z)<=tolerance
     if e.kind in ('floor','room'):return abs(float(p.get('z',0.0))-z)<=tolerance
@@ -196,6 +197,10 @@ def entity_primitive(doc,eid):
     if e.kind=='wall':return Primitive2D('line',((p['x1'],p['y1']),(p['x2'],p['y2'])),entity_id=eid,meta=(('thickness',p['thickness']),))
     if e.kind=='section_line':
         return Primitive2D('polyline',((float(p['x1']),float(p['y1'])),(float(p['x2']),float(p['y2']))),entity_id=eid,role='section-line')
+    if e.kind=='camera':
+        # Saved camera (core/cameras.py): the body is what the mouse picks; cone and name follow below.
+        from archforge.core.cameras import plan_body
+        return plan_body(p,eid)
     if e.kind=='site_path':
         from archforge.site.paths import path_outline
         return Primitive2D('polygon',tuple(path_outline(p)),entity_id=eid,role='site-path')
@@ -368,6 +373,11 @@ def selection_handles(doc):
                 Handle2D(mx,my,eid,'move','move'),
             ])
         elif e.kind=='mep_terminal':out.append(Handle2D(float(p['x']),float(p['y']),eid,'move','move'))
+        elif e.kind=='camera':
+            # Camera: drag the eye to move it, the tip of the cone to turn it (ui/camera_tool.py).
+            from archforge.core.cameras import aim_point
+            ax,ay=aim_point(p)
+            out.extend([Handle2D(float(p['x']),float(p['y']),eid,'camera_move','move'),Handle2D(ax,ay,eid,'camera_aim','rotate')])
         elif e.kind=='slab_opening' and p.get('points'):
             pts=p['points'];out.append(Handle2D(sum(q[0] for q in pts)/len(pts),sum(q[1] for q in pts)/len(pts),eid,'move','move'))
         elif e.kind=='box':out.extend(_box_handles(eid,p))
@@ -688,6 +698,11 @@ def build_plan_frame(doc,preview=None,layers=True):
                 f.primitives.append(Primitive2D('polygon',(head,w1,w2),entity_id=eid,role='section-arrow'))
             for text,at in sym['labels']:
                 f.primitives.append(Primitive2D('label',(at,),entity_id=eid,role='section-label',meta=(('text',text),('align',(.5,.5)))))
+        if p and p.role=='camera':
+            # Saved camera: view cone, lens and name (core/cameras.py); the cone goes under everything.
+            from archforge.core.cameras import plan_extras
+            extras=plan_extras(doc.get(eid).params,doc.get(eid).name,eid,eid in (doc.selection or ()))
+            f.primitives[0:0]=extras[:2];f.primitives.extend(extras[2:])
         if p and p.role=='slab-opening':
             # Void in the slab: diagonal cross (Greek drafting practice).
             from archforge.architecture.storey_slabs import plan_cross

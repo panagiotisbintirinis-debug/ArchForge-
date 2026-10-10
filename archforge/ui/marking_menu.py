@@ -114,6 +114,8 @@ def build_menu(window, view, entity_id=None):
             entries.append(_e("mm:analyze", "Στατική ανάλυση", "panel"))
         if entity.kind == "slab_opening":
             entries.insert(1, _e("mm:slab:railing", "Κάγκελο γύρω από την οπή"))
+        if entity.kind == "camera":
+            entries.insert(0, _e("mm:camera:view", "Δες από αυτή την κάμερα"))
         if entity.kind in ("room_floor", "room_roof", "room_ceiling") and view == "plan":
             entries += _slab_entries()
         if entity.kind == "cabinet" and entity.params.get("run_id"):
@@ -219,6 +221,8 @@ def run(window, view, entity_id, action_id, plan_xy=None):
             window._choose_stair_layout(None if arg == "auto" else arg)
     elif group == "angle":
         window.plan_view._choose_wall_angle(None if arg == "free" else (arg if arg == "magnet" else float(arg)))
+    elif group == "camera" and entity_id and getattr(window, "_cameras", None) is not None:
+        window._cameras.activate(entity_id)
     elif group == "obj" and entity_id:
         from archforge.ui.object_menu import run_object_op
         run_object_op(window, entity_id, arg)

@@ -146,8 +146,8 @@ class PlanView(QGraphicsView):
         self._update_label_visibility()
     def _overlay(self,kind,event):
         # Overlay tool (the assistant's kitchen/bath guide lines, fixture drag): gets the mouse first.
-        tool=getattr(self,'overlay_tool',None)
-        return tool is not None and bool(tool.handle(self,kind,event))
+        # The camera tool (ui/camera_tool.py: place / move / turn a camera) comes first.
+        return any(tool is not None and bool(tool.handle(self,kind,event)) for tool in (getattr(self,'camera_tool',None),getattr(self,'overlay_tool',None)))
     CLICK_PX=8   # press → release within this many screen pixels is a click, not a drag
     def _wall_chain_active(self):
         return getattr(self.controller,'wall_chain',None) is not None and self.controller.active is not None
@@ -782,6 +782,7 @@ class PlanView(QGraphicsView):
                 dot=QPen(QColor(200,60,40));dot.setWidthF(.05);self._scene.addEllipse(ax-.12,ay-.12,.24,.24,dot,QBrush(QColor(200,60,40))).setZValue(30)
         overlay=getattr(self,'overlay_tool',None)
         if overlay is not None:overlay.paint(self)
+        if getattr(self,'camera_tool',None) is not None:self.camera_tool.paint(self)
         if self.carry is not None:self.carry.paint(self)
         if self.controller.preview.kind=='rotate' and self.controller.active is not None:self._draw_rotate_dial(self.controller.preview)
         draft=getattr(self,'plot_draft',None)
@@ -809,6 +810,9 @@ class PlanView(QGraphicsView):
         prims=frame.primitives if frame is not None else ()
         return any(q.role=='library-symbol' and q.entity_id==entity_id for q in prims)
     def _draw_primitive(self,p:Primitive2D):
+        if p.role.startswith('camera'):
+            from archforge.ui.camera_tool import draw_plan_primitive
+            draw_plan_primitive(self,p);return
         if p.role in ('section-line','section-arrow'):
             # Section mark: red dash-dot cut line, filled arrows towards where the section looks.
             sel=p.entity_id in (self.doc.selection or ());pen=QPen(QColor(200,40,40));pen.setWidthF(.06 if sel else .035)

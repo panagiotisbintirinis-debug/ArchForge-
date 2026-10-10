@@ -994,15 +994,19 @@ function applyViewLine(line) {
   camera.up.set(0, 0, 1);
   setWalkMode(line.kind === "camera");
   if (line.kind === "camera") {
-    // Interior view: stand at the drag start, look along the drag.
+    // Interior view: stand at the drag start, look along the drag. A saved camera
+    // (core/cameras.py) also gives the eye height, the tilt and its horizontal lens.
     sectionPlane = null;
     hiddenKinds = new Set();
-    setLens(60);
-    const eye = Number(line.z || 0) + 1.6;
+    setLens(line.hfov ? cameraVerticalFov(Number(line.hfov)) : 60);
+    const eye = line.eye != null ? Number(line.eye) : Number(line.z || 0) + 1.6;
+    const tilt = Number(line.pitch || 0) * Math.PI / 180;
     camera.near = 0.05;
     camera.far = Math.max(200.0, radius * 40.0);
+    const to = new THREE.Vector3(line.x1 + ux * 2.0 * Math.cos(tilt), line.y1 + uy * 2.0 * Math.cos(tilt), eye + 2.0 * Math.sin(tilt));
+    if (line.smooth && window.afFlyCamera) { window.afFlyCamera(new THREE.Vector3(line.x1, line.y1, eye), to); applyViewState(); return; }
     camera.position.set(line.x1, line.y1, eye);
-    controls.target.set(line.x1 + ux * 2.0, line.y1 + uy * 2.0, eye);
+    controls.target.copy(to);
   } else {
     // Section: keep what lies ahead of the drag start, look along the drag.
     sectionPlane = new THREE.Plane(new THREE.Vector3(ux, uy, 0), -(ux * line.x1 + uy * line.y1));
@@ -1935,7 +1939,8 @@ def pbr_page_html() -> str:
     """The 3D Scene page with the bundled three.js inlined (offline desktop)."""
     bundle = _THREE_BUNDLE_PATH.read_text(encoding="utf-8")
     from archforge.ui.library_drag import js_3d
-    page = _PBR_HTML.replace("/*__ARCHFORGE_WALL_EDIT_3D__*/", wall_edit_3d_js() + js_3d(), 1)
+    from archforge.ui.camera_tool import camera_js
+    page = _PBR_HTML.replace("/*__ARCHFORGE_WALL_EDIT_3D__*/", wall_edit_3d_js() + js_3d() + camera_js(), 1)
     return page.replace("/*__ARCHFORGE_THREE_BUNDLE__*/", bundle, 1)
 
 class PBRInteractionBridge(QObject):
@@ -3082,6 +3087,27 @@ class PBRViewport(QWidget):
             "Τομή: το 3D δείχνει ό,τι βρίσκεται μπροστά από τη γραμμή"
             if kind == "section" else "Εσωτερική όψη από το σημείο της κάτοψης"
         )
+
+    def set_camera_view(self, view: dict, smooth: bool = True) -> None:
+        """Stand at a saved camera (core/cameras.view_payload): the eye-level view line with
+        height, tilt and lens; the mouse can still look around (walk mode)."""
+        line = dict(view, kind="camera", smooth=bool(smooth))
+        for key in ("x1", "y1", "x2", "y2", "z", "eye", "pitch", "hfov"):
+            line[key] = float(line.get(key, 0.0))
+        self._view_line = line
+        self._cutaway = False
+        self._push_view_line()
+        self.statusChanged.emit(f"{line.get('name') or 'Κάμερα'} — σύρε για να κοιτάξεις γύρω · "
+                                "«Επιστροφή στην κάμερα» για να ξαναγυρίσεις")
+
+    def request_camera_state(self, callback) -> None:
+        """``callback({"position", "target", "hfov"})`` with the 3D view as it is now (None without 3D)."""
+        if self.web_view is None:
+            callback(None)
+            return
+        self.web_view.page().runJavaScript(
+            "window.afCameraState ? JSON.stringify(window.afCameraState()) : ''",
+            lambda raw: callback(json.loads(raw) if raw else None))
 
     def _push_view_line(self) -> None:
         if self.web_view is None or not getattr(self, "_view_line", None):
