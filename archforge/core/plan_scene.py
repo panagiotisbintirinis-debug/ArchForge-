@@ -750,6 +750,11 @@ def build_plan_frame(doc,preview=None,layers=True):
             for closed,pts in plan_symbol_world(doc.get(eid).params):
                 if len(pts)>=2:
                     f.primitives.append(Primitive2D('polyline',tuple(pts+pts[:1] if closed else pts),entity_id=eid,role='library-symbol'))
+    # Derived parts of the cabinet runs (kitchen/cabinet_run.py): worktop with its cut-outs, sink, hob, hood.
+    if any(e.kind=='cabinet' and e.params.get('run_id') for e in doc.entities.values()):
+        from archforge.kitchen.cabinet_run import plan_primitives as run_primitives
+        for role,pts,closed in run_primitives(doc):
+            f.primitives.append(Primitive2D('polyline',tuple(pts)+((pts[0],) if closed else ()),role=role))
     # Derived water pipes of the active storey (horizontal runs in the screed).
     if any(e.kind=='plumbing_point' for e in doc.entities.values()):
         from archforge.mep.plumbing import POINT_TYPES,SCREED,route_plumbing_cached

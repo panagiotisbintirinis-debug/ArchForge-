@@ -121,6 +121,18 @@ def kitchen_list(doc):
             add("Προφίλ ακμής (χερούλι)", "m", sum(bars))
         elif handle in ("bar", "knob"):
             add("Χερούλι " + ("μπάρα" if handle == "bar" else "πόμολο"), "τεμ.", len(bars))
+    if any(e.kind == "cabinet" and e.params.get("run_id") for e in doc.entities.values()):
+        # Derived parts of the cabinet runs (kitchen/cabinet_run.py): worktop, cut-outs, plinth, cornice.
+        from archforge.kitchen.cabinet_run import run_geometry, worktop_length
+        from archforge.rendering.materials import MATERIAL_PRESETS
+        for (mid, thick), metres in worktop_length(doc).items():
+            name = MATERIAL_PRESETS.get(mid, {}).get("name", mid or "")
+            add(f"Πάγκος κουζίνας — {name}, πάχος {thick * 100:.0f} cm", "m", metres)
+        g = run_geometry(doc)
+        add("Κοπή πάγκου για νεροχύτη", "τεμ.", len(g["sinks"]))
+        add("Κοπή πάγκου για εστία", "τεμ.", len(g["hobs"]))
+        add("Μπάζα ντουλαπιών (με τα γυρίσματα)", "m", sum(max(q[2] - q[1], q[4] - q[3]) for q in g["plinths"]))
+        add("Κορνίζα κρεμαστών", "m", sum(q[2] - q[1] for q in g["cornices"]))
     return [(desc, unit, round(q, 2) if unit == "m" else q) for (desc, unit), q in sorted(counts.items()) if q]
 
 

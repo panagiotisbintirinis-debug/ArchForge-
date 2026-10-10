@@ -222,6 +222,9 @@ class LayoutAssist:
     # ---------------------------------------------------------------- mouse (PlanView overlay)
     def handle(self, view, kind, event):
         tool = str(view.controller.tool)
+        run_tool = getattr(self.w, "_cabinet_run", None)
+        if run_tool is not None and tool == "layout_cabinet_run":
+            return run_tool.handle(view, kind, event)          # «Γραμμή ντουλαπιών» (ui/cabinet_run_tool.py)
         if tool.startswith("layout_"):
             return self._layout_event(view, kind, event)
         if kind == "press" and tool == "select":
@@ -336,6 +339,11 @@ class LayoutAssist:
     def paint(self, view):
         from archforge.assistant.room_walls import fmt_m, legs_from_points
         tool = str(view.controller.tool)
+        run_tool = getattr(self.w, "_cabinet_run", None)
+        if run_tool is not None:
+            run_tool.paint(view)
+            if tool == "layout_cabinet_run":
+                return
         if self.proposal is not None:
             self._paint_ghost(view)
         if not tool.startswith("layout_") or not self.runs:

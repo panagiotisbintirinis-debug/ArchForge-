@@ -887,6 +887,10 @@ class PlanView(QGraphicsView):
         if p.role in ('opening-symbol','opening-symbol-hidden'):
             pen=QPen(QColor(40,45,55));pen.setWidthF(.018 if dict(p.meta).get('style')=='solid' else .01)
             if p.role=='opening-symbol-hidden':pen.setStyle(Qt.PenStyle.DashLine)
+        if p.role in ('worktop','worktop-cutout','sink-symbol','hob-symbol','hood'):
+            # Derived parts of a cabinet run: worktop edge, cut-outs, sink bowl, hob zones; the hood is above (dashed).
+            pen=QPen(QColor(40,45,55) if p.role=='worktop' else QColor(70,80,95));pen.setWidthF(.016 if p.role=='worktop' else .009)
+            if p.role=='hood':pen.setStyle(Qt.PenStyle.DashLine)
         if p.role=='cabinet-wall':
             pen=QPen(QColor(70,80,95));pen.setWidthF(.01);pen.setStyle(Qt.PenStyle.DashLine)
         if p.role=='library-object' and self._has_symbol(p.entity_id):

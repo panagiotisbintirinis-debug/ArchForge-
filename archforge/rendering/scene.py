@@ -309,6 +309,10 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
             }
         )
     if doc is not None:
+        # Derived parts of the cabinet runs (layer «kitchen»): worktops, plinths, cornices, sinks, hobs, hoods.
+        if any(e.kind == "cabinet" and e.params.get("run_id") for e in doc.entities.values()):
+            from archforge.kitchen.cabinet_run import scene_objects as run_objects
+            objects.extend(run_objects(doc))
         # Derived water pipes (layer "mep"): one mesh per system, not entities.
         from archforge.mep.plumbing import pipe_mesh, route_plumbing_cached
         network = route_plumbing_cached(doc)
