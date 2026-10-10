@@ -83,6 +83,8 @@ class MainWindow(QMainWindow):
         install_layout_assist(self)      # «Κουζίνα / Μπάνιο εδώ…» of the Βοηθός
         from archforge.ui import shortcuts
         shortcuts.install(self)          # editable keyboard shortcuts (Επεξεργασία → Συντομεύσεις πληκτρολογίου…)
+        from archforge.ui import camera_tool
+        camera_tool.install(self)        # Κάμερες: tool, list, «Επιστροφή στην κάμερα» (CAM1)
         self._refresh_library_panel()
         if not os.environ.get('PYTEST_CURRENT_TEST'):
             # First run builds the shipped core library in the background.
@@ -1583,6 +1585,11 @@ class MainWindow(QMainWindow):
         self.plan_view._mouse_down = False
         self.plan_view._view_drag = None
         self.plan_view._railing_draft = None
+        if getattr(self.plan_view, 'camera_tool', None) is not None:
+            if self.plan_view.camera_tool.cancel():
+                self._cameras.on_document_changed()     # a camera dragged live in 3D goes back
+            if self.plan_view.controller.tool == 'camera':
+                self.plan_view.controller.set_tool('select')
         self.plan_view.redraw()
         for view in (self.pbr_view, self.structural_view):
             view.cancel_interaction()
@@ -1782,7 +1789,7 @@ class MainWindow(QMainWindow):
             # Roofs saved before the overhang field still get the editor.
             params.setdefault('overhang', 0.0)
         from archforge.architecture.joinery import KEYS as joinery_keys
-        for key, value in (() if entity.kind in ('railing', 'drywall_ceiling', 'section_line') or slab_tools.is_slab_panel(entity) else params.items()):
+        for key, value in (() if entity.kind in ('railing', 'drywall_ceiling', 'section_line', 'camera') or slab_tools.is_slab_panel(entity) else params.items()):
             if entity.kind in ('door', 'window') and key in joinery_keys:
                 continue  # Κουφώματα: δικές τους γραμμές (ui/opening_properties.py).
             if entity.kind == 'stair' and key == 'plan_numbers':
@@ -1805,6 +1812,9 @@ class MainWindow(QMainWindow):
         if entity.kind == 'section_line':
             from archforge.ui.section_view import add_rows as section_rows
             section_rows(self, eid)
+        if entity.kind == 'camera':
+            from archforge.ui.camera_tool import add_rows as camera_rows
+            camera_rows(self, eid)
         if entity.kind == 'plumbing_point' and params.get('point_type') == 'water_supply':
             from archforge.mep.plumbing import DEFAULT_SYSTEM, PIPE_SYSTEMS
             combo = QComboBox()
@@ -3379,6 +3389,8 @@ class MainWindow(QMainWindow):
         self._schedule_assistant_refresh()
         self._update_plan_title()
         self._refresh_project_tree()
+        if getattr(self, '_cameras', None) is not None:
+            self._cameras.on_document_changed()     # camera list; the 3D follows an edited active camera
         # Refresh every editor the human can currently see (e.g. 2D + 3D side
         # by side) so a committed edit appears without switching tabs. Hidden
         # editors refresh when they are shown.
@@ -3464,6 +3476,8 @@ class MainWindow(QMainWindow):
             self.autosave.discard()
             self._update_window_title()
         self._refresh_project_tree()     # opened / recovered project: its own tree and name
+        if getattr(self, '_cameras', None) is not None:
+            self._cameras.on_document_changed()
         self._refresh_floor_selector()
         self._redraw_views(all_views=True)
         self.refresh_inspector()

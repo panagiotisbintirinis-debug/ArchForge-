@@ -23,6 +23,7 @@ CATEGORIES = (
     ("Μηχανολογικά", ("mep_terminal", "mechanical_part", "mechanical_joint", "mechanical_mount", "mesh")),
     ("Οργανικά", ("pod", "arboreal_branch", "organic_junction", "organic_opening_patch")),
     ("Τομές", ("section_line",)),
+    ("Κάμερες", ("camera",)),
 )
 SITE = ("terrain", "plant", "site_path")
 KIND_LABELS = {
@@ -32,6 +33,7 @@ KIND_LABELS = {
     "cabinet": "Ντουλάπι", "kitchen_part": "Κομμάτι κουζίνας", "library_object": "Αντικείμενο",
     "box": "Κουτί", "terrain": "Έδαφος", "plant": "Φυτό", "site_path": "Μονοπάτι", "pod": "Pod",
     "railing": "Κάγκελο", "slab_opening": "Οπή πλάκας", "drywall_ceiling": "Ψευδοροφή", "section_line": "Γραμμή τομής",
+    "camera": "Κάμερα",
 }
 
 

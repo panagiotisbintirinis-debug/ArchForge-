@@ -487,6 +487,15 @@ def _flag(v):
     return 1 if int(round(float(v))) else 0
 
 
+def _between(lo, hi, label):
+    def check(v):
+        v = _finite(v)
+        if not lo <= v <= hi:
+            raise ValueError(f'{label} must be within {lo:g}..{hi:g}')
+        return v
+    return check
+
+
 def _load_direction(v):
     vec = _vec3(v)
     length = math.sqrt(sum(float(x) * float(x) for x in vec))
@@ -724,6 +733,10 @@ SCHEMAS = {
                      'cuts': _slab_choice('validate_cuts'), 'use': _slab_choice('validate_use')},
     # Section line drawn in the plan (output/section_cut.py): the drawing is derived, only the line is kept.
     'section_line': {'x1': _finite, 'y1': _finite, 'x2': _finite, 'y2': _finite, 'flip': _flag, 'depth': _nonnegative},
+    # Saved camera (core/cameras.py): a view preference, never building geometry.
+    'camera': {'x': _finite, 'y': _finite, 'level_z': _finite, 'height': _between(0.05, 50.0, 'eye height'),
+               'heading': _finite, 'pitch': _between(-80.0, 80.0, 'camera pitch'),
+               'fov': _between(20.0, 120.0, 'field of view')},
 }
 
 

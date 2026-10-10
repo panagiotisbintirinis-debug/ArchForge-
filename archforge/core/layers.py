@@ -41,6 +41,7 @@ LAYERS = {
     'dimensions': 'Διαστάσεις',
     'site': 'Οικόπεδο / έδαφος',
     'underlay': 'Υπόβαθρο κάτω ορόφου',
+    'cameras': 'Κάμερες',
 }
 
 KIND_LAYERS = {
@@ -63,6 +64,7 @@ KIND_LAYERS = {
     'electrical_point': 'electrical',
     'ventilation_point': 'ventilation',
     'terrain': 'site', 'plant': 'site', 'site_path': 'site',
+    'camera': 'cameras',
 }
 
 # Derived plan primitives: the role decides (a label of a column is a «label», a footing is «foundation»).
@@ -78,6 +80,7 @@ ROLE_LAYERS = {
     'duct': 'ventilation', 'vent-terminal': 'ventilation', 'ventilation-label': 'ventilation',
     'terrain': 'site', 'terrain-label': 'site',
     'floor-underlay': 'underlay',
+    'camera': 'cameras', 'camera-cone': 'cameras', 'camera-label': 'cameras',
 }
 # Live feedback of the tool in hand is never filtered.
 UNLAYERED_ROLES = ('preview', 'wall-move-arrow', 'wall-move-label', 'wall-move-opening', 'angle-arc', 'angle-label')
@@ -138,12 +141,15 @@ def _preset(workspace):
         states['structure'] = dict(UNDER)
         for key in ('foundation', 'structural_labels') + MEP_LAYERS:
             states[key] = dict(OFF)
+        states['cameras'] = dict(ON)
     elif workspace == 'structure':
+        states['cameras'] = dict(OFF)
         for key in ARCH_LAYERS:
             states[key] = dict(UNDER)
         for key in ('furniture', 'kitchen', 'sanitary') + MEP_LAYERS:
             states[key] = dict(OFF)
     elif workspace == 'mep':
+        states['cameras'] = dict(OFF)
         for key in ARCH_LAYERS + ('structure',):
             states[key] = dict(UNDER)
         for key in ('furniture', 'foundation', 'structural_labels'):
