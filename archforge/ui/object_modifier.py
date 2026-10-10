@@ -518,6 +518,21 @@ def add_cabinet_choices(window, form, entity_id):
                ("handle", "Χερούλι", HANDLE_NAMES, "bar"),
                ("mechanism", "Μηχανισμός", {k: MECHANISMS[k][0] for k in mechanisms_for(p["cabinet_type"])}, "none"))
     combos = {}
+    if p.get("run_id") and p["cabinet_type"] not in ("filler", "corner", "corner_blind"):
+        # A cabinet of a «Γραμμή ντουλαπιών»: standard widths; the run re-flows (filler follows), one undo.
+        from archforge.kitchen.cabinet_run import STANDARD_WIDTHS
+        combo = QComboBox()
+        for w in STANDARD_WIDTHS:
+            combo.addItem(f"{w * 100:.0f} cm", w)
+        if combo.findData(float(p["width"])) < 0:
+            combo.addItem(f"{float(p['width']) * 100:.1f} cm", float(p["width"]))
+        combo.setCurrentIndex(combo.findData(float(p["width"])))
+        # Deferred: the re-flow rebuilds the Inspector, which deletes this combo (not inside its own signal).
+        from PySide6.QtCore import QTimer
+        combo.currentIndexChanged.connect(lambda _i, w=combo: QTimer.singleShot(
+            0, lambda v=w.currentData(): window._cabinet_run.set_width(entity_id, v)))
+        form.addRow("Πλάτος (γραμμή)", combo)
+        combos["run_width"] = combo
     for key, label, options, default in choices:
         combo = QComboBox()
         for value, name in options.items():

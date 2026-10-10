@@ -80,7 +80,13 @@ def build_menu(window, view, entity_id=None):
             entries.append(_e("mm:wall:delete_last", "Διαγραφή τελευταίου τοίχου", "panel", danger=True))
         return {"center": f"Τοίχος · γωνία {_angle_label(current)}", "entries": entries, "wheel": "angle"}
     # «Κουζίνα / Μπάνιο εδώ» of the assistant: apply, variants, shape, discard.
-    if view == "plan" and str(tool).startswith("layout_") and getattr(window, "_layout_assist", None) is not None:
+    if view == "plan" and tool == "layout_cabinet_run" and getattr(window, "_cabinet_run", None) is not None \
+            and (window._cabinet_run.proposal is not None or not entity_id):
+        # On a cabinet already placed (no ghost) its own menu opens instead: widths, delete the run.
+        from archforge.ui.cabinet_run_tool import marking_entries as run_entries
+        return run_entries(window)
+    if view == "plan" and str(tool).startswith("layout_") and tool != "layout_cabinet_run" \
+            and getattr(window, "_layout_assist", None) is not None:
         from archforge.ui.layout_assist import marking_entries
         return marking_entries(window)
     # An object under the cursor: its own actions.
@@ -110,6 +116,10 @@ def build_menu(window, view, entity_id=None):
             entries.insert(1, _e("mm:slab:railing", "Κάγκελο γύρω από την οπή"))
         if entity.kind in ("room_floor", "room_roof", "room_ceiling") and view == "plan":
             entries += _slab_entries()
+        if entity.kind == "cabinet" and entity.params.get("run_id"):
+            # A cabinet of a «Γραμμή ντουλαπιών»: standard widths (the run re-flows), delete the whole run.
+            from archforge.ui.cabinet_run_tool import entity_entries
+            entries += entity_entries(window, entity)
         if entity.params.get("layout_id"):
             entries.append(_e("mm:layout:refit", "Αναπροσαρμογή διάταξης", "panel"))
             entries.append(_e("mm:layout:delete_all", "Διαγραφή όλης της διάταξης", "panel", danger=True))
@@ -141,6 +151,7 @@ def build_menu(window, view, entity_id=None):
     if view == "plan":
         entries.append(_e("mm:assist:point", "📍 Βοηθός εδώ", "panel"))
         entries.append(_e("mm:layout:kitchen", "Κουζίνα εδώ…", "panel"))
+        entries.append(_e("mm:krun:start", "Γραμμή ντουλαπιών σε τοίχο…", "panel"))
         entries.append(_e("mm:layout:bath", "Μπάνιο εδώ…", "panel"))
         entries.append(_e("mm:roofroom:tiled", "Κεραμοσκεπή σε αυτόν τον χώρο", "panel"))
         entries.append(_e("mm:roofroom:terrace", "Ταράτσα σε αυτόν τον χώρο", "panel"))
@@ -246,6 +257,9 @@ def run(window, view, entity_id, action_id, plan_xy=None):
     elif group == "layout":
         from archforge.ui.layout_assist import run as layout_run
         layout_run(window, arg, entity_id, plan_xy)
+    elif group == "krun":
+        from archforge.ui.cabinet_run_tool import run as cabinet_run
+        cabinet_run(window, arg, entity_id, plan_xy)
     elif group == "roofroom" and plan_xy is not None:
         window._set_room_roof(arg, *plan_xy)
     elif group == "slab":

@@ -48,7 +48,10 @@ TYPES = {
     # Corner units: width along the back wall, depth along the side wall (on the left).
     "corner": ("Γωνιακό ντουλάπι βάσης (Γ)", dict(width=0.90, depth=0.90, height=0.86, plinth=0.10, doors=2, drawers=0, shelves=1, worktop=1.0, z=0.0)),
     "corner_blind": ("Γωνιακό τυφλό ντουλάπι", dict(width=1.10, depth=0.60, height=0.86, plinth=0.10, doors=1, drawers=0, shelves=1, worktop=1.0, z=0.0)),
+    # Filler strip (συμπλήρωμα): a front-plane panel that closes the gap a run of standard widths leaves.
+    "filler": ("Συμπλήρωμα", dict(width=0.05, depth=0.60, height=0.86, plinth=0.10, doors=0, drawers=0, shelves=0, worktop=1.0, z=0.0)),
 }
+FILLER_BATTEN = 0.08  # stiffener behind a filler strip, fixed to the neighbouring carcass
 HANDLES = ("bar", "knob", "none", "edge")
 HANDLE_NAMES = {"bar": "Μπάρα", "knob": "Πόμολο", "edge": "Προφίλ πάνω ακμής", "none": "Χωρίς (push)"}
 FRONT_STYLES = {"flat": "Λεία", "shaker": "Ταμπλαδωτή (κάσα)", "glass": "Με τζάμι (βιτρίνα)",
@@ -308,6 +311,8 @@ def _build(p):
     handle = str(p.get("handle", "bar"))
     style = str(p.get("front_style", "flat"))
     mech = mechanism(p)
+    if kind == "filler":
+        return _filler(p, w, d, h, plinth)
     if w < 2 * CARCASS + 0.05 or d < FRONT + BACK + 0.05 or h - plinth < 2 * CARCASS + 0.05:
         raise ValueError("cabinet is too small for its panels")
     if kind == "corner":
@@ -320,9 +325,15 @@ def _build(p):
     yc = yf + FRONT                   # carcass front
     zb, zt = plinth, h                # carcass bottom and top
     if plinth > 0:
-        _box(parts, "plinth", x0 + CARCASS, yf + PLINTH_SETBACK, 0.0, x1 - CARCASS, yb - BACK, plinth)
-        _box(parts, "carcass", x0, yc, 0.0, x0 + CARCASS, yb, plinth)      # sides run to the floor
-        _box(parts, "carcass", x1 - CARCASS, yc, 0.0, x1, yb, plinth)
+        if int(p.get("own_plinth", 1)):
+            _box(parts, "plinth", x0 + CARCASS, yf + PLINTH_SETBACK, 0.0, x1 - CARCASS, yb - BACK, plinth)
+            _box(parts, "carcass", x0, yc, 0.0, x0 + CARCASS, yb, plinth)      # sides run to the floor
+            _box(parts, "carcass", x1 - CARCASS, yc, 0.0, x1, yb, plinth)
+        else:
+            # A cabinet of a run (kitchen/cabinet_run.py) stands on legs behind the run's one continuous plinth.
+            for xa in (x0 + 0.06, x1 - 0.09):
+                for ya in (yf + PLINTH_SETBACK + 0.04, yb - 0.09):
+                    _box(parts, "mechanism", xa, ya, 0.0, xa + 0.03, ya + 0.03, plinth)
     # Carcass
     _box(parts, "carcass", x0, yc, zb, x0 + CARCASS, yb, zt)
     _box(parts, "carcass", x1 - CARCASS, yc, zb, x1, yb, zt)
@@ -390,6 +401,21 @@ def _build(p):
     if kind == "corner_blind" and p.get("blind_side", "left") == "right":
         parts, prisms = _mirrored(parts, prisms)
     return parts, prisms
+
+
+def _filler(p, w, d, h, plinth):
+    """Filler strip: a panel in the plane of the fronts and a batten behind it (no carcass, no door)."""
+    if w < 0.003 or d < FRONT + 0.02 or h - plinth < 0.05:
+        raise ValueError("filler is too small")
+    parts = []
+    x0, x1, yf = -w / 2, w / 2, -d / 2
+    if plinth > 0 and int(p.get("own_plinth", 1)):
+        _box(parts, "plinth", x0, yf + PLINTH_SETBACK, 0.0, x1, yf + PLINTH_SETBACK + CARCASS, plinth)
+    _box(parts, "front", x0, yf, plinth, x1, yf + FRONT, h)
+    _box(parts, "carcass", x0, yf + FRONT, plinth, x1, min(yf + FRONT + FILLER_BATTEN, d / 2), h)
+    if float(p.get("worktop", 0.0)):
+        _box(parts, "worktop", x0, yf - OVERHANG, h, x1, d / 2, h + WORKTOP)
+    return parts, []
 
 
 def _mirrored(parts, prisms):
@@ -479,6 +505,8 @@ def front_counts(p):
     kind, mech = str(p.get("cabinet_type", "base")), mechanism(p)
     if kind == "corner":
         return {"door": 2}
+    if kind == "filler":
+        return {}
     doors, drawers = int(p.get("doors", 0)), int(p.get("drawers", 0))
     if mech in ("cargo", "bin", "larder", "lift_up"):
         doors = drawers = 0

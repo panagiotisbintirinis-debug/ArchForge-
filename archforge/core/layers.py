@@ -78,13 +78,14 @@ ROLE_LAYERS = {
     'duct': 'ventilation', 'vent-terminal': 'ventilation', 'ventilation-label': 'ventilation',
     'terrain': 'site', 'terrain-label': 'site',
     'floor-underlay': 'underlay',
+    'worktop': 'kitchen', 'worktop-cutout': 'kitchen', 'sink-symbol': 'kitchen', 'hob-symbol': 'kitchen', 'hood': 'kitchen',
 }
 # Live feedback of the tool in hand is never filtered.
 UNLAYERED_ROLES = ('preview', 'wall-move-arrow', 'wall-move-label', 'wall-move-opening', 'angle-arc', 'angle-label')
 
 # 3D payload ``layer`` tags (rendering/scene.py) -> layer.
 SCENE_LAYERS = {'roof_structure': 'slabs', 'roof_tiles': 'slabs', 'foundation': 'foundation', 'mep': 'plumbing',
-                'drain': 'drainage', 'elec': 'electrical', 'vent': 'ventilation'}
+                'drain': 'drainage', 'elec': 'electrical', 'vent': 'ventilation', 'kitchen': 'kitchen'}
 
 BATH_CATEGORIES = ('Μπάνιο',)
 

@@ -81,6 +81,8 @@ class MainWindow(QMainWindow):
         drywall_tools.install_menus(self)  # Ψευδοροφή γυψοσανίδας, ICF / γυψοσανίδες αναγωγή
         from archforge.ui.layout_assist import install_layout_assist
         install_layout_assist(self)      # «Κουζίνα / Μπάνιο εδώ…» of the Βοηθός
+        from archforge.ui.cabinet_run_tool import install_cabinet_run
+        install_cabinet_run(self)        # «Γραμμή ντουλαπιών» (kitchen/cabinet_run.py)
         from archforge.ui import shortcuts
         shortcuts.install(self)          # editable keyboard shortcuts (Επεξεργασία → Συντομεύσεις πληκτρολογίου…)
         self._refresh_library_panel()
@@ -1574,6 +1576,8 @@ class MainWindow(QMainWindow):
     def _cancel_interactions(self):
         if getattr(self, '_layout_assist', None) is not None:
             self._layout_assist.cancel()
+        if getattr(self, '_cabinet_run', None) is not None:
+            self._cabinet_run.cancel()
         self.plan_view.plot_draft = None
         self.plan_view.controller.cancel()
         self.plan_view.carry_leave()          # Library item in hand (library_drag.py)
@@ -1974,6 +1978,11 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f'Αρίθμηση μελών: {len(names)} αλλαγές (τα ονόματα που έδωσες εσύ μένουν)', 6000)
 
     def _commit_property(self, eid, key, value):
+        entity = self.doc.entities.get(eid)
+        if entity is not None and entity.kind == 'cabinet' and entity.params.get('run_id') and key == 'width' \
+                and getattr(self, '_cabinet_run', None) is not None:
+            self._cabinet_run.set_width(eid, value)       # the run re-flows, the filler follows
+            return
         try:
             entity = self.doc.get(eid)
             changes = {key: value}
@@ -2761,6 +2770,9 @@ class MainWindow(QMainWindow):
         assist = getattr(self, '_layout_assist', None)
         if assist is not None and assist.discard():
             return                       # Delete on the assistant's ghost: throw the proposal away
+        run_tool = getattr(self, '_cabinet_run', None)
+        if run_tool is not None and run_tool.discard():
+            return                       # Delete on the cabinet-run ghost
         ids = list(self.doc.selection)
         if not ids:
             self.statusBar().showMessage('Δεν υπάρχει επιλογή για διαγραφή', 2500)
