@@ -87,6 +87,8 @@ class MainWindow(QMainWindow):
         shortcuts.install(self)          # editable keyboard shortcuts (Επεξεργασία → Συντομεύσεις πληκτρολογίου…)
         from archforge.ui import camera_tool
         camera_tool.install(self)        # Κάμερες: tool, list, «Επιστροφή στην κάμερα» (CAM1)
+        from archforge.ui import terrain_tools
+        terrain_tools.install(self)
         self._refresh_library_panel()
         if not os.environ.get('PYTEST_CURRENT_TEST'):
             # First run builds the shipped core library in the background.
@@ -1576,6 +1578,8 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f'Ήλιος: ύψος {el:.1f}°, αζιμούθιο {az:.0f}°', 5000)
 
     def _cancel_interactions(self):
+        if getattr(self, '_terrain_tools', None) is not None:
+            self._terrain_tools.cancel()
         if getattr(self, '_layout_assist', None) is not None:
             self._layout_assist.cancel()
         if getattr(self, '_cabinet_run', None) is not None:
@@ -1775,6 +1779,9 @@ class MainWindow(QMainWindow):
         from archforge.ui.project_outline import KIND_LABELS
         eid = self.doc.selection[0]
         entity = self.doc.get(eid)
+        if entity.kind == 'terrain' and getattr(self, '_terrain_tools', None) is not None:
+            if self._terrain_tools.add_rows(self.form, entity):
+                return
         from archforge.ui.project_outline import KIND_LABELS
         self.form.addRow('Τύπος', QLabel(KIND_LABELS.get(entity.kind, entity.kind)))
         # Name (a column's/beam's mark Κ1, Δ1 …): typed here, one undo step.
@@ -2934,6 +2941,8 @@ class MainWindow(QMainWindow):
         )
 
     def _delete_selection(self):
+        if getattr(self, '_terrain_tools', None) is not None and self._terrain_tools.delete_selected():
+            return
         assist = getattr(self, '_layout_assist', None)
         if assist is not None and assist.discard():
             return                       # Delete on the assistant's ghost: throw the proposal away
@@ -3048,6 +3057,26 @@ class MainWindow(QMainWindow):
             f'Created and activated {name} at {float(elevation):.2f} m',
             3500,
         )
+
+    def _add_basement_level(self):
+        """A named below-ground storey, using the existing reversible level command."""
+        if 'Basement' in self.doc.levels:
+            self._refresh_floor_selector()
+            for index in range(self.floor_selector.count()):
+                if self.floor_selector.itemData(index)[0] == 'Basement':
+                    self._activate_selected_floor(index)
+                    return
+        depth, accepted = QInputDialog.getDouble(self, 'Προσθήκη υπογείου',
+            'Βάθος δαπέδου υπογείου κάτω από το ισόγειο (m):', 3.0, .20, 1000.0, 3)
+        if not accepted or depth <= 0:
+            return
+        elevation = float(self.doc.levels.get('Ground', 0.0)) - float(depth)
+        try:
+            self.stack.execute(CreateFloorLevel('Basement', elevation))
+        except (ValueError, RuntimeError) as exc:
+            QMessageBox.warning(self, 'Υπόγειο', str(exc)); return
+        self._refresh_floor_selector(); self._redraw_views(all_views=True); self.refresh_inspector()
+        self.statusBar().showMessage(f'Υπόγειο: {elevation:+.3f} m · σχεδίασε το περίγραμμα και δημιούργησε δάπεδο · Ctrl+Z αναίρεση', 7000)
 
     def _create_auto_floors(self):
         # One floor slab over the whole storey (union of its rooms), replacing per-room floors.
@@ -3557,6 +3586,7 @@ class MainWindow(QMainWindow):
             self.setWindowModified(True)
         self._schedule_assistant_refresh()
         self._update_plan_title()
+        self._refresh_floor_selector()
         self._refresh_project_tree()
         if getattr(self, '_cameras', None) is not None:
             self._cameras.on_document_changed()     # camera list; the 3D follows an edited active camera
@@ -3567,6 +3597,9 @@ class MainWindow(QMainWindow):
             if view is None or view is self.view or not view.isVisible():
                 continue
             view.redraw()
+        panel = getattr(self, '_section_panel', None)
+        if panel is not None and panel.isVisible():
+            panel.refresh(fit=False)
 
     def _selection_from_view(self):
         self.refresh_inspector()
@@ -3631,6 +3664,8 @@ class MainWindow(QMainWindow):
             event.ignore()
 
     def _replace_project(self, doc, path=None):
+        if getattr(self, '_terrain_tools', None) is not None:
+            self._terrain_tools.cancel()
         self.doc = doc
         self.stack = CommandStack(self.doc)
         self.stack.listeners.append(self._on_document_changed)

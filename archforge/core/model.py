@@ -441,6 +441,11 @@ def _terrain_points(v):
     return out
 
 
+def _terrain_regions(v):
+    from archforge.site.elevation_regions import validate_regions
+    return validate_regions(v)
+
+
 def _plot_boundary(v):
     out = [[_finite(p[0]), _finite(p[1])] for p in (v or ())]
     if out and len(out) < 3:
@@ -678,6 +683,7 @@ SCHEMAS = {
         'x0': _finite, 'y0': _finite, 'x1': _finite, 'y1': _finite,
         'elevation': _finite, 'slope_x': _finite, 'slope_y': _finite, 'thickness': _positive,
         'points': _terrain_points, 'blend_radius': _positive, 'boundary': _plot_boundary,
+        'regions': _terrain_regions,
         'altitude_ref': _finite,
     },
     'site_path': {
@@ -979,6 +985,8 @@ class Document:
             # Storey slabs derive from every wall of their storey (and the roofs / slabs
             # around them); slab openings cut any slab of their storey.
             for related in self.entities.values():
+                if related.kind == 'terrain' and entity.kind == 'wall':
+                    self.mark_dirty(related.id)       # excavation follows added/moved/deleted walls
                 if related.kind in ('room_floor', 'room_roof', 'room_ceiling') and related.id != entity.id \
                         and (entity.kind == 'slab_opening' or related.params.get('scope') == 'storey'):
                     self.mark_dirty(related.id)

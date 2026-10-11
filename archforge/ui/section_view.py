@@ -24,6 +24,7 @@ CUT_FILL = {"concrete": (QColor(120, 124, 130), Qt.BrushStyle.SolidPattern),
             "masonry": (QColor(40, 40, 40), Qt.BrushStyle.BDiagPattern),
             "roof": (QColor(140, 70, 35), Qt.BrushStyle.FDiagPattern),
             "joinery": (QColor(255, 255, 255), Qt.BrushStyle.SolidPattern),
+            "soil": (QColor(145, 100, 55), Qt.BrushStyle.BDiagPattern),
             "other": (QColor(90, 90, 90), Qt.BrushStyle.Dense6Pattern)}
 
 
@@ -103,6 +104,7 @@ class SectionView(QGraphicsView):
         self._scene.clear()
         self._scene.addItem(_Drawing(self.data))
         self._draw_levels()
+        self._draw_terrain_marks()
         if fit:
             u0, z0, u1, z1 = self.data["bounds"]
             self.fitInView(QRectF(u0 - 4.5, z0 - 1.0, (u1 - u0) + 9.5, (z1 - z0) + 2.0), Qt.AspectRatioMode.KeepAspectRatio)
@@ -133,9 +135,18 @@ class SectionView(QGraphicsView):
             outline = QPen(QColor(30, 90, 170)); outline.setCosmetic(True); outline.setWidthF(1.2)
             self._scene.addPolygon(tri, outline, QBrush(QColor(255, 255, 255))).setZValue(6)
             self._text(f"{mark}  {name}", x - 0.2, z + 0.25, QColor(30, 90, 170), True, (1.0, 1.0))
-        top = max((max(q[1] for q in loop) for c in self.data["cuts"] for loop in c["loops"]), default=None)
+        top = max((max(q[1] for q in loop) for c in self.data["cuts"] if c['kind'] != 'terrain' for loop in c["loops"]), default=None)
         if top is not None and all(abs(top - z) > 0.3 for z, _m, _n in self.data["levels"]):
             self._text(f"{top:+.2f}".replace(".", ",") + "  ανώτατο σημείο", u1 + 0.4, top, QColor(30, 90, 170), False, (0.0, 0.5))
+
+    def _draw_terrain_marks(self):
+        from archforge.ui.terrain_tools import mark
+        color = QColor(125, 75, 25)
+        pen = QPen(color); pen.setCosmetic(True); pen.setWidthF(1.4)
+        for u, z in self.data.get('terrain_marks', ()):
+            tri = QPolygonF([QPointF(u,z), QPointF(u-.12,z+.18), QPointF(u+.12,z+.18)])
+            self._scene.addPolygon(tri, pen, QBrush(QColor('white'))).setZValue(7)
+            self._text(mark(z), u+.15, z+.3, color, True, (0.,1.))
 
 
 class SectionPanel(QWidget):
@@ -156,7 +167,7 @@ class SectionPanel(QWidget):
         lay.addLayout(bar)
         self.view = SectionView(window, self)
         lay.addWidget(self.view, 1)
-        self.hint = QLabel("Κομμένα: σκυρόδεμα γκρι, τοιχοποιία με διαγράμμιση, στέγη καφέ · πίσω από την τομή: όψη · "
+        self.hint = QLabel("Κομμένα: σκυρόδεμα γκρι, τοιχοποιία με διαγράμμιση, έδαφος καφέ με υψόμετρα · πίσω από την τομή: όψη · "
                            "ρόδα = ζουμ, σύρσιμο = μετακίνηση")
         self.hint.setStyleSheet("color:#5B6778;")
         lay.addWidget(self.hint)

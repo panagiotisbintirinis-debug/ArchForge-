@@ -90,9 +90,15 @@ class PointerController:
         # The project brief (wall system) sets what the wall tool draws.
         from archforge.project.brief import wall_defaults
         brief_type,brief_thickness=wall_defaults(self.doc)
+        wall_height=2.7
+        if self.doc.active_level_name()=='Basement':
+            z=float(self.doc.work_plane.origin[2])
+            above=[float(v) for v in self.doc.levels.values() if float(v)>z+1e-6]
+            if above: wall_height=min(above)-z
         self.active=WallDrawTransaction(
             self.doc,self.stack,(sx,sy),
             z=self.doc.work_plane.origin[2],
+            height=wall_height,
             thickness=brief_thickness,
             grid=self.grid,
             snap_tol=self.snap_tolerance,
