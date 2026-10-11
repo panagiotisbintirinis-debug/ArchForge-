@@ -265,3 +265,16 @@ def test_moving_a_legacy_point_expands_site_and_preserves_other_points(terrain_w
     assert w._terrain_entity().params['x1'] == 25.
     w._undo(); assert w._terrain_entity().params['x1'] == 10.
     w._undo(); assert w._terrain_entity().params['points'] == [[0.,0.,-10.],[3.,3.,1.]]
+
+
+def test_locked_terrain_refuses_new_shape_without_changing_project_or_history(terrain_window,monkeypatch):
+    from PySide6.QtWidgets import QInputDialog
+    w,app = terrain_window
+    e = Entity('terrain',dict(default_terrain_params(w.doc),points=[[3.,3.,-9.5]]))
+    e.locked = True
+    w.stack.execute(AddEntity(e))
+    before = copy.deepcopy(w.doc.to_dict()); history = len(w.stack.done)
+    monkeypatch.setattr(QInputDialog,'getDouble',lambda *a,**k:(-10.5,True))
+    w._terrain_tools.start('rectangle')
+    assert not w._terrain_tools.place_shape([[0,0],[2,0],[2,2],[0,2]],'rectangle')
+    assert w.doc.to_dict() == before and len(w.stack.done) == history

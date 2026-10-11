@@ -110,7 +110,7 @@ class TerrainTools:
             if e is None:
                 e=Entity('terrain',changes,name='Έδαφος'); self.window.stack.execute(AddEntity(e))
             else: self.window.stack.execute(UpdateEntity(e.id,changes))
-        except (ValueError,RuntimeError) as exc:
+        except (ValueError,RuntimeError,PermissionError) as exc:
             self.window.statusBar().showMessage(str(exc),7000); return False
         self.mode='edit'; self.selected=('region',r['id'])
         self.window.plan_view.controller.set_tool('select')
