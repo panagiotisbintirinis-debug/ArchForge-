@@ -264,6 +264,7 @@ class TerrainTools:
         radius=5/max(1.,abs(view.transform().m11()))
         def label(text,x,y,color):
             item=view._scene.addText(text); item.setDefaultTextColor(color)
+            item.setHtml(f'<span style="background-color:#ffffff;font-weight:bold">{text}</span>')
             item.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations,True); item.setPos(x,y); item.setZValue(42)
         def draw(points,color,selected=False,dashed=True,shape='polygon'):
             pen=QPen(color); pen.setCosmetic(True); pen.setWidthF(2. if selected else 1.2)
@@ -273,6 +274,11 @@ class TerrainTools:
             handles=points[::12] if shape=='circle' else points
             for x,y in handles:
                 view._scene.addEllipse(x-radius,y-radius,2*radius,2*radius,QPen(color,0),QBrush(QColor('white'))).setZValue(41)
+        if e is not None:
+            # A graded plane has no control points, but its levels must still be visible.
+            for x,y in ((params['x0'],params['y0']),(params['x1'],params['y0']),
+                        (params['x1'],params['y1']),(params['x0'],params['y1'])):
+                label(mark(terrain_height(params,x,y)),x,y,BROWN)
         for r in params.get('regions') or ():
             if self.drag and self.drag['hit'][0]=='region' and self.drag['hit'][1]==r['id']: r=self.drag['preview']
             sel=self.selected==('region',r['id']) and self.mode=='edit'
@@ -303,3 +309,10 @@ def install(window):
     section=QAction('Τομή εδάφους / υπογείου',window)
     section.triggered.connect(lambda:window._start_site_tool('view_section','Σύρε γραμμή τομής από μπροστά έως πίσω στο οικόπεδο'))
     sub.addSeparator(); sub.addAction(section); window._terrain_regions_menu=sub
+    rectangle=QAction('Υψομετρικό πλαίσιο',window)
+    rectangle.setToolTip('Σύρε ορθογώνιο στην κάτοψη και δώσε υψόμετρο σε μέτρα')
+    rectangle.triggered.connect(lambda:tool.start('rectangle'))
+    # Keep the second row's camera/grid controls visible at 1280 px.
+    window._mockup_ribbon.addAction(window._mockup_basement_action)
+    window._mockup_ribbon.addAction(rectangle)
+    window._terrain_rectangle_action=rectangle

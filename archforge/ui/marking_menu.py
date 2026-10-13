@@ -17,7 +17,7 @@ from __future__ import annotations
 import math
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QFrame, QLabel, QToolButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QLabel, QToolButton, QWidget, QMenu
 
 SCULPT_OPS = (("pull", "Τράβηγμα"), ("push", "Σπρώξιμο"), ("inflate", "Φούσκωμα"), ("recess", "Βύθιση"),
               ("smooth", "Λείανση"), ("crease", "Πτυχή"))
@@ -327,7 +327,7 @@ class MarkingMenu(QWidget):
         self.menu = menu
         size = 2 * self.RADIUS + 300
         panel = [e for e in menu["entries"] if e["placement"] == "panel"]
-        self.resize(size, size + 30 * len(panel) + 10)
+        self.resize(size, size + 10)
         cx, cy = size // 2, size // 2
         self.buttons = {}
         self.center = QLabel(menu["center"], self)
@@ -343,15 +343,17 @@ class MarkingMenu(QWidget):
             x = cx + dx * self.RADIUS + math.copysign(max(0.0, clear - self.RADIUS * abs(dx) + b.width() / 2), dx) * (abs(dx) > 0.5)
             b.move(int(x - b.width() / 2), int(cy + dy * self.RADIUS - b.height() / 2))
         if panel:
-            frame = QFrame(self)
-            frame.setStyleSheet("QFrame { background: rgba(247,248,250,0.97); border: 1px solid #7c8792; border-radius: 8px; }")
-            lay = QVBoxLayout(frame)
-            lay.setContentsMargins(4, 4, 4, 4)
-            lay.setSpacing(2)
+            more = QToolButton(self)
+            more.setText('Περισσότερα…')
+            more.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+            popup = QMenu(more)
             for e in panel:
-                lay.addWidget(self._button(e, frame, flat=True))
-            frame.adjustSize()
-            frame.move(cx - frame.width() // 2, int(cy + self.RADIUS + 26))
+                action = popup.addAction(e['label']); action.setData(e['id'])
+                action.setCheckable(bool(e['checked'])); action.setChecked(bool(e['checked']))
+                action.triggered.connect(lambda _=False, i=e['id']: self.chosen.emit(i))
+            more.setMenu(popup); more.adjustSize()
+            more.move(cx - more.width() // 2, int(cy + self.RADIUS + 26))
+            self.more_button = more
         x, y = int(center_pos.x() - cx), int(center_pos.y() - cy)
         if parent is not None:
             x = max(0, min(parent.width() - self.width(), x))
@@ -385,6 +387,9 @@ class MarkingMenu(QWidget):
 
     def mousePressEvent(self, event):
         self.close()               # a click on empty menu space just closes it
+
+    def contextMenuEvent(self, event):
+        self.close(); event.accept()
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Escape:
