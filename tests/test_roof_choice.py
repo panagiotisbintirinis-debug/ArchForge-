@@ -22,6 +22,33 @@ def _roofs(doc):
             [e for e in doc.entities.values() if e.kind == 'room_roof'])
 
 
+@pytest.mark.parametrize('action', ['room', 'auto', 'fix'])
+def test_room_roof_ui_rejects_unequal_tops_without_losing_existing_roof(action):
+    from PySide6.QtWidgets import QApplication
+    from archforge.ui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    try:
+        _two_rooms(window.stack)
+        wall = next(e for e in window.doc.entities.values() if e.kind == 'wall')
+        window.doc.update(wall.id, {'height': 3.2})
+        if action == 'room':
+            window.stack.execute(AddEntity(Entity('pitched_roof', default_params(window.doc, z=0.0, form='gable'))))
+        before = window.doc.to_dict()
+        history = list(window.stack.done)
+        if action == 'room':
+            assert window._set_room_roof('terrace', 2, 3) is None
+        elif action == 'auto':
+            assert window._auto_roofs() == 0
+        else:
+            assert window._fix_roofs() is None
+        assert window.doc.to_dict() == before and window.stack.done == history
+        assert 'κορυφ' in window.statusBar().currentMessage()
+        assert '2.700' in window.statusBar().currentMessage() and '3.200' in window.statusBar().currentMessage()
+    finally:
+        window._mark_clean(); window.close(); app.processEvents()
+
+
 def test_terrace_on_one_room_splits_the_tiled_roof_and_the_other_keeps_its_own():
     doc = Document(); st = CommandStack(doc); _two_rooms(st)
     st.execute(AddEntity(Entity('pitched_roof', default_params(doc, z=0.0, form='gable'))))   # one roof over both

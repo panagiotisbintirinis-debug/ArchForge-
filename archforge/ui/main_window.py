@@ -781,9 +781,14 @@ class MainWindow(QMainWindow):
         if room is None:
             self.statusBar().showMessage('Κλικ μέσα σε κλειστό χώρο για να διαλέξεις τη στέγη του', 6000)
             return None
-        command, message = room_roof_command(self.doc, room, choice)
+        try:
+            command, message = room_roof_command(self.doc, room, choice)
+            if command is not None:
+                self.stack.execute(command)
+        except ValueError as exc:
+            self.statusBar().showMessage(getattr(exc, 'user_message', str(exc)), 12000)
+            return None
         if command is not None:
-            self.stack.execute(command)
             self._redraw_views(all_views=True)
             self._refresh_project_tree()
         self.statusBar().showMessage(message + (' — Ctrl+Z για αναίρεση' if command else ''), 9000)
@@ -3113,7 +3118,11 @@ class MainWindow(QMainWindow):
         if not add:
             self.statusBar().showMessage('Όλοι οι ακάλυπτοι χώροι έχουν ήδη στέγη', 5000)
             return 0
-        self.stack.execute(CreateRoomRoofs(add, thickness=.20, roof_type='flat'))
+        try:
+            self.stack.execute(CreateRoomRoofs(add, thickness=.20, roof_type='flat'))
+        except ValueError as exc:
+            self.statusBar().showMessage(getattr(exc, 'user_message', str(exc)), 12000)
+            return 0
         self._redraw_views(all_views=True)
         self.statusBar().showMessage(f'Δημιουργήθηκαν {len(add)} επίπεδες στέγες στους ακάλυπτους χώρους', 6000)
         return len(add)
@@ -3126,10 +3135,14 @@ class MainWindow(QMainWindow):
         if not plan['remove'] and not plan['add']:
             self.statusBar().showMessage('Οι στέγες είναι σωστές: καμία κάτω από όροφο, καμία ακάλυπτη αίθουσα', 5000)
             return plan
-        self.stack.execute(CompositeCommand([
-            DeleteEntities(plan['remove']) if plan['remove'] else None,
-            CreateRoomRoofs(plan['add'], thickness=.20, roof_type='flat') if plan['add'] else None,
-        ], 'Διόρθωση στεγών'))
+        try:
+            self.stack.execute(CompositeCommand([
+                DeleteEntities(plan['remove']) if plan['remove'] else None,
+                CreateRoomRoofs(plan['add'], thickness=.20, roof_type='flat') if plan['add'] else None,
+            ], 'Διόρθωση στεγών'))
+        except ValueError as exc:
+            self.statusBar().showMessage(getattr(exc, 'user_message', str(exc)), 12000)
+            return None
         self._redraw_views(all_views=True)
         self.statusBar().showMessage(
             f"Διόρθωση στεγών: αφαιρέθηκαν {len(plan['remove'])} κάτω από όροφο, προστέθηκαν {len(plan['add'])} — Ctrl+Z για αναίρεση", 7000)

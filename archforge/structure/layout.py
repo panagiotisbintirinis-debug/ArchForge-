@@ -312,13 +312,17 @@ def propose_frame(doc, settings=None):
     per_storey, carried = {}, {}
     for z in reversed(_storeys(doc)):
         walls = _walls(doc, z)
+        # A storey may contain only drawing leftovers or non-bearing partitions.
+        # It has no frame to propose and no wall top from which to derive one.
+        if not walls:
+            continue
         pts = column_points(doc, z)
         for q, why in carried.items():
             if all(math.hypot(q[0] - p[0], q[1] - p[1]) >= MERGE for p in pts) and _inside_building(doc, z, walls, *q):
                 pts[q] = "στηρίζει κολόνα του ορόφου από πάνω"
         per_storey[z] = pts
         carried = {**carried, **pts}
-    for z in _storeys(doc):
+    for z in sorted(per_storey):
         walls = _walls(doc, z)
         top = _top_of(doc, z, walls)
         level = _level_name(doc, z)
