@@ -87,6 +87,7 @@ def test_slab_opening_command_is_in_the_construction_menu_of_the_real_window():
     try:
         menus = {m.title().replace('&', '') for a in window._slab_opening_actions for m in a.associatedObjects()
                  if hasattr(m, 'title')}
-        assert 'Κατασκευή' in menus and 'Αυτόματα' in menus
+        # «Κατασκευή ▸ Δάπεδα & πλάκες» (build_menu.py) and «Αυτόματα ▾».
+        assert 'Δάπεδα  πλάκες' in menus and 'Αυτόματα' in menus
     finally:
         window._mark_clean(); window.close(); app.processEvents()

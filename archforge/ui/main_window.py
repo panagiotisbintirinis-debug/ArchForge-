@@ -90,6 +90,8 @@ class MainWindow(QMainWindow):
         camera_tool.install(self)        # Κάμερες: tool, list, «Επιστροφή στην κάμερα» (CAM1)
         from archforge.ui import terrain_tools
         terrain_tools.install(self)
+        from archforge.ui.build_menu import organize_build_menu
+        organize_build_menu(self)        # «Κατασκευή» in submenus by kind of element (last: moves, never drops)
         self._refresh_library_panel()
         if not os.environ.get('PYTEST_CURRENT_TEST'):
             # First run builds the shipped core library in the background.

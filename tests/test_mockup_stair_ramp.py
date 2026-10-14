@@ -35,11 +35,11 @@ def test_ribbon_groups_doors_windows_openings_stairs_kitchen_and_structure_in_on
     labels = [a.text() for a in menu.actions()]
     assert labels[:3] == ['Πόρτα', 'Παράθυρο', 'Άνοιγμα']
     subs = {a.text(): a.menu() for a in menu.actions() if a.menu()}
-    assert {'Σκάλα / Ράμπα', 'Κουζίνα', 'Δομικά: κολόνες, δοκάρια, βάσεις', 'Στέγη', 'Πέργκολα', 'Κάγκελα'} == set(subs)
+    assert {'Σκάλα / Ράμπα', 'Ντουλάπια / κουζίνα', 'Δομικά: κολόνες, δοκάρια, βάσεις', 'Στέγη', 'Πέργκολα', 'Κάγκελα && μπαλκόνια'} == set(subs)   # same menus as «Κατασκευή ▸» (build_menu.py)
     stair = [a.text() for a in subs['Σκάλα / Ράμπα'].actions()]
     assert stair[:2] == ['Σκάλα', 'Ράμπα'] and 'Τύπος σκάλας' in stair
     window._fill_kitchen_menu()
-    assert 'Κάτω ντουλάπι' in [a.text() for a in subs['Κουζίνα'].actions()]
+    assert 'Κάτω ντουλάπι' in [a.text() for a in subs['Ντουλάπια / κουζίνα'].actions()]
     structure = [a.text() for a in subs['Δομικά: κολόνες, δοκάρια, βάσεις'].actions()]
     assert structure[:2] == ['Κολώνα', 'Δοκός'] and any(t.startswith('Βάσεις') for t in structure)
     # Same submenu at the top of the Δομικά menu.
