@@ -71,7 +71,7 @@ class ObjectModifierDialog(QDialog):
         form.addRow(reset)
         layout.addWidget(size_box)
 
-        mat_box = QGroupBox("Υλικά / χρώματα (παλέτα)")
+        mat_box = QGroupBox("Τμήματα (Components) — Υλικά / χρώματα")
         mv = QVBoxLayout(mat_box)
         self.parts = QListWidget()
         self.parts.itemDoubleClicked.connect(lambda item: self.choose_material(item.data(Qt.ItemDataRole.UserRole)))
@@ -145,7 +145,8 @@ class ObjectModifierDialog(QDialog):
         whole = p.get("material_id")
         for k, (role, color, name) in enumerate(asset_parts(p), 1):
             mid = overrides.get(role) or whole
-            finish = MATERIAL_PRESETS.get(mid, {}).get("name", "αρχικό χρώμα")
+            from archforge.rendering.materials import material_spec
+            finish = (material_spec(mid, self.window.doc) or {}).get("name", "αρχικό χρώμα")
             item = QListWidgetItem(f"Τμήμα {k}" + (f" — {name}" if name else "") + f":  {finish}")
             item.setData(Qt.ItemDataRole.UserRole, role)
             item.setBackground(Qt.GlobalColor.white)
@@ -477,6 +478,7 @@ def visual_column(dialog):
     from archforge.ui.object_preview import ObjectPreview
     column = QVBoxLayout()
     dialog.preview = ObjectPreview(dialog)
+    dialog.preview.doc = dialog.window.doc
     dialog.preview.sizeCommitted.connect(dialog.apply_sizes)
     dialog.preview.partPicked.connect(dialog.pick_part)
     column.addWidget(dialog.preview, 5)

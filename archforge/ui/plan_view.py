@@ -254,6 +254,15 @@ class PlanView(QGraphicsView):
             self._long_press=(token,event.position(),self.controller.active,getattr(self,'_railing_draft',None) is None)
             QTimer.singleShot(self.LONG_PRESS_MS,lambda t=token:self._long_press_fire(t))
         if event.button()!=Qt.MouseButton.LeftButton:super().mousePressEvent(event);return
+        brush = getattr(self.window(), '_material_brush', None)
+        if brush is not None:
+            self._long_press = None
+            pos=event.position().toPoint(); ev=self._scene_to_plane(pos)
+            eid=self._entity_items.get(self.itemAt(pos))
+            if not eid or (eid in self.doc.entities and self.doc.get(eid).kind in self.CONTAINER_KINDS):
+                from archforge.ui.library_drag import wall_at
+                eid=wall_at(self.doc,ev.a,ev.b) or eid
+            brush.click(eid,xy=(ev.a,ev.b)); event.accept(); return
         if self._overlay('press',event):event.accept();return
         if self._railing_tool():self._railing_press(event);event.accept();return
         if self._slab_tool():

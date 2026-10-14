@@ -96,9 +96,9 @@ def build_menu(window, view, entity_id=None):
         entity = window.doc.get(entity_id)
         actions = [a for a in object_context_actions(entity.kind, view) if a is not None]
         entries = [_e(a["id"], {"properties": "Ιδιότητες", "move": "Μετακίνηση", "stretch": "Επιμήκυνση",
-                                "rotate": "Περιστροφή", "materials": "Υλικά", "support": "Στήριξη…",
+                                "rotate": "Περιστροφή", "materials": "Υφή / Χρώμα…", "transform": "Transform…", "sample_material": "Δείγμα υλικού", "support": "Στήριξη…",
                                 "load": "Φορτίο…", "delete": _delete_label(window, entity_id)}.get(a["id"], a["label"]),
-                      danger=a["id"] == "delete") for a in actions]
+                      placement=a["placement"], danger=a["id"] == "delete") for a in actions]
         if not any(e["id"] == "delete" for e in entries):
             entries.append(_e("delete", _delete_label(window, entity_id), danger=True))   # every object can go
         from archforge.ui.object_menu import marking_entries as object_entries
@@ -187,6 +187,11 @@ def _slab_entries():
 def _fit(entries):
     """At most eight around the centre; the rest go to the list below."""
     radial = [e for e in entries if e["placement"] == "radial"]
+    delete = next((e for e in radial if e['id'] == 'delete'), None)
+    if delete is not None and radial.index(delete) >= 8:
+        displaced = radial[7]
+        displaced['placement'] = 'panel'
+        radial.remove(delete); radial.insert(7, delete)
     for e in radial[8:]:
         e["placement"] = "panel"
     return entries
@@ -349,6 +354,9 @@ class MarkingMenu(QWidget):
             popup = QMenu(more)
             for e in panel:
                 action = popup.addAction(e['label']); action.setData(e['id'])
+                if e['id'] in ('transform', 'materials', 'properties', 'move', 'rotate', 'stretch', 'delete', 'sample_material'):
+                    from archforge.ui.library_icons import action_icon
+                    action.setIcon(action_icon((e['id'],)))
                 action.setCheckable(bool(e['checked'])); action.setChecked(bool(e['checked']))
                 action.triggered.connect(lambda _=False, i=e['id']: self.chosen.emit(i))
             more.setMenu(popup); more.adjustSize()
@@ -364,6 +372,10 @@ class MarkingMenu(QWidget):
     def _button(self, e, parent=None, flat=False):
         b = QToolButton(parent or self)
         b.setText(e["label"])
+        if e["id"] in ("transform", "materials", "properties", "move", "rotate", "stretch", "delete", "sample_material"):
+            from archforge.ui.library_icons import action_icon
+            b.setIcon(action_icon((e["id"],)))
+            b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         base = "#ffe5e5" if e["danger"] else ("#cfe7ff" if e["checked"] else "#f7f7f7")
         b.setStyleSheet("QToolButton { background: %s; border: 1px solid #7c8792; border-radius: %dpx; padding: 4px 10px;"
                         " font-weight: %s; } QToolButton:hover { background: #d9ecff; }"

@@ -1608,6 +1608,14 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     return;
   }
 
+  if (activeTool === "material_brush") {
+    const part = String(hit.object.userData.renderPart || "");
+    const roles = hit.object.userData.surfaceRoles || [];
+    const role = hit.object.userData.kind === "wall" ? String(roles[hit.faceIndex] || "") :
+      (part.includes(":") ? part.split(":").pop() : String(roles[hit.faceIndex] || ""));
+    bridge.materialBrushClick(hit.object.userData.entityId || "", role, hit.point.x, hit.point.y);
+    event.preventDefault(); event.stopPropagation(); return;
+  }
   if (activeTool !== "sculpt") return;
   const roles = hit.object.userData.surfaceRoles || [];
   const surfaceRole = roles[hit.faceIndex] || hit.object.userData.kind || "default";
@@ -1961,6 +1969,12 @@ class PBRInteractionBridge(QObject):
     @Slot()
     def endSculpt(self) -> None:
         self.viewport._finish_sculpt_from_web()
+
+    @Slot(str, str, float, float)
+    def materialBrushClick(self, eid, role, x, y):
+        brush = getattr(self.viewport.window(), '_material_brush', None)
+        if brush is not None:
+            brush.click(str(eid), str(role), (float(x), float(y)))
 
     @Slot(str)
     def selectEntity(self, entity_id: str) -> None:

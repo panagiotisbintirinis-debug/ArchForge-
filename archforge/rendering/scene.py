@@ -171,7 +171,7 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                     "vertices": vertices,
                     "triangles": [[int(t[0]), int(t[1]), int(t[2])] for t, _ in picked],
                     "surfaces": [r for _, r in picked],
-                    "material": _material(f"plant_{role}", body.entity_id in selected, entity=entity, doc=doc),
+                    "material": _material(f"plant_{role}", body.entity_id in selected, entity=entity, doc=doc, surface_role=role),
                 })
             continue
         if body.semantic_kind == "pitched_roof" and entity is not None:
@@ -291,6 +291,18 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                         "material": material,
                     }
                 )
+            continue
+
+        if entity is not None and entity.params.get('surface_materials'):
+            groups = {}
+            for tri, role in zip(mesh.triangles, mesh.triangle_surfaces):
+                groups.setdefault(str(role), []).append([int(i) for i in tri])
+            for role, tris in groups.items():
+                objects.append({'id': str(body.entity_id), 'kind': str(body.semantic_kind),
+                                'render_part': f'{body.entity_id}:{role}', 'vertices': vertices,
+                                'triangles': tris, 'surfaces': [role] * len(tris),
+                                'material': _material(body.semantic_kind, body.entity_id in selected,
+                                                      entity=entity, doc=doc, surface_role=role)})
             continue
 
         objects.append(

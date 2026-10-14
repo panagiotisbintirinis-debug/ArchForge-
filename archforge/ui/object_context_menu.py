@@ -25,7 +25,7 @@ ACTIONS = {
         'placement': 'radial',
     },
     'materials': {
-        'label': 'Materials',
+        'label': 'Υφή / Χρώμα…',
         'views': {'plan', 'pbr'},
         'placement': 'radial',
     },
@@ -45,6 +45,10 @@ ACTIONS = {
         'placement': 'radial',
     },
 }
+
+ACTIONS['components'] = {'label': 'Τμήματα (Components)…', 'views': {'plan', 'pbr'}, 'placement': 'panel'}
+ACTIONS['sample_material'] = {'label': 'Λήψη δείγματος υλικού', 'views': {'plan', 'pbr'}, 'placement': 'panel'}
+ACTIONS['transform'] = {'label': 'Transform…', 'views': {'plan', 'pbr'}, 'placement': 'radial'}
 
 ENTITY_MENUS = {
     '*': ('properties', None, 'delete'),
@@ -76,6 +80,27 @@ for _kind in ('library_object', 'cabinet', 'kitchen_part', 'plant', 'railing', '
               'electrical_point', 'ventilation_point', 'drainage_point'):
     ENTITY_MENUS.setdefault(_kind, ('properties', 'materials', 'move', 'rotate', None, 'delete')
                             if _kind in ('library_object', 'cabinet') else ('properties', 'move', 'rotate', None, 'delete'))
+
+# Direct access for editable placed objects; hosted openings retain their host editor.
+from archforge.ui.object_transform import TRANSFORM_KINDS
+for _kind in (*TRANSFORM_KINDS, 'door', 'window'):
+    _items = list(ENTITY_MENUS.get(_kind, ENTITY_MENUS['*']))
+    _items.insert(1, 'transform')
+    if _kind in ('door', 'window') and 'materials' not in _items:
+        _items.insert(2, 'materials')
+    if 'materials' in _items:
+        _items.insert(_items.index('materials')+1, 'sample_material')
+    ENTITY_MENUS[_kind] = tuple(_items)
+
+for _kind in ('library_object', 'cabinet'):
+    _items = list(ENTITY_MENUS[_kind]); _items.insert(1, 'components')
+    ENTITY_MENUS[_kind] = tuple(_items)
+
+for _kind in ('pitched_roof', 'terrain', 'railing', 'plant', 'drywall_ceiling', 'kitchen_part'):
+    _items = list(ENTITY_MENUS.get(_kind, ENTITY_MENUS['*']))
+    if 'materials' not in _items:
+        _items[1:1] = ['materials', 'sample_material']
+    ENTITY_MENUS[_kind] = tuple(_items)
 
 
 def object_context_actions(kind: str, view: str):
