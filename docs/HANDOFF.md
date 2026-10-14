@@ -354,6 +354,8 @@
 
 ## 5. Χρήσιμα για τον επόμενο agent
 
+- **Έλεγχος tokens (hook):** `.claude/settings.json` → `.claude/hooks/context_warning.py` σε κάθε μήνυμα του ιδιοκτήτη· από 70% του παραθύρου (προεπιλογή 200k, `ARCHFORGE_CONTEXT_WINDOW`) εμφανίζεται σημείωση «[Έλεγχος tokens]» → πες του να αλλάξει chat, ενημέρωσε HANDOFF, commit/push.
+
 - Νέο cloud container: `pip install -r requirements.txt pytest` και `apt-get install libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3 libnss3` (αλλιώς τα tests UI αποτυγχάνουν με libEGL).
 - Πλήρης σουίτα στο cloud:
   `QT_QPA_PLATFORM=offscreen QTWEBENGINE_DISABLE_SANDBOX=1 QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu --single-process" python -m pytest -q -p no:cacheprovider`
