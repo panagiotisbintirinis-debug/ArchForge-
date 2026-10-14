@@ -319,6 +319,7 @@ class MarkingMenu(QWidget):
     chosen = Signal(str)
     wheeled = Signal(int)
     RADIUS = 96
+    INLINE_PANEL = 2       # up to this many secondary choices show as buttons, more go under «Περισσότερα…»
 
     def __init__(self, parent, menu, center_pos):
         super().__init__(parent)
@@ -342,7 +343,14 @@ class MarkingMenu(QWidget):
             b = self._button(e)
             x = cx + dx * self.RADIUS + math.copysign(max(0.0, clear - self.RADIUS * abs(dx) + b.width() / 2), dx) * (abs(dx) > 0.5)
             b.move(int(x - b.width() / 2), int(cy + dy * self.RADIUS - b.height() / 2))
-        if panel:
+        if 0 < len(panel) <= self.INLINE_PANEL:
+            # One or two secondary choices: shown as buttons, a hidden list would only cost a click.
+            row = [self._button(e, flat=True) for e in panel]
+            gap = 8
+            x = cx - (sum(b.width() for b in row) + gap * (len(row) - 1)) // 2
+            for b in row:
+                b.move(int(x), int(cy + self.RADIUS + 26)); x += b.width() + gap
+        elif panel:
             more = QToolButton(self)
             more.setText('Περισσότερα…')
             more.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)

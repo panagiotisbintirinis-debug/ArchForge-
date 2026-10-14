@@ -209,3 +209,17 @@ def test_choosing_a_submenu_reopens_the_menu_in_place(window):
     run(window, 'plan', None, 'mm:menu:kitchen')
     again = window.plan_view._marking_menu
     assert again is not None and 'mm:kitchen:current' in again.buttons
+
+
+def test_a_single_secondary_choice_is_a_button_not_hidden_in_more(window):
+    from PySide6.QtCore import QPointF
+    from PySide6.QtGui import QContextMenuEvent
+    wall = Entity('wall', dict(x1=0,y1=0,x2=4,y2=0,z=0,height=2.7,thickness=.2))
+    window.stack.execute(AddEntity(wall))
+    view = window.plan_view; view.redraw()
+    pos = view.mapFromScene(QPointF(2, 0))
+    view.contextMenuEvent(QContextMenuEvent(QContextMenuEvent.Reason.Mouse, pos, view.viewport().mapToGlobal(pos)))
+    menu = view._marking_menu
+    panel = [e['id'] for e in menu.menu['entries'] if e['placement'] == 'panel']
+    assert 0 < len(panel) <= menu.INLINE_PANEL
+    assert all(i in menu.buttons for i in panel) and getattr(menu, 'more_button', None) is None
