@@ -9,7 +9,7 @@ import json
 import os
 import sys
 
-WINDOW = int(os.environ.get("ARCHFORGE_CONTEXT_WINDOW", "200000"))
+WINDOW = int(os.environ.get("ARCHFORGE_CONTEXT_WINDOW", "10000000"))
 WARN_AT = 0.70
 
 
