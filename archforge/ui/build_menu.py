@@ -181,8 +181,9 @@ def organize_build_menu(window):
         railing.setTitle('Κάγκελα && μπαλκόνια')
         balcony = next((a for a in slab_items if a is not None and a.text().startswith('Μπαλκόνι')), None)
         if balcony is not None:
-            first = railing.actions()[0] if railing.actions() else None
-            railing.insertAction(first, balcony); railing.insertSeparator(first)
+            # After the railing types, before «Κάγκελο σκάλας».
+            last = railing.actions()[-1] if railing.actions() else None
+            railing.insertAction(last, balcony)
     leftovers = [a for a in present if a not in used]
     for a in present:
         menu.removeAction(a)

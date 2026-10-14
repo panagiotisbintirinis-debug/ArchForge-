@@ -445,6 +445,12 @@ class PointerController:
             from archforge.architecture.dimension_reference import plan as reference_plan
             if any(reference_plan(self.doc,self.active.z)):
                 self.stack.amend(apply)
+        if committed_id and getattr(self,'auto_floors',False):
+            # A closed outline of walls has its floor without being asked (owner 14/10) — same undo step.
+            # The storey slab follows the walls, so it is made once per storey; fences keep their ground.
+            from archforge.architecture.storey_slabs import auto_floor_command
+            command=auto_floor_command(self.doc,float(self.active.z))
+            if command is not None:self.stack.amend(command)
         return committed_id
     def finish_wall_chain(self):
         """End click-click walls: drop the rubber segment, keep the walls already made."""

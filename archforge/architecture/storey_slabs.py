@@ -165,14 +165,31 @@ def _own_slab_faces(doc, kind, level_z):
     return out
 
 
+FENCE_HEIGHT = 1.50        # a closed outline of walls all lower than this is a fence / garden wall
+
+
+def is_enclosure(doc, face, level_z):
+    """A space closed only by low walls (fence, garden wall): the ground stays, no slab (owner 14/10)."""
+    walls = _walls_at(doc, level_z)
+    pts = list(face.polygon)
+    heights = []
+    for a, b in zip(pts, pts[1:] + pts[:1]):
+        w = _edge_wall(walls, a, b, tolerance=0.30)
+        if w is not None:
+            heights.append(float(w.params.get('height', 0.0)))
+    return bool(heights) and max(heights) < FENCE_HEIGHT
+
+
 def storey_faces(doc, kind, level_z):
-    """Room faces of the storey covered by its storey slab of ``kind``."""
+    """Room faces of the storey covered by its storey slab of ``kind`` (not fences: their ground stays)."""
     from archforge.architecture.roof_need import COVERED, coverage, under_pitched_roof
     faces = doc.active_room_faces(z=level_z)
     own = _own_slab_faces(doc, kind, level_z)
     out = []
     for f in faces:
         if f.signature in own:
+            continue
+        if is_enclosure(doc, f, level_z):
             continue
         if kind == 'room_roof':
             # The slab over a storey is one plate, under a terrace or under the next storey alike
@@ -446,3 +463,18 @@ def plan_cross(poly):
     # The second diagonal: the longest one that shares no corner with the first (a cross, not a fan).
     second = next((seg for _l, seg in best[1:] if not set(seg) & set(first)), None)
     return [first] + ([second] if second else [])
+
+
+def auto_floor_command(doc, level_z):
+    """The storey's floor slab when its walls close a space (not a fence) and it has none yet; else None."""
+    if any(e.kind == 'room_floor' and abs(float(e.params.get('level_z', 0.0) if e.params.get('scope') == 'storey' else 1e9) - level_z) < 1e-4
+           for e in doc.entities.values()):
+        return None
+    try:
+        if not storey_faces(doc, 'room_floor', level_z):
+            return None
+    except Exception:
+        return None
+    name = next((str(n) for n, v in doc.levels.items() if abs(float(v) - level_z) < 1e-4), '')
+    command, _entity = storey_slab_command(doc, 'room_floor', level_z, name)
+    return command
