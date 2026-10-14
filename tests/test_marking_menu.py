@@ -23,6 +23,29 @@ def _ids(menu, placement='radial'):
     return [e['id'] for e in menu['entries'] if e['placement'] == placement]
 
 
+def test_secondary_choices_are_hidden_in_more_instead_of_a_tall_panel(window):
+    from PySide6.QtCore import QPoint
+    menu = window.plan_view.show_marking_menu(QPoint(250, 250))
+    assert len(menu.buttons) <= 8
+    extra = menu.more_button.menu()
+    assert {a.data() for a in extra.actions()} >= {'mm:assist:point', 'mm:slab:draw'}
+    assert menu.height() <= 520
+
+
+def test_right_click_handle_uses_object_context_and_second_click_closes(window):
+    from PySide6.QtCore import QPointF
+    from PySide6.QtGui import QContextMenuEvent
+    wall = Entity('wall', dict(x1=0,y1=0,x2=4,y2=0,z=0,height=2.7,thickness=.2))
+    window.stack.execute(AddEntity(wall)); window.doc.select([wall.id])
+    view = window.plan_view; view.redraw()
+    pos = view.mapFromScene(QPointF(0, 0))
+    event = QContextMenuEvent(QContextMenuEvent.Reason.Mouse, pos, view.viewport().mapToGlobal(pos))
+    view.contextMenuEvent(event)
+    assert view._marking_menu.menu['center'].startswith('Τοίχος')
+    view.contextMenuEvent(event)
+    assert view._marking_menu is None
+
+
 def test_menu_content_follows_the_task(window):
     from archforge.ui.marking_menu import build_menu
     empty = build_menu(window, 'plan')
@@ -146,7 +169,7 @@ def test_3d_picking_rules_walls_inactive_in_glass_and_while_working_a_stair():
     assert 'pickForSelection(event)' in menu[:menu.index('bridge.showContextMenu')]
     if shutil.which('node'):
         code = max(re.findall(r'<script[^>]*>(.*?)</script>', html, re.S), key=len)
-        with tempfile.NamedTemporaryFile('w', suffix='.mjs', delete=False) as f:
+        with tempfile.NamedTemporaryFile('w', encoding='utf-8', suffix='.mjs', delete=False) as f:
             f.write(code)
         assert subprocess.run(['node', '--check', f.name]).returncode == 0
 

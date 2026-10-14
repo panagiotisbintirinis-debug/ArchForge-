@@ -338,6 +338,7 @@ def install_approved_mockup_shell(window):
 
     from archforge.ui.workspace_layout import make_icon, popup_button, build_menu, install_workspace_layout
     ribbon=QToolBar("Εργαλεία σχεδίασης",window); ribbon.setObjectName("ribbon")
+    ribbon.setStyleSheet('QToolBar#ribbon QToolButton { padding:4px 3px; }')
     ribbon.setMovable(True); ribbon.setToolButtonStyle(Qt.ToolButtonTextUnderIcon); ribbon.setIconSize(QSize(30,30))
 
     def tool_action(text,tool,parent):
