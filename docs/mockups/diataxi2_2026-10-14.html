@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="el"><head><meta charset="utf-8"><title>ArchForge διάταξη 2</title>
+<style>
+:root{--ink:#1f2a37;--muted:#6b7686;--line:#d8dee8;--bg:#f4f6f9;--accent:#2f6bd6;--acc2:#e8f0fc;--red:#d23b2f;--grip:#a9b3c2}
+*{box-sizing:border-box}body{margin:0;width:1880px;font:13px "Segoe UI",system-ui,sans-serif;color:var(--ink);background:#c9cfd8}
+.app{position:absolute;left:0;top:0;width:1536px;height:1000px;background:var(--bg);overflow:hidden;border:1px solid #9aa4b2}
+/* row 1 */
+.r1{height:40px;display:flex;align-items:center;padding:0 12px;background:#fff;border-bottom:1px solid var(--line)}
+.logo{display:flex;align-items:center;gap:8px}.logo i{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#2f6bd6,#1b3f86);display:inline-block}
+.logo b{font-size:15px}.logo span{color:var(--muted)}
+.quick{display:flex;gap:4px;margin-left:auto;margin-right:18px}.quick span{width:28px;height:28px;border-radius:6px;display:grid;place-items:center;color:#44546b;font-size:15px}
+.menus{display:flex;gap:0;font-size:12.5px}.menus span{padding:5px 8px;border-radius:5px;color:#33445c}.menus .open{background:var(--acc2);color:var(--accent);font-weight:600}
+/* row 2: panels */
+.r2{height:92px;display:flex;align-items:stretch;gap:6px;padding:5px 8px;background:#fbfcfd;border-bottom:1px solid var(--line)}
+.pnl{display:flex;flex-direction:column;background:#fff;border:1px solid var(--line);border-radius:7px;position:relative}
+.pnl .tools{display:flex;gap:1px;padding:4px 4px 0 14px;flex:1}
+.pnl .ttl{font-size:11px;color:var(--muted);text-align:center;border-top:1px solid #eef1f5;padding:2px 6px;display:flex;justify-content:center;gap:6px}
+.pnl .ttl b{color:var(--accent)}
+.grip{position:absolute;left:3px;top:6px;bottom:22px;width:6px;background:radial-gradient(var(--grip) 1.2px,transparent 1.3px) 0 0/6px 5px}
+.t{width:60px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-radius:6px;font-size:11.5px}
+.t i{font-style:normal;font-size:19px;color:#28466e;line-height:22px}.t.on{background:var(--accent);color:#fff}.t.on i{color:#fff}
+.t.sm{width:52px}
+.env{margin-left:auto}.envb{display:flex;flex-direction:column;gap:4px;padding:6px 8px 0 16px}.envb span{border:1px solid var(--line);border-radius:5px;padding:2px 10px;font-size:12px}.envb .on{background:var(--acc2);border-color:var(--accent);color:var(--accent);font-weight:600}
+/* expanded panel */
+.exp{position:absolute;z-index:6;background:#fff;border:1px solid #b9c3d1;border-radius:0 0 9px 9px;box-shadow:0 10px 24px rgba(20,40,70,.18);padding:8px 8px 8px 14px;display:grid;grid-template-columns:repeat(4,72px);gap:6px}
+.exp .t{width:72px;height:54px;border:1px solid #eef1f5}
+.pin{position:absolute;right:6px;bottom:4px;font-size:11px;color:var(--muted)}
+/* main */
+.main{position:absolute;top:133px;left:0;right:0;bottom:26px;display:flex}
+.center{flex:1;position:relative;margin:6px 6px 6px 8px;background:#fff;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.tabs{position:absolute;top:8px;left:10px;display:flex;gap:2px;z-index:3}.tabs span{background:#fff;border:1px solid var(--line);padding:4px 12px;border-radius:6px;font-size:12px}.tabs .on{color:var(--accent);border-color:var(--accent);font-weight:600}
+.grid{position:absolute;inset:0;background-image:linear-gradient(#eef1f5 1px,transparent 1px),linear-gradient(90deg,#eef1f5 1px,transparent 1px);background-size:44px 44px}
+.vc{position:absolute;top:8px;right:10px;display:flex;gap:4px;z-index:3}.vc span{background:#fff;border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:12px}
+.right{width:392px;display:flex;flex-direction:column;gap:6px;padding:6px 8px 6px 0}
+.panel{background:#fff;border:1px solid var(--line);border-radius:8px;display:flex;flex-direction:column;overflow:hidden;position:relative}
+.ph{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);font-weight:600}.ph .x{margin-left:auto;color:var(--muted);font-weight:400}
+.objhead{display:flex;gap:10px;align-items:center;padding:10px;border-bottom:1px solid var(--line)}
+.thumb{width:44px;height:44px;border-radius:6px;background:linear-gradient(135deg,#e9e4da,#c9c1b2);border:1px solid #b9b2a4}
+.props{display:flex;flex:1}.nav{width:112px;border-right:1px solid var(--line);padding:6px}.nav div{padding:7px 8px;border-radius:6px}.nav .on{background:var(--acc2);color:var(--accent);font-weight:600}
+.fields{flex:1;padding:8px 10px}.row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px dashed #edf0f4}.row em{font-style:normal;color:var(--muted)}
+.val{border:1px solid var(--line);border-radius:5px;padding:2px 8px;min-width:72px;text-align:right}
+.tabs2{display:flex;border-bottom:1px solid var(--line)}.tabs2 span{flex:1;text-align:center;padding:7px 0;color:var(--muted);font-size:12px}.tabs2 .on{color:var(--accent);font-weight:600;border-bottom:2px solid var(--accent)}
+.tree{padding:6px 10px;line-height:22px}.tree .l2{padding-left:16px}
+/* common palette */
+.common{position:absolute;z-index:5;background:#fff;border:1px solid #b9c3d1;border-radius:10px;box-shadow:0 8px 22px rgba(20,40,70,.18);padding:6px 8px 6px 18px;display:grid;grid-template-columns:repeat(5,52px);gap:3px}
+.common .t{width:52px;height:48px}.common .grip{top:8px;bottom:8px}
+.common .cap{grid-column:1/-1;font-size:11px;color:var(--muted);display:flex;justify-content:space-between}
+.ghost{position:absolute;z-index:4;border:2px dashed var(--accent);border-radius:10px;background:rgba(47,107,214,.06)}
+.status{position:absolute;left:0;right:0;bottom:0;height:26px;background:#fff;border-top:1px solid var(--line);display:flex;align-items:center;gap:18px;padding:0 10px;color:var(--muted);font-size:12px}
+.status .xy{margin-left:auto;color:var(--ink)}
+.bd{position:absolute;z-index:8;width:22px;height:22px;border-radius:50%;background:#e8590c;color:#fff;font-weight:700;font-size:12px;display:grid;place-items:center;box-shadow:0 0 0 3px #fff}
+.legend{position:absolute;left:1544px;top:0;width:330px;height:1000px;background:#0f2747;color:#e8eef8;padding:18px;font-size:13px;line-height:1.45}
+.legend h2{margin:0 0 4px;font-size:17px;color:#fff}.legend .sub{color:#9fb3cf;margin-bottom:14px}
+.legend .it{display:flex;gap:10px;margin:0 0 13px}.legend .it span{flex:none;width:22px;height:22px;border-radius:50%;background:#e8590c;color:#fff;font-weight:700;display:grid;place-items:center;font-size:12px}
+.legend b{color:#fff}
+</style></head><body>
+<div class="app">
+ <div class="r1">
+  <div class="logo"><i></i><b>ArchForge</b><span>— Σπίτι Παπαδόπουλου</span></div>
+  <div class="quick"><span>💾</span><span>↶</span><span>↷</span></div>
+  <div class="menus"><span>Αρχείο</span><span>Επεξεργασία</span><span>Σχεδίαση</span><span>Κατασκευή</span><span>Βιβλιοθήκη</span><span>Προβολή</span><span>Εργαλεία</span><span>Βοήθεια</span></div>
+ </div>
+ <div class="r2">
+  <div class="pnl"><div class="grip"></div><div class="tools"><div class="t on"><i>➚</i>Επιλογή</div></div><div class="ttl">Επιλογή</div></div>
+  <div class="pnl"><div class="grip"></div><div class="tools">
+    <div class="t"><i>▭</i>Τοίχος</div><div class="t"><i>◫</i>Κουφώματα</div><div class="t"><i>☰</i>Σκάλα</div><div class="t"><i>▱</i>Πλάκα</div><div class="t"><i>⌂</i>Στέγη</div></div>
+    <div class="ttl" style="background:var(--acc2)">Κατασκευή <b>▾</b></div></div>
+  <div class="pnl"><div class="grip"></div><div class="tools">
+    <div class="t"><i>／</i>Γραμμή</div><div class="t"><i>↔</i>Διάσταση</div><div class="t"><i>T</i>Κείμενο</div><div class="t" style="color:var(--red)"><i style="color:var(--red)">✎</i>Σήμανση</div></div>
+    <div class="ttl">Σχεδίαση <b>▾</b></div></div>
+  <div class="pnl"><div class="grip"></div><div class="tools">
+    <div class="t"><i>▣</i>Αντικείμενο</div><div class="t"><i>◧</i>Υλικά</div><div class="t"><i>✋</i>Γλυπτική</div></div>
+    <div class="ttl">Βιβλιοθήκη <b>▾</b></div></div>
+  <div class="pnl"><div class="grip"></div><div class="tools" style="flex-direction:column;gap:4px;padding-top:6px">
+    <span style="border:1px solid var(--line);border-radius:5px;padding:3px 8px">Ισόγειο (0,00) ▾</span><span style="display:flex;gap:6px;font-size:12px"><span>＋ Όροφος</span><span>Υπόγειο</span></span></div>
+    <div class="ttl">Όροφος</div></div>
+  <div class="pnl env"><div class="grip"></div><div class="envb"><span class="on">Αρχιτεκτονικό</span><span>Φέρων · Η/Μ</span></div><div class="ttl">Περιβάλλον</div></div>
+ </div>
+ <!-- expanded Κατασκευή panel -->
+ <div class="exp" style="top:131px;left:96px">
+   <div class="t"><i>▤</i>Κάγκελα</div><div class="t"><i>▱</i>Μπαλκόνι</div><div class="t"><i>⊓</i>Πέργκολα</div><div class="t"><i>⋕</i>Φράχτης</div>
+   <div class="t"><i>☰</i>Ψευδοροφή</div><div class="t"><i>▦</i>Ντουλάπια</div><div class="t"><i>⊞</i>Κολόνα</div><div class="t"><i>═</i>Δοκός</div>
+   <div class="t"><i>💧</i>Η/Μ ▸</div><div class="t"><i>⛰</i>Έδαφος ▸</div><div class="t"><i>Σ</i>Επιμέτρηση</div><div class="t"><i>✦</i>Αυτόματα ▸</div>
+   <span class="pin">📌 καρφίτσωμα (μένει ανοιχτό)</span>
+ </div>
+
+ <div class="main">
+  <div class="center">
+   <div class="grid"></div>
+   <div class="tabs"><span class="on">2D Κάτοψη</span><span>3D</span><span>Στατικά</span></div>
+   <div class="vc"><span>Κάτοψη ▾</span><span>▦ Κάνναβος</span><span>⌖ Έλξη 0,10</span><span>☀</span><span>📷</span></div>
+   <svg width="1120" height="780" style="position:absolute;left:0;top:0">
+    <g stroke="#1f2a37" stroke-width="7" fill="none"><rect x="230" y="190" width="560" height="430" fill="#eef5ee"/>
+    <line x1="560" y1="190" x2="560" y2="620"/><line x1="560" y1="370" x2="790" y2="370"/><line x1="560" y1="500" x2="790" y2="500"/></g>
+    <g stroke="#c26a1c" stroke-width="7"><line x1="380" y1="620" x2="430" y2="620"/><line x1="230" y1="300" x2="230" y2="360"/><line x1="790" y1="260" x2="790" y2="320"/></g>
+    <rect x="260" y="215" width="230" height="56" fill="#e4f3e9" stroke="#2a8a47" stroke-width="1.5"/>
+    <text x="350" y="420" font-size="14" fill="#55705a">Σαλόνι–Κουζίνα · 48,00 m²</text>
+    <rect x="560" y="190" width="230" height="180" fill="none" stroke="#2f6bd6" stroke-width="3" stroke-dasharray="7 5"/>
+   </svg>
+   <!-- common palette (default bottom-right) + ghost of a move -->
+   <div class="ghost" style="left:40px;top:668px;width:300px;height:118px"></div>
+   <div style="position:absolute;left:44px;top:644px;color:var(--accent);font-size:12px;z-index:4">σύρε τη λαβή ⋮⋮ → αφήνεις όπου θέλεις (ή σε άκρη = κουμπώνει)</div>
+   <div class="common" style="right:12px;bottom:12px"><div class="grip"></div>
+     <div class="t"><i>➚</i>Επιλογή</div><div class="t"><i>✥</i>Μετακ.</div><div class="t"><i>⟳</i>Περιστρ.</div><div class="t"><i>⧉</i>Αντιγρ.</div><div class="t"><i>⇋</i>Καθρέφτ.</div>
+     <div class="t"><i>✕</i>Διαγραφή</div><div class="t"><i>📏</i>Μέτρηση</div><div class="t" style="color:var(--red)"><i style="color:var(--red)">✎</i>Σήμανση</div><div class="t"><i>↶</i>Αναίρεση</div><div class="t"><i>⊕</i>Ζουμ όλο</div>
+     <div class="cap"><span>Κοινά</span><span>▾ ⚙</span></div>
+   </div>
+  </div>
+  <div class="right">
+   <div class="panel" style="flex:1.35"><div class="grip" style="left:2px;top:12px;bottom:auto;height:16px"></div>
+    <div class="ph">&nbsp;&nbsp;Ιδιότητες αντικειμένου<span class="x">— ✕</span></div>
+    <div class="objhead"><div class="thumb"></div><div><b>Τοίχος</b><div style="color:var(--muted)">Τοίχος 6,00 m · Ισόγειο</div></div><span style="margin-left:auto;color:var(--muted)">🔒</span></div>
+    <div class="props"><div class="nav"><div class="on">Γενικά</div><div>Υλικό</div><div>Γεωμετρία</div><div>Διαστάσεις</div><div>Μετασχηματ.</div><div>Φάση</div></div>
+     <div class="fields"><div class="row"><em>Μήκος</em><span class="val">6,00 m</span></div><div class="row"><em>Ύψος</em><span class="val">2,70 m</span></div>
+      <div class="row"><em>Πάχος</em><span class="val">25 cm</span></div><div class="row"><em>Κατασκευή</em><span class="val">Isotex 25 ▾</span></div>
+      <div class="row"><em>Πλευρά Α</em><span>Σοβάς λευκός</span></div><div class="row"><em>Πλευρά Β</em><span>Πέτρα Πηλίου</span></div></div></div>
+   </div>
+   <div class="panel" style="flex:1"><div class="tabs2"><span class="on">Έργο</span><span>Βιβλιοθήκη</span><span>Βοηθός</span><span>Layers</span><span>Σημειώσεις</span></div>
+    <div class="tree"><div>▾ Ισόγειο (+0,00) · 13 τοίχοι</div><div class="l2">▸ Χώροι (4)</div><div class="l2">▸ Σκάλα · Ξύλινη</div><div>▸ 1ος όροφος (+2,70)</div><div>▸ Υπόγειο (−3,00)</div></div></div>
+  </div>
+ </div>
+ <div class="status"><span>Κατάσταση: Έτοιμο</span><span>Τοίχος: κλικ στις γωνίες · διπλό κλικ = τέλος</span><span class="xy">X 7,42 &nbsp; Y 3,15 &nbsp; Z 0,00</span><span>Μέτρα (m)</span></div>
+
+ <div class="bd" style="top:9px;left:906px">1</div>
+ <div class="bd" style="top:9px;left:790px">2</div>
+ <div class="bd" style="top:44px;left:2px">3</div>
+ <div class="bd" style="top:106px;left:160px">4</div>
+ <div class="bd" style="top:850px;left:1100px">5</div>
+ <div class="bd" style="top:182px;left:1110px">6</div>
+ <div class="bd" style="top:141px;left:1494px">7</div>
+</div>
+<div class="legend">
+ <h2>Πρόταση διάταξης · 2</h2><div class="sub">με βάση την εικόνα σου · για έγκριση πριν από κώδικα</div>
+ <div class="it"><span>1</span><div><b>Τα 8 μενού μικρά, πάνω δεξιά</b> (Αρχείο … Βοήθεια), στην ίδια λεπτή γραμμή με το όνομα του έργου. Τα υπομενού όπως στο προηγούμενο mockup.</div></div>
+ <div class="it"><span>2</span><div><b>Γρήγορα εικονίδια</b>: Αποθήκευση · Αναίρεση · Επανάληψη.</div></div>
+ <div class="it"><span>3</span><div><b>Δεύτερη σειρά: ομάδες εργαλείων</b> (Επιλογή · Κατασκευή · Σχεδίαση · Βιβλιοθήκη · Όροφος · Περιβάλλον). Κάθε ομάδα έχει <b>λαβή ⋮⋮</b>: σύρεται σε άλλη θέση της σειράς, σε άλλη άκρη της οθόνης (πάνω / κάτω / αριστερά / δεξιά) ή ελεύθερη πάνω στο σχέδιο.</div></div>
+ <div class="it"><span>4</span><div><b>Ανάπτυξη ▾</b> όπως στο AutoCAD: κλικ στον τίτλο της ομάδας ανοίγει τα υπόλοιπα εργαλεία της (εδώ: Κατασκευή → κάγκελα, μπαλκόνι, πέργκολα, φράχτης, ψευδοροφή, ντουλάπια, κολόνα, δοκός, Η/Μ, έδαφος …). 📌 = μένει ανοιχτή.</div></div>
+ <div class="it"><span>5</span><div><b>«Κοινά» κάτω δεξιά</b> πάνω στο σχέδιο: επιλογή, μετακίνηση, περιστροφή, αντιγραφή, καθρέφτισμα, διαγραφή, μέτρηση, σήμανση, αναίρεση, ζουμ. Μετακινείται όπου θέλεις (διακεκομμένο = σύρσιμο)· ⚙ = διαλέγεις ποια κουμπιά έχει.</div></div>
+ <div class="it"><span>6</span><div><b>Ρυθμίσεις όψης πάνω στο σχέδιο</b> (Κάτοψη ▾, κάνναβος, έλξη, ήλιος, εικόνα) — όπως στην εικόνα σου.</div></div>
+ <div class="it"><span>7</span><div><b>Πάνελ δεξιά, κι αυτά μετακινήσιμα</b>: Ιδιότητες (με ενότητες) πάνω, Έργο / Βιβλιοθήκη / Βοηθός / Layers / Σημειώσεις κάτω. Σύρονται, επιπλέουν, κλείνουν.</div></div>
+ <div class="sub" style="margin-top:14px">Η θέση που αφήνεις κάθε κομμάτι <b>θυμάται</b> (ανά υπολογιστή)· «Προβολή → Επαναφορά διάταξης» τα γυρίζει όπως εδώ.</div>
+</div>
+</body></html>
