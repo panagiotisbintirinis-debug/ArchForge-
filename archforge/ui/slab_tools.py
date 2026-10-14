@@ -135,6 +135,28 @@ def start_opening_tool(window):
                             '(διπλό κλικ / Enter / κλικ στην πρώτη γωνία = κλείσιμο) · Esc = ακύρωση')
 
 
+def start_balcony_tool(window):
+    window.plan_view._slab_draft = None
+    window._start_site_tool('balcony', 'Μπαλκόνι: σύρε ορθογώνιο ή κλικ στις γωνίες, έξω από τον τοίχο του ορόφου '
+                            '(διπλό κλικ / Enter / κλικ στην πρώτη γωνία = κλείσιμο) · Esc = ακύρωση')
+
+
+def place_balcony(window, points):
+    """Slab (top at the active storey) + railing on its free sides — one undo."""
+    from archforge.architecture.balcony import balcony_entities
+    from archforge.core.commands import AddEntities
+    try:
+        entities = balcony_entities(window.doc, points, float(window.doc.work_plane.origin[2]))
+    except ValueError as exc:
+        window.statusBar().showMessage(f'Μπαλκόνι: {exc}', 6000)
+        return None
+    window.stack.execute(AddEntities(entities))
+    _refresh(window, entities[0].id)
+    window.statusBar().showMessage('Μπαλκόνι: πλάκα 18 cm (πρόβολος — προς στατικό έλεγχο) και κάγκελο 1,00 m στις '
+                                   'ελεύθερες πλευρές · τύπος κάγκελου στις Ιδιότητες · Ctrl+Z', 8000)
+    return entities
+
+
 def place_opening(window, points, use='void'):
     try:
         entity = S.opening_entity(window.doc, points=points, use=use)
@@ -271,3 +293,8 @@ def install_menus(window):
         except RuntimeError:                              # a menu the shell replaced
             continue
         window._slab_opening_actions.append(action)
+        balcony = QAction('Μπαλκόνι (σχεδίαση)', window)
+        balcony.setToolTip('Πλάκα σε πρόβολο με κάγκελο στις ελεύθερες πλευρές: σύρε ορθογώνιο ή κλικ στις γωνίες')
+        balcony.triggered.connect(lambda _=False: start_balcony_tool(window))
+        menu.addAction(balcony)
+        window._slab_opening_actions.append(balcony)

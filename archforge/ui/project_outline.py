@@ -77,6 +77,9 @@ def entity_level(doc, entity, levels=None):
         # A per-room slab sits on the storey of its room (a lost room: the lowest storey).
         found = _slab_face(doc, entity)
         return _owner(levels, found[1]) if found else levels[0][0]
+    if k == "floor":
+        from archforge.architecture.balcony import slab_level      # a balcony hangs below its storey
+        return _owner(levels, slab_level(p))
     if k == "pitched_roof":
         # A tiled roof belongs to the storey it covers (its eaves sit on that storey's walls).
         return _owner(levels, float(p.get("eave_z", 0.0)) - 0.5)

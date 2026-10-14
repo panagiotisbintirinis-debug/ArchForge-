@@ -431,7 +431,8 @@ def discover_building_levels(doc, tolerance: float = 1e-5):
             candidates.append((float(p.get('z', 0.0)), '', True))
         elif entity.kind == 'pod':
             candidates.append((float(p.get('floor_level', 0.0)), '', True))
-        elif entity.kind in ('floor', 'room'):
+        elif entity.kind in ('floor', 'room') and p.get('role') != 'balcony':
+            # A balcony slab hangs below its storey's level (top flush with the floor): not a storey.
             candidates.append((float(p.get('z', 0.0)), '', True))
         elif entity.kind == 'room_floor':
             geom = room_slab_geometry(doc, entity)

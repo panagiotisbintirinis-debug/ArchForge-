@@ -129,7 +129,10 @@ def describe_entity(doc, e):
     from archforge.ui.project_outline import _label, _labels_from_analysis
     if e.kind in ("structural_column", "structural_beam"):
         return _labels_from_analysis(doc).get(e.id, _label(e))
-    return f"{KIND_LABELS.get(e.kind, e.kind)}: {_label(e)}"
+    from archforge.ui.project_outline import KIND_LABELS as TREE_KINDS
+    kind, label = KIND_LABELS.get(e.kind) or TREE_KINDS.get(e.kind, e.kind), _label(e)
+    # «Τοίχος 4.00 m», not «Τοίχος: Τοίχος 4.00 m»; never the internal English kind («railing: …»).
+    return label if label.lower().startswith(kind.lower()) else f"{kind}: {label}"
 
 
 def actions_for(doc, target: Target) -> List[Action]:

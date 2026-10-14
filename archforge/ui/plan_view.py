@@ -5,13 +5,23 @@ from typing import Optional, Dict
 
 from PySide6.QtCore import Qt, QPointF, Signal
 from PySide6.QtGui import QPen, QBrush, QColor, QPainter, QPainterPath
-from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsTextItem, QMenu, QToolButton
+from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsTextItem, QGraphicsPathItem, QMenu, QToolButton
 
 from archforge.core.model import Document
 from archforge.core.commands import CommandStack
 from archforge.core.viewport import PointerController, PointerEvent
 from archforge.core.plan_scene import build_plan_frame, Primitive2D, Handle2D
 from archforge.ui.object_context_menu import object_context_actions
+
+class _OpenPathItem(QGraphicsPathItem):
+    """An open polyline (railing, run): picked near its line only — Qt's default shape also takes
+    the area the path would enclose, so a click inside a balcony picked its railing."""
+    REACH = 0.12
+    def shape(self):
+        from PySide6.QtGui import QPainterPathStroker
+        stroker = QPainterPathStroker(); stroker.setWidth(2 * self.REACH)
+        return stroker.createStroke(self.path())
+
 
 class PlanView(QGraphicsView):
     selectionChangedByView=Signal();contextActionRequested=Signal(str,str);commandRequested=Signal(str);previewChanged=Signal(object);statusChanged=Signal(str)
@@ -30,8 +40,10 @@ class PlanView(QGraphicsView):
     slabOpeningRequested=Signal(object)
     # Suspended plasterboard ceiling ('drywall_ceiling'): same drawing as the slab opening -> outline points.
     drywallCeilingRequested=Signal(object)
-    def _slab_tool(self):return self.controller.tool in ('slab_opening','drywall_ceiling')
-    def _slab_word(self):return 'Ψευδοροφή' if self.controller.tool=='drywall_ceiling' else 'Οπή πλάκας'
+    # Balcony ('balcony'): same drawing -> outline points (slab + railing, architecture/balcony.py).
+    balconyRequested=Signal(object)
+    def _slab_tool(self):return self.controller.tool in ('slab_opening','drywall_ceiling','balcony')
+    def _slab_word(self):return {'drywall_ceiling':'Ψευδοροφή','balcony':'Μπαλκόνι'}.get(self.controller.tool,'Οπή πλάκας')
     def _slab_draft_get(self):
         if getattr(self,'_slab_draft',None) is None:
             from archforge.ui.slab_tools import SlabDraft
@@ -39,7 +51,7 @@ class PlanView(QGraphicsView):
         return self._slab_draft
     def finish_slab_opening(self,points=None):
         draft=self._slab_draft_get();points=points or draft.finish();self._slab_draft=None;self.redraw()
-        if points:(self.drywallCeilingRequested if self.controller.tool=='drywall_ceiling' else self.slabOpeningRequested).emit([list(q) for q in points])
+        if points:{'drywall_ceiling':self.drywallCeilingRequested,'balcony':self.balconyRequested}.get(self.controller.tool,self.slabOpeningRequested).emit([list(q) for q in points])
     def _railing_tool(self):return str(self.controller.tool).startswith('railing_')
     def _railing_press(self,event):
         from archforge.ui.railing_draft import RailingDraft
@@ -421,6 +433,12 @@ class PlanView(QGraphicsView):
         self._long_press=None
         self.sitePointRequested.emit('plot_point',float(draft[0][0]),float(draft[0][1]))
 
+    def _tool_idle(self):
+        """No drawing in progress (segment, drag, railing/slab outline, site line)."""
+        slab=getattr(self,'_slab_draft',None)
+        return (self.controller.active is None and not self._wall_chain_active() and getattr(self,'_view_drag',None) is None
+                and getattr(self,'_railing_draft',None) is None and not getattr(self,'plot_draft',None)
+                and (slab is None or (not slab.points and slab.press is None)))
     def keyPressEvent(self,event):
         if self.carry is not None and event.key() in (Qt.Key.Key_Escape,Qt.Key.Key_R):
             if event.key()==Qt.Key.Key_R:self.carry.turn_by(90.0);self.statusChanged.emit(self.carry.label())
@@ -431,6 +449,11 @@ class PlanView(QGraphicsView):
             self.finish_plot();event.accept();return
         if event.key()==Qt.Key.Key_Escape and getattr(self,'_restore_select',False):
             self.controller.cancel();self._restore_select=False;self.controller.set_tool('select');self._mouse_down=False;self.redraw();return
+        if event.key()==Qt.Key.Key_Escape and self._tool_idle() and self.controller.tool!='select':
+            # Nothing in progress: Esc ends the tool (CAD convention: 1st Esc cancels, 2nd finishes).
+            window=getattr(self,'marking_menu_window',None)
+            (window._set_active_tool if window is not None else self.controller.set_tool)('select')
+            self.statusChanged.emit('Επιλογή');self.redraw();event.accept();return
         if event.key()==Qt.Key.Key_Escape:self.controller.cancel();self._mouse_down=False;self._view_drag=None;self._wall_press=None;self._railing_draft=None;self._slab_draft=None;self.redraw();return
         if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self._wall_chain_active():self.finish_wall_chain();event.accept();return
         if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self._slab_tool():self.finish_slab_opening();event.accept();return
@@ -505,8 +528,8 @@ class PlanView(QGraphicsView):
         from archforge.ui.marking_menu import MarkingMenu,build_menu,run,wheel
         window=self.marking_menu_window
         self.hide_marking_menu();self._hide_wall_angle_radial()
-        menu=build_menu(window,'plan',entity_id)
         xy=(float(plan_point.a),float(plan_point.b)) if plan_point is not None else None
+        menu=build_menu(window,'plan',entity_id,xy)
         widget=MarkingMenu(self.viewport(),menu,pos)
 
         def choose(action_id):
@@ -945,7 +968,7 @@ class PlanView(QGraphicsView):
                 path=QPainterPath(QPointF(p.points[0][0],p.points[0][1]))
                 for x,y in p.points[1:]:
                     path.lineTo(float(x),float(y))
-                item=self._scene.addPath(path,pen)
+                item=_OpenPathItem(path);item.setPen(pen);self._scene.addItem(item)
         elif p.kind=='polygon':
             from PySide6.QtGui import QPolygonF
             brush=QBrush(

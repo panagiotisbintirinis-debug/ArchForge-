@@ -124,7 +124,10 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
     if e.kind=='camera':return abs(float(p.get('level_z',0.0))-z)<=tolerance
     if e.kind=='wall':return abs(float(p.get('z',0.0))-z)<=tolerance
     if e.kind=='pod':return abs(float(p.get('floor_level',0.0))-z)<=tolerance
-    if e.kind in ('floor','room'):return abs(float(p.get('z',0.0))-z)<=tolerance
+    if e.kind=='floor':
+        from archforge.architecture.balcony import slab_level
+        return abs(slab_level(p)-z)<=tolerance
+    if e.kind=='room':return abs(float(p.get('z',0.0))-z)<=tolerance
     if e.kind=='mep_terminal':return abs(float(p.get('level_z',0.0))-z)<=tolerance
     if e.kind in ('slab_opening','drywall_ceiling') or (e.kind in ('room_floor','room_roof','room_ceiling') and p.get('scope')=='storey'):
         return abs(float(p.get('level_z',0.0))-z)<=tolerance
@@ -525,7 +528,10 @@ def _storey_z(doc,e):
         hp=doc.get(e.parent_id).params
         return float(hp.get('z',hp.get('floor_level',0.0)))
     if e.kind in ('structural_column',):return float(p.get('z',0.0))
-    if e.kind in ('floor','room'):return float(p.get('z',0.0))
+    if e.kind=='floor':
+        from archforge.architecture.balcony import slab_level
+        return slab_level(p)
+    if e.kind=='room':return float(p.get('z',0.0))
     return None
 
 

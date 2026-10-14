@@ -46,8 +46,8 @@ def _angle_label(v):
     return "Ελεύθερη" if v is None else f"{float(v):g}°"
 
 
-def build_menu(window, view, entity_id=None):
-    """``{"center", "entries", "wheel"}`` for the task in hand."""
+def build_menu(window, view, entity_id=None, xy=None):
+    """``{"center", "entries", "wheel"}`` for the task in hand (``xy``: plan point of the right click)."""
     plan = getattr(window, "plan_view", None)
     tool = getattr(getattr(plan, "controller", None), "tool", "select")
     # Sculpt: operations around, brush size on the wheel.
@@ -154,12 +154,16 @@ def build_menu(window, view, entity_id=None):
     entries.append(_e("mm:sculpt:on", "Γλυπτική", "panel"))
     if view == "plan":
         entries.append(_e("mm:assist:point", "📍 Βοηθός εδώ", "panel"))
-        entries.append(_e("mm:layout:kitchen", "Κουζίνα εδώ…", "panel"))
+        # «… σε αυτόν τον χώρο» only inside a closed room: outside one they do nothing (walk-through 14/10).
+        in_room = xy is None or _in_room(window.doc, *xy)
+        if in_room:
+            entries.append(_e("mm:layout:kitchen", "Κουζίνα εδώ…", "panel"))
         entries.append(_e("mm:krun:start", "Γραμμή ντουλαπιών σε τοίχο…", "panel"))
-        entries.append(_e("mm:layout:bath", "Μπάνιο εδώ…", "panel"))
-        entries.append(_e("mm:roofroom:tiled", "Κεραμοσκεπή σε αυτόν τον χώρο", "panel"))
-        entries.append(_e("mm:roofroom:terrace", "Ταράτσα σε αυτόν τον χώρο", "panel"))
-        entries += _slab_entries()
+        if in_room:
+            entries.append(_e("mm:layout:bath", "Μπάνιο εδώ…", "panel"))
+            entries.append(_e("mm:roofroom:tiled", "Κεραμοσκεπή σε αυτόν τον χώρο", "panel"))
+            entries.append(_e("mm:roofroom:terrace", "Ταράτσα σε αυτόν τον χώρο", "panel"))
+        entries += [e for e in _slab_entries() if in_room or e["id"] in ROOMLESS_SLAB]
     if any(e.kind in ("structural_column", "structural_beam") for e in window.doc.entities.values()):
         entries.append(_e("mm:analyze", "Στατική ανάλυση", "panel"))
     entries.append(_e("mm:undo", "Αναίρεση", "panel"))
@@ -178,9 +182,18 @@ def _last_wall(window):
     return next((i for i in reversed(list(window.doc.entities)) if window.doc.entities[i].kind == "wall"), None)
 
 
+ROOMLESS_SLAB = ("mm:slab:balcony", "mm:slab:draw")
+
+
+def _in_room(doc, x, y):
+    from archforge.geometry.regions import point_in_polygon
+    return any(point_in_polygon(float(x), float(y), face.polygon) for face in doc.active_room_faces())
+
+
 def _slab_entries():
     # Slab openings (architecture/storey_slabs.py): the room under the cursor, or a drawn outline.
-    return [_e("mm:slab:atrium", "Αίθριο σε αυτόν τον χώρο", "panel"),
+    return [_e("mm:slab:balcony", "Μπαλκόνι (σχεδίαση)", "panel"),
+            _e("mm:slab:atrium", "Αίθριο σε αυτόν τον χώρο", "panel"),
             _e("mm:slab:inner_balcony", "Κενό πλάκας (εσωτερικό μπαλκόνι) σε αυτόν τον χώρο", "panel"),
             _e("mm:slab:draw", "Οπή πλάκας (σχεδίαση)", "panel"),
             _e("mm:drywall:room", "Ψευδοροφή γυψοσανίδας σε αυτόν τον χώρο", "panel")]
@@ -274,6 +287,8 @@ def run(window, view, entity_id, action_id, plan_xy=None):
             slab_tools.opening_railing(window, entity_id)
         elif arg == "draw":
             slab_tools.start_opening_tool(window)
+        elif arg == "balcony":
+            slab_tools.start_balcony_tool(window)
         elif plan_xy is not None:
             slab_tools.room_opening(window, *plan_xy, use=arg)
     elif group == "drywall" and plan_xy is not None:

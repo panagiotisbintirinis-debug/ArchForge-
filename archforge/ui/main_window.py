@@ -63,6 +63,7 @@ class MainWindow(QMainWindow):
         self.plan_view.siteLineRequested.connect(self._place_site_line)
         self.plan_view.railingRequested.connect(self._place_railing)
         self.plan_view.slabOpeningRequested.connect(lambda pts: slab_tools.place_opening(self, pts))
+        self.plan_view.balconyRequested.connect(lambda pts: slab_tools.place_balcony(self, pts))
         from archforge.ui import drywall_tools
         self.plan_view.drywallCeilingRequested.connect(lambda pts: drywall_tools.place_drawn(self, pts))
         # Esc always cancels what is in progress, in 2D and 3D alike.

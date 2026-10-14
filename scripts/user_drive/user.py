@@ -17,6 +17,8 @@ class U:
     def __init__(self):
         self.app = QApplication.instance() or QApplication([])
         from archforge.ui.main_window import MainWindow
+        # Work left by a killed earlier run: a person would answer «Απόρριψη» once.
+        MainWindow._ask_recovery = lambda self, info: 'discard'
         self.w = MainWindow(); self.w.resize(1600, 1000); self.w.show(); self.pump()
         self.steps = 0; self.task = None; self.log = []; self.notes = []
         self.answers = []          # queued answers for modal dialogs
@@ -94,9 +96,10 @@ class U:
                 act.trigger(); self.pump(); return act
 
     def toolbar(self, text):
-        from PySide6.QtWidgets import QToolBar
+        from PySide6.QtWidgets import QToolBar, QToolButton
         for tb in self.w.findChildren(QToolBar):
-            for a in tb.actions():
+            buttons = [b.defaultAction() for b in tb.findChildren(QToolButton) if b.defaultAction() is not None]
+            for a in list(tb.actions()) + buttons:
                 if a.text().replace('\n', ' ').strip() == text and a.isVisible():
                     self.steps += 1; a.trigger(); self.pump(); return a
         raise LookupError(text)

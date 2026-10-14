@@ -2,9 +2,33 @@ import sys; sys.path.insert(0, __import__('os').path.abspath(__import__('os').pa
 sys.path.insert(0, __import__('os').path.dirname(__file__)); from user import *
 u = U(); auto_dialogs(u)
 STOP = sys.argv[1] if len(sys.argv) > 1 else None
+def menus():
+    """Open the mouse menu where a person would and photograph it (judge noise / usefulness)."""
+    from PySide6.QtCore import QRect
+    def snap(x, y, name, more=False):
+        m = u.right(x, y)
+        if m is None: print('  (κανένα μενού)', name); return
+        r = m.geometry()
+        if more and getattr(m, 'more_button', None) is not None:
+            m.more_button.showMenu() if False else None
+        img = u.plan.viewport().grab(r.adjusted(-20, -20, 20, 20)); img.save(os.path.join(OUT, f'menu_{name}.png'))
+        if more and getattr(m, 'more_button', None) is not None:
+            pop = m.more_button.menu(); pop.popup(m.more_button.mapToGlobal(m.more_button.rect().bottomLeft())); u.pump()
+            pop.grab().save(os.path.join(OUT, f'menu_{name}_more.png')); pop.hide()
+        c = u.mm_content(x, y); print(f'  μενού {name}: κέντρο «{c["center"]}» · κύκλος {len(c["radial"])} · κουμπιά {len(c["inline"])} · «Περισσότερα» {len(c["more"])}')
+        u.plan.hide_marking_menu()
+    snap(3, -3, 'empty', more=True)
+    snap(5, 2, 'wall')
+    from PySide6.QtCore import QPointF as _P
+    v = u.plan; print('  στο (3,0):', [(type(i).__name__, i.path().elementCount() if hasattr(i,'path') else 0, [round(c,2) for c in i.boundingRect().getCoords()], u.w.doc.get(v._entity_items[i]).kind if v._entity_items.get(i) in u.w.doc.entities else None, i.zValue()) for i in v.items(v.mapFromScene(_P(3, 0)))][:5])
+    snap(3, 0.0, 'room_edge')
+    snap(2.5, 2, 'room')
+    snap(5, -1.5, 'balcony_railing')
+    snap(5, -0.8, 'balcony_slab', more=True)
+    u.toolbar('Τοίχος'); snap(3, -3, 'wall_tool'); u.key(Qt.Key.Key_Escape); u.mm(3, -3, 'mm:tool:select')
 def stage(name):
     if STOP and name == STOP:
-        u.shot('stop'); report(); sys.exit(0)
+        u.shot('stop'); menus(); report(); sys.exit(0)
 def report():
     print('--- σύνολο βημάτων:', sum(s for _, s in u.log)); print('kinds', dict(u.kinds()))
 u.see(5, 4)
@@ -52,4 +76,23 @@ print('  levels', u.w.doc.levels, 'wp z', u.w.doc.work_plane.origin[2], '|', u.s
 u.end()
 u.shot('floor1_empty')
 stage('floor1')
+u.begin('1ος: εξωτερικοί τοίχοι πάνω στο αχνό ισόγειο')
+u.toolbar('Τοίχος')
+for p in [(0,0),(10,0),(10,8),(0,8),(0,0)]: u.click(*p)
+z=u.w.doc.work_plane.origin[2]
+up=[e.params for e in u.w.doc.entities.values() if e.kind=='wall' and abs(e.params['z']-z)<1e-6]
+print('  walls on floor', len(up), 'corners', sorted({(round(w['x1'],3),round(w['y1'],3)) for w in up}))
+u.end()
+u.begin('1ος: 3 εσωτερικοί (3 υπνοδωμάτια + μπάνιο)')
+u.click(5,0); u.dbl(5,8); u.click(5,4); u.dbl(10,4); u.click(0,4); u.dbl(5,4)
+u.mm(3,-3,'mm:tool:select')
+print('  rooms', len(u.w.doc.active_room_faces(z=z)))
+u.end()
+stage('balcony')
+u.begin('1ος: μπαλκόνι στη νότια πλευρά (μενού ποντικιού → Μπαλκόνι, σύρσιμο)')
+u.mm(3,-3,'mm:slab:balcony'); u.drag(1,0,9,-1.5)
+print('  ', u.status(), dict(u.kinds()))
+u.end()
+u.shot('floor1')
+stage('basement')
 report()
