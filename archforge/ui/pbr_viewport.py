@@ -1194,6 +1194,11 @@ function terrainNormals(geometry, roles) {
   flat.dispose();
 }
 
+let cameraMovedByHuman = false;
+controls.addEventListener("start", () => { cameraMovedByHuman = true; });
+window.__cameraMovedByHuman = () => cameraMovedByHuman;
+window.__forgetCameraMoved = () => { cameraMovedByHuman = false; };   // a new project is framed again
+
 window.archforgeSetScene = function(payload, fit = true) {
   disposeModel();
   const objects = (payload && payload.objects) || [];
@@ -1227,7 +1232,10 @@ window.archforgeSetScene = function(payload, fit = true) {
   ground.position.z = groundLevel(objects);
   fitSunShadow();
   applyTechnique();
-  if (fit) fitCamera();
+  // Once the human has moved the camera, a scene update never refits it
+  // (owner: «η κάμερα με πέταγε έξω κάθε φορά που άλλαζα κλίσεις στο terrain»).
+  // The Fit command and the view presets call fitCamera()/setCameraPreset directly.
+  if (fit && !cameraMovedByHuman) fitCamera();
 };
 
 window.setTechnique = function(mode) {
@@ -2336,6 +2344,8 @@ class PBRViewport(QWidget):
         self.stack = stack
         self.wall_editor.rebind(doc, stack)
         self._evaluation_cache.clear()
+        if self.web_view is not None:
+            self.web_view.page().runJavaScript("if (window.__forgetCameraMoved) window.__forgetCameraMoved();")
         self.redraw(force_full=True)
 
     def set_snap_enabled(self, enabled: bool) -> None:
