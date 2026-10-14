@@ -457,10 +457,13 @@ def _apply_vertical_openings_to_slab(doc,mesh,points,slab_z,thickness,match_z=No
  slab_z=float(slab_z);thickness=float(thickness)
  for entity in doc.entities.values():
   if entity.kind not in ('stair','ramp'):continue
-  upper_floor_z=float(entity.params.get('upper_floor_z',entity.params['upper_z']))
-  if abs(upper_floor_z-(slab_z if match_z is None else float(match_z)))>1e-5:continue
+  # Every slab the stair passes through (above its start, up to its landing) — not only the one
+  # at the upper storey level: the plate the Assistant puts over the lower storey sits lower.
+  lower=float(entity.params.get('lower_z',0.0));upper=float(entity.params['upper_z'])
+  if not (lower+0.30<slab_z<upper):continue
   if entity.kind=='stair':
-   openings=stair_opening_polygons(stair_candidate(entity.params))
+   # Open only where a person walking up has less than the headroom under THIS slab.
+   openings=stair_opening_polygons(stair_candidate(entity.params),underside=slab_z)
   else:
    opening=ramp_opening_polygon(ramp_candidate(entity.params))
    openings=(opening,) if opening else ()

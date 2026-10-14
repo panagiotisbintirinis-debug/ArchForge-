@@ -880,6 +880,10 @@ class PlanView(QGraphicsView):
             # Typed joinery draws its own symbol; keep the pick line light.
             pen=QPen(QColor(180,90,20,110));pen.setWidthF(.02)
         if preview and dict(p.meta).get('fits') is False:pen=QPen(QColor(210,40,40));pen.setWidthF(.05)
+        if preview and str(dict(p.meta).get('semantic','')).startswith('stair-preview-'):
+            # Steps of the stair being placed: thin, so the treads read (red when it does not fit).
+            pen=QPen(QColor(210,40,40) if dict(p.meta).get('fits') is False else QColor(40,150,70));pen.setWidthF(.015)
+            if str(dict(p.meta)['semantic']).endswith(('hidden','walk-hidden')):pen.setStyle(Qt.PenStyle.DashLine)
         if p.role=='library-symbol':pen=QPen(QColor(40,45,55));pen.setWidthF(.012)
         if p.role in ('cabinet','cabinet-front'):pen=QPen(QColor(40,45,55));pen.setWidthF(.012)
         if p.role in ('railing','railing-post'):pen=QPen(QColor(40,45,55));pen.setWidthF(.01)
@@ -1005,6 +1009,7 @@ class PlanView(QGraphicsView):
             container=bool(p.entity_id) and p.entity_id in self.doc.entities and self.doc.get(p.entity_id).kind in self.CONTAINER_KINDS
             item.setZValue(-30 if p.role=='contour' else -20 if context else (-10 if room else (10 if opening else (20 if preview else (-5 if container else 0)))))
             if p.entity_id and not preview:self._entity_items[item]=p.entity_id
+            if preview and p.kind=='polygon' and dict(p.meta).get('fits') is False:item.setBrush(QBrush(QColor(210,40,40,45)))
             # Dim layer (Layers panel / environment): a faint reference under the work.
             if dict(p.meta).get('layer_dim'):item.setOpacity(.28);item.setZValue(-30)
     def _draw_rotate_dial(self,preview):

@@ -275,6 +275,158 @@ def stair_footprint(candidate: StairCandidate, margin: float = 0.0) -> Tuple[Poi
     )
 
 
+# --- walls: a stair is placed in a building, not in empty space (owner 14/10) ----------------------
+
+WALL_CLEARANCE = 0.01
+
+
+def _seg_seg_distance(a, b, c, d) -> float:
+    """Shortest distance between segments ab and cd (0 when they cross)."""
+    def cross(o, p, q):
+        return (p[0] - o[0]) * (q[1] - o[1]) - (p[1] - o[1]) * (q[0] - o[0])
+    d1, d2, d3, d4 = cross(c, d, a), cross(c, d, b), cross(a, b, c), cross(a, b, d)
+    if ((d1 > 0) != (d2 > 0)) and ((d3 > 0) != (d4 > 0)) and d1 and d2 and d3 and d4:
+        return 0.0
+    return min(_point_seg_distance(a, c, d), _point_seg_distance(b, c, d),
+               _point_seg_distance(c, a, b), _point_seg_distance(d, a, b))
+
+
+def _point_seg_distance(p, a, b) -> float:
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    length2 = dx * dx + dy * dy
+    t = 0.0 if length2 <= 1e-18 else max(0.0, min(1.0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / length2))
+    return hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy))
+
+
+def _spiral_disc(candidate: StairCandidate):
+    """Centre and outer radius of a spiral stair (its walking line is a circle round the origin)."""
+    return candidate.origin, max(candidate.width * 0.95, 0.85) + candidate.width / 2.0
+
+
+def stair_walls(doc, lower_z: float, upper_floor_z: float):
+    """Walls a stair between the two levels must not cross: those of the storey it starts from and the one it reaches."""
+    out = []
+    for e in doc.entities.values():
+        if e.kind != 'wall':
+            continue
+        z = float(e.params.get('z', 0.0))
+        if abs(z - float(lower_z)) < 1e-3 or abs(z - float(upper_floor_z)) < 1e-3:
+            out.append(e)
+    return out
+
+
+def _point_in_convex(p, poly) -> bool:
+    from archforge.geometry.regions import point_in_polygon
+    return point_in_polygon(p[0], p[1], poly)
+
+
+def _wall_in_opening(a, b, openings, reach) -> bool:
+    """The wall axis ab within ``reach`` of one of the slab opening pieces (or inside it)."""
+    for poly in openings:
+        if _point_in_convex(a, poly) or _point_in_convex(b, poly):
+            return True
+        n = len(poly)
+        if any(_seg_seg_distance(a, b, poly[i], poly[(i + 1) % n]) < reach for i in range(n)):
+            return True
+    return False
+
+
+def stair_wall_conflicts(doc, candidate: StairCandidate, walls=None) -> List[str]:
+    """Ids of the walls the stair runs through.
+
+    Walls of the storey it starts from: the walking line closer than half its width + half the wall.
+    Walls of the storey it reaches: only where the slab must open (a wall over the low steps, where
+    there is headroom, stands on the slab — the upper space is used; owner 14/10).
+    """
+    walls = stair_walls(doc, candidate.lower_z, candidate.upper_floor_z) if walls is None else walls
+    upper = [w for w in walls if abs(float(w.params.get('z', 0.0)) - float(candidate.upper_floor_z)) < 1e-3]
+    if upper:
+        openings = stair_opening_polygons(candidate)
+        upper_hits = [w.id for w in upper
+                      if _wall_in_opening((float(w.params['x1']), float(w.params['y1'])),
+                                          (float(w.params['x2']), float(w.params['y2'])),
+                                          openings, float(w.params.get('thickness', 0.2)) / 2.0 - WALL_CLEARANCE)]
+        walls = [w for w in walls if w not in upper]
+    else:
+        upper_hits = []
+    half = candidate.width / 2.0
+    hits = list(upper_hits)
+    if candidate.layout == 'spiral':
+        centre, radius = _spiral_disc(candidate)
+        for w in walls:
+            p = w.params
+            gap = _point_seg_distance(centre, (float(p['x1']), float(p['y1'])), (float(p['x2']), float(p['y2'])))
+            if gap < radius + float(p.get('thickness', 0.2)) / 2.0 - WALL_CLEARANCE:
+                hits.append(w.id)
+        return hits
+    path = stair_centerline(candidate)
+    for w in walls:
+        p = w.params
+        a, b = (float(p['x1']), float(p['y1'])), (float(p['x2']), float(p['y2']))
+        reach = half + float(p.get('thickness', 0.2)) / 2.0 - WALL_CLEARANCE
+        if any(_seg_seg_distance(path[i], path[i + 1], a, b) < reach for i in range(len(path) - 1)):
+            hits.append(w.id)
+    return hits
+
+
+def _room_of(doc, point: Point2, z: float):
+    from archforge.geometry.regions import point_in_polygon
+    for face in doc.active_room_faces(z=z):
+        if point_in_polygon(float(point[0]), float(point[1]), face.polygon):
+            return face.polygon
+    return None
+
+
+FIT_STEP = 0.10
+FIT_REACH = 1.5
+
+
+def fit_in_walls(doc, candidate: StairCandidate, walls=None, room=None):
+    """The candidate moved as little as possible so that it crosses no wall, staying in the room it starts in.
+
+    Returns ``(candidate, fits)``: the original when it already fits or no position within
+    ``FIT_REACH`` does (then ``fits`` is False).
+    """
+    from dataclasses import replace
+    from archforge.geometry.regions import point_in_polygon
+    walls = stair_walls(doc, candidate.lower_z, candidate.upper_floor_z) if walls is None else walls
+    if not stair_wall_conflicts(doc, candidate, walls):
+        return candidate, True
+    fp = stair_footprint(candidate)
+    # Only walls near the stair can matter while it moves.
+    lo_x, lo_y = min(q[0] for q in fp) - FIT_REACH - 1, min(q[1] for q in fp) - FIT_REACH - 1
+    hi_x, hi_y = max(q[0] for q in fp) + FIT_REACH + 1, max(q[1] for q in fp) + FIT_REACH + 1
+    near = [w for w in walls if not (max(w.params['x1'], w.params['x2']) < lo_x or min(w.params['x1'], w.params['x2']) > hi_x
+                                     or max(w.params['y1'], w.params['y2']) < lo_y or min(w.params['y1'], w.params['y2']) > hi_y)]
+    ox, oy = candidate.origin
+    steps = int(round(FIT_REACH / FIT_STEP))
+    shifts = sorted(((i * FIT_STEP, j * FIT_STEP) for i in range(-steps, steps + 1) for j in range(-steps, steps + 1)),
+                    key=lambda d: d[0] * d[0] + d[1] * d[1])
+    for dx, dy in shifts[1:]:
+        if dx * dx + dy * dy > FIT_REACH * FIT_REACH:
+            break
+        moved = replace(candidate, origin=(ox + dx, oy + dy))
+        if room is not None:
+            # Stay in the room the human started in: the stair's own outline inside it.
+            if not all(point_in_polygon(x, y, room) for x, y in stair_footprint(moved)):
+                continue
+        if not stair_wall_conflicts(doc, moved, near):
+            return moved, True
+    return candidate, False
+
+
+def place_among_walls(doc, candidates, click: Point2):
+    """``[(candidate, fits)]``: every candidate fitted into the walls, those that fit first (order kept)."""
+    if not candidates:
+        return []
+    walls = stair_walls(doc, candidates[0].lower_z, candidates[0].upper_floor_z)
+    if not walls:
+        return [(c, True) for c in candidates]
+    room = _room_of(doc, click, candidates[0].lower_z)
+    fitted = [fit_in_walls(doc, c, walls, room) for c in candidates]
+    return [f for f in fitted if f[1]] + [f for f in fitted if not f[1]]
+
+
 def _polyline_tail_from_fraction(path: Sequence[Point2], fraction: float) -> Tuple[Point2, ...]:
     pts = tuple((float(x), float(y)) for x, y in path)
     if len(pts) < 2:
@@ -332,8 +484,13 @@ def _junction_pad(point: Point2, half_width: float) -> Tuple[Point2, ...]:
 def stair_opening_polygons(
     candidate: StairCandidate,
     headroom: float = 2.0,
+    underside: float | None = None,
 ) -> Tuple[Tuple[Point2, ...], ...]:
     """Convex opening pieces following only the upper stair/headroom path.
+
+    The slab stays wherever there is ``headroom`` between the steps and its ``underside``
+    (default: the upper storey level) — the upper storey keeps that floor, and the space
+    under the stair stays usable (owner 14/10).
 
     Straight stairs produce one oriented rectangle. L/U stairs produce one
     corridor per remaining flight plus small junction pads so the union follows
@@ -342,7 +499,7 @@ def stair_opening_polygons(
     """
     path = stair_centerline(candidate)
     total_rise = max(1e-9, float(candidate.upper_z) - float(candidate.lower_z))
-    slab_underside = float(candidate.upper_floor_z)
+    slab_underside = float(candidate.upper_floor_z if underside is None else underside)
     start_elevation = max(
         float(candidate.lower_z),
         slab_underside - max(0.1, float(headroom)),

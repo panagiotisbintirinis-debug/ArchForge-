@@ -529,22 +529,33 @@ class StairPlaceTransaction:
         firsts=[];rest=[];seen=set()
         for candidate in self.candidates:
             (rest if candidate.layout in seen else firsts).append(candidate);seen.add(candidate.layout)
-        self.candidates=tuple(firsts+rest)
+        # The building's walls: each offered stair is moved into the room it starts in when it
+        # fits there; those that still cross a wall come last and are shown red (owner 14/10).
+        from archforge.architecture.stairs import place_among_walls
+        fitted=place_among_walls(self.doc,firsts,self.origin)
+        self.fits=[f for _c,f in fitted]+[False]*len(rest)
+        self.candidates=tuple([c for c,_f in fitted]+rest)
         if self.layout is not None:
             # Keep the chosen type while the pointer moves.
             chosen=next((i for i,c in enumerate(self.candidates[:4]) if c.layout==self.layout),None)
             if chosen is not None:self.active_index=chosen
         self.active_index=min(self.active_index,max(0,min(3,len(self.candidates)-1)))
         active=self.candidates[self.active_index]
+        fits=bool(self.fits[self.active_index])
+        suggestions=list(active.suggestions)
+        if not fits:
+            suggestions.insert(0,'⚠ Η σκάλα περνά από τοίχο — δεν χωράει εδώ: σύρε αλλού ή άλλαξε τύπο (Tab / ροδέλα)')
         self.preview={
             'chosen':active.to_params(),
+            'fits':fits,
             'candidates':[candidate.to_params() for candidate in self.candidates[:4]],
             'active_index':self.active_index,
             'footprint':list(stair_footprint(active)),
             'upper_level_name':self.upper_level_name,
-            'suggestions':list(active.suggestions),
+            'suggestions':suggestions,
         }
         return HUD({
+            'fits':1.0 if fits else 0.0,
             'risers':float(active.riser_count),
             'riser':active.riser_height,
             'tread':active.tread_depth,

@@ -94,5 +94,36 @@ u.mm(3,-3,'mm:slab:balcony'); u.drag(1,0,9,-1.5)
 print('  ', u.status(), dict(u.kinds()))
 u.end()
 u.shot('floor1')
+stage('stair')
+u.begin('Ισόγειο: σκάλα στο χολ (όροφος ← επιλογέας, δεξί κλικ → Σκάλα ▸ → Σκάλα, σύρσιμο)')
+u.floor('Ground'); u.see(5, 4)
+u.mm(3, -3, 'mm:menu:stair'); print('  υπομενού:', u.mm_content(3, -3) if u.plan._marking_menu is None else None)
+m = u.plan._marking_menu; print('  ανοιχτό:', m.menu['center'] if m else None, [e['id'] for e in m.menu['entries']] if m else None)
+u.steps += 1; m.buttons['mm:tool:stair'].click(); u.pump()
+print('  tool', u.plan.controller.tool, '|', u.status())
+vp = u.plan.viewport(); a = u._pos(6.6, 4.25)
+QTest.mousePress(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, a); u.pump()
+for i, (x, y) in enumerate([(7.5, 4.25), (8.5, 4.25), (9.6, 4.25)]):
+    QTest.mouseMove(vp, u._pos(x, y)); u.pump()
+    pv = u.plan.controller.preview
+    ch = (pv.geometry or {}).get('chosen', {}) if pv else {}
+    print(f'  σύρσιμο ως ({x},{y}): {ch.get("layout")} {ch.get("riser_count")} ρίχτια, footprint', [tuple(round(c,2) for c in q) for q in (pv.geometry or {}).get('footprint', [])][:6], '|', u.status()[:110])
+    u.shot(f'stair_drag{i}')
+u.key(Qt.Key.Key_Escape)                         # red: does not fit in the hall -> cancel
+QTest.mouseRelease(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, u._pos(9.6, 4.25)); u.pump()
+print('  μετά το Esc: σκάλες', sum(e.kind == 'stair' for e in u.w.doc.entities.values()), 'tool', u.plan.controller.tool)
+u.end()
+u.begin('Ισόγειο: σκάλα στο σαλόνι, ξεκινώντας πάνω στον τοίχο x=6 (σύρσιμο δυτικά)')
+a = u._pos(5.9, 7.0); QTest.mousePress(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, a); u.pump()
+for x in (4.5, 3.0, 1.5):
+    QTest.mouseMove(vp, u._pos(x, 7.0)); u.pump()
+pv = u.plan.controller.preview; ch = pv.geometry.get('chosen', {})
+print('  προεπισκόπηση:', ch.get('layout'), 'fits', pv.geometry.get('fits'), 'αρχή', round(ch.get('x', 0), 2), round(ch.get('y', 0), 2))
+u.shot('stair_living_drag')
+QTest.mouseRelease(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, u._pos(1.5, 7.0)); u.pump(); u.steps += 1
+st = [e for e in u.w.doc.entities.values() if e.kind == 'stair']
+print('  σκάλες', len(st), st[-1].params.get('layout') if st else None, '|', u.status())
+u.end()
+u.shot('stair_placed')
 stage('basement')
 report()

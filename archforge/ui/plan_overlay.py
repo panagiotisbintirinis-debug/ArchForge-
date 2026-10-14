@@ -38,6 +38,23 @@ def hud_text(hud):
     return "   ".join(parts)
 
 
+STAIR_TYPES = {"straight": "Ευθεία", "l": "Γ (L)", "u": "Π (U)", "spiral": "Σπιράλ"}
+
+
+def stair_text(preview):
+    """``(text, fits)`` next to the mouse while placing a stair, or None."""
+    if preview is None or getattr(preview, "kind", "") != "stair" or not preview.geometry:
+        return None
+    g = preview.geometry
+    c = g.get("chosen") or {}
+    fits = bool(g.get("fits", True))
+    text = (f"Σκάλα {STAIR_TYPES.get(c.get('layout'), c.get('layout', ''))} · {int(c.get('riser_count', 0))} × "
+            f"{float(c.get('riser_height', 0)) * 100:.1f} cm · πάτημα {float(c.get('tread_depth', 0)) * 100:.0f} cm").replace(".", ",")
+    if not fits:
+        return "⚠ Περνά από τοίχο — σύρε αλλού / Tab · " + text, False
+    return text + " · Tab: άλλος τύπος", True
+
+
 def ruler_step(pixels_per_metre, min_px=48):
     for step in STEPS:
         if step * pixels_per_metre >= min_px:
@@ -108,6 +125,9 @@ def paint_overlay(view, painter):
     # Live measurements of the tool, top left under the rulers.
     frame = getattr(view, "_frame", None)
     live = hud_text(getattr(frame, "hud", None)) if frame is not None else ""
+    stair = stair_text(getattr(view.controller, "preview", None))
+    if stair is not None:
+        live = stair[0]
     if live:
         bold = QFont(font); bold.setPointSizeF(10); bold.setBold(True); painter.setFont(bold)
         w = QFontMetrics(bold).horizontalAdvance(live) + 20
@@ -118,7 +138,10 @@ def paint_overlay(view, painter):
             x = min(max(RULER + 4, c.x() + 18), vp.width() - w - 8)
             y = c.y() + 22 if c.y() + 56 < vp.height() else c.y() - 48
             rect = QRectF(x, max(RULER + 4, y), w, 26)
-        _chip(painter, rect, QColor(232, 240, 252, 240), QColor(47, 107, 214))
+        if stair is not None and not stair[1]:
+            _chip(painter, rect, QColor(253, 232, 232, 245), QColor(210, 40, 40))      # does not fit: red
+        else:
+            _chip(painter, rect, QColor(232, 240, 252, 240), QColor(47, 107, 214))
         painter.setPen(QPen(QColor(25, 45, 80), 1)); painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, live)
         painter.setFont(font)
     # Empty project: how to start, with the mouse.

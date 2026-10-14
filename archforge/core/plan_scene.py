@@ -449,9 +449,10 @@ def preview_primitives(preview):
         candidates=list(g.get('candidates',()))
         if not candidates:return []
         index=max(0,min(int(g.get('active_index',0)),len(candidates)-1))
-        from archforge.architecture.stairs import candidate_from_params,stair_footprint
+        from archforge.architecture.stairs import candidate_from_params,stair_footprint,stair_plan_symbol
         candidate=candidate_from_params(candidates[index])
-        return [
+        fits=bool(g.get('fits',True))
+        out=[
             Primitive2D(
                 'polygon',
                 tuple(stair_footprint(candidate)),
@@ -460,9 +461,16 @@ def preview_primitives(preview):
                     ('semantic','stair-preview'),
                     ('layout',candidate.layout),
                     ('option_index',index),
+                    ('fits',fits),
                 ),
             )
         ]
+        # The steps, walking line and arrow of what will be placed (same symbol as the placed stair):
+        # a box alone did not tell a straight flight from a spiral.
+        lines,_labels=stair_plan_symbol(candidate,'lower')
+        for style,pts in lines:
+            out.append(Primitive2D('polyline',tuple(pts),role='preview',meta=(('semantic','stair-preview-'+style),('fits',fits))))
+        return out
     if preview.kind=='ramp' and g:
         candidates=list(g.get('candidates',()))
         if not candidates:return []
