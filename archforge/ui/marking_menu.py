@@ -116,6 +116,17 @@ def build_menu(window, view, entity_id=None, xy=None):
             entries.append(_e("mm:analyze", "Στατική ανάλυση", "panel"))
         if entity.kind == "slab_opening":
             entries.insert(1, _e("mm:slab:railing", "Κάγκελο γύρω από την οπή"))
+        if entity.kind in ("cabinet", "library_object"):
+            # Any placed object: its top up to the ceiling over it (stair, roof, slab), sloped where that is.
+            entries.append(_e("mm:fit:ceiling", "Ύψος ως την οροφή (ακολουθεί κλίση)", "panel"))
+            if entity.params.get("top_heights"):
+                entries.append(_e("mm:fit:flat", "Ίσιο καπάκι", "panel"))
+        if entity.kind == "stair":
+            # One window for the stair: sizes, structure, railing, materials (ui/stair_dialog.py).
+            entries.insert(0, _e("mm:stairdlg:open", "Σκάλα…"))
+            from archforge.architecture.stair_options import has_space_under
+            if has_space_under(entity.params):
+                entries.append(_e("mm:stairdlg:cabinets", "Ντουλάπια κάτω από τη σκάλα", "panel"))
         if entity.kind == "camera":
             entries.insert(0, _e("mm:camera:view", "Δες από αυτή την κάμερα"))
         if entity.kind in ("room_floor", "room_roof", "room_ceiling") and view == "plan":
@@ -298,6 +309,38 @@ def run(window, view, entity_id, action_id, plan_xy=None):
         (window._design_structure if arg == "design" else window._propose_frame)()
     elif group == "analyze":
         window._show_structural_analysis()
+    elif group == "fit" and entity_id:
+        from archforge.core.commands import UpdateEntity
+        from archforge.geometry.fit_top import fit_to_ceiling
+        entity = window.doc.get(entity_id)
+        try:
+            if arg == "flat":
+                h = entity.params.get("top_heights") or [entity.params["height"]]
+                changes = {"height": min(h), "top_heights": []}
+            else:
+                changes = fit_to_ceiling(window.doc, entity)
+            window.stack.execute(UpdateEntity(entity_id, changes))
+        except ValueError as exc:
+            window.statusBar().showMessage(str(exc), 6000)
+        else:
+            window._redraw_views(all_views=True); window.refresh_inspector()
+            h = changes.get("top_heights") or [changes["height"]]
+            window.statusBar().showMessage(
+                (f"Ύψος ως την οροφή: {min(h) * 100:.0f}–{max(h) * 100:.0f} cm (λοξό καπάκι)" if len(h) > 1 else
+                 f"Ύψος {h[0] * 100:.0f} cm") + " · Ctrl+Z = αναίρεση", 7000)
+    elif group == "stairdlg" and entity_id and arg == "cabinets":
+        from archforge.architecture.stair_options import under_stair_command
+        try:
+            command, new = under_stair_command(window.doc, entity_id)
+            window.stack.execute(command)
+        except ValueError as exc:
+            window.statusBar().showMessage(str(exc), 6000)
+        else:
+            window._redraw_views(all_views=True)
+            window.statusBar().showMessage(f'Ντουλάπια κάτω από τη σκάλα: {len(new)} — ύψος κατά την κλίση · Ctrl+Z', 7000)
+    elif group == "stairdlg" and entity_id:
+        from archforge.ui.stair_dialog import open_stair_dialog
+        open_stair_dialog(window, entity_id)
     elif group == "member_statics" and entity_id:
         window._show_member_statics(entity_id)
     elif group == "undo":

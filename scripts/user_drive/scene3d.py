@@ -1,6 +1,6 @@
 """3D check of the walk-through house (stair, slab openings, balcony) with the real PBR page.
 
-    python scripts/user_drive/scene3d.py out/scene.json walls|none
+    python scripts/user_drive/scene3d.py out/scene.json walls|none [solid|slab|timber|steel|cantilever [none|left|right|both|auto [cabinets]]]
     python scripts/look_shot/dump_page.py out/page.html
     VIEW="1,1,4,7,12" node scripts/look_shot/shot.mjs out/page.html out/scene.json out/eye.png 40 200 eye   # or orbit / top / cutaway
 """
@@ -25,6 +25,25 @@ stack.execute(CreateFloorLevel('Floor 2', 3.0)); stack.execute(SetWorkPlane(plan
 if upper_walls: walls(3.0, (((0,4),(6,4)),))
 tx = StairPlaceTransaction(doc, stack, (5.9, 7.0)); tx.update(1.5, 7.0); tx.commit()
 print('stair', tx.active_candidate.layout, tx.active_candidate.origin, 'fits', tx.preview['fits'])
+if len(sys.argv) > 3:
+    # Structure / railing of the stair, as the «Σκάλα» window sets them.
+    from archforge.architecture.stair_options import railing_command
+    sid = next(e.id for e in doc.entities.values() if e.kind == 'stair')
+    stack.execute(railing_command(doc, sid, sys.argv[4] if len(sys.argv) > 4 else 'none', 'balusters', {'structure': sys.argv[3]}))
+    if len(sys.argv) > 5 and sys.argv[5] == 'cabinets':
+        from archforge.architecture.stair_options import under_stair_command
+        stack.execute(under_stair_command(doc, sid)[0])
+    if len(sys.argv) > 6 and sys.argv[6] == 'tall':
+        # A tall cupboard put by hand next to them, then «Ύψος ως την οροφή».
+        from archforge.core.commands import UpdateEntity
+        from archforge.geometry.fit_top import fit_to_ceiling
+        from archforge.kitchen.cabinets import default_params as cab_params
+        st = doc.get(sid).params
+        cab = Entity('cabinet', cab_params('tall', st['x'] - 2.6, st['y'] + 0.2, 0.0, 180.0, 0.6)); stack.execute(AddEntity(cab))
+        try:
+            stack.execute(UpdateEntity(cab.id, fit_to_ceiling(doc, doc.get(cab.id))))
+        except ValueError as exc:
+            print('fit:', exc)
 stack.execute(S.missing_storey_slabs_command(doc))
 if upper_walls:
     stack.execute(AddEntities(balcony_entities(doc, [(1,0),(5,0),(5,-1.5),(1,-1.5)], 3.0)))

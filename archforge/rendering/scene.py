@@ -114,6 +114,11 @@ def _material(kind: str, selected: bool, entity=None, doc=None, surface_role: st
             str(entity.params.get("construction", "generic"))
         )
 
+    if entity is not None and entity.kind == "stair" and surface_role:
+        # Tread / riser / slab / stringers: the human's finish, else the structure's default.
+        from archforge.architecture.stair_options import role_material_id
+        material_id = role_material_id(entity.params, surface_role)
+
     custom = material_spec(material_id, doc)
     if custom is not None:
         spec.update({
@@ -211,6 +216,18 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                     "material": _material(f"cabinet_{role}", body.entity_id in selected, entity=entity, doc=doc,
                                           surface_role=role),
                 })
+            continue
+        if body.semantic_kind == "stair" and entity is not None:
+            # One mesh per role (tread, riser, slab, stringer, landing): a finish per part
+            # (stair_options.role_material_id), like cabinets and railings.
+            groups = {}
+            for tri, role in zip(mesh.triangles, mesh.triangle_surfaces):
+                groups.setdefault(str(role), []).append([int(tri[0]), int(tri[1]), int(tri[2])])
+            for role, tris in groups.items():
+                objects.append({"id": str(body.entity_id), "render_part": f"{body.entity_id}:{role}", "kind": "stair",
+                                "vertices": vertices, "triangles": tris, "surfaces": [role] * len(tris),
+                                "material": _material("stair", body.entity_id in selected, entity=entity, doc=doc,
+                                                      surface_role=role)})
             continue
         if body.semantic_kind == "railing" and entity is not None:
             # One derived mesh per role (handrail, posts, infill, glass, base); a palette

@@ -526,12 +526,22 @@ def cabinet_mesh(p):
     verts, tris, roles = [], [], []
     quads = ((0, 2, 3, 1), (4, 5, 7, 6), (0, 1, 5, 4), (2, 6, 7, 3), (0, 4, 6, 2), (1, 3, 7, 5))
     boxes, prisms = _build(p)
+    # Sloped top (under a stair): «height» at local -X, «height_end» at +X; every part above the
+    # plinth is stretched so the top, sides and doors follow the slope.
+    w, h = float(p["width"]), float(p["height"])
+    rise = float(p["height_end"]) - h if p.get("height_end") else 0.0
+    plinth = min(float(p.get("plinth", 0.0)), h * 0.5)
+
+    def zz(x, z):
+        if not rise or z <= plinth:
+            return z
+        return z + (z - plinth) / (h - plinth) * rise * (x + w / 2) / w
     for role, lo, hi in boxes:
         base = len(verts)
         for x in (lo[0], hi[0]):
             for y in (lo[1], hi[1]):
                 for z in (lo[2], hi[2]):
-                    verts.append((ox + c * x - s * y, oy + s * x + c * y, oz + z))
+                    verts.append((ox + c * x - s * y, oy + s * x + c * y, oz + zz(x, z)))
         for q0, q1, q2, q3 in quads:
             tris += [(base + q0, base + q1, base + q2), (base + q0, base + q2, base + q3)]
             roles += [role, role]
@@ -543,7 +553,7 @@ def cabinet_mesh(p):
             poly = poly[::-1]
         base, n = len(verts), len(poly)
         for z in (z0, z1):
-            verts += [(ox + c * x - s * y, oy + s * x + c * y, oz + z) for x, y in poly]
+            verts += [(ox + c * x - s * y, oy + s * x + c * y, oz + zz(x, z)) for x, y in poly]
         cap = _triangulate(poly)
         tris += [(base + i, base + j, base + k) for i, j, k in cap]
         tris += [(base + n + i, base + n + k, base + n + j) for i, j, k in cap]

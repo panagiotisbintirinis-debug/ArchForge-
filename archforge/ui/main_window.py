@@ -1904,7 +1904,7 @@ class MainWindow(QMainWindow):
             # Roofs saved before the overhang field still get the editor.
             params.setdefault('overhang', 0.0)
         from archforge.architecture.joinery import KEYS as joinery_keys
-        for key, value in (() if entity.kind in ('railing', 'drywall_ceiling', 'section_line', 'camera') or slab_tools.is_slab_panel(entity) else params.items()):
+        for key, value in (() if entity.kind in ('railing', 'drywall_ceiling', 'section_line', 'camera', 'stair') or slab_tools.is_slab_panel(entity) else params.items()):
             if entity.kind in ('door', 'window') and key in joinery_keys:
                 continue  # Κουφώματα: δικές τους γραμμές (ui/opening_properties.py).
             if entity.kind == 'stair' and key == 'plan_numbers':
@@ -1953,6 +1953,19 @@ class MainWindow(QMainWindow):
             from archforge.ui.material_codes import add_material_rows
             add_material_rows(self, self.form, entity)   # finish + supplier code
         if entity.kind == 'stair':
+            # A stair is read and changed in its own window (ui/stair_dialog.py), not as raw numbers.
+            from archforge.architecture import stair_options as SO
+            from archforge.architecture.railings import STAIR_RAILING_CHOICES
+            from archforge.ui.stair_dialog import LAYOUTS, open_stair_dialog
+            self.form.addRow('Σκάλα', QLabel(
+                f"{LAYOUTS.get(params['layout'], params['layout'])} · {int(params['riser_count'])} ρίχτια "
+                f"{params['riser_height'] * 100:.1f} cm · πάτημα {params['tread_depth'] * 100:.0f} cm · "
+                f"πλάτος {params['width'] * 100:.0f} cm".replace('.', ',')))
+            self.form.addRow('Κατασκευή', QLabel(SO.STRUCTURES[SO.structure(params)]))
+            self.form.addRow('Κάγκελο', QLabel(STAIR_RAILING_CHOICES[SO.railing_choice(self.doc, eid)]))
+            open_button = QPushButton('Ρυθμίσεις σκάλας…')
+            open_button.clicked.connect(lambda _=False, entity_id=eid: open_stair_dialog(self, entity_id))
+            self.form.addRow(open_button)
             from PySide6.QtWidgets import QCheckBox
             numbers = QCheckBox('Αρίθμηση σκαλοπατιών στην κάτοψη')
             numbers.setChecked(bool(params.get('plan_numbers', 0)))

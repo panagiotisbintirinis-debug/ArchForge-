@@ -1929,7 +1929,7 @@ function setWalkMode(on) {
   walkKeys.clear();
   walkDrag = null;
   controls.enabled = !walkMode;
-  walkHint.style.display = walkMode ? "block" : "none";
+  walkHint.style.display = "none";   // owner 14/10: «αφαίρεσε αυτό το ενδεικτικό από κάτω, είναι άνουσιο»
   if (walkMode) renderer.domElement.focus && renderer.domElement.focus();
 }
 window.setWalkMode = setWalkMode;

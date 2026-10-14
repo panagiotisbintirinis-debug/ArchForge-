@@ -287,9 +287,78 @@ def _oriented_prism(cx,cy,z0,width,depth,height,angle_deg):
  return MeshPayload(verts,tuple(tris),tuple(roles))
 
 
-def _stair_mesh(p):
+def _relabel(mesh,mapping):
+ return MeshPayload(mesh.vertices,mesh.triangles,tuple(mapping.get(r,r) for r in mesh.triangle_surfaces))
+
+def _sloped_plank(world,flight_angle,a,b,y0,y1,z_top_a,z_top_b,depth,floor_z,role):
+ """Board along a flight (local s from a to b, across y0..y1): top line z_top_a -> z_top_b, ``depth``
+ deep, never below ``floor_z`` (a waist slab or a stringer)."""
+ def corner(s,y,z):
+  x,yy=world(s,y);return (x,yy,z)
+ bot_a=max(floor_z,z_top_a-depth);bot_b=max(floor_z,z_top_b-depth)
+ verts=(corner(a,y0,bot_a),corner(b,y0,bot_b),corner(b,y1,bot_b),corner(a,y1,bot_a),
+        corner(a,y0,z_top_a),corner(b,y0,z_top_b),corner(b,y1,z_top_b),corner(a,y1,z_top_a))
+ quads=((0,1,5,4,role),(1,2,6,5,role),(2,3,7,6,role),(3,0,4,7,role),(4,5,6,7,role),(3,2,1,0,'bottom' if role=='stringer' else role))
+ tris=[];roles=[]
+ for a0,b0,c0,d0,r in quads:tris.extend(((a0,b0,c0),(a0,c0,d0)));roles.extend((r,r))
+ return MeshPayload(verts,tuple(tris),tuple(roles))
+
+def _light_stair_mesh(p,candidate,structure,doc=None):
+ """Stair with free space under it (owner 14/10): concrete waist slab, or timber / steel treads on stringers."""
+ from archforge.architecture.railings import _flights
+ from archforge.architecture import stair_options as SO
+ c=candidate;t=c.tread_depth;r=c.riser_height;w=c.width;z0=c.lower_z;base_angle=c.angle_deg
+ ca,sa=math.cos(math.radians(base_angle)),math.sin(math.radians(base_angle))
+ def to_world(lx,ly):return (c.origin[0]+ca*lx-sa*ly,c.origin[1]+sa*lx+ca*ly)
+ meshes=[];pitch=r/t
+ stringers=str(p.get('stringers') or 'sides')
+ side=SO.cantilever_side(doc,p) if structure=='cantilever' else None
+ for (sx,sy),(dx,dy),m,k0,_end in _flights(c):
+  fa=math.degrees(math.atan2(dy,dx))
+  def world(s,y,sx=sx,sy=sy,dx=dx,dy=dy):return to_world(sx+dx*s-dy*y,sy+dy*s+dx*y)
+  base=z0+k0*r
+  for j in range(m):
+   top=z0+(k0+j+1)*r;cx,cy=world((j+.5)*t,0.0)
+   if structure=='slab':
+    # The step itself (tread + riser) sits on the sloped slab.
+    meshes.append(_oriented_prism(cx,cy,top-r,w,t,r,base_angle+fa))
+   elif structure=='cantilever':
+    # A thick tread built EMBED into the wall on one side, free on the other.
+    sign=1.0 if side=='left' else -1.0
+    ex,ey=world((j+.5)*t,sign*SO.EMBED/2.0)
+    meshes.append(_relabel(_oriented_prism(ex,ey,top-SO.TREAD_CANTILEVER,w+SO.EMBED,t,SO.TREAD_CANTILEVER,base_angle+fa),
+                           {'riser':'tread','edge':'tread','bottom':'tread'}))
+   else:
+    th=SO.TREAD_TIMBER if structure=='timber' else SO.TREAD_STEEL
+    meshes.append(_relabel(_oriented_prism(cx,cy,top-th,w,t+0.03,th,base_angle+fa),{'riser':'tread','edge':'tread','bottom':'tread'}))
+  run=m*t
+  if structure=='cantilever':
+   pass
+  elif structure=='slab':
+   h=SO.SLAB*math.sqrt(1+pitch*pitch)
+   meshes.append(_sloped_plank(world,fa,0.0,run,-w/2,w/2,base,base+run*pitch,h,base,'slab'))
+  else:
+   sw=SO.STRINGER_WIDTH[structure];sd=SO.STRINGER_DEPTH[structure]
+   ys={'center':((-0.05,0.05),),'three':((-w/2,-w/2+sw),(-0.03,0.03),(w/2-sw,w/2)),
+       'none':()}.get(stringers,((-w/2,-w/2+sw),(w/2-sw,w/2)))
+   for y0,y1 in ys:
+    meshes.append(_sloped_plank(world,fa,0.0,run,y0,y1,base+r+0.02,base+run*pitch+0.02,sd,base,'stringer'))
+ if c.layout in ('l','u'):
+  first=max(1,c.tread_count//2);lz=z0+first*r
+  thick={'slab':SO.SLAB,'cantilever':SO.TREAD_CANTILEVER*1.5}.get(structure,(SO.TREAD_TIMBER if structure=='timber' else SO.TREAD_STEEL)+0.10)
+  if c.layout=='l':
+   lx,ly=to_world(first*t+c.landing_depth/2.0,0.0);size=(c.landing_depth,c.landing_depth)
+  else:
+   off=c.turn_direction*(w+0.20);lx,ly=to_world(first*t+c.landing_depth/2.0,off/2.0);size=(abs(off)+w,c.landing_depth)
+  meshes.append(_relabel(_oriented_prism(lx,ly,lz-thick,size[0],size[1],thick,base_angle),{'tread':'landing','riser':'landing','edge':'landing'}))
+ return _combine_meshes(tuple(meshes),1e-8)
+
+def _stair_mesh(p,doc=None):
  from archforge.architecture.stairs import candidate_from_params
+ from archforge.architecture.stair_options import structure as stair_structure
  candidate=candidate_from_params(p)
+ kind=stair_structure(p)
+ if kind!='solid' and candidate.layout!='spiral':return _light_stair_mesh(p,candidate,kind,doc)
  n=candidate.tread_count;t=candidate.tread_depth;r=candidate.riser_height
  width=candidate.width;z0=candidate.lower_z;angle=candidate.angle_deg;turn=candidate.turn_direction
  meshes=[]
@@ -546,7 +615,7 @@ def _payload(doc,node):
  if k in('box','mechanical_part','kitchen_part'):return _box_mesh(p,node.transform)
  if k=='pod':return _pod_mesh_for_node(doc,node)
  if k=='mesh':return _authoritative_mesh(p)
- if k=='stair':return _stair_mesh(p)
+ if k=='stair':return _stair_mesh(p,doc)
  if k=='ramp':return _ramp_mesh(p)
  if k=='arboreal_branch':return _arboreal_branch_mesh(doc,node)
  if k=='organic_junction':return _organic_junction_mesh(doc,node)
@@ -579,10 +648,12 @@ def _payload(doc,node):
   v,t=point_marker_mesh(p);return MeshPayload(tuple(v),tuple(tuple(x) for x in t),tuple('marker' for _ in t))
  if k=='cabinet':
   from archforge.kitchen.cabinets import cabinet_mesh
-  v,t,r=cabinet_mesh(p);return MeshPayload(v,t,r)
+  from .fit_top import apply_top_heights          # a top shaped at will / to the ceiling (any object)
+  v,t,r=cabinet_mesh(p);return MeshPayload(apply_top_heights(p,v),t,r)
  if k=='library_object':
   from archforge.library.objects import library_object_mesh
-  v,t,r=library_object_mesh(p);return MeshPayload(v,t,r)
+  from .fit_top import apply_top_heights
+  v,t,r=library_object_mesh(p);return MeshPayload(apply_top_heights(p,v),t,r)
  if k=='railing':
   from archforge.architecture.railings import railing_mesh
   v,t,r=railing_mesh(p);return MeshPayload(v,t,r)

@@ -177,6 +177,10 @@ class PlanView(QGraphicsView):
         if event.button()==Qt.MouseButton.LeftButton and self._slab_tool():self.finish_slab_opening();event.accept();return
         if event.button()==Qt.MouseButton.LeftButton:
             hit=self.itemAt(event.position().toPoint());eid=self._entity_items.get(hit)
+            if eid and eid in self.doc.entities and self.doc.get(eid).kind=='stair' and getattr(self,'marking_menu_window',None) is not None:
+                # Double click on a stair: its window (sizes, structure, railing, materials).
+                from archforge.ui.stair_dialog import open_stair_dialog
+                self.doc.select([eid]);self.selectionChangedByView.emit();open_stair_dialog(self.marking_menu_window,eid);event.accept();return
             if eid and eid in self.doc.entities:
                 self.doc.select([eid]);self.controller.set_target(eid,None)
                 self.selectionChangedByView.emit();self.redraw();event.accept();return

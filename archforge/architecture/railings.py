@@ -546,3 +546,68 @@ def stair_railings(doc, stair, railing_type='balusters'):
                 continue
             out.append(default_params(railing_type, line, z=z, height=STAIR_HEIGHT))
     return out
+
+
+# --- railings that belong to a stair (owner 14/10: «επιλογή για κάγκελο … να ακολουθεί τη σκάλα») -------
+
+STAIR_RAILING_CHOICES = {'none': 'Κανένα', 'auto': 'Αυτόματα (ελεύθερες πλευρές)', 'left': 'Αριστερά',
+                         'right': 'Δεξιά', 'both': 'Και τα δύο'}
+STAIR_FLIGHTS = 2              # straight = 1, L / U = 2: a child per side and flight, hidden when unused
+
+
+def _choice_sides(choice):
+    return {'none': (), 'left': ('left',), 'right': ('right',)}.get(choice, ('left', 'right'))
+
+
+def _stair_child_state(doc, stair, side, flight):
+    """``(params points/z or None, visible)`` of the railing on ``side`` of ``flight`` of ``stair``."""
+    p = stair.params
+    try:
+        lines = stair_railing_lines(p, side)
+    except ValueError:                        # spiral: not supported yet
+        return None, False
+    if flight >= len(lines):
+        return None, False
+    line = lines[flight]
+    visible = not (p.get('railing') == 'auto' and _along_wall(doc, line, float(p['lower_z'])))
+    return line, visible
+
+
+def stair_railing_entities(doc, stair, choice, railing_type='balusters'):
+    """New child railings of ``stair`` for ``choice`` (they follow it: ``sync_stair_railings``)."""
+    from archforge.core.model import Entity
+    out = []
+    for side in _choice_sides(choice):
+        for flight in range(STAIR_FLIGHTS):
+            line, visible = _stair_child_state(doc, type(stair)(stair.kind, dict(stair.params, railing=choice), id=stair.id), side, flight)
+            if line is None:                  # keep a valid placeholder (first flight) while hidden
+                try:
+                    line = stair_railing_lines(stair.params, side)[0]
+                except ValueError:
+                    continue
+            p = default_params(railing_type, line, z=float(stair.params['lower_z']),
+                               height=float(stair.params.get('railing_height', STAIR_HEIGHT)),
+                               stair_side=side, stair_flight=flight)
+            e = Entity('railing', p, name=f"{TYPES[railing_type]['label']} σκάλας", parent_id=stair.id)
+            e.visible = visible
+            out.append(e)
+    return out
+
+
+def sync_stair_railings(doc, stair_id):
+    """Move the stair's railings with it (called by ``Document.update`` for a stair, undo included)."""
+    from archforge.core.model import validate_params
+    stair = doc.entities.get(stair_id)
+    if stair is None:
+        return
+    for cid in list(doc.children.get(stair_id, ())):
+        child = doc.entities.get(cid)
+        if child is None or child.kind != 'railing' or 'stair_side' not in child.params:
+            continue
+        line, visible = _stair_child_state(doc, stair, child.params['stair_side'], int(child.params.get('stair_flight', 0)))
+        if line is not None:
+            child.params = validate_params('railing', dict(child.params, points=line, z=float(stair.params['lower_z']),
+                                                           height=float(stair.params.get('railing_height', child.params['height']))))
+        child.visible = bool(visible)
+        child.revision += 1
+        doc.mark_dirty(cid)

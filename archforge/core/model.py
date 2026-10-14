@@ -710,7 +710,7 @@ SCHEMAS = {
                           'airflow': _nonnegative},
     'cabinet': {
         'x': _finite, 'y': _finite, 'z': _finite, 'rotation': _finite,
-        'width': _positive, 'depth': _positive, 'height': _positive, 'plinth': _nonnegative,
+        'width': _positive, 'depth': _positive, 'height': _positive, 'plinth': _nonnegative, 'height_end': _positive,
         'cabinet_type': _cabinet_type, 'doors': _count, 'drawers': _count, 'shelves': _count,
         'worktop': _unit_interval, 'handle': _cabinet_handle,
         'front_style': _cabinet_front_style, 'mechanism': _cabinet_mechanism, 'blind_side': _cabinet_blind_side,
@@ -1134,6 +1134,9 @@ class Document:
         if entity.locked:
             raise PermissionError('entity is locked')
         params = entity.params.copy()
+        if entity.kind == 'railing' and 'stair_side' in params and entity.parent_id in self.entities:
+            # A stair's railing follows the stair (sync_stair_railings): its line is not moved on its own.
+            changes = {k: v for k, v in changes.items() if k not in ('points', 'z')}
         params.update(changes)
         params = validate_params(entity.kind, params)
         candidate = entity.clone()
@@ -1190,6 +1193,9 @@ class Document:
             if entity.kind in ('arboreal_branch', 'box') and (arboreal_snapshots or entity.kind == 'arboreal_branch'):
                 from archforge.organic.arboreal import sync_arboreal_mounted_pods
                 sync_arboreal_mounted_pods(self, eid)
+            if entity.kind == 'stair' and self.children.get(eid):
+                from archforge.architecture.railings import sync_stair_railings
+                sync_stair_railings(self, eid)
         except Exception:
             entity.params = old_params
             entity.revision = old_revision
