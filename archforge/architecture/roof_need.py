@@ -25,14 +25,21 @@ def _storeys(doc):
 
 
 def coverage(doc, polygon, base_z, cell=0.10):
-    """Fraction (0..1) of ``polygon`` lying under the rooms of the storey above ``base_z``."""
+    """Fraction (0..1) of ``polygon`` lying under the rooms of any storey above ``base_z``.
+
+    Every storey above counts, not only the next one: in a split-level house (owner:
+    Υπόγειο −2,70, Ισόγειο ±0,00, ημιόροφος +1,40) the basement lies under the half
+    level, beside the ground floor — its ceiling is a slab, not a roof.
+    """
     above = [z for z in _storeys(doc) if z > base_z + 0.5]
     if not above:
         return 0.0
-    try:
-        upper = [[(float(p[0]), float(p[1])) for p in f.polygon] for f in doc.active_room_faces(z=above[0])]
-    except Exception:
-        upper = []
+    upper = []
+    for z in above:
+        try:
+            upper += [[(float(p[0]), float(p[1])) for p in f.polygon] for f in doc.active_room_faces(z=z)]
+        except Exception:
+            pass
     if not upper:
         return 0.0
     poly = [(float(p[0]), float(p[1])) for p in polygon]

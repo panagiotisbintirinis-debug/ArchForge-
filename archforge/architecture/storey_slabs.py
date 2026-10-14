@@ -363,6 +363,43 @@ def storey_slab_command(doc, kind, level_z, level_name='', thickness=None):
                             'Πλάκα ορόφου'), entity
 
 
+def missing_storey_slabs(doc):
+    """``[(kind, level_z, level_name)]``: storeys whose rooms have no floor slab / no slab over them.
+
+    Every storey with closed rooms gets a floor plate and a plate over it (the
+    slab under a terrace and under the storey above alike) — on any level, so a
+    basement or a split level (ημιόροφος) is not left without them; only a
+    tiled roof replaces the plate over the rooms it covers.
+    """
+    storeys = sorted({round(float(e.params.get('z', 0.0)), 4) for e in doc.entities.values()
+                      if e.kind == 'wall' and e.visible})
+    names = {round(float(v), 4): str(n) for n, v in doc.levels.items()}
+    out = []
+    for z in storeys:
+        for kind in ('room_floor', 'room_roof'):
+            if any(e.kind == kind and e.params.get('scope') == 'storey' and abs(float(e.params['level_z']) - z) < 1e-4
+                   for e in doc.entities.values()):
+                continue
+            try:
+                faces = storey_faces(doc, kind, z)
+            except Exception:
+                faces = []
+            if faces:
+                out.append((kind, z, names.get(z, '')))
+    return out
+
+
+def missing_storey_slabs_command(doc):
+    """One undo: every missing storey slab (``missing_storey_slabs``); None when nothing is missing."""
+    from archforge.core.commands import CompositeCommand
+    commands = []
+    for kind, z, name in missing_storey_slabs(doc):
+        command, _entity = storey_slab_command(doc, kind, z, name)
+        commands.append(command)
+    commands = [c for c in commands if c is not None]
+    return CompositeCommand(commands, 'Πλάκες ορόφων') if commands else None
+
+
 def opening_entity(doc, points=None, room_id=None, use='void', cuts=None, level_z=None):
     from archforge.core.model import Entity
     level_z = float(doc.work_plane.origin[2]) if level_z is None else float(level_z)

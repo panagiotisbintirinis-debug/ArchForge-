@@ -230,6 +230,18 @@ def _roofs(doc):
                                 "Π.χ. ισόγεια προέκταση έξω από τον πάνω όροφο. «Εφαρμογή» = επίπεδη στέγη (δώμα) εκεί· "
                                 "για κεραμοσκεπή: Κατασκευή → Στέγη → Με κεραμίδια.", "Κανόνας στέγης: κάθε ακάλυπτος χώρος στεγάζεται",
                                 tuple(missing), lambda _doc, m=tuple(missing): CreateRoomRoofs(list(m), thickness=.20, roof_type="flat")))
+    # S-1: a storey (basement, split level …) without its floor slab or the slab over it.
+    if any(e.kind in ("room_floor", "room_roof", "pitched_roof") for e in doc.entities.values()):
+        from archforge.architecture.storey_slabs import missing_storey_slabs, missing_storey_slabs_command
+        from archforge.output.pdf import level_name
+        missing = missing_storey_slabs(doc)
+        if missing:
+            what = {"room_floor": "δάπεδο", "room_roof": "πλάκα οροφής"}
+            listed = " · ".join(f"{level_name(n) if n else f'{z:+.2f} m'}: {what[k]}" for k, z, n in missing)
+            out.append(Proposal("S-1", "warning", f"Όροφοι χωρίς πλάκα: {len(missing)}",
+                                f"{listed}. Κάθε όροφος (και υπόγειο, ημιόροφος) έχει πλάκα δαπέδου και πλάκα από πάνω· "
+                                "μόνο η κεραμοσκεπή την αντικαθιστά. «Εφαρμογή» = πλάκες που ακολουθούν τους χώρους (ένα undo).",
+                                "Κανόνας πλακών ορόφου", (), lambda _doc: missing_storey_slabs_command(_doc)))
     # S-0: per-room slabs whose room is gone (walls moved/removed): nothing shows them, they only confuse.
     orphans = tuple(e.id for e in doc.entities.values()
                     if e.kind in ("room_floor", "room_roof", "room_ceiling", "room_foundation")
