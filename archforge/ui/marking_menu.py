@@ -149,7 +149,7 @@ def build_menu(window, view, entity_id=None):
     entries = [_e(f"mm:tool:{last}", f"↻ {dict(TOOLS).get(last, last)}") if last else _e("mm:tool:select", "Επιλογή")]
     entries += [_e(f"mm:tool:{key}", label) for key, label in BUILD_TOOLS if key != last]
     entries += [_e("mm:menu:stair", "Σκάλα ▸"), _e("mm:menu:kitchen", "Κουζίνα ▸"), _e("mm:menu:structure", "Δομικά ▸")]
-    entries.append(_e("mm:sculpt:on", "Sculpt", "panel"))
+    entries.append(_e("mm:sculpt:on", "Γλυπτική", "panel"))
     if view == "plan":
         entries.append(_e("mm:assist:point", "📍 Βοηθός εδώ", "panel"))
         entries.append(_e("mm:layout:kitchen", "Κουζίνα εδώ…", "panel"))
