@@ -201,30 +201,50 @@ const GRAIN_SPECS = {
       normalScale: 0,
     };
   }},
-  soil: {size: 6.0, full: true, build(W) {
-    // Dry Mediterranean ground: ochre soil, straw grass, olive-green tufts, pebbles.
-    const patch = lookFbm(W, W, 3, 3, 5, 81), tuft = lookFbm(W, W, 12, 12, 4, 82);
-    const blade = lookNoise(W, W, 384, 96, 83), grit = lookNoise(W, W, 256, 256, 84);
-    const stone = lookNoise(W, W, 40, 40, 85);
+  soil: {size: 4.0, full: true, build(W) {
+    // Bare dry Mediterranean soil, fine detail only: ochre earth, clods, grit
+    // and a few small pebbles.  The large patches (soil / dry grass) come
+    // from a world-space mask in the shader, so nothing repeats every tile.
+    const clod = lookFbm(W, W, 24, 24, 4, 81), grit = lookNoise(W, W, 256, 256, 84);
+    const fine = lookNoise(W, W, 96, 96, 82), stone = lookNoise(W, W, 72, 72, 85);
     const h = new Float32Array(W * W), col = new Array(W * W);
-    const soil = [150, 124, 88], straw = [168, 150, 96], olive = [104, 112, 66], pebble = [176, 168, 152];
+    const soil = [146, 124, 94], pale = [178, 162, 132], pebble = [184, 176, 160];
     for (let i = 0; i < h.length; i++) {
-      const grass = Math.min(1, Math.max(0, (patch[i] - 0.38) * 3.2 + (tuft[i] - 0.5) * 1.4));
-      const green = Math.min(1, Math.max(0, (tuft[i] - 0.56) * 4.0)) * grass;
-      const isStone = stone[i] > 0.83 ? Math.min(1, (stone[i] - 0.83) * 14) : 0;
-      let c = [0, 1, 2].map((k) => soil[k] + (straw[k] - soil[k]) * grass);
-      c = c.map((v, k) => v + (olive[k] - v) * green);
-      const shade = 0.82 + 0.25 * blade[i] * (0.4 + grass) + 0.10 * grit[i] - 0.12 * (1 - grass) * (1 - patch[i]);
-      c = c.map((v) => v * shade);
-      c = c.map((v, k) => v + (pebble[k] * (0.9 + 0.2 * grit[i]) - v) * isStone);
+      const isStone = stone[i] > 0.90 ? Math.min(1, (stone[i] - 0.90) * 22) : 0;
+      const t = Math.max(0, Math.min(1, (clod[i] - 0.35) * 1.6));
+      let c = [0, 1, 2].map((k) => soil[k] + (pale[k] - soil[k]) * t);
+      const shade = 0.86 + 0.16 * fine[i] + 0.12 * grit[i];
+      c = c.map((v, k) => v * shade + (pebble[k] * (0.9 + 0.2 * grit[i]) - v * shade) * isStone);
       col[i] = c;
-      h[i] = 0.35 * grit[i] + 0.55 * blade[i] * grass + 0.8 * isStone;
+      h[i] = 0.45 * grit[i] + 0.35 * clod[i] + 0.25 * fine[i] + 0.6 * isStone;
     }
     return {
       map: lookCanvas(W, W, (i) => col[i].map(lookClamp)),
       normal: lookNormalCanvas(h, W, W, 3.0),
       rough: lookCanvas(W, W, () => [255, 255, 255]),
       normalScale: 1.0,
+    };
+  }},
+  dry_grass: {size: 3.0, full: true, build(W) {
+    // Straw-coloured grass with olive-green tufts; blended over the soil.
+    const tuft = lookFbm(W, W, 16, 16, 4, 86), blade = lookNoise(W, W, 384, 96, 83);
+    const blade2 = lookNoise(W, W, 96, 384, 87), grit = lookNoise(W, W, 256, 256, 88);
+    const straw = [166, 150, 108], olive = [104, 112, 84], earth = [140, 116, 86];
+    const h = new Float32Array(W * W), col = new Array(W * W);
+    for (let i = 0; i < h.length; i++) {
+      const b = 0.5 * blade[i] + 0.5 * blade2[i];
+      const green = Math.min(1, Math.max(0, (tuft[i] - 0.55) * 3.5));
+      const gap = Math.min(1, Math.max(0, (0.42 - b) * 4.0));   // soil between blades
+      let c = [0, 1, 2].map((k) => straw[k] + (olive[k] - straw[k]) * green);
+      c = c.map((v, k) => (v + (earth[k] - v) * gap) * (0.80 + 0.35 * b + 0.06 * grit[i]));
+      col[i] = c;
+      h[i] = b;
+    }
+    return {
+      map: lookCanvas(W, W, (i) => col[i].map(lookClamp)),
+      normal: lookNormalCanvas(h, W, W, 2.5),
+      rough: lookCanvas(W, W, () => [255, 255, 255]),
+      normalScale: 0.8,
     };
   }},
   grass: {size: 4.0, full: true, build(W) {
@@ -250,7 +270,7 @@ function grainTexturesFor(name) {
   if (grainTextures.has(name)) return grainTextures.get(name);
   const spec = GRAIN_SPECS[name];
   if (!spec) return null;
-  const W = name === "roof_tile" || name === "soil" ? 1024 : 512;
+  const W = name === "roof_tile" || name === "soil" || name === "dry_grass" ? 1024 : 512;
   const maps = spec.build(W);
   const aniso = renderer.capabilities.getMaxAnisotropy();
   const make = (canvas, srgb) => {
@@ -285,7 +305,7 @@ float lookFbm2(vec2 p) {
   return s / 0.9375;
 }`;
 
-function lookMacroVariation(material, amount, scale, ground) {
+function lookMacroVariation(material, amount, scale, ground, blend = null) {
   material.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader
       .replace("#include <common>", "#include <common>\nvarying vec3 vLookWorld;")
@@ -297,11 +317,31 @@ function lookMacroVariation(material, amount, scale, ground) {
       body += "#ifdef USE_MAP\nvec3 lookCoarse = texture2D(map, vMapUv * 0.137 + 0.31).rgb;\n" +
         "diffuseColor.rgb = mix(diffuseColor.rgb, lookCoarse * 1.05, 0.30 * lookFbm2(vLookWorld.xy * 0.011));\n#endif\n";
     }
+    if (blend) {
+      // Soil: two samples of each map (scale + rotation picked by a world
+      // noise) so the tile never repeats; dry grass over the soil in
+      // patches from a world-space mask (metres, not tiles).
+      shader.uniforms.lookGrassMap = {value: blend.map};
+      body = `
+        vec2 lw = vLookWorld.xy;
+        mat2 lr = mat2(0.8, -0.6, 0.6, 0.8);
+        float lsel = smoothstep(0.35, 0.65, lookFbm2(lw * 0.06 + 5.3));
+        vec3 ls = mix(texture2D(map, lw / ${blend.soilSize.toFixed(2)}).rgb,
+                      texture2D(map, lr * lw / ${(blend.soilSize * 1.37).toFixed(2)} + 0.41).rgb, lsel);
+        vec3 lg = mix(texture2D(lookGrassMap, lw / ${blend.grassSize.toFixed(2)}).rgb,
+                      texture2D(lookGrassMap, lr * lw / ${(blend.grassSize * 1.29).toFixed(2)} + 0.17).rgb, lsel);
+        float lmask = lookFbm2(lw * 0.045) + 0.30 * (lookFbm2(lw * 0.35 + 9.1) - 0.5);
+        lmask = smoothstep(0.38, 0.54, lmask);
+        diffuseColor.rgb = mix(ls, lg, lmask);
+      ` + body;
+    }
     shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vLookWorld;\n" + LOOK_NOISE_GLSL)
+      .replace("#include <common>", "#include <common>\nvarying vec3 vLookWorld;\n" +
+               (blend ? "uniform sampler2D lookGrassMap;\n" : "") + LOOK_NOISE_GLSL)
       .replace("#include <map_fragment>", "#include <map_fragment>\n" + body);
   };
-  material.customProgramCacheKey = () => "look-macro-" + amount + "-" + scale + "-" + (ground ? 1 : 0);
+  material.customProgramCacheKey = () => "look-macro-" + amount + "-" + scale + "-" + (ground ? 1 : 0) + (blend ? "-blend-" + material.uuid : "");
+  // (A shared program would skip onBeforeCompile and leave lookGrassMap unbound.)
 }
 
 const GRAIN_MACRO = {plaster: [0.06, 0.25], concrete: [0.12, 0.30], wood: [0.08, 0.6],
@@ -319,7 +359,11 @@ function lookApplyGrain(material, grain) {
   }
   if (tex.rough) material.roughnessMap = tex.rough;
   const macro = GRAIN_MACRO[grain];
-  if (macro) lookMacroVariation(material, macro[0], macro[1], grain === "soil" || grain === "grass");
+  if (grain === "soil") {
+    const grass = grainTexturesFor("dry_grass");
+    const blend = {map: grass.map, soilSize: GRAIN_SPECS.soil.size, grassSize: GRAIN_SPECS.dry_grass.size};
+    lookMacroVariation(material, macro[0], macro[1], false, blend);
+  } else if (macro) lookMacroVariation(material, macro[0], macro[1], grain === "grass");
   material.userData.grain = grain;
   return true;
 }

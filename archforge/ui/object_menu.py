@@ -102,5 +102,5 @@ def set_open_joinery(window, on):
     if pbr is not None:
         if getattr(pbr, '_evaluation_cache', None) is not None:
             pbr._evaluation_cache.clear()
-        pbr.redraw(force_full=True)
+        pbr.redraw(force_full=False)    # keep the camera where the human left it
     window.statusBar().showMessage('Κουφώματα στο 3D: ' + ('ανοιχτά' if on else 'κλειστά'), 3000)

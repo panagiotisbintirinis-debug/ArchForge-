@@ -1117,6 +1117,9 @@ function fitCamera() {
 
 // The sun's shadow frustum hugs the model so shadows stay crisp for a small
 // house and still cover a large site.
+// Shadow frustum: the building (not the terrain) plus where its shadow falls
+// on the ground along the sun, so a low sun still draws the long shadow.
+// Fitted in light space (asymmetric), shadow length capped at 60 m.
 function fitSunShadow() {
   const box = new THREE.Box3();
   modelRoot.children.forEach((mesh) => {
@@ -1128,14 +1131,67 @@ function fitSunShadow() {
   const dir = sunState && activeTechnique === "pbr"
     ? sunVector(Math.max(2.0, sunState.elevation), sunState.azimuth)
     : new THREE.Vector3(9, -11, 15).normalize();
-  key.position.copy(center).addScaledVector(dir, radius * 2.5);
+  const gz = Math.min(ground.position.z, box.min.z);
+  const points = [];
+  for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
+    const p = new THREE.Vector3(x, y, z);
+    points.push(p);
+    const t = Math.min((z - gz) / Math.max(dir.z, 1e-3), 60.0);
+    points.push(p.clone().addScaledVector(dir, -t));
+  }
+  const reach = radius * 2.5 + 60.0;
+  key.position.copy(center).addScaledVector(dir, reach);
   key.target.position.copy(center);
   key.target.updateMatrixWorld();
+  // Same orientation three.js gives the shadow camera (lookAt with its own up).
+  const view = new THREE.Matrix4().lookAt(key.position, center, key.shadow.camera.up);
+  view.setPosition(key.position);
+  view.invert();
+  const lo = new THREE.Vector3(Infinity, Infinity, Infinity), hi = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
+  for (const p of points) { p.applyMatrix4(view); lo.min(p); hi.max(p); }
+  const pad = 0.5;
   const cam = key.shadow.camera;
-  cam.left = -radius; cam.right = radius; cam.top = radius; cam.bottom = -radius;
-  cam.near = 0.1; cam.far = radius * 5.0;
+  cam.left = lo.x - pad; cam.right = hi.x + pad; cam.bottom = lo.y - pad; cam.top = hi.y + pad;
+  cam.near = Math.max(0.1, -hi.z - pad); cam.far = -lo.z + pad;
   cam.updateProjectionMatrix();
   key.shadow.needsUpdate = true;
+}
+
+// A terrain solid shares its rim vertices between the top and the sides, so
+// averaged normals tilt the outer row of the top and draw a light/dark line
+// along the edge.  Smooth normals from the top triangles only; sides and
+// bottom stay flat.  Keeps triangle order (faceIndex -> surface role).
+function terrainNormals(geometry, roles) {
+  const index = geometry.index.array, pos = geometry.attributes.position;
+  const top = [];
+  for (let f = 0; f < roles.length; f++) if (roles[f] === "top") top.push(index[3 * f], index[3 * f + 1], index[3 * f + 2]);
+  const smooth = new THREE.BufferGeometry();
+  smooth.setAttribute("position", pos);
+  smooth.setIndex(top);
+  smooth.computeVertexNormals();
+  const sn = smooth.attributes.normal;
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
+  const flat = geometry.toNonIndexed();
+  const fn = flat.attributes.normal;
+  for (let f = 0; f < roles.length; f++) {
+    const i0 = index[3 * f], i1 = index[3 * f + 1], i2 = index[3 * f + 2];
+    if (roles[f] === "top") {
+      for (let k = 0; k < 3; k++) {
+        const v = index[3 * f + k];
+        fn.setXYZ(3 * f + k, sn.getX(v), sn.getY(v), sn.getZ(v));
+      }
+    } else {
+      a.fromBufferAttribute(pos, i0); b.fromBufferAttribute(pos, i1); c.fromBufferAttribute(pos, i2);
+      n.subVectors(c, b).cross(a.sub(b)).normalize();
+      for (let k = 0; k < 3; k++) fn.setXYZ(3 * f + k, n.x, n.y, n.z);
+    }
+  }
+  smooth.dispose();
+  // Swap the attributes in place so callers keep the same geometry object.
+  geometry.setIndex(null);
+  geometry.setAttribute("position", flat.attributes.position);
+  geometry.setAttribute("normal", fn);
+  flat.dispose();
 }
 
 window.archforgeSetScene = function(payload, fit = true) {
@@ -1151,6 +1207,7 @@ window.archforgeSetScene = function(payload, fit = true) {
     geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
     geometry.setIndex(indices);
     geometry.computeVertexNormals();
+    if (item.kind === "terrain" && item.surfaces) terrainNormals(geometry, item.surfaces);
     const spec = item.material || {};
     const geom = ((spec.pattern_key && patternGeo[spec.pattern_key]) || spec.grain) ? withMetricUVs(geometry) : geometry;
     geom.computeBoundingSphere();
@@ -2251,7 +2308,7 @@ class PBRViewport(QWidget):
             x, y = (hit.get("hx", hit["x"]), hit.get("hy", hit["y"])) if carry.kind == "material" and target else (hit["x"], hit["y"])
             carry.drop(x, y, target)
             self._evaluation_cache.clear()
-            self.redraw(force_full=True)
+            self.redraw(force_full=False)   # an edit keeps the human's camera
         self._drop_pick(pos, place)
 
     def _on_load_finished(self, ok: bool) -> None:
@@ -2793,7 +2850,7 @@ class PBRViewport(QWidget):
             if abs(tx.dx) > 1e-12 or abs(tx.dy) > 1e-12:
                 tx.commit()
                 self._evaluation_cache.clear()
-                self.redraw(force_full=True)
+                self.redraw(force_full=False)   # an edit keeps the human's camera
                 self.selectionChangedByView.emit()
                 self.statusChanged.emit(
                     f"Moved object ΔX {tx.dx:.3f} m · ΔY {tx.dy:.3f} m — Undo is available"
@@ -2880,7 +2937,7 @@ class PBRViewport(QWidget):
             if abs(float(tx.angle)) > 1e-12:
                 tx.commit()
                 self._evaluation_cache.clear()
-                self.redraw(force_full=True)
+                self.redraw(force_full=False)   # an edit keeps the human's camera
                 self.selectionChangedByView.emit()
                 self.statusChanged.emit(
                     f"Rotated object {tx.angle:.1f}° — Undo is available"

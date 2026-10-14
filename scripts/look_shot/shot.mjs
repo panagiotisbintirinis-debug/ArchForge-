@@ -10,11 +10,14 @@ if (process.env.NOAO) await page.addInitScript(() => { window.__noAO = true; });
 await page.setContent(fs.readFileSync(page_html, 'utf8'));
 await page.waitForFunction(() => !!window.archforgeSetScene, null, { timeout: 60000 });
 const payload = JSON.parse(fs.readFileSync(scene, 'utf8'));
-await page.evaluate(([p, e, a, pr]) => {
+// VIEW="x1,y1,x2,y2[,pitch]": eye-level camera at (x1, y1) looking towards (x2, y2).
+const view = process.env.VIEW ? process.env.VIEW.split(',').map(Number) : null;
+await page.evaluate(([p, e, a, pr, v]) => {
   window.archforgeSetScene(p, true);
   window.setSun(Number(e), Number(a));
   window.setCameraPreset(pr || 'orbit'); if (window.__noAO) window.setAmbientOcclusion(false);
-}, [payload, elev, azi, preset]);
+  if (v) window.setViewLine({kind: 'camera', x1: v[0], y1: v[1], x2: v[2], y2: v[3], pitch: v[4] || 0, z: 0});
+}, [payload, elev, azi, preset, view]);
 await page.waitForTimeout(4000);
 await page.screenshot({ path: out });
 await browser.close();
