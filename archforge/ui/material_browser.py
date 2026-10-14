@@ -18,10 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from archforge.core.commands import UpdateEntity
-from archforge.rendering.materials import (
-    MATERIAL_PRESETS,
-    material_categories,
-)
+from archforge.rendering.materials import MATERIAL_PRESETS, material_categories
 
 
 _SUPPORTED_KINDS = {
@@ -30,17 +27,45 @@ _SUPPORTED_KINDS = {
     'structural_column', 'structural_beam', 'mechanical_part', 'mesh',
 }
 
+# Semantic surface roles already emitted by ArchForge geometry. These are not
+# screen-space faces: they remain stable design roles when the camera changes.
+_SURFACE_ROLES = {
+    'wall': ('exterior', 'interior'),
+    'floor': ('top', 'bottom', 'edge'),
+    'room_floor': ('top', 'bottom', 'edge'),
+    'room_roof': ('top', 'bottom', 'edge'),
+    'room_ceiling': ('top', 'bottom', 'edge'),
+    'room_foundation': ('top', 'bottom', 'edge'),
+    'box': ('front', 'right', 'back', 'left', 'top', 'bottom'),
+    'structural_column': ('side_a', 'side_b', 'side_c', 'side_d', 'top', 'bottom'),
+    'structural_beam': ('side_a', 'end', 'side_b', 'start', 'top', 'bottom'),
+    'pod': ('pod_shell',),
+}
+
+
+def _surface_roles(entity):
+    if entity.kind == 'mesh':
+        faces = entity.params.get('faces') or ()
+        return tuple(f'mesh_face:{index}' for index in range(len(faces)))
+    return tuple(_SURFACE_ROLES.get(entity.kind, ()))
+
+
+def _material_label(material_id: str | None) -> str:
+    spec = MATERIAL_PRESETS.get(str(material_id or ''))
+    return str(spec['name']) if spec else 'Default by object type'
+
 
 def _current_material_id(entity, target_mode: str = 'object') -> str:
-    if entity.kind == 'wall' and target_mode in {'exterior', 'interior', 'both'}:
-        surface_map = entity.params.get('surface_materials') or {}
-        if target_mode == 'both':
-            a = surface_map.get('exterior')
-            b = surface_map.get('interior')
-            if a and a == b:
-                return str(a)
-            return str(entity.params.get('material_id', '') or '')
-        return str(surface_map.get(target_mode) or entity.params.get('material_id', '') or '')
+    surface_map = entity.params.get('surface_materials') or {}
+    if target_mode == 'both' and entity.kind == 'wall':
+        a = surface_map.get('exterior')
+        b = surface_map.get('interior')
+        if a and a == b:
+            return str(a)
+        return str(entity.params.get('material_id', '') or '')
+    if target_mode.startswith('surface:'):
+        role = target_mode.split(':', 1)[1]
+        return str(surface_map.get(role) or entity.params.get('material_id', '') or '')
     return str(entity.params.get('material_id', '') or '')
 
 
@@ -49,18 +74,25 @@ def _apply_material(main_window, entity_id: str, material_id: str, target_mode: 
     changes = {}
     target_label = entity.kind.title()
 
-    if entity.kind == 'wall' and target_mode in {'exterior', 'interior', 'both'}:
+    if target_mode == 'both' and entity.kind == 'wall':
         surface_map = dict(entity.params.get('surface_materials') or {})
-        if target_mode == 'both':
-            surface_map['exterior'] = material_id
-            surface_map['interior'] = material_id
-            target_label = 'both wall sides'
-        else:
-            surface_map[target_mode] = material_id
-            target_label = 'Side A' if target_mode == 'exterior' else 'Side B'
+        surface_map['exterior'] = material_id
+        surface_map['interior'] = material_id
         changes['surface_materials'] = surface_map
+        target_label = 'both wall sides'
+    elif target_mode.startswith('surface:'):
+        role = target_mode.split(':', 1)[1]
+        surface_map = dict(entity.params.get('surface_materials') or {})
+        surface_map[role] = material_id
+        changes['surface_materials'] = surface_map
+        target_label = role.replace('_', ' ')
     else:
+        # "Entire object" is intentionally decisive: remove old face overrides
+        # so the newly chosen finish really appears on every surface.
         changes['material_id'] = material_id
+        if entity.params.get('surface_materials'):
+            changes['surface_materials'] = {}
+        target_label = 'entire object'
 
     main_window.stack.execute(UpdateEntity(entity_id, changes))
     main_window.doc.select([entity_id])
@@ -74,16 +106,7 @@ def _apply_material(main_window, entity_id: str, material_id: str, target_mode: 
 
 
 class MaterialBrowserDialog(QDialog):
-    """ArchForge material browser linked to the authoritative selected entity.
-
-    The dialog deliberately separates two jobs:
-    1. object properties tell the user what is currently assigned;
-    2. this browser is the larger visual workspace used to explore and apply.
-
-    Presets are still texture-free today, so the preview is an honest material
-    swatch rather than a fake bitmap. The layout is ready for texture thumbnails
-    and a real interactive 3D preview when maps are added to the material catalog.
-    """
+    """Visual material workspace linked to the authoritative selected entity."""
 
     def __init__(self, main_window, entity_id: str):
         super().__init__(main_window)
@@ -92,7 +115,7 @@ class MaterialBrowserDialog(QDialog):
         self.entity = main_window.doc.get(self.entity_id)
         self.selected_material_id = ''
         self.setWindowTitle('ArchForge — Material Browser')
-        self.resize(980, 640)
+        self.resize(1040, 680)
         self.setModal(True)
         self.setStyleSheet(
             "QDialog{background:#111821;color:#e9eef5;}"
@@ -120,7 +143,6 @@ class MaterialBrowserDialog(QDialog):
         body = QHBoxLayout()
         root.addLayout(body, 1)
 
-        # Left: category + search. This is navigation, not object properties.
         nav = QFrame()
         nav.setObjectName('panel')
         nav.setMinimumWidth(190)
@@ -133,7 +155,6 @@ class MaterialBrowserDialog(QDialog):
         nav_l.addWidget(self.category, 1)
         body.addWidget(nav)
 
-        # Center: browse and choose.
         center = QFrame()
         center.setObjectName('panel')
         center_l = QVBoxLayout(center)
@@ -141,19 +162,17 @@ class MaterialBrowserDialog(QDialog):
         self.search.setPlaceholderText('Search materials…')
         center_l.addWidget(self.search)
         self.materials = QListWidget()
-        self.materials.setSpacing(4)
+        self.materials.setSpacing(5)
         center_l.addWidget(self.materials, 1)
         body.addWidget(center, 2)
 
-        # Right: current/preview/application target. This mirrors the selected
-        # object's material property without duplicating unrelated properties.
         detail = QFrame()
         detail.setObjectName('panel')
-        detail.setMinimumWidth(310)
+        detail.setMinimumWidth(330)
         detail_l = QVBoxLayout(detail)
         detail_l.addWidget(QLabel('MATERIAL PREVIEW'))
         self.preview = QFrame()
-        self.preview.setMinimumHeight(210)
+        self.preview.setMinimumHeight(220)
         self.preview.setFrameShape(QFrame.Shape.StyledPanel)
         detail_l.addWidget(self.preview)
         self.preview_name = QLabel('Select a material')
@@ -167,17 +186,21 @@ class MaterialBrowserDialog(QDialog):
         detail_l.addSpacing(10)
         detail_l.addWidget(QLabel('Apply to'))
         self.target = QComboBox()
+        self.target.addItem('Entire object', 'object')
         if self.entity.kind == 'wall':
             self.target.addItem('Both wall sides', 'both')
-            self.target.addItem('Side A / Exterior', 'exterior')
-            self.target.addItem('Side B / Interior', 'interior')
-        else:
-            self.target.addItem('Selected object', 'object')
+        for role in _surface_roles(self.entity):
+            label = role.replace('_', ' ').replace('mesh face:', 'Face ')
+            self.target.addItem(label.title(), f'surface:{role}')
         detail_l.addWidget(self.target)
 
         self.current = QLabel('Current: —')
         self.current.setWordWrap(True)
         detail_l.addWidget(self.current)
+        self.override_hint = QLabel('')
+        self.override_hint.setObjectName('muted')
+        self.override_hint.setWordWrap(True)
+        detail_l.addWidget(self.override_hint)
         detail_l.addStretch(1)
 
         self.apply_button = QPushButton('Apply Material')
@@ -218,7 +241,6 @@ class MaterialBrowserDialog(QDialog):
             item = QListWidgetItem(f"{spec['name']}\n{spec['category']}")
             item.setData(Qt.ItemDataRole.UserRole, material_id)
             item.setBackground(QColor(str(spec['color'])))
-            # Readable foreground over both light and dark swatches.
             color = QColor(str(spec['color']))
             luminance = (color.red() * 299 + color.green() * 587 + color.blue() * 114) / 1000
             item.setForeground(QColor('#111820' if luminance > 160 else '#f4f7fa'))
@@ -249,10 +271,14 @@ class MaterialBrowserDialog(QDialog):
     def _refresh_current(self, *_args):
         mode = str(self.target.currentData() or 'object')
         current_id = _current_material_id(self.entity, mode)
-        spec = MATERIAL_PRESETS.get(current_id)
-        self.current.setText(
-            f"Current: {spec['name']}" if spec else 'Current: Default by object type'
-        )
+        self.current.setText(f"Current: {_material_label(current_id)}")
+        overrides = self.entity.params.get('surface_materials') or {}
+        if overrides:
+            self.override_hint.setText(
+                f"{len(overrides)} surface override(s) active. Applying to Entire object clears them."
+            )
+        else:
+            self.override_hint.setText('No surface overrides active.')
 
     def _apply(self):
         if not self.selected_material_id:
@@ -261,6 +287,43 @@ class MaterialBrowserDialog(QDialog):
         _apply_material(self.main_window, self.entity_id, self.selected_material_id, mode)
         self.entity = self.main_window.doc.get(self.entity_id)
         self._refresh_current()
+
+
+def _material_property_widget(main_window, entity):
+    panel = QFrame()
+    panel.setStyleSheet(
+        "QFrame{background:#18222d;border:1px solid #304151;border-radius:7px;}"
+        "QLabel{border:0;background:transparent;}"
+    )
+    layout = QHBoxLayout(panel)
+    layout.setContentsMargins(8, 7, 8, 7)
+
+    current_id = str(entity.params.get('material_id', '') or '')
+    spec = MATERIAL_PRESETS.get(current_id)
+    swatch = QLabel()
+    swatch.setFixedSize(34, 34)
+    swatch.setStyleSheet(
+        f"background:{spec['color'] if spec else '#7d8791'};border:1px solid #566574;border-radius:5px;"
+    )
+    layout.addWidget(swatch)
+
+    text_box = QVBoxLayout()
+    name = QLabel(_material_label(current_id))
+    category = QLabel(str(spec.get('category', 'Object default')) if spec else 'Object default')
+    category.setStyleSheet('color:#9eacba;')
+    text_box.addWidget(name)
+    text_box.addWidget(category)
+    overrides = entity.params.get('surface_materials') or {}
+    if overrides:
+        detail = QLabel(f"{len(overrides)} surface override(s)")
+        detail.setStyleSheet('color:#72aef5;')
+        text_box.addWidget(detail)
+    layout.addLayout(text_box, 1)
+
+    browse = QPushButton('Browse…')
+    browse.clicked.connect(lambda checked=False, eid=entity.id: open_material_browser(main_window, eid))
+    layout.addWidget(browse)
+    return panel
 
 
 def open_material_browser(main_window, entity_id: str):
@@ -278,12 +341,24 @@ def open_material_browser(main_window, entity_id: str):
 
 
 def install_material_browser(main_window_cls) -> None:
-    """Install the richer browser without forking the authoritative editor.
+    """Attach material browsing to the proven editor without forking it."""
+    if getattr(main_window_cls, '_archforge_material_browser_installed', False):
+        return
 
-    Kept as a tiny runtime patch so this feature branch changes only the
-    material UI surface and does not disturb the proven ArchForge-14 window.
-    """
+    original_refresh_inspector = main_window_cls.refresh_inspector
+
     def _open_materials(self, entity_id):
         return open_material_browser(self, entity_id)
 
+    def _refresh_inspector_with_material(self):
+        original_refresh_inspector(self)
+        if len(self.doc.selection) != 1:
+            return
+        entity = self.doc.get(self.doc.selection[0])
+        if entity.kind not in _SUPPORTED_KINDS:
+            return
+        self.form.addRow('Material', _material_property_widget(self, entity))
+
     main_window_cls._open_materials = _open_materials
+    main_window_cls.refresh_inspector = _refresh_inspector_with_material
+    main_window_cls._archforge_material_browser_installed = True
