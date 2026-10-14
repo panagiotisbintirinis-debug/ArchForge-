@@ -120,8 +120,19 @@ def _project_panel(window):
     window._legacy_library_tabs=lib; lib.hide()
     browser=QWidget(); bl=QVBoxLayout(browser); bl.setContentsMargins(6,6,6,6); bl.setSpacing(4)
     lsearch=QLineEdit(); lsearch.setPlaceholderText("Αναζήτηση στη βιβλιοθήκη…"); bl.addWidget(lsearch)
-    ltree=QTreeWidget(); ltree.setHeaderHidden(True); bl.addWidget(ltree)
+    ltree=QTreeWidget(); ltree.setHeaderHidden(True); ltree.setStyleSheet('QTreeWidget::item:selected { color: #17324d; background: #cfe3f9; }'); bl.addWidget(ltree)
     ltree.itemDoubleClicked.connect(lambda item,_c: window._library_tree_action(item))
+    from PySide6.QtCore import QSize
+    from PySide6.QtWidgets import QListView
+    previews=QListWidget(); previews.setViewMode(QListView.ViewMode.IconMode)
+    previews.setResizeMode(QListView.ResizeMode.Adjust); previews.setMovement(QListView.Movement.Static)
+    previews.setIconSize(QSize(64,64)); previews.setGridSize(QSize(110,124))
+    previews.setWordWrap(True); previews.setMinimumHeight(150); previews.setMaximumHeight(240)
+    previews.setToolTip('Διπλό κλικ σε μικρογραφία: τοποθέτηση / εφαρμογή')
+    bl.addWidget(previews)
+    window._library_previews=previews
+    ltree.currentItemChanged.connect(lambda item,_old: window._refresh_library_previews(item))
+    previews.itemDoubleClicked.connect(window._library_preview_action)
     lsearch.textChanged.connect(window._filter_library_tree)
     window._library_tree=ltree; window._library_search=lsearch
     from archforge.ui.library_drag import install_tree_carry
@@ -404,6 +415,16 @@ def install_approved_mockup_shell(window):
         if tool=="sculpt": a.triggered.connect(lambda _=False: window.sculpt_action.toggle())
         else: a.triggered.connect(window._open_selected_materials)
         ribbon.addAction(a)
+    from archforge.ui.library_icons import action_icon
+    sample = QAction(action_icon(('sample_material',)), 'Λήψη δείγματος υλικού', window)
+    sample.triggered.connect(window._start_material_brush)
+    menus['Υλικά'].addAction(sample)
+    whole = QAction('Βαφή ολόκληρου αντικειμένου', window); whole.setCheckable(True)
+    whole.toggled.connect(lambda on: setattr(window._material_brush, 'whole_object', on)
+                          if getattr(window, '_material_brush', None) else None)
+    menus['Υλικά'].addAction(whole)
+    window._material_brush_whole_action = whole
+    window._material_sample_action = sample
     # Reuse the proven Sculpt controls from the original toolbar. Hiding the
     # legacy toolbar must not hide access to brush operation/radius.
     # Reuse the isolated semantic Kitchen command already owned by MainWindow.

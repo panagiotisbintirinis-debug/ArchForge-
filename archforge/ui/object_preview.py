@@ -36,6 +36,7 @@ class ObjectPreview(QWidget):
         super().__init__(parent)
         self.setMinimumSize(320, 300)
         self.setMouseTracking(True)
+        self.doc = None
         self.kind = None
         self.params = {}
         self.yaw = -35.0
@@ -88,7 +89,7 @@ class ObjectPreview(QWidget):
         self.update()
 
     def _role_colors(self, p, roles):
-        from archforge.rendering.materials import MATERIAL_PRESETS
+        from archforge.rendering.materials import material_spec
         overrides = p.get("surface_materials") or {}
         whole = p.get("material_id")
         palette = {}
@@ -98,7 +99,7 @@ class ObjectPreview(QWidget):
         out = []
         for role in roles:
             mid = overrides.get(role) or whole
-            color = MATERIAL_PRESETS.get(mid, {}).get("color") if mid else None
+            color = (material_spec(mid, self.doc) or {}).get("color") if mid else None
             out.append(QColor(color or palette.get(role) or ROLE_COLORS.get(role, "#c8c4bc")))
         return out
 

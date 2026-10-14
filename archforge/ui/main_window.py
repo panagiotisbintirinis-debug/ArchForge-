@@ -172,6 +172,10 @@ class MainWindow(QMainWindow):
 
     def _set_active_tool(self, tool):
         tool = str(tool)
+        if getattr(self, '_material_brush', None) is not None:
+            self._material_brush = None
+            self.plan_view.viewport().unsetCursor()
+            self.pbr_view.set_tool('select')
         if tool in ('stair', 'ramp') and not self._ensure_upper_level_for(tool):
             return
         if tool == 'stair':
@@ -1349,6 +1353,9 @@ class MainWindow(QMainWindow):
             from archforge.library.catalog import CATEGORIES
             listing.clear()
             records = assets.list_assets()
+            from PySide6.QtCore import QSize
+            from archforge.ui.library_icons import action_icon
+            listing.setIconSize(QSize(40, 40))
 
             def category(r):
                 cat = (r.get('category') or ['Εισαγωγές'])[0]
@@ -1364,6 +1371,7 @@ class MainWindow(QMainWindow):
                 w, d, h = (v * 100 for v in r['size'])
                 item = QListWidgetItem(f"  {r['name']}  {w:.0f}×{d:.0f}×{h:.0f} cm")
                 item.setData(Qt.ItemDataRole.UserRole, r['id'])
+                item.setIcon(action_icon(('asset', r['id'])))
                 if r['provenance'].get('source') == 'home-designer-calib':
                     item.setToolTip('Home Designer — μόνο τοπική χρήση, δεν διανέμεται')
                 elif r['provenance'].get('attribution'):
@@ -1433,24 +1441,35 @@ class MainWindow(QMainWindow):
 
     def _refresh_library_tree(self):
         from PySide6.QtWidgets import QTreeWidgetItem
+        from PySide6.QtCore import QSize
+        from archforge.ui.library_icons import action_icon, category_icon
         tree = getattr(self, '_library_tree', None)
         if tree is None:
             return
         opened = {tree.topLevelItem(i).text(0).split(' (')[0] for i in range(tree.topLevelItemCount())
                   if tree.topLevelItem(i).isExpanded()}
+        selected_label = tree.currentItem().text(0) if tree.currentItem() else None
         tree.clear()
+        tree.setIconSize(QSize(28, 28))
         for theme, subs in self._library_outline():
             count = sum(len(items) for _s, items in subs)
             if not count:
                 continue
             top = QTreeWidgetItem(tree, [f'{theme} ({count})'])
+            top.setIcon(0, category_icon())
             for sub, items in subs:
                 parent = top if sub is None else QTreeWidgetItem(top, [f'{sub} ({len(items)})'])
+                parent.setIcon(0, category_icon())
                 for label, action in items:
                     leaf = QTreeWidgetItem(parent, [label])
                     leaf.setData(0, Qt.ItemDataRole.UserRole, action)
+                    leaf.setIcon(0, action_icon(action, label))
                     leaf.setToolTip(0, 'Διπλό κλικ: τοποθέτηση / εφαρμογή')
             top.setExpanded(theme in opened)
+        if selected_label:
+            matches = tree.findItems(selected_label, Qt.MatchFlag.MatchExactly | Qt.MatchFlag.MatchRecursive)
+            if matches:
+                tree.setCurrentItem(matches[0])
         self._filter_library_tree(getattr(self, '_library_search', None).text() if getattr(self, '_library_search', None) else '')
 
     def _filter_library_tree(self, text):
@@ -1470,6 +1489,37 @@ class MainWindow(QMainWindow):
             return show
         for i in range(tree.topLevelItemCount()):
             walk(tree.topLevelItem(i))
+        self._refresh_library_previews(tree.invisibleRootItem() if text else tree.currentItem())
+
+    def _refresh_library_previews(self, parent=None):
+        listing = getattr(self, '_library_previews', None)
+        tree = getattr(self, '_library_tree', None)
+        if listing is None or tree is None:
+            return
+        from archforge.ui.library_icons import action_icon
+        listing.clear()
+        parent = parent or tree.currentItem()
+        if parent is None:
+            return
+        def walk(node):
+            if node.isHidden():
+                return
+            action = node.data(0, Qt.ItemDataRole.UserRole)
+            if action:
+                label = node.text(0)
+                caption = label.split('  ')[0] if action[0] == 'asset' else label
+                item = QListWidgetItem(action_icon(action, label), caption)
+                item.setData(Qt.ItemDataRole.UserRole, action)
+                item.setToolTip(label + '\nΔιπλό κλικ: τοποθέτηση / εφαρμογή')
+                listing.addItem(item)
+            for i in range(node.childCount()):
+                walk(node.child(i))
+        walk(parent)
+
+    def _library_preview_action(self, item):
+        leaf = QTreeWidgetItem([item.text()])
+        leaf.setData(0, Qt.ItemDataRole.UserRole, item.data(Qt.ItemDataRole.UserRole))
+        return self._library_tree_action(leaf)
 
     def _library_tree_action(self, item):
         """Double click on a library leaf: place it or start its tool."""
@@ -1588,7 +1638,26 @@ class MainWindow(QMainWindow):
         el, az = self.pbr_view.sun_angles()
         self.statusBar().showMessage(f'Ήλιος: ύψος {el:.1f}°, αζιμούθιο {az:.0f}°', 5000)
 
+    def _start_material_brush(self):
+        self._cancel_interactions()
+        from archforge.ui.material_brush import MaterialBrush
+        self._material_brush = MaterialBrush(self)
+        action = getattr(self, '_material_brush_whole_action', None)
+        self._material_brush.whole_object = action is not None and action.isChecked()
+        self.plan_view.controller.set_tool('select')
+        self.pbr_view.set_tool('material_brush')
+        from PySide6.QtGui import QCursor
+        from archforge.ui.library_icons import action_icon
+        cursor = QCursor(action_icon(('sample_material',)).pixmap(32, 32), 5, 26)
+        self.plan_view.viewport().setCursor(cursor)
+        self.statusBar().showMessage('Λήψη δείγματος υλικού: κλικ σε επιφάνεια · Esc για ακύρωση')
+        return self._material_brush
+
     def _cancel_interactions(self):
+        if getattr(self, '_material_brush', None) is not None:
+            self._material_brush = None
+            self.plan_view.viewport().unsetCursor()
+            self.pbr_view.set_tool('select')
         if getattr(self, '_terrain_tools', None) is not None:
             self._terrain_tools.cancel()
         if getattr(self, '_layout_assist', None) is not None:
@@ -2479,8 +2548,24 @@ class MainWindow(QMainWindow):
         self.refresh_inspector()
 
         if action_id == 'properties':
+            if self.doc.get(entity_id).kind in ('library_object', 'cabinet'):
+                return self._open_object_modifier(entity_id)
             self._open_object_properties(entity_id)
             return
+
+        if action_id == 'components':
+            dialog = self._open_object_modifier(entity_id)
+            if dialog is not None:
+                dialog.parts.setFocus()
+            return dialog
+
+        if action_id == 'sample_material':
+            self._start_material_brush()
+            return self._material_brush.sample(entity_id)
+
+        if action_id == 'transform':
+            from archforge.ui.object_transform import open_transform
+            return open_transform(self, entity_id)
 
         if action_id == 'materials':
             self._open_materials(entity_id)
@@ -2597,6 +2682,7 @@ class MainWindow(QMainWindow):
             'room_foundation', 'box', 'pod', 'stair', 'ramp',
             'structural_column', 'structural_beam',
             'mechanical_part', 'mesh', 'library_object', 'cabinet', 'door', 'window',
+            'pitched_roof', 'terrain', 'plant', 'railing', 'drywall_ceiling', 'kitchen_part',
         }
         if entity.kind not in supported:
             self.statusBar().showMessage(
@@ -2676,8 +2762,20 @@ class MainWindow(QMainWindow):
         from archforge.ui.pattern_swatch import material_icon, material_swatch, swatch_span
 
         materials = QListWidget(dialog)
-        materials.setIconSize(QSize(32, 32))
-        layout.addWidget(materials)
+        from PySide6.QtWidgets import QListView, QHBoxLayout
+        materials.setViewMode(QListView.ViewMode.IconMode)
+        materials.setResizeMode(QListView.ResizeMode.Adjust)
+        materials.setMovement(QListView.Movement.Static)
+        materials.setWordWrap(True)
+        materials.setStyleSheet('QListWidget::item:selected { color: #17324d; background: #cfe3f9; }')
+        materials.setGridSize(QSize(116, 105))
+        materials.setIconSize(QSize(64, 64))
+        from archforge.ui.material_preview import MaterialPreview
+        sample_3d = MaterialPreview(dialog, self.doc)
+        sample_row = QHBoxLayout()
+        sample_row.addWidget(materials, 3); sample_row.addWidget(sample_3d, 2)
+        layout.addLayout(sample_row)
+        self._materials_sample_3d = sample_3d
 
         # Swatch of the surface: stone and tile joints at scale (patterns.py).
         preview = QLabel(dialog)
@@ -2743,7 +2841,7 @@ class MainWindow(QMainWindow):
                 text = str(spec['name'])
                 if mine:
                     text = f"{USER_MARK} {um.label(text, spec.get('code', ''), spec.get('supplier', ''))}"
-                item = QListWidgetItem(material_icon(material_id, 32, doc=self.doc), text)
+                item = QListWidgetItem(material_icon(material_id, 64, doc=self.doc), text)
                 item.setData(Qt.ItemDataRole.UserRole, material_id)
                 item.setToolTip(
                     ('Δικό σου υλικό · ' if mine else '')
@@ -2778,6 +2876,7 @@ class MainWindow(QMainWindow):
                     code_edit.clear()
                     supplier_edit.clear()
             preview.setPixmap(QPixmap.fromImage(material_swatch(material_id, preview.width(), preview.height(), doc=self.doc)))
+            sample_3d.set_material(material_id)
             text = f"<b>{spec.get('name', material_id)}</b>  ·  τραχ. {float(spec.get('roughness', 0)):.2f}  ·  μετ. {float(spec.get('metalness', 0)):.2f}"
             pattern = spec.get('pattern')
             if pattern:
@@ -2830,6 +2929,29 @@ class MainWindow(QMainWindow):
 
         # The user's own materials: new / edit / delete / import a code list.
         own_row = QHBoxLayout()
+        color_button = QPushButton('Χρώμα…', dialog)
+        color_button.setToolTip('Αλλαγή χρώματος της επιλεγμένης επιφάνειας, διατηρώντας την υφή')
+        layout.addWidget(color_button)
+        self._materials_color_button = color_button
+
+        def change_color():
+            from PySide6.QtWidgets import QColorDialog
+            from PySide6.QtGui import QColor
+            from archforge.ui.object_finish import apply_color
+            base_id = state.get('material_id') or current_material_id()
+            spec = material_spec(base_id, self.doc) or {}
+            chosen = QColorDialog.getColor(QColor(spec.get('color', '#cccccc')), dialog, 'Χρώμα επιφάνειας')
+            if not chosen.isValid():
+                return
+            roles = code_roles()
+            try:
+                apply_color(self, entity_id, chosen.name(), roles if roles != [''] else None, base_id=base_id)
+            except (ValueError, PermissionError, KeyError) as exc:
+                current.setText(str(exc))
+                return
+            dialog.reject()
+
+        color_button.clicked.connect(change_color)
         new_button = QPushButton('Νέο υλικό…', dialog)
         new_button.setToolTip('Δικό σου υλικό με όνομα, κωδικό, προμηθευτή και χρώμα')
         edit_button = QPushButton('Επεξεργασία…', dialog)

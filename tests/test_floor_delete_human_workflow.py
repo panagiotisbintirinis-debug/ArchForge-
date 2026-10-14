@@ -195,10 +195,10 @@ def test_context_menu_registry_is_editable_and_view_aware():
     pbr_wall = object_context_actions('wall', 'pbr')
 
     assert [entry['id'] if entry else None for entry in plan_wall] == [
-        'properties', 'materials', 'move', 'stretch', 'rotate', None, 'delete'
+        'properties', 'transform', 'materials', 'sample_material', 'move', 'stretch', 'rotate', None, 'delete'
     ]
     assert [entry['id'] if entry else None for entry in pbr_wall] == [
-        'properties', 'materials', 'move', 'rotate', None, 'delete'
+        'properties', 'transform', 'materials', 'sample_material', 'move', 'rotate', None, 'delete'
     ]
     placements = {
         entry['id']: entry['placement']
