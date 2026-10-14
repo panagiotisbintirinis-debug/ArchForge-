@@ -265,6 +265,12 @@ def _natural(text):
     return [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", text)]
 
 
+def storey_entities(doc, name):
+    """Entities that belong to storey ``name`` as the tree shows them (deleted with the storey)."""
+    levels = _levels(doc)
+    return [e.id for e in doc.entities.values() if entity_level(doc, e, levels) == str(name)]
+
+
 def _node(label, entity_id=None, level=None, children=None, signature=None):
     return {"label": label, "entity_id": entity_id, "level": level, "children": children or [], "signature": signature}
 

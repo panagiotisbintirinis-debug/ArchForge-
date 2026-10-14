@@ -1142,7 +1142,16 @@ class MainWindow(QMainWindow):
         if item is None:
             return None
         ids = self._tree_item_ids(item)
+        storey = item.data(0, Qt.ItemDataRole.UserRole + 1) if item.parent() is tree.topLevelItem(0) else None
         self._project_tree_clicked(item)
+        if storey:
+            menu = QMenu(tree)
+            remove = menu.addAction('Διαγραφή ορόφου…')
+            remove.triggered.connect(lambda: self._delete_storey(storey))
+            self._tree_menu = menu
+            if not getattr(self, '_no_modal_dialogs', False):
+                menu.exec(tree.viewport().mapToGlobal(pos))
+            return menu
         if not ids:
             return None
         menu = QMenu(tree)
@@ -1154,6 +1163,31 @@ class MainWindow(QMainWindow):
         if not getattr(self, '_no_modal_dialogs', False):
             menu.exec(tree.viewport().mapToGlobal(pos))
         return menu
+
+    def _delete_storey(self, name, confirm=True):
+        """Delete a storey and everything on it (one undo), after a confirmation."""
+        from archforge.core.commands import DeleteStorey
+        from .project_outline import _levels, storey_entities
+        if len(_levels(self.doc)) <= 1:
+            self.statusBar().showMessage('Ο μοναδικός όροφος δεν διαγράφεται', 4000)
+            return False
+        ids = storey_entities(self.doc, name)
+        if confirm and not getattr(self, '_no_modal_dialogs', False):
+            what = f' και {len(ids)} στοιχεία του' if ids else ' (είναι άδειος)'
+            answer = QMessageBox.question(
+                self, 'Διαγραφή ορόφου',
+                f'Να διαγραφεί ο όροφος «{level_label(name)}»{what};\nΑναίρεση με Ctrl+Z.')
+            if answer != QMessageBox.StandardButton.Yes:
+                return False
+        try:
+            self.stack.execute(DeleteStorey(str(name), ids))
+        except Exception as exc:
+            self.statusBar().showMessage(f'Δεν διαγράφηκε ο όροφος: {exc}', 5000)
+            return False
+        self._redraw_views(all_views=True)
+        self.refresh_inspector()
+        self.statusBar().showMessage(f'Διαγράφηκε ο όροφος «{level_label(name)}» — Ctrl+Z = αναίρεση', 5000)
+        return True
 
     def _activate_level_by_name(self, name):
         selector = getattr(self, 'floor_selector', None)

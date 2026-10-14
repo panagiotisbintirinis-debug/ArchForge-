@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, Any, List, Optional, Tuple
 import copy
 from .model import Document, Entity, WorkPlane
@@ -277,6 +277,43 @@ class DeleteEntities(Command):
             self.before_selection=list(doc.selection)
         for eid in requested:
             if eid in doc.entities:doc.remove(eid)
+    def undo(self,doc):
+        if self.before_state is None:return
+        _restore_document_state(doc,self.before_state,self.before_selection or [])
+
+@dataclass
+class DeleteStorey(Command):
+    """Delete a storey: its level and the entities on it, as one undo step.
+
+    ``ids`` are the entities that belong to the storey (the caller decides
+    ownership, as the project tree shows it).  The work plane moves to the
+    nearest remaining level when it was on the deleted one.
+    """
+    name:str
+    ids:List[str]=field(default_factory=list)
+    before_state:Optional[Dict[str,Any]]=None
+    before_selection:Optional[List[str]]=None
+    def do(self,doc):
+        name=str(self.name)
+        if self.before_state is None:
+            self.before_state=copy.deepcopy(doc.to_dict())
+            self.before_selection=list(doc.selection)
+        z=doc.levels.get(name)
+        if z is None:
+            z=float(doc.work_plane.origin[2]) if str(doc.work_plane.name)==name else None
+        others={n:float(v) for n,v in doc.levels.items() if n!=name}
+        if not others and z is not None and name in doc.levels:
+            raise ValueError('ο μοναδικός όροφος δεν διαγράφεται')
+        for eid in dict.fromkeys(self.ids):
+            if eid in doc.entities:doc.remove(eid)
+        doc.levels.pop(name,None)
+        wp=doc.work_plane
+        on_it=str(wp.name)==name or (z is not None and abs(float(wp.origin[2])-float(z))<=1e-6)
+        if on_it and others:
+            target=min(others.items(),key=lambda kv:(abs(kv[1]-float(z if z is not None else 0.0)),kv[1]))
+            doc.work_plane=WorkPlane(name=target[0],origin=(float(wp.origin[0]),float(wp.origin[1]),target[1]),
+                                     u=tuple(wp.u),v=tuple(wp.v))
+        doc.selection=[]
     def undo(self,doc):
         if self.before_state is None:return
         _restore_document_state(doc,self.before_state,self.before_selection or [])

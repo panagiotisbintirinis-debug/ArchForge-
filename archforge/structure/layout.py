@@ -75,10 +75,13 @@ def _level_name(doc, z):
 
 
 def _top_of(doc, z, walls):
-    above = sorted(float(v) for v in doc.levels.values() if float(v) > z + 0.5)
+    """Slab level over the storey: the next level above, unless it is a split level part
+    way up the walls (then the top of the walls, where the slab of this storey is)."""
+    wall_top = z + max(float(w.params.get("height", 2.7)) for w in walls)
+    above = sorted(float(v) for v in doc.levels.values() if float(v) > z + 0.5 and float(v) >= wall_top - 0.30)
     if above:
         return above[0]
-    return z + max(float(w.params.get("height", 2.7)) for w in walls)
+    return wall_top
 
 
 def _openings(doc, wall):

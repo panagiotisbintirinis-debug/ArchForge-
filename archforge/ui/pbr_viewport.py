@@ -2611,19 +2611,9 @@ class PBRViewport(QWidget):
         try:
             active_z = float(self.doc.work_plane.origin[2])
             level_name = self.doc.active_level_name()
-            above = sorted(
-                (float(z), str(name))
-                for name, z in self.doc.levels.items()
-                if float(z) > active_z + 1e-9
-            )
-            if above:
-                next_z, next_name = above[0]
-            else:
-                next_z, next_name = active_z + 2.70, "Unassigned"
             tx = StructuralColumnPlaceTransaction(
                 self.doc, self.stack, float(x), float(y),
-                z=active_z, height=max(0.05, next_z-active_z),
-                base_level=level_name, top_level=next_name,
+                z=active_z, base_level=level_name,
                 grid=(0.10 if self._snap_enabled else None), snap_tol=0.10,
                 snap_enabled=self._snap_enabled,
             )

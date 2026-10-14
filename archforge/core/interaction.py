@@ -800,12 +800,14 @@ class VerticalStretchTransaction:
 class StructuralColumnPlaceTransaction:
     """Place one semantic vertical Column/Post on the active storey."""
     def __init__(
-        self,doc,stack,x,y,*,z,height,width=.25,depth=.25,rotation=0.0,
+        self,doc,stack,x,y,*,z,height=None,width=.25,depth=.25,rotation=0.0,
         role='structural',construction='reinforced_concrete',section='rectangular',
         base_level='Ground',top_level='Unassigned',grid=.10,snap_tol=.10,snap_enabled=True,
     ):
         self.doc,self.stack=doc,stack
-        self.z=float(z);self.height=float(height);self.width=float(width);self.depth=float(depth)
+        # height=None: the column follows the walls it stands on (structure.column_height).
+        self.auto_height=height is None
+        self.z=float(z);self.height=2.70 if height is None else float(height);self.width=float(width);self.depth=float(depth)
         self.rotation=float(rotation);self.role=str(role);self.construction=str(construction);self.section=str(section)
         self.base_level=str(base_level);self.top_level=str(top_level)
         self.grid=grid;self.snap_tol=float(snap_tol);self.cancelled=False;self.last_snap=None
@@ -830,6 +832,9 @@ class StructuralColumnPlaceTransaction:
         else:
             self.x,self.y=float(x),float(y);self.last_snap=None
         self.rotation=float(rotation)%360.0 if rotation is not None else self._free_rotation
+        if self.auto_height:
+            from archforge.structure.column_height import column_span
+            self.height,self.top_level=column_span(self.doc,self.x,self.y,self.z,width=self.width,depth=self.depth)
         self.preview={
             'x':self.x,'y':self.y,'z':self.z,
             'width':self.width,'depth':self.depth,'height':self.height,

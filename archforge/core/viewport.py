@@ -161,12 +161,11 @@ class PointerController:
             sx,sy=(float(sp.x),float(sp.y)) if sp is not None else (x,y)
 
             if self.tool=='structural_column':
-                height=max(0.05,next_z-active_z)
                 self.active=StructuralColumnPlaceTransaction(
                     self.doc,self.stack,x,y,
-                    z=active_z,height=height,
+                    z=active_z,
                     **{k:v for k,v in getattr(self,'structural_preset',{}).items() if k in ('width','depth','construction','section','role')},
-                    base_level=level_name,top_level=next_name,
+                    base_level=level_name,
                     grid=(self.grid if geometry_snap_enabled else None),
                     snap_tol=self.snap_tolerance,
                     snap_enabled=geometry_snap_enabled,
