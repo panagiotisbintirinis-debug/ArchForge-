@@ -16,3 +16,4 @@ Thumbs.db
 *.tbdata
 hd-cache/
 .claude/worktrees/
+scripts/user_drive/out/
