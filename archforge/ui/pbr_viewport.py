@@ -292,21 +292,12 @@ const ambient = new THREE.AmbientLight(0xffffff, 0.12);
 scene.add(ambient);
 const studioEnvironment = scene.environment;
 
-// Physical sky + sun (Preetham). ArchForge is z-up; the stock shader is
-// y-up, so 'up' is set to +z and the two hard-coded y terms are rewritten.
-const sky = new Sky();
-sky.scale.setScalar(5000);
-sky.material.uniforms.up.value.set(0, 0, 1);
-sky.material.vertexShader = sky.material.vertexShader.replace("sunPosition.y", "dot( sunPosition, up )");
-sky.material.fragmentShader = sky.material.fragmentShader.replace("acos( direction.y )", "acos( dot( direction, up ) )");
-sky.material.uniforms.turbidity.value = 4.0;
-sky.material.uniforms.rayleigh.value = 1.2;
-sky.material.uniforms.mieCoefficient.value = 0.004;
-sky.material.uniforms.mieDirectionalG.value = 0.8;
-sky.visible = false;
-scene.add(sky);
+/*__ARCHFORGE_LOOK__*/
+
+// Sun & sky: the look module paints an analytic sky with clouds into a cube
+// map (background + image-based light); see archforge/ui/pbr_look_js.py.
 let sunState = null;          // {elevation, azimuth} when the sky is on
-let skyEnvironment = null;
+const sky = {visible: false};
 
 function sunVector(elevation, azimuth) {
   const e = elevation * Math.PI / 180, a = azimuth * Math.PI / 180;
@@ -318,16 +309,7 @@ window.setSun = function(elevation, azimuth) {
     sunState = null;
   } else {
     sunState = {elevation: Number(elevation), azimuth: Number(azimuth)};
-    const dir = sunVector(sunState.elevation, sunState.azimuth);
-    sky.material.uniforms.sunPosition.value.copy(dir);
-    // Reflections/ambient from this sky (prefiltered once per sun change).
-    const envScene = new THREE.Scene();
-    const skyCopy = new Sky();
-    skyCopy.material = sky.material;
-    skyCopy.scale.setScalar(5000);
-    envScene.add(skyCopy);
-    if (skyEnvironment) skyEnvironment.dispose();
-    skyEnvironment = pmrem.fromScene(envScene, 0.0).texture;
+    lookPaintSky(sunState.elevation, sunVector(sunState.elevation, sunState.azimuth));
   }
   applySunAndSky();
   fitSunShadow();
@@ -335,22 +317,30 @@ window.setSun = function(elevation, azimuth) {
 
 function applySunAndSky() {
   const useSky = !!sunState && activeTechnique === "pbr";
+  const technical = activeTechnique === "technical";
   sky.visible = useSky;
-  scene.environment = useSky && skyEnvironment ? skyEnvironment : studioEnvironment;
-  scene.environmentIntensity = useSky ? 0.45 : 0.25;
+  scene.background = useSky ? lookCubeTarget.texture : new THREE.Color(technical ? 0xf4f5f7 : 0xd9dee5);
+  scene.environment = useSky && lookSkyEnvironment ? lookSkyEnvironment : studioEnvironment;
+  scene.environmentIntensity = useSky ? 1.0 : 0.25;
+  // Distance haze into the horizon colour: the ground has no visible edge.
+  scene.fog = useSky ? new THREE.Fog(lookHorizon.clone(), 140, 1400) : null;
+  ground.visible = !technical;
+  ambient.intensity = useSky ? 0.0 : 0.12;
   if (useSky) {
     // Low sun: warmer and weaker; below the horizon: no direct light.
     const h = Math.max(0.0, Math.sin(sunState.elevation * Math.PI / 180));
-    key.color.setHSL(0.09, 0.55 * (1.0 - h) + 0.15, 0.62 + 0.25 * h);
-    key.intensity = sunState.elevation <= 0 ? 0.0 : 0.6 + 2.8 * Math.pow(h, 0.6);
+    key.color.setHSL(0.09, 0.55 * (1.0 - h) + 0.12, 0.62 + 0.27 * h);
+    key.intensity = sunState.elevation <= 0 ? 0.0 : 0.5 + 3.0 * Math.pow(h, 0.6);
+    fill.intensity = 0.0;      // the sky itself is the fill light
   } else {
     key.color.set(0xfff4df); key.intensity = 3.2;
+    fill.intensity = 1.0;
   }
 }
 const key = new THREE.DirectionalLight(0xfff4df, 3.2);
 key.position.set(9, -11, 15);
 key.castShadow = true;
-key.shadow.mapSize.set(2048, 2048);
+key.shadow.mapSize.set(4096, 4096);
 key.shadow.bias = -0.00035;
 key.shadow.normalBias = 0.035;
 key.shadow.camera.left = -30;
@@ -366,11 +356,10 @@ const fill = new THREE.DirectionalLight(0xbfd8ff, 1.0);
 fill.position.set(-8, 5, 9);
 scene.add(fill);
 
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(120, 120),
-  new THREE.MeshStandardMaterial({color: 0xcbd1d7, roughness: 0.96, metalness: 0.0})
-);
+// Ground to the horizon (dry soil, same material as a site terrain).
+const ground = new THREE.Mesh(lookGroundGeometry(), lookGroundMaterial);
 ground.position.z = -0.025;
+
 ground.receiveShadow = true;
 scene.add(ground);
 
@@ -870,6 +859,7 @@ function materialFor(spec) {
     side: THREE.DoubleSide
   });
   const textures = spec.pattern_key ? patternTexturesFor(spec.pattern_key) : null;
+  if (!textures && spec.grain && opacity >= 1.0) lookApplyGrain(material, spec.grain);
   if (textures) {
     // The canvas carries every stone's own tone; the colour only tints.
     material.map = textures.map;
@@ -892,8 +882,7 @@ function materialFor(spec) {
 function applyTechnique() {
   const technical = activeTechnique === "technical";
   const glass = activeTechnique === "glass";
-  scene.background.set(technical ? 0xf4f5f7 : 0xd9dee5);
-  if (typeof applySunAndSky === "function" && sky) applySunAndSky();
+  applySunAndSky();
   renderer.shadowMap.enabled = !technical;
   modelRoot.traverse((obj) => {
     if (!obj.isMesh) return;
@@ -911,6 +900,22 @@ function applyTechnique() {
     obj.receiveShadow = !technical && !sectionPlane;
     obj.material.needsUpdate = true;
   });
+}
+
+// Lowest top of the site terrain (top = highest vertex at each x, y), else
+// just under the ground floor.
+function groundLevel(objects) {
+  let level = null;
+  for (const item of objects) {
+    if (item.kind !== "terrain") continue;
+    const top = new Map();
+    for (const v of item.vertices) {
+      const k = Math.round(v[0] * 100) + "," + Math.round(v[1] * 100);
+      top.set(k, Math.max(top.get(k) ?? -Infinity, v[2]));
+    }
+    for (const z of top.values()) level = level === null ? z : Math.min(level, z);
+  }
+  return level === null ? -0.025 : level - 0.003;
 }
 
 function sceneBounds() {
@@ -1113,9 +1118,13 @@ function fitCamera() {
 // The sun's shadow frustum hugs the model so shadows stay crisp for a small
 // house and still cover a large site.
 function fitSunShadow() {
-  const bounds = sceneBounds();
-  if (!bounds) return;
-  const {center, radius} = bounds;
+  const box = new THREE.Box3();
+  modelRoot.children.forEach((mesh) => {
+    if (mesh.userData.kind !== "terrain" && mesh.visible) box.expandByObject(mesh);
+  });
+  if (box.isEmpty()) return;
+  const center = box.getCenter(new THREE.Vector3());
+  const radius = Math.max(box.getSize(new THREE.Vector3()).length() * 0.55, 1.5);
   const dir = sunState && activeTechnique === "pbr"
     ? sunVector(Math.max(2.0, sunState.elevation), sunState.azimuth)
     : new THREE.Vector3(9, -11, 15).normalize();
@@ -1143,7 +1152,7 @@ window.archforgeSetScene = function(payload, fit = true) {
     geometry.setIndex(indices);
     geometry.computeVertexNormals();
     const spec = item.material || {};
-    const geom = (spec.pattern_key && patternGeo[spec.pattern_key]) ? withMetricUVs(geometry) : geometry;
+    const geom = ((spec.pattern_key && patternGeo[spec.pattern_key]) || spec.grain) ? withMetricUVs(geometry) : geometry;
     geom.computeBoundingSphere();
     const mesh = new THREE.Mesh(geom, materialFor(spec));
     mesh.name = item.id || item.kind || "entity";
@@ -1157,8 +1166,8 @@ window.archforgeSetScene = function(payload, fit = true) {
     mesh.receiveShadow = true;
     modelRoot.add(mesh);
   }
-  // A real site terrain replaces the decorative ground plane.
-  ground.visible = !objects.some((item) => item.kind === "terrain");
+  // The ground to the horizon meets a site terrain at its lowest top edge.
+  ground.position.z = groundLevel(objects);
   fitSunShadow();
   applyTechnique();
   if (fit) fitCamera();
@@ -1919,6 +1928,8 @@ window.__walkState = () => ({walkMode, x: camera.position.x, y: camera.position.
 
 function animate() {
   walkStep();
+  // Haze ends before the far plane, so the ground never shows a cut edge.
+  if (scene.fog) { scene.fog.far = Math.min(1400, camera.far * 0.9); scene.fog.near = scene.fog.far * 0.1; }
   if (walkMode) controls.enabled = false;
   else controls.update();
   if (useComposer()) composer.render(); else renderer.render(scene, camera);
@@ -1940,7 +1951,9 @@ def pbr_page_html() -> str:
     bundle = _THREE_BUNDLE_PATH.read_text(encoding="utf-8")
     from archforge.ui.library_drag import js_3d
     from archforge.ui.camera_tool import camera_js
+    from archforge.ui.pbr_look_js import pbr_look_js
     page = _PBR_HTML.replace("/*__ARCHFORGE_WALL_EDIT_3D__*/", wall_edit_3d_js() + js_3d() + camera_js(), 1)
+    page = page.replace("/*__ARCHFORGE_LOOK__*/", pbr_look_js(), 1)
     return page.replace("/*__ARCHFORGE_THREE_BUNDLE__*/", bundle, 1)
 
 class PBRInteractionBridge(QObject):

@@ -29,6 +29,7 @@ def test_pbr_scene_payload_uses_authoritative_mesh_and_identity():
                 "metalness": 0.02,
                 "emissive": "#1f5f93",
                 "emissiveIntensity": 0.28,
+                "grain": "plaster",
             },
         }
     ]

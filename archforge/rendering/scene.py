@@ -465,6 +465,13 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                     "surfaces": [key] * len(tris),
                     "material": material,
                 })
+    from archforge.rendering.grain import surface_grain
+    for obj in objects:
+        # Procedural surface texture in the 3D view (render state, never saved).
+        role = str(obj.get("render_part", "")).rpartition(":")[2] or None
+        grain = surface_grain(str(obj.get("kind", "")), obj.get("material") or {}, role)
+        if grain:
+            obj["material"] = {**obj["material"], "grain": grain}
     payload = {"objects": objects}
     patterns = _scene_patterns(objects)
     if patterns:
