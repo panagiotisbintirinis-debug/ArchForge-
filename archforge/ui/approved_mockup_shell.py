@@ -338,6 +338,7 @@ def install_approved_mockup_shell(window):
 
     from archforge.ui.workspace_layout import make_icon, popup_button, build_menu, install_workspace_layout
     ribbon=QToolBar("Εργαλεία σχεδίασης",window); ribbon.setObjectName("ribbon")
+    ribbon.setStyleSheet('QToolBar#ribbon QToolButton { padding:4px 3px; }')
     ribbon.setMovable(True); ribbon.setToolButtonStyle(Qt.ToolButtonTextUnderIcon); ribbon.setIconSize(QSize(30,30))
 
     def tool_action(text,tool,parent):
@@ -431,8 +432,16 @@ def install_approved_mockup_shell(window):
     floor_bar=QToolBar("Όροφος",window); floor_bar.setObjectName("floor_bar"); floor_bar.setIconSize(QSize(22,22))
     floor_bar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
     add_floor=QAction(make_icon("floor_add"),"Όροφος",window); add_floor.setToolTip("Νέος όροφος πάνω από τον τελευταίο")
-    add_floor.triggered.connect(window._add_floor_level); floor_bar.addAction(add_floor)
+    add_floor.triggered.connect(window._add_floor_level)
     window._mockup_add_floor_action=add_floor
+    basement=QAction(make_icon('floor_add'),'Υπόγειο',window)
+    basement.setToolTip('Προσθήκη υπογείου κάτω από το ισόγειο ή μετάβαση στο υπάρχον')
+    basement.triggered.connect(window._add_basement_level)
+    menus['Κατασκευή'].addAction(basement); window._mockup_basement_action=basement
+    level_menu=QMenu(window); level_menu.addAction(add_floor); level_menu.addAction(basement)
+    level_button=QToolButton(floor_bar); level_button.setDefaultAction(add_floor); level_button.setMenu(level_menu)
+    level_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+    level_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon); floor_bar.addWidget(level_button)
     floor_bar.addWidget(QLabel(" Σχεδιάζω στο: ")); _adopt(floor_bar,window.floor_selector)
     camera=QToolBar("Προβολή",window); camera.setObjectName("camera"); camera.setMovable(True)
     camera.setIconSize(QSize(22,22)); camera.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)

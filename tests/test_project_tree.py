@@ -155,6 +155,9 @@ def test_tree_groups_and_rooms_select_in_the_drawing_and_can_be_deleted():
         assert level == 'Floor 2'
         window._project_tree_clicked(roof_item)
         assert window.doc.selection == [roof.id] or list(window.doc.selection) == [roof.id]
+        assert window.doc.work_plane.name == 'Floor 2'
+        # The storey switch rebuilds the tree; use its current item, as a new right click does.
+        roof_item = find('Κεραμοσκεπή')
         menu = window._project_tree_menu(tree.visualItemRect(roof_item).center())
         texts = [a.text() for a in menu.actions()]
         assert texts == ['Ιδιότητες', 'Διαγραφή']

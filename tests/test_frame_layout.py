@@ -15,6 +15,24 @@ def _house(stack, z=0.0, x_max=12.0):
         stack.execute(AddEntity(Entity('wall', {'x1': s[0], 'y1': s[1], 'x2': s[2], 'y2': s[3], 'z': z, 'height': 2.7, 'thickness': 0.2})))
 
 
+@pytest.mark.parametrize('length,wall_type', [(0.05, 'generic'), (4.0, 'drywall_100'), (4.0, 'drywall_double_125')])
+def test_excluded_wall_storey_does_not_crash_frame_or_assistant(length, wall_type):
+    from archforge.assistant.suggestions import propose
+    doc = Document(); st = CommandStack(doc)
+    st.execute(AddEntity(Entity('wall', dict(x1=0, y1=0, x2=length, y2=0, z=3,
+                                           height=2.7, thickness=.2, wall_type=wall_type))))
+    before = doc.to_dict()
+    entities, report = propose_frame(doc)
+    assert entities == [] and report == {'storeys': [], 'columns': 0, 'beams': 0}
+    assert not any(p.key == 'S-3' for p in propose(doc))
+    assert doc.to_dict() == before and len(st.done) == 1
+    _house(st)
+    entities, report = propose_frame(doc)
+    assert report['columns'] == 8 and report['beams'] == 10
+    assert [s['z'] for s in report['storeys']] == [0.0]
+    assert all(e.params['z'] < 3.0 for e in entities)
+
+
 def test_columns_at_corners_junctions_and_every_6m_never_in_an_opening():
     doc = Document(); st = CommandStack(doc); _house(st)
     pts = column_points(doc, 0.0)

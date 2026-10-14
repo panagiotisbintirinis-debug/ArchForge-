@@ -109,6 +109,10 @@ def test_ribbon_selectors_and_camera_snap_controls_are_visible_on_a_laptop_width
     from PySide6.QtWidgets import QToolBar
     ribbon = next(tb for tb in window.findChildren(QToolBar) if tb.windowTitle() == 'Εργαλεία σχεδίασης')
     assert ribbon.sizeHint().width() <= 1150
+    for action in (window._mockup_basement_action, window._terrain_rectangle_action):
+        button = ribbon.widgetForAction(action)
+        assert button is not None and button.isVisible()
+        assert button.geometry().right() < ribbon.width()
     assert not window.sculpt_operation.isVisible() and not window.sculpt_radius.isVisible()
     boxes = {cb.text(): cb for cb in window.findChildren(QCheckBox)}
     assert boxes['Έλξη'].isVisible()

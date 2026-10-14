@@ -55,7 +55,9 @@ def test_pdf_has_cover_plan_per_storey_takeoff_and_quote(tmp_path):
     data = path.read_bytes()
     assert data[:5] == b'%PDF-' and len(data) > 5000
     if shutil.which('pdftotext'):
-        text = subprocess.run(['pdftotext', '-layout', str(path), '-'], capture_output=True, text=True).stdout
+        proc = subprocess.run(['pdftotext', '-enc', 'UTF-8', '-layout', str(path), '-'],
+                              capture_output=True, text=True, encoding='utf-8', check=True)
+        text = proc.stdout
         for s in ('Κατοικία', 'Κάτοψη — Ισόγειο', '1:100', '10.30', 'Επιμέτρηση', 'Προσφορά', 'ΦΠΑ 24%', 'Γ. Παπαδόπουλος'):
             assert s in text, s
 

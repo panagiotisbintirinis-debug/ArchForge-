@@ -334,6 +334,18 @@ class CreateRoomFloors(Command):
         for e in self.entities.values():
             if e.id in doc.entities:doc.remove(e.id)
 
+class FlatRoofElevationError(ValueError):
+    """A flat roof cannot meet boundary walls with materially different tops."""
+    def __init__(self, tops):
+        low, high = min(tops), max(tops)
+        super().__init__('flat roof requires boundary walls with a common top elevation')
+        self.user_message = (
+            f'Δεν δημιουργήθηκε δώμα: οι κορυφές των περιμετρικών τοίχων είναι από '
+            f'{low:.3f} έως {high:.3f} m (διαφορά {high-low:.3f} m). '
+            'Διόρθωσε τα ύψη/υψόμετρα των τοίχων ώστε οι κορυφές να συμπίπτουν.'
+        )
+
+
 class CreateRoomRoofs(Command):
     """Create topology-linked flat roof slabs at the common wall top elevation."""
     def __init__(
@@ -383,9 +395,7 @@ class CreateRoomRoofs(Command):
                 if not tops:
                     raise ValueError('flat roof requires boundary walls')
                 if max(tops)-min(tops)>self.tolerance:
-                    raise ValueError(
-                        'flat roof requires boundary walls with a common top elevation'
-                    )
+                    raise FlatRoofElevationError(tops)
 
                 top_z=sum(tops)/len(tops)
                 offset_z=top_z-float(base_z)

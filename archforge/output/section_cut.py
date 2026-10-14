@@ -28,6 +28,8 @@ JOINERY = {"door", "window", "opening", "railing", "kitchen_part", "cabinet", "l
 
 
 def cut_style(kind):
+    if kind == "terrain":
+        return "soil"
     if kind in CONCRETE:
         return "concrete"
     if kind in MASONRY:
@@ -162,16 +164,18 @@ def _objects(doc, evaluation=None):
     # One body per entity: the 3D splits a wall by finish, the cut needs it whole (closed loops).
     merged = {}
     for o in objects:
-        if o.get("kind") in ("terrain", "mep_pipe", "elec_box", "elec_cable", "section_line"):
-            continue                      # site, networks and helpers are not part of a building section
+        if o.get("kind") in ("mep_pipe", "elec_box", "elec_cable", "section_line"):
+            continue
         key = o.get("id") or o.get("render_part") or id(o)
-        m = merged.setdefault(key, {"id": o.get("id", ""), "kind": o.get("kind", ""), "vertices": [], "triangles": [], "colors": []})
+        m = merged.setdefault(key, {"id": o.get("id", ""), "kind": o.get("kind", ""), "vertices": [], "triangles": [], "colors": [], "surfaces": []})
         base = len(m["vertices"])
         m["vertices"].extend(o.get("vertices", ()))
         color = (o.get("material") or {}).get("color", "#bdc5ce")
-        for t in o.get("triangles", ()):
+        for i, t in enumerate(o.get("triangles", ())):
             m["triangles"].append((base + int(t[0]), base + int(t[1]), base + int(t[2])))
             m["colors"].append(color)
+            surfaces = o.get("surfaces", ())
+            m["surfaces"].append(surfaces[i] if i < len(surfaces) else "")
     return list(merged.values())
 
 
@@ -194,7 +198,7 @@ def cut_section(doc, params, evaluation=None, depth=None):
     """
     (ox, oy), (ux, uy), (nx, ny), length = frame(params)
     limit = float(depth) if depth else None
-    cuts, faces = [], []
+    cuts, faces, terrain_marks = [], [], []
     u0 = z0 = math.inf
     u1 = z1 = -math.inf
 
@@ -231,7 +235,7 @@ def cut_section(doc, params, evaluation=None, depth=None):
         for edge, ts in edge_tris.items():
             if len(ts) == 1 or (len(ts) >= 2 and sum(normals[ts[0]][k] * normals[ts[1]][k] for k in range(3)) < math.cos(math.radians(25))):
                 feature.add(edge)
-        segments = []
+        segments, ground_segments = [], []
         for t, (a, b, c) in enumerate(tris):
             da, db, dc = d[a], d[b], d[c]
             if max(da, db, dc) < 0:
@@ -246,6 +250,12 @@ def cut_section(doc, params, evaluation=None, depth=None):
                         pts.append(project(p))
                 if len(pts) == 2 and math.dist(pts[0], pts[1]) > 1e-9:
                     segments.append((pts[0], pts[1]))
+                    if kind == "terrain" and obj["surfaces"][t] == "top":
+                        ground_segments.append((pts[0], pts[1]))
+                    for uu, zz in pts:
+                        u0, u1, z0, z1 = min(u0, uu), max(u1, uu), min(z0, zz), max(z1, zz)
+            if kind == "terrain":
+                continue                  # soil behind the cut would obscure the building elevation
             # Behind the cut: the visible part of the face, in elevation.
             poly, pd = _clip_polygon([verts[a], verts[b], verts[c]], [da, db, dc])
             if len(poly) < 3:
@@ -266,7 +276,16 @@ def cut_section(doc, params, evaluation=None, depth=None):
             loops, chains = _chain(segments)
             cuts.append({"id": str(obj.get("id", "")), "kind": kind, "style": cut_style(kind),
                          "loops": loops, "chains": chains})
+        if ground_segments:
+            ground_loops, ground_chains = _chain(ground_segments)
+            for path in ground_loops + ground_chains:
+                # Ends and extrema explain the relief without a label at every mesh cell.
+                candidates = [min(path, key=lambda p:p[1]), max(path, key=lambda p:p[1]), path[0], path[-1]]
+                for point in candidates:
+                    if not any(math.dist(point, q) < 0.8 for q in terrain_marks):
+                        terrain_marks.append(point)
     faces.sort(key=lambda f: -f["depth"])
     if u0 == math.inf:
         u0, z0, u1, z1 = 0.0, 0.0, length, 3.0
-    return {"cuts": cuts, "faces": faces, "levels": levels(doc), "bounds": (u0, z0, u1, z1), "length": length}
+    return {"cuts": cuts, "faces": faces, "levels": levels(doc), "terrain_marks": sorted(terrain_marks),
+            "bounds": (u0, z0, u1, z1), "length": length}

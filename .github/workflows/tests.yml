@@ -7,6 +7,7 @@ on:
 jobs:
   core-tests:
     runs-on: windows-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -17,7 +18,11 @@ jobs:
       - name: Run headless core tests
         env:
           PYTHONPATH: .
-        run: python -m pytest -q
+          # Windows offscreen uses FreeType, which needs an explicit font path.
+          # Keep synthetic mouse tests offscreen, with real Greek-capable fonts.
+          QT_QPA_PLATFORM: offscreen
+          QT_QPA_FONTDIR: C:/Windows/Fonts
+        run: python -m pytest -q -o faulthandler_timeout=90
       - name: Compile source
         run: python -m compileall -q archforge tests
 

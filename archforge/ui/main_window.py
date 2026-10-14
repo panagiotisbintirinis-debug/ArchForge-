@@ -87,6 +87,8 @@ class MainWindow(QMainWindow):
         shortcuts.install(self)          # editable keyboard shortcuts (Επεξεργασία → Συντομεύσεις πληκτρολογίου…)
         from archforge.ui import camera_tool
         camera_tool.install(self)        # Κάμερες: tool, list, «Επιστροφή στην κάμερα» (CAM1)
+        from archforge.ui import terrain_tools
+        terrain_tools.install(self)
         self._refresh_library_panel()
         if not os.environ.get('PYTEST_CURRENT_TEST'):
             # First run builds the shipped core library in the background.
@@ -604,22 +606,28 @@ class MainWindow(QMainWindow):
         from archforge.site.terrain import default_terrain_params
         draft = self.plan_view.plot_draft = list(getattr(self.plan_view, 'plot_draft', None) or [])
         if len(draft) >= 3 and ((x - draft[0][0]) ** 2 + (y - draft[0][1]) ** 2) ** .5 < .35:
-            self.plan_view.plot_draft = None
             terrain = self._terrain_entity()
-            if terrain is None:
-                params = with_boundary(default_terrain_params(self.doc), draft)
-                terrain = Entity('terrain', params, name='Έδαφος')
-                self.stack.execute(AddEntity(terrain))
-            else:
-                self.stack.execute(UpdateEntity(terrain.id, with_boundary(terrain.params, draft)))
+            try:
+                if terrain is None:
+                    params = with_boundary(default_terrain_params(self.doc), draft)
+                    terrain = Entity('terrain', params, name='Έδαφος')
+                    self.stack.execute(AddEntity(terrain))
+                else:
+                    self.stack.execute(UpdateEntity(terrain.id, with_boundary(terrain.params, draft)))
+            except (ValueError, RuntimeError, PermissionError) as exc:
+                self.statusBar().showMessage(f'Δεν δημιουργήθηκε έδαφος: {exc}', 9000)
+                return
+            self.plan_view.plot_draft = None
             self.plan_view.controller.set_tool('select')
+            self.doc.select([terrain.id])
             self._redraw_views(all_views=True)
+            self.refresh_inspector()
             self.statusBar().showMessage(f'Οικόπεδο: {len(draft)} κορυφές, {abs(_area(draft)):.1f} m²', 8000)
             return
         draft.append((float(x), float(y)))
         self.plan_view.redraw()
         self.statusBar().showMessage(
-            f'Κορυφή {len(draft)} — συνέχισε· κλικ στην πρώτη κορυφή για κλείσιμο, Esc για ακύρωση', 8000)
+            f'Κορυφή {len(draft)} — κλικ στην πρώτη / Enter / διπλό κλικ για κλείσιμο, Esc για ακύρωση', 8000)
 
     def _import_survey(self):
         """Τοπογραφικό μηχανικού (DXF ή σημεία X Y Z) → έδαφος και όριο οικοπέδου."""
@@ -779,9 +787,14 @@ class MainWindow(QMainWindow):
         if room is None:
             self.statusBar().showMessage('Κλικ μέσα σε κλειστό χώρο για να διαλέξεις τη στέγη του', 6000)
             return None
-        command, message = room_roof_command(self.doc, room, choice)
+        try:
+            command, message = room_roof_command(self.doc, room, choice)
+            if command is not None:
+                self.stack.execute(command)
+        except ValueError as exc:
+            self.statusBar().showMessage(getattr(exc, 'user_message', str(exc)), 12000)
+            return None
         if command is not None:
-            self.stack.execute(command)
             self._redraw_views(all_views=True)
             self._refresh_project_tree()
         self.statusBar().showMessage(message + (' — Ctrl+Z για αναίρεση' if command else ''), 9000)
@@ -1576,6 +1589,8 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f'Ήλιος: ύψος {el:.1f}°, αζιμούθιο {az:.0f}°', 5000)
 
     def _cancel_interactions(self):
+        if getattr(self, '_terrain_tools', None) is not None:
+            self._terrain_tools.cancel()
         if getattr(self, '_layout_assist', None) is not None:
             self._layout_assist.cancel()
         if getattr(self, '_cabinet_run', None) is not None:
@@ -1755,6 +1770,14 @@ class MainWindow(QMainWindow):
 
     def _clear_form(self):
         while self.form.rowCount():
+            item = self.form.itemAt(0, self.form.ItemRole.FieldRole)
+            widget = item.widget() if item is not None else None
+            if widget is not None:
+                # Removing a focused editor can emit editingFinished again.
+                # The accepted edit is already queued; never re-enter a commit here.
+                widget.blockSignals(True)
+                for child in widget.findChildren(QWidget):
+                    child.blockSignals(True)
             self.form.removeRow(0)
 
     def refresh_inspector(self):
@@ -1775,6 +1798,9 @@ class MainWindow(QMainWindow):
         from archforge.ui.project_outline import KIND_LABELS
         eid = self.doc.selection[0]
         entity = self.doc.get(eid)
+        if entity.kind == 'terrain' and getattr(self, '_terrain_tools', None) is not None:
+            if self._terrain_tools.add_rows(self.form, entity):
+                return
         from archforge.ui.project_outline import KIND_LABELS
         self.form.addRow('Τύπος', QLabel(KIND_LABELS.get(entity.kind, entity.kind)))
         # Name (a column's/beam's mark Κ1, Δ1 …): typed here, one undo step.
@@ -1805,7 +1831,7 @@ class MainWindow(QMainWindow):
                 spin.setValue(float(value))
                 spin.setSingleStep(.1)
                 spin.editingFinished.connect(
-                    lambda property_key=key, widget=spin: self._commit_property(eid, property_key, widget.value())
+                    lambda property_key=key, widget=spin: self._queue_property_commit(eid, property_key, widget.value())
                 )
                 self.form.addRow(param_label(key), spin)
         if entity.kind in ('room_floor', 'room_roof', 'room_ceiling', 'room_foundation') and not slab_tools.is_slab_panel(entity):
@@ -1989,6 +2015,16 @@ class MainWindow(QMainWindow):
             self._redraw_views(all_views=True)
             self.refresh_inspector()
         self.statusBar().showMessage(f'Αρίθμηση μελών: {len(names)} αλλαγές (τα ονόματα που έδωσες εσύ μένουν)', 6000)
+
+    def _queue_property_commit(self, eid, key, value):
+        # Qt must finish the key/focus event before a commit rebuilds the editor.
+        # Capture the value now, rather than retaining a widget that will be deleted.
+        from PySide6.QtCore import QTimer
+        def commit():
+            entity = self.doc.entities.get(eid)
+            if entity is not None and entity.params.get(key) != value:
+                self._commit_property(eid, key, value)
+        QTimer.singleShot(0, commit)
 
     def _commit_property(self, eid, key, value):
         entity = self.doc.entities.get(eid)
@@ -2934,6 +2970,8 @@ class MainWindow(QMainWindow):
         )
 
     def _delete_selection(self):
+        if getattr(self, '_terrain_tools', None) is not None and self._terrain_tools.delete_selected():
+            return
         assist = getattr(self, '_layout_assist', None)
         if assist is not None and assist.discard():
             return                       # Delete on the assistant's ghost: throw the proposal away
@@ -3049,6 +3087,26 @@ class MainWindow(QMainWindow):
             3500,
         )
 
+    def _add_basement_level(self):
+        """A named below-ground storey, using the existing reversible level command."""
+        if 'Basement' in self.doc.levels:
+            self._refresh_floor_selector()
+            for index in range(self.floor_selector.count()):
+                if self.floor_selector.itemData(index)[0] == 'Basement':
+                    self._activate_selected_floor(index)
+                    return
+        depth, accepted = QInputDialog.getDouble(self, 'Προσθήκη υπογείου',
+            'Βάθος δαπέδου υπογείου κάτω από το ισόγειο (m):', 3.0, .20, 1000.0, 3)
+        if not accepted or depth <= 0:
+            return
+        elevation = float(self.doc.levels.get('Ground', 0.0)) - float(depth)
+        try:
+            self.stack.execute(CreateFloorLevel('Basement', elevation))
+        except (ValueError, RuntimeError) as exc:
+            QMessageBox.warning(self, 'Υπόγειο', str(exc)); return
+        self._refresh_floor_selector(); self._redraw_views(all_views=True); self.refresh_inspector()
+        self.statusBar().showMessage(f'Υπόγειο: {elevation:+.3f} m · σχεδίασε το περίγραμμα και δημιούργησε δάπεδο · Ctrl+Z αναίρεση', 7000)
+
     def _create_auto_floors(self):
         # One floor slab over the whole storey (union of its rooms), replacing per-room floors.
         return slab_tools.auto_storey_slab(self, 'room_floor')
@@ -3084,7 +3142,11 @@ class MainWindow(QMainWindow):
         if not add:
             self.statusBar().showMessage('Όλοι οι ακάλυπτοι χώροι έχουν ήδη στέγη', 5000)
             return 0
-        self.stack.execute(CreateRoomRoofs(add, thickness=.20, roof_type='flat'))
+        try:
+            self.stack.execute(CreateRoomRoofs(add, thickness=.20, roof_type='flat'))
+        except ValueError as exc:
+            self.statusBar().showMessage(getattr(exc, 'user_message', str(exc)), 12000)
+            return 0
         self._redraw_views(all_views=True)
         self.statusBar().showMessage(f'Δημιουργήθηκαν {len(add)} επίπεδες στέγες στους ακάλυπτους χώρους', 6000)
         return len(add)
@@ -3097,10 +3159,14 @@ class MainWindow(QMainWindow):
         if not plan['remove'] and not plan['add']:
             self.statusBar().showMessage('Οι στέγες είναι σωστές: καμία κάτω από όροφο, καμία ακάλυπτη αίθουσα', 5000)
             return plan
-        self.stack.execute(CompositeCommand([
-            DeleteEntities(plan['remove']) if plan['remove'] else None,
-            CreateRoomRoofs(plan['add'], thickness=.20, roof_type='flat') if plan['add'] else None,
-        ], 'Διόρθωση στεγών'))
+        try:
+            self.stack.execute(CompositeCommand([
+                DeleteEntities(plan['remove']) if plan['remove'] else None,
+                CreateRoomRoofs(plan['add'], thickness=.20, roof_type='flat') if plan['add'] else None,
+            ], 'Διόρθωση στεγών'))
+        except ValueError as exc:
+            self.statusBar().showMessage(getattr(exc, 'user_message', str(exc)), 12000)
+            return None
         self._redraw_views(all_views=True)
         self.statusBar().showMessage(
             f"Διόρθωση στεγών: αφαιρέθηκαν {len(plan['remove'])} κάτω από όροφο, προστέθηκαν {len(plan['add'])} — Ctrl+Z για αναίρεση", 7000)
@@ -3557,6 +3623,7 @@ class MainWindow(QMainWindow):
             self.setWindowModified(True)
         self._schedule_assistant_refresh()
         self._update_plan_title()
+        self._refresh_floor_selector()
         self._refresh_project_tree()
         if getattr(self, '_cameras', None) is not None:
             self._cameras.on_document_changed()     # camera list; the 3D follows an edited active camera
@@ -3567,6 +3634,9 @@ class MainWindow(QMainWindow):
             if view is None or view is self.view or not view.isVisible():
                 continue
             view.redraw()
+        panel = getattr(self, '_section_panel', None)
+        if panel is not None and panel.isVisible():
+            panel.refresh(fit=False)
 
     def _selection_from_view(self):
         self.refresh_inspector()
@@ -3631,6 +3701,8 @@ class MainWindow(QMainWindow):
             event.ignore()
 
     def _replace_project(self, doc, path=None):
+        if getattr(self, '_terrain_tools', None) is not None:
+            self._terrain_tools.cancel()
         self.doc = doc
         self.stack = CommandStack(self.doc)
         self.stack.listeners.append(self._on_document_changed)

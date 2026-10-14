@@ -9,10 +9,12 @@ The terrain is an authoritative Document entity (``kind='terrain'``):
 - ``points``: optional elevation data ``[[x, y, z], ...]``; the ground
   passes exactly through each point and blends back to the graded plane
   within ``blend_radius`` (default 6 m)
+- ``regions``: closed elevation shapes, constant inside their perimeter,
+  blending into the surrounding field over their ``transition`` distance
 
-Its top surface is the plane ``elevation + slope_x% * (x - x0) +
-slope_y% * (y - y0)``; heights are exact (no sampled noise), so stairs and
-other elements can stand on it deterministically.
+The base field is ``elevation + slope_x% * (x - x0) + slope_y% * (y - y0)``.
+The preview samples this deterministic field; closed building footprints
+and wall strips are subtracted before tessellation, including basement walls.
 """
 from __future__ import annotations
 
@@ -36,7 +38,7 @@ def _plane_height(params: Dict, x: float, y: float) -> float:
     )
 
 
-def terrain_height(params: Dict, x: float, y: float) -> float:
+def _point_height(params: Dict, x: float, y: float) -> float:
     """Graded plane plus a local, exact correction from elevation points."""
     base = _plane_height(params, x, y)
     points = params.get('points') or ()
@@ -53,6 +55,12 @@ def terrain_height(params: Dict, x: float, y: float) -> float:
         w = (1.0 - d / radius) ** 2 / (d * d)
         num += w * (float(pz) - _plane_height(params, px, py)); den += w
     return base + num / den
+
+
+def terrain_height(params: Dict, x: float, y: float) -> float:
+    """Same height field for 3D, plan annotations, site elements and sections."""
+    from .elevation_regions import blended_height
+    return blended_height(params, float(x), float(y), _point_height(params,x,y))
 
 
 def terrain_contains(params: Dict, x: float, y: float) -> bool:
@@ -88,8 +96,10 @@ def default_terrain_params(doc, margin: float = DEFAULT_MARGIN) -> Dict:
     }
 
 
-def terrain_mesh(params: Dict, cell: float | None = None):
+def terrain_mesh(params: Dict, cell: float | None = None, exclusions=()):
     """Closed ground solid: graded top grid, flat bottom, four sides."""
+    if exclusions or params.get('regions'):
+        return _region_mesh(params,cell,exclusions)
     x0, y0, x1, y1 = (float(params[k]) for k in ('x0', 'y0', 'x1', 'y1'))
     if x1 - x0 <= 1e-6 or y1 - y0 <= 1e-6:
         raise ValueError('terrain extent must be positive')
@@ -129,3 +139,92 @@ def terrain_mesh(params: Dict, cell: float | None = None):
         quad(vid(0, j + 1, False), vid(0, j, False), vid(0, j, True), vid(0, j + 1, True), 'side')
         quad(vid(nx, j, False), vid(nx, j + 1, False), vid(nx, j + 1, True), vid(nx, j, True), 'side')
     return tuple(verts), tuple(tris), tuple(roles)
+
+
+def building_exclusions(doc):
+    """Excavation at ground/basement exterior wall faces, derived on every edit.
+
+    Closed room footprints clear the interior; wall footprints also clear
+    unclosed outlines. Upper-storey cantilevers do not excavate the site.
+    """
+    from archforge.geometry.regions import region, offset_loop
+    from archforge.architecture.storey_slabs import _edge_wall
+    ground=float(doc.levels.get('Ground',0.))
+    walls=[e for e in doc.entities.values() if e.kind=='wall' and e.visible and float(e.params.get('z',0.))<=ground+1e-5]
+    out=[]
+    for z in sorted({float(e.params.get('z',0.)) for e in walls}):
+        local=[e for e in walls if abs(float(e.params.get('z',0.))-z)<1e-5]
+        faces=doc.active_room_faces(z=z)
+        for outer,holes in region([f.polygon for f in faces]):
+            # Each exterior segment gets its own actual wall thickness.
+            distances=[]
+            for i,a in enumerate(outer):
+                w=_edge_wall(local,a,outer[(i+1)%len(outer)])
+                distances.append(float(w.params['thickness'])/2 if w else 0.)
+            out.append(offset_loop(outer,distances))
+        for w in local:
+            p=w.params; ax,ay,bx,by=(float(p[k]) for k in ('x1','y1','x2','y2'))
+            length=math.hypot(bx-ax,by-ay)
+            if length<1e-9: continue
+            dx,dy=(bx-ax)/length,(by-ay)/length; h=float(p['thickness'])/2
+            # Square caps meet cleanly at corners; the room union above fills the interior.
+            out.append([(ax-dx*h-dy*h,ay-dy*h+dx*h),(ax-dx*h+dy*h,ay-dy*h-dx*h),
+                        (bx+dx*h+dy*h,by+dy*h-dx*h),(bx+dx*h-dy*h,by+dy*h+dx*h)])
+    return out
+
+
+def _region_mesh(params, cell, exclusions):
+    """Clip grid cells exactly at footprints and plateau edges; weld into one solid.
+
+    Never discard whole intersecting triangles: that would leave a jagged gap
+    at the walls. The existing polygon arrangement/triangulator supplies the cut.
+    """
+    from collections import Counter
+    from archforge.geometry.regions import region, region_loops, group_loops, winding, triangulate_with_holes
+    x0,y0,x1,y1=(float(params[k]) for k in ('x0','y0','x1','y1'))
+    if x1<=x0 or y1<=y0: raise ValueError('terrain extent must be positive')
+    cell=.5 if cell is None else max(.1,float(cell))
+    nx=max(1,min(120,math.ceil((x1-x0)/cell))); ny=max(1,min(120,math.ceil((y1-y0)/cell)))
+    # Union once, so overlapping wall footprints cannot create duplicate cut edges.
+    cuts=[outer for outer,holes in region(exclusions)] if exclusions else []
+    regions=[r['points'] for r in params.get('regions') or ()]
+    def box(poly): return min(x for x,y in poly),min(y for x,y in poly),max(x for x,y in poly),max(y for x,y in poly)
+    cut_boxes=[(p,box(p)) for p in cuts]; reg_boxes=[(p,box(p)) for p in regions]
+    xy=[]; index={}; top=[]
+    def vid(p):
+        key=(round(p[0],8),round(p[1],8))
+        if key not in index: index[key]=len(xy); xy.append(key)
+        return index[key]
+    for i in range(nx):
+        ax=x0+(x1-x0)*i/nx; bx=x0+(x1-x0)*(i+1)/nx
+        for j in range(ny):
+            ay=y0+(y1-y0)*j/ny; by=y0+(y1-y0)*(j+1)/ny
+            square=[(ax,ay),(bx,ay),(bx,by),(ax,by)]
+            def nearby(items): return [p for p,(lx,ly,hx,hy) in items if hx>=ax-1e-8 and lx<=bx+1e-8 and hy>=ay-1e-8 and ly<=by+1e-8]
+            local_cuts=nearby(cut_boxes)
+            islands=region([square],local_cuts) if local_cuts else [(square,[])]
+            for control in nearby(reg_boxes):
+                divided=[]
+                for outer,holes in islands:
+                    loops=[outer]+holes
+                    for inside_region in (False,True):
+                        divided.extend(group_loops(region_loops(loops+[control],
+                            lambda x,y,ls=loops,c=control,inside=inside_region:
+                            sum(winding(x,y,q) for q in ls)>0 and bool(winding(x,y,c))==inside)))
+                islands=divided
+            for outer,holes in islands:
+                pts,tris=triangulate_with_holes(outer,holes)
+                for a,b,c in tris:
+                    ids=vid(pts[a]),vid(pts[b]),vid(pts[c])
+                    if len(set(ids))==3: top.append(ids)
+    if not xy: return (),(),()
+    heights=[terrain_height(params,x,y) for x,y in xy]
+    bottom=min(heights)-max(.05,float(params.get('thickness',DEFAULT_THICKNESS)))
+    verts=[(x,y,z) for (x,y),z in zip(xy,heights)]+[(x,y,bottom) for x,y in xy]
+    n=len(xy); tris=list(top)+[(c+n,b+n,a+n) for a,b,c in top]; roles=['top']*len(top)+['bottom']*len(top)
+    counts=Counter(tuple(sorted(edge)) for a,b,c in top for edge in ((a,b),(b,c),(c,a)))
+    for a,b,c in top:
+        for u,v in ((a,b),(b,c),(c,a)):
+            if counts[tuple(sorted((u,v)))]==1:
+                tris.extend(((u,v+n,v),(u,u+n,v+n))); roles.extend(('side','side'))
+    return tuple(verts),tuple(tris),tuple(roles)

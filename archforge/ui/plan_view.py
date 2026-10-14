@@ -148,7 +148,7 @@ class PlanView(QGraphicsView):
     def _overlay(self,kind,event):
         # Overlay tool (the assistant's kitchen/bath guide lines, fixture drag): gets the mouse first.
         # The camera tool (ui/camera_tool.py: place / move / turn a camera) comes first.
-        return any(tool is not None and bool(tool.handle(self,kind,event)) for tool in (getattr(self,'camera_tool',None),getattr(self,'overlay_tool',None)))
+        return any(tool is not None and bool(tool.handle(self,kind,event)) for tool in (getattr(self,'terrain_tool',None),getattr(self,'camera_tool',None),getattr(self,'overlay_tool',None)))
     CLICK_PX=8   # press → release within this many screen pixels is a click, not a drag
     def _wall_chain_active(self):
         return getattr(self.controller,'wall_chain',None) is not None and self.controller.active is not None
@@ -158,6 +158,8 @@ class PlanView(QGraphicsView):
         self.statusChanged.emit(f'Τοίχοι: έγιναν {count} · Ctrl+Z = αναίρεση του τελευταίου' if count else 'Τοίχος: ακυρώθηκε')
     def mouseDoubleClickEvent(self,event):
         if self._overlay('dclick',event):event.accept();return
+        if event.button()==Qt.MouseButton.LeftButton and self.controller.tool=='plot_point':
+            self.finish_plot();event.accept();return
         if event.button()==Qt.MouseButton.LeftButton and self._wall_chain_active():self.finish_wall_chain();event.accept();return
         if event.button()==Qt.MouseButton.LeftButton and self._railing_tool():self.finish_railing();event.accept();return
         if event.button()==Qt.MouseButton.LeftButton and self._slab_tool():self.finish_slab_opening();event.accept();return
@@ -169,12 +171,16 @@ class PlanView(QGraphicsView):
         super().mouseDoubleClickEvent(event)
 
     def contextMenuEvent(self,event):
+        menu=getattr(self,'_marking_menu',None)
+        if menu is not None and not menu.isHidden():
+            self.hide_marking_menu();event.accept();return
         if self._overlay('context',event):event.accept();return
         if self._wall_chain_active():self.finish_wall_chain();event.accept();return
         window=getattr(self,'marking_menu_window',None)
         if window is not None:
             # One task-dependent mouse menu (marking menu), shared with the 3D view.
-            eid=self._entity_items.get(self.itemAt(event.pos()))
+            hit=self.itemAt(event.pos());handle=self._handle_items.get(hit)
+            eid=handle.entity_id if handle is not None else self._entity_items.get(hit)
             busy=self.controller.tool=='wall' or window.sculpt_action.isChecked()
             if busy or not eid or eid not in self.doc.entities:
                 eid=None
@@ -408,12 +414,21 @@ class PlanView(QGraphicsView):
         if self.controller.tool in ('stair','ramp') and self.controller.active is not None:return False
         if str(self.controller.tool).startswith('layout_'):return False     # Tab = next layout variant
         return super().focusNextPrevChild(next)
+    def finish_plot(self):
+        draft=getattr(self,'plot_draft',None) or []
+        if len(draft)<3:
+            self.statusChanged.emit('Το περίγραμμα χρειάζεται τουλάχιστον 3 κορυφές');return
+        self._long_press=None
+        self.sitePointRequested.emit('plot_point',float(draft[0][0]),float(draft[0][1]))
+
     def keyPressEvent(self,event):
         if self.carry is not None and event.key() in (Qt.Key.Key_Escape,Qt.Key.Key_R):
             if event.key()==Qt.Key.Key_R:self.carry.turn_by(90.0);self.statusChanged.emit(self.carry.label())
             else:self.carry=None;self.statusChanged.emit('Σύρσιμο ακυρώθηκε')
             self.redraw();event.accept();return
         if self._overlay('key',event):event.accept();return
+        if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self.controller.tool=='plot_point':
+            self.finish_plot();event.accept();return
         if event.key()==Qt.Key.Key_Escape and getattr(self,'_restore_select',False):
             self.controller.cancel();self._restore_select=False;self.controller.set_tool('select');self._mouse_down=False;self.redraw();return
         if event.key()==Qt.Key.Key_Escape:self.controller.cancel();self._mouse_down=False;self._view_drag=None;self._wall_press=None;self._railing_draft=None;self._slab_draft=None;self.redraw();return
@@ -783,6 +798,7 @@ class PlanView(QGraphicsView):
                 dot=QPen(QColor(200,60,40));dot.setWidthF(.05);self._scene.addEllipse(ax-.12,ay-.12,.24,.24,dot,QBrush(QColor(200,60,40))).setZValue(30)
         overlay=getattr(self,'overlay_tool',None)
         if overlay is not None:overlay.paint(self)
+        if getattr(self,'terrain_tool',None) is not None:self.terrain_tool.paint(self)
         if getattr(self,'camera_tool',None) is not None:self.camera_tool.paint(self)
         if self.carry is not None:self.carry.paint(self)
         if self.controller.preview.kind=='rotate' and self.controller.active is not None:self._draw_rotate_dial(self.controller.preview)
