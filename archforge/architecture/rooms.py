@@ -179,6 +179,13 @@ def room_slab_geometry(doc, slab_entity: Entity, tolerance: float = 1e-5) -> Opt
             'wall_ids':tuple(face.wall_ids)},tolerance=tolerance)
 
 
+def slab_body_bottom(kind: str, g: dict) -> float:
+    """Bottom of a room slab's solid. The storey level is the finished floor, so a floor slab
+    hangs below it (top at the level, where furniture and fixtures stand); others start at ``z``."""
+    z = float(g['z'])
+    return z - float(g['thickness']) if kind == 'room_floor' else z
+
+
 def room_floor_geometry(doc, floor_entity: Entity, tolerance: float = 1e-5) -> Optional[dict]:
     """Resolve a room floor's live polygon; return None while its room is not closed."""
     if floor_entity.kind!='room_floor':

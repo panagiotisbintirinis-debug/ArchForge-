@@ -451,14 +451,14 @@ def _opening_overlaps_slab(opening,points):
   or any(_point_in_polygon_xy(point,opening) for point in points)
  )
 
-def _apply_vertical_openings_to_slab(doc,mesh,points,slab_z,thickness):
+def _apply_vertical_openings_to_slab(doc,mesh,points,slab_z,thickness,match_z=None):
  from archforge.architecture.stairs import candidate_from_params as stair_candidate,stair_opening_polygons
  from archforge.architecture.ramps import candidate_from_params as ramp_candidate,ramp_opening_polygon
  slab_z=float(slab_z);thickness=float(thickness)
  for entity in doc.entities.values():
   if entity.kind not in ('stair','ramp'):continue
   upper_floor_z=float(entity.params.get('upper_floor_z',entity.params['upper_z']))
-  if abs(upper_floor_z-slab_z)>1e-5:continue
+  if abs(upper_floor_z-(slab_z if match_z is None else float(match_z)))>1e-5:continue
   if entity.kind=='stair':
    openings=stair_opening_polygons(stair_candidate(entity.params))
   else:
@@ -478,6 +478,8 @@ def _room_slab(doc,node):
  from archforge.architecture.rooms import room_slab_geometry
  g=room_slab_geometry(doc,doc.get(node.entity_id))
  if g is None:raise ValueError('derived room element has no currently closed room')
+ from archforge.architecture.rooms import slab_body_bottom
+ level_z=float(g['z']);g=dict(g,z=slab_body_bottom(node.semantic_kind,g))   # floor slab: top at the level
  if g.get('islands') and (len(g['islands'])>1 or g['islands'][0][1]):
   from .regions import prism_with_holes
   mesh=MeshPayload(*prism_with_holes(g['islands'],g['z'],g['thickness']))   # storey slab / slab with openings
@@ -487,7 +489,7 @@ def _room_slab(doc,node):
   m=_polygon_prism(extra,g['z'],g['thickness']);n=len(mesh.vertices)
   mesh=MeshPayload(mesh.vertices+m.vertices,mesh.triangles+tuple((a+n,b+n,c+n) for a,b,c in m.triangles),mesh.triangle_surfaces+m.triangle_surfaces)
  if node.semantic_kind in ('room_floor','room_ceiling','room_roof'):
-  mesh=_apply_vertical_openings_to_slab(doc,mesh,g['points'],g['z'],g['thickness'])
+  mesh=_apply_vertical_openings_to_slab(doc,mesh,g['points'],g['z'],g['thickness'],match_z=level_z)
  return mesh
 def _organic_junction_mesh(doc,node):
  from archforge.organic.biospectre import junction_plane,junction_section_polygon

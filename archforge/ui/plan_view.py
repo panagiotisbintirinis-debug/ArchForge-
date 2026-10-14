@@ -142,7 +142,8 @@ class PlanView(QGraphicsView):
         # During a live Stair/Ramp placement the wheel picks the next option.
         if self.controller.cycle_option(-1 if event.angleDelta().y()>0 else 1):
             self.redraw();event.accept();return
-        self.scale(1.15 if event.angleDelta().y()>0 else 1/1.15,1.15 if event.angleDelta().y()>0 else 1/1.15)
+        from archforge.ui.view_zoom import zoom_about
+        zoom_about(self,event)   # the drawing point under the cursor stays under it
         self._update_label_visibility()
     def _overlay(self,kind,event):
         # Overlay tool (the assistant's kitchen/bath guide lines, fixture drag): gets the mouse first.
@@ -799,7 +800,9 @@ class PlanView(QGraphicsView):
             mx,my=marker;red=QColor(220,30,40);pen=QPen(red);pen.setWidthF(.04)
             self._scene.addEllipse(mx-.18,my-.18,.36,.36,pen,QBrush(QColor(220,30,40,60))).setZValue(40)
             self._scene.addLine(mx-.32,my,mx+.32,my,pen).setZValue(40);self._scene.addLine(mx,my-.32,mx,my+.32,pen).setZValue(40)
-        r=self.mapToScene(self.viewport().rect()).boundingRect();self._scene.setSceneRect(r.adjusted(-5,-5,5,5))
+        # A fixed, very large sheet (±5 km): a scene rect that followed the visible area clamped the
+        # scroll bars, so the wheel zoom could not keep the point under the mouse (drawing slid left).
+        self._scene.setSceneRect(-5000,-5000,10000,10000)
         self.previewChanged.emit(copy.deepcopy(self.controller.preview))
     def _draw_grid(self):
         if not getattr(self,'_show_grid',True):return

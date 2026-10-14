@@ -87,8 +87,8 @@ class SectionView(QGraphicsView):
         self.scale(60.0, -60.0)
 
     def wheelEvent(self, event):
-        f = 1.15 if event.angleDelta().y() > 0 else 1 / 1.15
-        self.scale(f, f)
+        from archforge.ui.view_zoom import zoom_about
+        zoom_about(self, event)
 
     def show_section(self, eid, fit=True):
         from archforge.output.section_cut import cut_section

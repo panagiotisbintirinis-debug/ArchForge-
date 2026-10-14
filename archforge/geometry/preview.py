@@ -29,7 +29,9 @@ def _room_slab_payload(doc,node)->Optional[PreviewPayload]:
     from archforge.architecture.rooms import room_slab_geometry
     g=room_slab_geometry(doc,doc.get(node.entity_id))
     if g is None:return None
-    pts=[(float(x),float(y),float(g['z'])) for x,y in g['points']];top=float(g['z'])+float(g['thickness'])
+    from archforge.architecture.rooms import slab_body_bottom
+    bottom=slab_body_bottom(node.semantic_kind,g)
+    pts=[(float(x),float(y),bottom) for x,y in g['points']];top=bottom+float(g['thickness'])
     return PreviewPayload('polygon_prism',_bounds(pts+[(x,y,top) for x,y,_ in pts]))
 
 def _organic_junction_payload(doc,node)->Optional[PreviewPayload]:
