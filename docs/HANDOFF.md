@@ -10,6 +10,11 @@
 
 Τελευταία ενημέρωση: 2026-10-14 · branch `claude/eager-mccarthy-cl2wgn` = ένωση των δύο παράλληλων chat του 14/10: `claude/peaceful-babbage-uzo71b` (LOOK1 + παρατηρήσεις CHANDLER) και `claude/charming-keller-v3r9lm` (στατικά μέλους).
 
+## ΠΟΥ ΣΤΑΜΑΤΗΣΑΜΕ (14/10, `claude/eager-mccarthy-cl2wgn`) — ΔΙΑΒΑΣΕ ΠΡΩΤΑ
+**Απόφαση ιδιοκτήτη:** επόμενη δουλειά = **«πάρε τη θέση του χρήστη» + πλήρες διώροφο με υπόγειο** (βλ. «ΝΕΑ ΑΙΤΗΜΑΤΑ ΙΔΙΟΚΤΗΤΗ» πιο κάτω, με την πρόταση εκτέλεσης). Δεν ξεκίνησε· το chat έκλεισε στο 71% για αλλαγή.
+Ο βοηθός (πρόταση LLM πιο κάτω) αναβλήθηκε. Μετά: διπλές κολόνες ημιορόφου, LOOK1.
+Cloud: `pip install -r requirements.txt pytest` + `apt-get install libegl1`· tests με `QTWEBENGINE_DISABLE_SANDBOX=1 QT_QPA_PLATFORM=offscreen` (1532 περνούν, ~8 λεπτά → τρέξ' τα στο background).
+
 ## ΕΝΩΣΗ (14/10, `claude/eager-mccarthy-cl2wgn`)
 - Κολόνα: κρατήθηκε το `structure/column_height.column_span` (κεκλιμένη κορυφή, top_level, ημιόροφος)· το `follow_walls=True` των callers το χρησιμοποιεί κι αυτό. Η δοκός μένει κάτω από `column_wall.storey_member_top`.
 - Από το «ΕΠΟΜΕΝΑ» του 2ου chat: τα 3 (πλάκα ημιορόφου/υπογείου, διαγραφή ορόφου) **έγιναν** στο `peaceful-babbage`.
