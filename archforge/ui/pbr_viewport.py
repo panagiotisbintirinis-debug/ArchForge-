@@ -2625,7 +2625,7 @@ class PBRViewport(QWidget):
                 z=active_z, height=max(0.05, next_z-active_z),
                 base_level=level_name, top_level=next_name,
                 grid=(0.10 if self._snap_enabled else None), snap_tol=0.10,
-                snap_enabled=self._snap_enabled,
+                snap_enabled=self._snap_enabled, follow_walls=True,
             )
             entity_id = tx.commit()
             self._evaluation_cache.clear()
@@ -2640,15 +2640,12 @@ class PBRViewport(QWidget):
         try:
             active_z = float(self.doc.work_plane.origin[2])
             level_name = self.doc.active_level_name()
-            above = sorted(
-                (float(z), str(name)) for name, z in self.doc.levels.items()
-                if float(z) > active_z + 1e-9
-            )
-            next_z = above[0][0] if above else active_z + 2.70
+            from archforge.structure.column_wall import storey_member_top
+            top = storey_member_top(self.doc, float(x), float(y), active_z)
             beam_height = 0.30
             self._structural_beam_tx = StructuralBeamDrawTransaction(
                 self.doc, self.stack, (float(x), float(y)),
-                z=next_z-beam_height, width=0.20, height=beam_height,
+                z=top-beam_height, width=0.20, height=beam_height,
                 level=level_name, grid=(0.10 if self._snap_enabled else None),
                 snap_tol=0.10, angle_increment=15.0,
             )

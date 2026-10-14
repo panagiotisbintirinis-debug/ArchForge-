@@ -803,8 +803,11 @@ class StructuralColumnPlaceTransaction:
         self,doc,stack,x,y,*,z,height,width=.25,depth=.25,rotation=0.0,
         role='structural',construction='reinforced_concrete',section='rectangular',
         base_level='Ground',top_level='Unassigned',grid=.10,snap_tol=.10,snap_enabled=True,
+        follow_walls=False,
     ):
         self.doc,self.stack=doc,stack
+        # follow_walls: the height follows the walls where the column lands (storey_member_top).
+        self.follow_walls=bool(follow_walls)
         self.z=float(z);self.height=float(height);self.width=float(width);self.depth=float(depth)
         self.rotation=float(rotation);self.role=str(role);self.construction=str(construction);self.section=str(section)
         self.base_level=str(base_level);self.top_level=str(top_level)
@@ -830,6 +833,9 @@ class StructuralColumnPlaceTransaction:
         else:
             self.x,self.y=float(x),float(y);self.last_snap=None
         self.rotation=float(rotation)%360.0 if rotation is not None else self._free_rotation
+        if self.follow_walls:
+            from archforge.structure.column_wall import storey_member_top
+            self.height=max(0.05,storey_member_top(self.doc,self.x,self.y,self.z)-self.z)
         self.preview={
             'x':self.x,'y':self.y,'z':self.z,
             'width':self.width,'depth':self.depth,'height':self.height,

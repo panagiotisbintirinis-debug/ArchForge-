@@ -227,8 +227,8 @@ def design_column(b, h, L, actions, V, settings, seismic_actions=()):
     candidates = []
     for d in BARS[1:]:
         c = COVER + d / 2000
-        for nb in range(3, 8):
-            for nh in range(3, 8):
+        for nb in range(3, 10):          # up to 9 bars a side: wall-like columns to ~1,7 m
+            for nh in range(3, 10):
                 gb, gh = (b - 2 * c) / (nb - 1), (h - 2 * c) / (nh - 1)
                 if gb > 0.20 or gh > 0.20 or min(gb, gh) - d / 1000 < max(d / 1000, 0.02):
                     continue

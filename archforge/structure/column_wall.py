@@ -58,3 +58,31 @@ def wall_visible_intervals(wall_entity, columns):
         cursor=max(cursor,hi)
     if cursor < length - 1e-9: visible.append((cursor,length))
     return visible
+
+
+def storey_member_top(doc, x, y, z, reach=0.35):
+    """Top of the walls a column at (x, y) on the storey at ``z`` stands among.
+
+    A column follows the walls it is placed on (or next to): the nearest wall of
+    that storey within ``reach`` of its axis gives the top; otherwise the highest
+    wall of the storey; with no walls, the next level above, else ``z + 2.70``.
+    Beams sit under the same top.
+    """
+    z=float(z); x=float(x); y=float(y)
+    walls=[e for e in doc.entities.values()
+           if e.kind=="wall" and abs(float(e.params.get("z",0.0))-z)<0.05 and float(e.params.get("height",0.0))>0.0]
+    best=None
+    for w in walls:
+        p=w.params
+        x1,y1,x2,y2=(float(p[k]) for k in ("x1","y1","x2","y2"))
+        dx,dy=x2-x1,y2-y1; L2=dx*dx+dy*dy
+        t=0.0 if L2<=1e-12 else max(0.0,min(1.0,((x-x1)*dx+(y-y1)*dy)/L2))
+        dist=math.hypot(x-(x1+t*dx),y-(y1+t*dy))-float(p.get("thickness",0.2))/2.0
+        if dist<=reach and (best is None or dist<best[0]):
+            best=(dist,z+float(p["height"]))
+    if best is not None:
+        return best[1]
+    if walls:
+        return max(z+float(w.params["height"]) for w in walls)
+    above=sorted(float(v) for v in doc.levels.values() if float(v)>z+1e-9)
+    return above[0] if above else z+2.70

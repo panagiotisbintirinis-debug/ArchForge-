@@ -81,9 +81,50 @@ def _span_info(model, member):
     return max(gaps, default=s), False
 
 
-def _resize_rc(member, settings, design_fn, kind):
-    """Smallest larger RC section that passes with the same actions (proposal)."""
+def wall_axis(doc, m):
+    """'b' or 'h': the side of column ``m`` that runs along the wall it stands in, else None.
+
+    A column inside a wall grows along the wall (a wall-like column stays plastered over),
+    never across it."""
+    import math as _m
+    x, y, z = m.p1
+    ux, uy = m.y_dir[0], m.y_dir[1]            # direction of the width (b)
+    for e in doc.entities.values():
+        if e.kind != "wall" or abs(float(e.params.get("z", 0.0)) - z) > 0.05:
+            continue
+        p = e.params
+        x1, y1, x2, y2 = (float(p[k]) for k in ("x1", "y1", "x2", "y2"))
+        L = _m.hypot(x2 - x1, y2 - y1)
+        if L < 1e-9:
+            continue
+        wx, wy = (x2 - x1) / L, (y2 - y1) / L
+        t = (x - x1) * wx + (y - y1) * wy
+        if t < -0.05 or t > L + 0.05 or abs(-(x - x1) * wy + (y - y1) * wx) > float(p.get("thickness", 0.2)) / 2 + 0.02:
+            continue
+        along_b = abs(ux * wx + uy * wy) > 0.7
+        across = m.h if along_b else m.b
+        if across <= float(p.get("thickness", 0.2)) + 0.02:
+            return "b" if along_b else "h"
+    return None
+
+
+MAX_WALL_COLUMN = 1.50      # m: longest side of a column grown along its wall
+
+
+def _resize_rc(member, settings, design_fn, kind, axis=None):
+    """Smallest larger RC section that passes with the same actions (proposal).
+
+    ``axis`` ('b' | 'h', columns only): grow that side alone first — a longer column
+    in the wall line instead of a fatter one; then square growth as before."""
     b, h = member.b, member.h
+    if kind == "column" and axis in ("b", "h"):
+        for step in range(1, 40):
+            nb = round(b + 0.05 * step, 2) if axis == "b" else max(b, 0.25)
+            nh = round(h + 0.05 * step, 2) if axis == "h" else max(h, 0.25)
+            if max(nb, nh) > MAX_WALL_COLUMN + 1e-9:
+                break
+            if design_fn(nb, nh)["ok"]:
+                return round(nb, 2), round(nh, 2)
     for step in range(1, 30):
         if kind == "beam":
             nb = max(b, 0.25) + (0.05 * (step // 6))
@@ -210,7 +251,8 @@ def analyze(doc):
                 entry.update(d)
                 entry["section"] = f"{m.b * 100:.0f}/{m.h * 100:.0f}"
                 if not d["ok"]:
-                    size = _resize_rc(m, settings, lambda b, h: design_column(b, h, m.length, acts, V, settings, seis), "column")
+                    size = _resize_rc(m, settings, lambda b, h: design_column(b, h, m.length, acts, V, settings, seis), "column",
+                                      wall_axis(doc, m))
                     if size:
                         entry["proposal"] = {"width": size[0], "depth": size[1]}
             else:
