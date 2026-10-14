@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="el"><head><meta charset="utf-8"><title>ArchForge μενού</title>
+<style>
+:root{--ink:#1f2a37;--muted:#6b7686;--line:#d8dee8;--accent:#2f6bd6;--new:#1a9a52;--mov:#c26a1c}
+*{box-sizing:border-box}body{margin:0;width:1880px;font:12.5px "Segoe UI",system-ui,sans-serif;color:var(--ink);background:#eef1f5}
+.head{background:#0f2747;color:#fff;padding:14px 20px 12px}.head h1{margin:0;font-size:19px}.head p{margin:4px 0 0;color:#b9c8de}
+.bar{display:flex;gap:2px;background:#fff;border-bottom:1px solid var(--line);padding:6px 14px}
+.bar span{padding:6px 12px;border-radius:5px;font-weight:600}.bar span:nth-child(n){background:#e8f0fc;color:var(--accent);margin-right:6px}
+.legend{display:flex;gap:18px;padding:8px 20px;color:var(--muted)}.legend b{font-weight:600}
+.cols{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:6px 14px 18px;align-items:start}
+.menu{background:#fff;border:1px solid #b9c3d1;border-radius:9px;box-shadow:0 6px 16px rgba(20,40,70,.10);padding:6px 6px 8px}
+.menu h2{margin:2px 6px 6px;font-size:15px;color:var(--accent);display:flex;justify-content:space-between;align-items:baseline}
+.menu h2 small{font-size:11px;color:var(--muted);font-weight:400}
+.it{display:flex;justify-content:space-between;align-items:center;padding:3px 8px;border-radius:5px;line-height:1.3}
+.sub>.it:first-child{font-weight:600}
+.sub{margin:2px 0}.sub .kids{margin:1px 0 4px 14px;padding-left:8px;border-left:2px solid #e3e8f0}
+.arrow{color:var(--muted);margin-left:6px}
+.tag{font-size:10px;border-radius:9px;padding:1px 6px;margin-left:6px;white-space:nowrap}
+.n{background:#e5f5ec;color:var(--new)}.m{background:#fbefe3;color:var(--mov)}
+hr{border:none;border-top:1px solid var(--line);margin:5px 4px}
+.note{margin:6px 8px 0;color:var(--muted);font-size:11.5px}
+</style></head><body>
+<div class="head"><h1>ArchForge — μενού και υπομενού (πρόταση για έγκριση)</h1>
+<p>8 μενού αντί για 15 · ίδιες εντολές, σε λογικές ομάδες · κανένας κώδικας ακόμη · 14/10</p></div>
+<div class="bar"><span>Αρχείο</span><span>Επεξεργασία</span><span>Σχεδίαση</span><span>Κατασκευή</span><span>Βιβλιοθήκη</span><span>Προβολή</span><span>Εργαλεία</span><span>Βοήθεια</span></div>
+<div class="legend"><span><span class="tag n">νέο</span> δεν υπάρχει ακόμη — θα φτιαχτεί</span><span><span class="tag m">από …</span> υπάρχει, μετακινείται από άλλο μενού</span><span>χωρίς σήμα = μένει όπου είναι</span><span><b>▸</b> = υπομενού</span></div>
+<div class="cols">
+
+<!-- column 1 -->
+<div>
+<div class="menu"><h2>Αρχείο</h2>
+ <div class="it">Νέο έργο</div><div class="it">Άνοιγμα έργου…</div><div class="it">Αποθήκευση</div><div class="it">Αποθήκευση ως…<span class="tag n">νέο</span></div>
+ <hr><div class="it">Στοιχεία έργου (ερωτήσεις)…</div>
+ <hr>
+ <div class="sub"><div class="it">Εισαγωγή<span class="arrow">▸</span></div><div class="kids">
+  <div class="it">Τοπογραφικό (DXF / σημεία X Y Z)…<span class="tag m">από Έδαφος</span></div>
+  <div class="it">DXF ως φόντο κάτοψης…<span class="tag n">νέο</span></div>
+  <div class="it">Μοντέλο glTF / GLB…<span class="tag m">από Βιβλιοθήκη</span></div>
+  <div class="it">Από Home Designer (.calib)…<span class="tag m">από Βιβλιοθήκη</span></div></div></div>
+ <div class="sub"><div class="it">Εξαγωγή<span class="arrow">▸</span></div><div class="kids">
+  <div class="it">PDF (κατόψεις, επιμέτρηση, προσφορά)…</div>
+  <div class="it">Κάτοψη σε DXF…<span class="tag n">νέο</span></div>
+  <div class="it">Εικόνα 3D…<span class="tag m">από Κάμερες</span></div>
+  <div class="it">STL (για εκτύπωση)</div></div></div>
+ <hr><div class="it">Ανάκτηση μη αποθηκευμένης εργασίας…</div><div class="it">Αυτόματη αποθήκευση: κάθε 3 λεπτά…</div>
+</div>
+<div class="menu" style="margin-top:12px"><h2>Επεξεργασία</h2>
+ <div class="it">Αναίρεση <span class="arrow">Ctrl+Z</span></div><div class="it">Επανάληψη <span class="arrow">Ctrl+Y</span></div>
+ <hr><div class="it">Αντιγραφή / Επικόλληση<span class="tag n">νέο</span></div><div class="it">Διπλασιασμός<span class="tag m">από μενού ποντικιού</span></div><div class="it">Διαγραφή <span class="arrow">Del</span></div>
+ <hr><div class="it">Επιλογή όλων στον όροφο<span class="tag n">νέο</span></div>
+ <hr><div class="it">Συντομεύσεις πληκτρολογίου…</div>
+</div>
+</div>
+
+<!-- column 2 -->
+<div>
+<div class="menu"><h2>Σχεδίαση <small>γραμμές σχεδίου 2D (CAD) — όχι στοιχεία κτιρίου</small></h2>
+ <div class="it">Γραμμή<span class="tag n">νέο</span></div><div class="it">Πολυγραμμή<span class="tag n">νέο</span></div><div class="it">Τόξο<span class="tag n">νέο</span></div><div class="it">Κύκλος<span class="tag n">νέο</span></div><div class="it">Ορθογώνιο<span class="tag n">νέο</span></div>
+ <hr>
+ <div class="sub"><div class="it">Διαστάσεις<span class="arrow">▸</span></div><div class="kids">
+  <div class="it">Γραμμική<span class="tag n">νέο</span></div><div class="it">Αλυσίδα<span class="tag n">νέο</span></div><div class="it">Γωνία<span class="tag n">νέο</span></div><div class="it">Στάθμη ± (υψόμετρο)<span class="tag n">νέο</span></div></div></div>
+ <div class="it">Κείμενο / ετικέτα<span class="tag n">νέο</span></div><div class="it">Γραμμοσκίαση (hatch)<span class="tag n">νέο</span></div>
+ <hr>
+ <div class="sub"><div class="it">Επεξεργασία γραμμών<span class="arrow">▸</span></div><div class="kids">
+  <div class="it">Offset (παράλληλη)<span class="tag n">νέο</span></div><div class="it">Trim / Extend<span class="tag n">νέο</span></div><div class="it">Καθρέφτισμα<span class="tag n">νέο</span></div><div class="it">Πίνακας (array)<span class="tag n">νέο</span></div></div></div>
+ <div class="it">Μετατροπή γραμμής → τοίχος<span class="tag n">νέο</span></div>
+ <hr>
+ <div class="sub"><div class="it">Σήμανση πάνω στο σχέδιο<span class="arrow">▸</span></div><div class="kids">
+  <div class="it">Βέλος<span class="tag n">νέο</span></div><div class="it">Σύννεφο<span class="tag n">νέο</span></div><div class="it">Κείμενο σημείωσης<span class="tag n">νέο</span></div><div class="it">Ελεύθερο χέρι<span class="tag n">νέο</span></div>
+  <div class="it">Εμφάνιση / απόκρυψη σημειώσεων<span class="tag n">νέο</span></div></div></div>
+ <div class="note">Τομή και Εσωτερική όψη → στην <b>Προβολή</b>.</div>
+</div>
+<div class="menu" style="margin-top:12px"><h2>Εργαλεία</h2>
+ <div class="it">Γλυπτική (ενεργή / ανενεργή)<span class="tag m">από μενού «Γλυπτική»</span></div>
+ <div class="it">Υλικό στο επιλεγμένο…<span class="tag m">από μενού «Υλικά»</span></div>
+ <hr><div class="it">Βοηθός (πάνελ)<span class="tag m">από «Βοηθός AI»</span></div><div class="it">📍 Βοηθός εδώ (κλικ στην κάτοψη)</div>
+ <hr><div class="it">Μέτρηση απόστασης<span class="tag n">νέο</span></div>
+</div>
+<div class="menu" style="margin-top:12px"><h2>Βοήθεια</h2>
+ <div class="it">Συντομεύσεις πληκτρολογίου…</div><div class="it">Οδηγός: πρώτο σπίτι σε 10 βήματα<span class="tag n">νέο</span></div><div class="it">Σχετικά με το ArchForge<span class="tag n">νέο</span></div>
+</div>
+</div>
+
+<!-- column 3 -->
+<div>
+<div class="menu"><h2>Κατασκευή <small>στοιχεία του κτιρίου</small></h2>
+ <div class="it">Τοίχος (κλικ στις γωνίες)</div>
+ <div class="sub"><div class="it">Κουφώματα<span class="arrow">▸</span></div><div class="kids"><div class="it">Πόρτα</div><div class="it">Παράθυρο</div><div class="it">Άνοιγμα (χωρίς κούφωμα)</div><div class="it">Τοξωτό άνοιγμα</div></div></div>
+ <div class="sub"><div class="it">Κάγκελα &amp; μπαλκόνια<span class="arrow">▸</span></div><div class="kids"><div class="it">9 τύποι κάγκελου (κάθετα … κτιστό στηθαίο)</div><div class="it">Μπαλκόνι (σχεδίαση)</div><div class="it">Κάγκελο σκάλας (κλικ σε σκάλα)</div></div></div>
+ <div class="sub"><div class="it">Φράχτες<span class="arrow">▸</span></div><div class="kids"><div class="it">Φράχτης / περίφραξη (με έδαφος μέσα)<span class="tag n">νέο</span></div><div class="it">Πεζούλι<span class="tag n">νέο</span></div></div></div>
+ <div class="sub"><div class="it">Πέργκολα<span class="arrow">▸</span></div><div class="kids"><div class="it">Ξύλινη · Αλουμινίου</div></div></div>
+ <div class="sub"><div class="it">Δάπεδα &amp; πλάκες<span class="arrow">▸</span></div><div class="kids"><div class="it">Δάπεδα (μπαίνουν μόνα τους)</div><div class="it">Δώμα</div><div class="it">Οπή πλάκας / αίθριο</div></div></div>
+ <div class="sub"><div class="it">Στέγη<span class="arrow">▸</span></div><div class="kids"><div class="it">Με κεραμίδια ▸ · Χωρίς κεραμίδια ▸ · Οροφή σοφίτας ▸</div><div class="it">Κεραμοσκεπή / Ταράτσα σε χώρο</div><div class="it">Διόρθωση · Διαγραφή όλων των στεγών</div></div></div>
+ <div class="sub"><div class="it">Ψευδοροφή<span class="arrow">▸</span></div><div class="kids"><div class="it">Σε χώρο · Σχεδίαση</div></div></div>
+ <div class="sub"><div class="it">Σκάλα / Ράμπα<span class="arrow">▸</span></div><div class="kids"><div class="it">Σκάλα · Ράμπα · Τύπος σκάλας ▸</div></div></div>
+ <div class="sub"><div class="it">Ντουλάπια<span class="arrow">▸</span></div><div class="kids"><div class="it">Κάτω / κρεμαστό / ψηλό / ντουλάπα / νησίδα …</div><div class="it">Γραμμή ντουλαπιών σε τοίχο…<span class="tag m">από Κουζίνα</span></div></div></div>
+ <div class="sub"><div class="it">Όροφοι<span class="arrow">▸</span></div><div class="kids"><div class="it">＋ Όροφος · Υπόγειο</div></div></div>
+ <hr>
+ <div class="sub"><div class="it">Δομικά<span class="arrow">▸</span><span class="tag m">από μενού «Δομικά»</span></div><div class="kids">
+  <div class="it">Κολώνα · Δοκός · Βάσεις</div><div class="it">Πρόταση φέροντος από τους τοίχους</div><div class="it">Λιγότερες κολόνες, ίδια επάρκεια</div>
+  <div class="it">Στατική ανάλυση… · Οπλισμός πλακών…</div><div class="it">Αρίθμηση Κ1, Δ1 · Φύλλο ξυλοτύπου (PDF)…</div></div></div>
+ <div class="sub"><div class="it">Η/Μ εγκαταστάσεις<span class="arrow">▸</span><span class="tag m">από «Μηχανολογικά»</span></div><div class="kids">
+  <div class="it">Υδραυλικά ▸ · Ηλεκτρολογικά ▸</div><div class="it">Αποχετεύσεις ▸ · Εξαερισμοί ▸</div><div class="it">Πίνακας κυκλωμάτων…</div></div></div>
+ <div class="sub"><div class="it">Έδαφος &amp; περιβάλλων<span class="arrow">▸</span><span class="tag m">από μενού «Έδαφος»</span></div><div class="kids">
+  <div class="it">Δημιουργία · Προδιαγραφές… · Διαγραφή</div><div class="it">Οικόπεδο: όρια · Υψομετρικά σημεία · Περιοχές ▸</div><div class="it">Δέντρο · Θάμνος · Μονοπάτι · Πεζοδρόμιο · Δρόμος</div></div></div>
+ <hr>
+ <div class="sub"><div class="it">Ανακαίνιση (φάσεις)<span class="arrow">▸</span></div><div class="kids"><div class="it">Υφιστάμενα · Καθαίρεση · Νέα</div></div></div>
+ <div class="sub"><div class="it">Επιμετρήσεις &amp; τιμές<span class="arrow">▸</span></div><div class="kids"><div class="it">Επιμέτρηση · Isotex · ICF · Γυψοσανίδες</div><div class="it">Λίστα υλικών με τιμές (Excel) · Τιμές &amp; προσφορά</div></div></div>
+</div>
+</div>
+
+<!-- column 4 -->
+<div>
+<div class="menu"><h2>Βιβλιοθήκη</h2>
+ <div class="it">Τοποθέτηση αντικειμένου…</div><div class="it">Επεξεργασία επιλεγμένου αντικειμένου…</div>
+ <hr>
+ <div class="sub"><div class="it">Κουζίνα &amp; μπάνιο<span class="arrow">▸</span><span class="tag m">από μενού «Κουζίνα»</span></div><div class="kids">
+  <div class="it">Κουζίνα εδώ… · Μπάνιο εδώ…</div><div class="it">Αναπροσαρμογή διάταξης · Σβήσε όλη τη διάταξη</div></div></div>
+ <div class="sub"><div class="it">Υλικά<span class="arrow">▸</span></div><div class="kids">
+  <div class="it">Βιβλιοθήκη υλικών…<span class="tag n">άλλο chat</span></div><div class="it">Υλικό στο επιλεγμένο…</div><div class="it">Δικά μου υλικά…</div></div></div>
+ <div class="note">Η αναζήτηση και το σύρσιμο στην κάτοψη μένουν στο πάνελ «Βιβλιοθήκη».</div>
+</div>
+<div class="menu" style="margin-top:12px"><h2>Προβολή</h2>
+ <div class="sub"><div class="it">Όψεις<span class="arrow">▸</span></div><div class="kids">
+  <div class="it">3D προοπτική · Πάνω · Πρόσοψη · Πλάγια</div><div class="it">Κουκλόσπιτο · Ορθογραφική · Περιήγηση</div></div></div>
+ <div class="it">Τομή (σύρε γραμμή στην κάτοψη)<span class="tag m">από 3D Προβολές</span></div>
+ <div class="it">Εσωτερική όψη<span class="tag m">από 3D Προβολές</span></div>
+ <div class="it">Ταυτόχρονα 2D + 3D</div>
+ <hr>
+ <div class="sub"><div class="it">Κάμερες<span class="arrow">▸</span></div><div class="kids"><div class="it">Νέα κάμερα · Από εδώ που κοιτάζω · Επιστροφή</div><div class="it">λίστα καμερών του έργου</div></div></div>
+ <div class="sub"><div class="it">Απεικόνιση<span class="arrow">▸</span><span class="tag m">από μενού «Απεικόνιση»</span></div><div class="kids">
+  <div class="it">Στυλ: Ρεαλιστικό · Στούντιο · Τεχνικό · Γυάλινο</div><div class="it">Ήλιος &amp; ουρανός ▸ · Σκιές επαφής</div></div></div>
+ <div class="sub"><div class="it">Εμφάνιση στο 3D<span class="arrow">▸</span></div><div class="kids">
+  <div class="it">Σκελετός στέγης · Κεραμίδια · Θεμελίωση</div><div class="it">Ηλεκτρολογικά · Αποχετεύσεις · Εξαερισμοί · Μηχανολογικά</div><div class="it">Ανοιχτά κουφώματα</div></div></div>
+ <div class="sub"><div class="it">Περιβάλλον<span class="arrow">▸</span></div><div class="kids"><div class="it">Αρχιτεκτονικό · Φέρων · Η/Μ</div></div></div>
+ <div class="it">Layers…</div>
+ <hr>
+ <div class="sub"><div class="it">Πάνελ<span class="arrow">▸</span></div><div class="kids"><div class="it">Ιδιότητες · Έργο / Βιβλιοθήκη · Βοηθός</div><div class="it">Layers · Κάμερες · Σημειώσεις<span class="tag n">νέο</span></div></div></div>
+ <div class="it">Γραμμές εργαλείων ▸</div><div class="it">Γραμμή κατάστασης</div><div class="it">Επαναφορά διάταξης</div>
+</div>
+</div>
+
+</div>
+</body></html>
