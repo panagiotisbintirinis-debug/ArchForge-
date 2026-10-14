@@ -51,7 +51,25 @@ def _round_s(s):
     return max(0.05, math.floor(s / 0.025 + 1e-9) * 0.025)
 
 
-def design_beam(b, h, M_sag, M_hog, V, span, settings, cantilever=False):
+def _beam_mrd(As, b, d, f_cd, f_yd):
+    """MRd (kNm) of a singly reinforced section with tension steel As (m²)."""
+    x = As * f_yd / (0.8 * b * f_cd)
+    return As * f_yd * (d - 0.4 * x) * 1000
+
+
+def _bars_fit(n, d, b):
+    """One layer of n Ø d (mm) fits in width b with clear spacing ≥ max(Ø, 20 mm)."""
+    if n < 2:
+        return False
+    return (b - 2 * COVER - n * d / 1000) / (n - 1) >= max(d / 1000, 0.02) - 1e-9
+
+
+def design_beam(b, h, M_sag, M_hog, V, span, settings, cantilever=False, rebar=None):
+    """Select (or, with ``rebar``, check) the reinforcement of a beam.
+
+    ``rebar`` (optional, any part): {"bottom": {"n", "d"}, "top": {"n", "d"},
+    "stirrups": {"d", "s", "s_crit"}} — the given bars are checked instead of chosen."""
+    rebar = rebar or {}
     cls = settings["concrete"]
     fck, fctm, _E = CONCRETE[cls]
     f_cd, f_yd = fcd(cls), fyd()
@@ -75,6 +93,23 @@ def design_beam(b, h, M_sag, M_hog, V, span, settings, cantilever=False):
     for side in ("bottom", "top"):
         if req.get(side) is None:
             continue
+        given = rebar.get(side)
+        if given:
+            n, dia = int(given["n"]), int(given["d"])
+            area = n * bar_area(dia)
+            out[side] = {"n": n, "d": dia, "As_cm2": round(area * 1e4, 2), "As_req_cm2": round(req[side] * 1e4, 2),
+                         "given": True}
+            where = "κάτω" if side == "bottom" else "άνω"
+            if not _bars_fit(n, dia, b):
+                out["ok"] = False
+                out["checks"].append(f"Οπλισμός {where} {n}Ø{dia} δεν χωρά σε μία στρώση (απόσταση ≥ max(Ø, 20 mm))")
+            if area > as_max:
+                out["ok"] = False
+                out["checks"].append(f"Οπλισμός {where}: As > 4 % (EN 1992-1-1 §9.2.1.1)")
+            if area < req[side] - 1e-9:
+                out["ok"] = False
+                out["checks"].append(f"Οπλισμός {where}: As = {area * 1e4:.2f} < απαιτούμενο {req[side] * 1e4:.2f} cm²")
+            continue
         bars = _bars_for(req[side], b)
         if bars is None or bars[2] > as_max:
             out["ok"] = False
@@ -89,12 +124,31 @@ def design_beam(b, h, M_sag, M_hog, V, span, settings, cantilever=False):
         out["ok"] = False
         out["checks"].append(f"Διάτμηση: V = {V:.0f} > VRd,max = {v_max:.0f} kN — μεγαλύτερη διατομή")
     else:
-        s_shear = ASW * z * f_yd * 1000 / V if V > 0 else 1.0
+        sw = rebar.get("stirrups") or {}
+        dw = int(sw.get("d", STIRRUP))
+        asw = 2 * bar_area(dw)
+        s_shear = asw * z * f_yd * 1000 / V if V > 0 else 1.0
         rho_w_min = 0.08 * math.sqrt(fck) / FYK
         dl = min((out[s]["d"] for s in ("bottom", "top") if s in out), default=12)
-        s_gen = _round_s(min(s_shear, 0.75 * d, 0.30, ASW / (rho_w_min * b)))
-        s_crit = _round_s(min(s_shear, h / 4, 24 * STIRRUP / 1000, 0.225, 8 * dl / 1000))
-        out["stirrups"] = {"d": STIRRUP, "s": s_gen, "s_crit": s_crit, "l_crit": round(h, 2)}
+        gen_max = min(0.75 * d, 0.30, asw / (rho_w_min * b))
+        crit_max = min(h / 4, 24 * dw / 1000, 0.225, 8 * dl / 1000)
+        if sw:
+            s_gen, s_crit = float(sw["s"]), float(sw.get("s_crit", sw["s"]))
+            if s_gen > gen_max + 1e-9:
+                out["ok"] = False
+                out["checks"].append(f"Συνδετήρες: s = {s_gen * 100:.1f} > {gen_max * 100:.1f} cm (μέγιστη απόσταση / ρw,min)")
+            if s_crit > crit_max + 1e-9:
+                out["ok"] = False
+                out["checks"].append(f"Συνδετήρες κρίσιμης περιοχής: s = {s_crit * 100:.1f} > {crit_max * 100:.1f} cm (EN 1998-1)")
+        else:
+            s_gen = _round_s(min(s_shear, gen_max))
+            s_crit = _round_s(min(s_shear, crit_max))
+        out["VRd_s"] = round(asw / max(s_gen, 1e-6) * z * f_yd * 1000, 1)       # cotθ = 1, outside the critical region
+        out["VRd_max"] = round(v_max, 1)
+        if sw and V > out["VRd_s"] + 1e-6:
+            out["ok"] = False
+            out["checks"].append(f"Διάτμηση: V = {V:.0f} > VRd,s = {out['VRd_s']:.0f} kN — πυκνότεροι/χοντρότεροι συνδετήρες")
+        out["stirrups"] = {"d": dw, "s": s_gen, "s_crit": s_crit, "l_crit": round(h, 2), **({"given": True} if sw else {})}
     # Deflection (span/depth).
     side = "top" if cantilever else "bottom"
     if side in out and span > 0:
@@ -113,11 +167,16 @@ def design_beam(b, h, M_sag, M_hog, V, span, settings, cantilever=False):
             out["checks"].append(f"Βέλος: l/d = {span / d:.1f} > {ld:.1f} — μεγαλύτερο ύψος")
     utils = []
     for side, M in (("bottom", M_sag), ("top", M_hog)):
-        if side in out and M > 0:
-            mu = M / (b * d * d * f_cd * 1000)
-            utils.append(mu / MU_LIM)
+        if side in out:
+            mrd = _beam_mrd(out[side]["As_cm2"] / 1e4, b, d, f_cd, f_yd)
+            out[side]["MRd"] = round(mrd, 1)
+            if M > 0:
+                mu = M / (b * d * d * f_cd * 1000)
+                utils += [mu / MU_LIM, M / mrd if mrd > 0 else 9.99]
     if V > 0:
         utils.append(V / v_max)
+        if "VRd_s" in out:
+            utils.append(V / out["VRd_s"])
     if "l_d" in out:
         utils.append(out["l_d"] / out["l_d_lim"])
     out["utilisation"] = round(max(utils, default=0.0), 2)
@@ -187,8 +246,22 @@ def _bresler(N, My, Mz, MRy, MRz, NRd):
     return (abs(My) / MRy) ** a + (abs(Mz) / MRz) ** a
 
 
-def design_column(b, h, L, actions, V, settings, seismic_actions=()):
-    """actions: [(N compression +, My, Mz)] for every combination and end."""
+def _column_util(b, h, nb, nh, d, worst, cls, stop=1.0):
+    util = 0.0
+    for N, My_d, Mz_d in worst:
+        MRy, MRz, NRd, _c = column_capacity(b, h, nb, nh, d, N, cls)
+        util = max(util, _bresler(N, My_d, Mz_d, MRy, MRz, NRd), N / NRd if NRd else 0)
+        if util > stop:
+            break
+    return util
+
+
+def design_column(b, h, L, actions, V, settings, seismic_actions=(), rebar=None):
+    """actions: [(N compression +, My, Mz)] for every combination and end.
+
+    ``rebar`` (optional): {"d", "nb", "nh"} bars per face and/or {"stirrups": {"d", "s", "s_crit"}}
+    — the given reinforcement is checked instead of chosen."""
+    rebar = rebar or {}
     cls = settings["concrete"]
     fck, _fctm, _E = CONCRETE[cls]
     f_cd, f_yd = fcd(cls), fyd()
@@ -224,30 +297,46 @@ def design_column(b, h, L, actions, V, settings, seismic_actions=()):
     out["N_max"] = round(max((a[0] for a in actions), default=0.0), 1)
     out["My_max"] = round(max((a[1] for a in design), default=0.0), 1)
     out["Mz_max"] = round(max((a[2] for a in design), default=0.0), 1)
-    candidates = []
-    for d in BARS[1:]:
-        c = COVER + d / 2000
-        for nb in range(3, 10):          # up to 9 bars a side: wall-like columns to ~1,7 m
-            for nh in range(3, 10):
-                gb, gh = (b - 2 * c) / (nb - 1), (h - 2 * c) / (nh - 1)
-                if gb > 0.20 or gh > 0.20 or min(gb, gh) - d / 1000 < max(d / 1000, 0.02):
-                    continue
-                As = (2 * nb + 2 * nh - 4) * bar_area(d)
-                if 0.01 <= As / Ac <= 0.04:
-                    candidates.append((As, nb + nh, nb, nh, d))
-    chosen = None
     # Cheapest layout first; the first one that carries every combination wins.
     worst = sorted(design, key=lambda a: -(abs(a[1]) + abs(a[2]) + 0.05 * abs(a[0])))
-    for As, _n, nb, nh, d in sorted(candidates):
-        util = 0.0
-        for N, My_d, Mz_d in worst:
-            MRy, MRz, NRd, _c = column_capacity(b, h, nb, nh, d, N, cls)
-            util = max(util, _bresler(N, My_d, Mz_d, MRy, MRz, NRd), N / NRd if NRd else 0)
-            if util > 1.0:
+    if rebar.get("d"):
+        nb, nh, d = int(rebar["nb"]), int(rebar["nh"]), int(rebar["d"])
+        As = (2 * nb + 2 * nh - 4) * bar_area(d)
+        c = COVER + d / 2000
+        gb, gh = (b - 2 * c) / max(nb - 1, 1), (h - 2 * c) / max(nh - 1, 1)
+        if nb < 2 or nh < 2 or min(gb, gh) - d / 1000 < max(d / 1000, 0.02) - 1e-9:
+            out["ok"] = False
+            out["checks"].append(f"Οι ράβδοι Ø{d} ({nb}×{nh} ανά πλευρά) δεν χωρούν — λιγότερες ή λεπτότερες")
+        if max(gb, gh) > 0.20 + 1e-9:
+            out["ok"] = False
+            out["checks"].append(f"Απόσταση ράβδων {max(gb, gh) * 100:.0f} > 20 cm (EN 1998-1 §5.4.3.2.2) — ενδιάμεσες ράβδοι")
+        rho = As / Ac
+        if rho < 0.01 - 1e-9 or rho > 0.04 + 1e-9:
+            out["ok"] = False
+            out["checks"].append(f"ρ = {rho * 100:.2f} % εκτός 1–4 % (EN 1998-1 ΚΠΜ)")
+        util = _column_util(b, h, nb, nh, d, worst, cls, stop=math.inf) if nb >= 2 and nh >= 2 else 9.99
+        if util > 1.0:
+            out["ok"] = False
+            out["checks"].append(f"Αντοχή N–M (Bresler): αξιοποίηση {min(util, 9.99):.0%} > 100 %")
+        chosen = (nb, nh, d, As, util) if nb >= 2 and nh >= 2 else None
+    else:
+        candidates = []
+        for d in BARS[1:]:
+            c = COVER + d / 2000
+            for nb in range(3, 10):          # up to 9 bars a side: wall-like columns to ~1,7 m
+                for nh in range(3, 10):
+                    gb, gh = (b - 2 * c) / (nb - 1), (h - 2 * c) / (nh - 1)
+                    if gb > 0.20 or gh > 0.20 or min(gb, gh) - d / 1000 < max(d / 1000, 0.02):
+                        continue
+                    As = (2 * nb + 2 * nh - 4) * bar_area(d)
+                    if 0.01 <= As / Ac <= 0.04:
+                        candidates.append((As, nb + nh, nb, nh, d))
+        chosen = None
+        for As, _n, nb, nh, d in sorted(candidates):
+            util = _column_util(b, h, nb, nh, d, worst, cls)
+            if util <= 1.0:
+                chosen = (nb, nh, d, As, util)
                 break
-        if util <= 1.0:
-            chosen = (nb, nh, d, As, util)
-            break
     if chosen is None:
         out["ok"] = False
         out["checks"].append("Καμία διάταξη οπλισμού (ρ ≤ 4 %) δεν επαρκεί — μεγαλύτερη διατομή")
@@ -255,14 +344,38 @@ def design_column(b, h, L, actions, V, settings, seismic_actions=()):
         return out
     nb, nh, d, As, util = chosen
     out["bars"] = {"n": 2 * nb + 2 * nh - 4, "d": d, "nb": nb, "nh": nh, "As_cm2": round(As * 1e4, 2),
-                   "rho": round(As / Ac * 100, 2)}
+                   "rho": round(As / Ac * 100, 2), **({"given": True} if rebar.get("d") else {})}
+    N_max = max((a[0] for a in actions), default=0.0)
+    MRy, MRz, NRd, _c = column_capacity(b, h, nb, nh, d, N_max, cls)
+    out["capacity"] = {"N": round(N_max, 1), "MRdy": round(MRy, 1), "MRdz": round(MRz, 1), "NRd": round(NRd, 1)}
     # Stirrups: shear and confinement spacing.
-    dmin = d
+    sw = rebar.get("stirrups") or {}
+    dw = int(sw.get("d", STIRRUP))
+    asw = 2 * bar_area(dw)
     z = 0.9 * (max(b, h) - 0.05)
-    s_shear = ASW * z * f_yd * 1000 / V if V > 0 else 1.0
-    s_gen = _round_s(min(s_shear, 20 * dmin / 1000, min(b, h), 0.40))
+    s_shear = asw * z * f_yd * 1000 / V if V > 0 else 1.0
     b0 = min(b, h) - 2 * COVER
-    s_crit = _round_s(min(s_shear, b0 / 2, 0.175, 8 * dmin / 1000))
-    out["stirrups"] = {"d": STIRRUP, "s": s_gen, "s_crit": s_crit, "l_crit": round(max(max(b, h), L / 6, 0.45), 2)}
-    out["utilisation"] = round(max(util, nu_d / 0.65 if seismic_actions else 0.0), 2)
+    gen_max = min(20 * d / 1000, min(b, h), 0.40)
+    crit_max = min(b0 / 2, 0.175, 8 * d / 1000)
+    if sw:
+        s_gen, s_crit = float(sw["s"]), float(sw.get("s_crit", sw["s"]))
+        if s_gen > gen_max + 1e-9:
+            out["ok"] = False
+            out["checks"].append(f"Συνδετήρες: s = {s_gen * 100:.1f} > {gen_max * 100:.1f} cm")
+        if s_crit > crit_max + 1e-9:
+            out["ok"] = False
+            out["checks"].append(f"Συνδετήρες κρίσιμης περιοχής: s = {s_crit * 100:.1f} > {crit_max * 100:.1f} cm (EN 1998-1)")
+    else:
+        s_gen = _round_s(min(s_shear, gen_max))
+        s_crit = _round_s(min(s_shear, crit_max))
+    out["VRd_s"] = round(asw / max(s_gen, 1e-6) * z * f_yd * 1000, 1)
+    if sw and V > out["VRd_s"] + 1e-6:
+        out["ok"] = False
+        out["checks"].append(f"Διάτμηση: V = {V:.0f} > VRd,s = {out['VRd_s']:.0f} kN — πυκνότεροι συνδετήρες")
+    out["stirrups"] = {"d": dw, "s": s_gen, "s_crit": s_crit, "l_crit": round(max(max(b, h), L / 6, 0.45), 2),
+                       **({"given": True} if sw else {})}
+    utils = [util, nu_d / 0.65 if seismic_actions else 0.0]
+    if V > 0:
+        utils.append(V / out["VRd_s"])
+    out["utilisation"] = round(max(utils), 2)
     return out

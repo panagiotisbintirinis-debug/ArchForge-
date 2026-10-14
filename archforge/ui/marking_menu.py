@@ -111,6 +111,8 @@ def build_menu(window, view, entity_id=None):
             entries.insert(len(entries) - 1, _e("mm:wall:split", "Διαχωρισμός εδώ"))
         entries.append(_e("mm:assist:entity", "📍 Βοηθός εδώ", "panel"))
         if entity.kind in ("structural_column", "structural_beam"):
+            # Radial: one click from the member to its own statics (actions, bars, re-check, undo).
+            entries.insert(1, _e("mm:member_statics", "Στατικά μέλους…"))
             entries.append(_e("mm:analyze", "Στατική ανάλυση", "panel"))
         if entity.kind == "slab_opening":
             entries.insert(1, _e("mm:slab:railing", "Κάγκελο γύρω από την οπή"))
@@ -281,6 +283,8 @@ def run(window, view, entity_id, action_id, plan_xy=None):
         (window._design_structure if arg == "design" else window._propose_frame)()
     elif group == "analyze":
         window._show_structural_analysis()
+    elif group == "member_statics" and entity_id:
+        window._show_member_statics(entity_id)
     elif group == "undo":
         window._undo()
 

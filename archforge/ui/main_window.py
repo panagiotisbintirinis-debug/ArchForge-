@@ -3522,6 +3522,22 @@ class MainWindow(QMainWindow):
             dialog.exec()
         return result
 
+    def _show_member_statics(self, entity_id=None):
+        """«Στατικά μέλους»: the clicked (else the selected) column/beam — actions, bars, live re-check."""
+        from archforge.ui.member_statics_dialog import MemberStaticsDialog
+        if entity_id is None:
+            picked = [i for i in self.doc.selection if i in self.doc.entities
+                      and self.doc.get(i).kind in ('structural_column', 'structural_beam')]
+            if not picked:
+                self.statusBar().showMessage('Στατικά μέλους: επίλεξε μία κολόνα ή δοκό', 6000)
+                return None
+            entity_id = picked[0]
+        dialog = MemberStaticsDialog(self, entity_id)
+        self._member_statics_dialog = dialog
+        if not getattr(self, '_no_modal_dialogs', False):
+            dialog.exec()
+        return dialog
+
     def _set_assistant_target(self, target):
         """Point the assistant at one thing (or nothing); the plan shows the marker."""
         self._assistant_target = target

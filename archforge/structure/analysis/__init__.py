@@ -217,15 +217,19 @@ def analyze(doc):
     # Design every member with the final forces.
     for m in model.members.values():
         rows = designs[m.id]
-        entry = {"id": m.id, "name": m.name, "kind": m.kind, "material": m.material, "length_m": round(m.length, 2)}
+        entry = {"id": m.id, "name": m.name, "kind": m.kind, "material": m.material, "length_m": round(m.length, 2),
+                 "b": m.b, "h": m.h, "combos": combo_table(rows), "diagram": envelope(rows)}
+        source = doc.entities.get(m.id)
+        rebar = (source.params.get("rebar") if source is not None else None) or None
         if m.kind == "beam":
             M_sag = max(0.0, max(r[5] for r in rows))
             M_hog = max(0.0, max(-r[5] for r in rows))
             V = max(abs(r[4]) for r in rows)
             span, cant = _span_info(model, m)
             entry.update({"M_sag": round(M_sag, 1), "M_hog": round(M_hog, 1), "V": round(V, 1), "span_m": round(span, 2)})
+            entry["inputs"] = {"M_sag": M_sag, "M_hog": M_hog, "V": V, "span": span, "cantilever": cant}
             if m.material == "rc":
-                d = design_beam(m.b, m.h, M_sag, M_hog, V, span, settings, cant)
+                d = design_beam(m.b, m.h, M_sag, M_hog, V, span, settings, cant, rebar=rebar)
                 entry.update(d)
                 entry["section"] = f"{m.b * 100:.0f}/{m.h * 100:.0f}"
                 if not d["ok"]:
@@ -246,8 +250,9 @@ def analyze(doc):
             seis = [(-r[2], r[5], r[6]) for r in rows if r[7]]
             V = max(math.hypot(r[3], r[4]) for r in rows)
             entry.update({"N_max": round(max(a[0] for a in acts), 1), "V": round(V, 1)})
+            entry["inputs"] = {"L": m.length, "actions": acts, "V": V, "seismic": seis}
             if m.material == "rc":
-                d = design_column(m.b, m.h, m.length, acts, V, settings, seis)
+                d = design_column(m.b, m.h, m.length, acts, V, settings, seis, rebar=rebar)
                 entry.update(d)
                 entry["section"] = f"{m.b * 100:.0f}/{m.h * 100:.0f}"
                 if not d["ok"]:
@@ -273,6 +278,29 @@ def analyze(doc):
     from archforge.structure.slabs import design_slabs
     result["slabs"] = design_slabs(doc)
     return result
+
+
+def combo_table(rows):
+    """Per load combination, the largest internal actions along the member:
+    [{"combo", "seismic", "N", "V", "My", "Mz"}] (kN, kNm; N compression +, extreme with sign)."""
+    out = {}
+    for name, _s, N, Vy, Vz, My, Mz, seismic in rows:
+        e = out.setdefault(name, {"combo": name, "seismic": bool(seismic), "N": 0.0, "V": 0.0, "My": 0.0, "Mz": 0.0})
+        for key, v in (("N", -N), ("My", My), ("Mz", Mz)):
+            if abs(v) > abs(e[key]):
+                e[key] = float(v)
+        e["V"] = max(e["V"], float(math.hypot(Vy, Vz)))
+    return [{k: (round(v, 1) if isinstance(v, float) else v) for k, v in e.items()} for e in out.values()]
+
+
+def envelope(rows):
+    """Envelope over every combination along the member: [(s m, My min, My max, V max)] (kNm, kN)."""
+    pts = {}
+    for _name, s, _N, Vy, Vz, My, _Mz, _seismic in rows:
+        k = round(s, 3)
+        lo, hi, v = pts.get(k, (math.inf, -math.inf, 0.0))
+        pts[k] = (min(lo, My), max(hi, My), max(v, abs(Vz), abs(Vy)))
+    return [(k, round(float(lo), 1), round(float(hi), 1), round(float(v), 1)) for k, (lo, hi, v) in sorted(pts.items())]
 
 
 def _steel_proposal(doc, m, p):
