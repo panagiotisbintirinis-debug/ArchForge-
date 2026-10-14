@@ -3444,6 +3444,30 @@ class MainWindow(QMainWindow):
             self._show_structural_analysis()
         return out
 
+    def _reduce_columns(self):
+        """Fewer columns, same adequacy: the selected column lines (else all) go where the frame,
+        re-solved with longer beams and longer wall-like columns, still passes (one undo)."""
+        from archforge.structure.reduce_columns import reduce_columns
+        selected = [i for i in self.doc.selection if i in self.doc.entities
+                    and self.doc.get(i).kind == 'structural_column']
+        out = reduce_columns(self.doc, self.stack, selected or None)
+        self._refresh_project_tree()
+        self._redraw_views(all_views=True)
+        self._schedule_assistant_refresh()
+        if out.get('error'):
+            text = out['error']
+        elif out['removed']:
+            text = (f"Αφαιρέθηκαν κολόνες: {', '.join(out['removed'])}"
+                    + (f" · μεγάλωσαν: {', '.join(out['resized'][:6])}" if out['resized'] else '')
+                    + ' · όλα επαρκούν — Ctrl+Z για αναίρεση')
+        else:
+            text = 'Καμία κολόνα δεν μπορεί να φύγει με την ίδια επάρκεια' + (
+                ' (' + '; '.join(out['kept'][:3]) + ')' if out['kept'] else '')
+        self.statusBar().showMessage(text, 12000)
+        if out['removed']:
+            self._show_structural_analysis()
+        return out
+
     def _edit_structural_settings(self):
         """Building type and design basis for the structural analysis (one undoable command)."""
         from archforge.structure.analysis.sections import CONCRETE, STEEL_GRADES
@@ -3531,6 +3555,22 @@ class MainWindow(QMainWindow):
         if not getattr(self, '_no_modal_dialogs', False):
             dialog.exec()
         return result
+
+    def _show_member_statics(self, entity_id=None):
+        """«Στατικά μέλους»: the clicked (else the selected) column/beam — actions, bars, live re-check."""
+        from archforge.ui.member_statics_dialog import MemberStaticsDialog
+        if entity_id is None:
+            picked = [i for i in self.doc.selection if i in self.doc.entities
+                      and self.doc.get(i).kind in ('structural_column', 'structural_beam')]
+            if not picked:
+                self.statusBar().showMessage('Στατικά μέλους: επίλεξε μία κολόνα ή δοκό', 6000)
+                return None
+            entity_id = picked[0]
+        dialog = MemberStaticsDialog(self, entity_id)
+        self._member_statics_dialog = dialog
+        if not getattr(self, '_no_modal_dialogs', False):
+            dialog.exec()
+        return dialog
 
     def _set_assistant_target(self, target):
         """Point the assistant at one thing (or nothing); the plan shows the marker."""

@@ -255,6 +255,7 @@ def install_approved_mockup_shell(window):
     structure_menu.addSeparator()
     for text,run in (("Υπολογισμός φέροντα: κολόνες, δοκάρια, βάσεις",lambda: window._design_structure()),
                      ("Πρόταση φέροντος οργανισμού από τους τοίχους",lambda: window._propose_frame()),
+                     ("Λιγότερες κολόνες, ίδια επάρκεια (επιλεγμένες ή όλες)",lambda: window._reduce_columns()),
                      ("Στοιχεία κτιρίου για στατική…",lambda: window._edit_structural_settings()),
                      ("Στατική ανάλυση φέροντος οργανισμού…",lambda: window._show_structural_analysis()),
                      ("Οπλισμός πλακών…",lambda: window._show_slabs()),

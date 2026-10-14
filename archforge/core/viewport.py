@@ -169,6 +169,7 @@ class PointerController:
                     grid=(self.grid if geometry_snap_enabled else None),
                     snap_tol=self.snap_tolerance,
                     snap_enabled=geometry_snap_enabled,
+                    follow_walls=True,
                 )
                 hud=self.active.update(x,y)
                 self.preview=PreviewState(
@@ -181,7 +182,8 @@ class PointerController:
 
             preset=getattr(self,'structural_preset',{}) if self.tool=='structural_beam' else {}
             beam_height=float(preset.get('height',.30))
-            beam_z=next_z-beam_height
+            from archforge.structure.column_wall import storey_member_top
+            beam_z=storey_member_top(self.doc,sx,sy,active_z)-beam_height
             self.active=StructuralBeamDrawTransaction(
                 self.doc,self.stack,(sx,sy),
                 z=beam_z,width=float(preset.get('width',.20)),height=beam_height,

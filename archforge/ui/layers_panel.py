@@ -173,8 +173,12 @@ def _environment_bar(window):
     add('structure', 'Κολόνα', lambda: window._set_active_tool('structural_column'), 'Κλικ στην κάτοψη για κολόνα')
     add('structure', 'Δοκός', lambda: window._set_active_tool('structural_beam'), 'Σύρε από κολόνα σε κολόνα')
     add('structure', 'Πρόταση φέροντος', lambda: window._propose_frame(), 'Κολόνες και δοκοί από τους τοίχους (ένα undo)')
+    add('structure', 'Λιγότερες κολόνες', lambda: window._reduce_columns(),
+        'Αφαιρεί κολόνες στη μέση ευθείας δοκού όπου ο φορέας, ξαναϋπολογισμένος, επαρκεί· οι κολόνες μακραίνουν μέσα στον τοίχο (ένα undo)')
     add('structure', 'Πέδιλα && υπολογισμός', lambda: window._design_structure(), 'Κολόνες, δοκοί, πέδιλα, συνδετήριες (ένα undo)')
     add('structure', 'Στατική', lambda: window._show_structural_analysis(), 'Στατική ανάλυση φέροντος οργανισμού')
+    add('structure', 'Στατικά μέλους', lambda: window._show_member_statics(),
+        'Η επιλεγμένη κολόνα/δοκός: εντατικά, οπλισμός, επανέλεγχος, προτεινόμενη λύση')
     for attr, label in (('_mockup_plumbing_menu', 'Υδραυλικά'), ('_mockup_electrical_menu', 'Ηλεκτρολογικά'),
                         ('_mockup_drainage_menu', 'Αποχετεύσεις'), ('_mockup_ventilation_menu', 'Εξαερισμοί')):
         menu = getattr(window, attr, None)
@@ -216,7 +220,7 @@ def install_layers(window):
     window._set_workspace = lambda name: set_workspace(window, name)
     _wrap(window, '_set_active_tool', lambda tool, *a, **k: _tool_environment(window, tool))
     _wrap(window, '_start_site_tool', lambda tool, *a, **k: _tool_environment(window, tool))
-    for name in ('_propose_frame', '_design_structure'):
+    for name in ('_propose_frame', '_design_structure', '_reduce_columns', '_show_member_statics'):
         _wrap(window, name, lambda *a, **k: _tool_environment(window, 'structural_column'))
     refresh(window)
     if hasattr(window, '_mark_clean'):

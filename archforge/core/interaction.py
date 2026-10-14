@@ -803,10 +803,11 @@ class StructuralColumnPlaceTransaction:
         self,doc,stack,x,y,*,z,height=None,width=.25,depth=.25,rotation=0.0,
         role='structural',construction='reinforced_concrete',section='rectangular',
         base_level='Ground',top_level='Unassigned',grid=.10,snap_tol=.10,snap_enabled=True,
+        follow_walls=False,
     ):
         self.doc,self.stack=doc,stack
-        # height=None: the column follows the walls it stands on (structure.column_height).
-        self.auto_height=height is None
+        # height=None or follow_walls: the column follows the walls it stands on (structure.column_height).
+        self.auto_height=height is None or bool(follow_walls)
         self.z=float(z);self.height=2.70 if height is None else float(height);self.width=float(width);self.depth=float(depth)
         self.rotation=float(rotation);self.role=str(role);self.construction=str(construction);self.section=str(section)
         self.base_level=str(base_level);self.top_level=str(top_level)
