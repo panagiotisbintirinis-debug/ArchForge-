@@ -1392,7 +1392,7 @@ class MainWindow(QMainWindow):
         from archforge.mep.electrical import POINT_TYPES as ELEC
         from archforge.mep.plumbing import POINT_TYPES as PLUMB
         from archforge.mep.ventilation import POINT_TYPES as VENT
-        from archforge.rendering.materials import material_categories, materials_in_category
+        from archforge.rendering.materials import picker_categories, picker_materials
         by_cat = {}
         for r in assets.list_assets():
             cat = (r.get('category') or ['Εισαγωγές'])[0]
@@ -1427,12 +1427,14 @@ class MainWindow(QMainWindow):
         rest = [(cat, items) for cat, items in by_cat.items() if items]
         if rest:
             themes.append(('Εισαγωγές & λοιπά', rest))
-        themes.append(('Υλικά', [(cat, [(spec['name'], ('material', mid)) for mid, spec in materials_in_category(cat)])
-                                 for cat in material_categories()]))
+        # The user's own materials («Δικά μου υλικά») first, like the materials dialog.
+        themes.append(('Υλικά', [(cat, [(spec['name'], ('material', mid)) for mid, spec in picker_materials(cat, self.doc)])
+                                 for cat in picker_categories(self.doc)]))
         return [(t, [(s, items) for s, items in subs if items]) for t, subs in themes]
 
     def _refresh_library_tree(self):
         from PySide6.QtWidgets import QTreeWidgetItem
+        from archforge.ui.library_icons import library_icon
         tree = getattr(self, '_library_tree', None)
         if tree is None:
             return
@@ -1449,7 +1451,9 @@ class MainWindow(QMainWindow):
                 for label, action in items:
                     leaf = QTreeWidgetItem(parent, [label])
                     leaf.setData(0, Qt.ItemDataRole.UserRole, action)
-                    leaf.setToolTip(0, 'Διπλό κλικ: τοποθέτηση / εφαρμογή')
+                    leaf.setIcon(0, library_icon(action, doc=self.doc))
+                    leaf.setToolTip(0, 'Διπλό κλικ: εφαρμογή στο επιλεγμένο · δεξί κλικ: ιδιότητες υλικού (μέγεθος, αρμός, χρώμα, φορά)'
+                                    if action[0] == 'material' else 'Διπλό κλικ: τοποθέτηση / εφαρμογή')
             top.setExpanded(theme in opened)
         self._filter_library_tree(getattr(self, '_library_search', None).text() if getattr(self, '_library_search', None) else '')
 
@@ -1499,6 +1503,46 @@ class MainWindow(QMainWindow):
             return self._apply_material_to_selection(action[1])
         return None
 
+    def _library_tree_menu(self, item, global_pos=None):
+        """Right click on a library leaf: place / apply, and for materials «Ιδιότητες υλικού…»."""
+        action = item.data(0, Qt.ItemDataRole.UserRole) if item is not None else None
+        if not action:
+            return None
+        menu = QMenu(self)
+        menu.addAction('Εφαρμογή στο επιλεγμένο' if action[0] == 'material' else 'Τοποθέτηση',
+                       lambda: self._library_tree_action(item))
+        if action[0] == 'material':
+            menu.addAction('Ιδιότητες υλικού… (μέγεθος, αρμός, χρώμα, φορά)',
+                           lambda: self._edit_material_properties(action[1]))
+        self._library_menu = menu        # reachable from tests
+        if global_pos is not None:
+            menu.popup(global_pos)
+        return menu
+
+    def _edit_material_properties(self, material_id, dialog=None):
+        """Open «Ιδιότητες υλικού»; a material the project carries is updated with one undo step."""
+        from archforge.rendering import user_materials as um
+        from archforge.ui.material_properties import MaterialPropertiesDialog
+        dialog = dialog or MaterialPropertiesDialog(self, material_id, self.doc)
+        self._material_properties_dialog = dialog      # reachable from tests
+        if dialog.saved_id is None and dialog.exec() != QDialog.DialogCode.Accepted:
+            return None
+        saved = dialog.saved_id
+        if saved is None:
+            return None
+        if saved in (getattr(self.doc, 'materials', None) or {}):
+            carry = um.carry_command(self.doc, saved)
+            if carry is not None:
+                self.stack.execute(carry)
+        self._refresh_library_tree()
+        if dialog.apply_to_selection:
+            self._apply_material_to_selection(saved)
+        else:
+            self._redraw_views(all_views=True)
+        spec = um.lookup(saved, self.doc) or {}
+        self.statusBar().showMessage(f"Υλικό «{spec.get('name', saved)}» αποθηκεύτηκε", 4000)
+        return saved
+
     def _library_item_count(self):
         listing = getattr(self, '_library_assets_list', None)
         if listing is None:
@@ -1531,10 +1575,16 @@ class MainWindow(QMainWindow):
         changes = {'material_id': str(material_id)}
         if entity.kind in ('library_object', 'cabinet'):
             changes['surface_materials'] = {}
-        self.stack.execute(UpdateEntity(entity_id, changes))
+        # A user material travels with the project, in the same undo step.
+        from archforge.core.commands import CompositeCommand
+        from archforge.rendering import user_materials as um
+        from archforge.rendering.materials import material_name
+        carry = um.carry_command(self.doc, str(material_id))
+        update = UpdateEntity(entity_id, changes)
+        self.stack.execute(CompositeCommand([carry, update], label='Υλικό') if carry else update)
         self._redraw_views(all_views=True)
         self.refresh_inspector()
-        self.statusBar().showMessage(f"{MATERIAL_PRESETS[material_id]['name']} → {entity.name or entity.kind}", 3000)
+        self.statusBar().showMessage(f"{material_name(material_id, self.doc, material_id)} → {entity.name or entity.kind}", 3000)
         return True
 
     def _choose_library_asset(self, asset_id=None):

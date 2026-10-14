@@ -127,6 +127,78 @@ _GREEKLISH = str.maketrans({
 })
 
 
+# ---------------------------------------------------- material properties ---
+# «Ιδιότητες υλικού» (right click on a material of the library): tile size,
+# joint, joint colour, direction and row offset of the visible pattern, and the
+# colour.  A built-in material is never changed: the edit becomes the user's
+# own copy (``base`` = the original), so every project keeps its look.
+
+def editable_spec(material_id, doc=None) -> dict:
+    """The spec the properties dialog starts from (a deep copy)."""
+    from archforge.rendering.materials import material_spec
+    spec = lookup(material_id, doc) if is_user_material(material_id) else None
+    if spec is None:
+        base = material_spec(str(material_id), doc)
+        if base is None:
+            raise KeyError(material_id)
+        spec = build_spec(base["name"], base["color"], str(material_id), str(base.get("category", "")))
+    return copy.deepcopy(dict(spec))
+
+
+def with_properties(spec, color=None, pattern_type=None, unit_w=None, unit_h=None, joint=None,
+                    joint_color=None, rotated=False, offset=None) -> dict:
+    """``spec`` with new colour and pattern values (metres); ``pattern_type=""`` removes the pattern.
+
+    ``rotated`` turns the pattern by 90° (swaps the unit's width and height: a
+    30×60 tile laid vertically).  Raises ``ValueError`` with the problem when
+    the result is not a valid pattern (e.g. a joint wider than half a tile)."""
+    from archforge.rendering.patterns import validate_pattern
+    out = copy.deepcopy(dict(spec))
+    if color is not None:
+        hex_color = normalise_color(color)
+        if hex_color is None:
+            raise ValueError(f"μη έγκυρο χρώμα {color!r}")
+        out["color"] = hex_color
+    if pattern_type == "":
+        out.pop("pattern", None)
+        return out
+    pattern = dict(out.get("pattern") or {})
+    if pattern_type is None and not pattern:
+        return out
+    if pattern_type is not None:
+        pattern["type"] = pattern_type
+    pattern.setdefault("unit_w", 0.30)
+    pattern.setdefault("unit_h", 0.30)
+    pattern.setdefault("joint", 0.003)
+    pattern.setdefault("joint_color", "#a8a49b")
+    pattern.setdefault("offset", 0.0)
+    pattern.setdefault("variation", 0.05)
+    for key, value in (("unit_w", unit_w), ("unit_h", unit_h), ("joint", joint), ("offset", offset)):
+        if value is not None:
+            pattern[key] = float(value)
+    if joint_color is not None:
+        pattern["joint_color"] = normalise_color(joint_color) or pattern["joint_color"]
+    if rotated:
+        pattern["unit_w"], pattern["unit_h"] = pattern["unit_h"], pattern["unit_w"]
+    errors = validate_pattern(pattern)
+    if errors:
+        raise ValueError("; ".join(errors))
+    out["pattern"] = pattern
+    return out
+
+
+def save_properties(material_id, spec) -> str:
+    """Save an edited material: in place when it is the user's, else as his copy."""
+    if is_user_material(material_id):
+        return save_material(material_id, spec)
+    spec = dict(spec)
+    spec["base"] = str(material_id)
+    if not str(spec.get("name", "")).endswith("(δικό μου)"):
+        spec["name"] = f"{spec.get('name', '')} (δικό μου)".strip()
+    spec["category"] = DEFAULT_CATEGORY
+    return save_material(None, spec)
+
+
 # -------------------------------------------------------------- storage ---
 
 def _ensure_loaded() -> None:

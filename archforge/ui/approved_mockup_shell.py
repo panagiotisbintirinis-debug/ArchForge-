@@ -121,6 +121,10 @@ def _project_panel(window):
     browser=QWidget(); bl=QVBoxLayout(browser); bl.setContentsMargins(6,6,6,6); bl.setSpacing(4)
     lsearch=QLineEdit(); lsearch.setPlaceholderText("Αναζήτηση στη βιβλιοθήκη…"); bl.addWidget(lsearch)
     ltree=QTreeWidget(); ltree.setHeaderHidden(True); bl.addWidget(ltree)
+    from archforge.ui.library_icons import ICON_SIZE
+    ltree.setIconSize(QSize(ICON_SIZE,ICON_SIZE))     # μικρογραφία σε κάθε αντικείμενο
+    ltree.setContextMenuPolicy(Qt.CustomContextMenu)
+    ltree.customContextMenuRequested.connect(lambda pos: window._library_tree_menu(ltree.itemAt(pos),ltree.viewport().mapToGlobal(pos)))
     ltree.itemDoubleClicked.connect(lambda item,_c: window._library_tree_action(item))
     lsearch.textChanged.connect(window._filter_library_tree)
     window._library_tree=ltree; window._library_search=lsearch
