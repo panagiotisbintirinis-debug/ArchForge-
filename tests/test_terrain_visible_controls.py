@@ -56,7 +56,8 @@ def test_basement_and_rectangle_tools_are_directly_visible(terrain_window):
     assert w.plan_view.controller.tool == 'terrain_region_rectangle'
 
 
-def test_floor_and_terrace_at_decimal_storey_level(terrain_window):
+@pytest.mark.parametrize('displaced', [False, True])
+def test_floor_and_terrace_at_decimal_storey_level(terrain_window, displaced):
     from archforge.core.model import Entity, WorkPlane
     from archforge.core.commands import AddEntity
     from archforge.ui.slab_tools import auto_storey_slab
@@ -64,6 +65,10 @@ def test_floor_and_terrace_at_decimal_storey_level(terrain_window):
     w, app = terrain_window
     w.doc.levels['Floor 2'] = 1.4
     w.doc.work_plane = WorkPlane(name='Floor 2', origin=(0., 0., 1.4))
+    if displaced:
+        for a,b in (((-20,0),(-14,0)),((-14,0),(-14,4)),((-14,4),(-20,4)),((-20,4),(-20,0))):
+            w.stack.execute(AddEntity(Entity('wall',dict(x1=a[0],y1=a[1],x2=b[0],y2=b[1],
+                                                        z=0.,height=1.4,thickness=.2))))
     for a,b in (((0,0),(6,0)),((6,0),(6,4)),((6,4),(0,4)),((0,4),(0,0))):
         w.stack.execute(AddEntity(Entity('wall',dict(x1=a[0],y1=a[1],x2=b[0],y2=b[1],
                                                     z=1.4,height=2.7,thickness=.2))))

@@ -251,7 +251,8 @@ def test_page_carries_the_wall_js_and_it_parses():
         pytest.skip('node not installed')
     start = html.index('<script type="module">') + len('<script type="module">')
     module = html[start:html.index('</script>', start)]
-    proc = subprocess.run([node, '--input-type=module', '--check'], input=module, text=True, capture_output=True)
+    proc = subprocess.run([node, '--input-type=module', '--check'], input=module, text=True,
+                          encoding='utf-8', capture_output=True)
     assert proc.returncode == 0, proc.stderr
 
 

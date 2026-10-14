@@ -169,7 +169,7 @@ def test_3d_picking_rules_walls_inactive_in_glass_and_while_working_a_stair():
     assert 'pickForSelection(event)' in menu[:menu.index('bridge.showContextMenu')]
     if shutil.which('node'):
         code = max(re.findall(r'<script[^>]*>(.*?)</script>', html, re.S), key=len)
-        with tempfile.NamedTemporaryFile('w', suffix='.mjs', delete=False) as f:
+        with tempfile.NamedTemporaryFile('w', encoding='utf-8', suffix='.mjs', delete=False) as f:
             f.write(code)
         assert subprocess.run(['node', '--check', f.name]).returncode == 0
 

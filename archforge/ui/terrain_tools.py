@@ -310,6 +310,7 @@ def install(window):
     section.triggered.connect(lambda:window._start_site_tool('view_section','Σύρε γραμμή τομής από μπροστά έως πίσω στο οικόπεδο'))
     sub.addSeparator(); sub.addAction(section); window._terrain_regions_menu=sub
     rectangle=QAction('Υψομετρικό πλαίσιο',window)
+    rectangle.setIconText('Υψόμετρο')
     rectangle.setToolTip('Σύρε ορθογώνιο στην κάτοψη και δώσε υψόμετρο σε μέτρα')
     rectangle.triggered.connect(lambda:tool.start('rectangle'))
     # Keep the second row's camera/grid controls visible at 1280 px.

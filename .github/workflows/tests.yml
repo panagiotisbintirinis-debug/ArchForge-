@@ -17,6 +17,9 @@ jobs:
       - name: Run headless core tests
         env:
           PYTHONPATH: .
+          # The Windows offscreen plugin has no native font engine: PDFs lose
+          # all text. Use the real Windows Qt backend on the hosted desktop.
+          QT_QPA_PLATFORM: windows
         run: python -m pytest -q
       - name: Compile source
         run: python -m compileall -q archforge tests
