@@ -64,7 +64,10 @@ class BoardTab(QWidget):
         self.waste.editingFinished.connect(lambda: self._set("waste_pct", float(self.waste.value())))
         self.excel = QPushButton("Excel…"); self.excel.clicked.connect(self.export_csv)
         self.pdf = QPushButton("PDF…"); self.pdf.clicked.connect(self.export_pdf)
-        head.addWidget(self.excel); head.addWidget(self.pdf)
+        self.offer = QPushButton("Προσφορά…"); self.offer.setToolTip("Προσφορά προς τον πελάτη μόνο για τα ηλεκτρολογικά (PDF), "
+                                                                    "με τις τιμές του «Τιμές & προσφορά»")
+        self.offer.clicked.connect(self.export_offer)
+        head.addWidget(self.excel); head.addWidget(self.pdf); head.addWidget(self.offer)
         root.addLayout(head)
 
         self.cards = QGridLayout(); self.cards.setHorizontalSpacing(8)
@@ -140,7 +143,7 @@ class BoardTab(QWidget):
         has = bool(r["circuits"])
         self.empty.setVisible(not has)
         self.pages.setVisible(has)
-        for w in (self.control, self.kva, self.phases, self.fuse, self.factor, self.waste, self.method, self.excel, self.pdf):
+        for w in (self.control, self.kva, self.phases, self.fuse, self.factor, self.waste, self.method, self.excel, self.pdf, self.offer):
             w.setEnabled(has)
         self._updating = True
         try:
@@ -254,6 +257,15 @@ class BoardTab(QWidget):
         with open(path, "w", encoding="utf-8-sig", newline="") as fh:
             fh.write(board_csv(self.result or self.refresh()))
         return path
+
+    def export_offer(self, path=None):
+        """Client quote for the electrical work only: materials + labour with the project's prices, VAT, totals."""
+        from archforge.output.pdf import export_pdf
+        if path is None:
+            path, _f = QFileDialog.getSaveFileName(self, "Προσφορά ηλεκτρολογικών (PDF)", "prosfora_ilektrologikon.pdf", "PDF (*.pdf)")
+        if not path:
+            return None
+        return export_pdf(self.window.doc, path, include=("quote",), only=("Ηλεκτρολογικά",))
 
     def export_pdf(self, path=None):
         from PySide6.QtGui import QPageSize, QPdfWriter, QTextDocument

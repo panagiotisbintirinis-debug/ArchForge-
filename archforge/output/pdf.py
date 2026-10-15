@@ -373,12 +373,12 @@ def _cover(sh, doc, project, client, date, storeys):
             color=QColor(110, 110, 110), w=260)
 
 
-def export_pdf(doc, path, project=None, client=None, include=("cover", "plans", "formwork", "takeoff", "quote")):
+def export_pdf(doc, path, project=None, client=None, include=("cover", "plans", "formwork", "takeoff", "quote"), only=None):
     """Write the PDF; returns ``{"pages": n, "path": path, "scales": [...]}``."""
     from archforge.assistant.understanding import read_drawing
     from archforge.quantities.quote import money, quote
     from archforge.quantities.takeoff import take_off
-    q = quote(doc)
+    q = quote(doc, only)
     project = project or q["project"] or "Έργο"
     client = client if client is not None else q["client"]
     date = datetime.date.today().strftime("%d/%m/%Y")

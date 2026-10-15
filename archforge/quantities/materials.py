@@ -220,6 +220,16 @@ def electrical_list(doc, result=None):
         rows.append((POINT_TYPES["led_strip"][0] + (f" — {entry(cid).label}" if cid else ""), "m", round(m, 2)))
     if strips:
         rows.append(("Τροφοδοτικά ταινιών LED — από το φύλλο του κατασκευαστή", "τεμ.", None))
+    # Labour (quantities from the drawing; the electrician types the unit prices).
+    placed = sum(1 for e in pts if e.params["point_type"] not in ("panel", "led_strip"))
+    if placed:
+        rows.append(("Εργασία σημείου (πρίζα / φωτιστικό / διακόπτης / παροχή συσκευής)", "τεμ.", placed))
+    if strips:
+        rows.append(("Εργασία τοποθέτησης ταινίας LED (με προφίλ)", "m", round(sum(strips.values()), 2)))
+    if conduit:
+        rows.append(("Εργασία σωλήνωσης και καλωδίωσης", "m", conduit))
+    if r["circuits"]:
+        rows.append(("Εργασία σύνδεσης κυκλώματος στον πίνακα", "τεμ.", len(r["circuits"])))
     if knx:
         import math
         waste = 1 + float(r.get("waste_pct", 0.0)) / 100.0
@@ -232,6 +242,7 @@ def electrical_list(doc, result=None):
             rows.append(("Ρελέ KNX C-Load — κανάλια On/Off", "κανάλι", knx["onoff_channels"]))
         if knx["dali_gateways"]:
             rows.append(("KNX-DALI gateway (ως 64 διευθύνσεις)", "τεμ.", knx["dali_gateways"]))
+        rows.append(("Εργασία προγραμματισμού KNX (ETS) και παράδοση αρχείου έργου", "τεμ.", 1))
     return rows
 
 

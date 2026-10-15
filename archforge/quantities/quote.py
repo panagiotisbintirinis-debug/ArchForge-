@@ -22,12 +22,17 @@ def settings(doc):
             "validity_days": int(p.get("validity_days", 30))}
 
 
-def quote(doc):
-    """``{"sections": [(name, [row…])], "subtotal", "vat", "vat_amount", "total", "missing", …}``."""
+def quote(doc, only=None):
+    """``{"sections": [(name, [row…])], "subtotal", "vat", "vat_amount", "total", "missing", …}``.
+
+    ``only``: sheet names to quote (e.g. ``("Ηλεκτρολογικά",)`` for the electrician's quote); None = everything.
+    """
     from archforge.quantities.materials import all_lists
     s = settings(doc)
     sections, subtotal, missing = [], 0.0, 0
     for name, title, rows, _notes in all_lists(doc):
+        if only is not None and name not in only:
+            continue
         out = []
         for desc, unit, qty in rows:
             price = s["prices"].get(desc)

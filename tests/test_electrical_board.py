@@ -218,3 +218,24 @@ def test_knx_is_the_clients_option_and_both_are_costed_with_the_projects_prices(
     cmp = compare_control_options(doc)
     assert cmp['knx']['total'] == 180.0 and cmp['conventional']['total'] == 16.0
     assert cmp['knx']['missing'] and cmp['conventional']['missing']               # the rest: no price, not guessed
+
+
+def test_electricians_quote_has_labour_and_only_the_electrical_section(tmp_path):
+    from archforge.core.commands import AddEntity
+    from archforge.core.model import Entity
+    from archforge.quantities.materials import electrical_list
+    from archforge.quantities.quote import quote
+    doc = Document(); stack = CommandStack(doc); _flat(stack)
+    rows = {d: q for d, _u, q in electrical_list(doc)}
+    assert rows['Εργασία σημείου (πρίζα / φωτιστικό / διακόπτης / παροχή συσκευής)'] == 15
+    assert rows['Εργασία σύνδεσης κυκλώματος στον πίνακα'] == len(analyse(doc)['circuits'])
+    stack.execute(AddEntity(Entity('price_list', {'prices': {'Εργασία σημείου (πρίζα / φωτιστικό / διακόπτης / παροχή συσκευής)': 20.0,
+                                                              'Βαφή τοίχων': 5.0}, 'vat': 24.0, 'client': 'Πελάτης'})))
+    q = quote(doc, only=('Ηλεκτρολογικά',))
+    assert [t for t, _r in q['sections']] == ['Ηλεκτρολογικά — καλώδια, σωλήνες, κουτιά, ασφάλειες, σημεία, φωτιστικά']
+    assert q['subtotal'] == 300.0 and q['total'] == 372.0 and q['missing'] > 0
+    from PySide6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from archforge.output.pdf import export_pdf
+    out = export_pdf(doc, tmp_path / 'offer.pdf', include=('quote',), only=('Ηλεκτρολογικά',))
+    assert out['pages'] >= 1 and (tmp_path / 'offer.pdf').stat().st_size > 1000
