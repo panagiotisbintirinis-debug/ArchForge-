@@ -167,16 +167,12 @@ def _build_menu(window, view, entity_id=None, xy=None):
         return {"center": f"Σκάλα · {dict(STAIR_TYPES).get(layout, 'Αυτόματη')}", "entries": entries, "wheel": "stair"}
     # Drawing walls: angle step, finish, cancel the live segment.
     if view == "plan" and tool == "wall":
-        current = plan.controller.wall_angle_increment
+        # Owner 15/10: the angle is seen while drawing (magnets 90/45/15 work by themselves, Shift = free), so no
+        # angle choices here; the last wall goes with Delete. Only what ends or undoes the drawing.
         entries = [_e("mm:tool:select", "✓ Τέλος τοίχων")]
-        entries += [_e(f"mm:angle:{'free' if v is None else (v if v == 'magnet' else int(v))}", _angle_label(v),
-                       checked=_same_angle(current, v))
-                    for v in ANGLES]
         if plan.controller.active is not None and hasattr(plan.controller.active, "start"):
             entries.append(_e("mm:wall:cancel", "Ακύρωση τμήματος", danger=True))
-        if _last_wall(window):
-            entries.append(_e("mm:wall:delete_last", "Διαγραφή τελευταίου τοίχου", "panel", danger=True))
-        return {"center": f"Τοίχος · γωνία {_angle_label(current)}", "entries": entries, "wheel": "angle"}
+        return {"center": "Τοίχος", "entries": entries, "wheel": None}
     # «Κουζίνα / Μπάνιο εδώ» of the assistant: apply, variants, shape, discard.
     if view == "plan" and tool == "layout_cabinet_run" and getattr(window, "_cabinet_run", None) is not None \
             and (window._cabinet_run.proposal is not None or not entity_id):

@@ -61,8 +61,9 @@ def test_menu_content_follows_the_task(window):
     window._set_active_tool('wall')
     wall = build_menu(window, 'plan')
     assert _ids(wall)[0] == 'mm:tool:select'                     # north = finish the task
-    assert {'mm:angle:90', 'mm:angle:45', 'mm:angle:15', 'mm:angle:free'} <= set(_ids(wall))
-    assert not any('undo' in i or 'delete' in i for i in _ids(wall))   # no noise
+    # Owner 15/10: no angle choices (seen while drawing), the last wall goes with Delete — only the essentials.
+    assert not any(i.startswith('mm:angle:') for i in _ids(wall)) and wall['center'] == 'Τοίχος'
+    assert not any('undo' in i or 'delete' in i for i in _ids(wall, 'panel') + _ids(wall))
     window._set_active_tool('select')
     window.sculpt_action.setChecked(True)
     sculpt = build_menu(window, 'plan')
@@ -105,7 +106,7 @@ def test_right_click_in_the_plan_opens_it_and_a_choice_acts(window):
     menu.buttons['mm:tool:wall'].click()
     assert plan.controller.tool == 'wall' and plan._marking_menu is None
     menu = plan.show_marking_menu(QPoint(200, 200))
-    assert set(menu.buttons) >= {'mm:angle:90', 'mm:angle:free'} and 'βούρτσα' not in menu.center.text()
+    assert set(menu.buttons) == {'mm:tool:select'} and menu.center.text() == 'Τοίχος'
 
 
 def test_3d_view_gets_the_same_menu_and_routes_its_actions(window):

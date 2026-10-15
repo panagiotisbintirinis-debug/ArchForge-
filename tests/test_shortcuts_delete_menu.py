@@ -117,15 +117,16 @@ def test_locked_layer_is_respected(window):
     assert 'κλειδωμένο' in window.statusBar().currentMessage()
 
 
-def test_wall_drawing_menu_deletes_the_last_wall(window):
-    from archforge.ui.marking_menu import build_menu, run
+def test_delete_while_drawing_walls_takes_back_the_last_wall(window):
+    """Owner 15/10: «το αφαίρεση τελευταίου τοίχου μπορεί να είναι Delete»."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
     walls = _walls(window, [(0, 0), (4, 0), (4, 3)])
     window._set_active_tool('wall')
-    menu = build_menu(window, 'plan')
-    entry = [e for e in menu['entries'] if e['id'] == 'mm:wall:delete_last']
-    assert entry and entry[0]['placement'] == 'panel'
-    run(window, 'plan', None, 'mm:wall:delete_last')
+    QTest.keyClick(window.plan_view.viewport(), Qt.Key.Key_Delete)
     assert walls[-1] not in window.doc.entities and walls[0] in window.doc.entities
+    window._undo()
+    assert walls[-1] in window.doc.entities
 
 
 def test_change_shortcut_activates_new_and_frees_old_and_persists(window, tmp_path):

@@ -3,7 +3,7 @@ import math
 import copy
 from typing import Optional, Dict
 
-from PySide6.QtCore import Qt, QPointF, Signal
+from PySide6.QtCore import QEvent, Qt, QPointF, Signal
 from PySide6.QtGui import QPen, QBrush, QColor, QPainter, QPainterPath
 from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsTextItem, QGraphicsPathItem, QMenu, QToolButton
 
@@ -443,12 +443,21 @@ class PlanView(QGraphicsView):
         return (self.controller.active is None and not self._wall_chain_active() and getattr(self,'_view_drag',None) is None
                 and getattr(self,'_railing_draft',None) is None and not getattr(self,'plot_draft',None)
                 and (slab is None or (not slab.points and slab.press is None)))
+    def event(self,event):
+        # Drawing walls: Delete takes back the last wall (owner 15/10), not the window's «delete selection».
+        if event.type()==QEvent.Type.ShortcutOverride and event.key()==Qt.Key.Key_Delete and str(self.controller.tool)=='wall':
+            event.accept();return True
+        return super().event(event)
     def keyPressEvent(self,event):
         if self.carry is not None and event.key() in (Qt.Key.Key_Escape,Qt.Key.Key_R):
             if event.key()==Qt.Key.Key_R:self.carry.turn_by(90.0);self.statusChanged.emit(self.carry.label())
             else:self.carry=None;self.statusChanged.emit('Σύρσιμο ακυρώθηκε')
             self.redraw();event.accept();return
         if self._overlay('key',event):event.accept();return
+        if event.key()==Qt.Key.Key_Delete and str(self.controller.tool)=='wall' and getattr(self,'marking_menu_window',None) is not None:
+            from archforge.ui.marking_menu import run as _mm_run
+            if self._wall_chain_active():self.controller.finish_wall_chain()   # the rubber segment hung on that wall
+            _mm_run(self.marking_menu_window,'plan',None,'mm:wall:delete_last');self.redraw();event.accept();return
         if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self.controller.tool=='plot_point':
             self.finish_plot();event.accept();return
         if event.key()==Qt.Key.Key_Escape and getattr(self,'_restore_select',False):
