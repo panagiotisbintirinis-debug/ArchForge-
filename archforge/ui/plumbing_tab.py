@@ -1,17 +1,22 @@
 """Dedicated Plumbing details/report tab.
 
-The floor plan stays drawing-first. Technical detail, quantities/BOM and rule
-provenance live here instead of being printed over pipe runs.
+The normal floor plan stays drawing-first and clean.  This tab owns a separate
+read-only technical plan of the same authoritative Document: pipe diameters are
+visible on that technical drawing, while quantities/BOM, rules and provenance
+stay in tables below it.
 """
 from __future__ import annotations
 
 import math
 
-from PySide6.QtGui import QAction
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QAction, QColor
 from PySide6.QtWidgets import (
-    QHeaderView, QLabel, QTabWidget, QTreeWidget, QTreeWidgetItem,
-    QVBoxLayout, QWidget,
+    QGraphicsTextItem, QHeaderView, QLabel, QSplitter, QTabWidget,
+    QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
+
+from archforge.ui.plan_view import PlanView
 
 TAB_TITLE = "Υδραυλικά"
 
@@ -24,6 +29,65 @@ def _n(value, decimals=2):
 
 def _length(a, b):
     return math.dist(tuple(float(v) for v in a), tuple(float(v) for v in b))
+
+
+class PlumbingTechnicalPlan(PlanView):
+    """Read-only plan for plumbing documentation.
+
+    It shares the exact same Document/CommandStack as the main plan but does not
+    author geometry.  Diameter annotations exist only in this technical view.
+    """
+
+    def __init__(self, doc, stack, parent=None):
+        super().__init__(doc, stack, parent)
+        self.setMinimumHeight(260)
+        self.setToolTip("Τεχνική κάτοψη υδραυλικών — οι διατομές εμφανίζονται μόνο εδώ")
+
+    def redraw(self):
+        super().redraw()
+        if not hasattr(self, "doc"):
+            return
+        try:
+            from archforge.mep.plumbing import SCREED, route_plumbing_cached
+            routed = route_plumbing_cached(self.doc)
+            level = float(self.doc.work_plane.origin[2])
+            for network in ("cold", "hot"):
+                colour = QColor(31, 90, 160) if network == "cold" else QColor(190, 55, 45)
+                for a, b, diameter in routed.get(network, ()):
+                    # The technical floor plan annotates the horizontal run of the active storey.
+                    if abs(float(a[2]) - float(b[2])) > 1e-9:
+                        continue
+                    if abs(float(a[2]) - (level + SCREED)) > 1e-6:
+                        continue
+                    x = (float(a[0]) + float(b[0])) / 2.0
+                    y = (float(a[1]) + float(b[1])) / 2.0
+                    item = self._scene.addText(f"Ø{int(diameter)}")
+                    item.setDefaultTextColor(colour)
+                    font = item.font(); font.setBold(True); item.setFont(font)
+                    item.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations, True)
+                    item.setPos(x, y)
+                    item.setZValue(80)
+        except Exception:
+            # The report table still remains usable even if an incomplete model
+            # cannot yet produce its technical drawing.
+            pass
+
+    # Documentation view: zoom remains available through wheelEvent, but no
+    # drawing/selection/editing command can originate here.
+    def mousePressEvent(self, event):
+        event.accept()
+
+    def mouseMoveEvent(self, event):
+        event.accept()
+
+    def mouseReleaseEvent(self, event):
+        event.accept()
+
+    def mouseDoubleClickEvent(self, event):
+        event.accept()
+
+    def contextMenuEvent(self, event):
+        event.accept()
 
 
 class PlumbingTab(QWidget):
@@ -46,6 +110,8 @@ class PlumbingTab(QWidget):
         self.summary.setWordWrap(True)
         root.addWidget(self.summary)
 
+        self.technical_plan = PlumbingTechnicalPlan(window.doc, window.stack, self)
+
         self.pages = QTabWidget()
         self.network = self._tree(["Δίκτυο", "Διάμετρος", "Μήκος", "Από", "Προς", "Κατάσταση"])
         self.bom = self._tree(["Κωδικός", "Περιγραφή", "Κατηγορία", "Ποσότητα", "Μονάδα", "Κατάσταση", "Πηγή"])
@@ -53,11 +119,20 @@ class PlumbingTab(QWidget):
         self.pages.addTab(self.network, "Δίκτυο")
         self.pages.addTab(self.bom, "Ποσότητες / BOM")
         self.pages.addTab(self.rules, "Κανόνες & Πηγές")
-        root.addWidget(self.pages, 1)
+
+        split = QSplitter(Qt.Orientation.Vertical)
+        split.addWidget(self.technical_plan)
+        split.addWidget(self.pages)
+        split.setCollapsible(0, False)
+        split.setCollapsible(1, False)
+        split.setSizes([330, 420])
+        root.addWidget(split, 1)
+        self._split = split
 
         self.note = QLabel(
-            "Η κάτοψη δείχνει μόνο τις σωληνώσεις. Οι διάμετροι, τα μήκη, οι ποσότητες και η προέλευση των κανόνων "
-            "παρουσιάζονται εδώ. ENGINEER_REVIEW / DESIGN_DEFAULT δεν αποτελούν επαληθευμένη κανονιστική απαίτηση."
+            "Στην κανονική 2D κάτοψη φαίνονται μόνο οι σωληνώσεις. Στην τεχνική κάτοψη αυτής της καρτέλας "
+            "φαίνονται οι διατομές Ø των σωλήνων. Μήκη, ποσότητες, κόστος και προέλευση κανόνων παραμένουν στους πίνακες. "
+            "ENGINEER_REVIEW / DESIGN_DEFAULT δεν αποτελούν επαληθευμένη κανονιστική απαίτηση."
         )
         self.note.setWordWrap(True)
         self.note.setStyleSheet("color:palette(mid);font-size:11px")
@@ -89,6 +164,10 @@ class PlumbingTab(QWidget):
         from archforge.mep.plumbing_rules import plumbing_rule_audit
 
         self._stale = False
+        # The technical drawing is another view of the same Document, never a copy.
+        self.technical_plan.rebind(self.window.doc, self.window.stack)
+        self.technical_plan.redraw()
+
         routed = route_plumbing(self.window.doc)
         quantities = plumbing_quantities(self.window.doc)
 
@@ -142,7 +221,7 @@ def install(window):
     if menu is not None:
         menu.addSeparator()
         action = QAction("Υδραυλικά — λεπτομέρειες", menu)
-        action.setToolTip("Δίκτυο, ποσότητες/BOM και κανόνες χωρίς πληροφορίες πάνω στην κάτοψη")
+        action.setToolTip("Τεχνική κάτοψη με διατομές, δίκτυο, ποσότητες/BOM και κανόνες")
         action.triggered.connect(lambda _=False: show(window))
         menu.addAction(action)
         window._plumbing_details_action = action
