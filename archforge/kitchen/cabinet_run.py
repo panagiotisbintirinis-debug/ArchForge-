@@ -443,6 +443,91 @@ def plan_run(doc, x0, y0, x1=None, y1=None, options=None, *, run_id=None, ignore
     return _plan(doc, runs, room, i, lo, hi, options, run_id=run_id, ignore=ignore, level=level)
 
 
+# ------------------------------------------------------------------ a free kitchen line (owner 15/10)
+# «ο σχεδιασμός της κουζίνας δεν χρειάζεται να είναι σε γωνία ή Π· πρέπει απλά να μου δίνει ελεύθερο σχέδιο
+# όπως εγώ θέλω και αυτός να προσαρμόζεται σε αυτό»: the user clicks a line of any shape; along a wall it
+# follows the wall (doors, windows, corners), away from walls it is a free run (island / peninsula).
+
+def free_run(a, u, n, length):
+    """A run along a drawn line with no wall behind it (no openings; the back is the line)."""
+    from archforge.assistant.room_walls import Run
+    a = (float(a[0]), float(a[1])); u = (float(u[0]), float(u[1])); n = (float(n[0]), float(n[1]))
+    L = float(length)
+    return Run(0, a, (a[0] + u[0] * L, a[1] + u[1] * L), u, n, L, 0.0, ())
+
+
+def _wall_segment(doc, p, q, level, tolerance=0.35):
+    """``(runs, room, i, lo, hi)`` when p→q lies along one wall face, else None."""
+    best = None
+    for x, y in (p, q):
+        runs, room = runs_at(doc, x, y, level)
+        for r in runs:
+            ds, ss = [], []
+            for px, py in (p, q):
+                ss.append((px - r.a[0]) * r.u[0] + (py - r.a[1]) * r.u[1])
+                ds.append((px - r.a[0]) * r.n[0] + (py - r.a[1]) * r.n[1])
+            if max(abs(d) for d in ds) > tolerance or min(ss) < -tolerance or max(ss) > r.length + tolerance:
+                continue
+            score = sum(abs(d) for d in ds)
+            if best is None or score < best[0]:
+                best = (score, runs, room, r.index, max(0.0, min(ss)), min(r.length, max(ss)))
+        if best is not None:
+            break
+    if best is None or best[5] - best[4] < 0.30:
+        return None
+    _s, runs, room, i, lo, hi = best
+    return runs, room, i, lo, hi
+
+
+def plan_path(doc, points, options=None, *, flip=False, z=None):
+    """One proposal for a kitchen drawn as a line of points (any shape), applied with one undo.
+
+    Each straight piece is planned on a scratch copy of the Document that already holds the pieces before
+    it, so corners between them are solved by the same rules as two runs drawn one after the other.  Free
+    pieces have their cabinets on the left of the drawing direction (``flip`` = the other side) and no wall
+    units; a free piece never overlaps a cabinet already there — it starts beside it."""
+    from archforge.core.model import Document
+    level = float(doc.work_plane.origin[2]) if z is None else float(z)
+    pts = [(float(x), float(y)) for x, y in points]
+    pts = [p for k, p in enumerate(pts) if k == 0 or math.hypot(p[0] - pts[k - 1][0], p[1] - pts[k - 1][1]) > 0.05]
+    if len(pts) < 2:
+        return RunProposal([], "Κουζίνα — χρειάζονται τουλάχιστον δύο σημεία",
+                           problems=["Κλικ στην αρχή και σε κάθε αλλαγή κατεύθυνσης· διπλό κλικ = τέλος"])
+    scratch = Document.from_dict(doc.to_dict())
+    notes, problems, segments, run_ids = [], [], [], []
+    side = -1.0 if flip else 1.0
+    for p, q in zip(pts, pts[1:]):
+        L = math.hypot(q[0] - p[0], q[1] - p[1])
+        if L < 0.30:
+            continue
+        on_wall = _wall_segment(scratch, p, q, level)
+        if on_wall is not None:
+            runs, room, i, lo, hi = on_wall
+            prop = _plan(scratch, runs, room, i, lo, hi, options, level=level)
+        else:
+            u = ((q[0] - p[0]) / L, (q[1] - p[1]) / L)
+            n = (-u[1] * side, u[0] * side)
+            a, uu = (p, u) if side > 0 else (q, (-u[0], -u[1]))     # keep n on the left of u
+            run = free_run(a, uu, n, L)
+            opts = dict(options or {}); opts["wall_units"] = False
+            prop = _plan(scratch, [run], None, 0, 0.0, L, opts, level=level)
+        problems += prop.problems
+        if not prop.entities:
+            continue
+        prop.command().do(scratch)
+        notes += prop.notes[:1]
+        segments += prop.segments
+        run_ids.append(prop.run_id)
+    added = [e for eid, e in scratch.entities.items() if eid not in doc.entities]
+    removed = [eid for eid in doc.entities if eid not in scratch.entities]
+    n = sum(1 for e in added if e.params.get("run_id") in run_ids)
+    label = f"Κουζίνα: {len(run_ids)} τμήμα{'τα' if len(run_ids) != 1 else ''}, {n} κομμάτια" if run_ids else \
+        "Κουζίνα — δεν χωράει ντουλάπι εδώ"
+    return RunProposal(added, label, notes=notes, problems=problems, replace_ids=removed,
+                       run_id=run_ids[0] if run_ids else "", segments=segments,
+                       spec={"path": [list(p) for p in pts], "run_ids": run_ids})
+
+
 def _has_role(doc, room, level, role, ignore):
     """A sink / hob already in this room (another run or the assistant's kitchen)."""
     from archforge.assistant.understanding import inside
@@ -470,7 +555,11 @@ def _plan(doc, runs, room, i, lo, hi, options=None, *, run_id=None, ignore=(), l
             opts[role] = not _has_role(doc, room, level, role, ignore)
     spec = {k: opts[k] for k in DEFAULTS}
     spec.update(pick={"point": [float(v) for v in run.point((lo + hi) / 2, 0.3)], "wall_id": run.wall_ids[0] if run.wall_ids else "",
-                      "u": [float(run.u[0]), float(run.u[1])], "lo": float(lo), "hi": float(hi)},
+                      "u": [float(run.u[0]), float(run.u[1])], "lo": float(lo), "hi": float(hi),
+                      # A free line (island, peninsula): no wall behind it, so its own frame is the reference.
+                      "free": None if run.wall_ids else {"a": [float(run.a[0]), float(run.a[1])],
+                                                         "n": [float(run.n[0]), float(run.n[1])],
+                                                         "length": float(run.length)}},
                 level=level, sink_xy=opts.get("sink_xy"), hob_xy=opts.get("hob_xy"),
                 end_override=opts.get("end_override") or {})
     notes, problems, ents, segments = [], [], [], []
@@ -773,9 +862,13 @@ def replan(doc, spec, options=None, *, run_id=None, ignore=(), neighbours=True):
     if not isinstance(pick, dict) or not pick.get("point"):
         return None
     level = float(spec.get("level", doc.work_plane.origin[2]))
-    runs, room = runs_at(doc, *pick["point"], level)
-    i = next((r.index for r in runs if pick.get("wall_id") in r.wall_ids
-              and r.u[0] * pick["u"][0] + r.u[1] * pick["u"][1] > 0.99), None)
+    if pick.get("free"):
+        f = pick["free"]
+        runs, room, i = [free_run(f["a"], pick["u"], f["n"], f["length"])], None, 0
+    else:
+        runs, room = runs_at(doc, *pick["point"], level)
+        i = next((r.index for r in runs if pick.get("wall_id") in r.wall_ids
+                  and r.u[0] * pick["u"][0] + r.u[1] * pick["u"][1] > 0.99), None)
     if i is None:
         return None
     lo, hi = max(0.0, float(pick["lo"])), min(runs[i].length, float(pick["hi"]))

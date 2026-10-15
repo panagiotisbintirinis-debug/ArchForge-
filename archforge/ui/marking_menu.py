@@ -43,6 +43,7 @@ ICONS = {
     "mm:tool:opening_rect": "opening", "mm:tool:stair": "stair", "mm:tool:ramp": "ramp",
     "mm:tool:structural_column": "column", "mm:tool:structural_beam": "beam",
     "mm:menu:stair": "stair", "mm:menu:kitchen": "cabinet", "mm:menu:structure": "column",
+    "mm:menu:openings": "door", "mm:menu:build": "more", "mm:menu:wall_more": "more", "mm:tool:opening_arch": "opening",
     "mm:group:room": "room", "mm:group:slab": "slab", "mm:more": "more", "mm:kgroup:0": "cabinet",
     "mm:kgroup:1": "cabinet", "mm:kgroup:2": "cabinet", "mm:kgroup:3": "cabinet", "mm:kgroup:4": "appliance",
     "properties": "properties", "move": "move", "rotate": "rotate", "stretch": "stretch", "materials": "materials",
@@ -204,9 +205,14 @@ def _build_menu(window, view, entity_id=None, xy=None):
             entries.insert(max(0, len(entries) - 1), _e(action_id, label))
         if entity.kind == "wall" and view == "plan":
             # Walls move with what is joined to them and split where you click (wall_edit.py).
-            entries.insert(len(entries) - 1, _e("mm:wall:moveby", "Μετακίνηση κατά…"))
-            entries.insert(len(entries) - 1, _e("mm:wall:split", "Διαχωρισμός εδώ"))
-        entries.append(_e("mm:assist:entity", "Βοηθός εδώ", "panel"))
+            # Rarely used: behind a small «⋯» (owner 15/10: rare things in a small icon with submenus).
+            more = _e("mm:menu:wall_more", "Επεξεργασία τοίχου", children=[
+                _e("mm:wall:moveby", "Μετακίνηση κατά…"), _e("mm:wall:split", "Διαχωρισμός εδώ")])
+            more["small"] = True
+            entries.insert(len(entries) - 1, more)
+        assist = _e("mm:assist:entity", "Βοηθός εδώ", "panel")
+        assist["small"] = True
+        entries.append(assist)
         if entity.kind in ("structural_column", "structural_beam"):
             # Radial: one click from the member to its own statics (actions, bars, re-check, undo).
             entries.insert(1, _e("mm:member_statics", "Στατικά μέλους…"))
@@ -246,30 +252,38 @@ def _build_menu(window, view, entity_id=None, xy=None):
         return {"center": "Σκάλα / Ράμπα", "entries": _fit(_stair_entries()), "wheel": None}
     if sub == "structure":
         return {"center": "Δομικά: κολόνες, δοκάρια, βάσεις", "entries": _fit(_structure_entries()), "wheel": None}
-    # Empty space: the drawing tools in the order you build (walls, doors, windows …), kitchen and structure.
+    # Empty space (owner 15/10): only what is used all the time — walls and openings. Stair, kitchen,
+    # structure, slabs are used once per house: they wait behind one small «⋯» icon, in submenus.
     last = getattr(window, "_last_marking_tool", None)
     entries = [_e(f"mm:tool:{last}", f"↻ {dict(TOOLS).get(last, last)}") if last else _e("mm:tool:select", "Επιλογή")]
-    entries += [_e(f"mm:tool:{key}", label) for key, label in BUILD_TOOLS if key != last]
-    # Submenus open in place (owner 15/10: «να ακολουθούν υπομενού και εκεί, παρά να τρέχεις στο κεντρικό μενού»).
+    if last != "wall":
+        entries.append(_e("mm:tool:wall", "Τοίχος"))
+    openings = [_e("mm:tool:door", "Πόρτα"), _e("mm:tool:window", "Παράθυρο"),
+                _e("mm:tool:opening_rect", "Άνοιγμα"), _e("mm:tool:opening_arch", "Τοξωτό άνοιγμα")]
+    entries.append(_e("mm:menu:openings", "Κουφώματα", children=openings))
     kitchen = _kitchen_groups(window)
     if view == "plan":
-        kitchen.insert(0, _e("mm:krun:start", "Γραμμή ντουλαπιών σε τοίχο…"))
-    entries += [_e("mm:menu:stair", "Σκάλα", children=_stair_entries()),
-                _e("mm:menu:kitchen", "Κουζίνα", children=kitchen),
-                _e("mm:menu:structure", "Δομικά", children=_structure_entries())]
-    # No Αναίρεση / Γλυπτική here any more: they sit in «Κοινά» and the Βιβλιοθήκη group (less noise).
+        # Owner 15/10: no fixed Γ / Π shapes — the kitchen is drawn freely and the cabinets follow the line.
+        kitchen.insert(0, _e("mm:krun:start", "Σχεδίασε κουζίνα (ελεύθερα)…"))
+    rare = [_e("mm:menu:stair", "Σκάλα", children=_stair_entries()),
+            _e("mm:menu:kitchen", "Κουζίνα", children=kitchen),
+            _e("mm:menu:structure", "Δομικά", children=_structure_entries())]
     if view == "plan":
-        # «… σε αυτόν τον χώρο» only inside a closed room: outside one they do nothing (walk-through 14/10).
-        in_room = xy is None or _in_room(window.doc, *xy)
-        if in_room:
-            room = [_e("mm:layout:kitchen", "Κουζίνα εδώ…"), _e("mm:layout:bath", "Μπάνιο εδώ…"),
-                    _e("mm:roofroom:tiled", "Κεραμοσκεπή"), _e("mm:roofroom:terrace", "Ταράτσα"),
-                    _e("mm:slab:atrium", "Αίθριο"), _e("mm:slab:inner_balcony", "Κενό πλάκας (εσωτ. μπαλκόνι)"),
-                    _e("mm:drywall:room", "Ψευδοροφή γυψοσανίδας")]
-            entries.append(_e("mm:group:room", "Σε αυτόν τον χώρο", "panel", children=room))
-        entries.append(_e("mm:group:slab", "Πλάκα", "panel", children=[
+        rare.append(_e("mm:group:slab", "Πλάκα", children=[
             _e("mm:slab:balcony", "Μπαλκόνι (σχεδίαση)"), _e("mm:slab:draw", "Οπή πλάκας (σχεδίαση)")]))
-        entries.append(_e("mm:assist:point", "Βοηθός εδώ", "panel"))
+        # «… σε αυτόν τον χώρο» only inside a closed room: outside one they do nothing (walk-through 14/10).
+        if xy is None or _in_room(window.doc, *xy):
+            rare.append(_e("mm:group:room", "Σε αυτόν τον χώρο", children=[
+                _e("mm:layout:bath", "Μπάνιο εδώ…"),
+                _e("mm:roofroom:tiled", "Κεραμοσκεπή"), _e("mm:roofroom:terrace", "Ταράτσα"),
+                _e("mm:slab:atrium", "Αίθριο"), _e("mm:slab:inner_balcony", "Κενό πλάκας (εσωτ. μπαλκόνι)"),
+                _e("mm:drywall:room", "Ψευδοροφή γυψοσανίδας")]))
+        assist = _e("mm:assist:point", "Βοηθός εδώ")
+        assist["small"] = True                 # owner 15/10: kept only as an icon, «βλέπουμε»
+        rare.append(assist)
+    build = _e("mm:menu:build", "Κατασκευή", children=rare)
+    build["small"] = True                      # a small icon only (tooltip «Κατασκευή»)
+    entries.append(build)
     return {"center": "Σχεδίαση", "entries": _fit(entries), "wheel": None}
 
 
@@ -480,6 +494,7 @@ def wheel(window, kind, steps):
 
 # Compass positions, north first (Inventor order): N, NE, E, SE, S, SW, W, NW.
 COMPASS = tuple((math.sin(math.radians(a)), -math.cos(math.radians(a))) for a in range(0, 360, 45))
+CROSS = (0, 2, 4, 6)
 
 
 class MarkingMenu(QWidget):
@@ -540,7 +555,8 @@ class MarkingMenu(QWidget):
         cx, cy = size // 2, size // 2
         self.center.move(cx - self.center.width() // 2, cy - self.center.height() // 2)
         clear = self.center.width() / 2 + 10                 # keep the side buttons off the centre title
-        for k, e in enumerate(radial):
+        slots = CROSS if len(radial) <= 4 else range(8)      # few choices: N, E, S, W (shorter, steadier moves)
+        for k, e in zip(slots, radial):
             dx, dy = COMPASS[k]
             b = self._button(e)
             x = cx + dx * self.RADIUS + math.copysign(max(0.0, clear - self.RADIUS * abs(dx) + b.width() / 2), dx) * (abs(dx) > 0.5)
@@ -589,6 +605,17 @@ class MarkingMenu(QWidget):
         b = QToolButton(self)
         label = e["label"] + (" ▸" if e.get("children") else "")
         b.setText(label)
+        if e.get("small") and e.get("icon"):
+            # The rarely used things: one small round icon, the name in its tooltip.
+            b.setIcon(icon(e["icon"])); b.setIconSize(QSize(18, 18)); b.setToolTip(label)
+            b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+            b.setStyleSheet("QToolButton { background: #ffffff; border: 1px solid #c3ccd8; border-radius: 15px; }"
+                            " QToolButton:hover { background: #e3eefc; border-color: #2F6BD6; }")
+            b.resize(30, 30)
+            b.clicked.connect(lambda _=False, entry=e: self.open_submenu(entry))
+            b.show()
+            self.buttons[e["id"]] = b
+            return b
         if e.get("icon"):
             b.setIcon(icon(e["icon"]))
             b.setIconSize(QSize(20, 20) if compact or flat else QSize(22, 22))

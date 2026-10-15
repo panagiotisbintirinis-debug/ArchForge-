@@ -29,10 +29,12 @@ def test_secondary_choices_are_hidden_in_more_instead_of_a_tall_panel(window):
     radial = [e for e in menu.menu['entries'] if e['placement'] == 'radial']
     panel = [e for e in menu.menu['entries'] if e['placement'] == 'panel']
     assert len(radial) <= 8 and len(panel) <= menu.INLINE_PANEL and len(menu.buttons) == len(radial) + len(panel)
-    # Secondary choices are short themed submenus that open in the mouse menu itself (owner 15/10).
-    assert 'mm:assist:point' in menu.buttons
-    slab = next(e for e in panel if e['id'] == 'mm:group:slab')
+    # Rare things wait behind the small «⋯» (owner 15/10), in submenus that open in the mouse menu itself.
+    build = next(e for e in radial if e['id'] == 'mm:menu:build')
+    assert build.get('small') and menu.buttons['mm:menu:build'].width() <= 32
+    slab = next(e for e in build['children'] if e['id'] == 'mm:group:slab')
     assert 'mm:slab:draw' in {c['id'] for c in slab['children']}
+    assert 'mm:assist:point' in {c['id'] for c in build['children']}
     assert menu.height() <= 520
 
 
@@ -54,7 +56,8 @@ def test_menu_content_follows_the_task(window):
     from archforge.ui.marking_menu import build_menu
     empty = build_menu(window, 'plan')
     assert empty['center'] == 'Σχεδίαση' and 'mm:tool:wall' in _ids(empty) and len(_ids(empty)) <= 8
-    assert 'mm:assist:point' in _ids(empty, 'panel')
+    from archforge.ui.marking_menu import all_ids
+    assert 'mm:assist:point' in all_ids(empty['entries'])          # small icon inside «⋯»
     window._set_active_tool('wall')
     wall = build_menu(window, 'plan')
     assert _ids(wall)[0] == 'mm:tool:select'                     # north = finish the task
@@ -182,8 +185,12 @@ def test_empty_menu_has_walls_doors_windows_and_submenus_with_a_kitchen_wheel(wi
     from archforge.ui.marking_menu import build_menu, run, wheel
     empty = build_menu(window, 'plan')
     ids = _ids(empty)
-    assert ids[1:5] == ['mm:tool:wall', 'mm:tool:door', 'mm:tool:window', 'mm:tool:opening_rect']
-    assert {'mm:menu:stair', 'mm:menu:kitchen', 'mm:menu:structure'} <= set(ids) and len(ids) <= 8
+    # Owner 15/10: only the everyday tools on the ring; door / window one icon; stair, kitchen, structure
+    # (used once per house) behind the small «⋯ Κατασκευή».
+    assert ids == ['mm:tool:select', 'mm:tool:wall', 'mm:menu:openings', 'mm:menu:build']
+    entries = {e['id']: e for e in empty['entries']}
+    assert [c['id'] for c in entries['mm:menu:openings']['children']][:3] == ['mm:tool:door', 'mm:tool:window', 'mm:tool:opening_rect']
+    assert {'mm:menu:stair', 'mm:menu:kitchen', 'mm:menu:structure'} <= {c['id'] for c in entries['mm:menu:build']['children']}
     # Kitchen: a submenu with every item; the wheel scrolls, ✓ places the one shown.
     window._marking_submenu = 'kitchen'
     kitchen = build_menu(window, 'plan')
@@ -209,8 +216,8 @@ def test_choosing_a_submenu_reopens_the_menu_in_place(window):
     from PySide6.QtCore import QPoint
     from archforge.ui.marking_menu import run
     menu = window.plan_view.show_marking_menu(QPoint(200, 200))
-    assert 'mm:menu:kitchen' in menu.buttons
-    run(window, 'plan', None, 'mm:menu:kitchen')
+    assert 'mm:menu:build' in menu.buttons
+    run(window, 'plan', None, 'mm:menu:kitchen')          # the 3D view's route: the kitchen wheel menu
     again = window.plan_view._marking_menu
     assert again is not None and 'mm:kitchen:current' in again.buttons
 
@@ -239,7 +246,11 @@ def test_submenus_open_in_the_mouse_menu_itself_and_go_back(window):
     menu = view.show_marking_menu(QPoint(300, 300))
     ring = dict(menu.buttons)
     assert all(not b.icon().isNull() for i, b in ring.items() if i.startswith('mm:tool:') and i != 'mm:tool:select')
-    menu.buttons['mm:menu:kitchen'].click()
+    menu.buttons['mm:menu:build'].click()                              # the small «⋯»
+    assert menu.center.text() == '‹ Κατασκευή' and len(menu.stack) == 1
+    menu.back()
+    menu.buttons['mm:menu:build'].click(); menu.buttons['mm:menu:kitchen'].click()
+    menu.stack.pop(0)                                                   # count levels from the kitchen
     assert view._marking_menu is menu and not menu.isHidden()         # same menu, in place
     assert menu.center.text() == '‹ Κουζίνα' and 'mm:menu:kitchen' not in menu.buttons
     group = next(i for i in menu.buttons if i.startswith('mm:kgroup:'))
@@ -263,7 +274,8 @@ def test_3d_menu_gets_the_same_submenus_with_icons(window):
     from archforge.ui.marking_menu import build_menu
     from archforge.ui.menu_icons import with_icon_data
     entries = with_icon_data(build_menu(window, 'pbr')['entries'])
-    kitchen = next(e for e in entries if e['id'] == 'mm:menu:kitchen')
+    build = next(e for e in entries if e['id'] == 'mm:menu:build')
+    kitchen = next(e for e in build['children'] if e['id'] == 'mm:menu:kitchen')
     assert kitchen['children'] and kitchen['iconData'].startswith('data:image/png;base64,')
     import archforge.ui.pbr_viewport as pv
     assert 'markingStack' in pv._PBR_HTML and 'entry.children' in pv._PBR_HTML

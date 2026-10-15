@@ -257,7 +257,9 @@ def test_ui_kitchen_here_ghost_delete_and_apply_with_one_undo():
                                                            'height': 2.7, 'thickness': 0.2})))
         empty = build_menu(window, 'plan')
         from archforge.ui.marking_menu import all_ids
-        assert {'mm:layout:kitchen', 'mm:layout:bath'} <= set(all_ids(empty['entries']))     # Σε αυτόν τον χώρο ▸
+        ids = set(all_ids(empty['entries']))
+        # Owner 15/10: the mouse menu offers the free kitchen line, no Γ / Π proposal; the bath stays.
+        assert 'mm:layout:bath' in ids and 'mm:krun:start' in ids and 'mm:layout:kitchen' not in ids
         before = len(window.doc.entities)
         run(window, 'plan', None, 'mm:layout:kitchen', (2.0, 1.5))         # right click in the room → «Κουζίνα εδώ…»
         assist = window._layout_assist

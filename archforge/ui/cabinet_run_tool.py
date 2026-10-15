@@ -21,8 +21,10 @@ from PySide6.QtGui import QBrush, QColor, QPainterPath, QPen, QPolygonF
 from PySide6.QtWidgets import QCheckBox, QComboBox, QGroupBox, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
 
 TOOL = "layout_cabinet_run"
-HINT = ("Γραμμή ντουλαπιών: διπλό κλικ σε τοίχο = όλος ο τοίχος · ή κλικ σε δύο σημεία του τοίχου = το κομμάτι ανάμεσα · "
-        "Enter = Εφαρμογή · δεξί κλικ = επιλογές · Esc = τέλος")
+HINT = ("Κουζίνα: κλικ στην αρχή και σε κάθε στροφή, όπως τη θέλεις — πάνω σε τοίχο ακολουθεί τον τοίχο, μακριά "
+        "από τοίχο γίνεται νησίδα · διπλό κλικ = τέλος (σε τοίχο χωρίς άλλα σημεία = όλος ο τοίχος) · "
+        "Backspace = πίσω ένα σημείο · Shift = ελεύθερη γωνία · Enter = Εφαρμογή · Esc = τέλος")
+ORTHO_DEG = 12.0         # near 0/90° from the previous point the line straightens (Shift = free)
 
 
 def _label(view, text, x, y, color, bold=True):
@@ -41,7 +43,8 @@ class CabinetRunTool:
     def __init__(self, window):
         self.w = window
         self.active = False
-        self.first = None          # (x, y) of the first click on the face
+        self.points = []           # the line being drawn (plan points, owner 15/10: free shape)
+        self.flip = False          # free pieces: cabinets on the other side of the line
         self.pick = None           # (x0, y0, x1, y1) of the proposal
         self.cursor = None         # (run, s, (x, y), runs)
         self.proposal = None
@@ -63,8 +66,12 @@ class CabinetRunTool:
         self._sync_panel()
         self.w.plan_view.redraw()
 
+    @property
+    def first(self):
+        return self.points[0] if self.points else None
+
     def _reset(self):
-        self.first, self.pick, self.proposal = None, None, None
+        self.points, self.pick, self.proposal = [], None, None
         self.options.pop("sink_xy", None)
         self.options.pop("hob_xy", None)
 
@@ -83,10 +90,46 @@ class CabinetRunTool:
         self.w.plan_view.redraw()
         return self.proposal
 
+    def propose_path(self, points):
+        """The kitchen along a free line (``kitchen.cabinet_run.plan_path``)."""
+        from archforge.kitchen.cabinet_run import plan_path
+        self.pick = ("path", [tuple(p) for p in points])
+        self.proposal = plan_path(self.doc, points, self.options, flip=self.flip)
+        if not self.proposal.entities:
+            self.status("⚠ " + " · ".join(self.proposal.problems or [self.proposal.label]))
+            self.proposal = None
+        else:
+            warn = (" · ⚠ " + " · ".join(self.proposal.problems)) if self.proposal.problems else ""
+            self.status(f"{self.proposal.label}{warn} — συνέχισε με κλικ · διπλό κλικ = τέλος · Enter = Εφαρμογή · "
+                        "δεξί κλικ = νεροχύτης/εστία εδώ, πλευρά, κρεμαστά", 20000)
+        self._sync_panel()
+        self.w.plan_view.redraw()
+        return self.proposal
+
     def again(self):
+        if self.pick is not None and self.pick[0] == "path":
+            return self.propose_path(self.pick[1])
         if self.pick is not None:
             return self.propose(*self.pick)
         return None
+
+    def set_flip(self, on):
+        self.flip = bool(on)
+        return self.again()
+
+    def point_at(self, x, y, free=False):
+        """Where a click lands: on a wall face when near one, else straightened to 0/90° from the last point."""
+        from archforge.kitchen.cabinet_run import runs_at, snap
+        runs, _room = runs_at(self.doc, x, y)
+        hit = snap(runs, x, y) if runs else None
+        if hit is not None and math.hypot(hit[2][0] - x, hit[2][1] - y) <= 0.35:
+            return (float(hit[2][0]), float(hit[2][1]))
+        if self.points and not free:
+            px, py = self.points[-1]
+            ang = math.degrees(math.atan2(y - py, x - px)) % 90.0
+            if min(ang, 90.0 - ang) <= ORTHO_DEG:
+                return (x, py) if abs(x - px) >= abs(y - py) else (px, y)
+        return (float(x), float(y))
 
     def set_option(self, key, value):
         self.options[key] = value
@@ -110,10 +153,11 @@ class CabinetRunTool:
             return None
         proposal = self.proposal
         self.w.stack.execute(proposal.command())
-        self.doc.select([e.id for e in proposal.entities if e.params.get("run_id") == proposal.run_id])
+        ids = set(proposal.spec.get("run_ids") or [proposal.run_id])
+        self.doc.select([e.id for e in proposal.entities if e.params.get("run_id") in ids])
         self._reset()
         self._refresh()
-        n = sum(1 for e in proposal.entities if e.params.get("run_id") == proposal.run_id)
+        n = sum(1 for e in proposal.entities if e.params.get("run_id") in ids)
         self.status(f"✓ {proposal.label}: {n} κομμάτια — επιλεγμένα όλα · δεξί κλικ σε ντουλάπι = άλλο πλάτος · "
                     "Ctrl+Z = αναίρεση · συνέχισε σε άλλον τοίχο ή Esc", 20000)
         return proposal
@@ -200,6 +244,14 @@ class CabinetRunTool:
             if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
                 self.apply()
                 return True
+            if key == Qt.Key.Key_Backspace and self.points:
+                self.points.pop()
+                if len(self.points) >= 2:
+                    self.propose_path(self.points)
+                else:
+                    self.proposal = None
+                    view.redraw()
+                return True
             if key in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
                 return self.discard()
             if key == Qt.Key.Key_Escape:
@@ -216,32 +268,36 @@ class CabinetRunTool:
             runs, _room = runs_at(self.doc, x, y)
             hit = snap(runs, x, y) if runs else None
             self.cursor = (hit[0], hit[1], hit[2], runs) if hit else None
+            self._hover = self.point_at(x, y, bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)) \
+                if self.points else None
             view.redraw()
             return True
         if kind == "release":
             return True
+        free = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
         if kind == "dclick":
-            self.first = None
-            self.propose(x, y)
+            # A real double click: press (adds the point) · release · double click at the same place.
+            d = self.point_at(x, y, free)
+            if self.points and math.hypot(d[0] - self.points[-1][0], d[1] - self.points[-1][1]) > 0.05:
+                self.points.append(d)
+            if len(self.points) <= 1:
+                self.points = []
+                self.propose(x, y)                # one wall, nothing else drawn: the whole face
+            else:
+                pts = list(self.points)
+                self.points = []
+                self.propose_path(pts)            # the line is finished; Enter applies it
+                self.pick = ("path", pts)
             return True
         if kind != "press" or event.button() != Qt.MouseButton.LeftButton:
             return False
-        runs, _room = runs_at(self.doc, x, y)
-        hit = snap(runs, x, y) if runs else None
-        if hit is None:
-            self.status("Κλικ πάνω στην παρειά ενός τοίχου (μέσα στον χώρο)")
-            return True
-        if self.first is None:
-            self.first = (x, y)
-            self.proposal = None
-            self.status("Αρχή — κλικ στο τέλος του κομματιού πάνω στον ίδιο τοίχο · διπλό κλικ = όλος ο τοίχος")
+        if self.proposal is not None and not self.points:
+            self.proposal, self.pick = None, None   # a finished, unapplied line: a new click starts again
+        self.points.append(self.point_at(x, y, free))
+        if len(self.points) == 1:
+            self.status("Αρχή — κλικ σε κάθε στροφή · διπλό κλικ = τέλος · Backspace = πίσω ένα σημείο")
         else:
-            x0, y0 = self.first
-            self.first = None
-            if math.hypot(x - x0, y - y0) < 0.30:
-                self.propose(x0, y0)
-            else:
-                self.propose(x0, y0, x, y)
+            self.propose_path(self.points)
         self._sync_panel()
         view.redraw()
         return True
@@ -265,10 +321,22 @@ class CabinetRunTool:
             _label(view, fmt_m(math.hypot(b[0] - a[0], b[1] - a[1])), mx, my, orange)
             dot = QPen(orange); dot.setWidthF(.02)
             view._scene.addEllipse(cx - .09, cy - .09, .18, .18, dot, QBrush(orange)).setZValue(46)
-        if self.first is not None:
-            x, y = self.first
-            pen = QPen(QColor(230, 120, 20)); pen.setWidthF(.02)
-            view._scene.addEllipse(x - .1, y - .1, .2, .2, pen, QBrush(QColor(230, 120, 20))).setZValue(46)
+        if self.points:
+            from archforge.kitchen.cabinet_run import fmt_m as _fmt
+            orange = QColor(230, 120, 20)
+            pen = QPen(orange); pen.setWidthF(.03)
+            for (ax, ay), (bx, by) in zip(self.points, self.points[1:]):
+                view._scene.addLine(ax, ay, bx, by, pen).setZValue(46)
+            for x, y in self.points:
+                dot = QPen(orange); dot.setWidthF(.02)
+                view._scene.addEllipse(x - .08, y - .08, .16, .16, dot, QBrush(orange)).setZValue(47)
+            hover = getattr(self, "_hover", None)
+            if hover is not None:
+                hx, hy = hover
+                lx, ly = self.points[-1]
+                band = QPen(orange); band.setWidthF(.02); band.setStyle(Qt.PenStyle.DashLine)
+                view._scene.addLine(lx, ly, hx, hy, band).setZValue(46)
+                _label(view, _fmt(math.hypot(hx - lx, hy - ly)), (lx + hx) / 2 + .15, (ly + hy) / 2 + .15, orange)
         if self.proposal is not None:
             self._paint_ghost(view)
 
@@ -383,13 +451,18 @@ def marking_entries(window):
     entries = [_e("mm:krun:apply", "✓ Εφαρμογή")]
     if t.proposal is not None:
         entries += [_e("mm:krun:sink_here", "Νεροχύτης εδώ"), _e("mm:krun:hob_here", "Εστία εδώ")]
-    entries += [_e("mm:krun:wall_units", "Κρεμαστά", checked=bool(o.get("wall_units"))),
-                _e("mm:krun:cornice", "Κορνίζα", checked=bool(o.get("cornice"))),
-                _e("mm:krun:corner_blind", "Γωνία: τυφλό", checked=o.get("corner") == "blind"),
-                _e("mm:krun:corner_L", "Γωνία: Γ 90×90", checked=o.get("corner") == "L"),
-                _e("mm:krun:discard", "✕ Σβήσε πρόταση", danger=True),
-                _e("mm:krun:end", "Τέλος", "panel")]
-    center = t.proposal.label if t.proposal is not None else "Γραμμή ντουλαπιών"
+    if t.points or (t.pick is not None and t.pick[0] == "path"):
+        entries.append(_e("mm:krun:flip", "Η άλλη πλευρά (νησίδα)", checked=t.flip))
+    entries.append(_e("mm:krun:discard", "✕ Σβήσε πρόταση", danger=True))
+    # Set once per kitchen: behind a small «⋯» (owner 15/10: rare choices in a small icon with submenus).
+    more = _e("mm:menu:krun_options", "Επιλογές κουζίνας", children=[
+        _e("mm:krun:wall_units", "Κρεμαστά", checked=bool(o.get("wall_units"))),
+        _e("mm:krun:cornice", "Κορνίζα", checked=bool(o.get("cornice"))),
+        _e("mm:krun:corner_blind", "Γωνία: τυφλό", checked=o.get("corner") == "blind"),
+        _e("mm:krun:corner_L", "Γωνία: Γ 90×90", checked=o.get("corner") == "L")])
+    more["small"], more["icon"] = True, "more"
+    entries += [more, _e("mm:krun:end", "Τέλος", "panel")]
+    center = t.proposal.label if t.proposal is not None else "Κουζίνα"
     return {"center": center, "entries": entries, "wheel": None}
 
 
@@ -421,6 +494,8 @@ def run(window, arg, entity_id=None, plan_xy=None):
         t.set_option("corner", arg[len("corner_"):])
     elif arg == "discard":
         t.discard()
+    elif arg == "flip":
+        t.set_flip(not t.flip)
     elif arg == "end":
         t.cancel()
         window._set_active_tool("select")

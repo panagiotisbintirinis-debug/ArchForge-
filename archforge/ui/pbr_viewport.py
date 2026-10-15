@@ -198,6 +198,8 @@ html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background:
   box-shadow: 0 1px 4px rgba(0,0,0,0.12); pointer-events: auto; cursor: pointer;
 }
 .markIcon { width: 20px; height: 20px; }
+.markAction.small { min-width: 30px; width: 30px; min-height: 30px; height: 30px; padding: 0; border-radius: 15px; }
+.markAction.small .markIcon { width: 18px; height: 18px; }
 .stripAction .markIcon { width: 16px; height: 16px; vertical-align: middle; margin-right: 4px; }
 .markAction:hover { background: #d9eaff; border-color: #2f75b5; }
 .markAction.checked { background: #cfe7ff; border-color: #2f75b5; }
@@ -1347,13 +1349,15 @@ function dispatchMarkingAction(actionId) {
 let markingStack = [];
 function markingButton(entry, className, onSub) {
   const button = document.createElement("button");
-  button.className = className + ((entry.id === "delete" || entry.danger) ? " danger" : "") + (entry.checked ? " checked" : "");
+  button.className = className + ((entry.id === "delete" || entry.danger) ? " danger" : "") + (entry.checked ? " checked" : "")
+    + (entry.small ? " small" : "");
+  if (entry.small) button.title = entry.label;
   if (entry.iconData) {
     const img = document.createElement("img");
     img.src = entry.iconData; img.className = "markIcon"; img.alt = "";
     button.appendChild(img);
   }
-  button.appendChild(document.createTextNode(entry.label + (entry.children && entry.children.length ? " ▸" : "")));
+  if (!entry.small) button.appendChild(document.createTextNode(entry.label + (entry.children && entry.children.length ? " ▸" : "")));
   button.addEventListener("pointerdown", (event) => event.stopPropagation());
   button.addEventListener("click", (event) => {
     event.preventDefault(); event.stopPropagation();
@@ -1401,8 +1405,9 @@ window.showMarkingMenu = function(entityId, x, y, entries, center, wheelKind, ke
   const radius = 98;
   const titleHalf = markingTitle.offsetWidth / 2;
   radial.forEach((entry, index) => {
-    // Fixed compass slots, north first (Inventor marking menu): N, NE, E, SE, S, SW, W, NW.
-    const angle = -Math.PI / 2 + index * (Math.PI / 4);
+    // Fixed compass slots, north first (Inventor marking menu): N, NE, E, SE, S, SW, W, NW; few: N, E, S, W.
+    const slot = radial.length <= 4 ? index * 2 : index;
+    const angle = -Math.PI / 2 + slot * (Math.PI / 4);
     const button = markingButton(entry, "markAction", openSub);
     radialMenu.appendChild(button);
     const c = Math.cos(angle);

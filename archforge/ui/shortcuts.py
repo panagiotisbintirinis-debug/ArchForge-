@@ -61,7 +61,7 @@ ACTIONS = (
     ('panel.properties', 'Ιδιότητες (πάνελ)', 'Πάνελ', 'F4', ()),
     ('panel.assistant', 'Βοηθός (πάνελ)', 'Πάνελ', 'F5', ()),
     ('panel.library', 'Βιβλιοθήκη: αναζήτηση', 'Πάνελ', 'Ctrl+F', ()),
-    ('assist.kitchen', 'Κουζίνα εδώ', 'Βοηθός', 'Shift+K', ('Κουζίνα εδώ…',)),
+    ('assist.kitchen', 'Κουζίνα (ελεύθερη σχεδίαση)', 'Εργαλεία', 'Shift+K', ('Σχεδίασε κουζίνα (ελεύθερα)…',)),
     ('assist.bath', 'Μπάνιο εδώ', 'Βοηθός', 'Shift+B', ('Μπάνιο εδώ…',)),
     ('help.shortcuts', 'Συντομεύσεις πληκτρολογίου…', 'Βοήθεια', 'Ctrl+F1', ()),
 )
@@ -233,7 +233,7 @@ RUN = {
     'panel.layers': _dock('_layers_dock'), 'panel.properties': _dock('dock'), 'panel.assistant': _dock('_assistant_dock'),
     'panel.library': _library,
     'aid.grid': _toggle('_mockup_grid_check'), 'aid.snap': _toggle('snap_action'),
-    'assist.kitchen': _layout('kitchen'), 'assist.bath': _layout('bath'),
+    'assist.kitchen': lambda w: w._cabinet_run.start(), 'assist.bath': _layout('bath'),
     'help.shortcuts': lambda w: open_dialog(w),
 }
 # Existing window actions taken over (they already sit in the menus and keep their own slot).

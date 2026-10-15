@@ -93,7 +93,8 @@ def test_kitchen_and_materials_under_library(window):
     library = _top(window)['Βιβλιοθήκη']
     assert {'Κουζίνα & μπάνιο', 'Υλικά'} <= set(_titles(library))
     kitchen = next(a.menu() for a in library.actions() if a.text().replace('&&', '&') == 'Κουζίνα & μπάνιο')
-    assert 'Κουζίνα εδώ (Βοηθός)…' in _titles(kitchen) and 'Γραμμή ντουλαπιών σε τοίχο…' in _titles(kitchen)
+    assert _titles(kitchen)[0] == 'Σχεδίασε κουζίνα (ελεύθερα)…' and not any(t.startswith('Κουζίνα εδώ') for t in _titles(kitchen))
+    assert 'Μπάνιο εδώ (Βοηθός)…' in _titles(kitchen)
 
 
 def test_moved_entries_still_run(window):

@@ -122,6 +122,7 @@ def test_room_choices_only_when_the_right_click_is_inside_a_room(window):
     _box(window.stack, 0.0)
     ids = lambda m: set(all_ids(m['entries']))
     outside, inside = build_menu(window, 'plan', xy=(5, -3)), build_menu(window, 'plan', xy=(5, 4))
-    room_only = {'mm:layout:kitchen', 'mm:layout:bath', 'mm:roofroom:tiled', 'mm:slab:atrium', 'mm:drywall:room'}
+    # (no «Κουζίνα εδώ» any more: the kitchen is drawn freely — owner 15/10)
+    room_only = {'mm:layout:bath', 'mm:roofroom:tiled', 'mm:slab:atrium', 'mm:drywall:room'}
     assert room_only <= ids(inside) and not room_only & ids(outside)
     assert {'mm:slab:balcony', 'mm:slab:draw'} <= ids(outside)

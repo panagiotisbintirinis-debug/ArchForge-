@@ -198,6 +198,15 @@ def organize_main_menus(window):
     if library is not None:
         if kitchen is not None:
             kitchen.setTitle("Κουζίνα && μπάνιο")
+            # Owner 15/10: the kitchen is drawn freely (no Γ / Π proposals of the Βοηθός).
+            for a in list(kitchen.actions()):
+                t = a.text().replace("&&", "&")
+                if t.startswith("Κουζίνα εδώ"):
+                    kitchen.removeAction(a)
+                elif t.startswith("Γραμμή ντουλαπιών σε τοίχο"):
+                    a.setText("Σχεδίασε κουζίνα (ελεύθερα)…")
+                    kitchen.removeAction(a); kitchen.insertAction(kitchen.actions()[0] if kitchen.actions() else None, a)
+            _tidy(kitchen)
             library.addSeparator(); library.addMenu(kitchen)
         mats = materials if materials is not None else QMenu("Υλικά", window)
         if not mats.actions() and hasattr(window, "_open_selected_materials"):
