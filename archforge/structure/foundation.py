@@ -290,19 +290,37 @@ def foundation_html(fd):
         return ""
     rows = "".join(
         f"<tr><td>{f['name']}</td><td>{f.get('column', '')}</td><td>{f['x']}, {f['y']}</td><td>{f['N_sls_kN']} / {f['N_Ed_kN']}</td>"
-        f"<td>{f['B_m']:.2f}×{f['B_m']:.2f}</td><td>{f['h_m']:.2f}</td><td>{f['sigma_kPa']}</td><td>{f['M_kNm_per_m']}</td>"
+        f"<td>{f['B_m']:.2f}×{f['B_m']:.2f}</td><td>{f['h_m']:.2f}</td><td>{_pressure_cells(f)}</td><td>{f['sigma_kPa']}</td>"
+        f"<td>{f['M_kNm_per_m']}</td>"
         f"<td>{f['mesh']} κάτω, δύο διευθύνσεις</td><td>{f['concrete_m3']}</td></tr>" for f in fd["footings"])
     ties = "".join(
         f"<tr><td>{t['name']}</td><td>{t['from']} – {t['to']}</td><td>{t['length_m']}</td><td>{t['section']}</td>"
         f"<td>±{t['N_kN']}</td><td>{t['bars']} ({t['As_cm2']} cm²)</td><td>{t['stirrups']}</td></tr>" for t in fd["ties"])
     return ("<h3>Θεμελίωση: πέδιλα</h3><table border=1 cellspacing=0 cellpadding=3><tr><th>Πέδιλο</th><th>Κολώνα</th>"
-            "<th>Θέση</th><th>N G+Q / Ed (kN)</th><th>B×B (m)</th><th>h (m)</th><th>σ (kPa)</th><th>M (kNm/m)</th>"
+            "<th>Θέση</th><th>N G+Q / Ed (kN)</th><th>B×B (m)</th><th>h (m)</th><th>e<sub>x</sub> / e<sub>y</sub> (m)</th>"
+            "<th>σ<sub>max</sub> G+Q (kPa)</th><th>σ<sub>max</sub> σεισμού (kPa)</th><th>σ οπλισμού (kPa)</th><th>M (kNm/m)</th>"
             "<th>Οπλισμός</th><th>Σκυρόδεμα m³</th></tr>" + rows + "</table>"
             + ("<h3>Συνδετήριες δοκοί</h3><table border=1 cellspacing=0 cellpadding=3><tr><th>Δοκός</th><th>Πέδιλα</th>"
                "<th>Μήκος (m)</th><th>Διατομή</th><th>N (kN)</th><th>Διαμήκης</th><th>Συνδετήρες</th></tr>" + ties + "</table>"
                if ties else "")
             + _strips_html(fd)
             + f"<p>Σκυρόδεμα θεμελίωσης: {fd['concrete_m3']} m³</p><p><i>{PROVENANCE}</i></p>")
+
+
+def _pressure_cells(f):
+    """Eccentricity, contact pressure under G + Q and the worst seismic combination (report cells)."""
+    if "sigma_max_sls_kPa" not in f:
+        return "—</td><td>—</td><td>—"
+    sls = f"{f['sigma_max_sls_kPa']}" + ("" if f.get("pressure_ok", True) else " ⚠ > σεδ")
+    if f.get("contact_sls", 1.0) < 1.0:
+        sls += f" (επαφή {f['contact_sls']:.0%})"
+    if "seismic_combo" not in f:
+        seis = "—"
+    elif not f.get("seismic_stable", True):
+        seis = f"⚠ ανατροπή ({f['seismic_combo']})"
+    else:
+        seis = f"{f['sigma_max_seismic_kPa']} · επαφή {f['contact_seismic']:.0%} ({f['seismic_combo']})"
+    return f"{f['e_x_m']} / {f['e_y_m']}</td><td>{sls}</td><td>{seis}"
 
 
 def _strips_html(fd):

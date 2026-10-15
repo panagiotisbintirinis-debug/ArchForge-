@@ -274,7 +274,14 @@ def analyze(doc):
         result["members"][m.id] = entry
         if not entry.get("ok", True):
             result["ok"] = False
-    result["footings"] = _footings(model, frame, settings)
+    result["footings"] = _footings(model, frame, settings, seismic_cases, combos)
+    for f in result["footings"]:
+        if not f["pressure_ok"]:
+            result["warnings"].append(f"Πέδιλο κάτω από {f['column'] or 'κολόνα'}: σmax G+Q {f['sigma_max_sls_kPa']} kPa > σεδ "
+                                      f"ακόμη και με B = {f['B_m']} m — θέλει άλλη θεμελίωση (μηχανικός)")
+        if f.get("seismic_stable") is False:
+            result["warnings"].append(f"Πέδιλο κάτω από {f['column'] or 'κολόνα'}: στον συνδυασμό {f['seismic_combo']} "
+                                      "η συνισταμένη βγαίνει έξω από το πέδιλο (ανατροπή) — έλεγχος από μηχανικό")
     from archforge.structure.foundation import design_foundation
     result["foundation"] = design_foundation(result["footings"], settings)
     from archforge.structure.slabs import design_slabs
@@ -328,26 +335,61 @@ def _beam_deflection(model, m, case_disp):
     return max(abs(wi - (w[0] + (w[-1] - w[0]) * p / L)) for wi, p in zip(w, pos))
 
 
-def _footings(model, frame, settings):
-    loads = {}
+def _footings(model, frame, settings, seismic_cases=None, combos=()):
+    """Pads sized so that σmax under G + Q (with the base moments and shears) stays within σεδ.
+
+    The seismic combinations' contact pressure is reported, not judged: its limit is the
+    geotechnical engineer's (structure.footing_contact_pressure).
+    """
+    from archforge.structure.soil_pressure import contact_pressure, eccentricity
+    R = {}
     for case in ("G", "Q"):
-        for n, v in model.loads[case].items():
-            loads.setdefault(n, np.zeros(6))
-            loads[n] = loads[n] + v
-    _U, _F, R = frame.solve(loads)
+        R[case] = frame.solve(model.loads[case])[2]
+    for case, loads in (seismic_cases or {}).items():
+        R[case] = frame.solve(loads)[2]
     out = []
     sigma = float(settings["soil_pressure"])
+
+    def pressure(r, B, h):
+        # +10 % footing weight, centric: it adds to N but not to the moments.
+        N = 1.1 * float(r[2])
+        ex, ey = eccentricity(N, float(r[3]), float(r[4]), float(r[0]), float(r[1]), h)
+        return contact_pressure(N, ex, ey, B, B), ex, ey
+
     for n in sorted(model.supports):
-        N = float(R[n][2])
+        sls = R["G"][n] + R["Q"][n]
+        N = float(sls[2])
         if N <= 0:
             continue
-        B = max(1.0, math.ceil(math.sqrt(1.1 * N / sigma) / 0.05) * 0.05)      # +10 % footing weight
+        B = max(1.0, math.ceil(math.sqrt(1.1 * N / sigma) / 0.05) * 0.05)
+        while True:
+            h = max(0.5, 0.3 * B)
+            cp, ex, ey = pressure(sls, B, h)
+            if (cp["stable"] and cp["sigma_max"] <= sigma + 1e-9) or B >= 6.0:
+                break
+            B = round(B + 0.05, 2)
+        seismic = None
+        for name, factors, is_seismic in combos:
+            if not is_seismic or not all(c in R for c in factors):
+                continue
+            r = sum(f * R[c][n] for c, f in factors.items())
+            cps, _ex, _ey = pressure(r, B, h)
+            if seismic is None or cps["sigma_max"] > seismic[1]["sigma_max"]:
+                seismic = (name, cps)
         col = next((m for m in model.members.values() if m.kind == "column"
                     and math.dist(m.p1, model.nodes[n]) < 0.05), None)
-        out.append({"node": n, "x": round(model.nodes[n][0], 2), "y": round(model.nodes[n][1], 2),
-                    "z": round(model.nodes[n][2], 3), "column": col.name if col else "", "column_id": col.id if col else "",
-                    "column_m": round(max(col.b, col.h), 3) if col else 0.30,
-                    "N_sls_kN": round(N, 1), "B_m": round(B, 2), "h_m": round(max(0.5, 0.3 * B), 2)})
+        f = {"node": n, "x": round(model.nodes[n][0], 2), "y": round(model.nodes[n][1], 2),
+             "z": round(model.nodes[n][2], 3), "column": col.name if col else "", "column_id": col.id if col else "",
+             "column_m": round(max(col.b, col.h), 3) if col else 0.30,
+             "N_sls_kN": round(N, 1), "B_m": round(B, 2), "h_m": round(h, 2),
+             "e_x_m": round(ex, 3), "e_y_m": round(ey, 3), "sigma_max_sls_kPa": round(cp["sigma_max"], 1),
+             "sigma_min_sls_kPa": round(cp["sigma_min"], 1), "contact_sls": round(cp["contact"], 3),
+             "pressure_ok": bool(cp["stable"] and cp["sigma_max"] <= sigma + 1e-9)}
+        if seismic:
+            name, cps = seismic
+            f.update({"seismic_combo": name, "sigma_max_seismic_kPa": round(cps["sigma_max"], 1) if cps["stable"] else None,
+                      "contact_seismic": round(cps["contact"], 3), "seismic_stable": bool(cps["stable"])})
+        out.append(f)
     return out
 
 
