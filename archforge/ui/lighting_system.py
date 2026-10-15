@@ -6,15 +6,12 @@ import json
 def _lighting_js() -> str:
     return r'''
 // ArchForge architectural lighting -------------------------------------------------
-// One renderer, one scene.  Project lights live in their own root so they can be
-// rebuilt independently from geometry/material redraws.
 const archLightRoot = new THREE.Group();
 archLightRoot.name = "ArchForgeArchitecturalLights";
 scene.add(archLightRoot);
 let architecturalLightingMode = "day";
 
 function afKelvinColor(kelvin) {
-  // Practical black-body approximation, adequate for architectural 1800–10000 K.
   let t = Math.max(18, Math.min(100, Number(kelvin || 3000) / 100));
   let r, g, b;
   if (t <= 66) {
@@ -52,17 +49,20 @@ function afConfigureShadow(light, spec) {
 }
 
 function afPointLight(spec, position) {
-  const c = afKelvinColor(spec.kelvin);
-  const light = new THREE.PointLight(c, Number(spec.intensity || 400), Number(spec.range || 10), 2.0);
+  const light = new THREE.PointLight(
+    afKelvinColor(spec.kelvin), Number(spec.intensity || 400), Number(spec.range || 10), 2.0
+  );
   light.position.set(position[0], position[1], position[2]);
   afConfigureShadow(light, spec);
   return light;
 }
 
 function afSpotLight(spec) {
-  const c = afKelvinColor(spec.kelvin);
   const angle = THREE.MathUtils.degToRad(Math.max(1, Math.min(89, Number(spec.angle_deg || 35))));
-  const light = new THREE.SpotLight(c, Number(spec.intensity || 700), Number(spec.range || 14), angle, Number(spec.penumbra ?? 0.35), 2.0);
+  const light = new THREE.SpotLight(
+    afKelvinColor(spec.kelvin), Number(spec.intensity || 700), Number(spec.range || 14),
+    angle, Number(spec.penumbra ?? 0.35), 2.0
+  );
   const p = spec.position || [0, 0, 2.4];
   const target = spec.target || [p[0], p[1] + 1, 0];
   light.position.set(p[0], p[1], p[2]);
@@ -73,9 +73,8 @@ function afSpotLight(spec) {
 }
 
 function afStripLights(spec) {
-  // A hidden linear emitter is represented by a short row of physically-falling
-  // point lights.  This gives cove/under-cabinet lighting without exposing a
-  // visible bulb object.  Segment count is bounded for predictable GPU cost.
+  // Hidden LED/cove emitter: bounded row of point emitters so the source itself
+  // need not be visible.  The bound keeps night scenes predictable on laptops.
   const a = spec.start || spec.position || [0, 0, 2.4];
   const b = spec.end || [a[0] + 1, a[1], a[2]];
   const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
@@ -86,16 +85,14 @@ function afStripLights(spec) {
   for (let i = 0; i < n; i++) {
     const t = n === 1 ? 0.5 : i / (n - 1);
     const p = [a[0] + dx * t, a[1] + dy * t, a[2] + dz * t];
-    const childSpec = Object.assign({}, spec, {intensity: total / n, shadows: false});
-    group.add(afPointLight(childSpec, p));
+    group.add(afPointLight(Object.assign({}, spec, {intensity: total / n, shadows: false}), p));
   }
   return group;
 }
 
 window.setArchitecturalLights = function(payload) {
   afDisposeLightRoot();
-  const lights = (payload && payload.lights) || [];
-  for (const spec of lights) {
+  for (const spec of ((payload && payload.lights) || [])) {
     if (!spec || spec.enabled === false) continue;
     const kind = String(spec.kind || "point");
     let light = null;
@@ -120,37 +117,42 @@ window.setArchitecturalLightingMode = function(mode) {
 '''
 
 
+def _replace_one_of(text: str, candidates: tuple[str, ...], new: str, label: str) -> str:
+    for old in candidates:
+        if old in text:
+            return text.replace(old, new, 1)
+    raise RuntimeError(f"PBR lighting patch point changed: {label}")
+
+
 def _install_html_patch(pbr_module) -> None:
     html = pbr_module._PBR_HTML
     marker = "// ArchForge architectural lighting -------------------------------------------------"
     if marker in html:
         return
 
-    # Insert runtime after modelRoot exists so the light group belongs to the same scene.
     anchor = "const previewRoot = new THREE.Group();\nscene.add(previewRoot);"
     if anchor not in html:
         raise RuntimeError("PBR lighting install point changed")
     html = html.replace(anchor, anchor + "\n" + _lighting_js(), 1)
 
-    # Extend the existing sun/sky function rather than creating another environment.
-    old = '''  const useSky = !!sunState && activeTechnique === "pbr";\n  const technical = activeTechnique === "technical";\n  sky.visible = useSky;\n  scene.background = useSky ? lookCubeTarget.texture : new THREE.Color(technical ? 0xf4f5f7 : 0xd9dee5);'''
-    new = '''  const night = architecturalLightingMode === "night" && activeTechnique === "pbr";\n  const afternoon = architecturalLightingMode === "afternoon" && activeTechnique === "pbr";\n  const useSky = !!sunState && activeTechnique === "pbr" && !night;\n  const technical = activeTechnique === "technical";\n  sky.visible = useSky;\n  scene.background = night ? new THREE.Color(0x07101d) :\n      (useSky ? lookCubeTarget.texture : new THREE.Color(technical ? 0xf4f5f7 : 0xd9dee5));'''
-    if old not in html:
-        raise RuntimeError("PBR sun/sky block changed")
-    html = html.replace(old, new, 1)
+    html = _replace_one_of(
+        html,
+        ('''  const useSky = !!sunState && activeTechnique === "pbr";\n  const technical = activeTechnique === "technical";\n  sky.visible = useSky;\n  scene.background = useSky ? lookCubeTarget.texture : new THREE.Color(technical ? 0xf4f5f7 : 0xd9dee5);''',),
+        '''  const night = architecturalLightingMode === "night" && activeTechnique === "pbr";\n  const afternoon = architecturalLightingMode === "afternoon" && activeTechnique === "pbr";\n  const useSky = !!sunState && activeTechnique === "pbr" && !night;\n  const technical = activeTechnique === "technical";\n  sky.visible = useSky;\n  scene.background = night ? new THREE.Color(0x07101d) :\n      (useSky ? lookCubeTarget.texture : new THREE.Color(technical ? 0xf4f5f7 : 0xd9dee5));''',
+        "sun/sky",
+    )
 
-    old2 = '''  scene.environment = useSky && lookSkyEnvironment ? lookSkyEnvironment : studioEnvironment;\n  scene.environmentIntensity = useSky ? 1.0 : 0.25;\n  // Distance haze into the horizon colour: the ground has no visible edge.\n  scene.fog = useSky ? new THREE.Fog(lookHorizon.clone(), 140, 1400) : null;\n  ground.visible = !technical;\n  ambient.intensity = useSky ? 0.0 : 0.12;'''
-    new2 = '''  scene.environment = useSky && lookSkyEnvironment ? lookSkyEnvironment : studioEnvironment;\n  scene.environmentIntensity = night ? 0.035 : (afternoon ? 0.72 : (useSky ? 1.0 : 0.25));\n  // Distance haze into the horizon colour: the ground has no visible edge.\n  scene.fog = night ? new THREE.Fog(new THREE.Color(0x07101d), 95, 750) :\n      (useSky ? new THREE.Fog(lookHorizon.clone(), 140, 1400) : null);\n  ground.visible = !technical;\n  ambient.intensity = night ? 0.018 : (useSky ? 0.0 : 0.12);'''
-    if old2 not in html:
-        raise RuntimeError("PBR environment block changed")
-    html = html.replace(old2, new2, 1)
+    base_environment = '''  scene.environment = useSky && lookSkyEnvironment ? lookSkyEnvironment : studioEnvironment;\n  scene.environmentIntensity = useSky ? 1.0 : 0.25;\n  // Distance haze into the horizon colour: the ground has no visible edge.\n  scene.fog = useSky ? new THREE.Fog(lookHorizon.clone(), 140, 1400) : null;\n  ground.visible = !technical;\n  ambient.intensity = useSky ? 0.0 : 0.12;'''
+    quality_environment = '''  scene.environment = useSky && lookSkyEnvironment ? lookSkyEnvironment : studioEnvironment;\n  scene.environmentIntensity = useSky ? 0.88 : 0.42;\n  hemisphere.intensity = technical ? 0.0 : (useSky ? 0.18 : 0.30);\n  // Distance haze into the horizon colour: the ground has no visible edge.\n  scene.fog = useSky ? new THREE.Fog(lookHorizon.clone(), 140, 1400) : null;\n  ground.visible = !technical;\n  ambient.intensity = useSky ? 0.0 : 0.055;'''
+    environment_new = '''  scene.environment = useSky && lookSkyEnvironment ? lookSkyEnvironment : studioEnvironment;\n  scene.environmentIntensity = night ? 0.035 : (afternoon ? 0.72 : (useSky ? 0.88 : 0.42));\n  if (typeof hemisphere !== "undefined") hemisphere.intensity = technical ? 0.0 : (night ? 0.035 : (useSky ? 0.18 : 0.30));\n  // Distance haze into the horizon colour: the ground has no visible edge.\n  scene.fog = night ? new THREE.Fog(new THREE.Color(0x07101d), 95, 750) :\n      (useSky ? new THREE.Fog(lookHorizon.clone(), 140, 1400) : null);\n  ground.visible = !technical;\n  ambient.intensity = night ? 0.018 : (useSky ? 0.0 : 0.055);'''
+    html = _replace_one_of(html, (quality_environment, base_environment), environment_new, "environment")
 
-    old3 = '''  if (useSky) {\n    // Low sun: warmer and weaker; below the horizon: no direct light.'''
-    new3 = '''  if (night) {\n    key.intensity = 0.0;\n    fill.intensity = 0.025;\n    fill.color.set(0x6f86ad);\n  } else if (useSky) {\n    // Low sun: warmer and weaker; below the horizon: no direct light.'''
-    if old3 not in html:
-        raise RuntimeError("PBR direct-light block changed")
-    html = html.replace(old3, new3, 1)
-
+    html = _replace_one_of(
+        html,
+        ('''  if (useSky) {\n    // Low sun: warmer and weaker; below the horizon: no direct light.''',),
+        '''  if (night) {\n    key.intensity = 0.0;\n    fill.intensity = 0.025;\n    fill.color.set(0x6f86ad);\n  } else if (useSky) {\n    // Low sun: warmer and weaker; below the horizon: no direct light.''',
+        "direct light",
+    )
     pbr_module._PBR_HTML = html
 
 
@@ -181,9 +183,7 @@ def _entity_light_spec(entity):
             float(p.get("target_z", 0.0)),
         ]
     if light_kind in {"strip", "linear"}:
-        spec["start"] = [
-            float(p.get("x", 0.0)), float(p.get("y", 0.0)), float(p.get("z", 2.4))
-        ]
+        spec["start"] = [float(p.get("x", 0.0)), float(p.get("y", 0.0)), float(p.get("z", 2.4))]
         spec["end"] = [
             float(p.get("x2", float(p.get("x", 0.0)) + 1.0)),
             float(p.get("y2", p.get("y", 0.0))),
@@ -193,19 +193,13 @@ def _entity_light_spec(entity):
 
 
 def install_lighting_system() -> None:
-    """Install architectural lighting on the existing PBR viewport.
-
-    This is deliberately a presentation/integration layer: light entities remain
-    ordinary project entities, so CommandStack/save-load can own them without a
-    second lighting model.
-    """
+    """Install night mode and project lights on the existing PBR scene."""
     from archforge.ui import pbr_viewport as pbr
 
     if getattr(pbr.PBRViewport, "_arch_lighting_installed", False):
         return
     _install_html_patch(pbr)
     cls = pbr.PBRViewport
-
     original_init = cls.__init__
     original_on_load = cls._on_load_finished
     original_redraw = cls.redraw
@@ -237,7 +231,6 @@ def install_lighting_system() -> None:
         if mode not in {"day", "afternoon", "night"}:
             raise ValueError("lighting mode must be day, afternoon or night")
         self._architectural_lighting_mode = mode
-        # Afternoon gets a low warm sun; day keeps the user's current solar state.
         if mode == "afternoon":
             self.set_sun(17.0)
         self._push_architectural_lights()
