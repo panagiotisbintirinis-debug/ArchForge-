@@ -301,6 +301,20 @@ def _light_direction(v):
     return v
 
 
+def _trade_prices(v):
+    """``{code: {"material": €/unit, "labour": €/unit}}`` — non-negative numbers or absent (mep/trade_costing.py)."""
+    out = {}
+    for code, entry in dict(v or {}).items():
+        clean = {}
+        for key, value in dict(entry or {}).items():
+            if key not in ('material', 'labour'):
+                raise ValueError(f'price entry key must be material or labour, not {key}')
+            if value is not None:
+                clean[key] = _nonnegative(value)
+        out[str(code)] = clean
+    return out
+
+
 def _page_index(v):
     value = int(round(float(v)))
     if value < 0:
@@ -749,7 +763,7 @@ SCHEMAS = {
     'plumbing_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _plumbing_type, 'pipe_system': _pipe_system},
     'ceiling_joists': {'points': _polygon, 'z': _finite, 'spacing': _joist_spacing, 'usage': _joist_usage,
                        'direction': _joist_direction},
-    'price_list': {'vat': _nonnegative},
+    'price_list': {'vat': _nonnegative, 'trade_prices': _trade_prices},
     'drainage_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _drain_type, 'rain_area': _nonnegative},
     'ventilation_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _vent_type, 'outlet': _vent_outlet,
                           'airflow': _nonnegative},

@@ -179,20 +179,25 @@ def test_electrical_take_off_goes_into_the_priced_list_with_only_the_users_price
     from archforge.quantities.quote import priced, quote
     doc = Document(); stack = CommandStack(doc); _flat(stack)
     rows = electrical_list(doc)
-    descs = {d: (u, q) for d, u, q in rows}
+    descs = {d: (u, q, m) for d, u, q, m in rows}
     assert any(d.startswith('Καλώδιο αγωγός 2,5 mm²') for d in descs)
-    assert descs['Μικροαυτόματος 40 A (κύκλωμα)'] == ('τεμ.', 1)                 # the cooker line
+    unit, qty, meta = descs['Μικροαυτόματος 40 A και σύνδεση κυκλώματος στον πίνακα']   # the cooker line
+    assert (unit, qty, meta['code']) == ('τεμ.', 1, 'electrical.breaker.40A') and meta['why']
     assert descs['Διαφορικοί διακόπτες 30 mA — πλήθος/τύπος από τη μελέτη'][1] is None
     assert 'Ηλεκτρολογικά' in [s[0] for s in all_lists(doc)]
     # No prices typed: nothing is costed, everything is listed as missing (never guessed).
     c = priced(doc, rows)
     assert c['total'] == 0 and c['priced'] == 0 and len(c['missing']) == len(rows)
-    stack.execute(AddEntity(Entity('price_list', {'prices': {'Μικροαυτόματος 40 A (κύκλωμα)': 12.5}, 'vat': 24.0})))
+    # Material and labour on the same line (one costing path for every trade).
+    stack.execute(AddEntity(Entity('price_list', {'trade_prices': {'electrical.breaker.40A': {'material': 12.5, 'labour': 15.0}},
+                                                  'vat': 24.0})))
     c = priced(doc, rows)
-    assert c['total'] == 12.5 and c['priced'] == 1
-    assert any(r['description'] == 'Μικροαυτόματος 40 A (κύκλωμα)' and r['amount'] == 12.5
-               for _t, sec in quote(doc)['sections'] for r in sec)
-
+    assert (c['total'], c['material'], c['labour'], c['priced']) == (27.5, 12.5, 15.0, 1)
+    q = quote(doc, only=('Ηλεκτρολογικά',))
+    row = next(r for _t, sec in q['sections'] for r in sec if r['code'] == 'electrical.breaker.40A')
+    assert (row['material'], row['labour'], row['amount'], row['complete']) == (12.5, 15.0, 27.5, True)
+    owner = next(o for o in q['owner_view'] if o['item'] == row['description'])
+    assert owner['why'] and owner['total'] == 27.5 and owner['status']
 
 def test_knx_is_the_clients_option_and_both_are_costed_with_the_projects_prices():
     from archforge.core.commands import AddEntity
@@ -211,29 +216,27 @@ def test_knx_is_the_clients_option_and_both_are_costed_with_the_projects_prices(
     assert k['knx']['dali_gateways'] == 1
     dali_c = next(c for c in k['circuits'] if light.id in c['point_ids'])
     assert [c for c, *_x in dali_c['conductors']] == ['L', 'N', 'PE', 'DA+', 'DA-'] and not dali_c['switch_leg']
-    rows = {d: q for d, _u, q in electrical_list(doc, k)}
-    assert rows['Μπουτόν KNX τοίχου'] == 2 and rows['KNX-DALI gateway (ως 64 διευθύνσεις)'] == 1
-    assert 'Διακόπτης' not in rows
-    stack.execute(AddEntity(Entity('price_list', {'prices': {'Μπουτόν KNX τοίχου': 90.0, 'Διακόπτης': 8.0}, 'vat': 24.0})))
+    rows = {m['code']: q for _d, _u, q, m in electrical_list(doc, k)}
+    assert rows['electrical.knx.button'] == 2 and rows['knx.dali_gateway'] == 1
+    assert 'electrical.point.switch' not in rows
+    stack.execute(AddEntity(Entity('price_list', {'trade_prices': {'electrical.knx.button': {'material': 90.0, 'labour': 10.0},
+                                                                   'electrical.point.switch': {'material': 8.0, 'labour': 7.0}},
+                                                  'vat': 24.0})))
     cmp = compare_control_options(doc)
-    assert cmp['knx']['total'] == 180.0 and cmp['conventional']['total'] == 16.0
+    assert cmp['knx']['total'] == 200.0 and cmp['conventional']['total'] == 30.0
     assert cmp['knx']['missing'] and cmp['conventional']['missing']               # the rest: no price, not guessed
 
 
 def test_electricians_quote_has_labour_and_only_the_electrical_section(tmp_path):
     from archforge.core.commands import AddEntity
     from archforge.core.model import Entity
-    from archforge.quantities.materials import electrical_list
     from archforge.quantities.quote import quote
     doc = Document(); stack = CommandStack(doc); _flat(stack)
-    rows = {d: q for d, _u, q in electrical_list(doc)}
-    assert rows['Εργασία σημείου (πρίζα / φωτιστικό / διακόπτης / παροχή συσκευής)'] == 15
-    assert rows['Εργασία σύνδεσης κυκλώματος στον πίνακα'] == len(analyse(doc)['circuits'])
-    stack.execute(AddEntity(Entity('price_list', {'prices': {'Εργασία σημείου (πρίζα / φωτιστικό / διακόπτης / παροχή συσκευής)': 20.0,
-                                                              'Βαφή τοίχων': 5.0}, 'vat': 24.0, 'client': 'Πελάτης'})))
+    stack.execute(AddEntity(Entity('price_list', {'trade_prices': {'electrical.point.socket': {'material': 4.0, 'labour': 16.0}},
+                                                  'prices': {'Βαφή τοίχων': 5.0}, 'vat': 24.0, 'client': 'Πελάτης'})))
     q = quote(doc, only=('Ηλεκτρολογικά',))
     assert [t for t, _r in q['sections']] == ['Ηλεκτρολογικά — καλώδια, σωλήνες, κουτιά, ασφάλειες, σημεία, φωτιστικά']
-    assert q['subtotal'] == 300.0 and q['total'] == 372.0 and q['missing'] > 0
+    assert (q['material'], q['labour'], q['subtotal'], q['total']) == (28.0, 112.0, 140.0, 173.6) and q['missing'] > 0
     from PySide6.QtWidgets import QApplication
     app = QApplication.instance() or QApplication([])
     from archforge.output.pdf import export_pdf

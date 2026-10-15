@@ -41,7 +41,7 @@ def _sheet(title, rows, notes=(), prices=None):
            '<row r="3">' + "".join(_cell(f"{_col(i)}3", h, 1) for i, h in enumerate(HEADER)) + "</row>"]
     r = 4
     first = r
-    for desc, unit, qty in rows:
+    for desc, unit, qty, *_meta in rows:
         out.append(f'<row r="{r}">' + _cell(f"A{r}", desc) + _cell(f"B{r}", unit)
                    + _cell(f"C{r}", qty if qty is None else round(float(qty), 3), 3 if qty is None else 0)
                    + _cell(f"D{r}", (prices or {}).get(desc), 2) + _cell(f"E{r}", None, 4, formula=f"IF(OR(C{r}=\"\",D{r}=\"\"),0,C{r}*D{r})")

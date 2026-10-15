@@ -171,79 +171,107 @@ def finishes_list(doc):
 
 
 def electrical_list(doc, result=None):
-    """Electrical take-off: cables per section (with the user's allowance), conduit, boxes, breakers, points, luminaires.
+    """Electrical take-off as list rows ``(description, unit, quantity, meta)`` — meta: code, why, status, source.
 
-    Quantities only — every price is the one the user types in the price list (no catalogue prices in the code).
+    One line per item with material and labour priced on it by the professional (the socket and fitting it,
+    the conduit and laying it, the breaker and connecting its circuit).  Quantities only: no price in the code.
     Items whose number comes from the study (RCDs, panel enclosure, drivers) have quantity None.
     """
     pts = [e for e in doc.entities.values() if e.kind == "electrical_point"]
     if not pts:
         return []
+    from archforge.core.provenance import rule
     from archforge.mep.electrical import POINT_TYPES, strip_length
     from archforge.mep.electrical_board import analyse
     from archforge.mep.luminaire_catalog import entry
     r = result if result is not None else analyse(doc)
     knx = r.get("knx")
-    rows = [(f"Καλώδιο αγωγός {p['mm2']:g} mm² (H07V-U ή ισοδύναμο, ανά αγωγό)".replace(".", ","), "m", p["with_waste"])
-            for p in r["purchase"]]
+    circuits_status = rule("electrical.socket_circuit").status
+
+    def meta(code, why, status="MODEL_QUANTITY", source="mep/electrical.py"):
+        return {"code": code, "why": why, "status": status, "source": source}
+
+    rows = [(f"Καλώδιο αγωγός {p['mm2']:g} mm² (H07V-U ή ισοδύναμο, ανά αγωγό)".replace(".", ","), "m", p["with_waste"],
+             meta(f"electrical.cable.{p['mm2']:g}mm2", "Μέτρα αγωγών από τις διαδρομές στο σχέδιο (φάση, ουδέτερος, γείωση, "
+                  "επιστροφές), με τη φύρα που όρισες.", circuits_status)) for p in r["purchase"]]
     conduit = round(sum(w["conduit_m"] for w in r["walls"]), 1)
     if conduit:
-        rows.append(("Σωλήνας ηλεκτρολογικός (σπιράλ) — όλες οι διαδρομές", "m", conduit))
-    for kind, label in (("junction", "Κουτί διακλάδωσης"), ("floor", "Κουτί δαπέδου"), ("pull", "Κουτί διέλευσης")):
+        rows.append(("Σωλήνας ηλεκτρολογικός (σπιράλ) και σωλήνωση — όλες οι διαδρομές", "m", conduit,
+                     meta("electrical.conduit", "Οι διαδρομές μέσα σε τοίχους, οροφή και δάπεδο, όπως τις χάραξε το πρόγραμμα.")))
+    for kind, label, why in (("junction", "Κουτί διακλάδωσης", "Πάνω από κάθε πρίζα/διακόπτη στη γραμμή όδευσης."),
+                             ("floor", "Κουτί δαπέδου", "Για σημεία μακριά από τοίχο (π.χ. νησίδα κουζίνας)."),
+                             ("pull", "Κουτί διέλευσης", "Σε μεγάλες ευθείες ή μετά από καμπύλες, για να τραβιούνται τα καλώδια.")):
         n = r["boxes"].get(kind, 0)
         if n:
-            rows.append((label, "τεμ.", n))
+            rows.append((label, "τεμ.", n, meta(f"electrical.box.{kind}", why, rule("electrical.pull_boxes").status
+                                                if kind == "pull" else "MODEL_QUANTITY")))
     breakers = {}
     for c in r["circuits"]:
         breakers[c["breaker_a"]] = breakers.get(c["breaker_a"], 0) + 1
-    rows += [(f"Μικροαυτόματος {a} A (κύκλωμα)", "τεμ.", n) for a, n in sorted(breakers.items())]
+    rows += [(f"Μικροαυτόματος {a} A και σύνδεση κυκλώματος στον πίνακα", "τεμ.", n,
+              meta(f"electrical.breaker.{a}A", "Ένας ανά κύκλωμα· το μέγεθος από τους κανόνες κυκλωμάτων (προς έλεγχο ηλεκτρολόγου).",
+                   circuits_status)) for a, n in sorted(breakers.items())]
     if r["circuits"]:
-        rows += [("Διαφορικοί διακόπτες 30 mA — πλήθος/τύπος από τη μελέτη", "τεμ.", None),
-                 ("Ηλεκτρικός πίνακας (κουτί, ράγες, κλέμες) — μέγεθος από τη μελέτη", "τεμ.", None)]
+        rows += [("Διαφορικοί διακόπτες 30 mA — πλήθος/τύπος από τη μελέτη", "τεμ.", None,
+                  meta("electrical.rcd", "Προστασία από ηλεκτροπληξία· πλήθος και τύπος τα ορίζει ο ηλεκτρολόγος.",
+                       rule("electrical.rcd_30ma").status)),
+                 ("Ηλεκτρικός πίνακας (κουτί, ράγες, κλέμες) — μέγεθος από τη μελέτη", "τεμ.", None,
+                  meta("electrical.panel_enclosure", "Το κουτί του πίνακα· το μέγεθος από τα στοιχεία που θα μπουν.",
+                       "ENGINEER_REVIEW"))]
     counts, strips = {}, {}
     for e in pts:
         t = e.params["point_type"]
         if t == "panel":
             continue
+        cid = e.params.get("catalog_id") or ""
         if t == "led_strip":
-            key = e.params.get("catalog_id") or ""
-            strips[key] = strips.get(key, 0.0) + strip_length(e.params)
+            strips[cid] = strips.get(cid, 0.0) + strip_length(e.params)
             continue
-        cid = e.params.get("catalog_id")
         if knx and t in ("switch", "dimmer"):
-            label = "Μπουτόν KNX τοίχου"
+            key = ("Μπουτόν KNX τοίχου και τοποθέτηση", "electrical.knx.button", "Μπουτόν στο bus KNX (επιλογή του πελάτη).")
         else:
-            label = POINT_TYPES[t][0] + (f" — {entry(cid).label}" if cid else "")
-        counts[label] = counts.get(label, 0) + 1
-    rows += [(label, "τεμ.", n) for label, n in sorted(counts.items())]
+            key = (POINT_TYPES[t][0] + (f" — {entry(cid).label}" if cid else "") + " και τοποθέτηση",
+                   f"electrical.point.{t}" + (f".{cid}" if cid else ""), "Σημείο που υπάρχει στο σχέδιο.")
+        counts[key] = counts.get(key, 0) + 1
+    rows += [(label, "τεμ.", n, meta(code, why)) for (label, code, why), n in sorted(counts.items())]
     for cid, m in sorted(strips.items()):
-        rows.append((POINT_TYPES["led_strip"][0] + (f" — {entry(cid).label}" if cid else ""), "m", round(m, 2)))
+        rows.append((POINT_TYPES["led_strip"][0] + (f" — {entry(cid).label}" if cid else "") + " και τοποθέτηση (με προφίλ)",
+                     "m", round(m, 2), meta("electrical.strip" + (f".{cid}" if cid else ""),
+                                            "Μήκος ταινίας όπως σχεδιάστηκε (π.χ. στην εσοχή της ψευδοροφής).")))
     if strips:
-        rows.append(("Τροφοδοτικά ταινιών LED — από το φύλλο του κατασκευαστή", "τεμ.", None))
-    # Labour (quantities from the drawing; the electrician types the unit prices).
-    placed = sum(1 for e in pts if e.params["point_type"] not in ("panel", "led_strip"))
-    if placed:
-        rows.append(("Εργασία σημείου (πρίζα / φωτιστικό / διακόπτης / παροχή συσκευής)", "τεμ.", placed))
-    if strips:
-        rows.append(("Εργασία τοποθέτησης ταινίας LED (με προφίλ)", "m", round(sum(strips.values()), 2)))
-    if conduit:
-        rows.append(("Εργασία σωλήνωσης και καλωδίωσης", "m", conduit))
-    if r["circuits"]:
-        rows.append(("Εργασία σύνδεσης κυκλώματος στον πίνακα", "τεμ.", len(r["circuits"])))
+        rows.append(("Τροφοδοτικά ταινιών LED — από το φύλλο του κατασκευαστή", "τεμ.", None,
+                     meta("electrical.led_driver", "Ισχύς και πλήθος από το φύλλο της ταινίας.", "MANUFACTURER_DATA")))
     if knx:
         import math
         waste = 1 + float(r.get("waste_pct", 0.0)) / 100.0
         lines = max(1, math.ceil(knx["bus_m"] / 1000.0))
-        rows += [("Καλώδιο KNX bus TP (J-Y(St)Y 2×2×0,8)", "m", round(knx["bus_m"] * waste, 1)),
-                 ("Σωλήνας για το bus KNX (χωριστός από τα 230 V)", "m", round(knx["bus_m"], 1)),
-                 ("Τροφοδοτικό KNX με πηνίο (ανά γραμμή) — ένταση από τη μελέτη", "τεμ.", lines),
-                 ("KNX IP interface / router", "τεμ.", 1)]
+        bus = rule("knx.bus_limits").status
+        rows += [("Καλώδιο KNX bus TP (J-Y(St)Y 2×2×0,8)", "m", round(knx["bus_m"] * waste, 1),
+                  meta("knx.bus_cable", "Το πράσινο καλώδιο εντολών από τον πίνακα σε κάθε μπουτόν.", bus)),
+                 ("Σωλήνας για το bus KNX (χωριστός από τα 230 V) και σωλήνωση", "m", round(knx["bus_m"], 1),
+                  meta("knx.bus_conduit", "Χωριστή διαδρομή για το bus.", bus)),
+                 ("Τροφοδοτικό KNX με πηνίο (ανά γραμμή) — ένταση από τη μελέτη", "τεμ.", lines,
+                  meta("knx.psu", "Ένα ανά γραμμή bus.", bus)),
+                 ("KNX IP interface / router", "τεμ.", 1,
+                  meta("knx.ip_interface", "Σύνδεση του KNX με το δίκτυο και την εφαρμογή στο κινητό.", "DESIGN_DEFAULT"))]
         if knx["onoff_channels"]:
-            rows.append(("Ρελέ KNX C-Load — κανάλια On/Off", "κανάλι", knx["onoff_channels"]))
+            rows.append(("Ρελέ KNX C-Load — κανάλια On/Off", "κανάλι", knx["onoff_channels"],
+                         meta("knx.actuator_channel", "Ένα κανάλι ανά ομάδα φώτων που ανάβει/σβήνει.", rule("knx.c_load").status)))
         if knx["dali_gateways"]:
-            rows.append(("KNX-DALI gateway (ως 64 διευθύνσεις)", "τεμ.", knx["dali_gateways"]))
-        rows.append(("Εργασία προγραμματισμού KNX (ETS) και παράδοση αρχείου έργου", "τεμ.", 1))
+            rows.append(("KNX-DALI gateway (ως 64 διευθύνσεις)", "τεμ.", knx["dali_gateways"],
+                         meta("knx.dali_gateway", "Ελέγχει τα φωτιστικά με ρύθμιση έντασης DALI-2.", rule("knx.dali_gateway").status)))
+        rows.append(("Προγραμματισμός KNX (ETS) και παράδοση αρχείου έργου", "τεμ.", 1,
+                     meta("knx.ets_programming", "Ρύθμιση του συστήματος· το αρχείο του έργου παραδίδεται στον πελάτη.")))
     return rows
+
+
+def plumbing_list(doc):
+    """Water supply from the shared trade costing (``mep.plumbing_costing``): rows with code / why / status."""
+    if not any(e.kind == "plumbing_point" for e in doc.entities.values()):
+        return []
+    from archforge.mep.plumbing_costing import plumbing_quantities
+    return [(q.description, q.unit, q.quantity, {"code": q.code, "why": q.owner_explanation, "status": q.rule_status,
+                                                 "source": q.rule_source}) for q in plumbing_quantities(doc)]
 
 
 def compare_control_options(doc):
@@ -254,7 +282,7 @@ def compare_control_options(doc):
     out = {}
     for key, label in CONTROL_SYSTEMS.items():
         rows = electrical_list(doc, analyse(doc, {"control_system": key}))
-        out[key] = {"label": label, "rows": rows, **priced(doc, rows)}
+        out[key] = {"label": label, "rows": rows, **priced(doc, rows, "Ηλεκτρολογικά")}
     return out
 
 
@@ -270,6 +298,7 @@ def all_lists(doc):
             ("Γυψοσανίδες", "Γυψοσανίδες — ψευδοροφές CD/UD και τοίχοι CW/UW", drywall_list(doc),
              (DRYWALL, "Πηγές: " + DRYWALL_SOURCES)),
             ("Επιμέτρηση", "Επιμέτρηση εργασιών (σύνολα έργου)", takeoff_list(doc), ("Ανά χώρο: Κατασκευή → Επιμέτρηση εργασιών.",)),
+            ("Ύδρευση", "Ύδρευση — σωληνώσεις, συλλέκτες, σημεία", plumbing_list(doc), ("Προμελέτη — προς έλεγχο μηχανολόγου.",)),
             ("Αποχέτευση", "Αποχέτευση — σωλήνες και εξαρτήματα", drainage_list(doc), ("Προμελέτη — προς έλεγχο μηχανολόγου.",)),
             ("Ηλεκτρολογικά", "Ηλεκτρολογικά — καλώδια, σωλήνες, κουτιά, ασφάλειες, σημεία, φωτιστικά", electrical_list(doc),
              ("Προμελέτη — προς έλεγχο ηλεκτρολόγου· κανόνες με την κατάστασή τους στην καρτέλα «Ηλεκτρ. πίνακας».",

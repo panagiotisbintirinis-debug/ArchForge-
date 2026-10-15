@@ -4114,14 +4114,22 @@ class MainWindow(QMainWindow):
         notes = QPlainTextEdit(s['notes'], dialog); notes.setFixedHeight(54)
         form.addRow('Πελάτης', client); form.addRow('Έργο', project); form.addRow('ΦΠΑ', vat)
         form.addRow('Ισχύς προσφοράς', validity); form.addRow('Σημειώσεις', notes)
-        rows = [(desc, unit, qty) for _n, _t, items, _no in all_lists(self.doc) for desc, unit, qty in items]
-        table = QTableWidget(len(rows), 4, dialog)
-        table.setHorizontalHeaderLabels(['Είδος / εργασία', 'Μον.', 'Ποσότητα', 'Τιμή μονάδας €'])
-        for i, (desc, unit, qty) in enumerate(rows):
+        from archforge.quantities.quote import row_meta
+        rows = [row_meta(row) for _n, _t, items, _no in all_lists(self.doc) for row in items]
+        book = s['trade_prices']
+        # One line per item: material and labour per unit (one costing path for every trade, mep/trade_costing.py).
+        table = QTableWidget(len(rows), 5, dialog)
+        table.setHorizontalHeaderLabels(['Είδος / εργασία', 'Μον.', 'Ποσότητα', 'Υλικό €/μον.', 'Εργασία €/μον.'])
+        for i, (desc, unit, qty, meta) in enumerate(rows):
             for j, v in enumerate((desc, unit, '' if qty is None else f'{float(qty):g}')):
                 item = QTableWidgetItem(str(v)); item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable); table.setItem(i, j, item)
-            price = s['prices'].get(desc)
-            table.setItem(i, 3, QTableWidgetItem('' if price is None else f'{price:g}'))
+            table.item(i, 0).setData(Qt.ItemDataRole.UserRole, meta['code'])
+            if meta.get('why'):
+                table.item(i, 0).setToolTip(meta['why'])
+            entry = book.get(meta['code'], {})
+            for j, key in ((3, 'material'), (4, 'labour')):
+                v = entry.get(key)
+                table.setItem(i, j, QTableWidgetItem('' if v is None else f'{v:g}'))
         table.resizeColumnsToContents(); table.setColumnWidth(0, 430)
         form.addRow(table)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel, dialog)
@@ -4135,17 +4143,29 @@ class MainWindow(QMainWindow):
     def _apply_prices_dialog(self):
         dialog, table, client, project, vat, validity, notes = self._prices_dialog
         from archforge.quantities.quote import price_entity, settings
-        prices = dict(settings(self.doc)['prices'])
+        current = price_entity(self.doc)
+        trade = dict((current.params.get('trade_prices') or {}) if current else {})
+        legacy = dict((current.params.get('prices') or {}) if current else {})
         for i in range(table.rowCount()):
             desc = table.item(i, 0).text()
-            text = (table.item(i, 3).text() if table.item(i, 3) else '').strip().replace('€', '').replace(',', '.')
-            if not text:
-                prices.pop(desc, None); continue
-            try:
-                prices[desc] = round(float(text), 4)
-            except ValueError:
-                self.statusBar().showMessage(f'«{desc}»: η τιμή «{text}» δεν είναι αριθμός — παραλείφθηκε', 8000)
-        params = {'prices': prices, 'client': client.text().strip(), 'project': project.text().strip(),
+            code = table.item(i, 0).data(Qt.ItemDataRole.UserRole) or 'desc:' + desc
+            entry = {}
+            for j, key in ((3, 'material'), (4, 'labour')):
+                text = (table.item(i, j).text() if table.item(i, j) else '').strip().replace('€', '').replace(',', '.')
+                if not text:
+                    continue
+                try:
+                    entry[key] = round(float(text), 4)
+                except ValueError:
+                    self.statusBar().showMessage(f'«{desc}»: η τιμή «{text}» δεν είναι αριθμός — παραλείφθηκε', 8000)
+            if code.startswith('desc:'):
+                legacy.pop(code[5:], None)          # the old description price now lives in the price book
+            if entry:
+                trade[code] = entry
+            else:
+                trade.pop(code, None)
+        prices = trade
+        params = {'prices': legacy, 'trade_prices': trade, 'client': client.text().strip(), 'project': project.text().strip(),
                   'vat': float(vat.value()), 'validity_days': int(validity.value()), 'notes': notes.toPlainText().strip()}
         entity = price_entity(self.doc)
         if entity is None:

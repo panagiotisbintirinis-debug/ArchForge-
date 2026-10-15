@@ -442,7 +442,8 @@ def export_pdf(doc, path, project=None, client=None, include=("cover", "plans", 
             y = _table(sh, 12, 28, cols, chunk)
             if n == len(chunks) - 1:
                 y += 4
-                for label, v, bold in (("Μερικό σύνολο", q["subtotal"], False), (f"ΦΠΑ {q['vat']:g}%", q["vat_amount"], False),
+                for label, v, bold in (("Υλικά", q.get("material"), False), ("Εργασία", q.get("labour"), False),
+                                       ("Μερικό σύνολο", q["subtotal"], False), (f"ΦΠΑ {q['vat']:g}%", q["vat_amount"], False),
                                        ("Σύνολο", q["total"], True)):
                     sh.text(220, y + 3, label, size=10 if bold else 9, bold=bold, align="right", w=60)
                     sh.text(270, y + 3, money(v), size=10 if bold else 9, bold=bold, align="right", w=40)
