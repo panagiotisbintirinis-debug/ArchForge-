@@ -23,13 +23,30 @@ LABELS = {
 def marking_entries(entity):
     """Extra marking-menu entries ``[(id, label)]`` for one entity."""
     if entity.kind in ('door', 'window'):
-        return [('mm:obj:hinge', LABELS['hinge']), ('mm:obj:swing', LABELS['swing'])]
+        # Owner 15/10: hinge side and opening side as ONE choice of the 4 positions (a picture each).
+        return [('mm:menu:way', 'Φορά')]
     if entity.kind not in object_ops.USER_PLACED_KINDS or entity.locked:
         return []
     return [(f'mm:obj:{op}', LABELS[op]) for op in ('rot90', 'mirror', 'duplicate')]
 
 
+WAYS = (('in', 'left', 'Μέσα · αριστερά'), ('in', 'right', 'Μέσα · δεξιά'),
+        ('out', 'left', 'Έξω · αριστερά'), ('out', 'right', 'Έξω · δεξιά'))
+
+
+def way_entries(entity):
+    """``[(id, label, checked, icon)]``: the 4 positions of a door / window leaf (opening side × hinge side)."""
+    from archforge.architecture.joinery import resolved
+    r = resolved(entity.kind, entity.params)
+    return [(f'mm:obj:way_{s}_{h}', label, r.get('swing') == s and r.get('hinge') == h, f'way_{s}_{h}')
+            for s, h, label in WAYS]
+
+
 def command_for(doc, eid, op):
+    if op.startswith('way_'):
+        _w, swing, hinge = op.split('_')
+        from archforge.core.commands import UpdateEntity
+        return UpdateEntity(eid, {'swing': swing, 'hinge': hinge})
     if op == 'rot90':
         return object_ops.rotate_command(doc, eid, 90.0)
     if op == 'rot-90':

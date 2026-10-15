@@ -43,7 +43,7 @@ ICONS = {
     "mm:tool:opening_rect": "opening", "mm:tool:stair": "stair", "mm:tool:ramp": "ramp",
     "mm:tool:structural_column": "column", "mm:tool:structural_beam": "beam",
     "mm:menu:stair": "stair", "mm:menu:kitchen": "cabinet", "mm:menu:structure": "column",
-    "mm:menu:openings": "door", "mm:menu:build": "more", "mm:menu:wall_more": "more", "mm:tool:opening_arch": "opening",
+    "mm:menu:openings": "door", "mm:menu:way": "way_in_left", "mm:menu:build": "more", "mm:menu:wall_more": "more", "mm:tool:opening_arch": "opening",
     "mm:group:room": "room", "mm:group:slab": "slab", "mm:more": "more", "mm:kgroup:0": "cabinet",
     "mm:kgroup:1": "cabinet", "mm:kgroup:2": "cabinet", "mm:kgroup:3": "cabinet", "mm:kgroup:4": "appliance",
     "properties": "properties", "move": "move", "rotate": "rotate", "stretch": "stretch", "materials": "materials",
@@ -204,7 +204,14 @@ def _build_menu(window, view, entity_id=None, xy=None):
             entries.append(_e("delete", _delete_label(window, entity_id), danger=True))   # every object can go
         from archforge.ui.object_menu import marking_entries as object_entries
         for action_id, label in reversed(object_entries(entity)):
-            # Placed objects: turn 90°, mirror, duplicate; doors/windows: hinge side, swing (object_menu.py).
+            # Placed objects: turn 90°, mirror, duplicate; doors/windows: «Φορά ▸» = 4 positions (object_menu.py).
+            if action_id == "mm:menu:way":
+                from archforge.ui.object_menu import way_entries
+                kids = []
+                for wid, wlabel, on, wicon in way_entries(entity):
+                    k = _e(wid, wlabel, checked=on); k["icon"] = wicon; kids.append(k)
+                entries.insert(max(0, len(entries) - 1), _e(action_id, label, children=kids))
+                continue
             entries.insert(max(0, len(entries) - 1), _e(action_id, label))
         if entity.kind == "wall" and view == "plan":
             # Walls move with what is joined to them and split where you click (wall_edit.py).

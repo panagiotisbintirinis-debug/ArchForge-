@@ -286,3 +286,25 @@ def test_empty_space_menu_has_no_noise_that_lives_elsewhere(window):
     from archforge.ui.marking_menu import build_menu
     ids = {e['id'] for e in build_menu(window, 'plan')['entries']}
     assert 'mm:undo' not in ids and 'mm:sculpt:on' not in ids          # «Κοινά» / Βιβλιοθήκη group
+
+
+def test_door_way_is_one_choice_of_four_positions(window):
+    """Owner 15/10: «αλλαγή φοράς και αλλαγή μεντεσέ είναι το ίδιο ή μπορείς να τους βάλεις όπου θέλεις;» —
+    one «Φορά ▸» with the 4 positions (inside/outside × left/right), each a picture."""
+    from archforge.core.interaction import OpeningPlaceTransaction
+    from archforge.ui.marking_menu import build_menu, run
+    w = Entity('wall', {'x1': 0, 'y1': 0, 'x2': 5, 'y2': 0, 'z': 0, 'height': 2.7, 'thickness': 0.2})
+    window.stack.execute(AddEntity(w))
+    did = OpeningPlaceTransaction(window.doc, window.stack, 'door', 2.5, 0.0, tolerance=.5).commit()
+    menu = build_menu(window, 'plan', did)
+    ids = [e['id'] for e in menu['entries']]
+    assert 'mm:obj:hinge' not in ids and 'mm:obj:swing' not in ids
+    way = next(e for e in menu['entries'] if e['id'] == 'mm:menu:way')
+    kids = {c['id']: c for c in way['children']}
+    assert set(kids) == {'mm:obj:way_in_left', 'mm:obj:way_in_right', 'mm:obj:way_out_left', 'mm:obj:way_out_right'}
+    assert sum(c['checked'] for c in kids.values()) == 1 and all(c.get('icon') for c in kids.values())
+    run(window, 'plan', did, 'mm:obj:way_out_right')
+    p = window.doc.get(did).params
+    assert p['swing'] == 'out' and p['hinge'] == 'right'
+    window._undo()
+    assert (window.doc.get(did).params.get('swing'), window.doc.get(did).params.get('hinge')) != ('out', 'right')

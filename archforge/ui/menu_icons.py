@@ -58,6 +58,18 @@ def _draw(name, p):
     elif name == "cabinet":
         p.drawRect(QRectF(5, 7, 22, 20)); p.drawLine(P(16, 7), P(16, 27))
         p.drawLine(P(13, 15), P(13, 19)); p.drawLine(P(19, 15), P(19, 19))
+    elif name.startswith("way_"):
+        # Plan of a door in a wall: hinge left/right, leaf into the room (up) or out (down).
+        _w, side, hinge = name.split("_")
+        y0, r = (22, 16) if side == "in" else (10, 16)          # the wall line, the leaf length = the opening
+        p.setPen(_pen(INK, 2.8)); p.drawLine(P(1, y0), P(8, y0)); p.drawLine(P(24, y0), P(31, y0))
+        hx = 8 if hinge == "left" else 24
+        tip = y0 - r if side == "in" else y0 + r
+        p.setPen(_pen(ACCENT, 2.4)); p.drawLine(P(hx, y0), P(hx, tip))
+        p.setPen(_pen(ACCENT, 1.4))
+        rect = QRectF(hx - r, y0 - r, 2 * r, 2 * r)
+        start = {("in", "left"): 0, ("in", "right"): 90, ("out", "left"): 270, ("out", "right"): 180}[(side, hinge)]
+        p.drawArc(rect, start * 16, 90 * 16)
     elif name == "appliance":
         p.drawRoundedRect(QRectF(6, 4, 20, 24), 2, 2); p.drawLine(P(6, 13), P(26, 13))
         p.setPen(_pen(ACCENT, 1.8)); p.drawLine(P(10, 8), P(14, 8)); p.drawEllipse(P(16, 20), 3.5, 3.5)
