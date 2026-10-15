@@ -80,3 +80,29 @@ def test_add_any_menu_command_hide_a_button_remembered_and_reset(settings):
         assert next(x for l, x in build.labelled_buttons() if l == 'Τοίχος').iconSize() == QSize(20, 20)
     finally:
         _close(app, w)
+
+
+def test_frames_shrink_with_the_icons_and_take_any_direction(settings):
+    """Owner 15/10: «έκανα τα εικονίδια μικρά, το πλαίσιο είναι ακόμα τεράστιο … μου δίνει το περιθώριο να τα
+    μεγαλώσω αλλά μόνο προς μία κατεύθυνση»."""
+    from PySide6.QtWidgets import QApplication
+    from archforge.ui import toolbar_custom as tc
+    app, w = _window()
+    try:
+        build, palette = w._tool_groups['build'], w._common_palette
+        tc.set_icon_size(w, 26, settings); app.processEvents()
+        big = (build.sizeHint(), palette.sizeHint())
+        tc.set_icon_size(w, 16, settings); app.processEvents()
+        small = (build.sizeHint(), palette.sizeHint())
+        assert small[0].width() < big[0].width() and small[0].height() < big[0].height()
+        assert small[1].width() < big[1].width() and small[1].height() < big[1].height()
+        tc.set_text(w, False, settings); app.processEvents()
+        assert build.sizeHint().height() <= 46 and palette.sizeHint().width() <= 200
+        # «Κοινά» as one upright column.
+        tc.set_palette_cols(w, 1, settings); app.processEvents()
+        assert palette.sizeHint().height() > palette.sizeHint().width()
+        # A group dragged to the left edge stacks its buttons top to bottom.
+        w.addToolBar(Qt.ToolBarArea.LeftToolBarArea, build); app.processEvents()
+        assert build.sizeHint().height() > build.sizeHint().width()
+    finally:
+        _close(app, w)

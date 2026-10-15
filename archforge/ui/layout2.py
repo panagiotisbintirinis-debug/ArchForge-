@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QEvent, QObject, QPoint, QSize, Qt
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
-from PySide6.QtWidgets import (QDockWidget, QFrame, QGridLayout, QHBoxLayout, QScrollArea, QLabel, QMenu, QMenuBar, QSizePolicy, QStyle,
+from PySide6.QtWidgets import (QBoxLayout, QDockWidget, QFrame, QGridLayout, QHBoxLayout, QScrollArea, QLabel, QMenu, QMenuBar, QSizePolicy, QStyle,
                                QToolBar, QToolButton, QVBoxLayout, QWidget)
 
 ACCENT = "#2F6BD6"
@@ -29,14 +29,17 @@ QLabel#project_name { color:#6B7686; font-size:13px; }
 QMenuBar#main_menu_bar { background:transparent; border:0; }
 QMenuBar#main_menu_bar::item { padding:5px 9px; border-radius:4px; }
 QToolButton#quick { padding:3px; }
-QWidget#tool_group QToolButton { padding:3px 4px; }
-QToolButton#group_title { color:#5B6778; font-size:11px; padding:0 6px; border:0; }
+QWidget#tool_group QToolButton { padding:1px 2px; margin:0; }
+QToolBar[afgroup="true"] { padding:0px; spacing:0px; border:0; }
+QToolBar#workspace_bar QToolButton { padding:1px 6px; font-size:11px; }
+QToolBar#workspace_bar QLabel { font-size:11px; }
+QToolButton#group_title { color:#5B6778; font-size:10px; padding:0 4px; margin:0; border:0; max-height:13px; }
 QToolButton#group_title:hover { color:#2F6BD6; background:#E8EEF7; }
 QFrame#view_settings { background:transparent; }
 QFrame#common_palette { background:#FFFFFF; border:1px solid #C9D2DF; border-radius:8px; }
-QLabel#palette_handle { color:#8A96A8; font-size:14px; padding:0 2px; }
-QLabel#palette_title { color:#6B7686; font-size:11px; }
-QFrame#common_palette QToolButton { padding:2px 3px; font-size:11px; min-width:52px; }
+QLabel#palette_handle { color:#8A96A8; font-size:12px; padding:0 1px; }
+QLabel#palette_title { color:#6B7686; font-size:10px; }
+QFrame#common_palette QToolButton { padding:1px 2px; margin:0; }
 """
 
 # «Κοινά»: (shortcut id, label, icon); shown unless switched off with ⚙.
@@ -164,12 +167,16 @@ class ToolGroup(QToolBar, CustomizableButtons):
         self.custom_buttons = {}                # menu path → button the human added
         self._labelled = []                     # (label, button) in order
         self.setObjectName(f"group_{key}")
+        self.setProperty("afgroup", True)
         self.setMovable(True)
         self.setFloatable(True)
         self.items = []                         # actions / widgets in order (for tests and the ⚙ of later)
         box = QWidget(); box.setObjectName("tool_group")
-        v = QVBoxLayout(box); v.setContentsMargins(2, 1, 2, 0); v.setSpacing(0)
-        self.row = QHBoxLayout(); self.row.setSpacing(1); v.addLayout(self.row)
+        v = QVBoxLayout(box); v.setContentsMargins(1, 0, 1, 0); v.setSpacing(0)
+        self.row = QBoxLayout(QBoxLayout.Direction.LeftToRight); self.row.setSpacing(0); v.addLayout(self.row)
+        # Dragged to the left / right edge (or floated upright) the buttons stack top to bottom.
+        self.orientationChanged.connect(lambda o: self.row.setDirection(
+            QBoxLayout.Direction.TopToBottom if o == Qt.Orientation.Vertical else QBoxLayout.Direction.LeftToRight))
         caption = QToolButton(box); caption.setObjectName("group_title"); caption.setAutoRaise(True)
         caption.setText(f"{title} ▾" if menu is not None else title)
         if menu is not None:
@@ -372,6 +379,11 @@ def _install_view_settings(window):
 
 
 # --------------------------------------------------------------------------- 3. «Κοινά»
+def _palette_cols(window):
+    from archforge.ui.toolbar_custom import prefs
+    return prefs(window).get("palette_cols", 5)
+
+
 class CommonPalette(QFrame, CustomizableButtons):
     """The everyday commands over the drawing; dragged by ⋮⋮, ⚙ chooses the buttons."""
 
@@ -388,7 +400,7 @@ class CommonPalette(QFrame, CustomizableButtons):
         self._drag = None
         from archforge.ui.workspace_layout import make_icon
         keys = getattr(getattr(window, "shortcuts", None), "actions", {}) or {}
-        outer = QVBoxLayout(self); outer.setContentsMargins(4, 3, 4, 3); outer.setSpacing(0)
+        outer = QVBoxLayout(self); outer.setContentsMargins(2, 1, 2, 1); outer.setSpacing(0)
         top = QHBoxLayout(); top.setSpacing(2)
         handle = QLabel("⋮⋮"); handle.setObjectName("palette_handle"); handle.setCursor(Qt.CursorShape.SizeAllCursor)
         handle.setToolTip("Σύρε για να τη μετακινήσεις όπου θέλεις")
@@ -408,7 +420,7 @@ class CommonPalette(QFrame, CustomizableButtons):
             grid.addWidget(b, n // 5, n % 5); self.buttons[action_id] = b
         top.addLayout(grid)
         outer.addLayout(top)
-        foot = QHBoxLayout(); foot.setContentsMargins(4, 0, 0, 0)
+        foot = QHBoxLayout(); foot.setContentsMargins(2, 0, 0, 0)
         title = QLabel("Κοινά"); title.setObjectName("palette_title"); foot.addWidget(title); foot.addStretch(1)
         gear = QToolButton(); gear.setAutoRaise(True); gear.setIcon(_icon("gear")); gear.setIconSize(QSize(12, 12))
         gear.setToolTip("Ποια κουμπιά έχει η παλέτα"); gear.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
@@ -467,7 +479,8 @@ class CommonPalette(QFrame, CustomizableButtons):
         for b in list(self.buttons.values()) + list(self.custom_buttons.values()):
             if b.testAttribute(Qt.WidgetAttribute.WA_WState_ExplicitShowHide) and b.isHidden():
                 continue                          # hidden by the human (not merely not shown yet)
-            self.grid.addWidget(b, k // 5, k % 5); k += 1
+            cols = max(1, int(_palette_cols(self.window_)))
+            self.grid.addWidget(b, k // cols, k % cols); k += 1
         self.adjustSize(); self.place()
 
     def shown(self):

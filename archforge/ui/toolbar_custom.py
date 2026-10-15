@@ -21,7 +21,7 @@ from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtWidgets import QMenu, QToolButton
 
 ICON_SIZES = (("Μικρά", 16), ("Μεσαία", 20), ("Μεγάλα", 26))
-DEFAULTS = {"icon_size": 20, "text": True, "hidden": {}, "added": {}}
+DEFAULTS = {"icon_size": 20, "text": True, "hidden": {}, "added": {}, "palette_cols": 5}
 SEP = " / "
 
 
@@ -162,6 +162,11 @@ def set_text(window, on, settings=None):
     apply(window); save(window, settings)
 
 
+def set_palette_cols(window, n, settings=None):
+    prefs(window)["palette_cols"] = int(n)
+    apply(window); save(window, settings)
+
+
 def set_shown(window, target, label, on, settings=None):
     hidden = prefs(window)["hidden"].setdefault(target.custom_key, [])
     if on and label in hidden:
@@ -207,6 +212,14 @@ def customize_menu(window, target):
     menu.addSeparator()
     sizes = menu.addMenu("Μέγεθος εικονιδίων")
     _size_entries(window, sizes, keep=False)
+    if target.custom_key == "common":
+        # Any shape: one column (upright), a row, or in between.
+        cols = menu.addMenu("Στήλες")
+        group = QActionGroup(cols); group.setExclusive(True)
+        for n, name in ((1, "1 (κάθετα)"), (2, "2"), (3, "3"), (5, "5"), (10, "10 (οριζόντια)")):
+            a = QAction(name, cols); a.setCheckable(True); a.setChecked(int(prefs(window).get("palette_cols", 5)) == n)
+            a.triggered.connect(lambda _=False, k=n: set_palette_cols(window, k))
+            group.addAction(a); cols.addAction(a)
     menu.addSeparator()
     reset_action = menu.addAction("Επαναφορά κουμπιών και μεγέθους")
     reset_action.triggered.connect(lambda: reset(window))
@@ -269,8 +282,11 @@ class CustomizableButtons:
             b.hide(); b.setParent(None); b.deleteLater()
 
     def set_icon_size(self, size, text):
+        # The frame follows the icons: smaller icons → smaller names and tighter buttons, both ways.
+        px = 10 if size <= 16 else (11 if size <= 20 else 12)
         for _label, b in self.labelled_buttons():
             b.setIconSize(QSize(size, size))
+            b.setStyleSheet(f"QToolButton {{ font-size:{px}px; }}")   # the window's stylesheet wins over setFont
             b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon if text
                                  else Qt.ToolButtonStyle.ToolButtonIconOnly)
 
