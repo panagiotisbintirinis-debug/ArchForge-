@@ -14,7 +14,13 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Mapping
 
-from archforge.mep.trade_costing import PriceEntry, QuantityLine, cost_lines, quote_summary
+from archforge.mep.trade_costing import (
+    PriceEntry,
+    QuantityLine,
+    cost_lines,
+    owner_quote_view,
+    quote_summary,
+)
 
 RULE_STATUS = "ENGINEER_REVIEW"
 PROVENANCE = (
@@ -33,10 +39,26 @@ POINT_TYPES = {
     "thermostat": "Θερμοστάτης",
 }
 
+POINT_EXPLANATIONS = {
+    "heat_source": "Η πηγή θέρμανσης που έχει δηλωθεί για το έργο.",
+    "heat_pump": "Αντλία θερμότητας που έχει επιλεγεί ή τοποθετηθεί στο έργο· η ισχύς της δεν υπολογίζεται εδώ.",
+    "boiler": "Λέβητας που έχει επιλεγεί ή τοποθετηθεί στο έργο· η ισχύς του δεν υπολογίζεται εδώ.",
+    "manifold": "Συλλέκτης θέρμανσης που έχει τοποθετηθεί στο σχέδιο για τη διανομή των δηλωμένων κυκλωμάτων.",
+    "radiator": "Θερμαντικό σώμα που υπάρχει στο σχέδιο· η απαιτούμενη ισχύς του παραμένει προς verified sizing.",
+    "fan_coil": "Fan coil που υπάρχει στο σχέδιο· η απαιτούμενη ισχύς του παραμένει προς verified sizing.",
+    "thermostat": "Θερμοστάτης που έχει δηλωθεί για έλεγχο συγκεκριμένης ζώνης ή χώρου.",
+}
+
 ZONE_TYPES = {
     "underfloor": "Ενδοδαπέδια θέρμανση",
     "radiator_zone": "Ζώνη σωμάτων",
     "fan_coil_zone": "Ζώνη fan coil",
+}
+
+ZONE_EXPLANATIONS = {
+    "underfloor": "Ζώνη ενδοδαπέδιας θέρμανσης που έχει οριστεί στο μοντέλο· βρόχοι, αποστάσεις και παροχές δεν επινοούνται από αυτό το module.",
+    "radiator_zone": "Ζώνη θέρμανσης με σώματα που έχει οριστεί στο μοντέλο.",
+    "fan_coil_zone": "Ζώνη fan coil που έχει οριστεί στο μοντέλο.",
 }
 
 
@@ -65,6 +87,10 @@ def heating_quantities(doc) -> list[QuantityLine]:
             unit="pcs",
             trade="heating",
             source="heating_point",
+            owner_explanation=POINT_EXPLANATIONS.get(point_type, "Εξοπλισμός θέρμανσης που έχει δηλωθεί ρητά στο έργο."),
+            rule_status="MODEL_QUANTITY_ENGINEER_REVIEW",
+            rule_source=PROVENANCE,
+            selection_basis="placed_heating_point",
         ))
 
     by_zone: dict[str, int] = defaultdict(int)
@@ -80,6 +106,10 @@ def heating_quantities(doc) -> list[QuantityLine]:
             unit="pcs",
             trade="heating",
             source="heating_zone",
+            owner_explanation=ZONE_EXPLANATIONS.get(zone_type, "Ζώνη θέρμανσης που έχει δηλωθεί στο έργο."),
+            rule_status="MODEL_QUANTITY_ENGINEER_REVIEW",
+            rule_source=PROVENANCE,
+            selection_basis="authored_zone",
         ))
 
     # Pipe length is accepted only when the model/user has explicitly authored it.
@@ -100,6 +130,10 @@ def heating_quantities(doc) -> list[QuantityLine]:
             unit="m",
             trade="heating",
             source="model_entered_length",
+            owner_explanation="Μήκος σωλήνωσης που έχει δηλωθεί ρητά στο μοντέλο· δεν έχει γίνει αυτόματη επιλογή διαμέτρου ή παροχής.",
+            rule_status="MODEL_ENTERED_ENGINEER_REVIEW",
+            rule_source=PROVENANCE,
+            selection_basis="explicit_model_value",
         ))
 
     return lines
@@ -129,5 +163,6 @@ def heating_quote(doc, prices: Mapping[str, PriceEntry]) -> dict:
         "quantities": quantities,
         "rows": rows,
         "summary": quote_summary(rows),
+        "owner_view": owner_quote_view(rows),
         "review": heating_review(doc),
     }
