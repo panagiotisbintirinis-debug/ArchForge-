@@ -55,6 +55,25 @@ def add_rows(window, eid):
         return True
     if not is_luminaire(entity):
         return False
+    from archforge.mep.luminaire_catalog import DIMMING, apply_values, entries_for, status_of
+    catalog = QComboBox()
+    catalog.addItem("— επιλέξτε από κατάλογο", None)
+    for e in entries_for(kind):
+        catalog.addItem(e.label, e.id)
+    catalog.setCurrentIndex(max(0, catalog.findData(p.get("catalog_id")) if p.get("catalog_id") else 0))
+    catalog.activated.connect(lambda _i, w=catalog: w.currentData() is not None and _apply_catalog(window, eid, w.currentData()))
+    form.addRow("Από κατάλογο", catalog)
+    _status, source_text = status_of(p)
+    source = QLabel(source_text); source.setWordWrap(True)
+    form.addRow("Προέλευση στοιχείων", source)
+    dimming = QComboBox()
+    dimming.addItem("— από το φύλλο του τροφοδοτικού", None)
+    for value, label in DIMMING.items():
+        dimming.addItem(label, value)
+    dimming.setCurrentIndex(max(0, dimming.findData(p.get("dimming")) if p.get("dimming") else 0))
+    dimming.activated.connect(lambda _i, w=dimming: w.currentData() is not None
+                              and window._set_entity_choice(eid, "dimming", w.currentData()))
+    form.addRow("Ρύθμιση έντασης (τροφοδοτικό)", dimming)
     if kind == "led_strip":
         form.addRow("Μήκος ταινίας", QLabel(f"{strip_length(p):.2f} m".replace(".", ",")))
         form.addRow("Ισχύς ταινίας", _spin(window, eid, "w_per_m", p.get("w_per_m"), 100.0, 0.1, 1, " W/m"))
@@ -112,6 +131,16 @@ def _typed_beam(window, eid, text):
         return
     if 1.0 <= value <= 180.0:
         window._set_entity_choice(eid, "beam_deg", value)
+
+
+def _apply_catalog(window, eid, entry_id):
+    """All the entry's values in one UpdateEntity (one undo)."""
+    from archforge.core.commands import UpdateEntity
+    from archforge.mep.luminaire_catalog import apply_values
+    window.stack.execute(UpdateEntity(eid, apply_values(entry_id)))
+    window._redraw_views(all_views=True)
+    from PySide6.QtCore import QTimer
+    QTimer.singleShot(0, window.refresh_inspector)
 
 
 def _typed_kelvin(window, eid, text):

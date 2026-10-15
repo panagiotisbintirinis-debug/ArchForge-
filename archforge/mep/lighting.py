@@ -143,6 +143,8 @@ def light_spec(doc, entity):
             "direction": direction, "position": [x, y, z], "circuit": circuit,
             "switch": control["switch"] if control else "", "dimmer": bool(control and control["dimmer"]),
             "automation_group": str(p.get("automation_group", "")), "load_w": round(point_load_w(p), 1),
+            "dimming": p.get("dimming", ""), "catalog_id": p.get("catalog_id", ""),
+            "data_status": _data_status(p),
             "photometry_entered": all(p.get(k) for k in ("lumen", "kelvin")) and (beam is not None or kind in ("light", "wall_light", "led_strip"))}
     if kind == "led_strip":
         spec.update(kind="strip", start=[x, y, z], end=[float(p.get("x2", x)), float(p.get("y2", y)), z],
@@ -161,6 +163,11 @@ def light_spec(doc, entity):
     else:
         spec.update(kind="point", intensity=None if flux is None else flux / (4 * math.pi))
     return spec
+
+
+def _data_status(params):
+    from archforge.mep.luminaire_catalog import status_of
+    return status_of(params)[0]
 
 
 def _toward_wall(doc, x, y, z):
@@ -226,8 +233,19 @@ def lighting_report(doc):
         for g in groups.values():
             if set(link["lights"]) & set(g["lights"]):
                 g["controls"].append(("Ροοστάτης " if link["dimmer"] else "Διακόπτης ") + link["switch"][:6])
-    out = []
+    from archforge.mep.luminaire_catalog import DIMMING, DRIVER_MARGIN
+    points = {e.id: e for e in electrical_points(doc)}
+    out, warnings = [], []
     for g in groups.values():
+        protocols = {points[i].params.get("dimming", "") for i in g["lights"]}
+        g["dimming"] = sorted(p for p in protocols if p)
+        if len(g["dimming"]) > 1:
+            warnings.append(f"Ομάδα «{g['group']}»: διαφορετικά πρωτόκολλα ρύθμισης "
+                            f"({', '.join(DIMMING[p] for p in g['dimming'])}) — ένας ροοστάτης δεν τα ελέγχει όλα")
+        if any("Ροοστάτης" in c for c in g["controls"]) and "onoff" in protocols:
+            warnings.append(f"Ομάδα «{g['group']}»: ροοστάτης σε φωτιστικό χωρίς ρύθμιση έντασης (On/Off)")
+        strip_w = sum(point_load_w(points[i].params) for i in g["lights"] if points[i].params["point_type"] == "led_strip")
+        g["driver_hint_w"] = round(strip_w * DRIVER_MARGIN, 1) if strip_w else None      # ENGINEER_REVIEW (registry)
         g["load_w"], g["lumen"], g["strip_m"] = round(g["load_w"], 1), round(g["lumen"]), round(g["strip_m"], 2)
         out.append(g)
-    return {"groups": out, "provenance": PROVENANCE}
+    return {"groups": out, "warnings": warnings, "provenance": PROVENANCE}

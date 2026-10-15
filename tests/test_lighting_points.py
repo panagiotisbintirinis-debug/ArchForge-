@@ -170,3 +170,36 @@ def test_properties_of_a_luminaire_have_no_hidden_defaults():
         assert 'beam_deg' not in window.doc.get(spot.id).params
     finally:
         window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_catalog_template_fills_the_point_but_stays_unverified_until_a_real_product():
+    from archforge.core.provenance import MANUFACTURER_DATA, UNVERIFIED
+    from archforge.mep.luminaire_catalog import Entry, ENTRIES, apply_values, entries_for, status_of
+    doc = Document(); stack = CommandStack(doc); _house(stack)
+    _pt(stack, 'panel', 0.3, 3.0)
+    strip = _pt(stack, 'led_strip', 1.0, 1.0, x2=4.0, y2=1.0)
+    assert status_of(strip.params)[0] == UNVERIFIED
+    tpl = entries_for('led_strip')[0]
+    assert tpl.status == UNVERIFIED and not tpl.product_code              # owner's summary: no product code
+    stack.execute(UpdateEntity(strip.id, apply_values(tpl.id)))
+    p = doc.get(strip.id).params
+    assert p['w_per_m'] == tpl.values['w_per_m'] and p['catalog_id'] == tpl.id
+    status, text = status_of(p)
+    assert status == UNVERIFIED and 'όχι φύλλο συγκεκριμένου προϊόντος' in text
+    assert light_spec(doc, doc.get(strip.id))['data_status'] == UNVERIFIED
+    stack.undo()
+    assert 'w_per_m' not in doc.get(strip.id).params                       # one undo
+    real = Entry('x', 'x', ('led_strip',), {'w_per_m': 10.0}, manufacturer='M', product_code='P-1', datasheet='p1.pdf')
+    assert real.status == MANUFACTURER_DATA
+
+
+def test_group_with_mixed_dimming_protocols_is_flagged():
+    doc = Document(); stack = CommandStack(doc); _house(stack)
+    _pt(stack, 'panel', 0.3, 3.0)
+    _pt(stack, 'downlight', 2.0, 3.0, automation_group='Σαλόνι', dimming='dali2', power_w=12.0)
+    _pt(stack, 'led_strip', 1.0, 1.0, x2=3.0, y2=1.0, automation_group='Σαλόνι', dimming='phase_cut', w_per_m=14.4)
+    _pt(stack, 'dimmer', 3.6, 1.0, automation_group='Σαλόνι')
+    rep = lighting_report(doc)
+    g = next(g for g in rep['groups'] if g['group'] == 'Σαλόνι')
+    assert g['dimming'] == ['dali2', 'phase_cut'] and any('διαφορετικά πρωτόκολλα' in w for w in rep['warnings'])
+    assert g['driver_hint_w'] == pytest.approx(2.0 * 14.4 * 1.2, abs=0.1)

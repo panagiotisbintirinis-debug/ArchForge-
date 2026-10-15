@@ -735,7 +735,8 @@ SCHEMAS = {
                          # luminaires (mep/lighting.py): strip end, load, light effect, control
                          'x2': _finite, 'y2': _finite, 'w_per_m': _nonnegative, 'lumen': _nonnegative, 'kelvin': _kelvin,
                          'beam_deg': _beam, 'dim_level': _unit_interval, 'direction': _light_direction,
-                         'automation_group': str, 'mount_height': _nonnegative,
+                         'automation_group': str, 'mount_height': _nonnegative, 'catalog_id': str,
+                         'dimming': _choice(('onoff', 'phase_cut', 'dali2', '0_10v'), 'dimming protocol'),
                          'target_x': _finite, 'target_y': _finite, 'target_z': _finite},
     'plumbing_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _plumbing_type, 'pipe_system': _pipe_system},
     'ceiling_joists': {'points': _polygon, 'z': _finite, 'spacing': _joist_spacing, 'usage': _joist_usage,

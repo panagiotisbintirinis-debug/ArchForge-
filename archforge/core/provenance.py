@@ -77,6 +77,7 @@ def _load():
     import archforge.mep.electrical  # noqa: F401
     import archforge.mep.electrical_board  # noqa: F401
     import archforge.mep.lighting  # noqa: F401
+    import archforge.mep.luminaire_catalog  # noqa: F401
 
 
 # Standards references themselves (status of the documents the code cites).
