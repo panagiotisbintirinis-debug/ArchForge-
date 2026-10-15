@@ -108,3 +108,10 @@ def test_panels_are_on_the_right_properties_above(window):
 def test_layout_version_was_raised():
     from archforge.ui.workspace_layout import LAYOUT_VERSION
     assert LAYOUT_VERSION >= 3
+
+
+def test_no_start_guide_box_over_an_empty_plan(window):
+    """Owner 14/10: «βγάλε τον οδηγό Ξεκίνα» (the box over an empty project)."""
+    from archforge.ui import plan_overlay
+    assert not hasattr(plan_overlay, 'EMPTY_HINT')
+    window.plan_view.viewport().grab()                                 # paints without it

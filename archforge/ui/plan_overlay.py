@@ -23,11 +23,6 @@ HUD_LABELS = {
     "floor_level": ("Στάθμη", "m"), "diameter_x": ("Διάμετρος x", "m"), "diameter_y": ("Διάμετρος y", "m"),
 }
 
-EMPTY_HINT = ("Ξεκίνα: Τοίχος → κλικ στις γωνίες (ή σύρε)",
-              "κλικ στο πρώτο σημείο = κλείσιμο · διπλό κλικ / Enter = τέλος · Esc = ακύρωση",
-              "ροδέλα = ζουμ · κράτα πατημένο (ή μεσαίο κουμπί) και σύρε = μετακίνηση σχεδίου")
-
-
 def hud_text(hud):
     """Greek one-liner of the measurements the active tool reports."""
     parts = []
@@ -144,16 +139,5 @@ def paint_overlay(view, painter):
             _chip(painter, rect, QColor(232, 240, 252, 240), QColor(47, 107, 214))
         painter.setPen(QPen(QColor(25, 45, 80), 1)); painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, live)
         painter.setFont(font)
-    # Empty project: how to start, with the mouse.
-    if not view.doc.entities and not getattr(view, "structural_only", False) and view.controller.active is None:
-        big = QFont(font); big.setPointSizeF(12); big.setBold(True)
-        small = QFont(font); small.setPointSizeF(10)
-        lines = EMPTY_HINT[1:]
-        w = max([QFontMetrics(big).horizontalAdvance(EMPTY_HINT[0])] + [QFontMetrics(small).horizontalAdvance(t) for t in lines]) + 40
-        rect = QRectF((vp.width() - w) / 2, vp.height() * 0.30, w, 40 + 22 * len(lines))
-        _chip(painter, rect, QColor(255, 255, 255, 235), QColor(47, 107, 214))
-        painter.setPen(QPen(QColor(25, 45, 80), 1)); painter.setFont(big)
-        painter.drawText(QRectF(rect.x(), rect.y() + 8, rect.width(), 24), Qt.AlignmentFlag.AlignCenter, EMPTY_HINT[0])
-        painter.setPen(QPen(ink, 1)); painter.setFont(small)
-        for k, text in enumerate(lines):
-            painter.drawText(QRectF(rect.x(), rect.y() + 34 + 22 * k, rect.width(), 20), Qt.AlignmentFlag.AlignCenter, text)
+    # (No «Ξεκίνα» box over an empty project any more — owner 14/10: «βγάλε τον οδηγό Ξεκίνα»; the tool hints
+    # stay in the status bar.)
