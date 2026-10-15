@@ -38,13 +38,37 @@ PROVENANCE = ("Κανόνας ιδιοκτήτη 15/10: καμία τιμή απ
               "(ασφάλειες/διατομές/σημεία ανά κύκλωμα) είναι του mep/electrical.py και περιμένουν επαλήθευση "
               "(βλ. «Κατάσταση κανόνων»). Προμελέτη, προς έλεγχο από ηλεκτρολόγο μηχανικό")
 
+SUMMARY_5_52 = "Σύνοψη ιδιοκτήτη 15/10 του ΕΛΟΤ HD 60364-5-52 (Πίν. 52.2, B.52.2–B.52.5, Παράρτ. G) — όχι το κείμενο"
+# Iz (A), Cu, PVC 70 °C, ambient 30 °C: method -> {mm²: (2 loaded, 3 loaded)} — ENGINEER_REVIEW (registry)
+IZ = {
+    "A1": {1.5: (14.5, 13.5), 2.5: (19.5, 18.0), 4.0: (26.0, 24.0), 6.0: (34.0, 31.0), 10.0: (46.0, 42.0), 16.0: (61.0, 56.0)},
+    "B1": {1.5: (17.5, 15.5), 2.5: (24.0, 21.0), 4.0: (32.0, 28.0), 6.0: (41.0, 36.0), 10.0: (57.0, 50.0), 16.0: (76.0, 68.0)},
+}
+RHO_70 = 0.0225            # Ω·mm²/m — ENGINEER_REVIEW (registry)
+DROP_LIMIT = {"lighting": 3.0}
+DROP_OTHER = 5.0
+MIN_POWER_MM2 = 1.5
+
 register(
-    Rule("board.iz", "Ικανότητα φόρτισης Iz ανά διατομή — δεν ελέγχεται ασφάλεια ≤ Iz", ENGINEER_REVIEW,
-         note="ΕΛΟΤ HD 60364-5-52 Πίνακες B.52.x: να εισαχθούν από το πρότυπο"),
-    Rule("board.voltage_drop", "Πτώση τάσης — δεν υπολογίζεται· δίνεται μόνο το μήκος ως το πιο μακρινό σημείο", ENGINEER_REVIEW,
-         note="ΕΛΟΤ HD 60364-5-52 Παράρτ. G: όρια και ειδική αντίσταση από το πρότυπο"),
+    Rule("board.iz", "Ικανότητα φόρτισης Iz (Cu, PVC 70 °C, 30 °C) ανά διατομή και μέθοδο A1/B1· έλεγχος In ≤ Iz "
+         "χωρίς συντελεστές ομαδοποίησης k1 / θερμοκρασίας k2", ENGINEER_REVIEW, source=SUMMARY_5_52,
+         note="Οι τιμές B1 συμφωνούν και με ανεξάρτητη δευτερογενή πηγή (ecalpro/aionline)· γίνονται VERIFIED με το κείμενο "
+              "των Πινάκων B.52.2–B.52.5 του ΕΛΟΤ"),
+    Rule("board.voltage_drop", "Πτώση τάσης μονοφασικού: ΔU% = 2·100·Ib·L·ρ/(230·S), L = όδευση ως το πιο μακρινό σημείο, "
+         "ρ = 0,0225 Ω·mm²/m· όρια 3 % φωτισμός, 5 % λοιπά", ENGINEER_REVIEW, source=SUMMARY_5_52,
+         note="Αντίφαση συνόψεων: η προηγούμενη (πρακτική εγκαταστάτη) έλεγε ≤ 4 %· απόφαση με το κείμενο του Παραρτ. G"),
+    Rule("board.min_section", "Ελάχιστη διατομή χαλκού κυκλωμάτων ισχύος/φωτισμού 1,5 mm² (σήμανσης/ελέγχου 0,5 mm²)",
+         ENGINEER_REVIEW, source=SUMMARY_5_52),
+    Rule("board.install_method", "Μέθοδος εγκατάστασης: B1 (σωλήνας σε σοβατισμένο/κτιστό τοίχο), A1 σε θερμομονωτικό τοίχο",
+         DESIGN_DEFAULT, note="Ο χρήστης τη διαλέγει στον πίνακα· B1 όταν δεν έχει οριστεί"),
     Rule("board.supply", "Παροχή ΔΕΔΔΗΕ: kVA, φάσεις, ασφάλεια όπως τα εισάγει ο χρήστης", ENGINEER_REVIEW,
          note="Από την αίτηση/σύμβαση σύνδεσης· η αρίθμηση «Νο 1–5» από μνήμη ήταν λάθος (ΔΕΔΔΗΕ: Νο 03, Νο 05 …)"),
+    Rule("board.supply_table", "Πίνακας τυποποιημένων παροχών ΧΤ ΔΕΔΔΗΕ (αριθμός, kVA, ασφάλειες, διατομή γραμμής "
+         "μετρητή–ΓΠΧΤ) — ΔΕΝ χρησιμοποιείται", UNVERIFIED,
+         source="Σύνοψη ιδιοκτήτη 15/10 («Νο 0 = 8 kVA, Νο 1 = 12 kVA, Νο 2 = 15 kVA τριφασική …»)",
+         note="Αντίφαση: η αναζήτηση στο έντυπο αίτησης του ΔΕΔΔΗΕ (deddie.gr, aitisi-tropopoiisis-sindesis-xt.pdf) "
+              "έδωσε «Νο 03 = 8 kVA (1×40 A πίνακας / 1×35 A μετρητής)», «Νο 05 = 12 kVA (1×63 / 1×50 A)». "
+              "Χρειάζεται το ίδιο το έντυπο/εγχειρίδιο του ΔΕΔΔΗΕ· ως τότε η παροχή εισάγεται από την αίτηση του έργου"),
     Rule("board.demand_factor", "Συντελεστής ταυτοχρονισμού της μελέτης", ENGINEER_REVIEW),
     Rule("board.rcd_layout", "Πλήθος/ονομαστικό ρεύμα διαφορικών, γραμμή τροφοδοσίας", ENGINEER_REVIEW),
     Rule("board.phase_balance", "Κατανομή φάσεων: το μεγαλύτερο φορτίο στην πιο ελαφριά φάση", DESIGN_DEFAULT,
@@ -72,7 +96,8 @@ def settings(doc):
     p = panel.params if panel is not None else {}
     return {"panel": panel.id if panel is not None else None, "supply_kva": float(p.get("supply_kva", 0.0)),
             "supply_phases": int(p.get("supply_phases", 0)), "supply_fuse_a": float(p.get("supply_fuse_a", 0.0)),
-            "demand_factor": float(p.get("demand_factor", 0.0)), "waste_pct": float(p.get("waste_pct", 0.0))}
+            "demand_factor": float(p.get("demand_factor", 0.0)), "waste_pct": float(p.get("waste_pct", 0.0)),
+            "install_method": str(p.get("install_method", "B1"))}
 
 
 def conductors(circuit):
@@ -283,6 +308,26 @@ def analyse(doc):
                "rooms": _rooms(doc, [points[p] for p in c["points"]]), "ok": bool(c["ok"]), "notes": []}
         if not c["ok"]:
             row["notes"].append("υπερφόρτιση")
+        # Indicative checks with ENGINEER_REVIEW values (single-phase circuits: 2 loaded conductors).
+        tag = " [προς έλεγχο]"
+        iz = IZ.get(conf["install_method"], IZ["B1"]).get(sec, (None, None))[0]
+        ib = float(c["current_a"])
+        drop = 2 * 100 * ib * far * RHO_70 / (230.0 * sec) if sec > 0 else None
+        limit = DROP_LIMIT.get(c["group"], DROP_OTHER)
+        row.update(iz_a=iz, method=conf["install_method"], drop_pct=None if drop is None else round(drop, 2), drop_limit_pct=limit)
+        if sec < MIN_POWER_MM2:
+            row["ok"] = False; row["notes"].append(f"διατομή < {MIN_POWER_MM2:g} mm²{tag}")
+        if iz is None:
+            row["notes"].append(f"Iz {sec:g} mm² δεν υπάρχει στον πίνακα")
+        elif not ib <= c["breaker_a"] <= iz:
+            row["ok"] = False
+            row["notes"].append(f"Ib {ib:g} ≤ In {c['breaker_a']} ≤ Iz {iz:g} A δεν ισχύει{tag}")
+            warnings.append(f"{c['id']} {c['label']}: Ib {ib:g} A ≤ In {c['breaker_a']} A ≤ Iz {iz:g} A ({conf['install_method']}) "
+                            f"δεν ισχύει{tag}")
+        if drop is not None and drop > limit:
+            row["ok"] = False
+            row["notes"].append(f"ΔU {drop:.1f} % > {limit:g} %{tag}")
+            warnings.append(f"{c['id']} {c['label']}: πτώση τάσης {drop:.1f} % > {limit:g} % σε {far:.0f} m{tag}")
         rows.append(row)
 
     from archforge.mep.practice import conflicts, lighting_circuit_count_conflict
@@ -367,14 +412,14 @@ def board_csv(result):
             return "— (δεν εισήχθη)"
         return f"{v:g}".replace(".", ",") if isinstance(v, (int, float)) else str(v)
     lines = ["Κυκλώματα", "Κύκλωμα;Περιγραφή;Φάση;Ασφάλεια A;Διατομή mm²;Αγωγοί;Σημεία;Χώροι;Φορτίο W;Ρεύμα A;"
-             "Μήκος σωλήνα m;Ως το πιο μακρινό σημείο m;Έλεγχος"]
+             "Μήκος σωλήνα m;Ως το πιο μακρινό σημείο m;Iz A [προς έλεγχο];ΔU % [προς έλεγχο];Έλεγχος"]
     for r in result["circuits"]:
         wires = " + ".join(f"{code} {num(s)}" for code, _l, s in r["conductors"])
         if r["switch_leg"]:
             wires += f" · σκέλη διακοπτών L + επιστροφή {num(r['mm2'])}"
         lines.append(";".join([r["id"], r["label"], r.get("phase", ""), num(r["breaker_a"]), num(r["mm2"]), wires,
                                num(r["points"]), ", ".join(r["rooms"]), num(r["load_w"]), num(r["current_a"]),
-                               num(r["conduit_m"]), num(r["farthest_m"]), "OK" if r["ok"] else "⚠ " + ", ".join(r["notes"])]))
+                               num(r["conduit_m"]), num(r["farthest_m"]), num(r["iz_a"]), num(r["drop_pct"]), "OK" if r["ok"] else "⚠ " + ", ".join(r["notes"])]))
     sections = sorted({s for w in result["walls"] for s in w["by_section"]})
     lines += ["", "Μέτρα ανά τοίχο", "Θέση;Κυκλώματα;Σωλήνας m;" + ";".join(f"{num(s)} mm² m" for s in sections)]
     for w in result["walls"]:

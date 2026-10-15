@@ -31,7 +31,7 @@ def test_conductors_per_circuit_at_the_circuit_section():
     for c in r['circuits']:
         assert [code for code, *_x in c['conductors']] == ['L', 'N', 'PE']
         assert {s for *_x, s in c['conductors']} == {c['mm2']}
-        assert 'iz_a' not in c and 'drop_pct' not in c          # owner 15/10: no unverified table values
+        assert c['method'] == 'B1' and c['iz_a'] is not None and c['drop_pct'] is not None
     lighting = next(c for c in r['circuits'] if c['group'] == 'lighting')
     # Switch legs (phase + return, at the lighting circuit's section) add to its three line conductors.
     assert lighting['switch_leg'] and lighting['wire_m'][lighting['mm2']] > 3 * lighting['conduit_m'] + 1.0
@@ -84,16 +84,35 @@ def test_board_uses_only_what_the_user_entered_and_settings_are_undoable():
     assert analyse(again)['waste_pct'] == 15.0
 
 
-def test_farthest_point_is_measured_along_the_route():
+def test_farthest_point_and_indicative_voltage_drop_along_the_route():
     from archforge.core.commands import AddEntity
     from archforge.core.model import Entity
+    from archforge.core.provenance import ENGINEER_REVIEW, rule
     doc = Document(); stack = CommandStack(doc)
     for x1, y1, x2, y2 in [(0, 0, 40, 0), (40, 0, 40, 4), (40, 4, 0, 4), (0, 4, 0, 0)]:
         stack.execute(AddEntity(Entity('wall', {'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2, 'z': 0, 'height': 2.7, 'thickness': 0.2})))
     _pt(stack, 'panel', 0.3, 2.0)
-    _pt(stack, 'water_heater', 39.7, 2.0)
+    heater = _pt(stack, 'water_heater', 39.7, 2.0, power_w=2000.0)
     c = analyse(doc)['circuits'][0]
     assert 40 < c['farthest_m'] <= c['conduit_m'] + 1e-6
+    ib = 2000.0 / 230
+    assert c['drop_pct'] == pytest.approx(2 * 100 * ib * c['farthest_m'] * 0.0225 / (230 * 2.5), abs=0.02)
+    stack.execute(UpdateEntity(heater.id, {'power_w': 4500.0}))
+    r = analyse(doc)
+    c = r['circuits'][0]
+    assert c['drop_pct'] > 5.0 and not c['ok'] and any('[προς έλεγχο]' in w and 'πτώση τάσης' in w for w in r['warnings'])
+    assert rule('board.voltage_drop').status == ENGINEER_REVIEW and '4 %' in rule('board.voltage_drop').note
+
+
+def test_iz_check_follows_the_installation_method():
+    doc = Document(); stack = CommandStack(doc); panel = _flat(stack)
+    heater = next(c for c in analyse(doc)['circuits'] if c['group'] == 'water_heater')
+    assert heater['iz_a'] == 24.0                                       # B1, 2,5 mm², 2 loaded conductors
+    stack.execute(UpdateEntity(panel.id, {'install_method': 'A1'}))
+    r = analyse(doc)
+    heater = next(c for c in r['circuits'] if c['group'] == 'water_heater')
+    # 20 A breaker on 2,5 mm² in an insulated wall (Iz 19,5 A): the summary's own rule fails — flagged, not hidden.
+    assert heater['iz_a'] == 19.5 and not heater['ok'] and any('Iz 19.5' in w for w in r['warnings'])
 
 
 def test_csv_lists_circuits_walls_and_purchase():

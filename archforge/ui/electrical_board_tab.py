@@ -46,7 +46,11 @@ class BoardTab(QWidget):
         self.factor = spin("Ταυτοχρ. ", "", 1.0, 0.05, 2, "Συντελεστής ταυτοχρονισμού της μελέτης (ηλεκτρολόγος)")
         self.waste = spin("Φύρα ", " %", 50.0, 1.0, 0, "Επιπλέον μέτρα καλωδίου για αγορά (ρύθμιση χρήστη)")
         self.waste.setSpecialValueText("Φύρα 0 %")
-        for w in (self.kva, self.phases, self.fuse, self.factor, self.waste):
+        self.method = QComboBox(); self.method.setToolTip("Μέθοδος εγκατάστασης για το Iz (ΕΛΟΤ HD 60364-5-52)")
+        for label, value in (("B1: σωλήνας σε κτιστό τοίχο", "B1"), ("A1: σωλήνας σε θερμομονωτικό τοίχο", "A1")):
+            self.method.addItem(label, value)
+        self.method.activated.connect(lambda _i: self._set("install_method", self.method.currentData()))
+        for w in (self.kva, self.phases, self.fuse, self.factor, self.waste, self.method):
             head.addWidget(w)
         self.kva.editingFinished.connect(lambda: self._set("supply_kva", float(self.kva.value())))
         self.phases.activated.connect(lambda _i: self._set("supply_phases", int(self.phases.currentData())))
@@ -78,7 +82,7 @@ class BoardTab(QWidget):
 
         self.pages = QTabWidget()
         self.circuits = self._tree(["Κύκλωμα", "Περιγραφή", "Φάση", "Ασφάλεια", "Διατομή", "Σημεία", "Χώροι",
-                                    "Φορτίο", "Μήκος", "Ως πιο μακρινό", "Έλεγχος"])
+                                    "Φορτίο", "Μήκος", "Ως πιο μακρινό", "Iz*", "ΔU*", "Έλεγχος"])
         self.circuits.itemClicked.connect(self._select_item)
         self.circuits.itemDoubleClicked.connect(lambda item, _c: self._select_item(item, show=True))
         self.walls = self._tree(["Θέση", "Κυκλώματα", "Σωλήνας"])
@@ -131,7 +135,7 @@ class BoardTab(QWidget):
         has = bool(r["circuits"])
         self.empty.setVisible(not has)
         self.pages.setVisible(has)
-        for w in (self.kva, self.phases, self.fuse, self.factor, self.waste, self.excel, self.pdf):
+        for w in (self.kva, self.phases, self.fuse, self.factor, self.waste, self.method, self.excel, self.pdf):
             w.setEnabled(has)
         self._updating = True
         try:
@@ -140,6 +144,7 @@ class BoardTab(QWidget):
             self.phases.setCurrentIndex(max(0, self.phases.findData(conf["supply_phases"])))
             self.factor.setValue(conf["demand_factor"])
             self.waste.setValue(conf["waste_pct"])
+            self.method.setCurrentIndex(max(0, self.method.findData(conf["install_method"])))
         finally:
             self._updating = False
         cards = {}
@@ -168,7 +173,8 @@ class BoardTab(QWidget):
             notes += ["Διαφωνίες με την πρακτική εγκαταστάτη (απόφαση ηλεκτρολόγου):"] + [f"  ≠ {c}" for c in r["practice_conflicts"]]
         self.warnings.setText("\n".join(notes))
         self.warnings.setVisible(bool(notes))
-        lines = [r["provenance"], "Κατάσταση κανόνων (μόνο τα επαληθευμένα είναι τεχνική απαίτηση· κανένας δεν είναι ακόμη):"] + [f" • {u}" for u in r["unverified"]]
+        lines = [r["provenance"], "* Iz και ΔU: ενδεικτικός έλεγχος με τιμές ENGINEER_REVIEW (σύνοψη ΕΛΟΤ HD 60364-5-52), "
+                 "χωρίς k1/k2 — όχι απόδειξη συμμόρφωσης", "Κατάσταση κανόνων (μόνο τα επαληθευμένα είναι τεχνική απαίτηση· κανένας δεν είναι ακόμη):"] + [f" • {u}" for u in r["unverified"]]
         self.provenance.setText("\n".join(lines))
         self.provenance.setVisible(has)
         return r
@@ -179,17 +185,18 @@ class BoardTab(QWidget):
             item = QTreeWidgetItem([c["id"], c["label"], c.get("phase", ""), f"{c['breaker_a']} A", f"{_n(c['mm2'])} mm²",
                                     str(c["points"]), ", ".join(c["rooms"]), f"{c['load_w']} W · {_n(c['current_a'])} A",
                                     f"{_n(c['conduit_m'])} m", f"{_n(c['farthest_m'])} m",
+                                    f"{_n(c['iz_a'])} A", f"{_n(c['drop_pct'], 2)} % / {_n(c['drop_limit_pct'], 0)} %",
                                     "✓" if c["ok"] else "⚠ " + ", ".join(c["notes"])])
             item.setData(0, Qt.ItemDataRole.UserRole, list(c["point_ids"]))
             if not c["ok"]:
-                item.setForeground(10, Qt.GlobalColor.darkYellow)
+                item.setForeground(12, Qt.GlobalColor.darkYellow)
             line_m = float(c["conduit_m"])
             for code, label, s in c["conductors"]:
-                QTreeWidgetItem(item, [code, label, "", "", f"{_n(s)} mm²", "", "", "", f"{_n(line_m)} m", "", ""])
+                QTreeWidgetItem(item, [code, label, "", "", f"{_n(s)} mm²", "", "", "", f"{_n(line_m)} m", "", "", "", ""])
             if c["switch_leg"]:
                 leg = max(0.0, (c["wire_m"].get(c["mm2"], 0.0) - 3 * line_m) / 2)
                 for code, label in (("L", "Φάση προς διακόπτες"), ("R", "Επιστροφή διακόπτη")):
-                    QTreeWidgetItem(item, [code, label, "", "", f"{_n(c['mm2'])} mm²", "", "", "", f"{_n(leg)} m", "", ""])
+                    QTreeWidgetItem(item, [code, label, "", "", f"{_n(c['mm2'])} mm²", "", "", "", f"{_n(leg)} m", "", "", "", ""])
             t.addTopLevelItem(item)
 
     def _fill_walls(self, r):
@@ -249,7 +256,7 @@ def board_html(r):
     b = r["board"]
     rows = "".join(f"<tr><td>{e(c['id'])}</td><td>{e(c['label'])}</td><td>{e(c.get('phase', ''))}</td><td>{c['breaker_a']} A</td>"
                    f"<td>{_n(c['mm2'])}</td><td>{' + '.join(code for code, *_x in c['conductors'])}{' + επιστρ.' if c['switch_leg'] else ''}</td>"
-                   f"<td>{c['points']}</td><td>{c['load_w']} W</td><td>{_n(c['conduit_m'])} m</td><td>{_n(c['farthest_m'])} m</td>"
+                   f"<td>{c['points']}</td><td>{c['load_w']} W</td><td>{_n(c['conduit_m'])} m</td><td>{_n(c['farthest_m'])} m</td><td>{_n(c['iz_a'])} A</td><td>{_n(c['drop_pct'], 2)} %</td>"
                    f"<td>{'✓' if c['ok'] else '⚠ ' + e(', '.join(c['notes']))}</td></tr>" for c in r["circuits"])
     sections = sorted({s for w in r["walls"] for s in w["by_section"]})
     walls = "".join(f"<tr><td>{e(w['label'])}</td><td>{e(' '.join(w['circuits']))}</td><td>{_n(w['conduit_m'], 2)}</td>"
@@ -266,7 +273,7 @@ def board_html(r):
     tbl = 'border="1" cellspacing="0" cellpadding="3" width="100%"'
     return (f"<h2>Ηλεκτρολογικός πίνακας</h2>{head}"
             f"<h3>Κυκλώματα</h3><table {tbl}><tr><th>Κ</th><th>Περιγραφή</th><th>Φάση</th><th>Ασφάλεια</th><th>mm²</th>"
-            f"<th>Αγωγοί</th><th>Σημεία</th><th>Φορτίο</th><th>Σωλήνας</th><th>Ως πιο μακρινό</th><th>Έλεγχος</th></tr>{rows}</table>"
+            f"<th>Αγωγοί</th><th>Σημεία</th><th>Φορτίο</th><th>Σωλήνας</th><th>Ως πιο μακρινό</th><th>Iz*</th><th>ΔU*</th><th>Έλεγχος</th></tr>{rows}</table>"
             f"<h3>Μέτρα ανά τοίχο (m)</h3><table {tbl}><tr><th>Θέση</th><th>Κυκλώματα</th><th>Σωλήνας</th>"
             + "".join(f"<th>{_n(s)} mm²</th>" for s in sections) + f"</tr>{walls}</table>"
             f"<h3>Αγορά καλωδίων (φύρα {_n(r['waste_pct'], 0)} %)</h3><table {tbl}><tr><th>Διατομή</th><th>Μέτρα</th>"
@@ -274,6 +281,7 @@ def board_html(r):
             + "".join(f"<p>⚠ {e(w)}</p>" for w in r["warnings"])
             + ("<p><b>Διαφωνίες με την πρακτική εγκαταστάτη (απόφαση ηλεκτρολόγου)</b><br>"
                + "<br>".join(e(c) for c in r.get("practice_conflicts", [])) + "</p>" if r.get("practice_conflicts") else "")
+            + "<p><small>* Iz/ΔU: ενδεικτικός έλεγχος, τιμές προς έλεγχο από ηλεκτρολόγο (χωρίς k1/k2)</small></p>"
             + "<p><b>Κατάσταση κανόνων (μόνο τα επαληθευμένα είναι τεχνική απαίτηση)</b><br>" + "<br>".join(e(u) for u in r["unverified"]) + "</p>"
             + f"<p><small>{e(r['provenance'])}<br>{e(r['circuit_provenance'])}</small></p>")
 

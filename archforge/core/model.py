@@ -730,7 +730,7 @@ SCHEMAS = {
                      'shed_high': _shed_high},
     'electrical_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _electrical_type, 'power_w': _nonnegative,
                          'routing': _cable_routing, 'supply_kva': _nonnegative, 'supply_phases': _supply_phases, 'supply_fuse_a': _nonnegative,
-                         'demand_factor': _unit_interval,
+                         'demand_factor': _unit_interval, 'install_method': _choice(('A1', 'B1'), 'installation method'),
                          'waste_pct': _nonnegative,
                          # luminaires (mep/lighting.py): strip end, load, light effect, control
                          'x2': _finite, 'y2': _finite, 'w_per_m': _nonnegative, 'lumen': _nonnegative, 'kelvin': _kelvin,

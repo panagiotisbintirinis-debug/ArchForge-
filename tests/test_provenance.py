@@ -47,3 +47,11 @@ def test_program_rules_that_disagree_with_installer_practice_are_listed_not_chan
     assert 'cooker' in found and 'water_heater' in found
     assert CIRCUIT_RULES['cooker'][1:3] == (32, 6.0)            # nothing changed automatically
     assert rule('practice.circuits').status != VERIFIED and rule('standards.keee_replaced').status != VERIFIED
+
+
+def test_contradicting_supply_table_is_kept_out():
+    from archforge.core.provenance import UNVERIFIED as U
+    r = rule('board.supply_table')
+    assert r.status == U and 'Αντίφαση' in r.note and 'Νο 03' in r.note
+    import archforge.mep.electrical_board as B
+    assert not hasattr(B, 'SUPPLIES')                       # supply only as entered from the project's application
