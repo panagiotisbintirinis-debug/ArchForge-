@@ -3,7 +3,12 @@ from .main_window import MainWindow
 from .material_library import install_material_library
 from .material_object_integration import install_material_object_integration
 from .library_instance_integration import install_library_instance_model
+from .rendering_quality_upgrade import install_rendering_quality_upgrade
 
+# Upgrade only the visual PBR presentation.  Geometry/model ownership remains
+# untouched; the embedded Three.js viewport receives the improved look before
+# any MainWindow/PBR viewport instance is created.
+install_rendering_quality_upgrade()
 # The visual Material Library is a UI layer over the existing authoritative
 # material_id / surface_materials system.  The previous dialog remains
 # available from the library as the advanced/supplier-code editor.
