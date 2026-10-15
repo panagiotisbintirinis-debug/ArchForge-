@@ -20,6 +20,7 @@ import json
 import math
 
 from archforge.architecture.wall_edit import WallMoveTransaction
+from archforge.architecture.openings import host_level as _host_level
 from archforge.core.interaction import OpeningPlaceTransaction, VerticalStretchTransaction
 from archforge.core.snapping import best_snap
 from archforge.core.viewport import PointerController, PointerEvent
@@ -365,6 +366,7 @@ class Wall3DEditor:
             tolerance=max(0.5, float(host.params.get("thickness", 0.0)) + 0.25), shape=shape,
             width=preset.get("width"), height=preset.get("height"), sill=preset.get("sill"),
             extra=preset.get("params"), name=preset.get("name"),
+            level_z=_host_level(host),
         )
         seg = tx.preview_segment()
         if tx.host_id != entity_id or not tx.preview or not seg:

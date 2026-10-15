@@ -98,6 +98,8 @@ class MainWindow(QMainWindow):
         organize_main_menus(self)        # the 8 menus of the approved mockup (after the above: moves, never drops)
         from archforge.ui.layout2 import install_layout2
         install_layout2(self)            # Διάταξη 2: thin first row, tool groups, «Κοινά», panels on the right
+        from archforge.ui import wall_dims_tool
+        wall_dims_tool.install(self)     # selected wall: its distances; double click = move it with the mouse
         self._refresh_library_panel()
         if not os.environ.get('PYTEST_CURRENT_TEST'):
             # First run builds the shipped core library in the background.

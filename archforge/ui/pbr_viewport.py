@@ -14,6 +14,7 @@ from archforge.geometry.sculpt import SculptedPreviewBackend
 from archforge.geometry.selection import BrushSpec, SurfaceHit
 from archforge.geometry.sculpt_transaction import SculptTransaction
 from archforge.core.interaction import OpeningPlaceTransaction, StairPlaceTransaction, RampPlaceTransaction, MoveTransaction, RotateTransaction, StructuralColumnPlaceTransaction, StructuralBeamDrawTransaction
+from archforge.architecture.openings import host_level as _host_level
 from archforge.rendering.scene import build_pbr_scene_payload
 from archforge.ui.object_context_menu import object_context_actions
 from archforge.ui import wall_edit_3d
@@ -3302,6 +3303,7 @@ class PBRViewport(QWidget):
                 shape=shape,
                 width=preset.get("width"), height=preset.get("height"), sill=preset.get("sill"),
                 extra=preset.get("params"), name=preset.get("name"),
+                level_z=_host_level(host),
             )
             if tx.host_id != entity_id:
                 raise ValueError("opening placement resolved to a different nearby host")

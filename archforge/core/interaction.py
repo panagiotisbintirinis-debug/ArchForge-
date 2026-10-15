@@ -987,7 +987,7 @@ class OpeningPlaceTransaction:
     """Attach a door/window frame or a frame-free architectural opening."""
     def __init__(
         self,doc,stack,kind,x,y,tolerance=0.35,width=None,height=None,sill=None,
-        flat_margin=0.25,shape='rectangle',arch_rise=None,extra=None,name=None,
+        flat_margin=0.25,shape='rectangle',arch_rise=None,extra=None,name=None,level_z=None,
     ):
         if kind not in ('door','window','opening'):
             raise ValueError('opening kind must be door, window, or opening')
@@ -1004,11 +1004,12 @@ class OpeningPlaceTransaction:
         # Joinery preset (architecture/joinery.py): type parameters and a Greek name.
         self.extra=dict(extra or {}) if kind in ('door','window') else {};self.name=name
         self.host_id=None;self.host_kind=None;self.preview={}
+        self.level_z=None if level_z is None else float(level_z)   # None = the active storey
         self.update(x,y)
 
     def update(self,x,y):
         from archforge.architecture.openings import nearest_opening_host,validate_opening,validate_pod_opening
-        hit=nearest_opening_host(self.doc,x,y,self.tolerance)
+        hit=nearest_opening_host(self.doc,x,y,self.tolerance,self.level_z)
         if hit is None:
             self.host_id=None;self.host_kind=None;self.preview={}
             return HUD({'valid':0.0})

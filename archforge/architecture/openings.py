@@ -92,9 +92,15 @@ def project_to_pod(pod_params, x, y):
     return (u,px,py,hypot(float(x)-px,float(y)-py))
 
 
-def nearest_opening_host(doc, x, y, tolerance=0.35):
-    """Return nearest visible wall or pod on the active storey."""
-    best=None;active_z=float(doc.work_plane.origin[2])
+def host_level(host):
+    """The storey level of an opening host (a wall's z, a pod's floor level)."""
+    return float(host.params.get('z', 0.0)) if host.kind == 'wall' else float(host.params.get('floor_level', 0.0))
+
+
+def nearest_opening_host(doc, x, y, tolerance=0.35, level_z=None):
+    """Return nearest visible wall or pod on the active storey (or on ``level_z``: the storey of a wall
+    clicked in 3D — openings go where you click, whatever storey you are drawing on, owner 15/10)."""
+    best=None;active_z=float(doc.work_plane.origin[2]) if level_z is None else float(level_z)
     for eid,e in doc.entities.items():
         if not e.visible or e.kind not in ('wall','pod'):continue
         base_z=float(e.params.get('z',0.0)) if e.kind=='wall' else float(e.params.get('floor_level',0.0))
