@@ -167,9 +167,67 @@ class WallDimsTool:
                 p = self.doc.get(m["eid"]).params
                 self._text(view, "⚠ " + m["problem"], float(p["x1"]), float(p["y1"]), RED)
             return
+        active = view.controller.active
+        if active is not None and active.__class__.__name__ == "WallMoveTransaction":
+            # Dragging a wall with the button held: the same distances, live.
+            self._paint_dims(view, active.eid, float(getattr(active, "distance", 0.0)), moving=True)
+            return
+        if active is not None and self._paint_object_live(view, active):
+            return
         eid = self._selected_wall(view)
         if eid:
             self._paint_dims(view, eid, 0.0)
+            return
+        obj = self._selected_object(view)
+        if obj is not None:
+            self._paint_clearances(view, obj.params)
+
+    # ---------------------------------------------------------------- any object (owner 15/10)
+    def _selected_object(self, view):
+        from archforge.architecture.wall_dims import footprint
+        sel = [i for i in self.doc.selection if i in self.doc.entities]
+        if len(sel) != 1 or str(view.controller.tool) != "select" or view.controller.active is not None:
+            return None
+        e = self.doc.get(sel[0])
+        return e if e.kind != "wall" and footprint(e.params) is not None else None
+
+    def _paint_object_live(self, view, active):
+        """Moving / stretching an object: how much it changed, and its distances to the walls, while you drag."""
+        import math
+        from archforge.architecture.wall_dims import footprint
+        preview = getattr(active, "preview", None)
+        ids = getattr(active, "ids", None) or ([active.eid] if getattr(active, "eid", None) else [])
+        if not isinstance(preview, dict) or len(ids) != 1:
+            return False
+        eid = ids[0]
+        now = preview.get(eid, preview) if eid in preview else preview
+        if not isinstance(now, dict) or footprint(now) is None or eid not in self.doc.entities:
+            return False
+        before = getattr(active, "before", None)
+        if isinstance(before, dict) and eid in before:
+            before = before[eid]                              # MoveTransaction: {id: params}
+        if not isinstance(before, dict) or "x" not in before:
+            before = self.doc.get(eid).params                 # the Document is untouched until the drop
+        notes = []
+        moved = math.hypot(float(now["x"]) - float(before["x"]), float(now["y"]) - float(before["y"]))
+        for key, word in (("width", "Πλάτος"), ("depth", "Βάθος"), ("height", "Ύψος")):
+            if key in now and key in before and abs(float(now[key]) - float(before[key])) > 1e-6:
+                d = (float(now[key]) - float(before[key])) * 100
+                notes.append(f"{word} {float(now[key]) * 100:.0f} cm ({d:+.0f})")
+        if not notes and moved > 1e-6:
+            notes.append(f"Μετακίνηση {moved * 100:.0f} cm")
+        self._paint_clearances(view, now)
+        if notes:
+            self._text(view, " · ".join(notes), float(now["x"]) + 0.3, float(now["y"]) + 0.6, BLUE)
+        return True
+
+    def _paint_clearances(self, view, params):
+        from archforge.architecture.wall_dims import object_clearances
+        pen = QPen(BLUE); pen.setWidthF(.012); pen.setStyle(Qt.PenStyle.DashLine)
+        for c in object_clearances(self.doc, params):
+            (ax, ay), (bx, by) = c["a"], c["b"]
+            view._scene.addLine(ax, ay, bx, by, pen).setZValue(49)
+            self._text(view, fmt(c["value"]), (ax + bx) / 2, (ay + by) / 2, BLUE)
 
     def _paint_dims(self, view, eid, offset, moving=False):
         dims = wall_dims(self.doc, eid, offset)

@@ -195,7 +195,10 @@ def _build_menu(window, view, entity_id=None, xy=None):
         from archforge.assistant.target import describe_entity
         from archforge.ui.object_context_menu import object_context_actions
         entity = window.doc.get(entity_id)
-        actions = [a for a in object_context_actions(entity.kind, view) if a is not None]
+        # No «Μετακίνηση» / «Επιμήκυνση» buttons (owner 15/10): drag the object = move, drag a side / handle =
+        # stretch, with its distances shown live (wall_dims_tool). They stay in Επεξεργασία and «Κοινά».
+        actions = [a for a in object_context_actions(entity.kind, view) if a is not None
+                   and a["id"] not in ("move", "stretch")]
         entries = [_e(a["id"], {"properties": "Ιδιότητες", "move": "Μετακίνηση", "stretch": "Επιμήκυνση",
                                 "rotate": "Περιστροφή", "materials": "Υλικά", "support": "Στήριξη…",
                                 "load": "Φορτίο…", "delete": _delete_label(window, entity_id)}.get(a["id"], a["label"]),

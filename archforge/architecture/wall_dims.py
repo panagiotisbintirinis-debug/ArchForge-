@@ -79,3 +79,65 @@ def offset_for(doc, eid, side, clear):
 def fmt(v):
     """«3,45» — metres with two decimals and a Greek comma."""
     return f"{v:.2f}".replace(".", ",")
+
+
+# ------------------------------------------------------------------ any object: its clearances to the walls
+# Owner 15/10: «επιμήκυνση και μετακίνηση: εάν κρατάμε πατημένο το ποντίκι σε οτιδήποτε το κάνουμε να μετακινηθεί
+# … χρειάζεσαι και άμεση αναγνώριση — το μεγάλωσα 2 πόντους, το μετακίνησα 20, πόσο έχω μέχρι απέναντι, πόσο
+# χώρο χρειάζομαι».
+
+def footprint(params):
+    """``(cx, cy, ux, uy, half_w, half_d)`` of an object with x / y / width / depth (rotation in degrees), or None."""
+    try:
+        cx, cy = float(params["x"]), float(params["y"])
+        w, d = float(params["width"]), float(params["depth"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    a = math.radians(float(params.get("rotation", 0.0) or 0.0))
+    return cx, cy, math.cos(a), math.sin(a), w / 2, d / 2
+
+
+def _ray_to_walls(doc, px, py, dx, dy, z, ignore=(), limit=30.0):
+    """Distance from (px, py) along (dx, dy) to the nearest wall face on storey ``z``, or None."""
+    best = None
+    for w in _walls(doc, z):
+        if w.id in ignore:
+            continue
+        (ax, ay), (bx, by) = _ends(w.params)
+        L = math.hypot(bx - ax, by - ay)
+        if L < 1e-6:
+            continue
+        ux, uy = (bx - ax) / L, (by - ay) / L
+        nx, ny = -uy, ux
+        half = float(w.params.get("thickness", 0.2)) / 2
+        for side in (1, -1):                       # both faces of the wall
+            fx, fy = ax + nx * half * side, ay + ny * half * side
+            den = dx * uy - dy * ux                       # cross(d, u)
+            if abs(den) < 1e-9:
+                continue                                  # parallel to this wall
+            # p + t·d = f + s·u  →  t = cross(f − p, u) / cross(d, u),  s = cross(f − p, d) / cross(d, u)
+            qx, qy = fx - px, fy - py
+            t = (qx * uy - qy * ux) / den
+            s = (qx * dy - qy * dx) / den
+            if t > 1e-6 and -1e-6 <= s <= L + 1e-6 and t <= limit and (best is None or t < best):
+                best = t
+    return best
+
+
+def object_clearances(doc, params, z=None, ignore=()):
+    """From the middle of each side of an object's footprint, outwards, the distance to the nearest wall face:
+    ``[{"side": "front"/"back"/"left"/"right", "value", "a", "b"}]`` (sides with no wall within 30 m left out)."""
+    f = footprint(params)
+    if f is None:
+        return []
+    cx, cy, ux, uy, hw, hd = f
+    z = float(params.get("z", 0.0)) if z is None else float(z)
+    nx, ny = -uy, ux
+    out = []
+    for name, (dx, dy), h in (("right", (ux, uy), hw), ("left", (-ux, -uy), hw),
+                              ("back", (nx, ny), hd), ("front", (-nx, -ny), hd)):
+        px, py = cx + dx * h, cy + dy * h
+        t = _ray_to_walls(doc, px, py, dx, dy, z, ignore)
+        if t is not None:
+            out.append({"side": name, "value": t, "a": (px, py), "b": (px + dx * t, py + dy * t)})
+    return out
