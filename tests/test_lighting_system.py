@@ -1,10 +1,12 @@
 from types import SimpleNamespace
 
 from archforge.ui import pbr_viewport
+from archforge.ui.rendering_quality_upgrade import install_rendering_quality_upgrade
 from archforge.ui.lighting_system import _entity_light_spec, install_lighting_system
 
 
 def test_lighting_runtime_installs_once_and_exposes_night_mode():
+    install_rendering_quality_upgrade()
     install_lighting_system()
     first = pbr_viewport._PBR_HTML
     install_lighting_system()
@@ -16,6 +18,7 @@ def test_lighting_runtime_installs_once_and_exposes_night_mode():
     assert "THREE.PointLight" in first
     assert "THREE.SpotLight" in first
     assert "afStripLights" in first
+    assert "scene.environmentIntensity = night ? 0.035" in first
 
 
 def test_project_light_entity_maps_to_runtime_spec():
