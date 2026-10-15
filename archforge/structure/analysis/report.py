@@ -72,6 +72,18 @@ def report_html(r):
                        f"<td>{e['N_max']}</td><td>{nu}</td><td>{bars}</td><td>{st}</td><td>{_pct(e.get('utilisation', 0))}</td>"
                        f"<td>{_status(e)}</td></tr>")
         out.append("</table>")
+    if r.get("capacity_joints"):
+        from archforge.structure.analysis.capacity import FACTOR
+        rows = "".join(
+            f"<tr><td>{escape(j['joint'])}{' (κορυφή)' if j['top'] else ''}</td><td>{j['axis']}</td>"
+            f"<td>{escape(', '.join(j['beams']))}</td><td>{j['sum_MRb']}</td><td>{escape(', '.join(j['columns']))}</td>"
+            f"<td>{j['sum_MRc']}</td><td>{j['ratio']:.2f} {'✓' if j['meets'] else '⚠'}</td></tr>" for j in r["capacity_joints"])
+        out.append(f"<h3>Ικανοτικός έλεγχος κόμβων ΣM<sub>Rc</sub> / ΣM<sub>Rb</sub></h3>"
+                   f"<p><i>Σύγκριση με {FACTOR:.2f}: τιμή από το δείγμα τεύχους του ιδιοκτήτη, μη επαληθευμένη με το κείμενο "
+                   "του κανονισμού — ενημερωτικό, δεν αλλάζει την επάρκεια των μελών. Εξαιρέσεις του κανονισμού (π.χ. κορυφή) "
+                   "δεν εφαρμόζονται.</i></p><table border=1 cellspacing=0 cellpadding=3><tr><th>Κόμβος</th><th>Διεύθυνση</th>"
+                   "<th>Δοκοί</th><th>ΣM<sub>Rb</sub> (kNm)</th><th>Κολόνες</th><th>ΣM<sub>Rc</sub> (kNm)</th><th>Λόγος</th></tr>"
+                   + rows + "</table>")
     if r.get("foundation"):
         from archforge.structure.foundation import foundation_html
         out.append(foundation_html(r["foundation"]))

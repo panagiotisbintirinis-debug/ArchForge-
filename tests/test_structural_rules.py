@@ -146,3 +146,46 @@ def test_portal_frame_sway_matches_slope_deflection():
     U, _, _ = Frame(nodes, els, {0: FIXED, 3: FIXED}).solve({1: (H, 0, 0, 0, 0, 0)})
     assert U[1][0] == pytest.approx(delta, rel=1e-4) and U[2][0] == pytest.approx(delta, rel=1e-4)
     assert abs(U[1][4]) == pytest.approx(abs(theta), rel=1e-4)
+
+
+# --- Strong column – weak beam ratio (informative, UNVERIFIED factor) -------------------------
+
+def test_joint_ratio_is_reported_from_the_designed_bars_and_never_fails_a_member():
+    from archforge.structure.analysis import analyze
+    from archforge.structure.analysis.capacity import FACTOR
+    from archforge.structure.analysis.rc import column_capacity
+    from tests.test_structural_analysis import _building
+    assert rule('structure.capacity_joints').status != VERIFIED and FACTOR == 1.30
+    doc, _ = _building(storeys=2)
+    r = analyze(doc)
+    joints = r['capacity_joints']
+    assert joints and {j['axis'] for j in joints} == {'X', 'Y'}
+    by_name = {e['name']: e for e in r['members'].values()}
+    # A corner joint by hand: one beam ends there, so ΣMRb = the larger of its top / bottom MRd.
+    j = next(j for j in joints if j['x'] in (0.0, 10.0) and j['y'] in (0.0, 8.0) and not j['top'])
+    (name,) = j['beams']
+    beam = by_name[name]
+    assert j['sum_MRb'] == pytest.approx(max(beam['top']['MRd'], beam['bottom']['MRd']), abs=0.1)
+    # Where a continuous beam passes through an edge joint, both sides count: hogging one side + sagging the other.
+    j = next(j for j in joints if j['axis'] == 'X' and j['x'] == 5.0 and j['y'] == 0.0 and not j['top'])
+    beam = by_name[j['beams'][0]]
+    assert len(j['beams']) == 1
+    assert j['sum_MRb'] == pytest.approx(beam['top']['MRd'] + beam['bottom']['MRd'], abs=0.1)
+    assert j['ratio'] == pytest.approx(j['sum_MRc'] / j['sum_MRb'], abs=0.01)
+    assert j['meets'] == (j['ratio'] >= FACTOR)
+    # A joint below the factor is flagged in the report only: member adequacy is unchanged.
+    flagged = [j for j in joints if not j['meets']]
+    for j in flagged:
+        assert all(by_name[c].get('ok', True) or by_name[c].get('checks') for c in j['columns'])
+    from archforge.structure.analysis.report import report_html
+    html = report_html(r)
+    assert 'ΣM<sub>Rc</sub> / ΣM<sub>Rb</sub>' in html and 'μη επαληθευμένη' in html
+
+
+def test_bigger_columns_raise_the_joint_ratio():
+    from archforge.structure.analysis import analyze
+    from tests.test_structural_analysis import _building
+    small = {(j['x'], j['y'], j['z'], j['axis']): j['ratio'] for j in analyze(_building(storeys=2, col=0.35)[0])['capacity_joints']}
+    big = {(j['x'], j['y'], j['z'], j['axis']): j['ratio'] for j in analyze(_building(storeys=2, col=0.50)[0])['capacity_joints']}
+    common = set(small) & set(big)
+    assert common and sum(big[k] > small[k] for k in common) > len(common) / 2

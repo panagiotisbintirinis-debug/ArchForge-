@@ -274,6 +274,9 @@ def analyze(doc):
         result["members"][m.id] = entry
         if not entry.get("ok", True):
             result["ok"] = False
+    if seismic_cases:
+        from archforge.structure.analysis.capacity import joint_checks
+        result["capacity_joints"] = joint_checks(model, result["members"], designs, settings)
     result["footings"] = _footings(model, frame, settings, seismic_cases, combos)
     for f in result["footings"]:
         if not f["pressure_ok"]:
