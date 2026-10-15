@@ -108,6 +108,14 @@ class Frame:
             self._Kinv = (Linv.T @ Linv) / scale[:, None] / scale[None, :]
         self._Kff = Kff
 
+    def flexibility(self, dofs: Sequence[int]):
+        """Flexibility sub-matrix (m/kN, rad/kNm) between global ``dofs`` (6·node + i); fixed dofs → None."""
+        pos = {int(g): i for i, g in enumerate(self.free)}
+        if self._Kinv is None or any(int(d) not in pos for d in dofs):
+            return None
+        ii = [pos[int(d)] for d in dofs]
+        return self._Kinv[np.ix_(ii, ii)]
+
     def solve(self, loads: Dict[int, Sequence[float]]):
         """Nodal loads {node: (Fx, Fy, Fz, Mx, My, Mz)} → (displacements, element end forces in local axes)."""
         n = 6 * len(self.nodes)

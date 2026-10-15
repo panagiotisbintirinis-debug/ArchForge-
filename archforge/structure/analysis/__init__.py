@@ -275,6 +275,8 @@ def analyze(doc):
         if not entry.get("ok", True):
             result["ok"] = False
     if seismic_cases:
+        from archforge.structure.analysis.modal import modal_analysis
+        result["modal"] = modal_analysis(model, frame, settings, seismic_report)
         from archforge.structure.analysis.capacity import joint_checks
         result["capacity_joints"] = joint_checks(model, result["members"], designs, settings)
     result["footings"] = _footings(model, frame, settings, seismic_cases, combos)

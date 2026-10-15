@@ -36,6 +36,23 @@ def report_html(r):
                    f"q = {q['q']:.2f} · ag = {q['ag_ms2']} m/s² · T(Ct·H<sup>¾</sup>) = {q['T_ct_s']} s</p>"
                    "<table border=1 cellspacing=0 cellpadding=3><tr><th>Διεύθυνση</th><th>T₁ Rayleigh (s)</th>"
                    "<th>Sd (m/s²)</th><th>λ</th><th>Fb (kN)</th><th>Σχετική μετακίνηση ν·dr/h</th></tr>" + rows + "</table>")
+    md = r.get("modal") or {}
+    if md.get("ok"):
+        rows = "".join(
+            f"<tr><td>{m['mode']}</td><td>{m['T_s']:.3f}</td><td>{m['omega']:.2f}</td><td>{m['mx']:.1%}</td>"
+            f"<td>{m['my']:.1%}</td><td>{m['mt']:.1%}</td><td>{m['Sd_ms2']:.3f}</td><td>{m['dominant']}</td></tr>" for m in md["modes"])
+        cmp = " · ".join(
+            f"V<sub>{d}</sub> SRSS {md[f'V_{d}_srss_kN']} / CQC {md[f'V_{d}_cqc_kN']} kN"
+            + (f" (ισοδύναμη στατική {md[f'V_{d}_lateral_kN']})" if f"V_{d}_lateral_kN" in md else "") for d in ("X", "Y"))
+        out.append("<h3>Ιδιομορφές (φασματική ανάλυση) — ενημερωτικά</h3>"
+                   "<p><i>Η διαστασιολόγηση των μελών χρησιμοποιεί ακόμη την ισοδύναμη στατική μέθοδο. "
+                   f"Κριτήριο {md['target']:.0%} συμμετοχής μάζας: από το δείγμα τεύχους του ιδιοκτήτη, μη επαληθευμένο.</i></p>"
+                   "<table border=1 cellspacing=0 cellpadding=3><tr><th>Ιδιομορφή</th><th>T (s)</th><th>ω (rad/s)</th>"
+                   "<th>M<sub>x</sub></th><th>M<sub>y</sub></th><th>M<sub>θ</sub></th><th>Sd (m/s²)</th><th>Κυρίαρχη</th></tr>"
+                   + rows + f"<tr><td colspan=3><b>Σύνολο {md['n_modes']} ιδιομορφών</b></td><td>{md['cum_x']:.1%}</td>"
+                   f"<td>{md['cum_y']:.1%}</td><td>{md['cum_t']:.1%}</td><td colspan=2>"
+                   f"{'✓' if md['target_met'] else '⚠ < ' + format(md['target'], '.0%')}</td></tr></table>"
+                   f"<p>Τέμνουσα βάσης: {cmp}</p>")
     members = list(r.get("members", {}).values())
     beams = [e for e in members if e["kind"] == "beam"]
     cols = [e for e in members if e["kind"] == "column"]
