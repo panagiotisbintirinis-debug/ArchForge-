@@ -4,6 +4,7 @@ from .material_library import install_material_library
 from .material_object_integration import install_material_object_integration
 from .library_instance_integration import install_library_instance_model
 from .rendering_quality_upgrade import install_rendering_quality_upgrade
+from .plumbing_display import install_plumbing_display
 
 # Upgrade only the visual PBR presentation.  Geometry/model ownership remains
 # untouched; the embedded Three.js viewport receives the improved look before
@@ -19,6 +20,9 @@ install_material_object_integration()
 # Catalogue assets are immutable definitions.  Every placement is a fresh
 # project instance that owns size/material/sculpt overrides and reset defaults.
 install_library_instance_model(MainWindow)
+# Plumbing annotations are view-only.  The default plan stays clean; users can
+# opt into diameters/lengths from the plumbing menu without changing the model.
+install_plumbing_display(MainWindow)
 
 
 def main():
