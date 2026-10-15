@@ -182,8 +182,9 @@ def test_mouse_menu_object_actions_and_door_flip_handle(window):
                            'hinge': 'left', 'swing': 'in'}, parent_id=wall.id)
     window.stack.execute(AddEntity(door))
     ids = [e['id'] for e in build_menu(window, 'pbr', door.id)['entries']]
-    assert {'mm:obj:hinge', 'mm:obj:swing'} <= set(ids)
-    run(window, 'pbr', door.id, 'mm:obj:hinge')
+    # Owner 15/10: hinge and opening side are one «Φορά ▸» choice of the 4 positions.
+    assert 'mm:menu:way' in ids and not {'mm:obj:hinge', 'mm:obj:swing'} & set(ids)
+    run(window, 'pbr', door.id, 'mm:obj:way_in_right')
     assert window.doc.get(door.id).params['hinge'] == 'right'
     window.doc.select([door.id])
     plan.redraw()

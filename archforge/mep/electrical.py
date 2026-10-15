@@ -40,8 +40,13 @@ VOLTAGE = 230.0
 POINT_TYPES = {
     "panel": ("Ηλεκτρικός πίνακας", "panel", 0, 1.60, "ΠΙ"),
     "light": ("Φωτιστικό οροφής", "lighting", 60, None, "Φ"),
+    "spot": ("Σποτ (κατευθυνόμενο)", "lighting", 7, None, "Σπ"),
+    "downlight": ("Χωνευτό φωτιστικό οροφής", "lighting", 10, None, "Χ"),
+    "wall_washer": ("Wall washer (φως σε τοίχο)", "lighting", 12, None, "WW"),
+    "led_strip": ("Κρυφός φωτισμός — ταινία LED", "lighting", 0, None, "LED"),
     "wall_light": ("Απλίκα", "lighting", 40, 2.00, "Α"),
     "switch": ("Διακόπτης", "switch", 0, 1.10, "Δ"),
+    "dimmer": ("Ροοστάτης (dimmer)", "switch", 0, 1.10, "Δρ"),
     "socket": ("Πρίζα σούκο", "sockets", 200, 0.30, "Ρ"),
     "kitchen_socket": ("Πρίζα πάγκου κουζίνας", "kitchen_sockets", 500, 1.10, "ΡΚ"),
     "cooker": ("Κουζίνα/φούρνος", "cooker", 6000, 0.30, "ΚΦ"),
@@ -62,6 +67,23 @@ CIRCUIT_RULES = {
     "dishwasher": ("Πλυντήριο πιάτων", 16, 2.5, 1),
 }
 GROUP_ORDER = tuple(CIRCUIT_RULES)
+SWITCH_TYPES = ("switch", "dimmer")
+STRIP_W_PER_M = 9.6        # default LED strip load (W/m): set from the strip's data sheet
+
+
+def strip_length(params):
+    """Length (m) of an LED strip point (from x, y to x2, y2); 0 for other points."""
+    if params.get("point_type") != "led_strip":
+        return 0.0
+    return math.hypot(float(params.get("x2", params["x"])) - float(params["x"]),
+                      float(params.get("y2", params["y"])) - float(params["y"]))
+
+
+def point_load_w(params):
+    """Design load (W): the strip's W/m × length, otherwise the point's power."""
+    if params.get("point_type") == "led_strip":
+        return float(params.get("w_per_m", STRIP_W_PER_M)) * strip_length(params)
+    return float(params.get("power_w", POINT_TYPES[params["point_type"]][2]))
 
 
 def electrical_points(doc):
@@ -80,8 +102,12 @@ def _ceiling(doc, floor):
 
 def mount_z(doc, params):
     floor = _floor_of(doc, float(params["z"]))
-    h = POINT_TYPES[params["point_type"]][3]
-    return _ceiling(doc, floor) if h is None else floor + h
+    if "mount_height" in params:
+        return floor + float(params["mount_height"])
+    if POINT_TYPES[params["point_type"]][3] is None:
+        from archforge.mep.lighting import ceiling_mount_z
+        return ceiling_mount_z(doc, params, floor, _ceiling(doc, floor))
+    return floor + POINT_TYPES[params["point_type"]][3]
 
 
 def _room_of(doc, x, y, floor):
@@ -139,7 +165,7 @@ def design_circuits(doc):
             chunks.append(current)
         for chunk in chunks:
             number += 1
-            watts = sum(float(e.params.get("power_w", POINT_TYPES[e.params["point_type"]][2])) for e in chunk)
+            watts = sum(point_load_w(e.params) for e in chunk)
             amps = watts / VOLTAGE
             dedicated = limit == 1
             # Shared circuits keep 20 % margin; a dedicated line must carry its appliance.
@@ -151,19 +177,31 @@ def design_circuits(doc):
                 limit_txt = f"{breaker} A" if dedicated else f"80% της ασφάλειας {breaker} A"
                 out["report"]["warnings"].append(f"{circuit['id']} {label}: {amps:.1f} A > {limit_txt} — {fix}")
             out["circuits"].append(circuit)
-    # Switches control the lights of their room (same storey).
+    # Switches and dimmers control the lights of their automation group, otherwise of their room (same storey).
     lights = [(e, _room_of(doc, float(e.params["x"]), float(e.params["y"]), _floor_of(doc, float(e.params["z"]))),
                _floor_of(doc, float(e.params["z"]))) for e in points if POINT_TYPES[e.params["point_type"]][1] == "lighting"]
-    for sw in (e for e in points if e.params["point_type"] == "switch"):
+    # Groups that have their own switch/dimmer; their lights leave the room's plain switch.
+    grouped = {str(e.params.get("automation_group", "")) for e in points if e.params["point_type"] in SWITCH_TYPES} - {""}
+    for sw in (e for e in points if e.params["point_type"] in SWITCH_TYPES):
         floor = _floor_of(doc, float(sw.params["z"]))
         room = _room_of(doc, float(sw.params["x"]), float(sw.params["y"]), floor)
-        controlled = [l.id for l, lroom, lfloor in lights if lfloor == floor and lroom == room and room is not None]
+        group = str(sw.params.get("automation_group", ""))
+        if group:
+            controlled = [l.id for l, _r, _f in lights if str(l.params.get("automation_group", "")) == group]
+        else:
+            controlled = [l.id for l, lroom, lfloor in lights if lfloor == floor and lroom == room and room is not None
+                          and str(l.params.get("automation_group", "")) not in grouped]
         if not controlled:
             near = sorted((math.hypot(float(l.params["x"]) - float(sw.params["x"]), float(l.params["y"]) - float(sw.params["y"])), l.id)
                           for l, _r, lf in lights if lf == floor)
             controlled = [near[0][1]] if near else []
-        out["switch_links"].append({"switch": sw.id, "lights": controlled})
+        out["switch_links"].append({"switch": sw.id, "lights": controlled, "dimmer": sw.params["point_type"] == "dimmer",
+                                    "group": group})
     return out
+
+
+def _ceiling_fed(e):
+    return POINT_TYPES[e.params["point_type"]][3] is None and "mount_height" not in e.params
 
 
 WALL_RUN_Z = 2.35          # horizontal conduits above the lintels (Greek practice 2.30-2.40 m)
@@ -240,7 +278,7 @@ def route_cables(doc):
         cid, group = circuit["id"], circuit["group"]
         split = {"wall": [], "floor": []}
         for e in members:
-            ceiling_light = e.params["point_type"] == "light"
+            ceiling_light = POINT_TYPES[e.params["point_type"]][3] is None and "mount_height" not in e.params
             split["wall" if ceiling_light else routing_of(doc, e)].append(e)
         for mode, chosen in split.items():
             if not chosen:
@@ -253,8 +291,8 @@ def route_cables(doc):
             for e in chosen:
                 ex, ey = float(e.params["x"]), float(e.params["y"])
                 cell = grid.cell(ex, ey)
-                if mode == "wall" and e.params["point_type"] == "light":
-                    # Box on the nearest wall, then through the ceiling to the light.
+                if mode == "wall" and _ceiling_fed(e) and (grid.wall or grid.near):
+                    # Box on the nearest wall, then through the ceiling to the light (no walls yet: right above it).
                     cell = min(grid.wall | grid.near, key=lambda c: (c not in grid.wall, math.hypot(*(q - r for q, r in zip(grid.point(c), (ex, ey))))))
                 targets[e.id] = cell
             paths, _loads, parent = _grow(grid, source, targets)
@@ -278,8 +316,8 @@ def route_cables(doc):
             for e in chosen:
                 bx, by = grid.point(targets[e.id])
                 device_z = mount_z(doc, e.params)
-                if mode == "wall" and e.params["point_type"] == "light":
-                    zc = _ceiling(doc, floor)
+                if mode == "wall" and _ceiling_fed(e):
+                    zc = mount_z(doc, e.params)
                     ex, ey = float(e.params["x"]), float(e.params["y"])
                     boxes.append((bx, by, z, "junction", cid))
                     runs += [((bx, by, z), (bx, by, zc), group, cid), ((bx, by, zc), (ex, by, zc), group, cid),
@@ -320,6 +358,8 @@ def route_cables_cached(doc):
             items.append(("e", e.id, tuple(sorted((k, str(v)) for k, v in e.params.items()))))
         elif e.kind == "wall":
             items.append(("w", e.id, tuple(round(float(e.params[k]), 6) for k in ("x1", "y1", "x2", "y2", "z", "thickness"))))
+        elif e.kind == "drywall_ceiling":          # hidden lights sit in its cove
+            items.append(("d", e.id, tuple(sorted((k, str(v)) for k, v in e.params.items()))))
     key = (tuple(sorted(items)), tuple(sorted((str(k), float(v)) for k, v in doc.levels.items())),
            tuple(sorted((k, str(v)) for k, v in doc.room_data.items())) if hasattr(doc, "room_data") else ())
     if _CACHE["key"] != key:
@@ -331,6 +371,15 @@ def point_marker_mesh(doc, params):
     """Small box at the point's mounting position (selectable in 3D)."""
     x, y = float(params["x"]), float(params["y"])
     z = mount_z(doc, params)
+    if params["point_type"] == "led_strip" and strip_length(params) > 1e-6:
+        # The strip itself: a 1 cm × 2 cm bar along its line.
+        x2, y2 = float(params["x2"]), float(params["y2"])
+        L = strip_length(params)
+        ux, uy = (x2 - x) / L, (y2 - y) / L
+        nx, ny = -uy * 0.01, ux * 0.01
+        c = [(px + sx * nx, py + sx * ny, z + dz) for px, py in ((x, y), (x2, y2)) for sx in (-1, 1) for dz in (0.0, 0.01)]
+        quads = [(0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3), (0, 1, 3, 2), (4, 6, 7, 5)]
+        return c, [t for a, b, cc, d in quads for t in ((a, b, cc), (a, cc, d))]
     s = 0.12 if params["point_type"] == "panel" else 0.06
     h = 0.4 if params["point_type"] == "panel" else 0.06
     c = [(x + dx, y + dy, z + dz) for dx in (-s, s) for dy in (-s / 2, s / 2) for dz in (-h / 2, h / 2)]

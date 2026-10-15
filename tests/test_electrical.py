@@ -60,7 +60,7 @@ def test_switch_controls_lights_of_its_room_and_cables_follow_moves():
     left, right = _pt(stack, 'light', 2, 3), _pt(stack, 'light', 6, 3)
     sw = _pt(stack, 'switch', 4.4, 1.0)
     r = route_cables(doc)
-    assert r['switch_links'] == [{'switch': sw.id, 'lights': [right.id]}]
+    assert [(l['switch'], l['lights'], l['dimmer']) for l in r['switch_links']] == [(sw.id, [right.id], False)]
     before = route_cables_cached(doc)['report']['cable_m']
     stack.execute(MoveEntities([right.id], 1.5, 2.5))
     assert route_cables_cached(doc)['report']['cable_m'] != before

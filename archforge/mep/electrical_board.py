@@ -141,8 +141,8 @@ def _location(doc, walls, floor, a, b):
     """('wall', wall id) / ('ceiling', None) / ('floor', None) / ('free', None) for one run."""
     zc = _ceiling(doc, floor)
     horizontal = abs(a[2] - b[2]) < 1e-9
-    if horizontal and abs(a[2] - zc) < 1e-6:
-        return ("ceiling", None)
+    if horizontal and (abs(a[2] - zc) < 1e-6 or a[2] > floor + WALL_RUN_Z + 1e-6):
+        return ("ceiling", None)                     # under the slab or in a plasterboard ceiling
     if horizontal and a[2] < floor + 0.10:
         return ("floor", None)
     if not horizontal and max(a[2], b[2]) <= floor + 0.16 + 1e-9:

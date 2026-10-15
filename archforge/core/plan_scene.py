@@ -832,6 +832,10 @@ def build_plan_frame(doc,preview=None,layers=True):
         for eid in doc.entities:
             e=doc.get(eid)
             if e.kind=='electrical_point' and _entity_on_active_level(doc,e):
+                if e.params['point_type']=='led_strip' and 'x2' in e.params:
+                    # Hidden light: its true line on the (ceiling) plan, dashed like every overhead element.
+                    f.primitives.append(Primitive2D('polyline',((float(e.params['x']),float(e.params['y'])),(float(e.params['x2']),float(e.params['y2']))),
+                                                    entity_id=eid,role='led-strip',meta=(('kelvin',float(e.params.get('kelvin',3000.0))),)))
                 text=ELEC[e.params['point_type']][4]+(f" {names[eid]}" if eid in names else '')
                 f.primitives.append(Primitive2D('label',((float(e.params['x'])+.12,float(e.params['y'])-.25),),entity_id=eid,role='electrical-label',meta=(('text',text),)))
     # Derived joists of the active storey: one dashed line per joist and the solver's label.

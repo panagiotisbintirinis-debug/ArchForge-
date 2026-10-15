@@ -1,0 +1,138 @@
+"""Luminaires are electrical points: load, circuit, dimmer/group, cove of the plasterboard ceiling, light effect."""
+import math
+import os
+
+os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+
+import pytest
+
+from archforge.core.commands import AddEntity, AddEntities, CommandStack, UpdateEntity
+from archforge.core.model import Document, Entity
+from archforge.mep.electrical import POINT_TYPES, design_circuits, mount_z, route_cables
+from archforge.mep.lighting import cove_strips, light_spec, light_specs, lighting_report
+from tests.test_electrical import _house, _pt
+
+
+def _cove_ceiling(stack):
+    from archforge.construction.drywall import default_params
+    p = default_params(points=[(0.1, 0.1), (3.9, 0.1), (3.9, 5.9), (0.1, 5.9)], level_z=0.0)
+    p.update(cove=1, cove_width=0.30, cove_depth=0.10, drop=0.30)
+    e = Entity('drywall_ceiling', p, name='Ψευδοροφή σαλονιού')
+    stack.execute(AddEntity(e))
+    return e
+
+
+def test_strip_load_is_w_per_m_times_length_on_a_lighting_circuit():
+    doc = Document(); stack = CommandStack(doc); _house(stack)
+    _pt(stack, 'panel', 0.3, 3.0)
+    strip = _pt(stack, 'led_strip', 1.0, 1.0, x2=3.5, y2=1.0, w_per_m=14.4)
+    spot = _pt(stack, 'spot', 2.0, 3.0)
+    c = next(c for c in design_circuits(doc)['circuits'] if strip.id in c['points'])
+    assert c['group'] == 'lighting' and spot.id in c['points']
+    assert c['load_w'] == round(14.4 * 2.5 + POINT_TYPES['spot'][2])
+    stack.execute(UpdateEntity(strip.id, {'x2': 5.0}))                 # longer strip -> more load
+    assert next(c for c in design_circuits(doc)['circuits'] if strip.id in c['points'])['load_w'] > c['load_w']
+    with pytest.raises(ValueError):
+        stack.execute(UpdateEntity(spot.id, {'kelvin': 500.0}))
+    with pytest.raises(ValueError):
+        stack.execute(UpdateEntity(spot.id, {'beam_deg': 0.0}))
+
+
+def test_cove_strips_sit_in_the_plasterboard_slot_and_follow_its_drop():
+    from archforge.construction.drywall import BOARD_THICKNESS, ceiling_level
+    doc = Document(); stack = CommandStack(doc); _house(stack)
+    _pt(stack, 'panel', 0.3, 3.0)
+    ceiling = _cove_ceiling(stack)
+    strips = cove_strips(doc, ceiling)
+    assert len(strips) == 4 and len({s['automation_group'] for s in strips}) == 1
+    stack.execute(AddEntities([Entity('electrical_point', p) for p in strips]))
+    ids = [e.id for e in doc.entities.values() if e.params.get('point_type') == 'led_strip']
+    board = ceiling_level(doc, ceiling.params)
+    for i in ids:
+        z = mount_z(doc, doc.get(i).params)
+        assert z == pytest.approx(board + BOARD_THICKNESS)                # on the low band, behind the upstand
+        assert light_spec(doc, doc.get(i))['direction'] == 'up'           # indirect, into the slot
+    total = sum(math.hypot(doc.get(i).params['x2'] - doc.get(i).params['x'], doc.get(i).params['y2'] - doc.get(i).params['y']) for i in ids)
+    assert total == pytest.approx(2 * (3.8 - 0.5) + 2 * (5.8 - 0.5), abs=0.05)
+    stack.execute(UpdateEntity(ceiling.id, {'drop': 0.40}))
+    assert mount_z(doc, doc.get(ids[0]).params) == pytest.approx(ceiling_level(doc, doc.get(ceiling.id).params) + BOARD_THICKNESS)
+    # A ceiling without a cove refuses, with the reason.
+    stack.execute(UpdateEntity(ceiling.id, {'cove': 0}))
+    with pytest.raises(ValueError):
+        cove_strips(doc, doc.get(ceiling.id))
+
+
+def test_dimmer_of_the_group_controls_the_hidden_light_and_the_report_sizes_the_driver():
+    doc = Document(); stack = CommandStack(doc); _house(stack)
+    _pt(stack, 'panel', 0.3, 3.0)
+    ceiling = _cove_ceiling(stack)
+    strips = cove_strips(doc, ceiling)
+    stack.execute(AddEntities([Entity('electrical_point', p) for p in strips]))
+    lamp = _pt(stack, 'downlight', 2.0, 3.0)
+    plain = _pt(stack, 'switch', 3.6, 1.0)
+    dimmer = _pt(stack, 'dimmer', 3.6, 1.4, automation_group=strips[0]['automation_group'])
+    links = {l['switch']: l for l in design_circuits(doc)['switch_links']}
+    strip_ids = {e.id for e in doc.entities.values() if e.params.get('point_type') == 'led_strip'}
+    assert set(links[dimmer.id]['lights']) == strip_ids and links[dimmer.id]['dimmer']
+    assert links[plain.id]['lights'] == [lamp.id]                         # the room switch keeps the downlight
+    report = lighting_report(doc)
+    hidden = next(g for g in report['groups'] if g['group'] == strips[0]['automation_group'])
+    assert hidden['driver_w'] == pytest.approx(hidden['load_w'] * 1.2, abs=0.2) and hidden['strip_m'] > 15
+    spec = light_spec(doc, doc.get(next(iter(strip_ids))))
+    assert spec['dimmer'] and spec['switch'] == dimmer.id and spec['circuit'].startswith('Κ')
+    assert 'φύλλο' in report['provenance']
+
+
+def test_light_spec_is_the_renderer_view_of_the_same_entity():
+    doc = Document(); stack = CommandStack(doc); _house(stack)
+    _pt(stack, 'panel', 0.3, 3.0)
+    spot = _pt(stack, 'spot', 2.0, 3.0, lumen=600.0, beam_deg=24.0, kelvin=2700.0, target_x=2.0, target_y=5.9, target_z=1.0)
+    washer = _pt(stack, 'wall_washer', 6.0, 5.5)
+    strip = _pt(stack, 'led_strip', 5.0, 1.0, x2=7.0, y2=1.0, dim_level=0.5)
+    s = light_spec(doc, spot)
+    assert s['kind'] == 'spot' and s['angle_deg'] == 12.0 and s['kelvin'] == 2700.0 and s['target'] == [2.0, 5.9, 1.0]
+    assert s['intensity'] == pytest.approx(600 / (2 * math.pi * (1 - math.cos(math.radians(12)))))
+    w = light_spec(doc, washer)
+    assert w['target'][1] == pytest.approx(6.0) and w['target'][2] < w['position'][2]   # aimed at the nearest wall
+    st = light_spec(doc, strip)
+    assert st['kind'] == 'strip' and st['start'][0] == 5.0 and st['end'][0] == 7.0 and st['length_m'] == 2.0
+    assert st['lumen'] == pytest.approx(2.0 * 9.6 * 90 * 0.5)
+    stack.execute(UpdateEntity(strip.id, {'dim_level': 0.0}))
+    assert light_spec(doc, doc.get(strip.id))['enabled'] is False
+    assert {x['id'] for x in light_specs(doc)} == {spot.id, washer.id, strip.id}   # sockets/panel are not lights
+    # The strip is drawn on the plan as its own line.
+    from archforge.core.plan_scene import build_plan_frame
+    lines = [p for p in build_plan_frame(doc).primitives if p.role == 'led-strip']
+    assert len(lines) == 1 and lines[0].entity_id == strip.id
+
+
+def test_drag_a_strip_and_cove_command_from_the_menu():
+    from PySide6.QtWidgets import QApplication
+    from archforge.ui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    try:
+        window.plan_view.sitePointRequested.emit('elec_panel', 0.5, 0.5)
+        window.plan_view.siteLineRequested.emit('elec_led_strip', 1.0, 1.0, 3.0, 1.0)
+        strip = next(e for e in window.doc.entities.values() if e.params.get('point_type') == 'led_strip')
+        assert (strip.params['x2'], strip.params['y2']) == (3.0, 1.0)
+        assert window._cove_lighting() == []                              # no cove ceiling yet: says so
+        _cove_ceiling(window.stack)
+        n = len(window.doc.entities)
+        added = window._cove_lighting()
+        assert len(added) == 4 and len(window.doc.entities) == n + 4
+        window._undo()
+        assert len(window.doc.entities) == n                              # one undo
+    finally:
+        window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_board_counts_cove_cable_as_ceiling():
+    from archforge.mep.electrical_board import analyse
+    doc = Document(); stack = CommandStack(doc); _house(stack)
+    _pt(stack, 'panel', 0.3, 3.0)
+    ceiling = _cove_ceiling(stack)
+    stack.execute(AddEntities([Entity('electrical_point', p) for p in cove_strips(doc, ceiling)]))
+    r = analyse(doc)
+    assert not any(w['kind'] == 'free' for w in r['walls'])
+    assert any(w['kind'] == 'ceiling' for w in r['walls'])

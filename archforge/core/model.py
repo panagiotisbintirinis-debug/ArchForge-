@@ -280,6 +280,28 @@ def _elec_supply(v):
     return v
 
 
+def _kelvin(v):
+    v = _finite(v)
+    if not 1000.0 <= v <= 10000.0:
+        raise ValueError('colour temperature must be between 1000 and 10000 K')
+    return v
+
+
+def _beam(v):
+    v = _finite(v)
+    if not 1.0 <= v <= 180.0:
+        raise ValueError('beam angle must be between 1 and 180 degrees')
+    return v
+
+
+def _light_direction(v):
+    from archforge.mep.lighting import DIRECTIONS
+    v = str(v)
+    if v not in DIRECTIONS:
+        raise ValueError(f'direction must be one of {", ".join(DIRECTIONS)}')
+    return v
+
+
 def _count(v):
     value = int(round(float(v)))
     if not 0 <= value <= 20:
@@ -709,7 +731,12 @@ SCHEMAS = {
                      'shed_high': _shed_high},
     'electrical_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _electrical_type, 'power_w': _nonnegative,
                          'routing': _cable_routing, 'supply': _elec_supply, 'demand_factor': _unit_interval,
-                         'waste_pct': _nonnegative},
+                         'waste_pct': _nonnegative,
+                         # luminaires (mep/lighting.py): strip end, load, light effect, control
+                         'x2': _finite, 'y2': _finite, 'w_per_m': _nonnegative, 'lumen': _nonnegative, 'kelvin': _kelvin,
+                         'beam_deg': _beam, 'dim_level': _unit_interval, 'direction': _light_direction,
+                         'automation_group': str, 'mount_height': _nonnegative,
+                         'target_x': _finite, 'target_y': _finite, 'target_z': _finite},
     'plumbing_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _plumbing_type, 'pipe_system': _pipe_system},
     'ceiling_joists': {'points': _polygon, 'z': _finite, 'spacing': _joist_spacing, 'usage': _joist_usage,
                        'direction': _joist_direction},

@@ -704,6 +704,8 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(message, 8000)
 
     def _place_site_line(self, tool, x1, y1, x2, y2):
+        if tool == 'elec_led_strip':
+            return self._place_electrical_point('led_strip', x1, y1, end=(x2, y2))
         if str(tool).startswith('pergola_'):
             return self._place_pergola(tool[len('pergola_'):], x1, y1, x2, y2)
         from archforge.site.paths import STYLES
@@ -1253,12 +1255,16 @@ class MainWindow(QMainWindow):
         return (f"{info['label']}: αεραγωγός Ø{info['diameter']} {where}, {info['airflow']:g} m³/h ≈ {info['velocity_ms']} m/s"
                 f"{' · ⚠ ' + warn if warn else ''} — προμελέτη, προς έλεγχο μηχανολόγου")
 
-    def _place_electrical_point(self, point_type, x, y):
-        """Add an electrical point; circuits and cables are re-derived automatically."""
-        from archforge.mep.electrical import POINT_TYPES, route_cables_cached
+    def _place_electrical_point(self, point_type, x, y, end=None):
+        """Add an electrical point (a strip: dragged line); circuits and cables are re-derived automatically."""
+        from archforge.mep.electrical import POINT_TYPES, STRIP_W_PER_M, route_cables_cached
         label = POINT_TYPES[point_type][0]
-        point = Entity('electrical_point', {'x': float(x), 'y': float(y), 'z': float(self.doc.work_plane.origin[2]),
-                                            'point_type': point_type, 'power_w': float(POINT_TYPES[point_type][2])}, name=label)
+        params = {'x': float(x), 'y': float(y), 'z': float(self.doc.work_plane.origin[2]),
+                  'point_type': point_type, 'power_w': float(POINT_TYPES[point_type][2])}
+        if point_type == 'led_strip':
+            x2, y2 = end if end is not None else (float(x) + 1.0, float(y))
+            params.update(x2=float(x2), y2=float(y2), w_per_m=STRIP_W_PER_M)
+        point = Entity('electrical_point', params, name=label)
         self.stack.execute(AddEntity(point))
         self._redraw_views(all_views=True)
         wiring = route_cables_cached(self.doc)
@@ -1267,6 +1273,29 @@ class MainWindow(QMainWindow):
         warn = f" · ⚠ {wiring['report']['warnings'][0]}" if wiring['report']['warnings'] else ''
         self.statusBar().showMessage(f'{label}{where}{warn} — προμελέτη, προς έλεγχο ηλεκτρολόγου', 8000)
         return point
+
+    def _cove_lighting(self):
+        """LED strips along the cove of the selected plasterboard ceiling(s) (all cove ceilings if none): one undo."""
+        from archforge.core.commands import AddEntities
+        from archforge.mep.electrical import POINT_TYPES
+        from archforge.mep.lighting import cove_strips
+        chosen = [self.doc.get(i) for i in self.doc.selection if i in self.doc.entities and self.doc.get(i).kind == 'drywall_ceiling']
+        if not chosen:
+            chosen = [e for e in self.doc.entities.values() if e.kind == 'drywall_ceiling' and int(e.params.get('cove', 0))]
+        entities, notes = [], []
+        for ceiling in chosen:
+            try:
+                entities += [Entity('electrical_point', p, name=POINT_TYPES['led_strip'][0]) for p in cove_strips(self.doc, ceiling)]
+            except ValueError as exc:
+                notes.append(str(exc))
+        if not entities:
+            self.statusBar().showMessage('Κρυφός φωτισμός: ' + (notes[0] if notes else 'επιλέξτε ψευδοροφή γυψοσανίδας με εσοχή'), 8000)
+            return []
+        self.stack.execute(AddEntities(entities))
+        self._redraw_views(all_views=True)
+        self.statusBar().showMessage(f'Κρυφός φωτισμός: {len(entities)} ταινίες LED σε μία ομάδα — βάλτε ροοστάτη με την ίδια ομάδα '
+                                     'αυτοματισμού· κυκλώματα/μέτρα στην καρτέλα «Ηλεκτρ. πίνακας»', 8000)
+        return entities
 
     def _show_circuit_schedule(self):
         """The «Ηλεκτρ. πίνακας» tab (falls back to a text summary without the tab)."""
