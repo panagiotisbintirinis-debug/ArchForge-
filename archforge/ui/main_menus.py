@@ -127,6 +127,12 @@ def organize_main_menus(window):
         imports = [a for a in imports if a is not None]
         for a in imports[1:]:
             library.removeAction(a)              # the topographic import also stays in Έδαφος (its own workflow)
+        if hasattr(window, "_import_underlay"):
+            from PySide6.QtGui import QAction
+            underlay = QAction("Σχέδιο μηχανικού (PDF / DXF) ως υπόβαθρο…", window)
+            underlay.triggered.connect(lambda _=False: window._import_underlay())
+            imports.insert(0, underlay)
+            window._import_underlay_action = underlay
         camera_menu = _find(view_menu, "Κάμερες")
         image = _find(camera_menu.menu(), "Εξαγωγή εικόνας", True) if camera_menu is not None else None
         exports = [getattr(window, "_pdf_action", None), getattr(window, "export_stl_action", None), image]

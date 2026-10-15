@@ -4,7 +4,7 @@ import copy
 from typing import Optional, Dict
 
 from PySide6.QtCore import QEvent, Qt, QPointF, Signal
-from PySide6.QtGui import QPen, QBrush, QColor, QPainter, QPainterPath
+from PySide6.QtGui import QPen, QBrush, QColor, QPainter, QPainterPath, QTransform
 from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsTextItem, QGraphicsPathItem, QMenu, QToolButton
 
 from archforge.core.model import Document
@@ -23,6 +23,27 @@ class _OpenPathItem(QGraphicsPathItem):
         return stroker.createStroke(self.path())
 
 
+_PDF_CACHE={}
+
+
+def _pdf_page_image(path,page,dpi=150):
+    """Rendered PDF page (QImage), cached per file/page/modification time; None when the file is missing."""
+    import os
+    try:
+        key=(str(path),int(page),os.path.getmtime(path),dpi)
+    except OSError:
+        return None
+    if key not in _PDF_CACHE:
+        from PySide6.QtCore import QSize
+        from PySide6.QtPdf import QPdfDocument
+        doc=QPdfDocument()
+        if doc.load(str(path))!=QPdfDocument.Error.None_ or not 0<=page<doc.pageCount():
+            return None
+        pt=doc.pagePointSize(page)
+        _PDF_CACHE.clear();_PDF_CACHE[key]=doc.render(page,QSize(int(pt.width()*dpi/72),int(pt.height()*dpi/72)))
+    return _PDF_CACHE[key]
+
+
 class PlanView(QGraphicsView):
     selectionChangedByView=Signal();contextActionRequested=Signal(str,str);commandRequested=Signal(str);previewChanged=Signal(object);statusChanged=Signal(str)
     # (kind, x1, y1, x2, y2): a Section or Camera line dragged in the plan.
@@ -30,7 +51,7 @@ class PlanView(QGraphicsView):
     VIEW_LINE_TOOLS={'view_section':'section','view_camera':'camera'}
     # Single-click site tools: (tool, x, y) handled by the main window.
     sitePointRequested=Signal(str,float,float)
-    SITE_POINT_TOOLS=('terrain_point','plot_point','plant_tree','plant_shrub','library_place')
+    SITE_POINT_TOOLS=('terrain_point','plot_point','plant_tree','plant_shrub','library_place','underlay_calibrate')
     # Drag tools for site strips: (tool, x1, y1, x2, y2).
     siteLineRequested=Signal(str,float,float,float,float)
     SITE_LINE_TOOLS=('path_path','path_sidewalk','path_road','pergola_timber','pergola_aluminium','elec_led_strip')
@@ -694,7 +715,7 @@ class PlanView(QGraphicsView):
         for item,min_scale in getattr(self,'_scaled_labels',()):item.setVisible(scale>=min_scale)
     def redraw(self):
         self._scaled_labels=[]
-        self._scene.clear();self._handle_items.clear();self._entity_items.clear();self._draw_grid();frame=build_plan_frame(self.doc,self.controller.preview,layers=not self.structural_only);self._frame=frame
+        self._scene.clear();self._handle_items.clear();self._entity_items.clear();self._draw_grid();self._draw_underlays();frame=build_plan_frame(self.doc,self.controller.preview,layers=not self.structural_only);self._frame=frame
         if self.structural_only:
             structural_ids={
                 eid for eid,e in self.doc.entities.items()
@@ -861,6 +882,42 @@ class PlanView(QGraphicsView):
         if not getattr(self,'_show_grid',True):return
         extent=100;pen=QPen(QColor(225,225,225));pen.setWidthF(0);axis=QPen(QColor(160,160,160));axis.setWidthF(0)
         for i in range(-extent,extent+1):self._scene.addLine(i,-extent,i,extent,axis if i==0 else pen).setZValue(-100);self._scene.addLine(-extent,i,extent,i,axis if i==0 else pen).setZValue(-100)
+    def _draw_underlays(self):
+        """The engineer's drawing (PDF page / DXF lines) under the active storey: faint, never selectable."""
+        from archforge.project.underlay import underlays
+        if self.structural_only:return
+        for e in underlays(self.doc,z=float(self.doc.work_plane.origin[2])):
+            if not e.visible:continue
+            p=e.params
+            if p['source']=='dxf':
+                from PySide6.QtGui import QPainterPath
+                from archforge.project.underlay import model_segments
+                path=QPainterPath()
+                for x1,y1,x2,y2 in model_segments(p):path.moveTo(x1,y1);path.lineTo(x2,y2)
+                pen=QPen(QColor(70,90,120));pen.setCosmetic(True);pen.setWidthF(1.0)
+                item=self._scene.addPath(path,pen)
+            else:
+                image=_pdf_page_image(p['path'],int(p['page']))
+                if image is None:
+                    from archforge.project.underlay import to_model
+                    (ax,ay),(bx,by)=to_model(p,0,0),to_model(p,float(p.get('page_w',595)),float(p.get('page_h',842)))
+                    pen=QPen(QColor(200,60,60));pen.setCosmetic(True);pen.setStyle(Qt.PenStyle.DashLine)
+                    item=self._scene.addRect(min(ax,bx),min(ay,by),abs(bx-ax),abs(by-ay),pen)
+                    item.setToolTip(f"Λείπει το αρχείο PDF: {p['path']}")
+                else:
+                    from PySide6.QtGui import QPixmap
+                    item=self._scene.addPixmap(QPixmap.fromImage(image))
+                    # Image pixels -> PDF points (y down) -> model (y up), scale and rotation of the underlay.
+                    k=float(p.get('page_w',image.width()))/max(1,image.width())
+                    s_=float(p['m_per_unit']);r=math.radians(float(p.get('rotation',0.0)));c,sn=math.cos(r),math.sin(r)
+                    ph=float(p.get('page_h',image.height()*k))
+                    a,b=s_*k*c,s_*k*sn;cc,d=s_*k*sn,-s_*k*c
+                    ox,oy=float(p['x'])-(float(p.get('u0',0.0)))*s_,float(p['y'])
+                    # v = ph - py*k  ->  model = base + R*s*(u, ph - py*k)
+                    tx=ox+(-sn)*s_*ph;ty=oy+c*s_*ph
+                    item.setTransform(QTransform(a,b,0,cc,d,0,tx,ty,1))
+                    item.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
+            item.setOpacity(float(p.get('opacity',0.6)));item.setZValue(-60)
     def _has_symbol(self,entity_id):
         frame=getattr(self,'_frame',None)
         prims=frame.primitives if frame is not None else ()

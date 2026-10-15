@@ -642,6 +642,11 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(
             f'Κορυφή {len(draft)} — κλικ στην πρώτη / Enter / διπλό κλικ για κλείσιμο, Esc για ακύρωση', 8000)
 
+    def _import_underlay(self):
+        """Σχέδιο μηχανικού (PDF / DXF) ως υπόβαθρο του ενεργού ορόφου."""
+        from archforge.ui.underlay_tools import import_drawing
+        return import_drawing(self)
+
     def _import_survey(self):
         """Τοπογραφικό μηχανικού (DXF ή σημεία X Y Z) → έδαφος και όριο οικοπέδου."""
         from PySide6.QtWidgets import QFileDialog
@@ -816,6 +821,9 @@ class MainWindow(QMainWindow):
         return command
 
     def _place_site_point(self, tool, x, y):
+        if tool == 'underlay_calibrate':
+            from archforge.ui.underlay_tools import calibration_click
+            return calibration_click(self, x, y)
         from archforge.site.terrain import terrain_contains, terrain_height
         if tool in ('plant_tree', 'plant_shrub'):
             from archforge.site.plants import SPECIES
@@ -1971,6 +1979,9 @@ class MainWindow(QMainWindow):
             from archforge.ui.project_outline import slab_rows
             for label, text in slab_rows(self.doc, entity):
                 self.form.addRow(label, QLabel(text))
+        if entity.kind == 'underlay':
+            from archforge.ui.underlay_tools import add_rows as underlay_rows
+            underlay_rows(self, eid)
         if entity.kind == 'section_line':
             from archforge.ui.section_view import add_rows as section_rows
             section_rows(self, eid)

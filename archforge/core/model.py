@@ -301,6 +301,13 @@ def _light_direction(v):
     return v
 
 
+def _page_index(v):
+    value = int(round(float(v)))
+    if value < 0:
+        raise ValueError('page must be >= 0')
+    return value
+
+
 def _count(v):
     value = int(round(float(v)))
     if not 0 <= value <= 20:
@@ -776,6 +783,10 @@ SCHEMAS = {
     'slab_opening': {'points': _polygon, 'level_z': _finite, 'room_id': _nonempty,
                      'cuts': _slab_choice('validate_cuts'), 'use': _slab_choice('validate_use')},
     # Section line drawn in the plan (output/section_cut.py): the drawing is derived, only the line is kept.
+    # Engineer's drawing under the plan (project/underlay.py): a picture to draw on, not design geometry.
+    'underlay': {'source': _choice(('pdf', 'dxf'), 'underlay source'), 'path': str, 'page': _page_index, 'x': _finite, 'y': _finite,
+                 'z': _finite, 'u0': _finite, 'v0': _finite, 'm_per_unit': _positive, 'rotation': _finite,
+                 'opacity': _unit_interval, 'page_w': _positive, 'page_h': _positive, 'scale_denominator': _positive},
     'section_line': {'x1': _finite, 'y1': _finite, 'x2': _finite, 'y2': _finite, 'flip': _flag, 'depth': _nonnegative},
     # Saved camera (core/cameras.py): a view preference, never building geometry.
     'camera': {'x': _finite, 'y': _finite, 'level_z': _finite, 'height': _between(0.05, 50.0, 'eye height'),

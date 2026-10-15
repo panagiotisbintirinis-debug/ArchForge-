@@ -27,6 +27,7 @@ CATEGORIES = (
 )
 SITE = ("terrain", "plant", "site_path")
 KIND_LABELS = {
+    "underlay": "Υπόβαθρο (σχέδιο μηχανικού)",
     "wall": "Τοίχος", "door": "Πόρτα", "window": "Παράθυρο", "opening": "Άνοιγμα", "stair": "Σκάλα",
     "ramp": "Ράμπα", "structural_column": "Κολόνα", "structural_beam": "Δοκός", "floor": "Πλάκα",
     "room_floor": "Δάπεδο", "room_ceiling": "Οροφή", "room_foundation": "Θεμέλιο", "room_roof": "Στέγη",

@@ -102,7 +102,11 @@ class MoveEntities(Command):
                 raise ValueError('υφιστάμενο φέρον στοιχείο (ανακαίνιση): δεν μετακινείται')
             if e.kind in ('structural_column','structural_beam') and abs(float(self.dz))>1e-12:
                 raise ValueError(f'{e.kind} vertical position is level-driven; change its level instead')
-            if e.kind in ('box','mechanical_part','library_object','kitchen_part','cabinet','plumbing_point','electrical_point','ventilation_point','drainage_point'):doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy,'z':p['z']+self.dz})
+            if e.kind in ('box','mechanical_part','library_object','kitchen_part','cabinet','plumbing_point','electrical_point','ventilation_point','drainage_point'):
+                changes={'x':p['x']+self.dx,'y':p['y']+self.dy,'z':p['z']+self.dz}
+                if e.kind=='electrical_point' and 'x2' in p:changes.update(x2=p['x2']+self.dx,y2=p['y2']+self.dy)   # LED strip: both ends
+                doc.update(i,changes)
+            elif e.kind=='underlay':doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy})
             elif e.kind=='pitched_roof':doc.update(i,{'x0':p['x0']+self.dx,'x1':p['x1']+self.dx,'y0':p['y0']+self.dy,'y1':p['y1']+self.dy,'eave_z':p['eave_z']+self.dz})
             elif e.kind=='plant':doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy,'z':p['z']+self.dz})
             elif e.kind=='railing':doc.update(i,{'points':[[q[0]+self.dx,q[1]+self.dy,*q[2:]] for q in p['points']],'z':p['z']+self.dz})
