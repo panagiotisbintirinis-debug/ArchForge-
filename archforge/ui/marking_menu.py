@@ -16,8 +16,8 @@ from __future__ import annotations
 
 import math
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QLabel, QToolButton, QWidget, QMenu
+from PySide6.QtCore import QPoint, QSize, Qt, Signal
+from PySide6.QtWidgets import QToolButton, QWidget
 
 SCULPT_OPS = (("pull", "Τράβηγμα"), ("push", "Σπρώξιμο"), ("inflate", "Φούσκωμα"), ("recess", "Βύθιση"),
               ("smooth", "Λείανση"), ("crease", "Πτυχή"))
@@ -30,8 +30,53 @@ BUILD_TOOLS = (("wall", "Τοίχος"), ("door", "Πόρτα"), ("window", "Π�
 BRUSH_STEP = 0.05
 
 
-def _e(action_id, label, placement="radial", checked=False, danger=False):
-    return {"id": action_id, "label": label, "placement": placement, "checked": checked, "danger": danger}
+def _e(action_id, label, placement="radial", checked=False, danger=False, children=None):
+    e = {"id": action_id, "label": label, "placement": placement, "checked": checked, "danger": danger}
+    if children:
+        e["children"] = list(children)        # a submenu: opens in place, in the mouse menu itself
+    return e
+
+
+# Icon per command (drawn in code: ui/menu_icons.py). Choices that are a state (✓, angles, types) stay text.
+ICONS = {
+    "mm:tool:select": "select", "mm:tool:wall": "wall", "mm:tool:door": "door", "mm:tool:window": "window",
+    "mm:tool:opening_rect": "opening", "mm:tool:stair": "stair", "mm:tool:ramp": "ramp",
+    "mm:tool:structural_column": "column", "mm:tool:structural_beam": "beam",
+    "mm:menu:stair": "stair", "mm:menu:kitchen": "cabinet", "mm:menu:structure": "column",
+    "mm:group:room": "room", "mm:group:slab": "slab", "mm:more": "more", "mm:kgroup:0": "cabinet",
+    "mm:kgroup:1": "cabinet", "mm:kgroup:2": "cabinet", "mm:kgroup:3": "cabinet", "mm:kgroup:4": "appliance",
+    "properties": "properties", "move": "move", "rotate": "rotate", "stretch": "stretch", "materials": "materials",
+    "delete": "delete", "mm:obj:duplicate": "duplicate", "mm:obj:mirror": "mirror", "mm:obj:rot90": "rotate",
+    "mm:obj:hinge": "mirror", "mm:obj:swing": "swing",
+    "mm:assist:point": "assist", "mm:assist:entity": "assist", "mm:layout:kitchen": "cabinet", "mm:layout:bath": "bath",
+    "mm:krun:start": "cabinet", "mm:slab:balcony": "balcony", "mm:slab:draw": "slab", "mm:slab:atrium": "slab",
+    "mm:slab:inner_balcony": "slab", "mm:roofroom:tiled": "roof", "mm:roofroom:terrace": "terrace",
+    "mm:drywall:room": "ceiling", "mm:analyze": "statics", "mm:member_statics": "statics",
+    "mm:structure:design": "footing", "mm:structure:frame": "column", "mm:wall:moveby": "move",
+    "mm:wall:split": "split", "mm:stairdlg:open": "stair", "mm:fit:ceiling": "fit", "mm:camera:view": "camera",
+}
+
+
+def all_ids(entries):
+    """Every command id in ``entries`` and their submenus (what the mouse menu can reach)."""
+    out = []
+    for e in entries:
+        out.append(e["id"])
+        if e.get("children"):
+            out += all_ids(e["children"])
+    return out
+
+
+def _decorate(entries):
+    """Icon names on the entries (and their submenus); a label with ✓/✕/↻ keeps only its text."""
+    for e in entries:
+        if "icon" not in e and e["id"] in ICONS and not e["label"][:1] in ("✓", "✕"):
+            e["icon"] = ICONS[e["id"]]
+        if e["id"].startswith("mm:tool:") and e["label"].startswith("↻"):
+            e["icon"] = ICONS.get(e["id"])
+        if e.get("children"):
+            _decorate(e["children"])
+    return entries
 
 
 def _same_angle(a, b):
@@ -47,7 +92,59 @@ def _angle_label(v):
 
 
 def build_menu(window, view, entity_id=None, xy=None):
-    """``{"center", "entries", "wheel"}`` for the task in hand (``xy``: plan point of the right click)."""
+    """``{"center", "entries", "wheel"}`` for the task in hand (``xy``: plan point of the right click).
+
+    An entry with ``children`` is a submenu that opens in place (2D and 3D alike); icons by ``ICONS``."""
+    menu = _build_menu(window, view, entity_id, xy)
+    _decorate(menu["entries"])
+    return menu
+
+
+def _kitchen_entries(window):
+    names = list(getattr(window, "_kitchen_item_names", ()))
+    i = getattr(window, "_kitchen_wheel", 0) % max(1, len(names))
+    entries = [_e("mm:kitchen:current", f"✓ {names[i]}" if names else "—")]
+    entries += [_e(f"mm:kitchen:{k}", n) for k, n in enumerate(names)]
+    return entries, (names[i] if names else "")
+
+
+# The kitchen catalogue in the mouse menu as short groups (a submenu in the submenu), by name.
+KITCHEN_GROUPS = (("Βάσης", ("Κάτω ντουλάπι", "Συρτάρια", "Ντουλάπι νεροχύτη", "Νησίδα", "Νεροχύτη με κάδους",
+                             "Με εσωτερικά συρτάρια", "Συρόμενο καλάθι")),
+                  ("Κρεμαστά", ("Κρεμαστό",)),
+                  ("Ψηλά && ντουλάπες", ("Ψηλό", "Ψηλή", "Ντουλάπα")),
+                  ("Γωνιακά", ("Γωνιακό",)),
+                  ("Συσκευές", ("Κουζίνα με φούρνο", "Εστία", "Ψυγείο", "Πλυντήριο", "Απορροφητήρας", "Σκαμπό")))
+
+
+def _kitchen_groups(window):
+    names = list(getattr(window, "_kitchen_item_names", ()))
+    used, out = set(), []
+    for title, starts in KITCHEN_GROUPS:
+        items = [_e(f"mm:kitchen:{k}", n) for k, n in enumerate(names)
+                 if k not in used and any(n.startswith(x) for x in starts)]
+        used.update(int(e["id"].rsplit(":", 1)[1]) for e in items)
+        if items:
+            out.append(_e(f"mm:kgroup:{len(out)}", title.replace("&&", "&"), children=items))
+    rest = [_e(f"mm:kitchen:{k}", n) for k, n in enumerate(names) if k not in used]
+    if rest:
+        out.append(_e("mm:kgroup:rest", "Άλλα", children=rest))
+    return out
+
+
+def _stair_entries():
+    entries = [_e("mm:tool:stair", "Σκάλα"), _e("mm:tool:ramp", "Ράμπα")]
+    entries += [_e(f"mm:stair:{key or 'auto'}", f"Σκάλα {label}") for key, label in STAIR_TYPES]
+    return entries
+
+
+def _structure_entries():
+    return [_e("mm:tool:structural_column", "Κολώνα"), _e("mm:tool:structural_beam", "Δοκός"),
+            _e("mm:structure:design", "Βάσεις — υπολογισμός φέροντα"), _e("mm:structure:frame", "Πρόταση από τους τοίχους"),
+            _e("mm:analyze", "Στατική ανάλυση")]
+
+
+def _build_menu(window, view, entity_id=None, xy=None):
     plan = getattr(window, "plan_view", None)
     tool = getattr(getattr(plan, "controller", None), "tool", "select")
     # Sculpt: operations around, brush size on the wheel.
@@ -109,7 +206,7 @@ def build_menu(window, view, entity_id=None, xy=None):
             # Walls move with what is joined to them and split where you click (wall_edit.py).
             entries.insert(len(entries) - 1, _e("mm:wall:moveby", "Μετακίνηση κατά…"))
             entries.insert(len(entries) - 1, _e("mm:wall:split", "Διαχωρισμός εδώ"))
-        entries.append(_e("mm:assist:entity", "📍 Βοηθός εδώ", "panel"))
+        entries.append(_e("mm:assist:entity", "Βοηθός εδώ", "panel"))
         if entity.kind in ("structural_column", "structural_beam"):
             # Radial: one click from the member to its own statics (actions, bars, re-check, undo).
             entries.insert(1, _e("mm:member_statics", "Στατικά μέλους…"))
@@ -143,41 +240,36 @@ def build_menu(window, view, entity_id=None, xy=None):
     sub = getattr(window, "_marking_submenu", None)
     window._marking_submenu = None
     if sub == "kitchen":
-        names = list(getattr(window, "_kitchen_item_names", ()))
-        i = getattr(window, "_kitchen_wheel", 0) % max(1, len(names))
-        entries = [_e("mm:kitchen:current", f"✓ {names[i]}" if names else "—")]
-        entries += [_e(f"mm:kitchen:{k}", n) for k, n in enumerate(names)]
-        return {"center": f"Κουζίνα · {names[i] if names else ''} — ροδέλα: επόμενο", "entries": _fit(entries), "wheel": "kitchen"}
+        entries, name = _kitchen_entries(window)
+        return {"center": f"Κουζίνα · {name} — ροδέλα: επόμενο", "entries": entries, "wheel": "kitchen"}   # a grid
     if sub == "stair":
-        entries = [_e("mm:tool:stair", "Σκάλα"), _e("mm:tool:ramp", "Ράμπα")]
-        entries += [_e(f"mm:stair:{key or 'auto'}", f"Σκάλα {label}") for key, label in STAIR_TYPES]
-        return {"center": "Σκάλα / Ράμπα", "entries": _fit(entries), "wheel": None}
+        return {"center": "Σκάλα / Ράμπα", "entries": _fit(_stair_entries()), "wheel": None}
     if sub == "structure":
-        entries = [_e("mm:tool:structural_column", "Κολώνα"), _e("mm:tool:structural_beam", "Δοκός"),
-                   _e("mm:structure:design", "Βάσεις — υπολογισμός φέροντα"), _e("mm:structure:frame", "Πρόταση από τους τοίχους"),
-                   _e("mm:analyze", "Στατική ανάλυση")]
-        return {"center": "Δομικά: κολόνες, δοκάρια, βάσεις", "entries": _fit(entries), "wheel": None}
+        return {"center": "Δομικά: κολόνες, δοκάρια, βάσεις", "entries": _fit(_structure_entries()), "wheel": None}
     # Empty space: the drawing tools in the order you build (walls, doors, windows …), kitchen and structure.
     last = getattr(window, "_last_marking_tool", None)
     entries = [_e(f"mm:tool:{last}", f"↻ {dict(TOOLS).get(last, last)}") if last else _e("mm:tool:select", "Επιλογή")]
     entries += [_e(f"mm:tool:{key}", label) for key, label in BUILD_TOOLS if key != last]
-    entries += [_e("mm:menu:stair", "Σκάλα ▸"), _e("mm:menu:kitchen", "Κουζίνα ▸"), _e("mm:menu:structure", "Δομικά ▸")]
-    entries.append(_e("mm:sculpt:on", "Γλυπτική", "panel"))
+    # Submenus open in place (owner 15/10: «να ακολουθούν υπομενού και εκεί, παρά να τρέχεις στο κεντρικό μενού»).
+    kitchen = _kitchen_groups(window)
     if view == "plan":
-        entries.append(_e("mm:assist:point", "📍 Βοηθός εδώ", "panel"))
+        kitchen.insert(0, _e("mm:krun:start", "Γραμμή ντουλαπιών σε τοίχο…"))
+    entries += [_e("mm:menu:stair", "Σκάλα", children=_stair_entries()),
+                _e("mm:menu:kitchen", "Κουζίνα", children=kitchen),
+                _e("mm:menu:structure", "Δομικά", children=_structure_entries())]
+    # No Αναίρεση / Γλυπτική here any more: they sit in «Κοινά» and the Βιβλιοθήκη group (less noise).
+    if view == "plan":
         # «… σε αυτόν τον χώρο» only inside a closed room: outside one they do nothing (walk-through 14/10).
         in_room = xy is None or _in_room(window.doc, *xy)
         if in_room:
-            entries.append(_e("mm:layout:kitchen", "Κουζίνα εδώ…", "panel"))
-        entries.append(_e("mm:krun:start", "Γραμμή ντουλαπιών σε τοίχο…", "panel"))
-        if in_room:
-            entries.append(_e("mm:layout:bath", "Μπάνιο εδώ…", "panel"))
-            entries.append(_e("mm:roofroom:tiled", "Κεραμοσκεπή σε αυτόν τον χώρο", "panel"))
-            entries.append(_e("mm:roofroom:terrace", "Ταράτσα σε αυτόν τον χώρο", "panel"))
-        entries += [e for e in _slab_entries() if in_room or e["id"] in ROOMLESS_SLAB]
-    if any(e.kind in ("structural_column", "structural_beam") for e in window.doc.entities.values()):
-        entries.append(_e("mm:analyze", "Στατική ανάλυση", "panel"))
-    entries.append(_e("mm:undo", "Αναίρεση", "panel"))
+            room = [_e("mm:layout:kitchen", "Κουζίνα εδώ…"), _e("mm:layout:bath", "Μπάνιο εδώ…"),
+                    _e("mm:roofroom:tiled", "Κεραμοσκεπή"), _e("mm:roofroom:terrace", "Ταράτσα"),
+                    _e("mm:slab:atrium", "Αίθριο"), _e("mm:slab:inner_balcony", "Κενό πλάκας (εσωτ. μπαλκόνι)"),
+                    _e("mm:drywall:room", "Ψευδοροφή γυψοσανίδας")]
+            entries.append(_e("mm:group:room", "Σε αυτόν τον χώρο", "panel", children=room))
+        entries.append(_e("mm:group:slab", "Πλάκα", "panel", children=[
+            _e("mm:slab:balcony", "Μπαλκόνι (σχεδίαση)"), _e("mm:slab:draw", "Οπή πλάκας (σχεδίαση)")]))
+        entries.append(_e("mm:assist:point", "Βοηθός εδώ", "panel"))
     return {"center": "Σχεδίαση", "entries": _fit(entries), "wheel": None}
 
 
@@ -191,9 +283,6 @@ def _delete_label(window, entity_id):
 def _last_wall(window):
     """The wall drawn last (the Document keeps insertion order), for «Διαγραφή τελευταίου τοίχου»."""
     return next((i for i in reversed(list(window.doc.entities)) if window.doc.entities[i].kind == "wall"), None)
-
-
-ROOMLESS_SLAB = ("mm:slab:balcony", "mm:slab:draw")
 
 
 def _in_room(doc, x, y):
@@ -210,11 +299,28 @@ def _slab_entries():
             _e("mm:drywall:room", "Ψευδοροφή γυψοσανίδας σε αυτόν τον χώρο", "panel")]
 
 
+INLINE_PANEL = 3      # up to this many secondary choices show as buttons under the ring
+
+
 def _fit(entries):
-    """At most eight around the centre; the rest go to the list below."""
+    """At most eight around the centre; up to three more below; anything beyond goes into «Περισσότερα ▸»,
+    a submenu that opens in place (no list popping over the drawing)."""
     radial = [e for e in entries if e["placement"] == "radial"]
+    late = [e for e in radial[8:] if e["id"] == "delete"]
+    if late:
+        # «Διαγραφή» always stays on the ring (every object can go, one gesture away).
+        entries = [e for e in entries if e is not late[0]]
+        entries.insert(entries.index(radial[7]), late[0])
+        radial = [e for e in entries if e["placement"] == "radial"]
     for e in radial[8:]:
         e["placement"] = "panel"
+    panel = [e for e in entries if e["placement"] == "panel"]
+    if len(panel) > INLINE_PANEL:
+        keep = [e for e in entries if e["placement"] != "panel"]
+        for e in panel:
+            e["placement"] = "radial"
+        keep.append(_e("mm:more", "Περισσότερα", "panel", children=panel))
+        return keep
     return entries
 
 
@@ -377,78 +483,179 @@ COMPASS = tuple((math.sin(math.radians(a)), -math.cos(math.radians(a))) for a in
 
 
 class MarkingMenu(QWidget):
-    """Qt drawing of a menu from ``build_menu`` (used by the 2D plan)."""
+    """Qt drawing of a menu from ``build_menu`` (used by the 2D plan).
+
+    The ring sits on a soft disc so its buttons read as one thing over the drawing; commands carry an icon
+    with a short label.  An entry with ``children`` opens its submenu right here (the centre becomes
+    «‹ title» = back); Esc / right click go back one level, then close.
+    """
     chosen = Signal(str)
     wheeled = Signal(int)
-    RADIUS = 96
-    INLINE_PANEL = 2       # up to this many secondary choices show as buttons, more go under «Περισσότερα…»
+    RADIUS = 92
+    INLINE_PANEL = INLINE_PANEL      # up to this many secondary choices show as buttons under the ring
+    GRID_COLUMNS = 3                 # a long submenu (the kitchen catalogue) is a grid, not a ring
 
     def __init__(self, parent, menu, center_pos):
         super().__init__(parent)
         self.setObjectName("markingMenu")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
         self.menu = menu
+        self.stack = []              # [(entries, centre)] — where «‹» goes back to
+        self.buttons = {}
+        self._anchor = center_pos
+        self.center = QToolButton(self)
+        self.center.setAutoRaise(True)
+        self.center.clicked.connect(self.back)
+        self._disc = None
+        self._entries, self._center_text = menu["entries"], menu["center"]
+        self._show(menu["entries"], menu["center"])
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+    # ------------------------------------------------------------ content
+    def _clear(self):
+        for b in list(self.buttons.values()):
+            b.hide(); b.deleteLater()
+        self.buttons = {}
+        for w in getattr(self, "_extra", ()):
+            w.hide(); w.deleteLater()
+        self._extra = []
+
+    def _show(self, entries, center_text):
+        self._clear()
+        radial = [e for e in entries if e["placement"] == "radial"]
+        panel = [e for e in entries if e["placement"] == "panel"]
+        sub = bool(self.stack)
+        self.center.setText(("‹ " if sub else "") + center_text)
+        self.center.setToolTip("Πίσω" if sub else "")
+        self.center.setCursor(Qt.CursorShape.PointingHandCursor if sub else Qt.CursorShape.ArrowCursor)
+        self.center.setStyleSheet("QToolButton { background: rgba(32,41,53,0.90); color: white; border-radius: 9px;"
+                                  " padding: 3px 9px; font-weight: 600; border: 0; }"
+                                  + (" QToolButton:hover { background: rgba(47,107,214,0.95); }" if sub else ""))
+        self.center.adjustSize()
+        if len(radial) > 8:
+            self._grid(radial + panel)
+            return
         size = 2 * self.RADIUS + 300
-        panel = [e for e in menu["entries"] if e["placement"] == "panel"]
         self.resize(size, size + 10)
         cx, cy = size // 2, size // 2
-        self.buttons = {}
-        self.center = QLabel(menu["center"], self)
-        self.center.setStyleSheet("QLabel { background: rgba(32,41,53,0.88); color: white; border-radius: 9px;"
-                                  " padding: 3px 8px; font-weight: 600; }")
-        self.center.adjustSize()
         self.center.move(cx - self.center.width() // 2, cy - self.center.height() // 2)
-        radial = [e for e in menu["entries"] if e["placement"] == "radial"]
-        clear = self.center.width() / 2 + 12                 # keep the side buttons off the centre title
+        clear = self.center.width() / 2 + 10                 # keep the side buttons off the centre title
         for k, e in enumerate(radial):
             dx, dy = COMPASS[k]
             b = self._button(e)
             x = cx + dx * self.RADIUS + math.copysign(max(0.0, clear - self.RADIUS * abs(dx) + b.width() / 2), dx) * (abs(dx) > 0.5)
             b.move(int(x - b.width() / 2), int(cy + dy * self.RADIUS - b.height() / 2))
-        if 0 < len(panel) <= self.INLINE_PANEL:
-            # One or two secondary choices: shown as buttons, a hidden list would only cost a click.
+        self._disc = (cx, cy, self.RADIUS + 46)
+        if panel:
+            # Secondary choices under the ring (≤ 3: _fit puts the rest in «Περισσότερα ▸»).
             row = [self._button(e, flat=True) for e in panel]
-            gap = 8
+            gap = 6
             x = cx - (sum(b.width() for b in row) + gap * (len(row) - 1)) // 2
             for b in row:
-                b.move(int(x), int(cy + self.RADIUS + 26)); x += b.width() + gap
-        elif panel:
-            more = QToolButton(self)
-            more.setText('Περισσότερα…')
-            more.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-            popup = QMenu(more)
-            for e in panel:
-                action = popup.addAction(e['label']); action.setData(e['id'])
-                action.setCheckable(bool(e['checked'])); action.setChecked(bool(e['checked']))
-                action.triggered.connect(lambda _=False, i=e['id']: self.chosen.emit(i))
-            more.setMenu(popup); more.adjustSize()
-            more.move(cx - more.width() // 2, int(cy + self.RADIUS + 26))
-            self.more_button = more
-        x, y = int(center_pos.x() - cx), int(center_pos.y() - cy)
+                b.move(int(x), int(cy + self.RADIUS + 50)); x += b.width() + gap
+        self._place()
+        self.update()
+
+    def _grid(self, entries):
+        cols = self.GRID_COLUMNS
+        made = [self._button(e, flat=True, compact=True) for e in entries]
+        w = max(b.width() for b in made); h = max(b.height() for b in made)
+        for b in made:
+            b.resize(w, h)
+        rows = (len(made) + cols - 1) // cols
+        gap = 4
+        width = cols * w + (cols - 1) * gap + 24
+        height = self.center.height() + 18 + rows * (h + gap) + 12
+        self.resize(max(width, self.center.width() + 24), height)
+        self.center.move(self.width() // 2 - self.center.width() // 2, 8)
+        top = self.center.height() + 18
+        for k, b in enumerate(made):
+            r, c = divmod(k, cols)
+            b.move(12 + c * (w + gap), top + r * (h + gap))
+        self._disc = None
+        self._place()
+        self.update()
+
+    def _place(self):
+        parent = self.parentWidget()
+        x, y = int(self._anchor.x() - self.width() / 2), int(self._anchor.y() - self.height() / 2)
         if parent is not None:
             x = max(0, min(parent.width() - self.width(), x))
             y = max(0, min(parent.height() - self.height(), y))
         self.move(x, y)
-        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
-    def _button(self, e, parent=None, flat=False):
-        b = QToolButton(parent or self)
-        b.setText(e["label"])
-        base = "#ffe5e5" if e["danger"] else ("#cfe7ff" if e["checked"] else "#f7f7f7")
-        b.setStyleSheet("QToolButton { background: %s; border: 1px solid #7c8792; border-radius: %dpx; padding: 4px 10px;"
-                        " font-weight: %s; } QToolButton:hover { background: #d9ecff; }"
-                        % (base, 6 if flat else 15, "600" if e["checked"] else "400"))
+    def _button(self, e, flat=False, compact=False):
+        from archforge.ui.menu_icons import icon
+        b = QToolButton(self)
+        label = e["label"] + (" ▸" if e.get("children") else "")
+        b.setText(label)
+        if e.get("icon"):
+            b.setIcon(icon(e["icon"]))
+            b.setIconSize(QSize(20, 20) if compact or flat else QSize(22, 22))
+            b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon if (flat or compact)
+                                 else Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        base = "#ffe9e7" if e["danger"] else ("#d6e7fb" if e["checked"] else "#ffffff")
+        border = "#d9a29c" if e["danger"] else ("#2F6BD6" if e["checked"] else "#c3ccd8")
+        b.setStyleSheet("QToolButton { background: %s; border: 1px solid %s; border-radius: 8px; padding: %s;"
+                        " font-size: 12px; font-weight: %s; color: #1E2A3B; }"
+                        " QToolButton:hover { background: #e3eefc; border-color: #2F6BD6; }"
+                        % (base, border, "3px 8px" if (flat or compact) else "3px 6px", "600" if e["checked"] else "400"))
         b.adjustSize()
-        b.resize(max(64, b.sizeHint().width()), max(30, b.sizeHint().height()))
-        b.clicked.connect(lambda _=False, i=e["id"]: self.chosen.emit(i))
+        b.resize(max(58, b.sizeHint().width()), max(28, b.sizeHint().height()))
+        if e.get("children"):
+            b.clicked.connect(lambda _=False, entry=e: self.open_submenu(entry))
+        else:
+            b.clicked.connect(lambda _=False, i=e["id"]: self.chosen.emit(i))
+        b.show()
         self.buttons[e["id"]] = b
         return b
 
+    # ------------------------------------------------------------ navigation
+    def open_submenu(self, entry):
+        """The submenu in place of the ring; «‹» (or Esc) back."""
+        self.stack.append((self._entries, self._center_text))
+        children = [dict(c) for c in entry["children"]]
+        # Up to 8 on the ring (+3 below); a long list (the kitchen catalogue) as a grid.
+        self._entries = _fit(children) if len(children) <= 8 + INLINE_PANEL else children
+        self._center_text = entry["label"]
+        self._show(self._entries, self._center_text)
+        self.setFocus()
+
+    def back(self):
+        if not self.stack:
+            return False
+        self._entries, self._center_text = self.stack.pop()
+        self._show(self._entries, self._center_text)
+        self.setFocus()
+        return True
+
     def set_center(self, text):
         cx = self.center.x() + self.center.width() // 2
-        self.center.setText(text)
+        self.center.setText(("‹ " if self.stack else "") + text)
         self.center.adjustSize()
         self.center.move(cx - self.center.width() // 2, self.center.y())
+
+    # ------------------------------------------------------------ Qt
+    def event(self, event):
+        from PySide6.QtCore import QEvent
+        if event.type() == QEvent.Type.ShortcutOverride and event.key() in (Qt.Key.Key_Escape, Qt.Key.Key_Backspace) \
+                and self.stack:
+            event.accept()             # Esc inside a submenu = back (not the window's «cancel everything»)
+            return True
+        return super().event(event)
+
+    def paintEvent(self, event):
+        if self._disc is None:
+            from PySide6.QtGui import QColor, QPainter, QPen
+            p = QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            p.setPen(QPen(QColor(195, 204, 216), 1)); p.setBrush(QColor(255, 255, 255, 235))
+            p.drawRoundedRect(self.rect().adjusted(1, 1, -1, -1), 10, 10)
+            return
+        from PySide6.QtGui import QColor, QPainter, QPen
+        cx, cy, r = self._disc
+        p = QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        p.setPen(QPen(QColor(195, 204, 216, 200), 1)); p.setBrush(QColor(246, 248, 251, 215))
+        p.drawEllipse(QPoint(cx, cy), r, r)
 
     def wheelEvent(self, event):
         steps = 1 if event.angleDelta().y() > 0 else -1
@@ -456,13 +663,18 @@ class MarkingMenu(QWidget):
         event.accept()
 
     def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.RightButton and self.back():
+            return
         self.close()               # a click on empty menu space just closes it
 
     def contextMenuEvent(self, event):
-        self.close(); event.accept()
+        if not self.back():
+            self.close()
+        event.accept()
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_Escape:
-            self.close()
+        if event.key() in (Qt.Key.Key_Escape, Qt.Key.Key_Backspace):
+            if not self.back():
+                self.close()
             return
         super().keyPressEvent(event)

@@ -76,10 +76,10 @@ def window():
 
 def test_drawn_in_the_plan_from_the_menus_and_undone_in_one_step(window):
     from archforge.ui import slab_tools
-    from archforge.ui.marking_menu import build_menu
+    from archforge.ui.marking_menu import all_ids, build_menu
     _box(window.stack, 0.0)
     menu = build_menu(window, 'plan')
-    assert 'mm:slab:balcony' in [e['id'] for e in menu['entries']]
+    assert 'mm:slab:balcony' in all_ids(menu['entries'])          # «Πλάκα ▸» in the mouse menu
     texts = [a.text() for a in window._slab_opening_actions]
     assert any('Μπαλκόνι' in t for t in texts)
     slab_tools.start_balcony_tool(window)
@@ -118,9 +118,9 @@ def test_mouse_menu_inside_a_balcony_is_not_its_railing_and_titles_are_greek(win
 
 
 def test_room_choices_only_when_the_right_click_is_inside_a_room(window):
-    from archforge.ui.marking_menu import build_menu
+    from archforge.ui.marking_menu import all_ids, build_menu
     _box(window.stack, 0.0)
-    ids = lambda m: {e['id'] for e in m['entries']}
+    ids = lambda m: set(all_ids(m['entries']))
     outside, inside = build_menu(window, 'plan', xy=(5, -3)), build_menu(window, 'plan', xy=(5, 4))
     room_only = {'mm:layout:kitchen', 'mm:layout:bath', 'mm:roofroom:tiled', 'mm:slab:atrium', 'mm:drywall:room'}
     assert room_only <= ids(inside) and not room_only & ids(outside)

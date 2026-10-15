@@ -182,34 +182,42 @@ html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background:
   font-family: "Segoe UI", sans-serif;
 }
 #markingCenter {
-  position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px;
+  position: absolute; z-index: 2; display: none; width: 8px; height: 8px; margin: -4px 0 0 -4px;
   border-radius: 50%; background: rgba(54, 124, 186, 0.95);
   box-shadow: 0 0 0 4px rgba(255,255,255,0.72);
 }
-#radialMenu { position: absolute; width: 260px; height: 260px; transform: translate(-130px,-130px); }
+#radialMenu { position: absolute; z-index: 1; width: 260px; height: 260px; transform: translate(-130px,-130px); }
+/* One soft disc under the ring: the buttons read as one thing over the model (less noise). */
+#radialMenu:not(:empty)::before { content: ""; position: absolute; left: -16px; top: -16px; width: 292px; height: 292px;
+  border-radius: 50%; background: rgba(246,248,251,0.84); border: 1px solid rgba(195,204,216,0.85); }
 .markAction {
-  position: absolute; transform: translate(-50%,-50%); min-width: 74px; height: 34px;
-  padding: 0 12px; border: 1px solid rgba(35,45,58,0.72); border-radius: 18px;
-  background: rgba(244,247,250,0.96); color: #202935; font-size: 12px; font-weight: 600;
-  box-shadow: 0 3px 10px rgba(0,0,0,0.22); pointer-events: auto; cursor: pointer;
+  position: absolute; transform: translate(-50%,-50%); min-width: 58px; min-height: 30px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  padding: 3px 8px; border: 1px solid #c3ccd8; border-radius: 9px;
+  background: #ffffff; color: #1e2a3b; font-size: 12px; font-weight: 500; white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12); pointer-events: auto; cursor: pointer;
 }
+.markIcon { width: 20px; height: 20px; }
+.stripAction .markIcon { width: 16px; height: 16px; vertical-align: middle; margin-right: 4px; }
 .markAction:hover { background: #d9eaff; border-color: #2f75b5; }
 .markAction.checked { background: #cfe7ff; border-color: #2f75b5; }
 #markingTitle {
-  position: absolute; transform: translate(-50%, 14px); padding: 3px 9px; border-radius: 9px;
+  position: absolute; z-index: 2; transform: translate(-50%, -50%); padding: 3px 9px; border-radius: 9px;
   background: rgba(32,41,53,0.88); color: #fff; font-size: 12px; font-weight: 600; white-space: nowrap;
 }
 .markAction.danger:hover { background: #ffe0e0; border-color: #b63b3b; color: #8f2020; }
 #commandStrip {
-  position: absolute; display: flex; gap: 3px; transform: translate(-50%,-100%);
-  padding: 4px; border-radius: 7px; background: rgba(46,54,66,0.94);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.28); pointer-events: auto;
+  position: absolute; display: flex; flex-wrap: wrap; gap: 3px; max-width: 460px; transform: translate(-50%,-100%);
+  padding: 4px; border-radius: 8px; background: rgba(255,255,255,0.97); border: 1px solid #c3ccd8;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.16); pointer-events: auto;
 }
+#commandStrip:empty { display: none; }
 .stripAction {
-  border: 0; border-radius: 4px; background: transparent; color: #fff;
-  padding: 6px 9px; font-size: 11px; cursor: pointer;
+  border: 1px solid transparent; border-radius: 6px; background: transparent; color: #1e2a3b;
+  padding: 5px 8px; font-size: 12px; cursor: pointer; white-space: nowrap;
 }
-.stripAction:hover { background: rgba(255,255,255,0.16); }
+.stripAction:hover { background: #e3eefc; border-color: #2f6bd6; }
+.stripAction.danger { color: #8f2020; }
 #stairHud {
   position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%);
   display: none; min-width: 300px; padding: 8px 12px; border-radius: 8px;
@@ -1335,17 +1343,52 @@ function dispatchMarkingAction(actionId) {
   bridge.contextAction(entityId, actionId);
 }
 
-window.showMarkingMenu = function(entityId, x, y, entries, center, wheelKind) {
+// Submenus open in place: the centre title becomes «‹ title» (click = back), like the plan's Qt menu.
+let markingStack = [];
+function markingButton(entry, className, onSub) {
+  const button = document.createElement("button");
+  button.className = className + ((entry.id === "delete" || entry.danger) ? " danger" : "") + (entry.checked ? " checked" : "");
+  if (entry.iconData) {
+    const img = document.createElement("img");
+    img.src = entry.iconData; img.className = "markIcon"; img.alt = "";
+    button.appendChild(img);
+  }
+  button.appendChild(document.createTextNode(entry.label + (entry.children && entry.children.length ? " ▸" : "")));
+  button.addEventListener("pointerdown", (event) => event.stopPropagation());
+  button.addEventListener("click", (event) => {
+    event.preventDefault(); event.stopPropagation();
+    if (entry.children && entry.children.length) onSub(entry);
+    else dispatchMarkingAction(entry.id);
+  });
+  return button;
+}
+
+window.showMarkingMenu = function(entityId, x, y, entries, center, wheelKind, keepStack) {
   hideMarkingMenu();
+  if (!keepStack) markingStack = [];
   markingEntityId = entityId || "";
   markingWheel = wheelKind || "";
-  markingTitle.textContent = center || "";
+  const sub = markingStack.length > 0;
+  markingTitle.textContent = (sub ? "‹ " : "") + (center || "");
   markingTitle.style.display = center ? "block" : "none";
+  markingTitle.style.cursor = sub ? "pointer" : "default";
+  markingTitle.style.pointerEvents = sub ? "auto" : "";
+  markingTitle.onclick = sub ? (event) => {
+    event.preventDefault(); event.stopPropagation();
+    const prev = markingStack.pop();
+    window.showMarkingMenu(entityId, x, y, prev[0], prev[1], prev[2], true);
+  } : null;
 
-  const radial = (entries || []).filter((entry) => entry && entry.placement === "radial");
-  const panel = (entries || []).filter((entry) => entry && entry.placement === "panel");
+  let all = (entries || []).filter((entry) => entry);
+  let radial = all.filter((entry) => entry.placement === "radial");
+  let panel = all.filter((entry) => entry.placement === "panel");
+  if (radial.length > 8) { panel = radial.concat(panel); radial = []; }   // a long submenu: a list
   const cx = Math.max(145, Math.min(window.innerWidth - 145, Number(x)));
   const cy = Math.max(150, Math.min(window.innerHeight - 110, Number(y)));
+  const openSub = (entry) => {
+    markingStack.push([entries, center, wheelKind]);
+    window.showMarkingMenu(entityId, x, y, entry.children, entry.label, "", true);
+  };
 
   markingRoot.style.display = "block";
   markingCenter.style.left = cx + "px";
@@ -1355,37 +1398,24 @@ window.showMarkingMenu = function(entityId, x, y, entries, center, wheelKind) {
   radialMenu.style.left = cx + "px";
   radialMenu.style.top = cy + "px";
 
-  const radius = 92;
+  const radius = 98;
+  const titleHalf = markingTitle.offsetWidth / 2;
   radial.forEach((entry, index) => {
     // Fixed compass slots, north first (Inventor marking menu): N, NE, E, SE, S, SW, W, NW.
     const angle = -Math.PI / 2 + index * (Math.PI / 4);
-    const button = document.createElement("button");
-    button.className = "markAction" + ((entry.id === "delete" || entry.danger) ? " danger" : "") + (entry.checked ? " checked" : "");
-    button.textContent = entry.label;
-    button.style.left = (130 + Math.cos(angle) * radius) + "px";
-    button.style.top = (130 + Math.sin(angle) * radius) + "px";
-    button.addEventListener("pointerdown", (event) => event.stopPropagation());
-    button.addEventListener("click", (event) => {
-      event.preventDefault(); event.stopPropagation();
-      dispatchMarkingAction(entry.id);
-    });
+    const button = markingButton(entry, "markAction", openSub);
     radialMenu.appendChild(button);
+    const c = Math.cos(angle);
+    // Side buttons step out so they never cover the title in the centre (same rule as the plan's menu).
+    const push = Math.abs(c) > 0.5 ? Math.sign(c) * Math.max(0, titleHalf + 10 - radius * Math.abs(c) + button.offsetWidth / 2) : 0;
+    button.style.left = (130 + c * radius + push) + "px";
+    button.style.top = (130 + Math.sin(angle) * radius) + "px";
   });
 
   if (panel.length) {
     commandStrip.style.left = cx + "px";
     commandStrip.style.top = Math.max(42, cy - 116) + "px";
-    panel.forEach((entry) => {
-      const button = document.createElement("button");
-      button.className = "stripAction";
-      button.textContent = entry.label;
-      button.addEventListener("pointerdown", (event) => event.stopPropagation());
-      button.addEventListener("click", (event) => {
-        event.preventDefault(); event.stopPropagation();
-        dispatchMarkingAction(entry.id);
-      });
-      commandStrip.appendChild(button);
-    });
+    panel.forEach((entry) => commandStrip.appendChild(markingButton(entry, "stripAction", openSub)));
   }
 };
 
@@ -2445,9 +2475,10 @@ class PBRViewport(QWidget):
             self._marking_wheel_kind = menu["wheel"]
             self.last_marking_menu = menu
             if self.web_view is not None:
+                from archforge.ui.menu_icons import with_icon_data
                 self.web_view.page().runJavaScript(
                     "if (window.showMarkingMenu) window.showMarkingMenu(" + json.dumps(eid) + "," + json.dumps(float(x)) + ","
-                    + json.dumps(float(y)) + "," + json.dumps(menu["entries"], separators=(',', ':')) + ","
+                    + json.dumps(float(y)) + "," + json.dumps(with_icon_data(menu["entries"]), separators=(',', ':')) + ","
                     + json.dumps(menu["center"]) + "," + json.dumps(menu["wheel"] or "") + ");")
             self.statusChanged.emit(f"{menu['center']} — δεξί κλικ: μενού εργασίας")
             return

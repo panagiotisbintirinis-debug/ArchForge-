@@ -338,7 +338,8 @@ def test_ui_mouse_double_click_ghost_enter_menu_width_and_undo():
             window.stack.execute(AddEntity(Entity('wall', {'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2, 'z': 0.0,
                                                            'height': 2.7, 'thickness': 0.2})))
         before = len(window.doc.entities)
-        assert 'mm:krun:start' in {e['id'] for e in build_menu(window, 'plan')['entries']}
+        from archforge.ui.marking_menu import all_ids
+        assert 'mm:krun:start' in all_ids(build_menu(window, 'plan')['entries'])       # Κουζίνα ▸
         run(window, 'plan', None, 'mm:krun:start')
         tool = window._cabinet_run
         assert window.plan_view.controller.tool == 'layout_cabinet_run'
@@ -357,7 +358,8 @@ def test_ui_mouse_double_click_ghost_enter_menu_width_and_undo():
         assert tool.proposal is None and len(window.doc.entities) - before > 10
         cab = next(e for e in window.doc.entities.values() if e.kind == 'cabinet' and e.params.get('run_role') == 'cabinet'
                    and e.params['run_seg']['layer'] == 'base')
-        ids = {e['id'] for e in build_menu(window, 'plan', cab.id)['entries']}
+        from archforge.ui.marking_menu import all_ids
+        ids = set(all_ids(build_menu(window, 'plan', cab.id)['entries']))      # incl. «Περισσότερα ▸»
         assert {'mm:krun:width_45', 'mm:krun:delete_run'} <= ids
         run(window, 'plan', cab.id, 'mm:krun:width_45')
         assert window.doc.get(cab.id).params['width'] == pytest.approx(0.45)

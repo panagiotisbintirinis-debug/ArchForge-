@@ -26,9 +26,13 @@ def _ids(menu, placement='radial'):
 def test_secondary_choices_are_hidden_in_more_instead_of_a_tall_panel(window):
     from PySide6.QtCore import QPoint
     menu = window.plan_view.show_marking_menu(QPoint(250, 250))
-    assert len(menu.buttons) <= 8
-    extra = menu.more_button.menu()
-    assert {a.data() for a in extra.actions()} >= {'mm:assist:point', 'mm:slab:draw'}
+    radial = [e for e in menu.menu['entries'] if e['placement'] == 'radial']
+    panel = [e for e in menu.menu['entries'] if e['placement'] == 'panel']
+    assert len(radial) <= 8 and len(panel) <= menu.INLINE_PANEL and len(menu.buttons) == len(radial) + len(panel)
+    # Secondary choices are short themed submenus that open in the mouse menu itself (owner 15/10).
+    assert 'mm:assist:point' in menu.buttons
+    slab = next(e for e in panel if e['id'] == 'mm:group:slab')
+    assert 'mm:slab:draw' in {c['id'] for c in slab['children']}
     assert menu.height() <= 520
 
 
@@ -223,3 +227,49 @@ def test_a_single_secondary_choice_is_a_button_not_hidden_in_more(window):
     panel = [e['id'] for e in menu.menu['entries'] if e['placement'] == 'panel']
     assert 0 < len(panel) <= menu.INLINE_PANEL
     assert all(i in menu.buttons for i in panel) and getattr(menu, 'more_button', None) is None
+
+
+def test_submenus_open_in_the_mouse_menu_itself_and_go_back(window):
+    """Owner 15/10: «τα επιμέρους εντολές μπορεί να είναι εικονίδια αλλά να ακολουθούν υπομενού και εκεί,
+    παρά να τρέχεις στο κεντρικό μενού»."""
+    from PySide6.QtCore import QPoint, Qt
+    from PySide6.QtGui import QKeyEvent
+    from PySide6.QtCore import QEvent
+    view = window.plan_view
+    menu = view.show_marking_menu(QPoint(300, 300))
+    ring = dict(menu.buttons)
+    assert all(not b.icon().isNull() for i, b in ring.items() if i.startswith('mm:tool:') and i != 'mm:tool:select')
+    menu.buttons['mm:menu:kitchen'].click()
+    assert view._marking_menu is menu and not menu.isHidden()         # same menu, in place
+    assert menu.center.text() == '‹ Κουζίνα' and 'mm:menu:kitchen' not in menu.buttons
+    group = next(i for i in menu.buttons if i.startswith('mm:kgroup:'))
+    menu.buttons[group].click()                                        # a submenu in the submenu
+    assert len(menu.stack) == 2
+    item = next(i for i in menu.buttons if i.startswith('mm:kitchen:'))
+    # Esc goes back one level (not «cancel everything»), then the centre «‹» another.
+    menu.keyPressEvent(QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier))
+    assert len(menu.stack) == 1 and not menu.isHidden()
+    menu.center.click()
+    assert not menu.stack and 'mm:menu:kitchen' in menu.buttons
+    # A command chosen deep inside runs the same as from anywhere else.
+    menu.buttons['mm:menu:kitchen'].click(); menu.buttons[group].click()
+    placed = []
+    window._place_kitchen_item = placed.append
+    menu.buttons[item].click()
+    assert placed and view._marking_menu is None
+
+
+def test_3d_menu_gets_the_same_submenus_with_icons(window):
+    from archforge.ui.marking_menu import build_menu
+    from archforge.ui.menu_icons import with_icon_data
+    entries = with_icon_data(build_menu(window, 'pbr')['entries'])
+    kitchen = next(e for e in entries if e['id'] == 'mm:menu:kitchen')
+    assert kitchen['children'] and kitchen['iconData'].startswith('data:image/png;base64,')
+    import archforge.ui.pbr_viewport as pv
+    assert 'markingStack' in pv._PBR_HTML and 'entry.children' in pv._PBR_HTML
+
+
+def test_empty_space_menu_has_no_noise_that_lives_elsewhere(window):
+    from archforge.ui.marking_menu import build_menu
+    ids = {e['id'] for e in build_menu(window, 'plan')['entries']}
+    assert 'mm:undo' not in ids and 'mm:sculpt:on' not in ids          # «Κοινά» / Βιβλιοθήκη group

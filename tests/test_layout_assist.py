@@ -256,7 +256,8 @@ def test_ui_kitchen_here_ghost_delete_and_apply_with_one_undo():
             window.stack.execute(AddEntity(Entity('wall', {'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2, 'z': 0.0,
                                                            'height': 2.7, 'thickness': 0.2})))
         empty = build_menu(window, 'plan')
-        assert {'mm:layout:kitchen', 'mm:layout:bath'} <= {e['id'] for e in empty['entries']}
+        from archforge.ui.marking_menu import all_ids
+        assert {'mm:layout:kitchen', 'mm:layout:bath'} <= set(all_ids(empty['entries']))     # Σε αυτόν τον χώρο ▸
         before = len(window.doc.entities)
         run(window, 'plan', None, 'mm:layout:kitchen', (2.0, 1.5))         # right click in the room → «Κουζίνα εδώ…»
         assist = window._layout_assist

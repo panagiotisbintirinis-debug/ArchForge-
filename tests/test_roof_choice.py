@@ -89,7 +89,8 @@ def test_menu_click_and_mouse_menu_set_a_room_roof():
         window._start_site_tool('roofroom_terrace', '')
         window.plan_view.sitePointRequested.emit('roofroom_terrace', 2.0, 3.0)
         assert len(_roofs(window.doc)[1]) == 1
-        ids = [e['id'] for e in build_menu(window, 'plan')['entries']]
+        from archforge.ui.marking_menu import all_ids
+        ids = all_ids(build_menu(window, 'plan')['entries'])
         assert 'mm:roofroom:tiled' in ids and 'mm:roofroom:terrace' in ids
         run(window, 'plan', None, 'mm:roofroom:tiled', (6.0, 3.0))
         assert len(_roofs(window.doc)[0]) == 1

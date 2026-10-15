@@ -64,8 +64,8 @@ def test_auto_floor_is_one_storey_slab_and_opening_drawn_by_drag(window):
 def test_right_click_room_becomes_atrium_and_railing_in_one_click(window):
     w, _app = window
     w._create_flat_roofs()
-    from archforge.ui.marking_menu import build_menu, run
-    ids = [e['id'] for e in build_menu(w, 'plan')['entries']]
+    from archforge.ui.marking_menu import all_ids, build_menu, run
+    ids = all_ids(build_menu(w, 'plan')['entries'])
     assert 'mm:slab:atrium' in ids and 'mm:slab:inner_balcony' in ids
     run(w, 'plan', None, 'mm:slab:atrium', (2.0, 3.0))
     (atrium,) = [e for e in w.doc.entities.values() if e.kind == 'slab_opening']
