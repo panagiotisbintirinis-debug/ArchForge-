@@ -57,7 +57,7 @@ def unverified_lines():
     """Every rule the board relies on that is not VERIFIED, as «[κατάσταση] κανόνας — σημείωση»."""
     from archforge.core.provenance import STATUS_LABELS, rules
     out = []
-    for r in rules("electrical.") + rules("board.") + rules("lighting."):
+    for r in rules("electrical.") + rules("board.") + rules("lighting.") + rules("practice."):
         if not r.is_requirement:
             out.append(f"[{STATUS_LABELS[r.status]}] {r.statement}" + (f" — {r.note}" if r.note else ""))
     return out
@@ -285,9 +285,14 @@ def analyse(doc):
             row["notes"].append("υπερφόρτιση")
         rows.append(row)
 
+    from archforge.mep.practice import conflicts, lighting_circuit_count_conflict
+    practice = [text for _g, text in conflicts()] if circuits else []
+    extra = lighting_circuit_count_conflict(wiring) if circuits else None
+    if extra:
+        practice.append(extra)
     board = _board(circuits, rows, conf, warnings) if circuits else None
     return {"circuits": rows, "walls": walls_out, "purchase": purchase, "waste_pct": waste, "board": board,
-            "warnings": warnings, "provenance": PROVENANCE, "unverified": unverified_lines(), "circuit_provenance": wiring["report"]["provenance"],
+            "warnings": warnings, "provenance": PROVENANCE, "unverified": unverified_lines(), "practice_conflicts": practice, "circuit_provenance": wiring["report"]["provenance"],
             "boxes": wiring["report"].get("boxes", {}), "settings": conf}
 
 
@@ -382,6 +387,8 @@ def board_csv(result):
         lines += ["", "Πίνακας", f"Εγκατεστημένη ισχύς (άθροισμα σημείων) W;{num(b['installed_w'])}",
                   f"Συντελεστής ταυτοχρονισμού (μελέτη);{num(b['demand_factor'])}", f"Ζήτηση kVA;{num(b['demand_kva'])}",
                   f"Παροχή kVA;{num(b['supply_kva'])}", f"Φάσεις;{num(b['phases'])}", f"Ασφάλεια παροχής A;{num(b['fuse_a'])}"]
+    if result.get("practice_conflicts"):
+        lines += ["", "Διαφωνίες κανόνων προγράμματος με την πρακτική εγκαταστάτη (απόφαση ηλεκτρολόγου)"] + result["practice_conflicts"]
     lines += ["", "Κατάσταση κανόνων (μόνο τα επαληθευμένα είναι τεχνική απαίτηση)"] + list(result["unverified"])
     lines += ["", result["provenance"], result["circuit_provenance"]]
     return "\n".join(lines) + "\n"

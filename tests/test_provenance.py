@@ -34,5 +34,16 @@ def test_led_strip_power_is_manufacturer_data_without_a_default():
 def test_board_lists_every_rule_that_is_not_a_requirement():
     from archforge.mep.electrical_board import unverified_lines
     lines = unverified_lines()
-    assert len(lines) == len([r for r in rules('electrical.') + rules('board.') + rules('lighting.') if r.status != VERIFIED])
+    assert len(lines) == len([r for r in rules('electrical.') + rules('board.') + rules('lighting.') + rules('practice.')
+                              if r.status != VERIFIED])
     assert any(l.startswith('[Μη επαληθευμένο') for l in lines) and any('30 mA' in l for l in lines)
+
+
+def test_program_rules_that_disagree_with_installer_practice_are_listed_not_changed():
+    from archforge.mep.electrical import CIRCUIT_RULES
+    from archforge.mep.practice import conflicts
+    found = dict(conflicts())
+    # cooker 32 A / 6 mm² vs practice 40 A / 10 mm²; water heater 20 A on 2.5 mm² vs practice 4 mm² (and 2.5 mm² ≤ 16 A)
+    assert 'cooker' in found and 'water_heater' in found
+    assert CIRCUIT_RULES['cooker'][1:3] == (32, 6.0)            # nothing changed automatically
+    assert rule('practice.circuits').status != VERIFIED and rule('standards.keee_replaced').status != VERIFIED
