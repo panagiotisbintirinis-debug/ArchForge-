@@ -1,6 +1,6 @@
 """Dedicated Plumbing details/report tab.
 
-The normal floor plan stays drawing-first and clean.  This tab owns a separate
+The normal floor plan stays drawing-first and clean. This tab owns a separate
 read-only technical plan of the same authoritative Document: pipe diameters are
 visible on that technical drawing, while quantities/BOM, rules and provenance
 stay in tables below it.
@@ -12,8 +12,9 @@ import math
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QColor
 from PySide6.QtWidgets import (
-    QGraphicsTextItem, QHeaderView, QLabel, QSplitter, QTabWidget,
-    QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
+    QAbstractItemView, QGraphicsTextItem, QHeaderView, QLabel, QSplitter,
+    QTabWidget, QTableWidget, QTableWidgetItem, QTreeWidget, QTreeWidgetItem,
+    QVBoxLayout, QWidget,
 )
 
 from archforge.ui.plan_view import PlanView
@@ -32,16 +33,14 @@ def _length(a, b):
 
 
 class PlumbingTechnicalPlan(PlanView):
-    """Read-only plan for plumbing documentation.
-
-    It shares the exact same Document/CommandStack as the main plan but does not
-    author geometry.  Diameter annotations exist only in this technical view.
-    """
+    """Read-only technical plan with wheel zoom and left-drag pan."""
 
     def __init__(self, doc, stack, parent=None):
         super().__init__(doc, stack, parent)
         self.setMinimumHeight(260)
-        self.setToolTip("Τεχνική κάτοψη υδραυλικών — οι διατομές εμφανίζονται μόνο εδώ")
+        self.setToolTip("Τεχνική κάτοψη υδραυλικών — wheel: zoom · σύρε: μετακίνηση κάτοψης")
+        self._pan_last = None
+        self.setCursor(Qt.CursorShape.OpenHandCursor)
 
     def redraw(self):
         super().redraw()
@@ -54,7 +53,6 @@ class PlumbingTechnicalPlan(PlanView):
             for network in ("cold", "hot"):
                 colour = QColor(31, 90, 160) if network == "cold" else QColor(190, 55, 45)
                 for a, b, diameter in routed.get(network, ()):
-                    # The technical floor plan annotates the horizontal run of the active storey.
                     if abs(float(a[2]) - float(b[2])) > 1e-9:
                         continue
                     if abs(float(a[2]) - (level + SCREED)) > 1e-6:
@@ -68,19 +66,30 @@ class PlumbingTechnicalPlan(PlanView):
                     item.setPos(x, y)
                     item.setZValue(80)
         except Exception:
-            # The report table still remains usable even if an incomplete model
-            # cannot yet produce its technical drawing.
             pass
 
-    # Documentation view: zoom remains available through wheelEvent, but no
-    # drawing/selection/editing command can originate here.
+    # This view is documentation-only. Left drag pans the view instead of
+    # selecting/moving model entities; the inherited wheelEvent keeps zoom.
     def mousePressEvent(self, event):
+        if event.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.MiddleButton):
+            self._pan_last = event.position()
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+            event.accept()
+            return
         event.accept()
 
     def mouseMoveEvent(self, event):
+        if self._pan_last is not None:
+            now = event.position()
+            delta = now - self._pan_last
+            self._pan_last = now
+            self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - int(delta.x()))
+            self.verticalScrollBar().setValue(self.verticalScrollBar().value() - int(delta.y()))
         event.accept()
 
     def mouseReleaseEvent(self, event):
+        self._pan_last = None
+        self.setCursor(Qt.CursorShape.OpenHandCursor)
         event.accept()
 
     def mouseDoubleClickEvent(self, event):
@@ -114,7 +123,7 @@ class PlumbingTab(QWidget):
 
         self.pages = QTabWidget()
         self.network = self._tree(["Δίκτυο", "Διάμετρος", "Μήκος", "Από", "Προς", "Κατάσταση"])
-        self.bom = self._tree(["Κωδικός", "Περιγραφή", "Κατηγορία", "Ποσότητα", "Μονάδα", "Κατάσταση", "Πηγή"])
+        self.bom = self._bom_table()
         self.rules = self._tree(["Κατάσταση", "Κανόνας", "Τιμή", "Πηγή", "Σημείωση"])
         self.pages.addTab(self.network, "Δίκτυο")
         self.pages.addTab(self.bom, "Ποσότητες / BOM")
@@ -131,8 +140,9 @@ class PlumbingTab(QWidget):
 
         self.note = QLabel(
             "Στην κανονική 2D κάτοψη φαίνονται μόνο οι σωληνώσεις. Στην τεχνική κάτοψη αυτής της καρτέλας "
-            "φαίνονται οι διατομές Ø των σωλήνων. Μήκη, ποσότητες, κόστος και προέλευση κανόνων παραμένουν στους πίνακες. "
-            "ENGINEER_REVIEW / DESIGN_DEFAULT δεν αποτελούν επαληθευμένη κανονιστική απαίτηση."
+            "φαίνονται οι διατομές Ø. Wheel = zoom, σύρσιμο = μετακίνηση. Το BOM είναι πίνακας εργασίας· "
+            "τιμές που δεν έχουν δοθεί παραμένουν κενές/—. ENGINEER_REVIEW / DESIGN_DEFAULT δεν αποτελούν "
+            "επαληθευμένη κανονιστική απαίτηση."
         )
         self.note.setWordWrap(True)
         self.note.setStyleSheet("color:palette(mid);font-size:11px")
@@ -147,6 +157,28 @@ class PlumbingTab(QWidget):
         tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         tree.header().setStretchLastSection(True)
         return tree
+
+    @staticmethod
+    def _bom_table():
+        headers = [
+            "Κωδικός", "Περιγραφή", "Κατηγορία", "Ποσότητα", "Μονάδα",
+            "Υλικό €/μον.", "Εργασία €/μον.", "Υλικό €", "Εργασία €", "Σύνολο €",
+            "Κατάσταση", "Πηγή",
+        ]
+        table = QTableWidget(0, len(headers))
+        table.setHorizontalHeaderLabels(headers)
+        table.setAlternatingRowColors(True)
+        table.setShowGrid(True)
+        table.setSortingEnabled(True)
+        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
+        table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        table.verticalHeader().setVisible(True)
+        table.horizontalHeader().setSectionsMovable(True)
+        table.horizontalHeader().setStretchLastSection(True)
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        table.setToolTip("BOM τύπου φύλλου εργασίας — ταξινόμηση από τις κεφαλίδες, χωρίς υποθετικές τιμές")
+        return table
 
     def mark_stale(self):
         self._stale = True
@@ -164,7 +196,6 @@ class PlumbingTab(QWidget):
         from archforge.mep.plumbing_rules import plumbing_rule_audit
 
         self._stale = False
-        # The technical drawing is another view of the same Document, never a copy.
         self.technical_plan.rebind(self.window.doc, self.window.stack)
         self.technical_plan.redraw()
 
@@ -185,12 +216,24 @@ class PlumbingTab(QWidget):
                     "ENGINEER_REVIEW",
                 ])
 
-        self.bom.clear()
-        for line in quantities:
-            QTreeWidgetItem(self.bom, [
-                str(line.code), str(line.description), str(line.category), _n(line.quantity, 2),
-                str(line.unit), str(line.rule_status or ""), str(line.rule_source or line.source or ""),
-            ])
+        # Spreadsheet-style BOM. Cost columns intentionally remain — until the
+        # shared project price-book supplies a price; no catalogue guess is made.
+        self.bom.setSortingEnabled(False)
+        self.bom.setRowCount(0)
+        for row, line in enumerate(quantities):
+            self.bom.insertRow(row)
+            values = [
+                str(line.code), str(line.description), str(line.category), _n(line.quantity, 2), str(line.unit),
+                "—", "—", "—", "—", "—",
+                str(line.rule_status or ""), str(line.rule_source or line.source or ""),
+            ]
+            for col, value in enumerate(values):
+                item = QTableWidgetItem(value)
+                if col in (3, 5, 6, 7, 8, 9):
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                self.bom.setItem(row, col, item)
+        self.bom.setSortingEnabled(True)
+        self.bom.resizeRowsToContents()
 
         self.rules.clear()
         grouped = plumbing_rule_audit()
@@ -250,6 +293,5 @@ def show(window):
     if tabs.indexOf(tab) < 0:
         tabs.addTab(tab, TAB_TITLE)
     tabs.setCurrentWidget(tab)
-    # A report tab is not a drawing editor; drawing commands remain owned by the plan.
     window.view = window.plan_view
     return tab.refresh()
