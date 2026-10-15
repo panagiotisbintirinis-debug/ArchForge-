@@ -67,8 +67,10 @@ def add_rows(window, eid):
     source = QLabel(source_text); source.setWordWrap(True)
     form.addRow("Προέλευση στοιχείων", source)
     dimming = QComboBox()
-    dimming.addItem("— από το φύλλο του τροφοδοτικού", None)
+    dimming.addItem("On/Off (προεπιλογή — επιλογή του πελάτη)", None)
     for value, label in DIMMING.items():
+        if value == "onoff":
+            continue
         dimming.addItem(label, value)
     dimming.setCurrentIndex(max(0, dimming.findData(p.get("dimming")) if p.get("dimming") else 0))
     dimming.activated.connect(lambda _i, w=dimming: w.currentData() is not None

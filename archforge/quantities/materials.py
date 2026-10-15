@@ -170,7 +170,7 @@ def finishes_list(doc):
     return [(desc, unit, round(q, 2) if unit == "m²" else int(q)) for (desc, unit), q in sorted(totals.items()) if q]
 
 
-def electrical_list(doc):
+def electrical_list(doc, result=None):
     """Electrical take-off: cables per section (with the user's allowance), conduit, boxes, breakers, points, luminaires.
 
     Quantities only — every price is the one the user types in the price list (no catalogue prices in the code).
@@ -182,7 +182,8 @@ def electrical_list(doc):
     from archforge.mep.electrical import POINT_TYPES, strip_length
     from archforge.mep.electrical_board import analyse
     from archforge.mep.luminaire_catalog import entry
-    r = analyse(doc)
+    r = result if result is not None else analyse(doc)
+    knx = r.get("knx")
     rows = [(f"Καλώδιο αγωγός {p['mm2']:g} mm² (H07V-U ή ισοδύναμο, ανά αγωγό)".replace(".", ","), "m", p["with_waste"])
             for p in r["purchase"]]
     conduit = round(sum(w["conduit_m"] for w in r["walls"]), 1)
@@ -209,14 +210,41 @@ def electrical_list(doc):
             strips[key] = strips.get(key, 0.0) + strip_length(e.params)
             continue
         cid = e.params.get("catalog_id")
-        label = POINT_TYPES[t][0] + (f" — {entry(cid).label}" if cid else "")
+        if knx and t in ("switch", "dimmer"):
+            label = "Μπουτόν KNX τοίχου"
+        else:
+            label = POINT_TYPES[t][0] + (f" — {entry(cid).label}" if cid else "")
         counts[label] = counts.get(label, 0) + 1
     rows += [(label, "τεμ.", n) for label, n in sorted(counts.items())]
     for cid, m in sorted(strips.items()):
         rows.append((POINT_TYPES["led_strip"][0] + (f" — {entry(cid).label}" if cid else ""), "m", round(m, 2)))
     if strips:
         rows.append(("Τροφοδοτικά ταινιών LED — από το φύλλο του κατασκευαστή", "τεμ.", None))
+    if knx:
+        import math
+        waste = 1 + float(r.get("waste_pct", 0.0)) / 100.0
+        lines = max(1, math.ceil(knx["bus_m"] / 1000.0))
+        rows += [("Καλώδιο KNX bus TP (J-Y(St)Y 2×2×0,8)", "m", round(knx["bus_m"] * waste, 1)),
+                 ("Σωλήνας για το bus KNX (χωριστός από τα 230 V)", "m", round(knx["bus_m"], 1)),
+                 ("Τροφοδοτικό KNX με πηνίο (ανά γραμμή) — ένταση από τη μελέτη", "τεμ.", lines),
+                 ("KNX IP interface / router", "τεμ.", 1)]
+        if knx["onoff_channels"]:
+            rows.append(("Ρελέ KNX C-Load — κανάλια On/Off", "κανάλι", knx["onoff_channels"]))
+        if knx["dali_gateways"]:
+            rows.append(("KNX-DALI gateway (ως 64 διευθύνσεις)", "τεμ.", knx["dali_gateways"]))
     return rows
+
+
+def compare_control_options(doc):
+    """Cost of each control system with the project's prices — for the client's decision (owner 15/10)."""
+    from archforge.mep.electrical_board import analyse
+    from archforge.mep.knx import CONTROL_SYSTEMS
+    from archforge.quantities.quote import priced
+    out = {}
+    for key, label in CONTROL_SYSTEMS.items():
+        rows = electrical_list(doc, analyse(doc, {"control_system": key}))
+        out[key] = {"label": label, "rows": rows, **priced(doc, rows)}
+    return out
 
 
 def all_lists(doc):

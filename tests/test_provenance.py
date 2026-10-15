@@ -34,7 +34,7 @@ def test_led_strip_power_is_manufacturer_data_without_a_default():
 def test_board_lists_every_rule_that_is_not_a_requirement():
     from archforge.mep.electrical_board import unverified_lines
     lines = unverified_lines()
-    assert len(lines) == len([r for r in rules('electrical.') + rules('board.') + rules('lighting.') + rules('practice.')
+    assert len(lines) == len([r for r in rules('electrical.') + rules('board.') + rules('lighting.') + rules('practice.') + rules('knx.')
                               if r.status != VERIFIED])
     assert any(l.startswith('[Μη επαληθευμένο') for l in lines) and any('30 mA' in l for l in lines)
 

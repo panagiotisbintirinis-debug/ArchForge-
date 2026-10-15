@@ -82,7 +82,7 @@ def unverified_lines():
     """Every rule the board relies on that is not VERIFIED, as «[κατάσταση] κανόνας — σημείωση»."""
     from archforge.core.provenance import STATUS_LABELS, rules
     out = []
-    for r in rules("electrical.") + rules("board.") + rules("lighting.") + rules("practice."):
+    for r in rules("electrical.") + rules("board.") + rules("lighting.") + rules("practice.") + rules("knx."):
         if not r.is_requirement:
             out.append(f"[{STATUS_LABELS[r.status]}] {r.statement}" + (f" — {r.note}" if r.note else ""))
     return out
@@ -98,13 +98,18 @@ def settings(doc):
     return {"panel": panel.id if panel is not None else None, "supply_kva": float(p.get("supply_kva", 0.0)),
             "supply_phases": int(p.get("supply_phases", 0)), "supply_fuse_a": float(p.get("supply_fuse_a", 0.0)),
             "demand_factor": float(p.get("demand_factor", 0.0)), "waste_pct": float(p.get("waste_pct", 0.0)),
-            "install_method": str(p.get("install_method", "B1"))}
+            "install_method": str(p.get("install_method", "B1")),
+            "control_system": str(p.get("control_system", "conventional"))}
 
 
-def conductors(circuit):
-    """Conductors of a circuit's line: [(code, label, mm²)] — L, N, PE at the circuit's section."""
+def conductors(circuit, dali=False):
+    """Conductors of a circuit's line: [(code, label, mm²)] — L, N, PE at the circuit's section (+ DA+, DA− for DALI-2)."""
     s = float(circuit["cable_mm2"])
-    return [(c, CONDUCTOR_LABELS[c], s) for c in ("L", "N", "PE")]
+    out = [(c, CONDUCTOR_LABELS[c], s) for c in ("L", "N", "PE")]
+    if dali:
+        from archforge.mep.knx import DA_MM2
+        out += [("DA+", "DALI bus +", DA_MM2), ("DA-", "DALI bus −", DA_MM2)]
+    return out
 
 
 def switch_leg(section):
@@ -219,10 +224,12 @@ def _farthest(runs, start, targets):
     return sum(math.dist(a, b) for a, b in runs)          # disconnected: whole length (upper bound)
 
 
-def analyse(doc):
-    """Everything the «Πίνακας» tab shows. Pure function of the Document."""
+def analyse(doc, override=None):
+    """Everything the «Πίνακας» tab shows. Pure function of the Document (``override``: settings to compare, e.g. KNX)."""
+    from archforge.mep.knx import dimming_of, knx_summary
     wiring = route_cables_cached(doc)
-    conf = settings(doc)
+    conf = {**settings(doc), **(override or {})}
+    knx = conf["control_system"] == "knx"
     points = {e.id: e for e in electrical_points(doc)}
     circuits = wiring["circuits"]
     warnings = list(wiring["report"]["warnings"])
@@ -241,8 +248,9 @@ def analyse(doc):
     per_location, per_circuit_runs = {}, {}
     totals = {}
     switch_runs = _switch_runs(doc, wiring, points)
-    tagged = [(a, b, cid, conductors(by_id[cid]), "line") for a, b, _g, cid in wiring["runs"] if cid in by_id]
-    for a, b, sid in switch_runs:
+    dali_circuit = {c["id"]: any(dimming_of(points[i].params) == "dali2" for i in c["points"] if i in points) for c in circuits}
+    tagged = [(a, b, cid, conductors(by_id[cid], dali_circuit[cid]), "line") for a, b, _g, cid in wiring["runs"] if cid in by_id]
+    for a, b, sid in ([] if knx else switch_runs):       # KNX: buttons on the bus, no 230 V switch legs
         cid = switch_circuit.get(sid, "")
         if cid in by_id:
             tagged.append((a, b, cid, switch_leg(float(by_id[cid]["cable_mm2"])), "switch"))
@@ -302,7 +310,8 @@ def analyse(doc):
                 metres[s] = metres.get(s, 0.0) + math.dist(a, b)
         row = {"id": c["id"], "label": c["label"], "group": c["group"], "breaker_a": c["breaker_a"], "mm2": sec,
                "points": len(c["points"]), "point_ids": list(c["points"]), "load_w": c["load_w"],
-               "current_a": c["current_a"], "conductors": conductors(c), "switch_leg": c["group"] == "lighting",
+               "current_a": c["current_a"], "conductors": conductors(c, dali_circuit[c["id"]]),
+               "switch_leg": c["group"] == "lighting" and not knx,
                "conduit_m": round(sum(math.dist(a, b) for a, b in own), 1),
                "wire_m": {s: round(m, 1) for s, m in sorted(metres.items())},
                "farthest_m": round(far, 1),
@@ -336,9 +345,12 @@ def analyse(doc):
     extra = lighting_circuit_count_conflict(wiring) if circuits else None
     if extra:
         practice.append(extra)
+    knx_info = knx_summary(doc, wiring, points) if knx and circuits else None
+    if knx_info:
+        warnings += knx_info["warnings"]
     board = _board(circuits, rows, conf, warnings) if circuits else None
     return {"circuits": rows, "walls": walls_out, "purchase": purchase, "waste_pct": waste, "board": board,
-            "warnings": warnings, "provenance": PROVENANCE, "unverified": unverified_lines(), "practice_conflicts": practice, "circuit_provenance": wiring["report"]["provenance"],
+            "warnings": warnings, "provenance": PROVENANCE, "unverified": unverified_lines(), "practice_conflicts": practice, "knx": knx_info, "circuit_provenance": wiring["report"]["provenance"],
             "boxes": wiring["report"].get("boxes", {}), "settings": conf}
 
 

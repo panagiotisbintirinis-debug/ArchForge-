@@ -192,3 +192,29 @@ def test_electrical_take_off_goes_into_the_priced_list_with_only_the_users_price
     assert c['total'] == 12.5 and c['priced'] == 1
     assert any(r['description'] == 'Μικροαυτόματος 40 A (κύκλωμα)' and r['amount'] == 12.5
                for _t, sec in quote(doc)['sections'] for r in sec)
+
+
+def test_knx_is_the_clients_option_and_both_are_costed_with_the_projects_prices():
+    from archforge.core.commands import AddEntity
+    from archforge.core.model import Entity
+    from archforge.quantities.materials import compare_control_options, electrical_list
+    doc = Document(); stack = CommandStack(doc); panel = _flat(stack)
+    r = analyse(doc)
+    assert r['settings']['control_system'] == 'conventional' and r['knx'] is None     # default: conventional On/Off
+    lighting = next(c for c in r['circuits'] if c['group'] == 'lighting')
+    assert lighting['switch_leg'] and [c for c, *_x in lighting['conductors']] == ['L', 'N', 'PE']
+    stack.execute(UpdateEntity(panel.id, {'control_system': 'knx'}))
+    light = next(e for e in doc.entities.values() if e.params.get('point_type') == 'light')
+    stack.execute(UpdateEntity(light.id, {'dimming': 'dali2'}))
+    k = analyse(doc)
+    assert k['knx']['buttons'] == 2 and k['knx']['bus_m'] > 0 and k['knx']['dali_addresses'] == 1
+    assert k['knx']['dali_gateways'] == 1
+    dali_c = next(c for c in k['circuits'] if light.id in c['point_ids'])
+    assert [c for c, *_x in dali_c['conductors']] == ['L', 'N', 'PE', 'DA+', 'DA-'] and not dali_c['switch_leg']
+    rows = {d: q for d, _u, q in electrical_list(doc, k)}
+    assert rows['Μπουτόν KNX τοίχου'] == 2 and rows['KNX-DALI gateway (ως 64 διευθύνσεις)'] == 1
+    assert 'Διακόπτης' not in rows
+    stack.execute(AddEntity(Entity('price_list', {'prices': {'Μπουτόν KNX τοίχου': 90.0, 'Διακόπτης': 8.0}, 'vat': 24.0})))
+    cmp = compare_control_options(doc)
+    assert cmp['knx']['total'] == 180.0 and cmp['conventional']['total'] == 16.0
+    assert cmp['knx']['missing'] and cmp['conventional']['missing']               # the rest: no price, not guessed

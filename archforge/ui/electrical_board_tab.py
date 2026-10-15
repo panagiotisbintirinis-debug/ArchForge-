@@ -50,7 +50,12 @@ class BoardTab(QWidget):
         for label, value in (("B1: σωλήνας σε κτιστό τοίχο", "B1"), ("A1: σωλήνας σε θερμομονωτικό τοίχο", "A1")):
             self.method.addItem(label, value)
         self.method.activated.connect(lambda _i: self._set("install_method", self.method.currentData()))
-        for w in (self.kva, self.phases, self.fuse, self.factor, self.waste, self.method):
+        from archforge.mep.knx import CONTROL_SYSTEMS
+        self.control = QComboBox(); self.control.setToolTip("Σύστημα ελέγχου — επιλογή του πελάτη (προεπιλογή: συμβατικό On/Off)")
+        for value, label in CONTROL_SYSTEMS.items():
+            self.control.addItem(label, value)
+        self.control.activated.connect(lambda _i: self._set("control_system", self.control.currentData()))
+        for w in (self.control, self.kva, self.phases, self.fuse, self.factor, self.waste, self.method):
             head.addWidget(w)
         self.kva.editingFinished.connect(lambda: self._set("supply_kva", float(self.kva.value())))
         self.phases.activated.connect(lambda _i: self._set("supply_phases", int(self.phases.currentData())))
@@ -135,7 +140,7 @@ class BoardTab(QWidget):
         has = bool(r["circuits"])
         self.empty.setVisible(not has)
         self.pages.setVisible(has)
-        for w in (self.kva, self.phases, self.fuse, self.factor, self.waste, self.method, self.excel, self.pdf):
+        for w in (self.control, self.kva, self.phases, self.fuse, self.factor, self.waste, self.method, self.excel, self.pdf):
             w.setEnabled(has)
         self._updating = True
         try:
@@ -145,6 +150,7 @@ class BoardTab(QWidget):
             self.factor.setValue(conf["demand_factor"])
             self.waste.setValue(conf["waste_pct"])
             self.method.setCurrentIndex(max(0, self.method.findData(conf["install_method"])))
+            self.control.setCurrentIndex(max(0, self.control.findData(conf["control_system"])))
         finally:
             self._updating = False
         cards = {}
@@ -162,13 +168,16 @@ class BoardTab(QWidget):
                                 + (f" · ανισορροπία {_n(b['imbalance_pct'], 0)} %" if b["imbalance_pct"] is not None else "")
                                 if b["phases"] else todo)}
         if b:
-            from archforge.quantities.materials import electrical_list
-            from archforge.quantities.quote import money, priced
-            cost = priced(self.window.doc, electrical_list(self.window.doc))
-            cards["cost"] = ("Κόστος υλικών (τιμοκατάλογος έργου)",
-                             f"{money(cost['total'])} · {len(cost['missing'])} είδη χωρίς τιμή" if cost["priced"]
-                             else f"— βάλτε τιμές ({len(cost['missing'])} είδη)")
-            self.result["cost"] = cost
+            from archforge.quantities.materials import compare_control_options
+            from archforge.quantities.quote import money
+            options = compare_control_options(self.window.doc)
+            current = options[r["settings"]["control_system"]]
+            cost = {k: {kk: v[kk] for kk in ("total", "missing", "priced")} for k, v in options.items()}
+            cards["cost"] = ("Κόστος υλικών — σύγκριση για τον πελάτη (τιμοκατάλογος έργου)",
+                             "\n".join(f"{v['label'].split(' (')[0]}: " + (f"{money(v['total'])} · {len(v['missing'])} χωρίς τιμή"
+                                                                           if v["priced"] else f"— βάλτε τιμές ({len(v['missing'])} είδη)")
+                                       for v in options.values()))
+            self.result["cost"] = cost; self.result["cost_current"] = current["total"]
         for key, (box, cap, val) in self.card_labels.items():
             box.setVisible(key in cards)
             if key in cards:

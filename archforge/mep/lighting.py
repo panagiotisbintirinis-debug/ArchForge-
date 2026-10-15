@@ -237,7 +237,7 @@ def lighting_report(doc):
     points = {e.id: e for e in electrical_points(doc)}
     out, warnings = [], []
     for g in groups.values():
-        protocols = {points[i].params.get("dimming", "") for i in g["lights"]}
+        protocols = {points[i].params.get("dimming") or "onoff" for i in g["lights"]}     # owner 15/10: On/Off by default
         g["dimming"] = sorted(p for p in protocols if p)
         if len(g["dimming"]) > 1:
             warnings.append(f"Ομάδα «{g['group']}»: διαφορετικά πρωτόκολλα ρύθμισης "
