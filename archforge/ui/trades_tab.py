@@ -19,8 +19,8 @@ from PySide6.QtWidgets import (QCheckBox, QFileDialog, QHBoxLayout, QHeaderView,
 TAB_TITLE = "Υλικά & τιμές"
 SUMMARY = "Σύνολο έργου"
 # Honest scope of the construction cost: what the program does NOT measure yet (owner 15/10: «τα μετράει σχεδόν όλα»).
-NOT_MEASURED = ("τούβλα συμβατικής τοιχοποιίας", "σκυρόδεμα πλακών", "σοβάδες", "κεραμίδια στέγης", "κουφώματα",
-                "οπλισμός και καλούπια (από τη στατική μελέτη)")
+NOT_MEASURED = ("οπλισμός και καλούπια (από τη στατική μελέτη)", "κονιάματα/κόλλες (από τα φύλλα των προϊόντων)",
+                "τεμάχια τούβλων/κεραμιδιών όσο δεν έχεις δώσει τεμ./m² από το φύλλο", "χωματουργικά")
 COLUMNS = ["Είδος", "Μον.", "Ποσότητα", "Υλικό €/μον.", "Εργασία €/μον.", "Σύνολο", "Γιατί"]
 
 
@@ -110,6 +110,10 @@ class TradesTab(QWidget):
                 table.horizontalHeader().setStretchLastSection(True)
                 table.itemChanged.connect(lambda item, t=table: self._price_edited(t, item))
                 v.addWidget(table, 1)
+                if name in ("Τοιχοποιίες", "Κεραμοσκεπή"):
+                    pieces = QPushButton("Τεμάχια ανά m² (από το φύλλο του προϊόντος)…")
+                    pieces.clicked.connect(lambda _=False, n=name, r=rows: self.ask_pieces(n, r))
+                    v.addWidget(pieces)
                 v.addWidget(QLabel("\n".join(notes))) if notes else None
                 self.cards.addTab(page, name)
                 self.tables[name], self.checks[name] = table, check
@@ -211,6 +215,45 @@ class TradesTab(QWidget):
             self.window.stack.execute(UpdateEntity(e.id, {"trade_prices": trade}))
         from PySide6.QtCore import QTimer
         QTimer.singleShot(0, self.refresh)
+
+    def ask_pieces(self, name, rows):
+        from PySide6.QtWidgets import QInputDialog
+        from archforge.quantities.quote import row_meta
+        keys = []
+        for row in rows:
+            desc, _u, _q, meta = row_meta(row)
+            code = meta["code"]
+            if code.startswith("masonry.") and not code.endswith(".pieces"):
+                keys.append((desc, code.split(".", 1)[1]))
+            elif code.startswith("roof.tiles.") and not code.endswith(".pieces"):
+                keys.append((desc, "tile." + code.split(".")[2]))
+        if not keys:
+            return None
+        desc, ok = QInputDialog.getItem(self, "Τεμάχια ανά m²", "Για ποιο;", [d for d, _k in keys], 0, False)
+        if not ok:
+            return None
+        key = dict(keys)[desc]
+        value, ok = QInputDialog.getDouble(self, "Τεμάχια ανά m²", f"{desc}\nτεμάχια ανά m² όπως γράφει το φύλλο του προϊόντος:",
+                                           1.0, 0.01, 1000.0, 2)
+        return self.set_pieces(key, value) if ok else None
+
+    def set_pieces(self, key, value):
+        """Pieces per m² of a brick / tile type, from its data sheet: one undoable change."""
+        from archforge.core.commands import AddEntity, UpdateEntity
+        from archforge.core.model import Entity
+        e = next((x for x in self.window.doc.entities.values() if x.kind == "construction_spec"), None)
+        pieces = dict((e.params.get("pieces_per_m2") or {}) if e else {})
+        if value:
+            pieces[key] = float(value)
+        else:
+            pieces.pop(key, None)
+        if e is None:
+            self.window.stack.execute(AddEntity(Entity("construction_spec", {"pieces_per_m2": pieces}, name="Στοιχεία προϊόντων")))
+        else:
+            self.window.stack.execute(UpdateEntity(e.id, {"pieces_per_m2": pieces}))
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self.refresh)
+        return pieces
 
     # ----------------------------------------------------------------------------------------------- exports
     def export_order(self, path=None, name=None):

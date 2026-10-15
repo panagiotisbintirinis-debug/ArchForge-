@@ -301,6 +301,10 @@ def _light_direction(v):
     return v
 
 
+def _pieces_per_m2(v):
+    return {str(k): _positive(x) for k, x in dict(v or {}).items()}
+
+
 def _insulation_categories(v):
     """``{category: {"thermal": key, "thickness": m, "waterproofing": key}}`` (construction/insulation.py)."""
     from archforge.construction.insulation import CATEGORIES, THERMAL, WATERPROOFING
@@ -826,6 +830,8 @@ SCHEMAS = {
                  'z': _finite, 'u0': _finite, 'v0': _finite, 'm_per_unit': _positive, 'rotation': _finite,
                  'opacity': _unit_interval, 'page_w': _positive, 'page_h': _positive, 'scale_denominator': _positive},
     'insulation_spec': {'categories': _insulation_categories},
+    # Data-sheet figures the user enters (construction/shell.py): pieces per m² of a brick / roof tile.
+    'construction_spec': {'pieces_per_m2': _pieces_per_m2},
     'section_line': {'x1': _finite, 'y1': _finite, 'x2': _finite, 'y2': _finite, 'flip': _flag, 'depth': _nonnegative},
     # Saved camera (core/cameras.py): a view preference, never building geometry.
     'camera': {'x': _finite, 'y': _finite, 'level_z': _finite, 'height': _between(0.05, 50.0, 'eye height'),

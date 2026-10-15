@@ -79,6 +79,6 @@ def test_project_total_is_the_construction_cost_of_every_trade(tmp_path):
         path = tab.export_order(str(tmp_path / 'all.csv'))
         text = open(path, encoding='utf-8-sig').read()
         assert 'Λίστα παραγγελίας — Ηλεκτρολογικά' in text and 'Λίστα παραγγελίας — Επιμέτρηση' in text
-        assert trades_tab.NOT_MEASURED and 'τούβλα' in trades_tab.NOT_MEASURED[0]
+        assert any('τούβλων' in n for n in trades_tab.NOT_MEASURED)        # bricks counted only with the data sheet
     finally:
         window._mark_clean(); window.close(); app.processEvents()
