@@ -39,13 +39,14 @@ def test_board_lists_every_rule_that_is_not_a_requirement():
     assert any(l.startswith('[Μη επαληθευμένο') for l in lines) and any('30 mA' in l for l in lines)
 
 
-def test_program_rules_that_disagree_with_installer_practice_are_listed_not_changed():
+def test_installer_practice_adopted_by_the_owner_leaves_no_conflict():
     from archforge.mep.electrical import CIRCUIT_RULES
     from archforge.mep.practice import conflicts
-    found = dict(conflicts())
-    # cooker 32 A / 6 mm² vs practice 40 A / 10 mm²; water heater 20 A on 2.5 mm² vs practice 4 mm² (and 2.5 mm² ≤ 16 A)
-    assert 'cooker' in found and 'water_heater' in found
-    assert CIRCUIT_RULES['cooker'][1:3] == (32, 6.0)            # nothing changed automatically
+    from archforge.core.provenance import ENGINEER_REVIEW
+    assert conflicts() == []                                     # owner 15/10: practice values adopted
+    assert CIRCUIT_RULES['cooker'][1:3] == (40, 10.0) and CIRCUIT_RULES['water_heater'][1:3] == (20, 4.0)
+    for rid in ('electrical.dedicated_lines', 'electrical.lighting_min_two'):
+        assert rule(rid).status == ENGINEER_REVIEW and 'ιδιοκτήτη' in rule(rid).source
     assert rule('practice.circuits').status != VERIFIED and rule('standards.keee_replaced').status != VERIFIED
 
 

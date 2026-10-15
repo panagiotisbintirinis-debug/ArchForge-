@@ -96,10 +96,13 @@ def test_farthest_point_and_indicative_voltage_drop_along_the_route():
     c = analyse(doc)['circuits'][0]
     assert 40 < c['farthest_m'] <= c['conduit_m'] + 1e-6
     ib = 2000.0 / 230
-    assert c['drop_pct'] == pytest.approx(2 * 100 * ib * c['farthest_m'] * 0.0225 / (230 * 2.5), abs=0.02)
+    assert c['mm2'] == 4.0 and c['drop_pct'] == pytest.approx(2 * 100 * ib * c['farthest_m'] * 0.0225 / (230 * 4.0), abs=0.02)
     stack.execute(UpdateEntity(heater.id, {'power_w': 4500.0}))
+    assert analyse(doc)['circuits'][0]['drop_pct'] < 5.0          # 4 mm² (owner 15/10) over > 40 m stays within 5 %
+    # A heavy socket at the far end on 2,5 mm²: flagged, with the review tag.
+    _pt(stack, 'socket', 39.7, 3.7, power_w=3500.0)
     r = analyse(doc)
-    c = r['circuits'][0]
+    c = next(c for c in r['circuits'] if c['group'] == 'sockets')
     assert c['drop_pct'] > 5.0 and not c['ok'] and any('[προς έλεγχο]' in w and 'πτώση τάσης' in w for w in r['warnings'])
     assert rule('board.voltage_drop').status == ENGINEER_REVIEW and '4 %' in rule('board.voltage_drop').note
 
@@ -107,12 +110,22 @@ def test_farthest_point_and_indicative_voltage_drop_along_the_route():
 def test_iz_check_follows_the_installation_method():
     doc = Document(); stack = CommandStack(doc); panel = _flat(stack)
     heater = next(c for c in analyse(doc)['circuits'] if c['group'] == 'water_heater')
-    assert heater['iz_a'] == 24.0                                       # B1, 2,5 mm², 2 loaded conductors
+    assert (heater['mm2'], heater['iz_a']) == (4.0, 32.0)                # B1, 4 mm², 2 loaded conductors
     stack.execute(UpdateEntity(panel.id, {'install_method': 'A1'}))
     r = analyse(doc)
     heater = next(c for c in r['circuits'] if c['group'] == 'water_heater')
-    # 20 A breaker on 2,5 mm² in an insulated wall (Iz 19,5 A): the summary's own rule fails — flagged, not hidden.
-    assert heater['iz_a'] == 19.5 and not heater['ok'] and any('Iz 19.5' in w for w in r['warnings'])
+    # Owner 15/10: 20 A on 4 mm² passes in an insulated wall too (Iz 26 A); 2,5 mm² (Iz 19,5 A) did not.
+    assert heater['iz_a'] == 26.0 and heater['ok']
+    sockets = next(c for c in r['circuits'] if c['group'] == 'sockets')
+    assert sockets['iz_a'] == 19.5 and sockets['ok']                    # 16 A on 2,5 mm² in A1
+
+
+def test_at_least_two_lighting_circuits():
+    doc = Document(); stack = CommandStack(doc); _house(stack)
+    _pt(stack, 'panel', 0.3, 3.0)
+    _pt(stack, 'light', 2, 3); _pt(stack, 'light', 6, 3)
+    lighting = [c for c in analyse(doc)['circuits'] if c['group'] == 'lighting']
+    assert len(lighting) == 2 and all(len(c['point_ids']) == 1 for c in lighting)
 
 
 def test_csv_lists_circuits_walls_and_purchase():

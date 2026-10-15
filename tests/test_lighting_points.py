@@ -28,14 +28,14 @@ def test_strip_load_is_w_per_m_times_length_on_a_lighting_circuit():
     strip = _pt(stack, 'led_strip', 1.0, 1.0, x2=3.5, y2=1.0, w_per_m=14.4)
     spot = _pt(stack, 'spot', 2.0, 3.0)
     d = design_circuits(doc)
-    c = next(c for c in d['circuits'] if strip.id in c['points'])
-    assert c['group'] == 'lighting' and spot.id in c['points']
+    lighting = lambda d: [c for c in d['circuits'] if c['group'] == 'lighting']
+    assert {strip.id, spot.id} == {i for c in lighting(d) for i in c['points']}   # two lighting circuits (owner 15/10)
     # No catalogue default: the spot counts 0 W and says so until its data-sheet W is entered.
-    assert POINT_TYPES['spot'][2] == 0 and c['load_w'] == round(14.4 * 2.5)
+    assert POINT_TYPES['spot'][2] == 0 and sum(c['load_w'] for c in lighting(d)) == round(14.4 * 2.5)
     assert any('φύλλο' in w and spot.id[:6] in w for w in d['report']['warnings'])
     stack.execute(UpdateEntity(spot.id, {'power_w': 6.0}))
+    assert sum(c['load_w'] for c in lighting(design_circuits(doc))) == round(14.4 * 2.5 + 6.0)
     c = next(c for c in design_circuits(doc)['circuits'] if strip.id in c['points'])
-    assert c['load_w'] == round(14.4 * 2.5 + 6.0)
     stack.execute(UpdateEntity(strip.id, {'x2': 5.0}))                 # longer strip -> more load
     assert next(c for c in design_circuits(doc)['circuits'] if strip.id in c['points'])['load_w'] > c['load_w']
     with pytest.raises(ValueError):

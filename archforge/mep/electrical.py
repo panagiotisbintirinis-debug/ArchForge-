@@ -11,8 +11,10 @@ none of them is VERIFIED yet, so none is presented as a requirement:
   grouped by room.  A switch controls the lights of its room.
 * General sockets: 16 A breaker, 2.5 mm², at most 6 sockets per circuit,
   grouped by room; kitchen sockets never share a circuit with other rooms.
-* Dedicated lines (one appliance each): cooker/oven 32 A 6 mm², water heater
-  20 A 2.5 mm², air-conditioner, washing machine, dishwasher 16 A 2.5 mm².
+* Dedicated lines (one appliance each): cooker/oven 40 A 10 mm² (single
+  phase), water heater 20 A 4 mm² (owner's decision 15/10, installer practice),
+  air-conditioner, washing machine, dishwasher 16 A 2.5 mm².
+* At least two lighting circuits per dwelling (owner 15/10).
 * A shared circuit whose design load exceeds 80 % of its breaker, or a
   dedicated line whose appliance exceeds its breaker, is flagged.
 * Routes (Greek practice): conduits rise into the walls and run horizontally
@@ -38,8 +40,12 @@ register(
     Rule("electrical.lighting_circuit", "Φωτισμός: ασφάλεια 10 A, καλώδιο 1,5 mm², ως 10 σημεία ανά κύκλωμα, ανά χώρο",
          UNVERIFIED, note=_HD384),
     Rule("electrical.socket_circuit", "Ρευματοδότες: 16 A, 2,5 mm², ως 6 ανά κύκλωμα· κουζίνα ως 4, χωριστά", UNVERIFIED, note=_HD384),
-    Rule("electrical.dedicated_lines", "Αποκλειστικές γραμμές: κουζίνα 32 A/6 mm², θερμοσίφωνας 20 A/2,5 mm², "
-         "κλιματιστικό/πλυντήρια 16 A/2,5 mm²", UNVERIFIED, note=_HD384),
+    Rule("electrical.dedicated_lines", "Αποκλειστικές γραμμές: κουζίνα 40 A/10 mm² (μονοφασική), θερμοσίφωνας 20 A/4 mm², "
+         "κλιματιστικό/πλυντήρια 16 A/2,5 mm²", ENGINEER_REVIEW,
+         source="Απόφαση ιδιοκτήτη 15/10 με βάση την πρακτική εγκαταστάτη (σύνοψη) — αντικατέστησε 32 A/6 mm² και 20 A/2,5 mm²",
+         note="Ο θερμοσίφωνας 20 A σε 2,5 mm² δεν περνούσε Ib ≤ In ≤ Iz σε A1 (Iz 19,5 A)· κλιματιστικό/πλυντήρια: " + _HD384),
+    Rule("electrical.lighting_min_two", "Τουλάχιστον 2 κυκλώματα φωτισμού ανά κατοικία (όταν υπάρχουν ≥ 2 φωτιστικά)",
+         ENGINEER_REVIEW, source="Απόφαση ιδιοκτήτη 15/10 — πρακτική εγκαταστάτη και ΕΛΟΤ HD 60364-3 §314 (κατά σύνοψη)"),
     Rule("electrical.shared_margin", "Κοινό κύκλωμα: προειδοποίηση πάνω από 80 % της ασφάλειας", UNVERIFIED, note=_HD384),
     Rule("electrical.rcd_30ma", "Διαφορικό ≤ 30 mA (συμπληρωματική προστασία): ρευματοδότες ως 32 A, τελικά κυκλώματα "
          "φωτισμού κατοικίας, κινητός εξοπλισμός εξωτερικών χώρων ως 32 A· στο πρόγραμμα όλα τα κυκλώματα (σημειώνεται, "
@@ -91,8 +97,8 @@ CIRCUIT_RULES = {
     "lighting": ("Φωτισμός", 10, 1.5, 10),
     "sockets": ("Ρευματοδότες", 16, 2.5, 6),
     "kitchen_sockets": ("Ρευματοδότες κουζίνας", 16, 2.5, 4),
-    "cooker": ("Κουζίνα", 32, 6.0, 1),
-    "water_heater": ("Θερμοσίφωνας", 20, 2.5, 1),
+    "cooker": ("Κουζίνα", 40, 10.0, 1),          # owner 15/10: installer practice (μονοφασική), ENGINEER_REVIEW
+    "water_heater": ("Θερμοσίφωνας", 20, 4.0, 1),  # owner 15/10: installer practice, ENGINEER_REVIEW
     "air_conditioner": ("Κλιματιστικό", 16, 2.5, 1),
     "washing_machine": ("Πλυντήριο ρούχων", 16, 2.5, 1),
     "dishwasher": ("Πλυντήριο πιάτων", 16, 2.5, 1),
@@ -200,6 +206,13 @@ def design_circuits(doc):
             current_room = (room, floor)
         if current:
             chunks.append(current)
+        if group == "lighting" and len(chunks) == 1 and len(chunks[0]) >= 2:
+            # At least two lighting circuits (owner 15/10): split at the room change nearest the middle.
+            only = chunks[0]
+            rooms_of = [(r, f) for r, f, e in members]
+            cuts = [k for k in range(1, len(only)) if rooms_of[k] != rooms_of[k - 1]] or [len(only) // 2]
+            k = min(cuts, key=lambda c: (abs(c - len(only) / 2), c))
+            chunks = [only[:k], only[k:]]
         for chunk in chunks:
             number += 1
             watts = sum(point_load_w(e.params) for e in chunk)

@@ -38,7 +38,7 @@ def test_circuits_follow_the_stated_rules():
     assert [len(c['points']) for c in by_group['sockets']] in ([6, 1], [4, 3], [3, 4], [5, 2])
     assert all((c['breaker_a'], c['cable_mm2']) == (16, 2.5) for c in by_group['sockets'])
     assert (by_group['lighting'][0]['breaker_a'], by_group['lighting'][0]['cable_mm2']) == (10, 1.5)
-    assert by_group['cooker'][0]['points'] == [cooker.id] and by_group['cooker'][0]['breaker_a'] == 32
+    assert by_group['cooker'][0]['points'] == [cooker.id] and (by_group['cooker'][0]['breaker_a'], by_group['cooker'][0]['cable_mm2']) == (40, 10.0)  # owner 15/10
     assert d['report']['warnings'] == [] and 'ηλεκτρολόγο' in d['report']['provenance']
     assert sorted(i for c in d['circuits'] for i in c['points']) == sorted(e.id for e in sockets + lights + [cooker])
 
