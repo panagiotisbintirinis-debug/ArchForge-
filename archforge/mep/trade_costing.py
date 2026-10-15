@@ -2,11 +2,15 @@
 
 This module intentionally contains **no catalogue prices and no engineering
 constants**. Geometry/MEP modules provide quantities; the professional enters
-unit prices and labour rates.  The same calculation path can therefore be
-used by plumbing, heating/HVAC, electrical and later construction trades.
+unit prices and labour rates. The same calculation path can therefore be used
+by plumbing, heating/HVAC, electrical and later construction trades.
 
 Trust rule: quantities may come from the authoritative model, but a missing
-price is never guessed.  Missing prices stay missing and are reported.
+price is never guessed. Missing prices stay missing and are reported.
+
+A quantity line is also explainable: it can carry a plain-language reason,
+rule status and provenance. That lets the same project data serve both the
+professional and the owner without maintaining a second quote model.
 """
 from __future__ import annotations
 
@@ -23,6 +27,10 @@ class QuantityLine:
     unit: str
     trade: str
     source: str = "model"
+    owner_explanation: str = ""
+    rule_status: str = "MODEL_QUANTITY"
+    rule_source: str = ""
+    selection_basis: str = "model"
 
 
 @dataclass(frozen=True)
@@ -98,3 +106,29 @@ def quote_summary(rows: Iterable[dict]) -> dict:
         "unpriced_codes": unpriced,
         "complete": not unpriced,
     }
+
+
+def owner_quote_view(rows: Iterable[dict]) -> list[dict]:
+    """Compact owner-facing view from the exact same priced rows.
+
+    No technical data or price is recalculated here; this is only a different
+    presentation of the authoritative quote rows.
+    """
+    view = []
+    for row in rows:
+        view.append({
+            "code": row.get("code", ""),
+            "item": row.get("description", ""),
+            "why": row.get("owner_explanation", ""),
+            "quantity": row.get("quantity"),
+            "unit": row.get("unit", ""),
+            "material_cost": row.get("material_cost"),
+            "labour_cost": row.get("labour_cost"),
+            "total_cost": row.get("total_cost"),
+            "currency": row.get("currency", "EUR"),
+            "rule_status": row.get("rule_status", ""),
+            "rule_source": row.get("rule_source", ""),
+            "selection_basis": row.get("selection_basis", ""),
+            "priced": bool(row.get("complete_price", False)),
+        })
+    return view
