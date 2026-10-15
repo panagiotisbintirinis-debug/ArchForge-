@@ -4,6 +4,7 @@ from __future__ import annotations
 from html import escape
 
 from archforge.structure.analysis.settings import IMPORTANCE, OCCUPANCIES, ROOF_ACCESS, ZONES
+from archforge.structure.rules import STATUS_BANNER, unverified_lines
 
 
 def _pct(v):
@@ -16,7 +17,8 @@ def _status(e):
 
 def report_html(r):
     s = r["settings"]
-    out = ["<h2>Στατική ανάλυση φέροντος οργανισμού — προμελέτη</h2>"]
+    out = ["<h2>Στατική ανάλυση φέροντος οργανισμού — προμελέτη</h2>",
+           f"<p style='color:#c0392b'><b>⚠ {escape(STATUS_BANNER)}</b></p>"]
     if r.get("error"):
         out.append(f"<p><b>⚠ {escape(r['error'])}</b></p>")
     out.append(f"<p><b>{escape(r['system_label'])}</b> · {escape(OCCUPANCIES[s['occupancy']][0])} · "
@@ -79,4 +81,6 @@ def report_html(r):
     if r.get("warnings"):
         out.append("<h3>Παρατηρήσεις</h3><ul>" + "".join(f"<li>{escape(w)}</li>" for w in r["warnings"]) + "</ul>")
     out.append(f"<p><i>{escape(r['provenance'])}</i></p>")
+    out.append("<h3>Κατάσταση κανόνων και τιμών του υπολογισμού</h3><ul>"
+               + "".join(f"<li>{escape(line)}</li>" for line in unverified_lines()) + "</ul>")
     return "\n".join(out)

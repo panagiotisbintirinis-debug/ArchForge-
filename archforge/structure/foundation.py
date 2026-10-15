@@ -42,8 +42,9 @@ from __future__ import annotations
 import math
 
 from archforge.structure.analysis.sections import CONCRETE, FYK, fyd
+from archforge.structure.rules import STATUS_BANNER
 
-PROVENANCE = ("Θεμελίωση (προμελέτη): πέδιλα B×B από G+Q και σεδ, οπλισμός πεδίλων από πρόβολο παρειάς (EN 1992-1-1 §9.2.1.1), "
+PROVENANCE = (STATUS_BANNER + " " + "Θεμελίωση (προμελέτη): πέδιλα B×B από G+Q και σεδ, οπλισμός πεδίλων από πρόβολο παρειάς (EN 1992-1-1 §9.2.1.1), "
               "συνδετήριες δοκοί EN 1998-5 §5.4.1.2 (±k·α·S·N), 25×50 ≥ 4Ø14, Ø8/20· πεδιλοδοκοί ανεστραμμένου Τ: πέλμα από ΣN/(σεδ·L), "
               "κορμός ως συνεχής δοκός q·l²/10, συνδετήρες cotθ=2,5 — χωρίς διάτρηση, καθιζήσεις, ελαστική έδραση, "
               "κοιτόστρωση — προς έλεγχο από στατικό μηχανικό")

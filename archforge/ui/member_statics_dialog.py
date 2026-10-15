@@ -19,6 +19,7 @@ from archforge.structure.analysis.member import (STIRRUP_BARS, apply_command, me
                                                  recheck)
 from archforge.structure.analysis.sections import BARS
 from archforge.structure.analysis.rc import COVER
+from archforge.structure.rules import STATUS_BANNER
 
 
 class EnvelopeView(QWidget):
@@ -357,7 +358,7 @@ class MemberStaticsDialog(QDialog):
         u = min(float(d.get("utilisation", 0.0)), 9.99)
         color = "#27864a" if d.get("ok", True) else "#c0392b"
         lines = [f"<b style='color:{color}'>{'✓ Επαρκεί' if d.get('ok', True) else '⚠ Δεν επαρκεί'}</b> · "
-                 f"αξιοποίηση <b>{u:.0%}</b>"]
+                 f"αξιοποίηση <b>{u:.0%}</b>", f"<span style='color:#c0392b'>⚠ {escape(STATUS_BANNER)}</span>"]
         if self.entry["kind"] == "beam" and self.entry["material"] == "rc":
             i = self.entry["inputs"]
             for side, M, label in (("bottom", i["M_sag"], "M+ (άνοιγμα)"), ("top", i["M_hog"], "M− (στήριξη)")):

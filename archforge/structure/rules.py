@@ -1,0 +1,139 @@
+"""Status of every value and rule the structural pre-design uses (owner 15/10, AGENTS.md).
+
+The structural modules (``structure/*``, ``structure/analysis/*``) were written
+before the rule «καμία τιμή από μνήμη».  Their constants cite EN clauses and the
+Greek National Annex, but **none has been cross-checked against the text in
+force**, and the tests check consistency, not solved examples.  So:
+
+* nothing here is ``VERIFIED``;
+* a value the code attributes to a standard is ``UNVERIFIED`` until the clause
+  text is checked (``note`` says what the code claims, so the check is quick);
+* a simplification of method is ``ENGINEER_REVIEW``;
+* a geometric / layout choice of ours is ``DESIGN_DEFAULT``.
+
+Every structural result carries ``STATUS_BANNER`` until the solver has been
+compared with solved examples from a source or with an engineer's study of the
+same building (HANDOFF, «Στατικά — προτεραιότητα ελέγχου»).
+"""
+from __future__ import annotations
+
+from dataclasses import replace
+
+from archforge.core.provenance import DESIGN_DEFAULT, ENGINEER_REVIEW, UNVERIFIED, Rule, register, rule, rules
+
+STATUS_BANNER = ("ΜΗ ΕΠΑΛΗΘΕΥΜΕΝΟ — ΟΧΙ ΓΙΑ ΜΕΛΕΤΗ: ο υπολογισμός στατικών δεν έχει συγκριθεί με λυμένα "
+                 "παραδείγματα ή με μελέτη μηχανικού και οι τιμές κανονισμών του δεν έχουν διασταυρωθεί με το κείμενο. "
+                 "Ενδεικτική προμελέτη μόνο.")
+
+_CLAIM = "Ο κώδικας το αποδίδει σε {} — δεν διασταυρώθηκε με το ισχύον κείμενο."
+
+
+def _u(rid, statement, claim, note=""):
+    return Rule(rid, statement, UNVERIFIED, note=_CLAIM.format(claim) + (" " + note if note else ""))
+
+
+register(
+    # --- Actions (settings.py, building.py) -------------------------------------------------------
+    _u("structure.imposed_loads", "Κινητά φορτία πατωμάτων: κατοικία 2,0 · γραφεία 3,0 · καταστήματα 4,0 · συνάθροιση 5,0 kN/m²",
+       "EN 1991-1-1 Πίν. 6.2 (συνιστώμενες τιμές)", "Το Ελληνικό Εθνικό Προσάρτημα μπορεί να ορίζει άλλες."),
+    _u("structure.roof_loads", "Κινητά δώματος: βατό 2,0 · μη βατό (κατ. H) 0,4 kN/m²", "EN 1991-1-1 (κατ. H) — χωρίς πίνακα"),
+    _u("structure.psi2", "ψ2 για τη σεισμική μάζα: κατοικία/γραφεία 0,3 · καταστήματα/συνάθροιση 0,6", "EN 1990 Πίν. A1.1"),
+    _u("structure.concrete_weight", "Ειδικό βάρος οπλισμένου σκυροδέματος 25 kN/m³", "συνήθη τιμή — χωρίς παραπομπή στον κώδικα"),
+    Rule("structure.wall_loads", "Γραμμικό φορτίο τοίχων πάνω σε δοκούς: τούβλο ≤ 15 cm 2,1 · παχύτερο 3,6 · γυψοσανίδα 0,5 kN/m² "
+         "(× ύψος τοίχου, με σοβά)", ENGINEER_REVIEW, note="«Συνήθης ελληνική πρακτική» κατά τον κώδικα — χωρίς πηγή· "
+         "εξαρτάται από το τούβλο/μπλόκ (φύλλο κατασκευαστή)."),
+    Rule("structure.default_finishes", "Προεπιλογές φορτίων: πλάκα 18 cm, επικαλύψεις 1,5, διαχωριστικά 1,0, επικαλύψεις δώματος 2,0 kN/m²",
+         DESIGN_DEFAULT, note="Ρυθμίσεις στα «Στοιχεία στατικής»· αλλάζουν από τον χρήστη."),
+    Rule("structure.soil_pressure_default", "Επιτρεπόμενη τάση εδάφους σεδ: προεπιλογή 200 kPa όταν ο χρήστης δεν δίνει τιμή",
+         ENGINEER_REVIEW, note="Κρυφή προεπιλογή γεωτεχνικής τιμής: πρέπει να έρχεται από τη γεωτεχνική μελέτη του οικοπέδου. "
+         "Ανοιχτή ερώτηση στον ιδιοκτήτη: να γίνει υποχρεωτική εισαγωγή;"),
+    _u("structure.tributary_slab_load", "Φορτίο πλάκας στη πλησιέστερη δοκό (επιφάνειες επιρροής ≈ κανόνας 45°, κάναβος 10 cm)",
+       "συνήθη μέθοδο κατανομής", "Απλοποίηση: χωρίς ανάλυση της πλάκας ως επιφανειακού φορέα."),
+    # --- Seismic (seismic.py) -------------------------------------------------------------------
+    _u("structure.seismic_zones", "Σεισμικές ζώνες agR/g: Ζ1 0,16 · Ζ2 0,24 · Ζ3 0,36", "Ελληνικό Εθνικό Προσάρτημα του EN 1998-1",
+       "Χρειάζεται το ΦΕΚ/ΕΠ με τον χάρτη ζωνών σε ισχύ."),
+    _u("structure.importance", "Συντελεστές σπουδαιότητας γI: Σ1 0,8 · Σ2 1,0 · Σ3 1,2 · Σ4 1,4", "EN 1998-1 — χωρίς παραπομπή σε άρθρο"),
+    _u("structure.spectrum_type1", "Ελαστικό φάσμα τύπου 1 ανά κατηγορία εδάφους (S, TB, TC, TD), β = 0,2", "EN 1998-1 Πίν. 3.2",
+       "Το ΕΠ μπορεί να ορίζει τύπο φάσματος και τιμές."),
+    _u("structure.behaviour_factor", "Συντελεστής συμπεριφοράς: Ο/Σ πλαίσια ΚΠΜ q = 3,0·αu/α1 (1,1 μονώροφο / 1,3 πολυώροφο)· "
+       "μεταλλικά πλαίσια ροπής q = 4,0", "EN 1998-1 (ΚΠΜ· για τα μεταλλικά §6.3.2)", "Δεν ελέγχεται κανονικότητα σε κάτοψη/όψη."),
+    _u("structure.lateral_force_method", "Ισοδύναμη στατική μέθοδος: T1 κατά Rayleigh, λ = 0,85, κατανομή Fi ∝ zi·mi, "
+       "τυχηματική στρέψη δ = 1 + 0,6·x/Le, συνδυασμός Ex + 0,3Ey", "EN 1998-1 §4.3.3.2.2(5), §4.3.3.2.4, §4.3.3.5.1",
+       "Δεν ελέγχονται τα κριτήρια εφαρμογής της μεθόδου (κανονικότητα, όριο περιόδου)."),
+    _u("structure.drift_limit", "Σχετική μετακίνηση ορόφων ν·dr ≤ 0,005·h, ν = 0,5 (Σ1–Σ2) / 0,4 (Σ3–Σ4)", "EN 1998-1 §4.3.4"),
+    Rule("structure.cracked_stiffness", "Ρηγματωμένες διατομές Ο/Σ: 50 % της καμπτικής δυσκαμψίας, στρέψη 10 %", ENGINEER_REVIEW,
+         note=_CLAIM.format("EN 1998-1 §4.3.1(7)") + " Η στρέψη 10 % είναι επιλογή του κώδικα."),
+    # --- Materials (sections.py) ----------------------------------------------------------------
+    _u("structure.partial_factors", "Συντελεστές ασφαλείας γc 1,5 · γs 1,15 · γM0 = γM1 1,0 · αcc 1,0", "EN 1992 / EN 1993 (αcc: ΕΠ, EN 1992-1-1 §3.1.6)"),
+    _u("structure.concrete_classes", "Σκυρόδεμα C20/25–C35/45: fck, fctm, Ecm", "EN 1992"),
+    _u("structure.reinforcing_steel", "Χάλυβας οπλισμού B500C: fyk 500 MPa, Es 200 GPa", "B500C — χωρίς παραπομπή στον κώδικα"),
+    _u("structure.steel_profiles", "Πίνακες διατομών IPE / HEB (h, b, tw, tf, A, I, Wpl, i, kg/m)", "Euronorm 19-57 / 53-62 "
+       "«από καταλόγους παραγωγών»", "Γράφτηκαν χωρίς συγκεκριμένο κατάλογο· να συγκριθούν με φύλλο προμηθευτή."),
+    _u("structure.structural_steel", "Δομικός χάλυβας S235/S275/S355, E 210 GPa, G 81 GPa", "EN 1993 — χωρίς παραπομπή σε άρθρο"),
+    # --- Member design (rc.py, steel.py) -------------------------------------------------------
+    _u("structure.rc_beam_design", "Δοκοί Ο/Σ: ορθογωνικό διάγραμμα (λ 0,8, η 1, εcu 3,5 ‰), μlim 0,295, As,min/As,max, "
+       "συνδετήρες Ø8 cotθ = 1, l/d με K 1,3 / 0,4", "EN 1992-1-1 §7.4.2, §9.2.1.1 και EN 1998-1 §5.4.3.1.2",
+       "Χωρίς ικανοτικό σχεδιασμό σε τέμνουσα (EN 1998-1 §5.4.2.2)."),
+    _u("structure.rc_column_design", "Υποστυλώματα Ο/Σ: αλληλεπίδραση N–M, Bresler, ελάχιστη εκκεντρότητα, λυγισμός l0 = L, "
+       "νd ≤ 0,65, ρ 1–4 %, ράβδοι ≤ 20 cm, ελάχ. διάσταση 25 cm", "EN 1992-1-1 §5.8.9 και EN 1998-1 §5.4.3.2.2 (ΚΠΜ)",
+       "l0 = L δεν είναι το μήκος λυγισμού πλαισίου· χωρίς ικανοτικό έλεγχο κόμβων."),
+    _u("structure.rc_cover", "Επικάλυψη οπλισμού 35 mm ως την εξωτερική παρειά συνδετήρα (+ συνδετήρας)", "χωρίς παραπομπή στον κώδικα",
+       "Εξαρτάται από κατηγορία έκθεσης και διάρκεια ζωής — όχι ενιαία τιμή."),
+    _u("structure.steel_member_design", "Μεταλλικά μέλη: λυγισμός καμπύλες b/c, Lcr = L, αλληλεπίδραση 6.61/6.62 (Παράρτ. B), "
+       "Cm 0,9, δοκοί Wpl·fy χωρίς πλευρικό λυγισμό, βέλος L/250", "EN 1993-1-1 εξ. 6.61/6.62, Παράρτ. B",
+       "Χωρίς συνδέσεις, τοπικό λυγισμό κατηγορίας 3/4, ικανοτικό σχεδιασμό."),
+    # --- Slabs, openings (slabs.py, slab_openings.py) ------------------------------------------
+    Rule("structure.slab_marcus", "Πλάκες: κατανομή Marcus, συντελεστές ροπών pl²/8 – /12 – /14,2 – /24, πάχος από l/d (εξ. 7.16)",
+         ENGINEER_REVIEW, note="Απλοποιημένη μέθοδος πινάκων· " + _CLAIM.format("EN 1992-1-1 εξ. 7.16")),
+    Rule("structure.slab_opening_trimmers", "Ζώνες ενίσχυσης οπών πλάκας: ½ του διακοπτόμενου οπλισμού ανά πλευρά, ≥ 2Ø12",
+         ENGINEER_REVIEW, note="Πρακτική λεπτομέρειας κατά τον κώδικα — χωρίς πηγή."),
+    # --- Foundation (foundation.py) ------------------------------------------------------------
+    Rule("structure.footing_sizing", "Πέδιλα B×B από G+Q / σεδ (+10 % ίδιο βάρος), B ≥ 1,0 m, h = max(0,50, 0,3·B), "
+         "N_Ed ≈ 1,40·N(G+Q), οπλισμός από πρόβολο παρειάς", ENGINEER_REVIEW,
+         note="Το 1,40 είναι προσέγγιση του κώδικα· χωρίς διάτρηση."),
+    _u("structure.tie_beams", "Συνδετήριες δοκοί ±k·α·S·N, k = 0,3 (A, B) / 0,4 (C) / 0,6 (D, E), 25×50 ≥ 4Ø14, Ø8/20",
+       "EN 1998-5 §5.4.1.2", "Το k για έδαφος A και E είναι επιλογή του κώδικα· η διατομή 25×50 και ο ελάχιστος οπλισμός χωρίς πηγή."),
+    Rule("structure.strip_footings", "Πεδιλοδοκοί: πέλμα 1,1·ΣN/(σεδ·L), κορμός q·l²/10, V = 0,6·q·l, cotθ 2,5",
+         ENGINEER_REVIEW, note="Χωρίς ελαστική έδραση και καθιζήσεις."),
+    # --- Timber (timber_roof.py, joists.py) ----------------------------------------------------
+    _u("structure.snow_zones", "Χιόνι sk,0 ανά ζώνη I 0,4 · II 0,8 · III 1,7 kN/m², sk = sk,0·[1 + (A/917)²], μ1 0,8",
+       "EN 1991-1-3 και Ελληνικό ΕΠ", "Ο ίδιος ο κώδικας γράφει «to be confirmed against the National Annex»."),
+    _u("structure.timber_c24", "Ξυλεία C24: fm,k 24, fv,k 4,0, E0,mean 11 000 MPa, 4,2 kN/m³", "EN 1995-1-1 (C24)"),
+    _u("structure.timber_factors", "Ξύλο: kmod 0,9 (χιόνι) / 0,8 (πατώματα), γM 1,3, kcr 0,67, βέλος L/300", "EN 1995-1-1 — χωρίς παραπομπή σε άρθρο"),
+    _u("structure.timber_floor_loads", "Δοκίδες: ταβάνι g 0,30 / q 0,40 · πάτωμα g 0,70 / q 2,00 kN/m²", "EN 1991-1-1 (συνιστώμενες)",
+       "Τα g είναι εκτιμήσεις του κώδικα για τη δομή, όχι από φύλλο."),
+    Rule("structure.timber_length", "Μέγιστο εμπορικό μήκος ξυλείας 6,0 m", DESIGN_DEFAULT, note="Να έρθει από τον προμηθευτή."),
+    # --- Layout heuristics (layout.py, reduce_columns.py, analysis/__init__.py) -----------------
+    Rule("structure.layout_spans", "Πρόταση κολονών: άνοιγμα ≤ 6,0 m, ελάχιστο φάτνωμα 2,0 m, συγχώνευση < 1,2 m· "
+         "μείωση κολονών ως δοκό 8,0 m / ύψος 0,80 m· κολόνα στον τοίχο ως 1,50 m", DESIGN_DEFAULT,
+         note="Πρόταση διάταξης για να ξεκινήσει η προμελέτη — όχι απαίτηση."),
+)
+
+# What the owner's sample study (15/10) uses for the same rule — corroboration only.
+SAMPLE_MATCHES = {
+    "structure.imposed_loads": "κατοικία Q = 2,00 kN/m²",
+    "structure.psi2": "ψ2 = 0,30 για κατοικίες",
+    "structure.seismic_zones": "Ζώνη ΙΙ agR = 0,24g",
+    "structure.importance": "Σπουδαιότητα ΙΙ γI = 1,0",
+    "structure.spectrum_type1": "έδαφος C: S 1,15 · TB 0,20 · TC 0,60 · TD 2,00 s",
+    "structure.behaviour_factor": "ίδιος τύπος q0 = 3,0·αu/α1 = 3,9, αλλά υιοθετεί συντηρητικά q = 3,00 — ο κώδικας χρησιμοποιεί 3,9",
+    "structure.partial_factors": "γc 1,50 · γs 1,15 (γράφει 1,20 / 1,00 «σεισμός» — δεν το εφαρμόζει ο κώδικας)",
+    "structure.concrete_classes": "C25/30: fck 25 · fctm 2,6 · Ecm 31 GPa · fcd 16,67 MPa",
+    "structure.reinforcing_steel": "B500C: fyk 500 · Es 200 GPa · fyd 434,8 MPa",
+    "structure.default_finishes": "επικαλύψεις 1,50 kN/m² σε πλάκες",
+    "structure.wall_loads": "«2,10 kN/m σε δοκούς» — γραμμικό, ενώ ο κώδικας 2,1 kN/m² × ύψος· ασαφές, να διευκρινιστεί",
+}
+for _rid, _what in SAMPLE_MATCHES.items():
+    _r = rule(_rid)
+    register(replace(_r, note=f"{_r.note} Δείγμα τεύχους FESPA (ιδιοκτήτης 15/10): {_what} — στήριξη, όχι επαλήθευση."))
+
+
+def structural_rules():
+    return rules("structure.")
+
+
+def unverified_lines():
+    """One line per structural rule, for the report (none is a requirement yet)."""
+    from archforge.core.provenance import STATUS_LABELS
+    return [f"[{STATUS_LABELS[r.status]}] {r.statement}" + (f" — {r.note}" if r.note else "")
+            for r in structural_rules() if not r.is_requirement]

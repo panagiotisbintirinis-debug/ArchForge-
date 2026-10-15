@@ -16,7 +16,9 @@ import math
 
 import numpy as np
 
-PROVENANCE = ("Προμελέτη φέροντος οργανισμού: EN 1990/1991-1-1, EN 1992-1-1, EN 1993-1-1, EN 1998-1 "
+from archforge.structure.rules import STATUS_BANNER
+
+PROVENANCE = (STATUS_BANNER + " " + "Προμελέτη φέροντος οργανισμού: EN 1990/1991-1-1, EN 1992-1-1, EN 1993-1-1, EN 1998-1 "
               "με Ελληνικό Εθνικό Προσάρτημα (ζώνες 0,16/0,24/0,36 g), ισοδύναμη στατική μέθοδος, ΚΠΜ — "
               "χωρίς ικανοτικό σχεδιασμό, κόμβους, θεμελίωση σε βάθος, πυροπροστασία· "
               "δεν αντικαθιστά τη στατική μελέτη αδειοδοτημένου μηχανικού")
@@ -150,7 +152,7 @@ def analyze(doc):
 
     settings = get_settings(doc)
     result = {"ok": True, "members": {}, "footings": [], "warnings": [], "seismic": {}, "settings": settings,
-              "provenance": PROVENANCE, "error": None, "system_label": SYSTEMS[settings["system"]]}
+              "provenance": PROVENANCE, "verified": False, "error": None, "system_label": SYSTEMS[settings["system"]]}
     overrides = {}
     for attempt in range(2):
         model = build_model(doc, settings)

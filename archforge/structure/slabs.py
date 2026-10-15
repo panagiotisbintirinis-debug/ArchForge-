@@ -34,8 +34,9 @@ from __future__ import annotations
 import math
 
 from archforge.structure.analysis.sections import CONCRETE, FYK, fyd
+from archforge.structure.rules import STATUS_BANNER
 
-PROVENANCE = ("Προδιάσταση πλακών: μέθοδος Marcus (κατανομή φορτίου και μείωση στρέψης), συντελεστές ροπών "
+PROVENANCE = (STATUS_BANNER + " " + "Προδιάσταση πλακών: μέθοδος Marcus (κατανομή φορτίου και μείωση στρέψης), συντελεστές ροπών "
               "συνεχείας pl²/8 – /12 – /14,2 – /24, EN 1992-1-1 (As,min, l/d εξ. 7.16) — προς έλεγχο από στατικό μηχανικό")
 BARS = (8, 10, 12)
 REINFORCEMENT_NOTE = "ενίσχυση περιμετρικά της οπής — προς έλεγχο μηχανικού"
