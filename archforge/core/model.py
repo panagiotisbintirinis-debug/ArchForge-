@@ -301,6 +301,30 @@ def _light_direction(v):
     return v
 
 
+def _insulation_categories(v):
+    """``{category: {"thermal": key, "thickness": m, "waterproofing": key}}`` (construction/insulation.py)."""
+    from archforge.construction.insulation import CATEGORIES, THERMAL, WATERPROOFING
+    out = {}
+    for cat, entry in dict(v or {}).items():
+        if cat not in CATEGORIES:
+            raise ValueError(f'unknown insulation category {cat}')
+        clean = {}
+        for key, value in dict(entry or {}).items():
+            if value is None:
+                continue
+            if key == 'thermal' and value not in THERMAL:
+                raise ValueError(f'unknown thermal insulation {value}')
+            if key == 'waterproofing' and value not in WATERPROOFING:
+                raise ValueError(f'unknown waterproofing {value}')
+            if key == 'thickness':
+                value = _positive(value)
+            elif key not in ('thermal', 'waterproofing'):
+                raise ValueError(f'unknown insulation field {key}')
+            clean[key] = value
+        out[cat] = clean
+    return out
+
+
 def _trade_prices(v):
     """``{code: {"material": €/unit, "labour": €/unit}}`` — non-negative numbers or absent (mep/trade_costing.py)."""
     out = {}
@@ -801,6 +825,7 @@ SCHEMAS = {
     'underlay': {'source': _choice(('pdf', 'dxf'), 'underlay source'), 'path': str, 'page': _page_index, 'x': _finite, 'y': _finite,
                  'z': _finite, 'u0': _finite, 'v0': _finite, 'm_per_unit': _positive, 'rotation': _finite,
                  'opacity': _unit_interval, 'page_w': _positive, 'page_h': _positive, 'scale_denominator': _positive},
+    'insulation_spec': {'categories': _insulation_categories},
     'section_line': {'x1': _finite, 'y1': _finite, 'x2': _finite, 'y2': _finite, 'flip': _flag, 'depth': _nonnegative},
     # Saved camera (core/cameras.py): a view preference, never building geometry.
     'camera': {'x': _finite, 'y': _finite, 'level_z': _finite, 'height': _between(0.05, 50.0, 'eye height'),

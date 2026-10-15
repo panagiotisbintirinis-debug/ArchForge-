@@ -265,6 +265,11 @@ def electrical_list(doc, result=None):
     return rows
 
 
+def insulation_list(doc):
+    from archforge.construction.insulation import quantity_rows
+    return quantity_rows(doc)
+
+
 def plumbing_list(doc):
     """Water supply from the shared trade costing (``mep.plumbing_costing``): rows with code / why / status."""
     if not any(e.kind == "plumbing_point" for e in doc.entities.values()):
@@ -304,6 +309,9 @@ def all_lists(doc):
              ("Προμελέτη — προς έλεγχο ηλεκτρολόγου· κανόνες με την κατάστασή τους στην καρτέλα «Ηλεκτρ. πίνακας».",
               "Καλώδιο: μέτρα ανά αγωγό με τη φύρα που όρισες.")),
             ("Φέρων", "Φέρων οργανισμός και θεμελίωση", structure_list(doc), ("Προμελέτη — προς έλεγχο στατικού μηχανικού.",)),
+            ("Μονώσεις", "Θερμομονώσεις και στεγανώσεις ανά επιφάνεια", insulation_list(doc),
+             ("Εμβαδά από το σχέδιο· υλικό, πάχος και σύστημα όπως επιλέχθηκαν (καρτέλα «Μονώσεις»)· "
+              "ενεργειακή μελέτη από μηχανικό.",)),
             ("Κάγκελα", "Κάγκελα — τρέχοντα μέτρα ανά τύπο", railing_list(doc),
              ("Τιμή ανά τρέχον μέτρο από τον προμηθευτή (με ορθοστάτες, στερέωση, τοποθέτηση).",)),
             ("Κουζίνα", "Ντουλάπια κουζίνας — κουφάρια, μηχανισμοί, χερούλια", kitchen_list(doc),
