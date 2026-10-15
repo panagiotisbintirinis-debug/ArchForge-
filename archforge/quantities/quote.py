@@ -51,3 +51,20 @@ def money(v):
         return "—"
     whole, frac = f"{float(v):,.2f}".split(".")
     return whole.replace(",", ".") + "," + frac + " €"
+
+
+def priced(doc, rows):
+    """Cost of ``[(description, unit, quantity)]`` with the project's prices: ``{"total", "missing", "priced"}``.
+
+    Only the user's prices; an item with no price or no quantity is counted in ``missing`` (never guessed).
+    """
+    prices = settings(doc)["prices"]
+    total, missing, done = 0.0, [], 0
+    for desc, _unit, qty in rows:
+        price = prices.get(desc)
+        if qty is None or price is None:
+            missing.append(desc)
+        else:
+            total += float(qty) * float(price)
+            done += 1
+    return {"total": round(total, 2), "missing": missing, "priced": done}

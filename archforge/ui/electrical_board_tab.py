@@ -64,7 +64,7 @@ class BoardTab(QWidget):
 
         self.cards = QGridLayout(); self.cards.setHorizontalSpacing(8)
         self.card_labels = {}
-        for col, key in enumerate(("installed", "demand", "supply", "main", "phases")):
+        for col, key in enumerate(("installed", "demand", "supply", "main", "phases", "cost")):
             box = QFrame(); box.setFrameShape(QFrame.Shape.StyledPanel)
             v = QVBoxLayout(box); v.setContentsMargins(8, 4, 8, 4); v.setSpacing(0)
             cap, val = QLabel(), QLabel()
@@ -161,6 +161,14 @@ class BoardTab(QWidget):
                      "phases": ("Φάσεις", " · ".join(f"{k} {_n(v / 1000)} kW" for k, v in b["phase_w"].items())
                                 + (f" · ανισορροπία {_n(b['imbalance_pct'], 0)} %" if b["imbalance_pct"] is not None else "")
                                 if b["phases"] else todo)}
+        if b:
+            from archforge.quantities.materials import electrical_list
+            from archforge.quantities.quote import money, priced
+            cost = priced(self.window.doc, electrical_list(self.window.doc))
+            cards["cost"] = ("Κόστος υλικών (τιμοκατάλογος έργου)",
+                             f"{money(cost['total'])} · {len(cost['missing'])} είδη χωρίς τιμή" if cost["priced"]
+                             else f"— βάλτε τιμές ({len(cost['missing'])} είδη)")
+            self.result["cost"] = cost
         for key, (box, cap, val) in self.card_labels.items():
             box.setVisible(key in cards)
             if key in cards:

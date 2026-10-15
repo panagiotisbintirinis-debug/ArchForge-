@@ -170,3 +170,25 @@ def test_board_tab_shows_the_figures_and_follows_changes(tmp_path):
         assert window.view is window.plan_view
     finally:
         window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_electrical_take_off_goes_into_the_priced_list_with_only_the_users_prices():
+    from archforge.core.commands import AddEntity
+    from archforge.core.model import Entity
+    from archforge.quantities.materials import all_lists, electrical_list
+    from archforge.quantities.quote import priced, quote
+    doc = Document(); stack = CommandStack(doc); _flat(stack)
+    rows = electrical_list(doc)
+    descs = {d: (u, q) for d, u, q in rows}
+    assert any(d.startswith('Καλώδιο αγωγός 2,5 mm²') for d in descs)
+    assert descs['Μικροαυτόματος 40 A (κύκλωμα)'] == ('τεμ.', 1)                 # the cooker line
+    assert descs['Διαφορικοί διακόπτες 30 mA — πλήθος/τύπος από τη μελέτη'][1] is None
+    assert 'Ηλεκτρολογικά' in [s[0] for s in all_lists(doc)]
+    # No prices typed: nothing is costed, everything is listed as missing (never guessed).
+    c = priced(doc, rows)
+    assert c['total'] == 0 and c['priced'] == 0 and len(c['missing']) == len(rows)
+    stack.execute(AddEntity(Entity('price_list', {'prices': {'Μικροαυτόματος 40 A (κύκλωμα)': 12.5}, 'vat': 24.0})))
+    c = priced(doc, rows)
+    assert c['total'] == 12.5 and c['priced'] == 1
+    assert any(r['description'] == 'Μικροαυτόματος 40 A (κύκλωμα)' and r['amount'] == 12.5
+               for _t, sec in quote(doc)['sections'] for r in sec)

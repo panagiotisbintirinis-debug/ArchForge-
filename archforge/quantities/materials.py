@@ -170,6 +170,55 @@ def finishes_list(doc):
     return [(desc, unit, round(q, 2) if unit == "m²" else int(q)) for (desc, unit), q in sorted(totals.items()) if q]
 
 
+def electrical_list(doc):
+    """Electrical take-off: cables per section (with the user's allowance), conduit, boxes, breakers, points, luminaires.
+
+    Quantities only — every price is the one the user types in the price list (no catalogue prices in the code).
+    Items whose number comes from the study (RCDs, panel enclosure, drivers) have quantity None.
+    """
+    pts = [e for e in doc.entities.values() if e.kind == "electrical_point"]
+    if not pts:
+        return []
+    from archforge.mep.electrical import POINT_TYPES, strip_length
+    from archforge.mep.electrical_board import analyse
+    from archforge.mep.luminaire_catalog import entry
+    r = analyse(doc)
+    rows = [(f"Καλώδιο αγωγός {p['mm2']:g} mm² (H07V-U ή ισοδύναμο, ανά αγωγό)".replace(".", ","), "m", p["with_waste"])
+            for p in r["purchase"]]
+    conduit = round(sum(w["conduit_m"] for w in r["walls"]), 1)
+    if conduit:
+        rows.append(("Σωλήνας ηλεκτρολογικός (σπιράλ) — όλες οι διαδρομές", "m", conduit))
+    for kind, label in (("junction", "Κουτί διακλάδωσης"), ("floor", "Κουτί δαπέδου"), ("pull", "Κουτί διέλευσης")):
+        n = r["boxes"].get(kind, 0)
+        if n:
+            rows.append((label, "τεμ.", n))
+    breakers = {}
+    for c in r["circuits"]:
+        breakers[c["breaker_a"]] = breakers.get(c["breaker_a"], 0) + 1
+    rows += [(f"Μικροαυτόματος {a} A (κύκλωμα)", "τεμ.", n) for a, n in sorted(breakers.items())]
+    if r["circuits"]:
+        rows += [("Διαφορικοί διακόπτες 30 mA — πλήθος/τύπος από τη μελέτη", "τεμ.", None),
+                 ("Ηλεκτρικός πίνακας (κουτί, ράγες, κλέμες) — μέγεθος από τη μελέτη", "τεμ.", None)]
+    counts, strips = {}, {}
+    for e in pts:
+        t = e.params["point_type"]
+        if t == "panel":
+            continue
+        if t == "led_strip":
+            key = e.params.get("catalog_id") or ""
+            strips[key] = strips.get(key, 0.0) + strip_length(e.params)
+            continue
+        cid = e.params.get("catalog_id")
+        label = POINT_TYPES[t][0] + (f" — {entry(cid).label}" if cid else "")
+        counts[label] = counts.get(label, 0) + 1
+    rows += [(label, "τεμ.", n) for label, n in sorted(counts.items())]
+    for cid, m in sorted(strips.items()):
+        rows.append((POINT_TYPES["led_strip"][0] + (f" — {entry(cid).label}" if cid else ""), "m", round(m, 2)))
+    if strips:
+        rows.append(("Τροφοδοτικά ταινιών LED — από το φύλλο του κατασκευαστή", "τεμ.", None))
+    return rows
+
+
 def all_lists(doc):
     """``[(sheet name, title, rows, notes)]`` for the lists that have quantities."""
     from archforge.construction.drywall import PROVENANCE as DRYWALL, SOURCES as DRYWALL_SOURCES, drywall_list
@@ -183,6 +232,9 @@ def all_lists(doc):
              (DRYWALL, "Πηγές: " + DRYWALL_SOURCES)),
             ("Επιμέτρηση", "Επιμέτρηση εργασιών (σύνολα έργου)", takeoff_list(doc), ("Ανά χώρο: Κατασκευή → Επιμέτρηση εργασιών.",)),
             ("Αποχέτευση", "Αποχέτευση — σωλήνες και εξαρτήματα", drainage_list(doc), ("Προμελέτη — προς έλεγχο μηχανολόγου.",)),
+            ("Ηλεκτρολογικά", "Ηλεκτρολογικά — καλώδια, σωλήνες, κουτιά, ασφάλειες, σημεία, φωτιστικά", electrical_list(doc),
+             ("Προμελέτη — προς έλεγχο ηλεκτρολόγου· κανόνες με την κατάστασή τους στην καρτέλα «Ηλεκτρ. πίνακας».",
+              "Καλώδιο: μέτρα ανά αγωγό με τη φύρα που όρισες.")),
             ("Φέρων", "Φέρων οργανισμός και θεμελίωση", structure_list(doc), ("Προμελέτη — προς έλεγχο στατικού μηχανικού.",)),
             ("Κάγκελα", "Κάγκελα — τρέχοντα μέτρα ανά τύπο", railing_list(doc),
              ("Τιμή ανά τρέχον μέτρο από τον προμηθευτή (με ορθοστάτες, στερέωση, τοποθέτηση).",)),
