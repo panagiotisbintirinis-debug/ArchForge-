@@ -165,7 +165,7 @@ class BoardTab(QWidget):
         self._fill_purchase(r)
         self.warnings.setText("\n".join(f"⚠ {w}" for w in r["warnings"]))
         self.warnings.setVisible(bool(r["warnings"]))
-        lines = [r["provenance"], "Μη επαληθευμένα (δεν χρησιμοποιούνται σε αποφάσεις):"] + [f" • {u}" for u in r["unverified"]]
+        lines = [r["provenance"], "Κατάσταση κανόνων (μόνο τα επαληθευμένα είναι τεχνική απαίτηση· κανένας δεν είναι ακόμη):"] + [f" • {u}" for u in r["unverified"]]
         self.provenance.setText("\n".join(lines))
         self.provenance.setVisible(has)
         return r
@@ -269,7 +269,7 @@ def board_html(r):
             f"<h3>Αγορά καλωδίων (φύρα {_n(r['waste_pct'], 0)} %)</h3><table {tbl}><tr><th>Διατομή</th><th>Μέτρα</th>"
             f"<th>Με φύρα</th></tr>{buy}</table>"
             + "".join(f"<p>⚠ {e(w)}</p>" for w in r["warnings"])
-            + "<p><b>Μη επαληθευμένα (δεν χρησιμοποιούνται σε αποφάσεις)</b><br>" + "<br>".join(e(u) for u in r["unverified"]) + "</p>"
+            + "<p><b>Κατάσταση κανόνων (μόνο τα επαληθευμένα είναι τεχνική απαίτηση)</b><br>" + "<br>".join(e(u) for u in r["unverified"]) + "</p>"
             + f"<p><small>{e(r['provenance'])}<br>{e(r['circuit_provenance'])}</small></p>")
 
 

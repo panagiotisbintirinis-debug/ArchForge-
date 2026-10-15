@@ -2,9 +2,10 @@
 
 The user places the panel, lights, switches, sockets and dedicated appliance
 outlets.  Circuits are grouped and routed automatically from those points
-using common Greek practice for dwellings (ΕΛΟΤ HD 384 conventions as
-commonly applied); every rule is written here so an electrical engineer can
-check it:
+with the rules below.  They were first written as "common practice under
+ΕΛΟΤ HD 384", a standard that is no longer in force (replaced by ΕΛΟΤ HD
+60364, see ``core.provenance``); every rule is registered with its status and
+none of them is VERIFIED yet, so none is presented as a requirement:
 
 * Lighting: 10 A breaker, 1.5 mm² cable, at most 10 points per circuit,
   grouped by room.  A switch controls the lights of its room.
@@ -29,11 +30,41 @@ from __future__ import annotations
 
 import math
 
+from archforge.core.provenance import DESIGN_DEFAULT, ENGINEER_REVIEW, MANUFACTURER_DATA, UNVERIFIED, Rule, register
 from archforge.mep.plumbing import CELL, _Grid, _grow, _levels
 
-PROVENANCE = ("Προμελέτη κυκλωμάτων με κανόνες ΕΛΟΤ HD 384 όπως εφαρμόζονται συνήθως σε κατοικίες "
-              "(φωτισμός 10A/1,5mm² ≤10 σημεία, πρίζες 16A/2,5mm² ≤6, αποκλειστικές γραμμές) — "
-              "όχι μελέτη φορτίων/πτώσης τάσης, προς έλεγχο από ηλεκτρολόγο μηχανικό")
+_HD384 = "Γράφτηκε κατά το ΕΛΟΤ HD 384 (αποσύρθηκε· ισχύει ΕΛΟΤ HD 60364) — να διασταυρωθεί με το ισχύον πρότυπο"
+register(
+    Rule("electrical.lighting_circuit", "Φωτισμός: ασφάλεια 10 A, καλώδιο 1,5 mm², ως 10 σημεία ανά κύκλωμα, ανά χώρο",
+         UNVERIFIED, note=_HD384),
+    Rule("electrical.socket_circuit", "Ρευματοδότες: 16 A, 2,5 mm², ως 6 ανά κύκλωμα· κουζίνα ως 4, χωριστά", UNVERIFIED, note=_HD384),
+    Rule("electrical.dedicated_lines", "Αποκλειστικές γραμμές: κουζίνα 32 A/6 mm², θερμοσίφωνας 20 A/2,5 mm², "
+         "κλιματιστικό/πλυντήρια 16 A/2,5 mm²", UNVERIFIED, note=_HD384),
+    Rule("electrical.shared_margin", "Κοινό κύκλωμα: προειδοποίηση πάνω από 80 % της ασφάλειας", UNVERIFIED, note=_HD384),
+    Rule("electrical.rcd_30ma", "Διαφορικό ≤ 30 mA (συμπληρωματική προστασία): ρευματοδότες ως 32 A, τελικά κυκλώματα "
+         "φωτισμού κατοικίας, κινητός εξοπλισμός εξωτερικών χώρων ως 32 A· στο πρόγραμμα όλα τα κυκλώματα (σημειώνεται, "
+         "δεν μοντελοποιείται)", ENGINEER_REVIEW,
+         source="ΕΛΟΤ HD 60364-4-41 §411.3.3 — κατά τη σύνοψη που έδωσε ο ιδιοκτήτης 15/10",
+         note="Δεν έχει διαβαστεί το κείμενο του προτύπου: γίνεται VERIFIED όταν μπει απόσπασμα/σελίδα του ΕΛΟΤ"),
+    Rule("electrical.division_314", "Διαίρεση εγκατάστασης: όχι ένας διαφορικός για όλο τον πίνακα· φωτισμός χωριστά από "
+         "πρίζες και σε ≥ 2 κυκλώματα/διαφορικούς· βαριά/κρίσιμα φορτία σε δικά τους κυκλώματα", ENGINEER_REVIEW,
+         source="ΕΛΟΤ HD 60364-3 §314 (αρχές) — κατά τη σύνοψη του ιδιοκτήτη 15/10",
+         note="Η πρακτική εφαρμογή (πλήθος διαφορικών, RCBO) είναι ερμηνεία, όχι κείμενο του προτύπου· απόφαση ηλεκτρολόγου"),
+    Rule("electrical.voltage", "Τάση 230 V για τη μετατροπή W → A", UNVERIFIED, note="Ονομαστική τάση δικτύου: να τεκμηριωθεί"),
+    Rule("electrical.point_loads", "Ονομαστικά W ανά σημείο (φωτιστικό 60, πρίζα 200, πάγκος 500, κουζίνα 6000, "
+         "θερμοσίφωνας 4000, κλιματιστικό 2500, πλυντήρια 2300/2000)", ENGINEER_REVIEW,
+         note="Υποθέσεις φορτίου· ο χρήστης τις αλλάζει ανά σημείο (power_w)"),
+    Rule("electrical.luminaire_power", "Σποτ/χωνευτό/wall washer: W· ταινία LED: W/m", MANUFACTURER_DATA,
+         note="Χωρίς προεπιλογή: 0 W με ⚠ μέχρι να μπει η τιμή του φύλλου"),
+    Rule("electrical.routing_heights", "Όδευση: οριζόντια σε τοίχο στα 2,35 m, κουτί δαπέδου 15 cm, «κοντά σε τοίχο» = 60 cm",
+         DESIGN_DEFAULT, note="Πρακτική τοποθέτησης του προγράμματος, όχι κανονισμός"),
+    Rule("electrical.pull_boxes", "Κουτί διέλευσης κάθε 10 m ή μετά από 2 καμπύλες", UNVERIFIED,
+         note="Να διασταυρωθεί με το ισχύον πρότυπο/οδηγία"),
+)
+
+PROVENANCE = ("Προμελέτη κυκλωμάτων με κανόνες του προγράμματος ΜΗ ΕΠΑΛΗΘΕΥΜΕΝΟΥΣ (φωτισμός 10A/1,5mm² ≤10 σημεία, "
+              "πρίζες 16A/2,5mm² ≤6, αποκλειστικές γραμμές) — είχαν γραφτεί κατά το αποσυρμένο ΕΛΟΤ HD 384· "
+              "ισχύει το ΕΛΟΤ HD 60364. Δεν είναι τεχνική απαίτηση· προς έλεγχο από ηλεκτρολόγο μηχανικό")
 VOLTAGE = 230.0
 
 # type: label, group, default W, mounting height (m), plan letter
@@ -181,7 +212,8 @@ def design_circuits(doc):
             if not ok:
                 fix = "μεγαλύτερη ασφάλεια/διατομή" if dedicated else "χωρίστε το κύκλωμα"
                 limit_txt = f"{breaker} A" if dedicated else f"80% της ασφάλειας {breaker} A"
-                out["report"]["warnings"].append(f"{circuit['id']} {label}: {amps:.1f} A > {limit_txt} — {fix}")
+                out["report"]["warnings"].append(f"{circuit['id']} {label}: {amps:.1f} A > {limit_txt} — {fix} "
+                                                 "[κανόνας μη επαληθευμένος]")
             out["circuits"].append(circuit)
     # Switches and dimmers control the lights of their automation group, otherwise of their room (same storey).
     lights = [(e, _room_of(doc, float(e.params["x"]), float(e.params["y"]), _floor_of(doc, float(e.params["z"]))),

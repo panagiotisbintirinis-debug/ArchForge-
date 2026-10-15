@@ -9,7 +9,7 @@ import pytest
 from archforge.core.commands import CommandStack, UpdateEntity
 from archforge.core.model import Document
 from archforge.mep.electrical import route_cables
-from archforge.mep.electrical_board import UNVERIFIED, analyse, board_csv
+from archforge.mep.electrical_board import analyse, board_csv, unverified_lines
 from tests.test_electrical import _house, _pt
 
 
@@ -35,7 +35,7 @@ def test_conductors_per_circuit_at_the_circuit_section():
     lighting = next(c for c in r['circuits'] if c['group'] == 'lighting')
     # Switch legs (phase + return, at the lighting circuit's section) add to its three line conductors.
     assert lighting['switch_leg'] and lighting['wire_m'][lighting['mm2']] > 3 * lighting['conduit_m'] + 1.0
-    assert r['unverified'] == list(UNVERIFIED) and any('Iz' in u for u in UNVERIFIED)
+    assert r['unverified'] == unverified_lines() and any('Iz' in u for u in r['unverified'])
     assert 'μνήμη' in r['provenance'] and 'ηλεκτρολόγο' in r['provenance']
 
 
@@ -100,7 +100,7 @@ def test_csv_lists_circuits_walls_and_purchase():
     doc = Document(); stack = CommandStack(doc); _flat(stack)
     text = board_csv(analyse(doc))
     for part in ('Κυκλώματα', 'Μέτρα ανά τοίχο', 'Αγορά (φύρα 0 %', 'L 2,5 + N 2,5 + PE 2,5', 'σκέλη διακοπτών',
-                 'Μη επαληθευμένα', '— (δεν εισήχθη)'):
+                 'Κατάσταση κανόνων', '— (δεν εισήχθη)'):
         assert part in text, part
 
 

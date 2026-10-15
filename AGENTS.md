@@ -104,6 +104,7 @@ Owner, in his words: «ό,τι βάζεις θα είναι διασταυρωμ
 - **When a value cannot be verified now:** it does not enter results as a fact. Either it is a user setting with no hidden default, or it is shown as «μη επαληθευμένο — εισάγετε από …» and excluded from automatic decisions. The HANDOFF keeps the list of open verifications.
 - Existing values written before this rule are audited under the same rule; until audited they are listed in the HANDOFF as unverified.
 - Green tests never count as verification of a value.
+- **Status of every rule** (`archforge/core/provenance.py`, owner 15/10): `VERIFIED` (cross-checked with a source in force — named with clause/table/URL) · `DESIGN_DEFAULT` (our choice, not a regulation) · `MANUFACTURER_DATA` (data sheet, entered by the user) · `ENGINEER_REVIEW` (needs a study) · `UNVERIFIED` (never shown as a technical requirement). A rule is not VERIFIED because it already exists in the code; a summary (AI or otherwise) of a standard is not the standard — VERIFIED needs the text of the clause in force.
 
 ## Owner's trust rules (2026-10-15)
 Agreed with the owner after an honest review of where an AI agent cannot be trusted on its own:

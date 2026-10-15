@@ -12,8 +12,9 @@ here so an electrical engineer can check it:
    of each circuit; demand and supply only from the values the user enters.
 
 Owner's rule (2026-10-15, AGENTS.md): no value from memory.  Everything here is
-geometry or arithmetic on the drawing and on the user's entries; what still
-needs a cited source is listed in ``UNVERIFIED`` and kept out of decisions.
+geometry or arithmetic on the drawing and on the user's entries; every rule is
+registered in ``core.provenance`` with its status and only VERIFIED ones may be
+shown as requirements.
 
 Settings live on the panel point (shared commands, undo, save/load), 0 = not
 entered: ``supply_kva``, ``supply_phases`` (1/3), ``supply_fuse_a`` (from the
@@ -29,23 +30,39 @@ import math
 
 from archforge.mep.electrical import (WALL_NEAR, WALL_RUN_Z, _ceiling, _floor_of,
                                       electrical_points, mount_z, route_cables_cached)
+from archforge.core.provenance import DESIGN_DEFAULT, ENGINEER_REVIEW, Rule, register
 from archforge.mep.plumbing import CELL
 
 PROVENANCE = ("Κανόνας ιδιοκτήτη 15/10: καμία τιμή από μνήμη. Εδώ υπολογίζονται μόνο γεωμετρία (μέτρα, θέσεις) "
               "και αθροίσματα από τα στοιχεία του σχεδίου και ό,τι εισάγει ο χρήστης· οι κανόνες κυκλωμάτων "
               "(ασφάλειες/διατομές/σημεία ανά κύκλωμα) είναι του mep/electrical.py και περιμένουν επαλήθευση "
-              "(βλ. «Μη επαληθευμένα»). Προμελέτη, προς έλεγχο από ηλεκτρολόγο μηχανικό")
+              "(βλ. «Κατάσταση κανόνων»). Προμελέτη, προς έλεγχο από ηλεκτρολόγο μηχανικό")
 
-# Values the program does NOT use until checked against the cited document (owner's rule, AGENTS.md).
-UNVERIFIED = (
-    "Κανόνες κυκλωμάτων (10 A/1,5 mm² ≤10 σημεία, 16 A/2,5 mm² ≤6 πρίζες, αποκλειστικές γραμμές, 30 mA για όλα): "
-    "γράφτηκαν πριν τον κανόνα — να διασταυρωθούν με ΕΛΟΤ HD 60364 / ΚΕΗΕ",
-    "Ικανότητα φόρτισης Iz ανά διατομή (HD 60364-5-52, Πίνακες B.52.x): δεν ελέγχεται ασφάλεια ≤ Iz",
-    "Πτώση τάσης (HD 60364-5-52 Παράρτ. G: όρια και ειδική αντίσταση): δεν υπολογίζεται· δίνεται μόνο το μήκος ως το πιο μακρινό σημείο",
-    "Τυποποιημένες παροχές ΔΕΔΔΗΕ: εισάγετε kVA, φάσεις και ασφάλεια από την αίτηση/σύμβαση σύνδεσης",
-    "Συντελεστής ταυτοχρονισμού: εισάγετε τον συντελεστή της μελέτης",
-    "Πλήθος/ονομαστικό ρεύμα διαφορικών και γραμμή τροφοδοσίας: από τη μελέτη",
+register(
+    Rule("board.iz", "Ικανότητα φόρτισης Iz ανά διατομή — δεν ελέγχεται ασφάλεια ≤ Iz", ENGINEER_REVIEW,
+         note="ΕΛΟΤ HD 60364-5-52 Πίνακες B.52.x: να εισαχθούν από το πρότυπο"),
+    Rule("board.voltage_drop", "Πτώση τάσης — δεν υπολογίζεται· δίνεται μόνο το μήκος ως το πιο μακρινό σημείο", ENGINEER_REVIEW,
+         note="ΕΛΟΤ HD 60364-5-52 Παράρτ. G: όρια και ειδική αντίσταση από το πρότυπο"),
+    Rule("board.supply", "Παροχή ΔΕΔΔΗΕ: kVA, φάσεις, ασφάλεια όπως τα εισάγει ο χρήστης", ENGINEER_REVIEW,
+         note="Από την αίτηση/σύμβαση σύνδεσης· η αρίθμηση «Νο 1–5» από μνήμη ήταν λάθος (ΔΕΔΔΗΕ: Νο 03, Νο 05 …)"),
+    Rule("board.demand_factor", "Συντελεστής ταυτοχρονισμού της μελέτης", ENGINEER_REVIEW),
+    Rule("board.rcd_layout", "Πλήθος/ονομαστικό ρεύμα διαφορικών, γραμμή τροφοδοσίας", ENGINEER_REVIEW),
+    Rule("board.phase_balance", "Κατανομή φάσεων: το μεγαλύτερο φορτίο στην πιο ελαφριά φάση", DESIGN_DEFAULT,
+         note="Αλγόριθμος του προγράμματος· ο ηλεκτρολόγος ορίζει την τελική κατανομή"),
+    Rule("board.waste", "Φύρα αγοράς καλωδίων", DESIGN_DEFAULT, note="Ρύθμιση χρήστη, 0 % αν δεν οριστεί"),
 )
+
+
+def unverified_lines():
+    """Every rule the board relies on that is not VERIFIED, as «[κατάσταση] κανόνας — σημείωση»."""
+    from archforge.core.provenance import STATUS_LABELS, rules
+    out = []
+    for r in rules("electrical.") + rules("board.") + rules("lighting."):
+        if not r.is_requirement:
+            out.append(f"[{STATUS_LABELS[r.status]}] {r.statement}" + (f" — {r.note}" if r.note else ""))
+    return out
+
+
 CONDUCTOR_LABELS = {"L": "Φάση", "N": "Ουδέτερος", "PE": "Γείωση", "R": "Επιστροφή διακόπτη"}
 
 
@@ -270,7 +287,7 @@ def analyse(doc):
 
     board = _board(circuits, rows, conf, warnings) if circuits else None
     return {"circuits": rows, "walls": walls_out, "purchase": purchase, "waste_pct": waste, "board": board,
-            "warnings": warnings, "provenance": PROVENANCE, "unverified": list(UNVERIFIED), "circuit_provenance": wiring["report"]["provenance"],
+            "warnings": warnings, "provenance": PROVENANCE, "unverified": unverified_lines(), "circuit_provenance": wiring["report"]["provenance"],
             "boxes": wiring["report"].get("boxes", {}), "settings": conf}
 
 
@@ -365,6 +382,6 @@ def board_csv(result):
         lines += ["", "Πίνακας", f"Εγκατεστημένη ισχύς (άθροισμα σημείων) W;{num(b['installed_w'])}",
                   f"Συντελεστής ταυτοχρονισμού (μελέτη);{num(b['demand_factor'])}", f"Ζήτηση kVA;{num(b['demand_kva'])}",
                   f"Παροχή kVA;{num(b['supply_kva'])}", f"Φάσεις;{num(b['phases'])}", f"Ασφάλεια παροχής A;{num(b['fuse_a'])}"]
-    lines += ["", "Μη επαληθευμένα (δεν χρησιμοποιούνται σε αποφάσεις)"] + list(result["unverified"])
+    lines += ["", "Κατάσταση κανόνων (μόνο τα επαληθευμένα είναι τεχνική απαίτηση)"] + list(result["unverified"])
     lines += ["", result["provenance"], result["circuit_provenance"]]
     return "\n".join(lines) + "\n"

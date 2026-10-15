@@ -20,7 +20,19 @@ from __future__ import annotations
 
 import math
 
+from archforge.core.provenance import DESIGN_DEFAULT, MANUFACTURER_DATA, Rule, register
 from archforge.mep.electrical import electrical_points, point_load_w, route_cables_cached, strip_length
+
+register(
+    Rule("lighting.photometry", "Φωτεινή ροή (lm ή lm/m), χρώμα (K), δέσμη (°) ανά φωτιστικό", MANUFACTURER_DATA,
+         note="Χωρίς προεπιλογή· χωρίς αυτά το 3D δείχνει εμφάνιση οθόνης, όχι πραγματικό φως"),
+    Rule("lighting.strip_w_per_m", "Ισχύς ταινίας LED ανά μέτρο", MANUFACTURER_DATA, note="Από το φύλλο της ταινίας"),
+    Rule("lighting.beam_presets", "Γρήγορες επιλογές δέσμης 10° / 24° / 36° / 60°", DESIGN_DEFAULT,
+         note="Λίστα του ιδιοκτήτη 15/10· η δέσμη του φωτιστικού είναι στοιχείο κατασκευαστή"),
+    Rule("lighting.cove_set_back", "Ταινία στην εσοχή: 5 cm μπροστά από το σκαλοπάτι, πάνω στη χαμηλή ζώνη", DESIGN_DEFAULT),
+    Rule("lighting.candela", "Ένταση για το 3D: I = Φ/(2π(1−cos(β/2))) για δέσμη β, Φ/4π ισότροπα, Φ/2π ταινία",
+         DESIGN_DEFAULT, note="Μετατροπή για την απεικόνιση, όχι φωτοτεχνικός υπολογισμός"),
+)
 
 PROVENANCE = ("Φωτομετρικά στοιχεία (lm, K, δέσμη) και ισχύς: μόνο από το φύλλο του φωτιστικού που εισάγει ο χρήστης — "
               "το πρόγραμμα δεν βάζει τυπικές τιμές (κανόνας ιδιοκτήτη 15/10). Όχι φωτοτεχνική μελέτη")
