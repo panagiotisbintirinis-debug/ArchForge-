@@ -50,6 +50,29 @@ def _refresh_material_card(dialog):
         label.setText("Υλικό: προεπιλογή αντικειμένου")
 
 
+def _sync_preview_from_part_list(dialog):
+    """Selecting a row must visibly select the same semantic part in preview."""
+    parts = getattr(dialog, "parts", None)
+    preview = getattr(dialog, "preview", None)
+    if parts is None or preview is None:
+        return
+    item = parts.currentItem()
+    role = item.data(256) if item is not None else None  # Qt.ItemDataRole.UserRole
+    preview.selected_role = role or None
+    preview.update()
+    if item is not None and hasattr(dialog, "part_label"):
+        dialog.part_label.setText(f"Τμήμα: {item.text()}")
+    _refresh_material_card(dialog)
+
+
+def _ensure_part_list_sync(dialog):
+    parts = getattr(dialog, "parts", None)
+    if parts is None or getattr(parts, "_archforge_preview_sync", False):
+        return
+    parts.currentItemChanged.connect(lambda _cur, _prev, d=dialog: _sync_preview_from_part_list(d))
+    parts._archforge_preview_sync = True
+
+
 def _compact_visual_column(dialog):
     """Object preview + a clear, lazy entry point to the Material Library.
 
@@ -193,10 +216,10 @@ def _install_textured_object_preview():
             base, texture = visuals[i] if i < len(visuals) else (QColor(200, 200, 200), None)
             chosen = self.selected_role is not None and roles[i] == self.selected_role
 
-            edge = QColor(240, 130, 20, 190) if chosen else QColor(
+            edge = QColor(240, 130, 20, 235) if chosen else QColor(
                 int(base.red() * shade), int(base.green() * shade), int(base.blue() * shade)
             )
-            painter.setPen(QPen(edge, 1.5 if chosen else 0.6))
+            painter.setPen(QPen(edge, 2.8 if chosen else 0.6))
             painter.setBrush(QBrush(texture) if texture is not None else QBrush(base))
             painter.drawPolygon(poly)
 
@@ -205,6 +228,13 @@ def _install_textured_object_preview():
             if darkness:
                 painter.setPen(Qt.PenStyle.NoPen)
                 painter.setBrush(QBrush(QColor(0, 0, 0, darkness)))
+                painter.drawPolygon(poly)
+
+            # Strong selection feedback: keep the real finish visible under a
+            # translucent orange wash and a thick outline.
+            if chosen:
+                painter.setPen(QPen(QColor(255, 133, 20, 245), 2.8))
+                painter.setBrush(QBrush(QColor(255, 145, 20, 52)))
                 painter.drawPolygon(poly)
             self._screen_tris.append((poly, roles[i]))
 
@@ -282,8 +312,8 @@ def install_material_object_integration():
     om.visual_column = _compact_visual_column
     _install_textured_object_preview()
 
-    # Keep the compact material card in sync after normal object refreshes and
-    # after picking a semantic part in the preview.
+    # Keep the compact material card and the 3D highlight in sync after normal
+    # refreshes, list selection and direct picking in the preview.
     for cls_name in ("ObjectModifierDialog", "CabinetModifierDialog"):
         cls = getattr(om, cls_name, None)
         if cls is None:
@@ -292,6 +322,8 @@ def install_material_object_integration():
         original_refresh = cls.refresh
         def refresh(self, _orig=original_refresh):
             result = _orig(self)
+            _ensure_part_list_sync(self)
+            _sync_preview_from_part_list(self)
             _refresh_material_card(self)
             return result
         cls.refresh = refresh
@@ -299,7 +331,11 @@ def install_material_object_integration():
         original_pick = cls.pick_part
         def pick_part(self, role, _orig=original_pick):
             result = _orig(self, role)
+            _ensure_part_list_sync(self)
             _refresh_material_card(self)
+            if getattr(self, "preview", None) is not None:
+                self.preview.selected_role = role
+                self.preview.update()
             return result
         cls.pick_part = pick_part
 
