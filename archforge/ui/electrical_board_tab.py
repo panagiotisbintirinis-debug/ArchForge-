@@ -15,6 +15,8 @@ TAB_TITLE = "Ηλεκτρ. πίνακας"
 
 
 def _n(v, d=1):
+    if v is None:
+        return "—"
     return f"{v:,.{d}f}".replace(",", " ").replace(".", ",")
 
 
@@ -31,21 +33,26 @@ class BoardTab(QWidget):
         head = QHBoxLayout(); head.setSpacing(8)
         title = QLabel("Ηλεκτρολογικός πίνακας"); title.setStyleSheet("font-weight:600;font-size:15px")
         head.addWidget(title); head.addStretch(1)
-        self.supply = QComboBox(); self.supply.setToolTip("Παροχή ΔΕΔΔΗΕ")
-        from archforge.mep.electrical_board import SUPPLIES
-        self.supply.addItem("Παροχή: αυτόματα", "auto")
-        for key, (label, *_rest) in SUPPLIES.items():
-            self.supply.addItem(label.replace("Παροχή ", ""), key)
-        self.factor = QDoubleSpinBox(); self.factor.setRange(0.0, 1.0); self.factor.setSingleStep(0.05); self.factor.setDecimals(2)
-        self.factor.setSpecialValueText("Ταυτοχρ.: μέθοδος"); self.factor.setPrefix("Ταυτοχρ. ")
-        self.factor.setToolTip("0 = μέθοδος IET On-Site Guide Πίν. A1· αλλιώς ο συντελεστής του ηλεκτρολόγου")
-        self.waste = QDoubleSpinBox(); self.waste.setRange(0.0, 50.0); self.waste.setSuffix(" %"); self.waste.setPrefix("Φύρα ")
-        self.waste.setDecimals(0); self.waste.setToolTip("Επιπλέον μέτρα καλωδίου για αγορά (ρύθμιση χρήστη)")
-        for w in (self.supply, self.factor, self.waste):
+        # Entered by the user from the ΔΕΔΔΗΕ connection and the study: 0 = not entered, no hidden defaults.
+        def spin(prefix, suffix, hi, step, decimals, tip):
+            w = QDoubleSpinBox(); w.setRange(0.0, hi); w.setSingleStep(step); w.setDecimals(decimals)
+            w.setPrefix(prefix); w.setSuffix(suffix); w.setSpecialValueText(prefix + "— εισάγετε"); w.setToolTip(tip)
+            return w
+        self.kva = spin("Παροχή ", " kVA", 1000.0, 1.0, 1, "Ισχύς παροχής από την αίτηση/σύμβαση σύνδεσης ΔΕΔΔΗΕ")
+        self.phases = QComboBox(); self.phases.setToolTip("Φάσεις της παροχής (ΔΕΔΔΗΕ)")
+        for label, value in (("Φάσεις: — εισάγετε", 0), ("Μονοφασική", 1), ("Τριφασική", 3)):
+            self.phases.addItem(label, value)
+        self.fuse = spin("Ασφάλεια ", " A", 1000.0, 1.0, 0, "Ασφάλεια παροχής από την αίτηση/σύμβαση σύνδεσης ΔΕΔΔΗΕ")
+        self.factor = spin("Ταυτοχρ. ", "", 1.0, 0.05, 2, "Συντελεστής ταυτοχρονισμού της μελέτης (ηλεκτρολόγος)")
+        self.waste = spin("Φύρα ", " %", 50.0, 1.0, 0, "Επιπλέον μέτρα καλωδίου για αγορά (ρύθμιση χρήστη)")
+        self.waste.setSpecialValueText("Φύρα 0 %")
+        for w in (self.kva, self.phases, self.fuse, self.factor, self.waste):
             head.addWidget(w)
-        self.supply.currentIndexChanged.connect(lambda _i: self._set("supply", self.supply.currentData()))
-        self.factor.valueChanged.connect(lambda v: self._set("demand_factor", float(v)))
-        self.waste.valueChanged.connect(lambda v: self._set("waste_pct", float(v)))
+        self.kva.editingFinished.connect(lambda: self._set("supply_kva", float(self.kva.value())))
+        self.phases.activated.connect(lambda _i: self._set("supply_phases", int(self.phases.currentData())))
+        self.fuse.editingFinished.connect(lambda: self._set("supply_fuse_a", float(self.fuse.value())))
+        self.factor.editingFinished.connect(lambda: self._set("demand_factor", float(self.factor.value())))
+        self.waste.editingFinished.connect(lambda: self._set("waste_pct", float(self.waste.value())))
         self.excel = QPushButton("Excel…"); self.excel.clicked.connect(self.export_csv)
         self.pdf = QPushButton("PDF…"); self.pdf.clicked.connect(self.export_pdf)
         head.addWidget(self.excel); head.addWidget(self.pdf)
@@ -53,7 +60,7 @@ class BoardTab(QWidget):
 
         self.cards = QGridLayout(); self.cards.setHorizontalSpacing(8)
         self.card_labels = {}
-        for col, key in enumerate(("installed", "demand", "supply", "main", "rcd", "phases")):
+        for col, key in enumerate(("installed", "demand", "supply", "main", "phases")):
             box = QFrame(); box.setFrameShape(QFrame.Shape.StyledPanel)
             v = QVBoxLayout(box); v.setContentsMargins(8, 4, 8, 4); v.setSpacing(0)
             cap, val = QLabel(), QLabel()
@@ -71,13 +78,13 @@ class BoardTab(QWidget):
 
         self.pages = QTabWidget()
         self.circuits = self._tree(["Κύκλωμα", "Περιγραφή", "Φάση", "Ασφάλεια", "Διατομή", "Σημεία", "Χώροι",
-                                    "Φορτίο", "Μήκος", "ΔU", "Έλεγχος"])
+                                    "Φορτίο", "Μήκος", "Ως πιο μακρινό", "Έλεγχος"])
         self.circuits.itemClicked.connect(self._select_item)
         self.circuits.itemDoubleClicked.connect(lambda item, _c: self._select_item(item, show=True))
         self.walls = self._tree(["Θέση", "Κυκλώματα", "Σωλήνας"])
         self.walls.itemClicked.connect(self._select_item)
         self.walls.itemDoubleClicked.connect(lambda item, _c: self._select_item(item, show=True))
-        self.purchase = self._tree(["Διατομή", "Χρήση", "Μέτρα", "Με φύρα"])
+        self.purchase = self._tree(["Διατομή", "Μέτρα", "Με φύρα"])
         self.pages.addTab(self.circuits, "Κυκλώματα και αγωγοί")
         self.pages.addTab(self.walls, "Μέτρα ανά τοίχο")
         self.pages.addTab(self.purchase, "Αγορά καλωδίων")
@@ -124,26 +131,31 @@ class BoardTab(QWidget):
         has = bool(r["circuits"])
         self.empty.setVisible(not has)
         self.pages.setVisible(has)
-        for w in (self.supply, self.factor, self.waste, self.excel, self.pdf):
+        for w in (self.kva, self.phases, self.fuse, self.factor, self.waste, self.excel, self.pdf):
             w.setEnabled(has)
         self._updating = True
         try:
             conf = r["settings"]
-            self.supply.setCurrentIndex(max(0, self.supply.findData(conf["supply"])))
+            self.kva.setValue(conf["supply_kva"]); self.fuse.setValue(conf["supply_fuse_a"])
+            self.phases.setCurrentIndex(max(0, self.phases.findData(conf["supply_phases"])))
             self.factor.setValue(conf["demand_factor"])
             self.waste.setValue(conf["waste_pct"])
         finally:
             self._updating = False
         cards = {}
         if b:
-            cards = {"installed": ("Εγκατεστημένη ισχύς", f"{_n(b['installed_w'] / 1000)} kW"),
-                     "demand": ("Ζήτηση (ταυτοχρονισμός)", f"{_n(b['demand_kva'])} kVA · {_n(b['demand_a'])} A"),
-                     "supply": ("Παροχή ΔΕΔΔΗΕ", b["supply_label"].replace("Παροχή ", "")),
-                     "main": ("Γενικός · τροφοδοσία", f"{b['main_switch'].replace('Γενικός διακόπτης ', '')} · "
-                                                      f"{b['feeder'].split(' (')[0].replace('Γραμμή τροφοδοσίας ', '')}"),
-                     "rcd": ("Διαφορικοί 30 mA", " · ".join(f"Δ{k + 1}: {' '.join(d['circuits'])}" for k, d in enumerate(b["rcds"]))),
+            todo = "— εισάγετε"
+            cards = {"installed": ("Εγκατεστημένη ισχύς (άθροισμα σημείων)", f"{_n(b['installed_w'] / 1000)} kW"),
+                     "demand": ("Ζήτηση (συντελεστής μελέτης)", f"{_n(b['demand_kva'])} kVA · ×{_n(b['demand_factor'], 2)}"
+                                if b["demand_kva"] is not None else todo),
+                     "supply": ("Παροχή ΔΕΔΔΗΕ (όπως εισήχθη)",
+                                " · ".join(x for x in ((f"{_n(b['supply_kva'])} kVA" if b["supply_kva"] else ""),
+                                                       {1: "μονοφασική", 3: "τριφασική"}.get(b["phases"], ""),
+                                                       (f"{_n(b['fuse_a'], 0)} A" if b["fuse_a"] else "")) if x) or todo),
+                     "main": ("Γενικός διακόπτης", b["main_switch"].replace("Γενικός διακόπτης ", "") if b["main_switch"] else todo),
                      "phases": ("Φάσεις", " · ".join(f"{k} {_n(v / 1000)} kW" for k, v in b["phase_w"].items())
-                                + (f" · ανισορροπία {_n(b['imbalance_pct'], 0)} %" if b["phases"] == 3 else ""))}
+                                + (f" · ανισορροπία {_n(b['imbalance_pct'], 0)} %" if b["imbalance_pct"] is not None else "")
+                                if b["phases"] else todo)}
         for key, (box, cap, val) in self.card_labels.items():
             box.setVisible(key in cards)
             if key in cards:
@@ -153,10 +165,7 @@ class BoardTab(QWidget):
         self._fill_purchase(r)
         self.warnings.setText("\n".join(f"⚠ {w}" for w in r["warnings"]))
         self.warnings.setVisible(bool(r["warnings"]))
-        lines = [r["provenance"]]
-        if b:
-            lines += [f"{b['demand_provenance']} — {b['demand_method']}", f"{b['supply_provenance']} ({b['supply_chosen_by']})",
-                      b["rcd_note"]]
+        lines = [r["provenance"], "Μη επαληθευμένα (δεν χρησιμοποιούνται σε αποφάσεις):"] + [f" • {u}" for u in r["unverified"]]
         self.provenance.setText("\n".join(lines))
         self.provenance.setVisible(has)
         return r
@@ -166,18 +175,18 @@ class BoardTab(QWidget):
         for c in r["circuits"]:
             item = QTreeWidgetItem([c["id"], c["label"], c.get("phase", ""), f"{c['breaker_a']} A", f"{_n(c['mm2'])} mm²",
                                     str(c["points"]), ", ".join(c["rooms"]), f"{c['load_w']} W · {_n(c['current_a'])} A",
-                                    f"{_n(c['conduit_m'])} m", f"{_n(c['drop_pct'], 2)} %",
+                                    f"{_n(c['conduit_m'])} m", f"{_n(c['farthest_m'])} m",
                                     "✓" if c["ok"] else "⚠ " + ", ".join(c["notes"])])
             item.setData(0, Qt.ItemDataRole.UserRole, list(c["point_ids"]))
             if not c["ok"]:
                 item.setForeground(10, Qt.GlobalColor.darkYellow)
             line_m = float(c["conduit_m"])
-            for code, label, colour, s in c["conductors"]:
-                QTreeWidgetItem(item, [code, f"{label} ({colour})", "", "", f"{_n(s)} mm²", "", "", "", f"{_n(line_m)} m", "", ""])
+            for code, label, s in c["conductors"]:
+                QTreeWidgetItem(item, [code, label, "", "", f"{_n(s)} mm²", "", "", "", f"{_n(line_m)} m", "", ""])
             if c["switch_leg"]:
-                leg = max(0.0, (c["wire_m"].get(1.5, 0.0) - 3 * line_m) / 2)
-                for code, label in (("L", "Φάση προς διακόπτες (καφέ)"), ("R", "Επιστροφή διακόπτη (μαύρο)")):
-                    QTreeWidgetItem(item, [code, label, "", "", "1,5 mm²", "", "", "", f"{_n(leg)} m", "", ""])
+                leg = max(0.0, (c["wire_m"].get(c["mm2"], 0.0) - 3 * line_m) / 2)
+                for code, label in (("L", "Φάση προς διακόπτες"), ("R", "Επιστροφή διακόπτη")):
+                    QTreeWidgetItem(item, [code, label, "", "", f"{_n(c['mm2'])} mm²", "", "", "", f"{_n(leg)} m", "", ""])
             t.addTopLevelItem(item)
 
     def _fill_walls(self, r):
@@ -192,7 +201,7 @@ class BoardTab(QWidget):
     def _fill_purchase(self, r):
         t = self.purchase; t.clear()
         for p in r["purchase"]:
-            t.addTopLevelItem(QTreeWidgetItem([f"{_n(p['mm2'])} mm²", p["use"], f"{_n(p['metres'])} m", f"{_n(p['with_waste'])} m"]))
+            t.addTopLevelItem(QTreeWidgetItem([f"{_n(p['mm2'])} mm²", f"{_n(p['metres'])} m", f"{_n(p['with_waste'])} m"]))
 
     def _select_item(self, item, _column=0, show=False):
         while item.parent() is not None:
@@ -237,27 +246,30 @@ def board_html(r):
     b = r["board"]
     rows = "".join(f"<tr><td>{e(c['id'])}</td><td>{e(c['label'])}</td><td>{e(c.get('phase', ''))}</td><td>{c['breaker_a']} A</td>"
                    f"<td>{_n(c['mm2'])}</td><td>{' + '.join(code for code, *_x in c['conductors'])}{' + επιστρ.' if c['switch_leg'] else ''}</td>"
-                   f"<td>{c['points']}</td><td>{c['load_w']} W</td><td>{_n(c['conduit_m'])} m</td><td>{_n(c['drop_pct'], 2)} %</td>"
+                   f"<td>{c['points']}</td><td>{c['load_w']} W</td><td>{_n(c['conduit_m'])} m</td><td>{_n(c['farthest_m'])} m</td>"
                    f"<td>{'✓' if c['ok'] else '⚠ ' + e(', '.join(c['notes']))}</td></tr>" for c in r["circuits"])
     sections = sorted({s for w in r["walls"] for s in w["by_section"]})
     walls = "".join(f"<tr><td>{e(w['label'])}</td><td>{e(' '.join(w['circuits']))}</td><td>{_n(w['conduit_m'], 2)}</td>"
                     + "".join(f"<td>{_n(w['by_section'].get(s, 0), 2)}</td>" for s in sections) + "</tr>" for w in r["walls"])
-    buy = "".join(f"<tr><td>{_n(p['mm2'])} mm²</td><td>{e(p['use'])}</td><td>{_n(p['metres'])}</td><td>{_n(p['with_waste'])}</td></tr>"
+    buy = "".join(f"<tr><td>{_n(p['mm2'])} mm²</td><td>{_n(p['metres'])}</td><td>{_n(p['with_waste'])}</td></tr>"
                   for p in r["purchase"])
     head = ""
     if b:
-        head = (f"<p><b>{e(b['supply_label'])}</b> · εγκατεστημένη {_n(b['installed_w'] / 1000)} kW · ζήτηση {_n(b['demand_kva'])} kVA<br>"
-                f"{e(b['main_switch'])} · {e(b['feeder'])}<br>"
-                + "<br>".join(f"{e(d['label'])}: {e(' '.join(d['circuits']))}" for d in b["rcds"]) + "</p>")
+        todo = "— δεν εισήχθη"
+        head = (f"<p>Εγκατεστημένη ισχύς (άθροισμα σημείων) {_n(b['installed_w'] / 1000)} kW · "
+                f"ζήτηση {(_n(b['demand_kva']) + ' kVA') if b['demand_kva'] is not None else todo}<br>"
+                f"Παροχή ΔΕΔΔΗΕ (όπως εισήχθη): {(_n(b['supply_kva']) + ' kVA') if b['supply_kva'] else todo}, "
+                f"{ {1: 'μονοφασική', 3: 'τριφασική'}.get(b['phases'], todo)}, ασφάλεια {(_n(b['fuse_a'], 0) + ' A') if b['fuse_a'] else todo}</p>")
     tbl = 'border="1" cellspacing="0" cellpadding="3" width="100%"'
     return (f"<h2>Ηλεκτρολογικός πίνακας</h2>{head}"
             f"<h3>Κυκλώματα</h3><table {tbl}><tr><th>Κ</th><th>Περιγραφή</th><th>Φάση</th><th>Ασφάλεια</th><th>mm²</th>"
-            f"<th>Αγωγοί</th><th>Σημεία</th><th>Φορτίο</th><th>Σωλήνας</th><th>ΔU</th><th>Έλεγχος</th></tr>{rows}</table>"
+            f"<th>Αγωγοί</th><th>Σημεία</th><th>Φορτίο</th><th>Σωλήνας</th><th>Ως πιο μακρινό</th><th>Έλεγχος</th></tr>{rows}</table>"
             f"<h3>Μέτρα ανά τοίχο (m)</h3><table {tbl}><tr><th>Θέση</th><th>Κυκλώματα</th><th>Σωλήνας</th>"
             + "".join(f"<th>{_n(s)} mm²</th>" for s in sections) + f"</tr>{walls}</table>"
-            f"<h3>Αγορά καλωδίων (φύρα {_n(r['waste_pct'], 0)} %)</h3><table {tbl}><tr><th>Διατομή</th><th>Χρήση</th><th>Μέτρα</th>"
+            f"<h3>Αγορά καλωδίων (φύρα {_n(r['waste_pct'], 0)} %)</h3><table {tbl}><tr><th>Διατομή</th><th>Μέτρα</th>"
             f"<th>Με φύρα</th></tr>{buy}</table>"
             + "".join(f"<p>⚠ {e(w)}</p>" for w in r["warnings"])
+            + "<p><b>Μη επαληθευμένα (δεν χρησιμοποιούνται σε αποφάσεις)</b><br>" + "<br>".join(e(u) for u in r["unverified"]) + "</p>"
             + f"<p><small>{e(r['provenance'])}<br>{e(r['circuit_provenance'])}</small></p>")
 
 

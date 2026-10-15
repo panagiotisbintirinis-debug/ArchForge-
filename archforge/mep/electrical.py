@@ -40,9 +40,9 @@ VOLTAGE = 230.0
 POINT_TYPES = {
     "panel": ("Ηλεκτρικός πίνακας", "panel", 0, 1.60, "ΠΙ"),
     "light": ("Φωτιστικό οροφής", "lighting", 60, None, "Φ"),
-    "spot": ("Σποτ (κατευθυνόμενο)", "lighting", 7, None, "Σπ"),
-    "downlight": ("Χωνευτό φωτιστικό οροφής", "lighting", 10, None, "Χ"),
-    "wall_washer": ("Wall washer (φως σε τοίχο)", "lighting", 12, None, "WW"),
+    "spot": ("Σποτ (κατευθυνόμενο)", "lighting", 0, None, "Σπ"),
+    "downlight": ("Χωνευτό φωτιστικό οροφής", "lighting", 0, None, "Χ"),
+    "wall_washer": ("Wall washer (φως σε τοίχο)", "lighting", 0, None, "WW"),
     "led_strip": ("Κρυφός φωτισμός — ταινία LED", "lighting", 0, None, "LED"),
     "wall_light": ("Απλίκα", "lighting", 40, 2.00, "Α"),
     "switch": ("Διακόπτης", "switch", 0, 1.10, "Δ"),
@@ -68,7 +68,9 @@ CIRCUIT_RULES = {
 }
 GROUP_ORDER = tuple(CIRCUIT_RULES)
 SWITCH_TYPES = ("switch", "dimmer")
-STRIP_W_PER_M = 9.6        # default LED strip load (W/m): set from the strip's data sheet
+# Luminaires added 15/10 carry no catalogue default (owner's rule: no values from memory) —
+# their W (or W/m for a strip) comes from the luminaire's data sheet.
+DATASHEET_TYPES = ("spot", "downlight", "wall_washer", "led_strip")
 
 
 def strip_length(params):
@@ -82,7 +84,7 @@ def strip_length(params):
 def point_load_w(params):
     """Design load (W): the strip's W/m × length, otherwise the point's power."""
     if params.get("point_type") == "led_strip":
-        return float(params.get("w_per_m", STRIP_W_PER_M)) * strip_length(params)
+        return float(params.get("w_per_m", 0.0)) * strip_length(params)
     return float(params.get("power_w", POINT_TYPES[params["point_type"]][2]))
 
 
@@ -140,6 +142,10 @@ def design_circuits(doc):
         return out
     by_group = {}
     for e in loads:
+        if e.params["point_type"] in DATASHEET_TYPES and point_load_w(e.params) <= 0:
+            out["report"]["warnings"].append(
+                f"{POINT_TYPES[e.params['point_type']][0]} {e.id[:6]}: εισάγετε ισχύ από το φύλλο του φωτιστικού "
+                f"({'W/m' if e.params['point_type'] == 'led_strip' else 'W'}) — μετράει 0 W")
         group = POINT_TYPES[e.params["point_type"]][1]
         floor = _floor_of(doc, float(e.params["z"]))
         room = _room_of(doc, float(e.params["x"]), float(e.params["y"]), floor) or "—"

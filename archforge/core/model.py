@@ -272,11 +272,10 @@ def _cable_routing(v):
     return v
 
 
-def _elec_supply(v):
-    from archforge.mep.electrical_board import SUPPLIES
-    v = str(v)
-    if v != 'auto' and v not in SUPPLIES:
-        raise ValueError(f'supply must be auto or one of {", ".join(SUPPLIES)}')
+def _supply_phases(v):
+    v = int(v)
+    if v not in (0, 1, 3):
+        raise ValueError('supply phases must be 1 or 3 (0 = not entered)')
     return v
 
 
@@ -297,8 +296,8 @@ def _beam(v):
 def _light_direction(v):
     from archforge.mep.lighting import DIRECTIONS
     v = str(v)
-    if v not in DIRECTIONS:
-        raise ValueError(f'direction must be one of {", ".join(DIRECTIONS)}')
+    if v != 'auto' and v not in DIRECTIONS:
+        raise ValueError(f'direction must be auto or one of {", ".join(DIRECTIONS)}')
     return v
 
 
@@ -730,7 +729,8 @@ SCHEMAS = {
                      'insulation': _roof_insulation, 'insulation_thickness': _insulation_thickness,
                      'shed_high': _shed_high},
     'electrical_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _electrical_type, 'power_w': _nonnegative,
-                         'routing': _cable_routing, 'supply': _elec_supply, 'demand_factor': _unit_interval,
+                         'routing': _cable_routing, 'supply_kva': _nonnegative, 'supply_phases': _supply_phases, 'supply_fuse_a': _nonnegative,
+                         'demand_factor': _unit_interval,
                          'waste_pct': _nonnegative,
                          # luminaires (mep/lighting.py): strip end, load, light effect, control
                          'x2': _finite, 'y2': _finite, 'w_per_m': _nonnegative, 'lumen': _nonnegative, 'kelvin': _kelvin,

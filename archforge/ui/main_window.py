@@ -1257,13 +1257,13 @@ class MainWindow(QMainWindow):
 
     def _place_electrical_point(self, point_type, x, y, end=None):
         """Add an electrical point (a strip: dragged line); circuits and cables are re-derived automatically."""
-        from archforge.mep.electrical import POINT_TYPES, STRIP_W_PER_M, route_cables_cached
+        from archforge.mep.electrical import POINT_TYPES, route_cables_cached
         label = POINT_TYPES[point_type][0]
         params = {'x': float(x), 'y': float(y), 'z': float(self.doc.work_plane.origin[2]),
                   'point_type': point_type, 'power_w': float(POINT_TYPES[point_type][2])}
         if point_type == 'led_strip':
             x2, y2 = end if end is not None else (float(x) + 1.0, float(y))
-            params.update(x2=float(x2), y2=float(y2), w_per_m=STRIP_W_PER_M)
+            params.update(x2=float(x2), y2=float(y2))     # W/m from the strip's data sheet (Ιδιότητες)
         point = Entity('electrical_point', params, name=label)
         self.stack.execute(AddEntity(point))
         self._redraw_views(all_views=True)
@@ -1948,11 +1948,14 @@ class MainWindow(QMainWindow):
             # Roofs saved before the overhang field still get the editor.
             params.setdefault('overhang', 0.0)
         from archforge.architecture.joinery import KEYS as joinery_keys
+        from archforge.ui.light_properties import LIGHT_KEYS as light_keys
         for key, value in (() if entity.kind in ('railing', 'drywall_ceiling', 'section_line', 'camera', 'stair') or slab_tools.is_slab_panel(entity) else params.items()):
             if entity.kind in ('door', 'window') and key in joinery_keys:
                 continue  # Κουφώματα: δικές τους γραμμές (ui/opening_properties.py).
             if entity.kind == 'stair' and key == 'plan_numbers':
                 continue  # checkbox below
+            if entity.kind == 'electrical_point' and key in light_keys and params.get('point_type') not in ('panel',):
+                continue  # Φωτιστικά: δικές τους γραμμές (ui/light_properties.py).
             if isinstance(value, (int, float)):
                 spin = QDoubleSpinBox()
                 spin.setDecimals(4)
@@ -2059,6 +2062,9 @@ class MainWindow(QMainWindow):
             summary = QLabel(self._ventilation_summary(eid))
             summary.setWordWrap(True)
             self.form.addRow('', summary)
+        if entity.kind == 'electrical_point':
+            from archforge.ui.light_properties import add_rows as light_rows
+            light_rows(self, eid)
         if entity.kind == 'electrical_point' and params.get('point_type') not in ('panel', 'light'):
             from archforge.mep.electrical import routing_of
             combo = QComboBox()

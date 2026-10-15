@@ -27,9 +27,15 @@ def test_strip_load_is_w_per_m_times_length_on_a_lighting_circuit():
     _pt(stack, 'panel', 0.3, 3.0)
     strip = _pt(stack, 'led_strip', 1.0, 1.0, x2=3.5, y2=1.0, w_per_m=14.4)
     spot = _pt(stack, 'spot', 2.0, 3.0)
-    c = next(c for c in design_circuits(doc)['circuits'] if strip.id in c['points'])
+    d = design_circuits(doc)
+    c = next(c for c in d['circuits'] if strip.id in c['points'])
     assert c['group'] == 'lighting' and spot.id in c['points']
-    assert c['load_w'] == round(14.4 * 2.5 + POINT_TYPES['spot'][2])
+    # No catalogue default: the spot counts 0 W and says so until its data-sheet W is entered.
+    assert POINT_TYPES['spot'][2] == 0 and c['load_w'] == round(14.4 * 2.5)
+    assert any('φύλλο' in w and spot.id[:6] in w for w in d['report']['warnings'])
+    stack.execute(UpdateEntity(spot.id, {'power_w': 6.0}))
+    c = next(c for c in design_circuits(doc)['circuits'] if strip.id in c['points'])
+    assert c['load_w'] == round(14.4 * 2.5 + 6.0)
     stack.execute(UpdateEntity(strip.id, {'x2': 5.0}))                 # longer strip -> more load
     assert next(c for c in design_circuits(doc)['circuits'] if strip.id in c['points'])['load_w'] > c['load_w']
     with pytest.raises(ValueError):
@@ -77,7 +83,8 @@ def test_dimmer_of_the_group_controls_the_hidden_light_and_the_report_sizes_the_
     assert links[plain.id]['lights'] == [lamp.id]                         # the room switch keeps the downlight
     report = lighting_report(doc)
     hidden = next(g for g in report['groups'] if g['group'] == strips[0]['automation_group'])
-    assert hidden['driver_w'] == pytest.approx(hidden['load_w'] * 1.2, abs=0.2) and hidden['strip_m'] > 15
+    assert hidden['strip_m'] > 15 and hidden['load_w'] == 0 and len(hidden['missing']) == 4   # W/m, lm/m, K not entered
+    assert all('w_per_m' not in s and 'lumen' not in s and 'kelvin' not in s for s in strips)
     spec = light_spec(doc, doc.get(next(iter(strip_ids))))
     assert spec['dimmer'] and spec['switch'] == dimmer.id and spec['circuit'].startswith('Κ')
     assert 'φύλλο' in report['provenance']
@@ -88,15 +95,17 @@ def test_light_spec_is_the_renderer_view_of_the_same_entity():
     _pt(stack, 'panel', 0.3, 3.0)
     spot = _pt(stack, 'spot', 2.0, 3.0, lumen=600.0, beam_deg=24.0, kelvin=2700.0, target_x=2.0, target_y=5.9, target_z=1.0)
     washer = _pt(stack, 'wall_washer', 6.0, 5.5)
-    strip = _pt(stack, 'led_strip', 5.0, 1.0, x2=7.0, y2=1.0, dim_level=0.5)
+    strip = _pt(stack, 'led_strip', 5.0, 1.0, x2=7.0, y2=1.0, dim_level=0.5, lumen=800.0, kelvin=3000.0)
     s = light_spec(doc, spot)
     assert s['kind'] == 'spot' and s['angle_deg'] == 12.0 and s['kelvin'] == 2700.0 and s['target'] == [2.0, 5.9, 1.0]
-    assert s['intensity'] == pytest.approx(600 / (2 * math.pi * (1 - math.cos(math.radians(12)))))
+    assert s['intensity'] == pytest.approx(600 / (2 * math.pi * (1 - math.cos(math.radians(12))))) and s['photometry_entered']
     w = light_spec(doc, washer)
     assert w['target'][1] == pytest.approx(6.0) and w['target'][2] < w['position'][2]   # aimed at the nearest wall
+    # Nothing entered for the washer: no invented lumen/K/beam, the renderer keeps its display look.
+    assert w['lumen'] is None and w['kelvin'] is None and w['intensity'] is None and not w['photometry_entered']
     st = light_spec(doc, strip)
     assert st['kind'] == 'strip' and st['start'][0] == 5.0 and st['end'][0] == 7.0 and st['length_m'] == 2.0
-    assert st['lumen'] == pytest.approx(2.0 * 9.6 * 90 * 0.5)
+    assert st['lumen'] == pytest.approx(2.0 * 800 * 0.5)
     stack.execute(UpdateEntity(strip.id, {'dim_level': 0.0}))
     assert light_spec(doc, doc.get(strip.id))['enabled'] is False
     assert {x['id'] for x in light_specs(doc)} == {spot.id, washer.id, strip.id}   # sockets/panel are not lights
@@ -136,3 +145,28 @@ def test_board_counts_cove_cable_as_ceiling():
     r = analyse(doc)
     assert not any(w['kind'] == 'free' for w in r['walls'])
     assert any(w['kind'] == 'ceiling' for w in r['walls'])
+
+
+def test_properties_of_a_luminaire_have_no_hidden_defaults():
+    from PySide6.QtWidgets import QApplication, QComboBox, QDoubleSpinBox, QLabel
+    from archforge.ui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    try:
+        window.plan_view.sitePointRequested.emit('elec_spot', 2.0, 2.0)
+        spot = next(e for e in window.doc.entities.values() if e.params.get('point_type') == 'spot')
+        window.doc.select([spot.id]); window.refresh_inspector()
+        labels = [window.form.itemAt(i, window.form.ItemRole.LabelRole).widget().text()
+                  for i in range(window.form.rowCount()) if window.form.itemAt(i, window.form.ItemRole.LabelRole)]
+        for row in ('Ισχύς', 'Φωτεινή ροή', 'Δέσμη', 'Χρώμα φωτός', 'Ένταση (ροοστάτης)', 'Κατεύθυνση', 'Ομάδα αυτοματισμού'):
+            assert row in labels, row
+        spins = [w for w in window.form.parentWidget().findChildren(QDoubleSpinBox) if w.specialValueText() == '— από το φύλλο']
+        assert spins and all(w.value() == 0 for w in spins)
+        beams = next(w for w in window.form.parentWidget().findChildren(QComboBox) if w.itemText(1) == '10°')
+        assert beams.currentText() == '— από το φύλλο'
+        beams.setCurrentIndex(3); beams.activated.emit(3)                 # 36°
+        assert window.doc.get(spot.id).params['beam_deg'] == 36.0
+        window._undo()
+        assert 'beam_deg' not in window.doc.get(spot.id).params
+    finally:
+        window._mark_clean(); window.close(); app.processEvents()

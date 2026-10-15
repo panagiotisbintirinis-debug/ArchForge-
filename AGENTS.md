@@ -97,6 +97,14 @@ Do not add machine-readable logs, fingerprints, or headless AI pilot evidence wh
 
 Defer broad feature expansion, generalized structural simulation, or new fabrication claims unless a queued issue directly advances the current milestone. Do not defer necessary human interaction work merely because mature CAD/BIM tools already contain similar interaction patterns.
 
+## NO VALUES FROM MEMORY — NO FAKE DATA (owner, 2026-10-15, binding)
+Owner, in his words: «ό,τι βάζεις θα είναι διασταυρωμένο με κανόνες· απαγορεύεται να γράφεις από μνήμης ή ψεύτικα στοιχεία … ο στόχος είναι επιθετικός: να φτιάξουμε ένα πρόγραμμα που μπορεί να πουληθεί και να είναι συνώνυμο της εμπιστοσύνης».
+- **Forbidden:** writing any engineering, regulatory, product or price value (tables, limits, factors, sizes, supply categories, catalogue figures) from an agent's memory, or inventing data of any kind (example projects shown as real, test fixtures presented as real-world values, made-up sources).
+- **Required:** every such value is cross-checked against a citable source — the standard/regulation (clause/table), the utility's or authority's published document, or the manufacturer's data sheet — and the code records that source next to the value (document, edition, table/clause, and the URL or file when there is one).
+- **When a value cannot be verified now:** it does not enter results as a fact. Either it is a user setting with no hidden default, or it is shown as «μη επαληθευμένο — εισάγετε από …» and excluded from automatic decisions. The HANDOFF keeps the list of open verifications.
+- Existing values written before this rule are audited under the same rule; until audited they are listed in the HANDOFF as unverified.
+- Green tests never count as verification of a value.
+
 ## Owner's trust rules (2026-10-15)
 Agreed with the owner after an honest review of where an AI agent cannot be trusted on its own:
 - **Ask before deciding** anything that changes what the owner sees on screen (placement of tabs/panels/menus, new tools in the mouse menu) or what an engineer would sign (rules, limits, sizing). A small mockup or one question is enough; "ξεκίνα από όπου πιστεύεις" covers the order of work, not these decisions.
