@@ -121,14 +121,14 @@ def test_board_tab_shows_the_figures_and_follows_changes(tmp_path):
     try:
         tab = window._board_tab
         tabs = window._central_tabs
-        assert tabs.tabText(tabs.indexOf(tab)) == 'Ηλεκτρ. πίνακας'
+        assert tabs.indexOf(tab) < 0                                  # approved layout: two drawing tabs until asked for
         tab.refresh()
         assert tab.empty.isVisibleTo(tab) and not tab.pages.isVisibleTo(tab)
         window.plan_view.sitePointRequested.emit('elec_panel', 0.5, 0.5)
         window.plan_view.sitePointRequested.emit('elec_socket', 2.0, 0.5)
         window.plan_view.sitePointRequested.emit('elec_cooker', 3.0, 0.5)
         window._show_circuit_schedule()
-        assert tabs.currentWidget() is tab
+        assert tabs.currentWidget() is tab and tabs.tabText(tabs.indexOf(tab)) == 'Ηλεκτρ. πίνακας'
         assert tab.circuits.topLevelItemCount() == 2
         first = tab.circuits.topLevelItem(0)
         assert first.childCount() == 3 and [first.child(i).text(0) for i in range(3)] == ['L', 'N', 'PE']

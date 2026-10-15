@@ -262,21 +262,21 @@ def board_html(r):
 
 
 def install(window):
-    """Add the «Ηλεκτρ. πίνακας» tab after the drawing tabs; it follows every committed change."""
-    tabs = getattr(window, "_central_tabs", None)
+    """Prepare the «Ηλεκτρ. πίνακας» page; it joins the central tabs only when asked for (like «Τομή»),
+    so the approved layout keeps its two drawing tabs. It follows every committed change."""
     tab = BoardTab(window)
     window._board_tab = tab
-    if tabs is not None:
-        tabs.addTab(tab, TAB_TITLE)
     window.stack.listeners.append(tab.mark_stale)
     return tab
 
 
 def show(window):
-    """Bring the tab forward (menu «Ηλεκτρ. πίνακας»)."""
+    """Bring the tab forward (menu «Ηλεκτρολογικός πίνακας»), adding it after the drawing tabs the first time."""
     tab = getattr(window, "_board_tab", None)
     tabs = getattr(window, "_central_tabs", None)
-    if tab is None or tabs is None or tabs.indexOf(tab) < 0:
+    if tab is None or tabs is None:
         return None
+    if tabs.indexOf(tab) < 0:
+        tabs.addTab(tab, TAB_TITLE)
     tabs.setCurrentWidget(tab)
     return tab.refresh()
