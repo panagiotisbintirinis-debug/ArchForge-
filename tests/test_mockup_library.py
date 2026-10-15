@@ -39,7 +39,8 @@ def test_import_place_and_resize_sofa_through_the_ui(tmp_path):
     app = QApplication.instance() or QApplication([])
     window = MainWindow(); window.show(); app.processEvents()
     try:
-        assert 'Βιβλιοθήκη' in [m.title() for m in window.menuBar().findChildren(type(window._mockup_library_menu))]
+        assert window._mockup_library_menu.menuAction() in window.menuBar().actions()
+        assert window._mockup_library_menu.title() == 'Βιβλιοθήκη'
         cat = tmp_path / 'Sofas.calib'
         _catalog(cat)
         imported = window._import_hd_catalog(str(cat), object_ids=[3])

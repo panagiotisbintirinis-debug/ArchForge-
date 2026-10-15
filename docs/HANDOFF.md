@@ -8,7 +8,14 @@
 >
 > Ενημερώνεται σε κάθε commit που αλλάζει κατεύθυνση ή κλείνει στοιχείο.
 
-Τελευταία ενημέρωση: 2026-10-14 (βράδυ, τέλος chat) · branch `claude/happy-einstein-l2xl3i` (συνέχεια του `claude/eager-mccarthy-cl2wgn`)· πριν: = ένωση των δύο παράλληλων chat του 14/10: `claude/peaceful-babbage-uzo71b` (LOOK1 + παρατηρήσεις CHANDLER) και `claude/charming-keller-v3r9lm` (στατικά μέλους).
+Τελευταία ενημέρωση: 2026-10-15 · branch `claude/confident-volta-zn2tpd` (πριν: 2026-10-14 βράδυ, `claude/happy-einstein-l2xl3i` (συνέχεια του `claude/eager-mccarthy-cl2wgn`)· πριν: = ένωση των δύο παράλληλων chat του 14/10: `claude/peaceful-babbage-uzo71b` (LOOK1 + παρατηρήσεις CHANDLER) και `claude/charming-keller-v3r9lm` (στατικά μέλους).
+
+## ΠΟΥ ΣΤΑΜΑΤΗΣΑΜΕ (15/10, `claude/confident-volta-zn2tpd` = συνέχεια του `happy-einstein`) — ΔΙΑΒΑΣΕ ΠΡΩΤΑ
+- Ιδιοκτήτης απάντησε στις 2 ερωτήσεις: **Έδαφος / Δομικά / Η/Μ = υπομενού της Κατασκευής**· το μενού 2D λέγεται **«CAD»**.
+- ✅ Βήμα (1) έγινε (WORKLOG U5): τα 8 μενού + Διάταξη 2 (`ui/main_menus.py`, `ui/layout2.py`, `LAYOUT_VERSION` 3). **Θέλει έλεγχο στα Windows.**
+- Υλικά: το άλλο chat δουλεύει στο `feature/material-library-from-22a0f8b` (patch του `_open_materials` από `ui/app.py`). Ιδιοκτήτης: **μην κάνεις merge του branch υλικών και μην αλλάξεις τη Βιβλιοθήκη Υλικών**· όταν αλλάζεις `main_window.py`, `rendering/scene.py`, `rendering/materials.py`, `ui/pattern_swatch.py` ή χειρισμό αντικειμένων/υλικών, **δώσε του το commit SHA**. Εδώ: `main_window.py` +4 γραμμές (κλήσεις `organize_main_menus`, `install_layout2`).
+- **ΝΕΟ ΑΙΤΗΜΑ (15/10, με τα λόγια του)**: «μετά που θα τελειώσεις κάνε χρήση του ποντικιού με τα μενού να μην είναι κουραστικό και χωρίς θόρυβο επί της οθόνης· τα επιμέρους εντολές μπορεί να είναι εικονίδια αλλά να ακολουθούν υπομενού και εκεί, παρά να τρέχεις στο κεντρικό μενού» → **επόμενο**: μενού ποντικιού (`ui/marking_menu.py`) με εικονίδια, υπομενού που ανοίγουν επί τόπου (όχι «Περισσότερα…» popup, όχι μετάβαση στο κεντρικό μενού), λιγότερος θόρυβος.
+- Μετά: (2) Σήμανση πάνω στο σχέδιο → (3) εισαγωγή PDF υπόβαθρο → (4) ντουλάπια/ντουλάπες ενιαία (περιμένει έγκριση) → (5) CAD 2D.
 
 ## ΠΟΥ ΣΤΑΜΑΤΗΣΑΜΕ (14/10 βράδυ, τέλος chat στο 72% του 1M, `claude/happy-einstein-l2xl3i`) — ΔΙΑΒΑΣΕ ΠΡΩΤΑ
 Branch: `claude/happy-einstein-l2xl3i` (όλα ανεβασμένα). Άλλο chat δουλεύει τη **Βιβλιοθήκη Υλικών** σε δικό του branch από εδώ — **μην αγγίξεις υλικά** (`_open_materials`, `rendering/materials.py`, `pattern_swatch.py`)· στο τέλος γίνεται ένωση.

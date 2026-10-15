@@ -93,7 +93,7 @@ def test_committed_2d_edit_redraws_the_visible_3d_view_without_tab_switching():
 
 
 def test_ribbon_selectors_and_camera_snap_controls_are_visible_on_a_laptop_width():
-    from PySide6.QtWidgets import QCheckBox
+    from PySide6.QtWidgets import QCheckBox, QToolButton
 
     app = _app()
     window = MainWindow()
@@ -106,13 +106,13 @@ def test_ribbon_selectors_and_camera_snap_controls_are_visible_on_a_laptop_width
     assert window._mockup_style_button.isVisible() and window._mockup_view_button.isVisible()
     # Sculpt operation / brush size moved to the mouse menu; the ribbon keeps a margin
     # under 1280 px so nothing falls into the overflow on Windows fonts either.
-    from PySide6.QtWidgets import QToolBar
-    ribbon = next(tb for tb in window.findChildren(QToolBar) if tb.windowTitle() == 'Εργαλεία σχεδίασης')
-    assert ribbon.sizeHint().width() <= 1150
-    for action in (window._mockup_basement_action, window._terrain_rectangle_action):
-        button = ribbon.widgetForAction(action)
-        assert button is not None and button.isVisible()
-        assert button.geometry().right() < ribbon.width()
+    # Διάταξη 2: the whole row of tool groups fits a 1280 px laptop; «Υπόγειο» is a button of «Όροφος».
+    groups = list(window._tool_groups.values())
+    assert sum(g.sizeHint().width() for g in groups) <= 1150
+    storey = window._tool_groups['storey']
+    button = next(b for b in storey.findChildren(QToolButton) if b.defaultAction() is window._mockup_basement_action)
+    assert button.isVisible() and button.geometry().right() < storey.width()
+    assert window._terrain_rectangle_action in window._mockup_terrain_menu.actions()
     assert not window.sculpt_operation.isVisible() and not window.sculpt_radius.isVisible()
     boxes = {cb.text(): cb for cb in window.findChildren(QCheckBox)}
     assert boxes['Έλξη'].isVisible()

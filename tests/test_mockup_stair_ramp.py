@@ -29,9 +29,15 @@ def _close(app, window):
 
 def test_ribbon_groups_doors_windows_openings_stairs_kitchen_and_structure_in_one_menu():
     app, window = _window()
-    buttons = [b for b in window.findChildren(QToolButton) if b.text() == 'Στοιχεία' and b.isVisible()]
-    assert len(buttons) == 1
-    menu = buttons[0].menu()
+    # Διάταξη 2: the «Κατασκευή» group shows Κουφώματα / Σκάλα / Πλάκα / Στέγη and «Κατασκευή ▾» opens the rest.
+    group = window._tool_groups['build']
+    assert group.isVisible() and group.caption.menu() is window._main_menus['Κατασκευή']
+    shown = [b.text() for b in group.findChildren(QToolButton) if b.isVisible() and b is not group.caption]
+    assert shown == ['Τοίχος', 'Κουφώματα', 'Σκάλα', 'Πλάκα', 'Στέγη']
+    joinery = next(b for b in group.findChildren(QToolButton) if b.text() == 'Κουφώματα').menu()
+    assert [a.text() for a in joinery.actions() if a.text()][:2] == ['Πόρτα', 'Παράθυρο']
+    # The «Στοιχεία» menu object itself is unchanged (it feeds the same submenus).
+    menu = window._mockup_elements_menu
     labels = [a.text() for a in menu.actions()]
     assert labels[:3] == ['Πόρτα', 'Παράθυρο', 'Άνοιγμα']
     subs = {a.text(): a.menu() for a in menu.actions() if a.menu()}
@@ -45,11 +51,11 @@ def test_ribbon_groups_doors_windows_openings_stairs_kitchen_and_structure_in_on
     # Same submenu at the top of the Δομικά menu.
     assert window._structure_menu.actions()[0].menu() is subs['Δομικά: κολόνες, δοκάρια, βάσεις']
     # Toolbars can be moved and hidden, and brought back from Προβολή → Γραμμές εργαλείων.
-    assert window._mockup_ribbon.isMovable()
-    toggle = window._toolbars_menu.actions()[0]
-    toggle.trigger(); assert window._mockup_ribbon.isHidden()
-    toggle.trigger(); assert not window._mockup_ribbon.isHidden()
-    window._toolbars_lock_action.setChecked(True); assert not window._mockup_ribbon.isMovable()
+    assert group.isMovable()
+    toggle = window._toolbars_menu.actions()[1]          # «Κατασκευή» (after «Επιλογή»)
+    toggle.trigger(); assert group.isHidden()
+    toggle.trigger(); assert not group.isHidden()
+    window._toolbars_lock_action.setChecked(True); assert not group.isMovable()
     _close(app, window)
 
 

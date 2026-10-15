@@ -94,6 +94,10 @@ class MainWindow(QMainWindow):
         self.plan_view.controller.auto_floors = True
         from archforge.ui.build_menu import organize_build_menu
         organize_build_menu(self)        # «Κατασκευή» in submenus by kind of element (last: moves, never drops)
+        from archforge.ui.main_menus import organize_main_menus
+        organize_main_menus(self)        # the 8 menus of the approved mockup (after the above: moves, never drops)
+        from archforge.ui.layout2 import install_layout2
+        install_layout2(self)            # Διάταξη 2: thin first row, tool groups, «Κοινά», panels on the right
         self._refresh_library_panel()
         if not os.environ.get('PYTEST_CURRENT_TEST'):
             # First run builds the shipped core library in the background.

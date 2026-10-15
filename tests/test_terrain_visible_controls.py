@@ -50,8 +50,9 @@ def test_terrain_corners_show_height_without_control_points(terrain_window):
 
 def test_basement_and_rectangle_tools_are_directly_visible(terrain_window):
     w, app = terrain_window
-    assert w._mockup_basement_action in w._mockup_ribbon.actions()
-    assert w._terrain_rectangle_action in w._mockup_ribbon.actions()
+    # Διάταξη 2: «Υπόγειο» on the «Όροφος» group, the elevation frame in Κατασκευή ▸ Έδαφος & περιβάλλον.
+    assert w._mockup_basement_action in w._tool_groups['storey'].items
+    assert w._terrain_rectangle_action in w._mockup_terrain_menu.actions()
     w._terrain_rectangle_action.trigger()
     assert w.plan_view.controller.tool == 'terrain_region_rectangle'
 

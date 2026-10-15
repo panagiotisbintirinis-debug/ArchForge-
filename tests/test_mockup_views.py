@@ -36,7 +36,10 @@ def test_views_strip_and_menu_offer_every_view():
     labels = ['3D Προοπτική', 'Πάνω', 'Πρόσοψη', 'Πλάγια', 'Κουκλόσπιτο (χωρίς στέγη)', 'Ορθογραφική',
               'Τομή', 'Εσωτερική Όψη', 'Ρεαλιστική απεικόνιση', 'Περιήγηση']
     assert list(window._mockup_view_actions) == labels
-    assert [a.text() for a in window._mockup_views_menu.actions()] == labels
+    # Menu: Προβολή ▸ Όψεις, with Τομή / Εσωτερική όψη one level up (owner: «αυτά είναι όψεις, προβολές»).
+    assert [a.text() for a in window._mockup_views_menu.actions()] == [l for l in labels if l not in ('Τομή', 'Εσωτερική Όψη')]
+    view = [a.text() for a in window.view_menu.actions()]
+    assert 'Τομή (σύρε γραμμή στην κάτοψη)' in view and 'Εσωτερική όψη (σύρε γραμμή στην κάτοψη)' in view
     # The same views open from the «Προβολή ▾» popup on the view bar (the bottom strip is gone).
     assert [a.text() for a in window._mockup_view_popup.actions()] == labels
     assert window._mockup_view_button.menu() is window._mockup_view_popup

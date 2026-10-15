@@ -13,7 +13,7 @@ from PySide6.QtCore import QPointF, QRectF, QSettings, Qt
 from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import QApplication, QDockWidget, QMenu, QToolBar, QToolButton
 
-LAYOUT_VERSION = 2          # bump when bars/panels are added or renamed
+LAYOUT_VERSION = 3          # bump when bars/panels are added or renamed (3: Διάταξη 2, tool groups)
 INK = QColor(40, 62, 92)
 ACCENT = QColor(47, 107, 214)
 

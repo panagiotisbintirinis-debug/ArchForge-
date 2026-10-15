@@ -34,7 +34,8 @@ def _close(app, window):
 def test_every_bar_and_panel_moves_floats_and_closes_and_the_bottom_strip_is_gone():
     app, window = _window()
     bars = [b for b in window.findChildren(QToolBar) if b.isVisible()]
-    assert {b.windowTitle() for b in bars} == {'Εργαλεία σχεδίασης', 'Όροφος', 'Προβολή', 'Κάνναβος & έλξη', 'Περιβάλλον'}
+    # Διάταξη 2 (owner 14/10): one row of tool groups; view settings sit on the drawing, not on a bar.
+    assert {b.windowTitle() for b in bars} == {'Επιλογή', 'Κατασκευή', 'Βιβλιοθήκη', 'Όροφος', 'Περιβάλλον'}
     for bar in bars:
         assert bar.isMovable() and bar.isFloatable() and bar.allowedAreas() == Qt.ToolBarArea.AllToolBarAreas
     names = {d.objectName() for d in window.findChildren(QDockWidget)}
@@ -44,7 +45,7 @@ def test_every_bar_and_panel_moves_floats_and_closes_and_the_bottom_strip_is_gon
         assert f & QDockWidget.DockWidgetFeature.DockWidgetMovable and f & QDockWidget.DockWidgetFeature.DockWidgetFloatable
         assert f & QDockWidget.DockWidgetFeature.DockWidgetClosable
     # Προβολή → Γραμμές εργαλείων lists every bar; Επαναφορά διάταξης is there.
-    assert [a.text() for a in window._toolbars_menu.actions()][:4] == ['Εργαλεία σχεδίασης', 'Όροφος', 'Προβολή', 'Κάνναβος & έλξη']
+    assert [a.text() for a in window._toolbars_menu.actions()][:4] == ['Επιλογή', 'Κατασκευή', 'Βιβλιοθήκη', 'Όροφος']
     assert window._reset_layout_action in window.view_menu.actions()
     # Κλείδωμα θέσης freezes all of them.
     window._toolbars_lock_action.setChecked(True)
@@ -71,20 +72,22 @@ def test_layout_is_remembered_and_can_be_reset(tmp_path):
     from archforge.ui.workspace_layout import restore_layout, save_layout, reset_layout
     settings = QSettings(str(tmp_path / 'layout.ini'), QSettings.Format.IniFormat)
     app, window = _window()
-    window.addToolBar(Qt.ToolBarArea.LeftToolBarArea, window._mockup_ribbon)
-    window._mockup_snap_bar.hide()
+    build, library = window._tool_groups['build'], window._tool_groups['library']
+    window.addToolBar(Qt.ToolBarArea.LeftToolBarArea, build)
+    library.hide()
     save_layout(window, settings)
     _close(app, window)
     app, window = _window()
-    assert window.toolBarArea(window._mockup_ribbon) == Qt.ToolBarArea.TopToolBarArea
+    build, library = window._tool_groups['build'], window._tool_groups['library']
+    assert window.toolBarArea(build) == Qt.ToolBarArea.TopToolBarArea
     assert restore_layout(window, settings)
     app.processEvents()
-    assert window.toolBarArea(window._mockup_ribbon) == Qt.ToolBarArea.LeftToolBarArea
-    assert window._mockup_snap_bar.isHidden()
+    assert window.toolBarArea(build) == Qt.ToolBarArea.LeftToolBarArea
+    assert library.isHidden()
     reset_layout(window)
     app.processEvents()
-    assert window.toolBarArea(window._mockup_ribbon) == Qt.ToolBarArea.TopToolBarArea
-    assert not window._mockup_snap_bar.isHidden()
+    assert window.toolBarArea(build) == Qt.ToolBarArea.TopToolBarArea
+    assert not library.isHidden()
     # Layout is view state only: the Document did not change.
     assert not window.doc.entities
     _close(app, window)
@@ -102,7 +105,8 @@ def test_greek_on_screen_while_ids_stay():
               if window.form.itemAt(i).widget() is not None and hasattr(window.form.itemAt(i).widget(), 'text')]
     assert 'Τύπος' in labels and 'Τοίχος' in labels and 'Type' not in labels
     menus = [a.text() for a in window.menuBar().actions()]
-    assert 'Γλυπτική' in menus and 'Βοηθός AI' in menus and 'Sculpt' not in menus and 'AI' not in menus
+    from archforge.ui.main_menus import MAIN_MENUS
+    assert menus == list(MAIN_MENUS) and 'Sculpt' not in menus and 'AI' not in menus
     _close(app, window)
 
 

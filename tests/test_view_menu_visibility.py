@@ -19,8 +19,9 @@ def test_mockup_menus_carry_real_file_edit_and_view_commands():
 
     menus = window._mockup_menus
     file_actions = menus['Αρχείο'].actions()
-    for action in (window.new_action, window.open_action, window.save_action, window.export_stl_action):
+    for action in (window.new_action, window.open_action, window.save_action):
         assert action in file_actions
+    assert window.export_stl_action in window._file_export_menu.actions()      # Αρχείο ▸ Εξαγωγή
     edit_actions = menus['Επεξεργασία'].actions()
     for action in (window.undo_action, window.redo_action, window.delete_action):
         assert action in edit_actions
@@ -32,7 +33,7 @@ def test_mockup_menus_carry_real_file_edit_and_view_commands():
 
     assert window.view_menu is menus['Προβολή']
     labels = {action.text() for action in window.view_menu.actions()}
-    assert {'Γραμμή κατάστασης', 'Παράθυρα'} <= labels
+    assert {'Γραμμή κατάστασης', 'Πάνελ'} <= labels
 
 
 def test_view_menu_controls_real_status_bar_visibility():
