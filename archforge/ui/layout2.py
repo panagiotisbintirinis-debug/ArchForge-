@@ -151,11 +151,18 @@ def _install_top_row(window):
 
 
 # --------------------------------------------------------------------------- 2. tool groups
-class ToolGroup(QToolBar):
-    """A movable bar: a row of buttons with the group's title under them; «Τίτλος ▾» opens ``menu``."""
+from archforge.ui.toolbar_custom import CustomizableButtons, SEP, make_button
+
+
+class ToolGroup(QToolBar, CustomizableButtons):
+    """A movable bar: a row of buttons with the group's title under them; «Τίτλος ▾» opens ``menu``.
+    Right click: hide / show its buttons, add any menu command, icon size (``toolbar_custom``)."""
 
     def __init__(self, window, key, title, menu=None):
         super().__init__(title, window)
+        self.custom_key, self.custom_title = key, title
+        self.custom_buttons = {}                # menu path → button the human added
+        self._labelled = []                     # (label, button) in order
         self.setObjectName(f"group_{key}")
         self.setMovable(True)
         self.setFloatable(True)
@@ -199,7 +206,24 @@ class ToolGroup(QToolBar):
             b.setToolTip(menu.title().replace("&&", "&"))
             self.items.append(menu)
         self.row.addWidget(b)
+        self._labelled.append((b.text().replace("&&", "&"), b))
         return b
+
+    def labelled_buttons(self):
+        return list(self._labelled)
+
+    def add_custom(self, path, action):
+        b = make_button(action, path.split(SEP)[-1], getattr(self.window(), "_catalog_icons", {}).get(path))
+        b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self.row.addWidget(b)
+        self.custom_buttons[path] = b
+        self._labelled.append((path.split(SEP)[-1], b))
+        return b
+
+    def remove_custom(self, path):
+        b = self.custom_buttons.get(path)
+        self._labelled = [(l, x) for l, x in self._labelled if x is not b]
+        CustomizableButtons.remove_custom(self, path)
 
     def actions_in_group(self):
         """Every action reachable from the buttons (menu buttons count with their whole menu)."""
@@ -348,7 +372,7 @@ def _install_view_settings(window):
 
 
 # --------------------------------------------------------------------------- 3. «Κοινά»
-class CommonPalette(QFrame):
+class CommonPalette(QFrame, CustomizableButtons):
     """The everyday commands over the drawing; dragged by ⋮⋮, ⚙ chooses the buttons."""
 
     MARGIN = 14
@@ -357,6 +381,8 @@ class CommonPalette(QFrame):
         super().__init__(host)
         self.window_ = window
         self.setObjectName("common_palette")
+        self.custom_key, self.custom_title = "common", "Κοινά"
+        self.custom_buttons = {}
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.offset = None                  # distance of the bottom-right corner from the host's; None = default
         self._drag = None
@@ -368,7 +394,7 @@ class CommonPalette(QFrame):
         handle.setToolTip("Σύρε για να τη μετακινήσεις όπου θέλεις")
         top.addWidget(handle); self.handle = handle
         self.buttons = {}
-        grid = QGridLayout(); grid.setSpacing(0)
+        grid = QGridLayout(); grid.setSpacing(0); self.grid = grid
         for action_id, label, icon in COMMON:
             action = keys.get(action_id)
             if action is None:
@@ -388,14 +414,16 @@ class CommonPalette(QFrame):
         gear.setToolTip("Ποια κουμπιά έχει η παλέτα"); gear.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         gear.setStyleSheet("QToolButton::menu-indicator { image:none; width:0; }")
         choose = QMenu(gear)
-        for action_id, label, _icon_kind in COMMON:
-            if action_id not in self.buttons:
-                continue
-            a = choose.addAction(keys[action_id].text()); a.setCheckable(True); a.setChecked(True)
-            a.toggled.connect(lambda on, i=action_id: self.set_shown(i, on))
-        choose.addSeparator()
-        hide = choose.addAction("Κλείσιμο παλέτας (Προβολή ▸ Πάνελ ▸ Κοινά)")
-        hide.triggered.connect(lambda: self.toggle_action.setChecked(False))
+        # ⚙ = the same «Προσαρμογή» as a right click: its buttons, add any menu command, icon size.
+        def fill_choose():
+            from archforge.ui.toolbar_custom import customize_menu
+            choose.clear()
+            for a in customize_menu(window, self).actions():
+                choose.addAction(a)
+            choose.addSeparator()
+            hide = choose.addAction("Κλείσιμο παλέτας (Προβολή ▸ Πάνελ ▸ Κοινά)")
+            hide.triggered.connect(lambda: self.toggle_action.setChecked(False))
+        choose.aboutToShow.connect(fill_choose)
         gear.setMenu(choose); foot.addWidget(gear)
         outer.addLayout(foot)
         self.choose_menu = choose
@@ -410,8 +438,37 @@ class CommonPalette(QFrame):
     def set_shown(self, action_id, on):
         b = self.buttons.get(action_id)
         if b is not None:
-            b.setVisible(on)
-            self.adjustSize(); self.place()
+            from archforge.ui.toolbar_custom import set_shown
+            set_shown(self.window_, self, b.text(), on)
+
+    def labelled_buttons(self):
+        return [(b.text(), b) for b in self.buttons.values()] + [(p.split(SEP)[-1], b) for p, b in self.custom_buttons.items()]
+
+    def add_custom(self, path, action):
+        b = make_button(action, path.split(SEP)[-1], getattr(self.window_, "_catalog_icons", {}).get(path))
+        b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self.custom_buttons[path] = b
+        self._relayout()
+        return b
+
+    def remove_custom(self, path):
+        CustomizableButtons.remove_custom(self, path)
+        self._relayout()
+
+    def set_icon_size(self, size, text):
+        CustomizableButtons.set_icon_size(self, size, text)
+        self._relayout()
+
+    def _relayout(self):
+        """Visible buttons packed in rows of five (a hidden one leaves no hole)."""
+        for b in list(self.buttons.values()) + list(self.custom_buttons.values()):
+            self.grid.removeWidget(b)
+        k = 0
+        for b in list(self.buttons.values()) + list(self.custom_buttons.values()):
+            if b.testAttribute(Qt.WidgetAttribute.WA_WState_ExplicitShowHide) and b.isHidden():
+                continue                          # hidden by the human (not merely not shown yet)
+            self.grid.addWidget(b, k // 5, k % 5); k += 1
+        self.adjustSize(); self.place()
 
     def shown(self):
         return [i for i, b in self.buttons.items() if not b.isHidden()]
@@ -500,6 +557,8 @@ def install_layout2(window):
     _install_view_settings(window)
     _arrange_panels(window)
     _install_common_palette(window)
+    from archforge.ui import toolbar_custom
+    toolbar_custom.install(window)              # right click on a group: its buttons, add a command, icon size
     from archforge.ui.workspace_layout import LAYOUT_VERSION, persistence_enabled, restore_layout
     # The default captured before this regrouping is stale: take it again (same version as the saved one).
     window._default_layout_state = window.saveState(LAYOUT_VERSION)

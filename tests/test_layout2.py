@@ -85,7 +85,8 @@ def test_common_palette_bottom_right_draggable_and_configurable(window):
     window.resize(1400, 950); QApplication.processEvents()
     assert palette.offset == off and palette.pos().x() == max(0, host.width() - palette.width() - off.x())
     # ⚙ hides a button; the panel menu closes and reopens the palette
-    hide_move = next(a for a in palette.choose_menu.actions() if a.text() == palette.buttons['edit.move'].defaultAction().text())
+    palette.choose_menu.aboutToShow.emit()                   # ⚙ = the same «Προσαρμογή» as a right click
+    hide_move = next(a for a in palette.choose_menu.actions() if a.text() == palette.buttons['edit.move'].text())
     hide_move.setChecked(False)
     assert 'edit.move' not in palette.shown()
     palette.toggle_action.setChecked(False); assert palette.isHidden()
