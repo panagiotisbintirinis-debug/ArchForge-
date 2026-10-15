@@ -1,13 +1,12 @@
 """Dedicated Plumbing details/report tab.
 
-The floor plan stays drawing-first.  Technical detail, quantities/BOM and rule
+The floor plan stays drawing-first. Technical detail, quantities/BOM and rule
 provenance live here instead of being printed over pipe runs.
 """
 from __future__ import annotations
 
 import math
 
-from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QHeaderView, QLabel, QTabWidget, QTreeWidget, QTreeWidgetItem,
@@ -109,9 +108,8 @@ class PlumbingTab(QWidget):
 
         self.bom.clear()
         for line in quantities:
-            quantity = _n(line.quantity, 2)
             QTreeWidgetItem(self.bom, [
-                str(line.code), str(line.description), str(line.category), quantity,
+                str(line.code), str(line.description), str(line.category), _n(line.quantity, 2),
                 str(line.unit), str(line.rule_status or ""), str(line.rule_source or line.source or ""),
             ])
 
@@ -123,9 +121,7 @@ class PlumbingTab(QWidget):
                 value = "—" if rule.value is None else str(rule.value)
                 if rule.unit and value != "—":
                     value = f"{value} {rule.unit}"
-                QTreeWidgetItem(self.rules, [
-                    status, rule.label, value, rule.source or "—", rule.note or "",
-                ])
+                QTreeWidgetItem(self.rules, [status, rule.label, value, rule.source or "—", rule.note or ""])
 
         unserved = len(routed.get("report", {}).get("unserved", ()))
         self.summary.setText(
@@ -136,6 +132,8 @@ class PlumbingTab(QWidget):
 
 
 def install(window):
+    if getattr(window, "_plumbing_tab", None) is not None:
+        return window._plumbing_tab
     tab = PlumbingTab(window)
     window._plumbing_tab = tab
     window.stack.listeners.append(tab.mark_stale)
@@ -151,6 +149,20 @@ def install(window):
     return tab
 
 
+def install_on_class(MainWindow):
+    """Install the tab after the normal MainWindow and approved shell exist."""
+    if getattr(MainWindow, "_archforge_plumbing_tab_installed", False):
+        return
+    original_init = MainWindow.__init__
+
+    def wrapped_init(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        install(self)
+
+    MainWindow.__init__ = wrapped_init
+    MainWindow._archforge_plumbing_tab_installed = True
+
+
 def show(window):
     tab = getattr(window, "_plumbing_tab", None)
     tabs = getattr(window, "_central_tabs", None)
@@ -159,4 +171,6 @@ def show(window):
     if tabs.indexOf(tab) < 0:
         tabs.addTab(tab, TAB_TITLE)
     tabs.setCurrentWidget(tab)
+    # A report tab is not a drawing editor; drawing commands remain owned by the plan.
+    window.view = window.plan_view
     return tab.refresh()
