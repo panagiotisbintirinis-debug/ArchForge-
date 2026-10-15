@@ -144,7 +144,7 @@ def organize_main_menus(window):
         window._file_import_menu = _submenu(window, "Εισαγωγή", imports)
         window._file_export_menu = _submenu(window, "Εξαγωγή", exports)
         prices = getattr(window, "_prices_action", None)
-        for a in [prices, *exports, *imports]:     # prices live in Κατασκευή ▸ Επιμετρήσεις & τιμές
+        for a in [prices, getattr(window, "_trades_action", None), *exports, *imports]:     # prices live in Κατασκευή ▸ Επιμετρήσεις & τιμές
             if a is not None and a in file_menu.actions():
                 file_menu.removeAction(a)
         _fill(file_menu, [window.new_action, window.open_action, window.save_action,

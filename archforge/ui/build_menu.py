@@ -168,7 +168,8 @@ def organize_build_menu(window):
     reports = _submenu(window, 'Επιμετρήσεις && τιμές', 'report', [a for a in (
         take(getattr(window, '_takeoff_action', None)), take(getattr(window, '_isotex_action', None)),
         take_text('Τεμάχια ICF'), take_text('Γυψοσανίδες — υλικά'), None,
-        take(getattr(window, '_priced_lists_action', None)), take(getattr(window, '_prices_action', None)),
+        take(getattr(window, '_priced_lists_action', None)), take(getattr(window, '_trades_action', None)),
+        take(getattr(window, '_prices_action', None)),
         take(getattr(window, '_pdf_action', None))) if a is not None or False])
     # Icons on the menus that already existed.
     for obj, kind in ((railing, 'railing'), (pergola, 'pergola'), (roof, 'roof'), (ceiling, 'ceiling'), (frame, 'frame'),

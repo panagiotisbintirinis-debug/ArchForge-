@@ -100,6 +100,8 @@ class MainWindow(QMainWindow):
         install_layout2(self)            # Διάταξη 2: thin first row, tool groups, «Κοινά», panels on the right
         from archforge.ui import electrical_board_tab
         electrical_board_tab.install(self)  # «Ηλεκτρ. πίνακας»: circuits, conductors, metres per wall, board
+        from archforge.ui import trades_tab
+        trades_tab.install(self)            # «Υλικά & τιμές»: a card per trade, prices, order list, quote
         from archforge.ui import wall_dims_tool
         wall_dims_tool.install(self)     # selected wall: its distances; double click = move it with the mouse
         self._refresh_library_panel()
