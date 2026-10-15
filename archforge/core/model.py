@@ -272,6 +272,14 @@ def _cable_routing(v):
     return v
 
 
+def _elec_supply(v):
+    from archforge.mep.electrical_board import SUPPLIES
+    v = str(v)
+    if v != 'auto' and v not in SUPPLIES:
+        raise ValueError(f'supply must be auto or one of {", ".join(SUPPLIES)}')
+    return v
+
+
 def _count(v):
     value = int(round(float(v)))
     if not 0 <= value <= 20:
@@ -700,7 +708,8 @@ SCHEMAS = {
                      'insulation': _roof_insulation, 'insulation_thickness': _insulation_thickness,
                      'shed_high': _shed_high},
     'electrical_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _electrical_type, 'power_w': _nonnegative,
-                         'routing': _cable_routing},
+                         'routing': _cable_routing, 'supply': _elec_supply, 'demand_factor': _unit_interval,
+                         'waste_pct': _nonnegative},
     'plumbing_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _plumbing_type, 'pipe_system': _pipe_system},
     'ceiling_joists': {'points': _polygon, 'z': _finite, 'spacing': _joist_spacing, 'usage': _joist_usage,
                        'direction': _joist_direction},

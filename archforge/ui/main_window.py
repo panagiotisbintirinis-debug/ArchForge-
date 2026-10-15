@@ -98,6 +98,8 @@ class MainWindow(QMainWindow):
         organize_main_menus(self)        # the 8 menus of the approved mockup (after the above: moves, never drops)
         from archforge.ui.layout2 import install_layout2
         install_layout2(self)            # Διάταξη 2: thin first row, tool groups, «Κοινά», panels on the right
+        from archforge.ui import electrical_board_tab
+        electrical_board_tab.install(self)  # «Ηλεκτρ. πίνακας»: circuits, conductors, metres per wall, board
         from archforge.ui import wall_dims_tool
         wall_dims_tool.install(self)     # selected wall: its distances; double click = move it with the mouse
         self._refresh_library_panel()
@@ -1267,9 +1269,12 @@ class MainWindow(QMainWindow):
         return point
 
     def _show_circuit_schedule(self):
-        """Panel schedule of the derived circuits (pre-design)."""
+        """The «Ηλεκτρ. πίνακας» tab (falls back to a text summary without the tab)."""
         from archforge.mep.electrical import route_cables_cached
+        from archforge.ui import electrical_board_tab
         wiring = route_cables_cached(self.doc)
+        if electrical_board_tab.show(self) is not None:
+            return wiring
         lines = [f"{c['id']}  {c['label']}: {c['breaker_a']} A, {c['cable_mm2']} mm², {len(c['points'])} σημεία, "
                  f"{c['load_w']} W ({c['current_a']} A){'' if c['ok'] else '  ⚠'}" for c in wiring['circuits']]
         boxes = wiring['report'].get('boxes', {})

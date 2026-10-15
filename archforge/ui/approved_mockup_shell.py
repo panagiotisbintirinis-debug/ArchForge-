@@ -295,7 +295,7 @@ def install_approved_mockup_shell(window):
         a.triggered.connect(lambda _=False,k=key,l=label: window._start_site_tool(f"vent_{k}",f"{l}: κλικ στην κάτοψη — ο αεραγωγός βγαίνει αυτόματα έξω, Esc για τέλος"))
         ventilation.addAction(a)
     window._mockup_ventilation_menu=ventilation
-    schedule=QAction("Πίνακας κυκλωμάτων…",window); schedule.triggered.connect(lambda: window._show_circuit_schedule())
+    schedule=QAction("Ηλεκτρολογικός πίνακας",window); schedule.triggered.connect(lambda: window._show_circuit_schedule())
     mep_menu.addAction(schedule)
     elec_layer=QAction("Ηλεκτρολογικά στο 3D",window); elec_layer.setCheckable(True); elec_layer.setChecked(True)
     elec_layer.toggled.connect(lambda on: window._set_layer_visible("elec",on))
@@ -508,6 +508,9 @@ def install_approved_mockup_shell(window):
     central_tabs.setCurrentIndex(0)
 
     def central_changed(index):
+        if central_tabs.widget(index) is getattr(window,"_board_tab",None):
+            window.view=window.plan_view        # the board is a report: drawing tools stay with the plan
+            return
         if index==0:
             window.view=window.plan_view
             window.plan_view.setVisible(True)
@@ -592,7 +595,7 @@ def install_approved_mockup_shell(window):
             split=QSplitter(Qt.Horizontal)
             split.addWidget(plan_card); split.addWidget(right_tabs)
             split.setCollapsible(0,False); split.setCollapsible(1,False); split.setSizes([430,650])
-            central_tabs.addTab(split,"2D + 3D")
+            central_tabs.insertTab(0,split,"2D + 3D")
             central_tabs.setCurrentWidget(split)
             window._mockup_center_split=split
             # removeTab() leaves the former pages hidden and Qt keeps that
