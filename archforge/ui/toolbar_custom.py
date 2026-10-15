@@ -54,7 +54,7 @@ def load(window, settings=None):
     if raw:
         try:
             got = json.loads(raw)
-            data.update({k: got[k] for k in DEFAULTS if k in got})
+            data.update({k: got[k] for k in list(DEFAULTS) + ["mouse"] if k in got})
         except (TypeError, ValueError):
             pass
     window._ui_prefs = data
@@ -63,7 +63,10 @@ def load(window, settings=None):
 
 
 def reset(window, settings=None):
+    mouse = prefs(window).get("mouse")
     window._ui_prefs = json.loads(json.dumps(DEFAULTS))
+    if mouse:
+        window._ui_prefs["mouse"] = mouse          # the mouse menus have their own «Επαναφορά» (per task)
     for target in _targets(window):
         for key in list(target.custom_buttons):
             target.remove_custom(key)

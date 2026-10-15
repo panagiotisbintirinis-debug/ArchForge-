@@ -572,6 +572,8 @@ def install_layout2(window):
     _install_common_palette(window)
     from archforge.ui import toolbar_custom
     toolbar_custom.install(window)              # right click on a group: its buttons, add a command, icon size
+    from archforge.ui import mouse_menus
+    mouse_menus.install(window)                 # Εργαλεία ▸ Μενού ποντικιού: the right-click menu per task, by the human
     from archforge.ui.workspace_layout import LAYOUT_VERSION, persistence_enabled, restore_layout
     # The default captured before this regrouping is stale: take it again (same version as the saved one).
     window._default_layout_state = window.saveState(LAYOUT_VERSION)

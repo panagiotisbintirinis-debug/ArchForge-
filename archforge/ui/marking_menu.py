@@ -96,8 +96,15 @@ def build_menu(window, view, entity_id=None, xy=None):
     """``{"center", "entries", "wheel"}`` for the task in hand (``xy``: plan point of the right click).
 
     An entry with ``children`` is a submenu that opens in place (2D and 3D alike); icons by ``ICONS``."""
+    from archforge.ui.mouse_menus import custom_entries, task_of
+    task = task_of(window, view, entity_id)              # before _build_menu: it consumes a submenu request
     menu = _build_menu(window, view, entity_id, xy)
     _decorate(menu["entries"])
+    if task is not None:
+        # The human's own menu for this task (Εργαλεία ▸ Μενού ποντικιού…), built from the live entries.
+        mine = custom_entries(window, task, menu["entries"])
+        if mine is not None:
+            menu["entries"], menu["custom"], menu["task"] = mine, True, task
     return menu
 
 
@@ -337,6 +344,10 @@ def _fit(entries):
 def run(window, view, entity_id, action_id, plan_xy=None):
     """Carry out a menu choice with the window's existing commands."""
     action_id = str(action_id)
+    if action_id.startswith("menu:"):
+        from archforge.ui.mouse_menus import run_menu_path
+        run_menu_path(window, action_id[5:])               # a menu-bar command put in the mouse menu
+        return
     if not action_id.startswith("mm:"):
         window._handle_object_context_action(entity_id, action_id)
         return
@@ -543,7 +554,8 @@ class MarkingMenu(QWidget):
                                   " padding: 3px 9px; font-weight: 600; border: 0; }"
                                   + (" QToolButton:hover { background: rgba(47,107,214,0.95); }" if sub else ""))
         self.center.adjustSize()
-        if len(radial) > 8:
+        two_rings = self.menu.get("custom") and not self.stack and len(radial) <= 16
+        if len(radial) > 8 and not two_rings:
             self._grid(radial + panel)
             return
         size = 2 * self.RADIUS + 300
@@ -551,13 +563,24 @@ class MarkingMenu(QWidget):
         cx, cy = size // 2, size // 2
         self.center.move(cx - self.center.width() // 2, cy - self.center.height() // 2)
         clear = self.center.width() / 2 + 10                 # keep the side buttons off the centre title
-        slots = CROSS if len(radial) <= 4 else range(8)      # few choices: N, E, S, W (shorter, steadier moves)
-        for k, e in zip(slots, radial):
-            dx, dy = COMPASS[k]
-            b = self._button(e)
-            x = cx + dx * self.RADIUS + math.copysign(max(0.0, clear - self.RADIUS * abs(dx) + b.width() / 2), dx) * (abs(dx) > 0.5)
-            b.move(int(x - b.width() / 2), int(cy + dy * self.RADIUS - b.height() / 2))
-        self._disc = (cx, cy, self.RADIUS + 46)
+        if len(radial) > 8:
+            # The human's menu with more than 8: an outer ring between the inner slots (mouse_menus.ring_slots).
+            from archforge.ui.mouse_menus import ring_slots
+            size = int(2 * self.RADIUS * 1.85 + 260)
+            self.resize(size, size + 10); cx = cy = size // 2
+            self.center.move(cx - self.center.width() // 2, cy - self.center.height() // 2)
+            for (dx, dy), e in zip(ring_slots(len(radial), self.RADIUS), radial):
+                b = self._button(e)
+                b.move(int(cx + dx - b.width() / 2), int(cy + dy - b.height() / 2))
+            self._disc = (cx, cy, int(self.RADIUS * 1.85 + 46))
+        else:
+            slots = CROSS if len(radial) <= 4 else range(8)      # few choices: N, E, S, W (shorter, steadier moves)
+            for k, e in zip(slots, radial):
+                dx, dy = COMPASS[k]
+                b = self._button(e)
+                x = cx + dx * self.RADIUS + math.copysign(max(0.0, clear - self.RADIUS * abs(dx) + b.width() / 2), dx) * (abs(dx) > 0.5)
+                b.move(int(x - b.width() / 2), int(cy + dy * self.RADIUS - b.height() / 2))
+            self._disc = (cx, cy, self.RADIUS + 46)
         if panel:
             # Secondary choices under the ring (≤ 3: _fit puts the rest in «Περισσότερα ▸»).
             row = [self._button(e, flat=True) for e in panel]
