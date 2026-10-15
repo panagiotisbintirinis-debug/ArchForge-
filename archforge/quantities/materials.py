@@ -265,6 +265,11 @@ def electrical_list(doc, result=None):
     return rows
 
 
+def _earth(doc):
+    from archforge.construction.earthworks import earthworks
+    return earthworks(doc)
+
+
 def _shell(name, doc):
     from archforge.construction import shell
     return getattr(shell, name)(doc)
@@ -314,6 +319,9 @@ def all_lists(doc):
              ("Προμελέτη — προς έλεγχο ηλεκτρολόγου· κανόνες με την κατάστασή τους στην καρτέλα «Ηλεκτρ. πίνακας».",
               "Καλώδιο: μέτρα ανά αγωγό με τη φύρα που όρισες.")),
             ("Φέρων", "Φέρων οργανισμός και θεμελίωση", structure_list(doc), ("Προμελέτη — προς έλεγχο στατικού μηχανικού.",)),
+            ("Χωματουργικά", "Χωματουργικά — εκσκαφές από ό,τι δίνει το σχέδιο", _earth(doc)["rows"],
+             tuple(_earth(doc)["basis"]) + tuple("Δεν μετρήθηκε — " + m for m in _earth(doc)["missing"])
+             + ("Χωρίς χώρο εργασίας/πρανή, αφράτευση, επιχώσεις (από τον εργολάβο).",)),
             ("Τοιχοποιίες", "Τοιχοποιίες — m² ανά τύπο τοίχου (μείον ανοίγματα)", _shell("masonry_list", doc),
              ("Τεμάχια (τούβλα) μόνο με τα τεμ./m² του προϊόντος που θα εισαγάγεις — όχι τυπική τιμή.",)),
             ("Πλάκες", "Σκυρόδεμα πλακών — εμβαδόν × πάχος του μοντέλου", _shell("slab_concrete_list", doc),
