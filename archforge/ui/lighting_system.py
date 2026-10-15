@@ -157,24 +157,59 @@ def _install_html_patch(pbr_module) -> None:
 
 
 def _entity_light_spec(entity):
+    """Map both native ArchForge lights and electrical lighting points to one PBR spec.
+
+    Electrical points remain the authoritative project objects.  Photometric
+    fields are optional params on the same entity, so circuit/switch/automation
+    data and the rendered light never drift into parallel models.
+    """
     kind = str(getattr(entity, "kind", ""))
-    if kind not in {"light", "light_point", "light_spot", "light_strip", "light_linear"}:
-        return None
     p = dict(getattr(entity, "params", {}) or {})
-    light_kind = str(p.get("light_kind") or kind.replace("light_", "") or "point")
-    if light_kind == "light":
-        light_kind = "point"
+
+    electrical_point_type = ""
+    if kind == "electrical_point":
+        electrical_point_type = str(p.get("point_type", ""))
+        electrical_kinds = {
+            "light": "point",
+            "wall_light": "spot",
+            "spot_light": "spot",
+            "downlight": "spot",
+            "hidden_light": "strip",
+            "linear_light": "strip",
+            "led_strip": "strip",
+        }
+        if electrical_point_type not in electrical_kinds:
+            return None
+        light_kind = str(p.get("light_kind") or electrical_kinds[electrical_point_type])
+    else:
+        if kind not in {"light", "light_point", "light_spot", "light_strip", "light_linear"}:
+            return None
+        light_kind = str(p.get("light_kind") or kind.replace("light_", "") or "point")
+        if light_kind == "light":
+            light_kind = "point"
+
+    # Renderer intensity is deliberately separate from electrical watts.
+    # power_w remains available to circuit/load calculations; dimming affects
+    # the visible output without silently rewriting the electrical design load.
+    intensity = float(p.get("intensity", p.get("render_intensity", 700.0)))
+    dimmer = max(0.0, min(1.0, float(p.get("dimmer", p.get("dimming", 1.0)))))
+    intensity *= dimmer
+
     spec = {
         "id": str(getattr(entity, "id", "")),
         "kind": light_kind,
         "enabled": bool(p.get("enabled", True)),
-        "intensity": float(p.get("intensity", 700.0)),
+        "intensity": intensity,
         "kelvin": float(p.get("kelvin", 3000.0)),
         "range": float(p.get("range", 12.0)),
-        "angle_deg": float(p.get("angle_deg", 35.0)),
+        "angle_deg": float(p.get("angle_deg", p.get("beam_angle_deg", 35.0))),
         "penumbra": float(p.get("penumbra", 0.35)),
         "shadows": bool(p.get("shadows", light_kind == "spot")),
         "position": [float(p.get("x", 0.0)), float(p.get("y", 0.0)), float(p.get("z", 2.4))],
+        "electrical_point_type": electrical_point_type,
+        "power_w": float(p.get("power_w", 0.0)),
+        "dimmer": dimmer,
+        "automation_group": str(p.get("automation_group", "")),
     }
     if light_kind == "spot":
         spec["target"] = [
@@ -189,6 +224,11 @@ def _entity_light_spec(entity):
             float(p.get("y2", p.get("y", 0.0))),
             float(p.get("z2", p.get("z", 2.4))),
         ]
+        dx = spec["end"][0] - spec["start"][0]
+        dy = spec["end"][1] - spec["start"][1]
+        dz = spec["end"][2] - spec["start"][2]
+        spec["length_m"] = (dx * dx + dy * dy + dz * dz) ** 0.5
+        spec["watts_per_m"] = float(p.get("watts_per_m", 0.0))
     return spec
 
 
