@@ -30,7 +30,7 @@ import math
 
 from archforge.mep.electrical import (WALL_NEAR, WALL_RUN_Z, _ceiling, _floor_of,
                                       electrical_points, mount_z, route_cables_cached)
-from archforge.core.provenance import DESIGN_DEFAULT, ENGINEER_REVIEW, Rule, register
+from archforge.core.provenance import DESIGN_DEFAULT, ENGINEER_REVIEW, UNVERIFIED, Rule, register
 from archforge.mep.plumbing import CELL
 
 PROVENANCE = ("Κανόνας ιδιοκτήτη 15/10: καμία τιμή από μνήμη. Εδώ υπολογίζονται μόνο γεωμετρία (μέτρα, θέσεις) "
