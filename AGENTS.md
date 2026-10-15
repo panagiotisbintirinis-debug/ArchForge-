@@ -97,6 +97,14 @@ Do not add machine-readable logs, fingerprints, or headless AI pilot evidence wh
 
 Defer broad feature expansion, generalized structural simulation, or new fabrication claims unless a queued issue directly advances the current milestone. Do not defer necessary human interaction work merely because mature CAD/BIM tools already contain similar interaction patterns.
 
+## Owner's trust rules (2026-10-15)
+Agreed with the owner after an honest review of where an AI agent cannot be trusted on its own:
+- **Ask before deciding** anything that changes what the owner sees on screen (placement of tabs/panels/menus, new tools in the mouse menu) or what an engineer would sign (rules, limits, sizing). A small mockup or one question is enough; "ξεκίνα από όπου πιστεύεις" covers the order of work, not these decisions.
+- **Engineering values from memory are not facts.** Any table value (supply sizes, ampacities, factors, code limits) must name its source and be marked «προς έλεγχο» until the owner or an engineer confirms it; list such values in the HANDOFF under «προς επιβεβαίωση».
+- **Never change a test just to make it pass.** Changing an existing test is allowed only when the owner changed the contract it encodes; say which owner decision in the commit message.
+- Say plainly what was not verified (Windows, real users, performance on a full house) instead of reporting green tests as proof.
+- Prefer one branch at a time; when parallel work exists, write the integration contract in the HANDOFF instead of duplicating the feature.
+
 ## Human intervention threshold
 Do not ask the human to choose routine implementation details. Escalate only when the answer would materially change product semantics, user-facing policy, safety, cost, or architecture direction and cannot be resolved from existing repository contracts.
 
