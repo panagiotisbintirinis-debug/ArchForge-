@@ -95,6 +95,14 @@ def design_footings(footings, settings):
         c = float(f.get("column_m", 0.30))
         n_ed = ULS_RATIO * float(f["N_sls_kN"])
         sigma = n_ed / (B * B)                         # kPa
+        if "e_x_m" in f:
+            # Net pressure (the pad's own weight bends nothing): the eccentricities were taken with
+            # 1.1·N, so relative to N alone they are 1.1× larger.  The peak of the linear pressure is
+            # used over the whole cantilever (safe side) — structure.footing_contact_pressure.
+            from archforge.structure.soil_pressure import contact_pressure
+            cp = contact_pressure(n_ed, 1.1 * float(f["e_x_m"]), 1.1 * float(f["e_y_m"]), B, B)
+            if cp["stable"]:
+                sigma = max(sigma, cp["sigma_max"])
         a = max((B - c) / 2, 0.0)
         M = sigma * a * a / 2                          # kNm per m
         d = h - 0.06

@@ -189,3 +189,16 @@ def test_bigger_columns_raise_the_joint_ratio():
     big = {(j['x'], j['y'], j['z'], j['axis']): j['ratio'] for j in analyze(_building(storeys=2, col=0.50)[0])['capacity_joints']}
     common = set(small) & set(big)
     assert common and sum(big[k] > small[k] for k in common) > len(common) / 2
+
+
+def test_critical_zones_and_hooks_are_stated_but_not_verified():
+    from archforge.structure.analysis import analyze
+    from archforge.structure.analysis.report import report_html
+    from tests.test_structural_analysis import _building
+    for rid in ('structure.critical_zones', 'structure.stirrup_hooks'):
+        assert rule(rid).status != VERIFIED
+    r = analyze(_building(storeys=1)[0])
+    col = next(e for e in r['members'].values() if e['kind'] == 'column')
+    assert col['stirrups']['l_crit'] == pytest.approx(max(max(col['b'], col['h']), col['length_m'] / 6, 0.45), abs=0.01)
+    html = report_html(r)
+    assert 'Κρίσιμες περιοχές' in html and '135°' in html and 'μη επαληθευμένα' in html

@@ -78,3 +78,19 @@ def test_low_allowable_pressure_grows_the_pad_and_warns_past_the_limit():
     r = analyze(doc)
     assert all(f['B_m'] >= base[f['node']] for f in r['footings'])
     assert all(f['sigma_max_sls_kPa'] <= 60.0 + 1e-6 for f in r['footings'] if f['pressure_ok'])
+
+
+def test_pad_reinforcement_uses_the_net_peak_pressure_when_the_pad_has_eccentricity():
+    from archforge.structure.foundation import design_footings
+    settings = {'concrete': 'C25/30'}
+    base = {'x': 0, 'y': 0, 'N_sls_kN': 500.0, 'B_m': 1.8, 'h_m': 0.55, 'column_m': 0.4}
+    (centric,) = design_footings([dict(base)], settings)
+    (same,) = design_footings([dict(base, e_x_m=0.0, e_y_m=0.0)], settings)
+    assert same['sigma_kPa'] == pytest.approx(centric['sigma_kPa']) and same['mesh'] == centric['mesh']
+    (ecc,) = design_footings([dict(base, e_x_m=0.10, e_y_m=0.05)], settings)
+    n_ed = 1.40 * 500.0
+    expected = contact_pressure(n_ed, 0.11, 0.055, 1.8, 1.8)['sigma_max']
+    assert ecc['sigma_kPa'] == pytest.approx(expected, abs=0.1) and ecc['sigma_kPa'] > centric['sigma_kPa']
+    a = (1.8 - 0.4) / 2
+    assert ecc['M_kNm_per_m'] == pytest.approx(expected * a * a / 2, abs=0.1)
+    assert ecc['As_cm2_per_m'] >= centric['As_cm2_per_m']

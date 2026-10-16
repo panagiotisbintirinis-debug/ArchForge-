@@ -89,6 +89,10 @@ def report_html(r):
                        f"<td>{e['N_max']}</td><td>{nu}</td><td>{bars}</td><td>{st}</td><td>{_pct(e.get('utilisation', 0))}</td>"
                        f"<td>{_status(e)}</td></tr>")
         out.append("</table>")
+    if beams or cols:
+        out.append("<p><i>Κρίσιμες περιοχές: δοκοί l<sub>cr</sub> = h από κάθε στήριξη· κολόνες l<sub>cr</sub> = max(h<sub>c</sub>, L/6, 0,45 m) "
+                   "πάνω και κάτω (L = ύψος μέλους, όχι καθαρό ύψος — προς την ασφαλή πλευρά). Συνδετήρες κλειστοί· "
+                   "άγκιστρα 135° μήκους 10Ø κατά το δείγμα τεύχους του ιδιοκτήτη — μη επαληθευμένα, όχι οδηγία κατασκευής.</i></p>")
     if r.get("capacity_joints"):
         from archforge.structure.analysis.capacity import FACTOR
         rows = "".join(
