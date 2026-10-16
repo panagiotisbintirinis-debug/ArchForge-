@@ -74,6 +74,7 @@ class Model:
     base_z: float
     warnings: List[str]
     excluded: List[str]
+    diaphragms: List[List[int]] = field(default_factory=list)   # rigid floor slabs: node groups
 
 
 def _rect_torsion(a, b):
@@ -274,7 +275,38 @@ def build_model(doc, settings):
             mass[nid] = mass.get(nid, 0.0) + max(0.0, -vec[2]) * factor / 9.81
     for nid in supports:
         mass.pop(nid, None)
-    return Model(nodes, elements, members, supports, loads, mass, planes, base_z, warnings, excluded)
+    diaphragms = _diaphragms(planes, members, elements, supports) if settings.get("diaphragm", "rigid") != "none" else []
+    return Model(nodes, elements, members, supports, loads, mass, planes, base_z, warnings, excluded, diaphragms)
+
+
+def _diaphragms(planes, members, elements, supports):
+    """One rigid diaphragm per beam plane and per connected group of its beams (the slab they carry)."""
+    groups = []
+    for zp in planes:
+        adj = {}
+        for m in members.values():
+            if m.kind != "beam" or abs(m.p1[2] - zp) > TOL_Z:
+                continue
+            for k in m.elements:
+                a, b = elements[k].n1, elements[k].n2
+                adj.setdefault(a, set()).add(b)
+                adj.setdefault(b, set()).add(a)
+        seen = set()
+        for start in sorted(adj):
+            if start in seen:
+                continue
+            comp, stack = [], [start]
+            seen.add(start)
+            while stack:
+                v = stack.pop()
+                comp.append(v)
+                for o in adj[v]:
+                    if o not in seen:
+                        seen.add(o); stack.append(o)
+            comp = sorted(v for v in comp if v not in supports)
+            if len(comp) >= 2:
+                groups.append(comp)
+    return groups
 
 
 def _inside(poly, pts):

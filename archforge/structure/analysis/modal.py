@@ -101,3 +101,61 @@ def modal_analysis(model, frame, settings, lateral=None):
         if lateral and key in lateral:
             out[f"V_{d}_lateral_kN"] = float(lateral[key]["Fb_kN"])
     return out
+
+
+def _signed_cqc(V, omega):
+    """Per column of V (modes × components): CQC magnitude with the sign of the dominant mode."""
+    V = np.asarray(V, float)
+    w = np.asarray(omega, float)
+    r = w[None, :] / w[:, None]
+    rho = 8 * DAMPING ** 2 * (1 + r) * r ** 1.5 / ((1 - r ** 2) ** 2 + 4 * DAMPING ** 2 * r * (1 + r) ** 2)
+    mag = np.sqrt(np.maximum(np.sum((rho @ V) * V, axis=0), 0.0))
+    dom = np.argmax(np.abs(V), axis=0)
+    sign = np.sign(V[dom, np.arange(V.shape[1])])
+    sign[sign == 0] = 1.0
+    return mag * sign
+
+
+def modal_cases(model, frame, settings, n_modes):
+    """Design seismic cases from the modal response: {"Ex"/"Ey": (U, element forces, reactions)} plus drift.
+
+    Each mode is solved as a static load case (fn = Γn·Sd(Tn)·M·φn); every displacement,
+    end force and reaction component is combined by CQC and given the sign of the mode
+    that dominates it (structure.modal_design).  Inter-storey drift is combined per storey.
+    """
+    res = modes(model, frame)
+    if res is None:
+        return None
+    T, omega, phi, dofs, m = res
+    T, omega, phi = T[:n_modes], omega[:n_modes], phi[:, :n_modes]
+    ax = np.array([d % 6 for d in dofs])
+    ag = ZONES[settings["seismic_zone"]] * IMPORTANCE[settings["importance"]] * 9.81
+    levels = storeys(model)
+    q = behaviour_factor(settings, max(len(levels), 1))
+    Sd = np.array([design_spectrum(t, ag, settings["soil"], q) for t in T])
+    nu = 0.5 if settings["importance"] in ("1", "2") else 0.4
+    out, drift = {}, {}
+    for name, a in (("Ex", 0), ("Ey", 1)):
+        gamma = phi.T @ (m * (ax == a))
+        Us, Fs, Rs, D = [], [], [], []
+        for k in range(len(T)):
+            f = m * phi[:, k] * gamma[k] * Sd[k]
+            loads = {}
+            for dof, v in zip(dofs, f):
+                loads.setdefault(dof // 6, np.zeros(6))[dof % 6] += v
+            U, F, R = frame.solve(loads)
+            Us.append(U.ravel()); Fs.append(np.concatenate(F) if F else np.zeros(0)); Rs.append(R.ravel())
+            prev_z, prev_d, d_k = model.base_z, 0.0, []
+            for z, ids in levels:
+                dl = float(np.mean([U[i][a] for i in ids]))
+                d_k.append((dl - prev_d) / (z - prev_z) if z > prev_z else 0.0)
+                prev_z, prev_d = z, dl
+            D.append(d_k)
+        U = _signed_cqc(Us, omega).reshape(-1, 6)
+        Fc = _signed_cqc(Fs, omega)
+        F = [Fc[12 * i:12 * i + 12] for i in range(len(frame.elements))]
+        R = _signed_cqc(Rs, omega).reshape(-1, 6)
+        ratio = float(np.max(np.abs(_signed_cqc(D, omega)))) * q * nu if levels else 0.0
+        out[name] = (U, F, R)
+        drift[name] = {"drift_ratio": round(ratio, 5), "drift_ok": ratio <= 0.005}
+    return out, drift

@@ -56,11 +56,45 @@ def test_cqc_identities():
     assert cqc(v, [10.0, 11.0]) == pytest.approx(cqc(v[::-1], [11.0, 10.0]))    # symmetric
 
 
-def test_report_lists_the_modes_and_says_design_still_uses_the_lateral_force_method():
+def test_report_lists_the_modes_and_says_which_method_designs_the_members():
     from archforge.core.provenance import VERIFIED, rule
     from archforge.structure.analysis import analyze
     from archforge.structure.analysis.report import report_html
     from tests.test_structural_analysis import _building
     html = report_html(analyze(_building(storeys=2)[0]))
-    assert 'Ιδιομορφές' in html and 'ισοδύναμη στατική μέθοδο' in html and 'μη επαληθευμένο' in html
+    assert 'Ιδιομορφές' in html and 'χρησιμοποιεί τη φασματική' in html and 'μη επαληθευμένο' in html
     assert rule('structure.modal_mass_target').status != VERIFIED
+
+
+def test_modal_design_drives_members_and_the_lateral_method_stays_selectable():
+    from archforge.core.commands import AddEntity
+    from archforge.core.model import Entity
+    from archforge.structure.analysis import analyze
+    from tests.test_structural_analysis import _building
+    doc, st = _building(storeys=2)
+    r = analyze(doc)
+    assert r['settings']['seismic_method'] == 'modal' and r['seismic']['method'] == 'modal'
+    # With rigid slabs the modes are clean: three per storey, no local floor modes.
+    md = r['modal']
+    assert [m['dominant'] for m in md['modes'][:3]] in (['X', 'Y', 'θ'], ['Y', 'X', 'θ'])
+    assert md['modes'][0]['T_s'] == pytest.approx(r['seismic']['Ex']['T_s'], rel=0.02)
+    st.execute(AddEntity(Entity('structural_design', {'seismic_method': 'lateral'})))
+    r2 = analyze(doc)
+    assert r2['seismic']['method'] == 'lateral'
+    u1 = {e['name']: e['utilisation'] for e in r['members'].values() if e['kind'] == 'column'}
+    u2 = {e['name']: e['utilisation'] for e in r2['members'].values() if e['kind'] == 'column'}
+    # The modal base shear is below Fb here (mode 1 carries ~90 % of the mass), so columns work less.
+    assert md['V_X_cqc_kN'] < md['V_X_lateral_kN']
+    assert sum(u1.values()) < sum(u2.values())
+
+
+def test_without_diaphragm_the_slab_nodes_move_independently():
+    from archforge.core.commands import AddEntity
+    from archforge.core.model import Entity
+    from archforge.structure.analysis.building import build_model
+    from archforge.structure.analysis.settings import get_settings
+    from tests.test_structural_analysis import _building
+    doc, st = _building(storeys=1)
+    assert len(build_model(doc, get_settings(doc)).diaphragms) == 1
+    st.execute(AddEntity(Entity('structural_design', {'diaphragm': 'none'})))
+    assert build_model(doc, get_settings(doc)).diaphragms == []

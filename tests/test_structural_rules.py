@@ -5,6 +5,7 @@ Euler–Bernoulli beam theory (derived from the stiffness equations, no
 regulatory value involved).  That checks the solver's mechanics only — not the
 loads, factors or code checks built on it.
 """
+import math
 import os
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
@@ -202,3 +203,48 @@ def test_critical_zones_and_hooks_are_stated_but_not_verified():
     assert col['stirrups']['l_crit'] == pytest.approx(max(max(col['b'], col['h']), col['length_m'] / 6, 0.45), abs=0.01)
     html = report_html(r)
     assert 'Κρίσιμες περιοχές' in html and '135°' in html and 'μη επαληθευμένα' in html
+
+
+# --- Rigid diaphragms (floor slabs) ---------------------------------------------------------
+
+def _columns(xy, h=3.0, I=(1.2e-3, 1.2e-3)):
+    nodes, els, sup = [], [], {}
+    for x, y in xy:
+        b = len(nodes)
+        nodes += [(x, y, 0.0), (x, y, h)]
+        els.append(Element(b, b + 1, E, G, A, I[0], I[1], J, y_dir=(1, 0, 0)))
+        sup[b] = FIXED
+    return nodes, els, sup
+
+
+def test_diaphragm_makes_separate_columns_share_the_load_by_stiffness():
+    h, H = 3.0, 30.0
+    nodes, els, sup = _columns([(0, 0), (5, 0)], h, I=(1.2e-3, 1.2e-3))
+    els[1] = Element(2, 3, E, G, A, 2.4e-3, 2.4e-3, J, y_dir=(1, 0, 0))       # second column twice as stiff
+    free = Frame(nodes, els, sup)
+    U, _, _ = free.solve({1: (H, 0, 0, 0, 0, 0)})
+    assert U[3][0] == pytest.approx(0.0, abs=1e-12)                             # nothing ties them
+    tied = Frame(nodes, els, sup, diaphragms=[[1, 3]])
+    U, _, R = tied.solve({1: (H, 0, 0, 0, 0, 0)})
+    k1, k2 = 3 * E * 1.2e-3 / h ** 3, 3 * E * 2.4e-3 / h ** 3
+    assert U[1][0] == pytest.approx(U[3][0], rel=1e-9)
+    assert U[1][0] == pytest.approx(H / (k1 + k2), rel=1e-9)                     # parallel springs
+    assert -R[0][0] == pytest.approx(H * k1 / (k1 + k2), rel=1e-9) and -R[2][0] == pytest.approx(H * k2 / (k1 + k2), rel=1e-9)
+
+
+def test_eccentric_load_twists_the_diaphragm_and_stays_in_equilibrium():
+    h, H = 3.0, 40.0
+    nodes, els, sup = _columns([(0, 0), (6, 0), (0, 4), (6, 4)], h)
+    tops = [1, 3, 5, 7]
+    f = Frame(nodes, els, sup, diaphragms=[tops])
+    U, _, R = f.solve({5: (H, 0, 0, 0, 0, 0)})                                  # load on the y = 4 side
+    assert U[5][5] == pytest.approx(U[1][5], rel=1e-9) and abs(U[1][5]) > 0       # one rotation for the slab
+    assert U[5][0] > U[1][0]                                                      # the loaded side moves more
+    base = [0, 2, 4, 6]
+    assert sum(R[b][0] for b in base) == pytest.approx(-H, rel=1e-9)              # Σ Fx
+    # Σ Mz about the origin: reactions balance the load's H·4 m lever.
+    mz = sum(R[b][5] + nodes[b][0] * R[b][1] - nodes[b][1] * R[b][0] for b in base)
+    assert mz == pytest.approx(H * 4.0, rel=1e-6)
+    # Rigid in plane: the distance between two slab corners does not change.
+    p = [np.add(nodes[n][:2], U[n][:2]) for n in (1, 7)]
+    assert np.linalg.norm(p[1] - p[0]) == pytest.approx(math.hypot(6, 4), rel=1e-4)

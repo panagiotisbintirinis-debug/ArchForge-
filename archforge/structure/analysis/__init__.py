@@ -24,6 +24,9 @@ PROVENANCE = (STATUS_BANNER + " " + "Προμελέτη φέροντος οργ�
               "δεν αντικαθιστά τη στατική μελέτη αδειοδοτημένου μηχανικού")
 
 
+MAX_PROFILE_ROUNDS = 6      # steel: analyse → choose profiles → analyse again, until nothing changes
+
+
 def _combos(psi2):
     combos = [("ULS", {"G": 1.35, "Q": 1.5}, False)]
     for ex, ey in ((1.0, 0.3), (0.3, 1.0)):
@@ -154,7 +157,7 @@ def analyze(doc):
     result = {"ok": True, "members": {}, "footings": [], "warnings": [], "seismic": {}, "settings": settings,
               "provenance": PROVENANCE, "verified": False, "error": None, "system_label": SYSTEMS[settings["system"]]}
     overrides = {}
-    for attempt in range(2):
+    for attempt in range(MAX_PROFILE_ROUNDS):
         model = build_model(doc, settings)
         for mid, prof in overrides.items():
             if mid in model.members:
@@ -176,7 +179,7 @@ def analyze(doc):
             result["error"] = "Δεν βρέθηκαν στηρίξεις (βάσεις κολωνών)"
             return result
         try:
-            frame = Frame(model.nodes, model.elements, model.supports)
+            frame = Frame(model.nodes, model.elements, model.supports, model.diaphragms)
         except np.linalg.LinAlgError:
             result["ok"] = False
             result["error"] = "Ασταθής φορέας (μηχανισμός): έλεγξε συνδέσεις δοκών–κολωνών και στηρίξεις"
@@ -189,6 +192,20 @@ def analyze(doc):
         for case, loads in seismic_cases.items():
             U, F, _R = frame.solve(loads)
             case_forces[case], case_disp[case] = F, U
+        modal, seismic_reactions = None, None
+        if seismic_cases:
+            from archforge.structure.analysis.modal import modal_analysis, modal_cases
+            modal = modal_analysis(model, frame, settings, seismic_report)
+            seismic_report["method"] = "lateral"
+            if settings.get("seismic_method") == "modal" and modal.get("ok"):
+                mc = modal_cases(model, frame, settings, modal["n_modes"])
+                if mc:
+                    cases, drift = mc
+                    seismic_reactions = {}
+                    for case, (U, F, R) in cases.items():
+                        case_forces[case], case_disp[case], seismic_reactions[case] = F, U, R
+                        seismic_report[case].update(drift[case])
+                    seismic_report["method"] = "modal"
         psi2 = OCCUPANCIES[settings["occupancy"]][2]
         combos = _combos(psi2) if seismic_cases else _combos(psi2)[:1]
         # Steel: pick profiles, then analyse once more with them.
@@ -211,8 +228,13 @@ def analyze(doc):
                 I0 = prof_of(m.profile)["Iy"]
                 res = lightest("beam", lambda n: check_beam(n, M, V, d0 * I0 / prof_of(n)["Iy"], span, settings["steel_grade"]))
             if res["profile"] != m.profile:
+                from archforge.structure.analysis.sections import profile as prof_of
+                # After the first choice a profile only grows: the redistribution of a stiffer frame
+                # may ask for more, never for less, so the rounds converge.
+                if m.id in overrides and prof_of(res["profile"])["weight"] <= prof_of(m.profile)["weight"]:
+                    continue
                 new[m.id] = res["profile"]
-        if not new or attempt == 1:
+        if not new or attempt == MAX_PROFILE_ROUNDS - 1:
             break
         overrides.update(new)
     result["seismic"] = seismic_report
@@ -275,11 +297,10 @@ def analyze(doc):
         if not entry.get("ok", True):
             result["ok"] = False
     if seismic_cases:
-        from archforge.structure.analysis.modal import modal_analysis
-        result["modal"] = modal_analysis(model, frame, settings, seismic_report)
+        result["modal"] = modal
         from archforge.structure.analysis.capacity import joint_checks
         result["capacity_joints"] = joint_checks(model, result["members"], designs, settings)
-    result["footings"] = _footings(model, frame, settings, seismic_cases, combos)
+    result["footings"] = _footings(model, frame, settings, seismic_cases, combos, seismic_reactions)
     for f in result["footings"]:
         if not f["pressure_ok"]:
             result["warnings"].append(f"Πέδιλο κάτω από {f['column'] or 'κολόνα'}: σmax G+Q {f['sigma_max_sls_kPa']} kPa > σεδ "
@@ -340,7 +361,7 @@ def _beam_deflection(model, m, case_disp):
     return max(abs(wi - (w[0] + (w[-1] - w[0]) * p / L)) for wi, p in zip(w, pos))
 
 
-def _footings(model, frame, settings, seismic_cases=None, combos=()):
+def _footings(model, frame, settings, seismic_cases=None, combos=(), seismic_reactions=None):
     """Pads sized so that σmax under G + Q (with the base moments and shears) stays within σεδ.
 
     The seismic combinations' contact pressure is reported, not judged: its limit is the
@@ -352,6 +373,7 @@ def _footings(model, frame, settings, seismic_cases=None, combos=()):
         R[case] = frame.solve(model.loads[case])[2]
     for case, loads in (seismic_cases or {}).items():
         R[case] = frame.solve(loads)[2]
+    R.update(seismic_reactions or {})                 # modal design: the combined reactions
     out = []
     sigma = float(settings["soil_pressure"])
 

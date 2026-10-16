@@ -14,11 +14,13 @@ ROOF_ACCESS = {"accessible": ("Δώμα βατό", 2.0), "non_accessible": ("Δ�
 ZONES = {"1": 0.16, "2": 0.24, "3": 0.36}           # ag,R / g — Greek NA to EN 1998-1
 SOILS = ("A", "B", "C", "D", "E")
 IMPORTANCE = {"1": 0.8, "2": 1.0, "3": 1.2, "4": 1.4}
+SEISMIC_METHODS = {"modal": "Φασματική (ιδιομορφές, CQC)", "lateral": "Ισοδύναμη στατική"}
+DIAPHRAGMS = {"rigid": "Ισχυρό διάφραγμα σε κάθε πλάκα", "none": "Χωρίς διάφραγμα"}
 
 DEFAULTS = {"system": "reinforced_concrete", "occupancy": "residential", "roof_access": "accessible",
             "seismic_zone": "1", "soil": "B", "importance": "2", "concrete": "C25/30", "steel_grade": "S275",
             "slab_thickness": 0.18, "finishes": 1.5, "partitions": 1.0, "roof_finishes": 2.0,
-            "soil_pressure": 200.0, "foundation_type": "auto"}
+            "soil_pressure": 200.0, "foundation_type": "auto", "diaphragm": "rigid", "seismic_method": "modal"}
 
 
 def design_entity(doc):

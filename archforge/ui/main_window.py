@@ -3550,8 +3550,8 @@ class MainWindow(QMainWindow):
     def _edit_structural_settings(self):
         """Building type and design basis for the structural analysis (one undoable command)."""
         from archforge.structure.analysis.sections import CONCRETE, STEEL_GRADES
-        from archforge.structure.analysis.settings import (IMPORTANCE, OCCUPANCIES, ROOF_ACCESS, SOILS, SYSTEMS,
-                                                           ZONES, design_entity, get_settings)
+        from archforge.structure.analysis.settings import (DIAPHRAGMS, IMPORTANCE, OCCUPANCIES, ROOF_ACCESS, SEISMIC_METHODS,
+                                                           SOILS, SYSTEMS, ZONES, design_entity, get_settings)
         from archforge.structure.foundation import FOUNDATION_TYPES
         current = get_settings(self.doc)
         dialog = QDialog(self)
@@ -3568,6 +3568,8 @@ class MainWindow(QMainWindow):
             ('concrete', 'Σκυρόδεμα', {k: k for k in CONCRETE}),
             ('steel_grade', 'Χάλυβας διατομών', {k: k for k in STEEL_GRADES}),
             ('foundation_type', 'Θεμελίωση', FOUNDATION_TYPES),
+            ('seismic_method', 'Σεισμική ανάλυση', SEISMIC_METHODS),
+            ('diaphragm', 'Πλάκες', DIAPHRAGMS),
         )
         for key, label, options in choices:
             combo = QComboBox(dialog)

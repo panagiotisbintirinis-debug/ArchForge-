@@ -32,7 +32,10 @@ def report_html(r):
             f"<tr><td>{d}</td><td>{q[d]['T_s']:.3f}</td><td>{q[d]['Sd_ms2']:.3f}</td><td>{q[d]['lambda']:g}</td>"
             f"<td>{q[d]['Fb_kN']:.1f}</td><td>{q[d]['drift_ratio'] * 1000:.2f} ‰ {'✓' if q[d]['drift_ok'] else '⚠ > 5 ‰'}</td></tr>"
             for d in ("Ex", "Ey") if d in q)
-        out.append(f"<h3>Σεισμός (EN 1998-1, ισοδύναμη στατική)</h3><p>Μάζα {float(q['mass_t']):.1f} t · ύψος {q['H_m']} m · "
+        method = "φασματική — σχεδιασμός μελών" if q.get("method") == "modal" else "ισοδύναμη στατική"
+        out.append(f"<h3>Σεισμός (EN 1998-1, {method})</h3><p>Τιμές T₁ / Sd / Fb: ισοδύναμη στατική (για σύγκριση)· "
+                   f"σχετικές μετακινήσεις από τη μέθοδο σχεδιασμού.</p>"
+                   f"<p>Μάζα {float(q['mass_t']):.1f} t · ύψος {q['H_m']} m · "
                    f"q = {q['q']:.2f} · ag = {q['ag_ms2']} m/s² · T(Ct·H<sup>¾</sup>) = {q['T_ct_s']} s</p>"
                    "<table border=1 cellspacing=0 cellpadding=3><tr><th>Διεύθυνση</th><th>T₁ Rayleigh (s)</th>"
                    "<th>Sd (m/s²)</th><th>λ</th><th>Fb (kN)</th><th>Σχετική μετακίνηση ν·dr/h</th></tr>" + rows + "</table>")
@@ -44,9 +47,11 @@ def report_html(r):
         cmp = " · ".join(
             f"V<sub>{d}</sub> SRSS {md[f'V_{d}_srss_kN']} / CQC {md[f'V_{d}_cqc_kN']} kN"
             + (f" (ισοδύναμη στατική {md[f'V_{d}_lateral_kN']})" if f"V_{d}_lateral_kN" in md else "") for d in ("X", "Y"))
-        out.append("<h3>Ιδιομορφές (φασματική ανάλυση) — ενημερωτικά</h3>"
-                   "<p><i>Η διαστασιολόγηση των μελών χρησιμοποιεί ακόμη την ισοδύναμη στατική μέθοδο. "
-                   f"Κριτήριο {md['target']:.0%} συμμετοχής μάζας: από το δείγμα τεύχους του ιδιοκτήτη, μη επαληθευμένο.</i></p>"
+        out.append("<h3>Ιδιομορφές (φασματική ανάλυση)</h3>"
+                   + ("<p><i>Η διαστασιολόγηση των μελών χρησιμοποιεί τη φασματική (CQC, πρόσημο από την κυρίαρχη ιδιομορφή). "
+                      if (r.get("seismic") or {}).get("method") == "modal" else
+                      "<p><i>Η διαστασιολόγηση των μελών χρησιμοποιεί την ισοδύναμη στατική μέθοδο. ")
+                   + f"Κριτήριο {md['target']:.0%} συμμετοχής μάζας: από το δείγμα τεύχους του ιδιοκτήτη, μη επαληθευμένο.</i></p>"
                    "<table border=1 cellspacing=0 cellpadding=3><tr><th>Ιδιομορφή</th><th>T (s)</th><th>ω (rad/s)</th>"
                    "<th>M<sub>x</sub></th><th>M<sub>y</sub></th><th>M<sub>θ</sub></th><th>Sd (m/s²)</th><th>Κυρίαρχη</th></tr>"
                    + rows + f"<tr><td colspan=3><b>Σύνολο {md['n_modes']} ιδιομορφών</b></td><td>{md['cum_x']:.1%}</td>"
