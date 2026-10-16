@@ -156,7 +156,11 @@ def heating_review(doc) -> dict:
     }
 
 
-def heating_quote(doc, prices: Mapping[str, PriceEntry]) -> dict:
+def heating_quote(doc, prices: Mapping[str, PriceEntry] | None = None) -> dict:
+    """Price heating inventory through the same project price book as other trades."""
+    if prices is None:
+        from archforge.mep.project_pricebook import project_prices
+        prices = project_prices(doc)
     quantities = heating_quantities(doc)
     rows = cost_lines(quantities, prices)
     return {
