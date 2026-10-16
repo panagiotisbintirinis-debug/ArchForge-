@@ -86,3 +86,38 @@ def test_member_statics_dialog_rechecks_applies_and_undoes():
         assert window.doc.get(cid).params['width'] == pytest.approx(0.40) and not window.doc.get(cid).params.get('rebar')
     finally:
         window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_stirrup_layout_has_dense_zones_at_both_ends():
+    from archforge.structure.analysis.member import stirrup_layout
+    lay = stirrup_layout(3.0, {'d': 8, 's': 0.15, 's_crit': 0.10, 'l_crit': 0.60})
+    assert lay['zones'] == [(0.0, 0.6), (2.4, 3.0)]
+    pos = lay['positions']
+    assert pos == sorted(pos) and all(0 < p < 3.0 for p in pos)
+    ends = [p for p in pos if p <= 0.6]
+    assert ends[0] == pytest.approx(0.05) and all(b - a == pytest.approx(0.10) for a, b in zip(ends, ends[1:]))
+    assert [round(3.0 - p, 4) for p in reversed(pos)] == pos                    # symmetric
+    middle = [p for p in pos if 0.6 < p < 2.4]
+    assert middle and all(b - a == pytest.approx(middle[1] - middle[0]) for a, b in zip(middle, middle[1:]))
+    assert middle[1] - middle[0] <= 0.15 + 0.03
+    assert stirrup_layout(3.0, None) == {'zones': [], 'positions': []}
+
+
+def test_member_dialog_draws_the_elevation_with_critical_zones():
+    from PySide6.QtWidgets import QApplication
+    from archforge.ui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    try:
+        window._no_modal_dialogs = True
+        _building(window.doc, storeys=1)
+        cid = next(i for i, e in window.doc.entities.items() if e.kind == 'structural_column')
+        dlg = window._show_member_statics(cid)
+        view = dlg.elevation_view
+        assert view.kind == 'column' and view.stirrups == dlg.design['stirrups']
+        assert view.length == pytest.approx(dlg.entry['length_m'])
+        view.resize(200, 300)
+        assert not view.grab().isNull()                                       # paints without error
+        dlg.close()
+    finally:
+        window._mark_clean(); window.close(); app.processEvents()

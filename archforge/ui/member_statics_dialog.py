@@ -147,6 +147,61 @@ class SectionView(QWidget):
         p.restore()
 
 
+class ElevationView(QWidget):
+    """Member elevation: critical zones shaded, stirrups at their spacings (schematic)."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.length, self.kind, self.stirrups = 3.0, "column", None
+        self.setMinimumSize(170, 90)
+
+    def set_member(self, length, kind, stirrups):
+        self.length, self.kind, self.stirrups = float(length), kind, stirrups
+        self.update()
+
+    def paintEvent(self, _event):
+        from archforge.structure.analysis.member import stirrup_layout
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.fillRect(self.rect(), QColor("#ffffff"))
+        lay = stirrup_layout(self.length, self.stirrups)
+        if not lay["positions"]:
+            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "—")
+            return
+        w, h = float(self.width()), float(self.height())
+        vertical = self.kind == "column"
+        a0, a1 = 10.0, (h - 30.0) if vertical else (w - 10.0)  # along the member (room for 2 text lines below)
+        c0, c1 = (w * 0.38, w * 0.62) if vertical else (h * 0.15, h * 0.55)
+
+        def at(s):
+            return a1 - (a1 - a0) * s / self.length if vertical else a0 + (a1 - a0) * s / self.length
+
+        def rect(s0, s1):
+            u0, u1 = sorted((at(s0), at(s1)))
+            return QRectF(c0, u0, c1 - c0, u1 - u0) if vertical else QRectF(u0, c0, u1 - u0, c1 - c0)
+
+        p.setPen(QPen(QColor("#555"), 1.2))
+        p.setBrush(QColor("#ece9e2"))
+        p.drawRect(rect(0.0, self.length))
+        zone = QColor("#c0392b")
+        zone.setAlpha(45)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(zone)
+        for s0, s1 in lay["zones"]:
+            p.drawRect(rect(s0, s1))
+        p.setPen(QPen(QColor("#7a5230"), 1.0))
+        for s in lay["positions"]:
+            u = at(s)
+            p.drawLine(QPointF(c0, u), QPointF(c1, u)) if vertical else p.drawLine(QPointF(u, c0), QPointF(u, c1))
+        st = self.stirrups
+        p.setPen(QColor("#222"))
+        f = QFont(p.font())
+        f.setPointSizeF(7.5)
+        p.setFont(f)
+        p.drawText(QPointF(4, h - 16), f"lcr {lay['zones'][0][1]:.2f} m · Ø{st['d']}/{st['s_crit'] * 100:.1f}")
+        p.drawText(QPointF(4, h - 3), f"μέσο Ø{st['d']}/{st['s'] * 100:.1f} (σχηματικό)")
+
+
 def _bar_combo(parent, values, current):
     box = QComboBox(parent)
     for v in values:
@@ -210,6 +265,10 @@ class MemberStaticsDialog(QDialog):
         body.addLayout(right, 2)
         self.section_view = SectionView(self)
         right.addWidget(self.section_view, 1)
+        self.elevation_view = ElevationView(self)
+        if e["material"] == "rc":
+            right.addWidget(QLabel("<b>Όψη μέλους</b> — κρίσιμες περιοχές (κόκκινο) και συνδετήρες"))
+            right.addWidget(self.elevation_view)
         self.fields = {}
         if e["material"] == "rc":
             right.addWidget(self._build_fields())
@@ -351,6 +410,7 @@ class MemberStaticsDialog(QDialog):
             b, h, rebar = self.values()
             self.design = recheck(e, self.settings, b, h, rebar)
             self.section_view.set_section(b, h, e["kind"], self.design)
+            self.elevation_view.set_member(e["length_m"], e["kind"], self.design.get("stirrups"))
         self.result.setText(self._result_html(self.design))
         return self.design
 

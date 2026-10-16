@@ -86,3 +86,29 @@ def apply_command(doc, entity_id, b, h, rebar):
         changes = {"width": round(b, 3), "depth": round(h, 3)}
     changes["rebar"] = rebar or None
     return UpdateEntity(entity_id, changes)
+
+
+def stirrup_layout(length, stirrups):
+    """Schematic stirrup layout along a member: ({"zones": [(start, end)], "positions": [s …]}, m).
+
+    Critical zones of length ``l_crit`` at both ends at ``s_crit``, the middle at ``s``; the
+    first stirrup of each zone half a spacing from the face.  For the drawing only — the
+    detailing (first stirrup, hooks, laps) is the engineer's.
+    """
+    L = float(length)
+    if not stirrups or L <= 0:
+        return {"zones": [], "positions": []}
+    lcr = min(float(stirrups.get("l_crit", 0.0)), L / 2)
+    sc, s = float(stirrups["s_crit"]), float(stirrups["s"])
+    pos = []
+    x = sc / 2
+    while x <= lcr + 1e-9:
+        pos.append(x)
+        x += sc
+    mid_start, mid_end = lcr, L - lcr
+    if mid_end - mid_start > s / 2:
+        n = max(int(round((mid_end - mid_start) / s)), 1)
+        step = (mid_end - mid_start) / n
+        pos += [mid_start + step * (i + 0.5) for i in range(n)]
+    pos += sorted(L - p for p in pos if p <= lcr + 1e-9)
+    return {"zones": [(0.0, lcr), (L - lcr, L)], "positions": sorted(round(p, 4) for p in pos)}
