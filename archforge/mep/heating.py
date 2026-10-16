@@ -140,12 +140,16 @@ def heating_quantities(doc) -> list[QuantityLine]:
 
 
 def heating_review(doc) -> dict:
-    """Expose what exists and what is intentionally not yet auto-calculated."""
+    """Expose inventory, verified metadata and still-unimplemented calculations."""
+    from archforge.mep.heating_rules import heating_rule_audit, has_verified_automatic_sizing
+
     return {
         "status": RULE_STATUS,
         "provenance": PROVENANCE,
         "points": len(heating_points(doc)),
         "zones": len(heating_zones(doc)),
+        "rule_audit": heating_rule_audit(),
+        "verified_automatic_sizing": has_verified_automatic_sizing(),
         "automatic_calculations": {
             "heat_loss": False,
             "emitter_sizing": False,
