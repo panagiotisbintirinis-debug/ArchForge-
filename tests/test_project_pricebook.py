@@ -6,9 +6,11 @@ from archforge.core.commands import CommandStack
 from archforge.core.model import Document, Entity
 from archforge.mep.project_pricebook import (
     migrate_description_prices,
+    price_book_audit,
     price_list_params,
     project_prices,
     set_project_price,
+    update_project_price,
 )
 from archforge.mep.trade_costing import PriceEntry, QuantityLine
 
@@ -107,6 +109,46 @@ def test_project_price_edits_are_commandstack_undoable_and_redoable():
     )
     prices = project_prices(doc)
     assert set(prices) == {"plumbing.pipe.cold.dn16", "heating.point.radiator"}
+
+
+def test_cell_level_price_edit_preserves_other_component_and_is_undoable():
+    doc = Document()
+    stack = CommandStack(doc)
+    set_project_price(
+        stack,
+        doc,
+        "valve",
+        PriceEntry(material_unit_price=8.0, labour_unit_price=3.0, source="contractor"),
+    )
+    update_project_price(stack, doc, "valve", material_unit_price=9.5)
+    edited = project_prices(doc)["valve"]
+    assert edited.material_unit_price == 9.5
+    assert edited.labour_unit_price == 3.0
+    assert edited.source == "contractor"
+
+    stack.undo()
+    restored = project_prices(doc)["valve"]
+    assert restored.material_unit_price == 8.0
+    assert restored.labour_unit_price == 3.0
+
+
+def test_price_book_audit_reports_missing_partial_unused_and_currency_conflict():
+    quantities = [
+        QuantityLine("pipe", "Pipe", "pipes", 2.0, "m", "plumbing"),
+        QuantityLine("valve", "Valve", "accessories", 1.0, "pcs", "plumbing"),
+        QuantityLine("radiator", "Radiator", "equipment", 1.0, "pcs", "heating"),
+    ]
+    prices = {
+        "pipe": PriceEntry(2.0, 1.0, "EUR", "contractor"),
+        "valve": PriceEntry(8.0, None, "EUR", "contractor"),
+        "old-item": PriceEntry(99.0, 10.0, "USD", "legacy"),
+    }
+    audit = price_book_audit(quantities, prices)
+    assert audit["missing_codes"] == ["radiator"]
+    assert audit["partial_codes"] == ["valve"]
+    assert audit["unused_codes"] == ["old-item"]
+    assert audit["currencies"] == ["EUR"]
+    assert audit["complete"] is False
 
 
 def test_legacy_description_migration_only_maps_unambiguous_items():
