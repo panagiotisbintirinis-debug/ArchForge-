@@ -1,10 +1,13 @@
 """Trust/provenance registry for Heating/HVAC design rules.
 
-This registry intentionally starts conservative.  ArchForge currently has no
+This registry intentionally stays conservative. ArchForge currently has no
 verified automatic heat-loss, emitter sizing, hydronic pipe sizing, underfloor
-loop design, pump selection or balancing method encoded here.  Those workflows
+loop design, pump selection or balancing method encoded here. Those workflows
 must move through Source -> Rule -> Implementation -> Test -> Engineer review
 before they may be presented as verified requirements.
+
+Standard entries below verify only title/scope/version from the ELOT catalogue.
+They do **not** mean the calculation clauses have been implemented.
 """
 from __future__ import annotations
 
@@ -28,10 +31,30 @@ class HeatingRule:
     note: str = ""
 
 
-# Deliberately no VERIFIED_STANDARD entries yet.  Adding a standard title to a
-# list is not enough: the exact clause/method/applicability must be checked
-# before ArchForge implements or claims the technical requirement.
-STANDARD_REFERENCES: dict[str, HeatingRule] = {}
+# Authoritative catalogue metadata only. No formula, limit, design temperature,
+# loop spacing or sizing constant is inferred from these entries.
+STANDARD_REFERENCES: dict[str, HeatingRule] = {
+    "space_heating_load_standard": HeatingRule(
+        "space_heating_load_standard",
+        "Method scope for calculation of design space-heating load",
+        VERIFIED_STANDARD,
+        source="ELOT EN 12831-1:2017",
+        note=(
+            "ELOT catalogue confirms the current standard and its scope for design "
+            "space-heating load. ArchForge has not yet encoded the calculation method."
+        ),
+    ),
+    "surface_heating_system_standard": HeatingRule(
+        "surface_heating_system_standard",
+        "Water-based surface embedded heating/cooling system definitions and scope",
+        VERIFIED_STANDARD,
+        source="ELOT EN 1264-1 E2:2021",
+        note=(
+            "ELOT catalogue confirms current Part 1 scope/version. This does not "
+            "validate a universal loop spacing, loop length, flow or output rule."
+        ),
+    ),
+}
 
 
 DESIGN_RULES = {
