@@ -10,9 +10,9 @@ from __future__ import annotations
 import math
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QColor
+from PySide6.QtGui import QAction, QBrush, QColor, QPen
 from PySide6.QtWidgets import (
-    QAbstractItemView, QGraphicsTextItem, QHeaderView, QLabel, QSplitter,
+    QAbstractItemView, QGraphicsItem, QGraphicsTextItem, QHeaderView, QLabel, QSplitter,
     QTabWidget, QTableWidget, QTableWidgetItem, QTreeWidget, QTreeWidgetItem,
     QVBoxLayout, QWidget,
 )
@@ -33,7 +33,7 @@ def _length(a, b):
 
 
 class PlumbingTechnicalPlan(PlanView):
-    """Read-only technical plan with wheel zoom and left-drag pan."""
+    """Read-only technical plan with wheel zoom, pan and traceable pipe topology."""
 
     def __init__(self, doc, stack, parent=None):
         super().__init__(doc, stack, parent)
@@ -42,23 +42,87 @@ class PlumbingTechnicalPlan(PlanView):
         self._pan_last = None
         self.setCursor(Qt.CursorShape.OpenHandCursor)
 
+    @staticmethod
+    def _network_colour(network):
+        return QColor(31, 90, 160) if network == "cold" else QColor(190, 55, 45)
+
+    def _draw_connectivity(self, routed, level, screed, hot_offset):
+        """Draw presentation-only bends, branch nodes and vertical continuations."""
+        from archforge.mep.plumbing_drawing import technical_plan_topology
+
+        topology = technical_plan_topology(routed, level, screed, hot_offset)
+        for bridge in topology["bridges"]:
+            colour = self._network_colour(bridge["network"])
+            pen = QPen(colour)
+            pen.setWidthF(2.4)
+            pen.setCosmetic(True)
+            a, b = bridge["a"], bridge["b"]
+            item = self._scene.addLine(a[0], a[1], b[0], b[1], pen)
+            item.setZValue(79)
+
+        for junction in topology["junctions"]:
+            colour = self._network_colour(junction["network"])
+            pen = QPen(colour)
+            pen.setWidthF(1.4)
+            pen.setCosmetic(True)
+            x, y = junction["point"]
+            marker = self._scene.addEllipse(-3.0, -3.0, 6.0, 6.0, pen, QBrush(colour))
+            marker.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True)
+            marker.setPos(x, y)
+            marker.setZValue(82)
+            marker.setToolTip("Σημείο διακλάδωσης")
+
+        for riser in topology["risers"]:
+            colour = self._network_colour(riser["network"])
+            pen = QPen(colour)
+            pen.setWidthF(1.4)
+            pen.setCosmetic(True)
+            x, y = riser["point"]
+            marker = self._scene.addEllipse(-5.0, -5.0, 10.0, 10.0, pen, QBrush(Qt.BrushStyle.NoBrush))
+            marker.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True)
+            marker.setPos(x, y)
+            marker.setZValue(82)
+            marker.setToolTip(f"Κατακόρυφη συνέχεια Ø{riser['diameter']}")
+
+            arrow = self._scene.addText("↑")
+            arrow.setDefaultTextColor(colour)
+            font = arrow.font(); font.setBold(True); arrow.setFont(font)
+            arrow.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations, True)
+            arrow.setPos(x, y)
+            arrow.setZValue(83)
+            arrow.setToolTip(f"Κατακόρυφη συνέχεια Ø{riser['diameter']}")
+
     def redraw(self):
         super().redraw()
         if not hasattr(self, "doc"):
             return
         try:
-            from archforge.mep.plumbing import SCREED, route_plumbing_cached
+            from archforge.mep.plumbing import HOT_OFFSET, SCREED, route_plumbing_cached
             routed = route_plumbing_cached(self.doc)
             level = float(self.doc.work_plane.origin[2])
+
+            # First make the displayed network visually continuous. This is a
+            # drawing layer only; authoritative route coordinates/BOM stay intact.
+            self._draw_connectivity(routed, level, SCREED, HOT_OFFSET)
+
             for network in ("cold", "hot"):
-                colour = QColor(31, 90, 160) if network == "cold" else QColor(190, 55, 45)
+                colour = self._network_colour(network)
+                placed = []
                 for a, b, diameter in routed.get(network, ()):
                     if abs(float(a[2]) - float(b[2])) > 1e-9:
                         continue
                     if abs(float(a[2]) - (level + SCREED)) > 1e-6:
                         continue
+                    # Avoid turning very short connector pieces into label noise.
+                    if math.dist((float(a[0]), float(a[1])), (float(b[0]), float(b[1]))) < 0.35:
+                        continue
                     x = (float(a[0]) + float(b[0])) / 2.0
                     y = (float(a[1]) + float(b[1])) / 2.0
+                    # Do not repeat the same network/diameter label within a very
+                    # small plan area. The pipe remains visible and traceable.
+                    if any(d == int(diameter) and math.dist((x, y), (px, py)) < 0.45 for px, py, d in placed):
+                        continue
+                    placed.append((x, y, int(diameter)))
                     item = self._scene.addText(f"Ø{int(diameter)}")
                     item.setDefaultTextColor(colour)
                     font = item.font(); font.setBold(True); item.setFont(font)
@@ -66,6 +130,8 @@ class PlumbingTechnicalPlan(PlanView):
                     item.setPos(x, y)
                     item.setZValue(80)
         except Exception:
+            # The report tables remain usable even if an incomplete model cannot
+            # yet produce all technical-plan graphics.
             pass
 
     # This view is documentation-only. Left drag pans the view instead of
@@ -140,9 +206,9 @@ class PlumbingTab(QWidget):
 
         self.note = QLabel(
             "Στην κανονική 2D κάτοψη φαίνονται μόνο οι σωληνώσεις. Στην τεχνική κάτοψη αυτής της καρτέλας "
-            "φαίνονται οι διατομές Ø. Wheel = zoom, σύρσιμο = μετακίνηση. Το BOM διαβάζει το κοινό price_list "
-            "του έργου· τιμές που δεν έχουν δοθεί παραμένουν —. ENGINEER_REVIEW / DESIGN_DEFAULT δεν αποτελούν "
-            "επαληθευμένη κανονιστική απαίτηση."
+            "φαίνονται διατομές, πραγματικές διακλαδώσεις και κατακόρυφες συνέχειες. Wheel = zoom, σύρσιμο = μετακίνηση. "
+            "Το BOM διαβάζει το κοινό price_list του έργου· τιμές που δεν έχουν δοθεί παραμένουν —. "
+            "ENGINEER_REVIEW / DESIGN_DEFAULT δεν αποτελούν επαληθευμένη κανονιστική απαίτηση."
         )
         self.note.setWordWrap(True)
         self.note.setStyleSheet("color:palette(mid);font-size:11px")
