@@ -140,8 +140,8 @@ class PlumbingTab(QWidget):
 
         self.note = QLabel(
             "Στην κανονική 2D κάτοψη φαίνονται μόνο οι σωληνώσεις. Στην τεχνική κάτοψη αυτής της καρτέλας "
-            "φαίνονται οι διατομές Ø. Wheel = zoom, σύρσιμο = μετακίνηση. Το BOM είναι πίνακας εργασίας· "
-            "τιμές που δεν έχουν δοθεί παραμένουν κενές/—. ENGINEER_REVIEW / DESIGN_DEFAULT δεν αποτελούν "
+            "φαίνονται οι διατομές Ø. Wheel = zoom, σύρσιμο = μετακίνηση. Το BOM διαβάζει το κοινό price_list "
+            "του έργου· τιμές που δεν έχουν δοθεί παραμένουν —. ENGINEER_REVIEW / DESIGN_DEFAULT δεν αποτελούν "
             "επαληθευμένη κανονιστική απαίτηση."
         )
         self.note.setWordWrap(True)
@@ -163,7 +163,7 @@ class PlumbingTab(QWidget):
         headers = [
             "Κωδικός", "Περιγραφή", "Κατηγορία", "Ποσότητα", "Μονάδα",
             "Υλικό €/μον.", "Εργασία €/μον.", "Υλικό €", "Εργασία €", "Σύνολο €",
-            "Κατάσταση", "Πηγή",
+            "Τιμολόγηση", "Πηγή τιμής", "Κατάσταση", "Πηγή κανόνα",
         ]
         table = QTableWidget(0, len(headers))
         table.setHorizontalHeaderLabels(headers)
@@ -177,7 +177,7 @@ class PlumbingTab(QWidget):
         table.horizontalHeader().setSectionsMovable(True)
         table.horizontalHeader().setStretchLastSection(True)
         table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        table.setToolTip("BOM τύπου φύλλου εργασίας — ταξινόμηση από τις κεφαλίδες, χωρίς υποθετικές τιμές")
+        table.setToolTip("BOM τύπου φύλλου εργασίας — ταξινόμηση από τις κεφαλίδες, μία κοινή πηγή τιμών έργου")
         return table
 
     def mark_stale(self):
@@ -192,7 +192,7 @@ class PlumbingTab(QWidget):
 
     def refresh(self):
         from archforge.mep.plumbing import route_plumbing
-        from archforge.mep.plumbing_costing import plumbing_quantities
+        from archforge.mep.plumbing_costing import plumbing_quote
         from archforge.mep.plumbing_rules import plumbing_rule_audit
 
         self._stale = False
@@ -200,7 +200,10 @@ class PlumbingTab(QWidget):
         self.technical_plan.redraw()
 
         routed = route_plumbing(self.window.doc)
-        quantities = plumbing_quantities(self.window.doc)
+        quote = plumbing_quote(self.window.doc)
+        quantities = quote["quantities"]
+        priced_rows = quote["rows"]
+        pricing = quote["summary"]
 
         self.network.clear()
         total = {"cold": 0.0, "hot": 0.0}
@@ -216,22 +219,38 @@ class PlumbingTab(QWidget):
                     "ENGINEER_REVIEW",
                 ])
 
-        # Spreadsheet-style BOM. Cost columns intentionally remain — until the
-        # shared project price-book supplies a price; no catalogue guess is made.
+        # Spreadsheet-style BOM driven by the exact rows of the shared costing
+        # engine. The UI does not recalculate quantities or prices.
         self.bom.setSortingEnabled(False)
         self.bom.setRowCount(0)
-        for row, line in enumerate(quantities):
-            self.bom.insertRow(row)
+        for row_index, row in enumerate(priced_rows):
+            self.bom.insertRow(row_index)
+            pricing_status = (
+                "Πλήρης" if row.get("complete_price")
+                else "Μερική" if row.get("partial_price")
+                else "Χωρίς τιμή"
+            )
             values = [
-                str(line.code), str(line.description), str(line.category), _n(line.quantity, 2), str(line.unit),
-                "—", "—", "—", "—", "—",
-                str(line.rule_status or ""), str(line.rule_source or line.source or ""),
+                str(row.get("code", "")),
+                str(row.get("description", "")),
+                str(row.get("category", "")),
+                _n(row.get("quantity"), 2),
+                str(row.get("unit", "")),
+                _n(row.get("material_unit_price"), 4),
+                _n(row.get("labour_unit_price"), 4),
+                _n(row.get("material_cost"), 2),
+                _n(row.get("labour_cost"), 2),
+                _n(row.get("total_cost"), 2),
+                pricing_status,
+                str(row.get("price_source", "missing")),
+                str(row.get("rule_status", "")),
+                str(row.get("rule_source") or row.get("source") or ""),
             ]
             for col, value in enumerate(values):
                 item = QTableWidgetItem(value)
                 if col in (3, 5, 6, 7, 8, 9):
                     item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                self.bom.setItem(row, col, item)
+                self.bom.setItem(row_index, col, item)
         self.bom.setSortingEnabled(True)
         self.bom.resizeRowsToContents()
 
@@ -246,11 +265,18 @@ class PlumbingTab(QWidget):
                 QTreeWidgetItem(self.rules, [status, rule.label, value, rule.source or "—", rule.note or ""])
 
         unserved = len(routed.get("report", {}).get("unserved", ()))
+        missing_prices = len(pricing.get("unpriced_codes", ()))
+        price_text = (
+            f"Προσφορά: {_n(pricing['subtotal'])} {pricing['currency']}"
+            if pricing.get("complete") and priced_rows
+            else f"Τιμολογημένο έως τώρα: {_n(pricing['subtotal'])} {pricing['currency']} · λείπουν {missing_prices} γραμμές τιμών"
+        )
         self.summary.setText(
             f"Κρύο: {_n(total['cold'])} m   ·   Ζεστό: {_n(total['hot'])} m   ·   "
-            f"Γραμμές BOM: {len(quantities)}" + (f"   ·   Μη εξυπηρετούμενα σημεία: {unserved}" if unserved else "")
+            f"Γραμμές BOM: {len(quantities)}   ·   {price_text}"
+            + (f"   ·   Μη εξυπηρετούμενα σημεία: {unserved}" if unserved else "")
         )
-        return {"route": routed, "quantities": quantities, "rules": grouped}
+        return {"route": routed, "quote": quote, "rules": grouped}
 
 
 def install(window):
