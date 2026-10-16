@@ -100,8 +100,16 @@ def plumbing_quantities(doc) -> list[QuantityLine]:
     return lines
 
 
-def plumbing_quote(doc, prices: Mapping[str, PriceEntry]) -> dict:
-    """Price current plumbing quantities with user/professional price entries."""
+def plumbing_quote(doc, prices: Mapping[str, PriceEntry] | None = None) -> dict:
+    """Price plumbing quantities through the shared project price book.
+
+    Passing an explicit mapping is useful for previews/tests.  Normal project
+    operation omits it and resolves the one ``price_list`` entity, so plumbing,
+    heating and electrical cannot silently maintain competing price books.
+    """
+    if prices is None:
+        from archforge.mep.project_pricebook import project_prices
+        prices = project_prices(doc)
     quantities = plumbing_quantities(doc)
     rows = cost_lines(quantities, prices)
     return {
