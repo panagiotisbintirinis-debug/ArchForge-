@@ -2,11 +2,13 @@ from types import SimpleNamespace
 
 import pytest
 
+from archforge.core.commands import CommandStack
 from archforge.core.model import Document, Entity
 from archforge.mep.project_pricebook import (
     migrate_description_prices,
     price_list_params,
     project_prices,
+    set_project_price,
 )
 from archforge.mep.trade_costing import PriceEntry, QuantityLine
 
@@ -76,6 +78,35 @@ def test_price_book_survives_document_save_load_roundtrip():
     entity = next(e for e in restored.entities.values() if e.kind == "price_list")
     assert entity.params["vat"] == 24.0
     assert entity.params["entries"]["heating.point.radiator"]["source"] == "contractor"
+
+
+def test_project_price_edits_are_commandstack_undoable_and_redoable():
+    doc = Document()
+    stack = CommandStack(doc)
+    set_project_price(
+        stack,
+        doc,
+        "plumbing.pipe.cold.dn16",
+        PriceEntry(material_unit_price=2.4, labour_unit_price=1.6, source="contractor"),
+    )
+    assert project_prices(doc)["plumbing.pipe.cold.dn16"].material_unit_price == 2.4
+    assert stack.can_undo is True
+
+    stack.undo()
+    assert project_prices(doc) == {}
+    assert stack.can_redo is True
+
+    stack.redo()
+    assert project_prices(doc)["plumbing.pipe.cold.dn16"].labour_unit_price == 1.6
+
+    set_project_price(
+        stack,
+        doc,
+        "heating.point.radiator",
+        PriceEntry(material_unit_price=120.0, labour_unit_price=35.0, source="contractor"),
+    )
+    prices = project_prices(doc)
+    assert set(prices) == {"plumbing.pipe.cold.dn16", "heating.point.radiator"}
 
 
 def test_legacy_description_migration_only_maps_unambiguous_items():
