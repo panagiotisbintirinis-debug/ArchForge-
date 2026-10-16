@@ -1,6 +1,6 @@
 """One project price book shared by every ArchForge trade.
 
-The authoritative project model already supports a ``price_list`` entity.  This
+The authoritative project model already supports a ``price_list`` entity. This
 module defines the commercial contract stored in that entity without adding any
 market/default prices:
 
@@ -12,7 +12,8 @@ market/default prices:
     }
 
 Plumbing, heating, electrical and later trades must resolve prices through this
-same code-keyed mapping.  Missing prices remain missing.
+same code-keyed mapping. Missing prices remain missing. Mutations go through the
+normal CommandStack so undo/redo and save/load remain authoritative.
 """
 from __future__ import annotations
 
@@ -63,7 +64,7 @@ def price_entry_from_dict(raw: Mapping, default_currency="EUR") -> PriceEntry:
 def project_prices(doc) -> dict[str, PriceEntry]:
     """Read the one project price book as code -> PriceEntry.
 
-    No line is synthesized for missing codes.  A missing project price list
+    No line is synthesized for missing codes. A missing project price list
     simply returns an empty mapping, which keeps all quote rows visibly unpriced.
     """
     entity = project_price_list(doc)
@@ -98,11 +99,7 @@ def serialize_prices(prices: Mapping[str, PriceEntry]) -> dict[str, dict]:
 
 
 def price_list_params(prices: Mapping[str, PriceEntry], vat=0.0, currency="EUR") -> dict:
-    """Build validated params for creating/updating the project's price_list.
-
-    This function only prepares data; callers must use the normal CommandStack
-    when they actually create/update the entity so undo/save/load remain honest.
-    """
+    """Build validated params for creating/updating the project's price_list."""
     vat = float(vat)
     if vat < 0:
         raise ValueError("vat must be >= 0")
@@ -111,6 +108,64 @@ def price_list_params(prices: Mapping[str, PriceEntry], vat=0.0, currency="EUR")
         "currency": str(currency or "EUR"),
         "entries": serialize_prices(prices),
     }
+
+
+def set_project_prices(stack, doc, prices: Mapping[str, PriceEntry], *, vat=None, currency=None):
+    """Create/update the single project price list through CommandStack.
+
+    The first edit creates one ``price_list`` entity. Later edits update that
+    same entity, so there is never a hidden second price source. Returns its id.
+    """
+    from archforge.core.commands import AddEntity, UpdateEntity
+    from archforge.core.model import Entity
+
+    existing = project_price_list(doc)
+    if existing is None:
+        params = price_list_params(
+            prices,
+            vat=0.0 if vat is None else vat,
+            currency="EUR" if currency is None else currency,
+        )
+        entity = Entity("price_list", params, name="Project prices")
+        stack.execute(AddEntity(entity))
+        return entity.id
+
+    current_vat = float(existing.params.get("vat", 0.0))
+    current_currency = str(existing.params.get("currency", "EUR") or "EUR")
+    params = price_list_params(
+        prices,
+        vat=current_vat if vat is None else vat,
+        currency=current_currency if currency is None else currency,
+    )
+    stack.execute(UpdateEntity(existing.id, params))
+    return existing.id
+
+
+def set_project_price(stack, doc, code: str, price: PriceEntry, *, vat=None):
+    """Set one code-keyed project price, preserving all other project entries."""
+    code = str(code)
+    if not code:
+        raise ValueError("price-book code must not be empty")
+    prices = project_prices(doc)
+    prices[code] = price
+    existing = project_price_list(doc)
+    currency = (
+        str(existing.params.get("currency", "EUR") or "EUR")
+        if existing is not None
+        else str(price.currency or "EUR")
+    )
+    return set_project_prices(stack, doc, prices, vat=vat, currency=currency)
+
+
+def remove_project_price(stack, doc, code: str):
+    """Remove one price entry through CommandStack; missing codes are a no-op."""
+    code = str(code)
+    prices = project_prices(doc)
+    if code not in prices:
+        return False
+    prices.pop(code)
+    set_project_prices(stack, doc, prices)
+    return True
 
 
 def migrate_description_prices(
@@ -124,8 +179,8 @@ def migrate_description_prices(
     """Convert old description-keyed unit prices to code-keyed entries.
 
     Migration is conservative: a legacy description is used only when exactly
-    one current item code has that description.  Ambiguous descriptions are
-    skipped rather than guessed.  ``component`` selects whether the old price
+    one current item code has that description. Ambiguous descriptions are
+    skipped rather than guessed. ``component`` selects whether the old price
     represented material or labour.
     """
     if component not in {"material", "labour"}:
