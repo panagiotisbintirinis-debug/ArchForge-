@@ -1655,7 +1655,9 @@ class MainWindow(QMainWindow):
     def _start_structural_preset(self, tool, preset):
         self.plan_view.controller.structural_preset = dict(preset)
         self._set_active_tool(tool)
-        self.statusBar().showMessage('Διατομή ' + ' × '.join(f"{v * 100:.0f}" for v in preset.values()) + ' cm — κλικ στην κάτοψη', 5000)
+        dims = ' × '.join(f"{v * 100:.0f}" for k, v in preset.items() if k in ('width', 'depth', 'height'))
+        what = 'Τοιχίο' if preset.get('wall') else 'Διατομή'
+        self.statusBar().showMessage(f'{what} {dims} cm — κλικ στην κάτοψη (πάνω σε τοίχο: ακολουθεί τη διεύθυνσή του)', 5000)
 
     def _apply_material_to_selection(self, material_id):
         if not material_id or len(self.doc.selection) != 1:
@@ -3583,7 +3585,8 @@ class MainWindow(QMainWindow):
                                          ('finishes', 'Επικαλύψεις δαπέδων (kN/m²)', 0.0, 5.0, 0.1),
                                          ('partitions', 'Διαχωριστικά (kN/m²)', 0.0, 3.0, 0.1),
                                          ('roof_finishes', 'Επικαλύψεις δώματος (kN/m²)', 0.0, 5.0, 0.1),
-                                         ('soil_pressure', 'Επιτρεπόμενη τάση εδάφους (kPa)', 50.0, 600.0, 10.0)):
+                                         ('soil_pressure', 'Επιτρεπόμενη τάση εδάφους (kPa)', 50.0, 600.0, 10.0),
+                                         ('behaviour_factor', 'Συντελεστής συμπεριφοράς q (0 = αυτόματα)', 0.0, 8.0, 0.1)):
             spin = QDoubleSpinBox(dialog)
             spin.setRange(lo, hi)
             spin.setSingleStep(step)

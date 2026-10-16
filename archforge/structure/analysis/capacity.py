@@ -57,6 +57,7 @@ def _column_mrd(entry, member, rows, at, axis, cls):
 def joint_checks(model, members, designs, settings):
     cls = settings["concrete"]
     cols = [m for m in model.members.values() if m.kind == "column" and m.material == "rc"]
+    walled = {n for m in cols if m.wall for k in m.elements for n in (model.elements[k].n1, model.elements[k].n2)}
     beams = [m for m in model.members.values() if m.kind == "beam" and m.material == "rc"]
     col_at, beam_at = {}, {}
     for m in cols:
@@ -77,7 +78,7 @@ def joint_checks(model, members, designs, settings):
                 beam_at.setdefault((n, axis), []).append((m, side))
     out = []
     for n in sorted(col_at):
-        if n in model.supports:
+        if n in model.supports or n in walled:      # the rule is for frame joints, not for walls
             continue
         for axis in ("X", "Y"):
             framing = beam_at.get((n, axis), [])

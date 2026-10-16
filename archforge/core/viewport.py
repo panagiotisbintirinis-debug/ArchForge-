@@ -164,7 +164,7 @@ class PointerController:
                 self.active=StructuralColumnPlaceTransaction(
                     self.doc,self.stack,x,y,
                     z=active_z,
-                    **{k:v for k,v in getattr(self,'structural_preset',{}).items() if k in ('width','depth','construction','section','role')},
+                    **{k:v for k,v in getattr(self,'structural_preset',{}).items() if k in ('width','depth','construction','section','role','wall')},
                     base_level=level_name,
                     grid=(self.grid if geometry_snap_enabled else None),
                     snap_tol=self.snap_tolerance,

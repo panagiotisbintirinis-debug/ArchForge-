@@ -103,6 +103,8 @@ def _project_panel(window):
              ("Κολόνα 30×30 (οπλ. σκυρόδεμα)","structural_column",dict(width=.30,depth=.30)),
              ("Κολόνα 40×40 (οπλ. σκυρόδεμα)","structural_column",dict(width=.40,depth=.40)),
              ("Κολόνα 25×50 (τοιχίο)","structural_column",dict(width=.50,depth=.25)),
+             ("Τοιχίο Ο/Σ 25×150","structural_column",dict(width=1.50,depth=.25,wall=True)),
+             ("Τοιχίο Ο/Σ 25×200","structural_column",dict(width=2.00,depth=.25,wall=True)),
              ("Δοκός 20×30","structural_beam",dict(width=.20,height=.30)),
              ("Δοκός 25×50","structural_beam",dict(width=.25,height=.50)),
              ("Δοκός 30×60","structural_beam",dict(width=.30,height=.60))]

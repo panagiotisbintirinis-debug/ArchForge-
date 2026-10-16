@@ -242,6 +242,7 @@ def analyze(doc):
     for m in model.members.values():
         rows = designs[m.id]
         entry = {"id": m.id, "name": m.name, "kind": m.kind, "material": m.material, "length_m": round(m.length, 2),
+                 **({"wall": True} if m.wall else {}),
                  "b": m.b, "h": m.h, "combos": combo_table(rows), "diagram": envelope(rows)}
         source = doc.entities.get(m.id)
         rebar = (source.params.get("rebar") if source is not None else None) or None
@@ -276,11 +277,11 @@ def analyze(doc):
             entry.update({"N_max": round(max(a[0] for a in acts), 1), "V": round(V, 1)})
             entry["inputs"] = {"L": m.length, "actions": acts, "V": V, "seismic": seis}
             if m.material == "rc":
-                d = design_column(m.b, m.h, m.length, acts, V, settings, seis, rebar=rebar)
+                d = design_column(m.b, m.h, m.length, acts, V, settings, seis, rebar=rebar, wall=m.wall)
                 entry.update(d)
                 entry["section"] = f"{m.b * 100:.0f}/{m.h * 100:.0f}"
                 if not d["ok"]:
-                    size = _resize_rc(m, settings, lambda b, h: design_column(b, h, m.length, acts, V, settings, seis), "column",
+                    size = _resize_rc(m, settings, lambda b, h: design_column(b, h, m.length, acts, V, settings, seis, wall=m.wall), "column",
                                       wall_axis(doc, m))
                     if size:
                         entry["proposal"] = {"width": size[0], "depth": size[1]}

@@ -814,9 +814,10 @@ class StructuralColumnPlaceTransaction:
         self,doc,stack,x,y,*,z,height=None,width=.25,depth=.25,rotation=0.0,
         role='structural',construction='reinforced_concrete',section='rectangular',
         base_level='Ground',top_level='Unassigned',grid=.10,snap_tol=.10,snap_enabled=True,
-        follow_walls=False,
+        follow_walls=False,wall=False,
     ):
         self.doc,self.stack=doc,stack
+        self.wall=bool(wall)                 # RC shear wall (τοιχίο): same entity, analysed as a wall
         # height=None or follow_walls: the column follows the walls it stands on (structure.column_height).
         self.auto_height=height is None or bool(follow_walls)
         self.z=float(z);self.height=2.70 if height is None else float(height);self.width=float(width);self.depth=float(depth)
@@ -852,6 +853,7 @@ class StructuralColumnPlaceTransaction:
             'width':self.width,'depth':self.depth,'height':self.height,
             'rotation':self.rotation,'role':self.role,'construction':self.construction,
             'section':self.section,'base_level':self.base_level,'top_level':self.top_level,
+            **({'wall':True} if self.wall else {}),
         }
         return HUD({'x':self.x,'y':self.y,'z':self.z,'height':self.height,'width':self.width,'depth':self.depth})
 

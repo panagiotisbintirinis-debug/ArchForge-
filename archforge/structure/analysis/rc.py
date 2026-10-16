@@ -256,23 +256,33 @@ def _column_util(b, h, nb, nh, d, worst, cls, stop=1.0):
     return util
 
 
-def design_column(b, h, L, actions, V, settings, seismic_actions=(), rebar=None):
+WALL_NOTE = ("Τοιχίο: ελέγχεται μόνο η αντοχή N–M και η διάτμηση με την ίδια μέθοδο των υποστυλωμάτων· η "
+             "διαστασιολόγηση τοιχίου κατά EN 1998-1 (κρίσιμο ύψος, ακραία στοιχεία, κορμός, ελάχιστα ποσοστά, "
+             "ικανοτική τέμνουσα) δεν γίνεται — για τη μελέτη")
+
+
+def design_column(b, h, L, actions, V, settings, seismic_actions=(), rebar=None, wall=False):
     """actions: [(N compression +, My, Mz)] for every combination and end.
 
     ``rebar`` (optional): {"d", "nb", "nh"} bars per face and/or {"stirrups": {"d", "s", "s_crit"}}
-    — the given reinforcement is checked instead of chosen."""
+    — the given reinforcement is checked instead of chosen.
+    ``wall``: an RC shear wall (b its length, h its thickness): the column-only DCM rules
+    (min 25 cm, νd ≤ 0,65, ρ ≥ 1 %, bars ≤ 20 cm) are not applied; ``WALL_NOTE`` says what is not checked."""
     rebar = rebar or {}
     cls = settings["concrete"]
     fck, _fctm, _E = CONCRETE[cls]
     f_cd, f_yd = fcd(cls), fyd()
     Ac = b * h
     out = {"b": b, "h": h, "checks": [], "ok": True}
-    if min(b, h) < 0.25:
+    if wall:
+        out["wall"] = True
+        out["notes"] = [WALL_NOTE]
+    if min(b, h) < 0.25 and not wall:
         out["checks"].append("Ελάχιστη διάσταση < 25 cm (EN 1998-1 / συνήθης πρακτική)")
         out["ok"] = False
     nu_d = max((N for N, _y, _z in seismic_actions), default=0.0) / (Ac * f_cd * 1000)
     out["nu_d"] = round(nu_d, 2)
-    if nu_d > 0.65:
+    if nu_d > 0.65 and not wall:
         out["ok"] = False
         out["checks"].append(f"νd = {nu_d:.2f} > 0,65 (EN 1998-1 ΚΠΜ) — μεγαλύτερη διατομή")
     # Design moments with minimum eccentricity and slenderness.
@@ -307,11 +317,11 @@ def design_column(b, h, L, actions, V, settings, seismic_actions=(), rebar=None)
         if nb < 2 or nh < 2 or min(gb, gh) - d / 1000 < max(d / 1000, 0.02) - 1e-9:
             out["ok"] = False
             out["checks"].append(f"Οι ράβδοι Ø{d} ({nb}×{nh} ανά πλευρά) δεν χωρούν — λιγότερες ή λεπτότερες")
-        if max(gb, gh) > 0.20 + 1e-9:
+        if max(gb, gh) > 0.20 + 1e-9 and not wall:
             out["ok"] = False
             out["checks"].append(f"Απόσταση ράβδων {max(gb, gh) * 100:.0f} > 20 cm (EN 1998-1 §5.4.3.2.2) — ενδιάμεσες ράβδοι")
         rho = As / Ac
-        if rho < 0.01 - 1e-9 or rho > 0.04 + 1e-9:
+        if (rho < 0.01 - 1e-9 and not wall) or rho > 0.04 + 1e-9:
             out["ok"] = False
             out["checks"].append(f"ρ = {rho * 100:.2f} % εκτός 1–4 % (EN 1998-1 ΚΠΜ)")
         util = _column_util(b, h, nb, nh, d, worst, cls, stop=math.inf) if nb >= 2 and nh >= 2 else 9.99
@@ -321,7 +331,7 @@ def design_column(b, h, L, actions, V, settings, seismic_actions=(), rebar=None)
         chosen = (nb, nh, d, As, util) if nb >= 2 and nh >= 2 else None
     else:
         candidates = []
-        for d in BARS[1:]:
+        for d in (BARS[1:] if not wall else ()):
             c = COVER + d / 2000
             for nb in range(3, 10):          # up to 9 bars a side: wall-like columns to ~1,7 m
                 for nh in range(3, 10):
@@ -331,6 +341,18 @@ def design_column(b, h, L, actions, V, settings, seismic_actions=(), rebar=None)
                     As = (2 * nb + 2 * nh - 4) * bar_area(d)
                     if 0.01 <= As / Ac <= 0.04:
                         candidates.append((As, nb + nh, nb, nh, d))
+        if wall:
+            # Bars along both long faces (and the short ends), clear spacing ≥ max(Ø, 20 mm), ρ ≤ 4 %.
+            for d in BARS[1:]:
+                c = COVER + d / 2000
+                for nb in range(2, 41):
+                    for nh in range(2, 5):
+                        gb, gh = (b - 2 * c) / (nb - 1), (h - 2 * c) / (nh - 1)
+                        if min(gb, gh) - d / 1000 < max(d / 1000, 0.02):
+                            continue
+                        As = (2 * nb + 2 * nh - 4) * bar_area(d)
+                        if As / Ac <= 0.04:
+                            candidates.append((As, nb + nh, nb, nh, d))
         chosen = None
         for As, _n, nb, nh, d in sorted(candidates):
             util = _column_util(b, h, nb, nh, d, worst, cls)
@@ -374,7 +396,7 @@ def design_column(b, h, L, actions, V, settings, seismic_actions=(), rebar=None)
         out["checks"].append(f"Διάτμηση: V = {V:.0f} > VRd,s = {out['VRd_s']:.0f} kN — πυκνότεροι συνδετήρες")
     out["stirrups"] = {"d": dw, "s": s_gen, "s_crit": s_crit, "l_crit": round(max(max(b, h), L / 6, 0.45), 2),
                        **({"given": True} if sw else {})}
-    utils = [util, nu_d / 0.65 if seismic_actions else 0.0]
+    utils = [util, nu_d / 0.65 if seismic_actions and not wall else 0.0]
     if V > 0:
         utils.append(V / out["VRd_s"])
     out["utilisation"] = round(max(utils), 2)
