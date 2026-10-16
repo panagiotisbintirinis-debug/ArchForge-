@@ -22,6 +22,9 @@ from typing import Iterable, Mapping
 from archforge.mep.trade_costing import PriceEntry, QuantityLine
 
 
+_UNSET = object()
+
+
 def price_list_entities(doc):
     """Return project price-list entities without creating or mutating anything."""
     return [entity for entity in doc.entities.values() if entity.kind == "price_list"]
@@ -157,6 +160,44 @@ def set_project_price(stack, doc, code: str, price: PriceEntry, *, vat=None):
     return set_project_prices(stack, doc, prices, vat=vat, currency=currency)
 
 
+def update_project_price(
+    stack,
+    doc,
+    code: str,
+    *,
+    material_unit_price=_UNSET,
+    labour_unit_price=_UNSET,
+    currency=_UNSET,
+    source=_UNSET,
+):
+    """Edit selected fields of one price-book row without overwriting others.
+
+    This is the safe backend for future spreadsheet-cell editing.  Passing
+    ``None`` explicitly clears a component price; omitting a parameter preserves
+    the existing value.
+    """
+    code = str(code)
+    if not code:
+        raise ValueError("price-book code must not be empty")
+    prices = project_prices(doc)
+    old = prices.get(code, PriceEntry())
+    new = PriceEntry(
+        material_unit_price=(
+            old.material_unit_price
+            if material_unit_price is _UNSET
+            else _optional_non_negative(material_unit_price, "material_unit_price")
+        ),
+        labour_unit_price=(
+            old.labour_unit_price
+            if labour_unit_price is _UNSET
+            else _optional_non_negative(labour_unit_price, "labour_unit_price")
+        ),
+        currency=old.currency if currency is _UNSET else str(currency or "EUR"),
+        source=old.source if source is _UNSET else str(source or "user"),
+    )
+    return set_project_price(stack, doc, code, new)
+
+
 def remove_project_price(stack, doc, code: str):
     """Remove one price entry through CommandStack; missing codes are a no-op."""
     code = str(code)
@@ -166,6 +207,34 @@ def remove_project_price(stack, doc, code: str):
     prices.pop(code)
     set_project_prices(stack, doc, prices)
     return True
+
+
+def price_book_audit(quantities: Iterable[QuantityLine], prices: Mapping[str, PriceEntry]) -> dict:
+    """Compare current model requirements with the project price book.
+
+    This flags missing, partial and unused price entries without inventing a
+    replacement.  It is useful both for the professional spreadsheet and for a
+    pre-offer completeness check.
+    """
+    quantities = list(quantities)
+    required = {str(q.code) for q in quantities}
+    available = {str(code) for code in prices}
+    missing = sorted(required - available)
+    unused = sorted(available - required)
+    partial = sorted(
+        code
+        for code in required & available
+        if prices[code].material_unit_price is None or prices[code].labour_unit_price is None
+    )
+    currencies = sorted({str(prices[code].currency or "EUR") for code in required & available})
+    return {
+        "required_codes": sorted(required),
+        "missing_codes": missing,
+        "partial_codes": partial,
+        "unused_codes": unused,
+        "currencies": currencies,
+        "complete": not missing and not partial and len(currencies) <= 1,
+    }
 
 
 def migrate_description_prices(
