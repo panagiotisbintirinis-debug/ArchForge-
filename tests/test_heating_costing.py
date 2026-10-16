@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 from archforge.mep.heating import heating_quantities, heating_quote, heating_review
+from archforge.mep.heating_rules import ENGINEER_REVIEW, VERIFIED_STANDARD
 from archforge.mep.trade_costing import PriceEntry
 
 
@@ -41,6 +42,9 @@ def test_heating_never_invents_pipe_length_or_diameter():
         "pump_selection": False,
         "hydraulic_balancing": False,
     }
+    assert review["verified_automatic_sizing"] is False
+    assert VERIFIED_STANDARD in review["rule_audit"]
+    assert ENGINEER_REVIEW in review["rule_audit"]
 
 
 def test_explicit_heating_pipe_length_is_counted_without_sizing_claim():
