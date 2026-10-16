@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import math
+from pathlib import Path
 from math import atan2, degrees
 
 from PySide6.QtCore import Qt, QUrl, Signal, Slot, QObject
@@ -12,13 +14,158 @@ from archforge.geometry.sculpt import SculptedPreviewBackend
 from archforge.geometry.selection import BrushSpec, SurfaceHit
 from archforge.geometry.sculpt_transaction import SculptTransaction
 from archforge.core.interaction import OpeningPlaceTransaction, StairPlaceTransaction, RampPlaceTransaction, MoveTransaction, RotateTransaction, StructuralColumnPlaceTransaction, StructuralBeamDrawTransaction
+from archforge.architecture.openings import host_level as _host_level
 from archforge.rendering.scene import build_pbr_scene_payload
 from archforge.ui.object_context_menu import object_context_actions
+from archforge.ui import wall_edit_3d
+from archforge.ui.wall_edit_3d_js import wall_edit_3d_js
+
+# Camera presets as the status bar names them.
+CAMERA_LABELS = {"orbit": "3D προοπτική", "top": "πάνω", "front": "πρόσοψη", "side": "πλάγια", "iso30": "αξονομετρική",
+                 "eye": "περιήγηση", "dollhouse": "κουκλόσπιτο", "ortho": "ορθογραφική", "cutaway": "τομή"}
+
+STRUCTURAL_VIEW_KINDS = frozenset({
+    "structural_column", "structural_beam",
+    "floor", "room_floor", "room_foundation", "foundation",
+})
+
+
+def _wall_cover(walls, ax, ay, bx, by, width):
+    """Share of the segment a→b lying inside walls at least ``width`` thick (on their axis)."""
+    import math
+    L = math.hypot(bx - ax, by - ay)
+    if L < 1e-9:
+        return 0.0
+    ux, uy = (bx - ax) / L, (by - ay) / L
+    covered = 0.0
+    for w in walls:
+        p = w.params
+        wx1, wy1, wx2, wy2 = (float(p[k]) for k in ("x1", "y1", "x2", "y2"))
+        t = float(p.get("thickness", .2))
+        if width > t + 0.02:
+            continue
+        # both ends of the member's axis within the wall's thickness of the wall line
+        wl = math.hypot(wx2 - wx1, wy2 - wy1) or 1.0
+        nx, ny = -(wy2 - wy1) / wl, (wx2 - wx1) / wl
+        if abs((ax - wx1) * nx + (ay - wy1) * ny) > t / 2 + .02 or abs((bx - wx1) * nx + (by - wy1) * ny) > t / 2 + .02:
+            continue
+        s0 = (wx1 - ax) * ux + (wy1 - ay) * uy; s1 = (wx2 - ax) * ux + (wy2 - ay) * uy
+        covered += max(0.0, min(max(s0, s1), L) - max(min(s0, s1), 0.0))
+    return min(1.0, covered / L)
+
+
+def members_hidden_in_walls(doc):
+    """Structural columns and beams that sit inside walls (as built: plastered over) — not drawn in the 3D
+    scene; the Structural view and the plan still show them. A column thicker than its wall, or a beam
+    that spans where there is no wall under it, stays visible."""
+    walls = [e for e in doc.entities.values() if e.kind == "wall"]
+    hidden = set()
+    for e in doc.entities.values():
+        p = e.params
+        if e.kind not in ("structural_column", "structural_beam") or p.get("role", "structural") != "structural":
+            continue
+        if e.kind == "structural_column":
+            z = float(p.get("z", 0.0))
+            here = [w for w in walls if abs(float(w.params.get("z", 0.0)) - z) < .05]
+            x, y = float(p["x"]), float(p["y"])
+            for w in here:
+                q = w.params
+                vertical = abs(float(q["x2"]) - float(q["x1"])) < abs(float(q["y2"]) - float(q["y1"]))
+                across = float(p.get("width", .3)) if vertical else float(p.get("depth", .3))
+                along = float(p.get("depth", .3)) if vertical else float(p.get("width", .3))
+                ax, ay = (x, y - along / 2) if vertical else (x - along / 2, y)
+                bx, by = (x, y + along / 2) if vertical else (x + along / 2, y)
+                if _wall_cover([w], ax, ay, bx, by, across) > .99:
+                    hidden.add(e.id)
+                    break
+        else:
+            bottom = float(p.get("z", 0.0))
+            under = [w for w in walls if abs(float(w.params.get("z", 0.0)) + float(w.params.get("height", 0.0)) - bottom) < .6]
+            if _wall_cover(under, float(p["x1"]), float(p["y1"]), float(p["x2"]), float(p["y2"]), float(p.get("width", .25))) >= .9:
+                hidden.add(e.id)
+    return hidden
+
+
+def architectural_payload_objects(objects, doc):
+    """Objects of the 3D scene: members inside walls are left out (unless selected)."""
+    hidden = members_hidden_in_walls(doc) - set(doc.selection or ())
+    return [o for o in objects if o.get("id") not in hidden] if hidden else list(objects)
+
+
+def structural_payload_objects(objects, doc):
+    """Objects the Structural tab shows from the shared PBR scene payload.
+
+    Structural is a derived 3D view of the same authoritative model. Keep
+    load-bearing members (role 'structural') plus slabs/foundations; pergola
+    and other non-structural members stay out. Do not create a second
+    structural model or expose tessellation wireframe.
+    """
+    out = []
+    for item in objects:
+        kind = item.get("kind")
+        if kind not in STRUCTURAL_VIEW_KINDS:
+            continue
+        if kind in ("structural_column", "structural_beam"):
+            entity = doc.entities.get(item.get("id"))
+            if entity is None or entity.params.get("role", "structural") != "structural":
+                continue
+        out.append(item)
+    return out
+
+# Doll House (κουκλόσπιτο): no roof or ceiling of any kind, and nothing above the active storey.
+DOLLHOUSE_HIDDEN_KINDS = ("room_roof", "room_ceiling", "pitched_roof", "drywall_ceiling", "ceiling_joists")
+
+
+def dollhouse_cut_z(doc):
+    """Height of the Doll House cut: just above the walls of the active storey (storeys above go)."""
+    z = float(doc.work_plane.origin[2])
+    tops = [float(e.params.get("z", 0.0)) + float(e.params.get("height", 0.0)) for e in doc.entities.values()
+            if e.kind == "wall" and abs(float(e.params.get("z", 0.0)) - z) < 1e-3]
+    return (max(tops) if tops else z + 3.0) + 0.02
+
 
 try:
     from PySide6.QtWebEngineWidgets import QWebEngineView
 except ImportError:  # pragma: no cover - optional module or native runtime dependency
     QWebEngineView = None
+
+
+import re as _re
+
+# Windows draws WebGL through ANGLE → Direct3D; its HLSL compiler reports *warnings* (e.g. X4000
+# "use of potentially uninitialized variable (dyn_index_vec4_float4_int)") about the helper code
+# ANGLE generates for three.js's own shaders.  three.js forwards any non-empty program log as a
+# console warning.  These are not faults of the scene: they are kept out of the console, while
+# real shader errors and every other message still go through.
+_DRIVER_WARNING = _re.compile(r"\bwarning X\d{4}\b")
+
+
+def is_benign_console_message(message):
+    """True for a Direct3D compiler warning about generated shader code (no error in it)."""
+    text = str(message)
+    if "Program Info Log" not in text and not _DRIVER_WARNING.search(text):
+        return False
+    lowered = text.lower()
+    if "error" in lowered.replace("shadererror", ""):
+        return False
+    return bool(_DRIVER_WARNING.search(text))
+
+
+def _console_page_class():
+    from PySide6.QtWebEngineCore import QWebEnginePage
+
+    class ConsolePage(QWebEnginePage):
+        """Prints page messages like Qt does, except benign Direct3D shader warnings."""
+        suppressed = 0
+
+        def javaScriptConsoleMessage(self, level, message, line, source):
+            if is_benign_console_message(message):
+                ConsolePage.suppressed += 1
+                return
+            import sys
+            print(f"js: {message}", file=sys.stderr)
+
+    return ConsolePage
 
 
 _PBR_HTML = r"""<!doctype html>
@@ -27,7 +174,8 @@ _PBR_HTML = r"""<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #d9dee5; }
+html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #d9dee5;
+  user-select: none; -webkit-user-select: none; }
 #stage { width: 100%; height: 100%; }
 #notice { position: absolute; left: 12px; bottom: 10px; font: 12px sans-serif; color: #4b5563; pointer-events: none; }
 #markingRoot {
@@ -35,29 +183,44 @@ html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background:
   font-family: "Segoe UI", sans-serif;
 }
 #markingCenter {
-  position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px;
+  position: absolute; z-index: 2; display: none; width: 8px; height: 8px; margin: -4px 0 0 -4px;
   border-radius: 50%; background: rgba(54, 124, 186, 0.95);
   box-shadow: 0 0 0 4px rgba(255,255,255,0.72);
 }
-#radialMenu { position: absolute; width: 260px; height: 260px; transform: translate(-130px,-130px); }
+#radialMenu { position: absolute; z-index: 1; width: 260px; height: 260px; transform: translate(-130px,-130px); }
+/* One soft disc under the ring: the buttons read as one thing over the model (less noise). */
+#radialMenu:not(:empty)::before { content: ""; position: absolute; left: -16px; top: -16px; width: 292px; height: 292px;
+  border-radius: 50%; background: rgba(246,248,251,0.84); border: 1px solid rgba(195,204,216,0.85); }
 .markAction {
-  position: absolute; transform: translate(-50%,-50%); min-width: 74px; height: 34px;
-  padding: 0 12px; border: 1px solid rgba(35,45,58,0.72); border-radius: 18px;
-  background: rgba(244,247,250,0.96); color: #202935; font-size: 12px; font-weight: 600;
-  box-shadow: 0 3px 10px rgba(0,0,0,0.22); pointer-events: auto; cursor: pointer;
+  position: absolute; transform: translate(-50%,-50%); min-width: 58px; min-height: 30px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  padding: 3px 8px; border: 1px solid #c3ccd8; border-radius: 9px;
+  background: #ffffff; color: #1e2a3b; font-size: 12px; font-weight: 500; white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12); pointer-events: auto; cursor: pointer;
 }
+.markIcon { width: 20px; height: 20px; }
+.markAction.small { min-width: 30px; width: 30px; min-height: 30px; height: 30px; padding: 0; border-radius: 15px; }
+.markAction.small .markIcon { width: 18px; height: 18px; }
+.stripAction .markIcon { width: 16px; height: 16px; vertical-align: middle; margin-right: 4px; }
 .markAction:hover { background: #d9eaff; border-color: #2f75b5; }
+.markAction.checked { background: #cfe7ff; border-color: #2f75b5; }
+#markingTitle {
+  position: absolute; z-index: 2; transform: translate(-50%, -50%); padding: 3px 9px; border-radius: 9px;
+  background: rgba(32,41,53,0.88); color: #fff; font-size: 12px; font-weight: 600; white-space: nowrap;
+}
 .markAction.danger:hover { background: #ffe0e0; border-color: #b63b3b; color: #8f2020; }
 #commandStrip {
-  position: absolute; display: flex; gap: 3px; transform: translate(-50%,-100%);
-  padding: 4px; border-radius: 7px; background: rgba(46,54,66,0.94);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.28); pointer-events: auto;
+  position: absolute; display: flex; flex-wrap: wrap; gap: 3px; max-width: 460px; transform: translate(-50%,-100%);
+  padding: 4px; border-radius: 8px; background: rgba(255,255,255,0.97); border: 1px solid #c3ccd8;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.16); pointer-events: auto;
 }
+#commandStrip:empty { display: none; }
 .stripAction {
-  border: 0; border-radius: 4px; background: transparent; color: #fff;
-  padding: 6px 9px; font-size: 11px; cursor: pointer;
+  border: 1px solid transparent; border-radius: 6px; background: transparent; color: #1e2a3b;
+  padding: 5px 8px; font-size: 12px; cursor: pointer; white-space: nowrap;
 }
-.stripAction:hover { background: rgba(255,255,255,0.16); }
+.stripAction:hover { background: #e3eefc; border-color: #2f6bd6; }
+.stripAction.danger { color: #8f2020; }
 #stairHud {
   position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%);
   display: none; min-width: 300px; padding: 8px 12px; border-radius: 8px;
@@ -67,14 +230,7 @@ html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background:
 #stairHud strong { font-size: 13px; margin-right: 8px; }
 #stairHud .hint { opacity: 0.72; margin-left: 8px; }
 </style>
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
-  }
-}
-</script>
+<script>/*__ARCHFORGE_THREE_BUNDLE__*/</script>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 </head>
 <body>
@@ -83,12 +239,16 @@ html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background:
 <div id="stairHud"></div>
 <div id="markingRoot">
   <div id="markingCenter"></div>
+  <div id="markingTitle"></div>
   <div id="radialMenu"></div>
   <div id="commandStrip"></div>
 </div>
 <script type="module">
-import * as THREE from "three";
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+// three.js ships inside ArchForge (archforge/ui/vendor/three_bundle.js) so
+// the desktop 3D Scene works offline; no CDN.
+const {
+  THREE, OrbitControls, RoomEnvironment, EffectComposer, RenderPass, GTAOPass, OutputPass, Sky,
+} = window.__ARCHFORGE_THREE;
 
 const container = document.getElementById("stage");
 const scene = new THREE.Scene();
@@ -98,13 +258,16 @@ const camera = new THREE.PerspectiveCamera(48, 1, 0.02, 2000);
 camera.up.set(0, 0, 1);
 camera.position.set(8, -10, 8);
 
-const renderer = new THREE.WebGLRenderer({antialias: true, alpha: false, powerPreference: "high-performance"});
+// Logarithmic depth: no flicker (z-fighting) between touching surfaces at any distance.
+const renderer = new THREE.WebGLRenderer({antialias: true, alpha: false, powerPreference: "high-performance",
+                                          logarithmicDepthBuffer: true});
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 0.95;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.localClippingEnabled = true;
 container.appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -112,9 +275,13 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.target.set(0, 0, 1.4);
 controls.update();
+window.__archforgeSetControlsEnabled = (enabled) => {
+  controls.enabled = !!enabled;
+};
 
 const markingRoot = document.getElementById("markingRoot");
 const markingCenter = document.getElementById("markingCenter");
+const markingTitle = document.getElementById("markingTitle");
 const radialMenu = document.getElementById("radialMenu");
 const commandStrip = document.getElementById("commandStrip");
 const stairHud = document.getElementById("stairHud");
@@ -126,11 +293,65 @@ if (typeof QWebChannel !== "undefined" && typeof qt !== "undefined") {
   });
 }
 
-scene.add(new THREE.AmbientLight(0xffffff, 0.42));
+// Image-based lighting: a prefiltered (PMREM) studio environment gives
+// every PBR material real diffuse + specular ambient light and reflections,
+// so the flat ambient term can stay low.
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.25;
+const ambient = new THREE.AmbientLight(0xffffff, 0.12);
+scene.add(ambient);
+const studioEnvironment = scene.environment;
+
+/*__ARCHFORGE_LOOK__*/
+
+// Sun & sky: the look module paints an analytic sky with clouds into a cube
+// map (background + image-based light); see archforge/ui/pbr_look_js.py.
+let sunState = null;          // {elevation, azimuth} when the sky is on
+const sky = {visible: false};
+
+function sunVector(elevation, azimuth) {
+  const e = elevation * Math.PI / 180, a = azimuth * Math.PI / 180;
+  return new THREE.Vector3(Math.cos(e) * Math.sin(a), Math.cos(e) * Math.cos(a), Math.sin(e));
+}
+
+window.setSun = function(elevation, azimuth) {
+  if (elevation === null || elevation === undefined) {
+    sunState = null;
+  } else {
+    sunState = {elevation: Number(elevation), azimuth: Number(azimuth)};
+    lookPaintSky(sunState.elevation, sunVector(sunState.elevation, sunState.azimuth));
+  }
+  applySunAndSky();
+  fitSunShadow();
+};
+
+function applySunAndSky() {
+  const useSky = !!sunState && activeTechnique === "pbr";
+  const technical = activeTechnique === "technical";
+  sky.visible = useSky;
+  scene.background = useSky ? lookCubeTarget.texture : new THREE.Color(technical ? 0xf4f5f7 : 0xd9dee5);
+  scene.environment = useSky && lookSkyEnvironment ? lookSkyEnvironment : studioEnvironment;
+  scene.environmentIntensity = useSky ? 1.0 : 0.25;
+  // Distance haze into the horizon colour: the ground has no visible edge.
+  scene.fog = useSky ? new THREE.Fog(lookHorizon.clone(), 140, 1400) : null;
+  ground.visible = !technical;
+  ambient.intensity = useSky ? 0.0 : 0.12;
+  if (useSky) {
+    // Low sun: warmer and weaker; below the horizon: no direct light.
+    const h = Math.max(0.0, Math.sin(sunState.elevation * Math.PI / 180));
+    key.color.setHSL(0.09, 0.55 * (1.0 - h) + 0.12, 0.62 + 0.27 * h);
+    key.intensity = sunState.elevation <= 0 ? 0.0 : 0.5 + 3.0 * Math.pow(h, 0.6);
+    fill.intensity = 0.0;      // the sky itself is the fill light
+  } else {
+    key.color.set(0xfff4df); key.intensity = 3.2;
+    fill.intensity = 1.0;
+  }
+}
 const key = new THREE.DirectionalLight(0xfff4df, 3.2);
 key.position.set(9, -11, 15);
 key.castShadow = true;
-key.shadow.mapSize.set(2048, 2048);
+key.shadow.mapSize.set(4096, 4096);
 key.shadow.bias = -0.00035;
 key.shadow.normalBias = 0.035;
 key.shadow.camera.left = -30;
@@ -146,11 +367,10 @@ const fill = new THREE.DirectionalLight(0xbfd8ff, 1.0);
 fill.position.set(-8, 5, 9);
 scene.add(fill);
 
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(120, 120),
-  new THREE.MeshStandardMaterial({color: 0xcbd1d7, roughness: 0.96, metalness: 0.0})
-);
+// Ground to the horizon (dry soil, same material as a site terrain).
+const ground = new THREE.Mesh(lookGroundGeometry(), lookGroundMaterial);
 ground.position.z = -0.025;
+
 ground.receiveShadow = true;
 scene.add(ground);
 
@@ -166,6 +386,16 @@ let activeCameraPreset = "orbit";
 let cutawayEnabled = false;
 let activeTool = "orbit";
 let bridge = null;
+// Elevation of the active storey: Stair/Ramp may start on empty ground
+// (e.g. an external stair) where no model surface is under the pointer.
+let workPlaneZ = 0;
+window.setWorkPlaneZ = function(z) { workPlaneZ = Number(z) || 0; };
+function placementPoint(event) {
+  // Stair / Ramp start on the floor of the active storey: walls, ceilings and roofs
+  // in the way (e.g. see-through in Glass) must not catch the point.
+  const p = pointOnHorizontalPlane(event, workPlaneZ);
+  return p ? {x: Number(p.x), y: Number(p.y)} : null;
+}
 let sculpting = false;
 let sculptStartY = 0;
 let stairing = false;
@@ -182,7 +412,8 @@ function scheduleStairUpdate(point) {
     if (!stairing || !bridge || !pendingStairPoint) return;
     const point = pendingStairPoint;
     pendingStairPoint = null;
-    bridge.updateStair(Number(point.x), Number(point.y));
+    if (bridge.hoverStair) bridge.hoverStair(Number(point.x), Number(point.y));
+    else bridge.updateStair(Number(point.x), Number(point.y));
   });
 }
 
@@ -333,12 +564,29 @@ function scheduleRotateUpdate(point, event) {
   });
 }
 
+// Ground-truth ambient occlusion (contact shadows where walls meet floors,
+// columns and frames). Only in the PBR look and never in a Section (its
+// depth/normal pass does not honour clipping planes).
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const gtao = new GTAOPass(scene, camera, 1, 1);
+gtao.updateGtaoMaterial({radius: 0.6, distanceExponent: 1.0, thickness: 1.0, scale: 1.0});
+gtao.blendIntensity = 1.0;
+composer.addPass(gtao);
+composer.addPass(new OutputPass());
+let ambientOcclusion = true;
+window.setAmbientOcclusion = function(enabled) { ambientOcclusion = !!enabled; };
+function useComposer() {
+  return ambientOcclusion && activeTechnique === "pbr" && !sectionPlane && !dollhousePlane;
+}
+
 function resize() {
   const w = Math.max(1, container.clientWidth);
   const h = Math.max(1, container.clientHeight);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   renderer.setSize(w, h, false);
+  composer.setSize(w, h);
 }
 window.addEventListener("resize", resize);
 resize();
@@ -397,12 +645,12 @@ window.setStairPreview = function(payload) {
   stairHud.innerHTML =
     "<strong>" + label + "</strong>" +
     optionText +
-    " · " + String(info.risers || "") + " risers" +
-    " · rise " + Number(info.riser || 0).toFixed(3) + " m" +
-    " · tread " + Number(info.tread || 0).toFixed(3) + " m" +
-    " · landing " + Number(info.landing_z || 0).toFixed(3) + " m" +
-    " · slab " + Number(info.slab_thickness || 0).toFixed(3) + " m" +
-    "<span class='hint'>Move = adjust · Wheel = alternative · Left click = place · Right click/Esc = cancel</span>";
+    " · " + String(info.risers || "") + " ρίχτια" +
+    " · ύψος " + Number(info.riser || 0).toFixed(3) + " m" +
+    " · πάτημα " + Number(info.tread || 0).toFixed(3) + " m" +
+    " · πλατύσκαλο " + Number(info.landing_z || 0).toFixed(3) + " m" +
+    " · πλάκα " + Number(info.slab_thickness || 0).toFixed(3) + " m" +
+    "<span class='hint'>Κίνηση = μετακίνηση (μέσα από τοίχους) · Ροδέλα/Tab = τύπος · R = περιστροφή 90° · Κλικ = τοποθέτηση · Δεξί κλικ/Esc = ακύρωση</span>";
   stairHud.style.display = "block";
 };
 
@@ -446,12 +694,174 @@ window.setRampPreview = function(payload) {
     " · slope " + Number(info.slope_pct || 0).toFixed(1) + "%" +
     " · run " + Number(info.run_length || 0).toFixed(2) + " m" +
     " · rise " + Number(info.rise || 0).toFixed(2) + " m" +
-    "<span class='hint'>Move = direction/space · Wheel = slope · Left click = place · Right click/Esc = cancel</span>";
+    "<span class='hint'>Κίνηση = κατεύθυνση/χώρος · Ροδέλα = κλίση · Κλικ = τοποθέτηση · Δεξί κλικ/Esc = ακύρωση</span>";
   stairHud.style.display = "block";
 };
 
+// Stone / tile patterns (archforge/rendering/patterns.py): Python sends one
+// repeating period in metres per pattern_key; here it becomes a canvas texture
+// (+ bump map), built once and shared, repeated at real size through the
+// metric UVs of withMetricUVs().
+const patternGeo = {};
+const patternTextures = new Map();
+
+function patternRandom(seed) {          // mulberry32: deterministic speckle
+  let a = seed >>> 0;
+  return function() {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function patternShade(hex, f) {
+  const h = String(hex || "#808080").replace("#", "");
+  const ch = (i) => Math.max(0, Math.min(255, Math.round(parseInt(h.substr(i, 2), 16) * (1 + f))));
+  return "rgb(" + ch(0) + "," + ch(2) + "," + ch(4) + ")";
+}
+
+function patternPaint(ctx, g, sx, sy, H, bump) {
+  const path = (pts, dx, dy) => {
+    ctx.beginPath();
+    pts.forEach((p, i) => {
+      const x = p[0] * sx + dx, y = H - p[1] * sy + dy;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+  };
+  ctx.fillStyle = bump ? "#000000" : g.joint_color;
+  ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  // Stones stand out of the mortar: a soft shadow down-right of each one.
+  const shadow = g.relief >= 0.5 ? Math.max(1, g.relief * g.joint * 0.45 * sx) : 0;
+  for (const cell of g.cells) {
+    if (bump) {
+      path(cell.pts, 0, 0);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+      continue;
+    }
+    if (shadow) {
+      path(cell.pts, shadow, shadow);
+      ctx.fillStyle = patternShade(g.joint_color, -0.45);
+      ctx.fill();
+    }
+    path(cell.pts, 0, 0);
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const p of cell.pts) {
+      x0 = Math.min(x0, p[0] * sx); x1 = Math.max(x1, p[0] * sx);
+      y0 = Math.min(y0, H - p[1] * sy); y1 = Math.max(y1, H - p[1] * sy);
+    }
+    const k = 0.10 * g.relief;
+    const grad = ctx.createLinearGradient(x0, y0, x1, y1);
+    grad.addColorStop(0, patternShade(cell.color, k));
+    grad.addColorStop(1, patternShade(cell.color, -k));
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+  if (!bump) {
+    ctx.lineCap = "round";
+    for (const line of g.lines) {
+      ctx.beginPath();
+      line.pts.forEach((p, i) => {
+        const x = p[0] * sx, y = H - p[1] * sy;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.strokeStyle = line.color;
+      ctx.lineWidth = Math.max(0.8, line.width * sx);
+      ctx.globalAlpha = 0.75;
+      ctx.stroke();
+      ctx.globalAlpha = 1.0;
+    }
+  }
+}
+
+function patternTexturesFor(key) {
+  if (patternTextures.has(key)) return patternTextures.get(key);
+  const g = patternGeo[key];
+  if (!g || !g.cells) return null;
+  // About 1024 px per period, at most ~1000 px per metre; power-of-two sides
+  // so every mip level halves evenly (no shimmer on small mosaics far away).
+  const ppm = Math.min(1000, 1024 / Math.max(g.width, g.height));
+  const pot = (v) => Math.min(1024, Math.max(16, Math.pow(2, Math.round(Math.log2(Math.max(1, v))))));
+  const W = pot(g.width * ppm), H = pot(g.height * ppm);
+  const sx = W / g.width, sy = H / g.height;
+  const colorCanvas = document.createElement("canvas");
+  colorCanvas.width = W; colorCanvas.height = H;
+  const ctx = colorCanvas.getContext("2d");
+  patternPaint(ctx, g, sx, sy, H, false);
+  if (g.noise > 0) {
+    // Fine grain so stone and tile do not look like plastic.
+    let seed = 0;
+    for (let i = 0; i < key.length; i++) seed = (seed * 31 + key.charCodeAt(i)) >>> 0;
+    const rnd = patternRandom(seed);
+    const img = ctx.getImageData(0, 0, W, H);
+    const d = img.data, amp = g.noise * 255;
+    for (let i = 0; i < d.length; i += 4) {
+      const n = (rnd() - 0.5) * 2 * amp;
+      d[i] += n; d[i + 1] += n; d[i + 2] += n;
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+  const sharp = document.createElement("canvas");
+  sharp.width = W; sharp.height = H;
+  patternPaint(sharp.getContext("2d"), g, sx, sy, H, true);
+  const bumpCanvas = document.createElement("canvas");
+  bumpCanvas.width = W; bumpCanvas.height = H;
+  const bctx = bumpCanvas.getContext("2d");
+  // Rounded arrises: the blurred step reads as a bevel in the bump map.
+  bctx.filter = "blur(" + Math.max(1, g.joint * sx * (g.relief >= 0.5 ? 0.6 : 0.35)).toFixed(1) + "px)";
+  bctx.drawImage(sharp, 0, 0);
+  const aniso = renderer.capabilities.getMaxAnisotropy();
+  const make = (canvas, srgb) => {
+    const t = new THREE.CanvasTexture(canvas);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(1 / g.width, 1 / g.height);   // UVs are metres: one period = width x height m
+    t.anisotropy = aniso;
+    if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+    t.needsUpdate = true;
+    return t;
+  };
+  const out = {map: make(colorCanvas, true), bump: make(bumpCanvas, false), relief: g.relief};
+  patternTextures.set(key, out);
+  return out;
+}
+
+// Metric UVs for patterned meshes: u, v in metres on every face.  Vertical
+// faces run u along the face (any wall angle) and v up; flat faces use plan
+// x, y; sloped faces run v up the slope.  Per triangle, so corners do not
+// smear; triangle order is kept, so faceIndex -> surface role still holds.
+function withMetricUVs(geometry) {
+  const g = geometry.index ? geometry.toNonIndexed() : geometry;
+  if (g !== geometry) geometry.dispose();
+  const pos = g.attributes.position;
+  const uv = new Float32Array(pos.count * 2);
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  const n = new THREE.Vector3(), t = new THREE.Vector3(), bt = new THREE.Vector3();
+  const e1 = new THREE.Vector3(), e2 = new THREE.Vector3();
+  for (let i = 0; i + 2 < pos.count; i += 3) {
+    a.fromBufferAttribute(pos, i); b.fromBufferAttribute(pos, i + 1); c.fromBufferAttribute(pos, i + 2);
+    n.crossVectors(e1.subVectors(b, a), e2.subVectors(c, a));
+    if (n.lengthSq() < 1e-20) n.set(0, 0, 1); else n.normalize();
+    const flat = Math.abs(n.z) > 0.9;
+    if (!flat) {
+      t.set(-n.y, n.x, 0).normalize();
+      bt.crossVectors(n, t);
+      if (bt.z < 0) { bt.negate(); t.negate(); }
+    }
+    for (let k = 0; k < 3; k++) {
+      const p = k === 0 ? a : (k === 1 ? b : c);
+      uv[(i + k) * 2] = flat ? p.x : p.dot(t);
+      uv[(i + k) * 2 + 1] = flat ? p.y : p.dot(bt);
+    }
+  }
+  g.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+  return g;
+}
+
 function materialFor(spec) {
-  return new THREE.MeshStandardMaterial({
+  const opacity = Number(spec.opacity ?? 1.0);
+  const material = new THREE.MeshStandardMaterial({
     color: new THREE.Color(spec.color || "#bdc5ce"),
     roughness: Number(spec.roughness ?? 0.65),
     metalness: Number(spec.metalness ?? 0.02),
@@ -459,12 +869,31 @@ function materialFor(spec) {
     emissiveIntensity: Number(spec.emissiveIntensity ?? 0.0),
     side: THREE.DoubleSide
   });
+  const textures = spec.pattern_key ? patternTexturesFor(spec.pattern_key) : null;
+  if (!textures && spec.grain && opacity >= 1.0) lookApplyGrain(material, spec.grain);
+  if (textures) {
+    // The canvas carries every stone's own tone; the colour only tints.
+    material.map = textures.map;
+    material.color.set(0xffffff);
+    material.bumpMap = textures.bump;
+    material.bumpScale = 1.5 * textures.relief;
+    material.userData.patterned = true;
+  }
+  // Glass: see-through but still reflects the sky/environment.
+  material.userData.baseOpacity = opacity;
+  if (opacity < 1.0) {
+    material.transparent = true;
+    material.opacity = opacity;
+    material.depthWrite = false;
+    material.envMapIntensity = 1.6;
+  }
+  return material;
 }
 
 function applyTechnique() {
   const technical = activeTechnique === "technical";
   const glass = activeTechnique === "glass";
-  scene.background.set(technical ? 0xf4f5f7 : 0xd9dee5);
+  applySunAndSky();
   renderer.shadowMap.enabled = !technical;
   modelRoot.traverse((obj) => {
     if (!obj.isMesh) return;
@@ -472,13 +901,32 @@ function applyTechnique() {
     // triangles in MeshPayload are tessellation, not design edges, so never
     // expose them as Three.js wireframe lines.
     obj.material.wireframe = false;
-    obj.material.transparent = glass;
-    obj.material.opacity = glass ? 0.34 : 1.0;
-    obj.material.depthWrite = !glass;
-    obj.castShadow = !technical && !glass;
-    obj.receiveShadow = !technical;
+    const base = Number(obj.material.userData.baseOpacity ?? 1.0);
+    const see = glass || base < 1.0;
+    obj.material.transparent = see;
+    obj.material.opacity = glass ? Math.min(base, 0.34) : base;
+    obj.material.depthWrite = !see;
+    obj.castShadow = !technical && !see;
+    // A section reads like a drawing: even light, no roof shadow inside.
+    obj.receiveShadow = !technical && !sectionPlane;
     obj.material.needsUpdate = true;
   });
+}
+
+// Lowest top of the site terrain (top = highest vertex at each x, y), else
+// just under the ground floor.
+function groundLevel(objects) {
+  let level = null;
+  for (const item of objects) {
+    if (item.kind !== "terrain") continue;
+    const top = new Map();
+    for (const v of item.vertices) {
+      const k = Math.round(v[0] * 100) + "," + Math.round(v[1] * 100);
+      top.set(k, Math.max(top.get(k) ?? -Infinity, v[2]));
+    }
+    for (const z of top.values()) level = level === null ? z : Math.min(level, z);
+  }
+  return level === null ? -0.025 : level - 0.003;
 }
 
 function sceneBounds() {
@@ -490,11 +938,145 @@ function sceneBounds() {
   return {box, center, size, radius};
 }
 
+// --- Home-Designer-style views -------------------------------------------
+// Doll House hides roofs/ceilings; Ortho uses a long telephoto lens so it
+// reads as orthographic while keeping one camera (picking/orbit unchanged);
+// a Section clips the model with a vertical plane drawn in the 2D plan.
+let hiddenKinds = new Set();
+let sectionPlane = null;
+let activeViewLine = null;
+// Doll House: every roof and ceiling goes (flat and tiled, slabs, drywall, joists) and
+// a horizontal cut just above the active storey's walls hides the storeys above it.
+const DOLLHOUSE_HIDDEN = ["room_roof", "room_ceiling", "pitched_roof", "drywall_ceiling", "ceiling_joists"];
+let dollhousePlane = null;
+function clipPlanes() {
+  const planes = [];
+  if (sectionPlane) planes.push(sectionPlane);
+  if (dollhousePlane) planes.push(dollhousePlane);
+  return planes;
+}
+window.setDollhouseCut = function(z) {
+  dollhousePlane = (z === null || z === undefined) ? null : new THREE.Plane(new THREE.Vector3(0, 0, -1), Number(z));
+  applyViewState();
+};
+
+function meshShouldShow(mesh) {
+  const kind = (mesh.userData && mesh.userData.kind) || "";
+  if (hiddenKinds.has(kind)) return false;
+  if (cutawayEnabled && kind === "room_roof") return false;
+  return true;
+}
+
+function applyViewState() {
+  modelRoot.children.forEach((mesh) => {
+    mesh.visible = meshShouldShow(mesh);
+    if (mesh.material) {
+      mesh.material.clippingPlanes = clipPlanes();
+      mesh.material.clipShadows = true;
+      mesh.material.needsUpdate = true;
+    }
+  });
+  applyTechnique();
+}
+
+function setLens(fov) {
+  camera.fov = fov;
+  camera.updateProjectionMatrix();
+}
+
+function placeIsoCamera(center, distance, elevationDeg) {
+  const elev = elevationDeg * Math.PI / 180;
+  const horizontal = distance * Math.cos(elev);
+  camera.position.set(
+    center.x + horizontal * Math.cos(Math.PI / 4),
+    center.y - horizontal * Math.sin(Math.PI / 4),
+    center.z + distance * Math.sin(elev)
+  );
+  controls.target.set(center.x, center.y, center.z);
+}
+
+function applyViewLine(line) {
+  const bounds = sceneBounds();
+  if (!bounds || !line) return;
+  const {center, radius} = bounds;
+  const dx = line.x2 - line.x1, dy = line.y2 - line.y1;
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-6) return;
+  const ux = dx / len, uy = dy / len;
+  activeViewLine = line;
+  activeCameraPreset = "line";
+  dollhousePlane = null;
+  controls.enabled = true;
+  camera.up.set(0, 0, 1);
+  setWalkMode(line.kind === "camera");
+  if (line.kind === "camera") {
+    // Interior view: stand at the drag start, look along the drag. A saved camera
+    // (core/cameras.py) also gives the eye height, the tilt and its horizontal lens.
+    sectionPlane = null;
+    hiddenKinds = new Set();
+    setLens(line.hfov ? cameraVerticalFov(Number(line.hfov)) : 60);
+    const eye = line.eye != null ? Number(line.eye) : Number(line.z || 0) + 1.6;
+    const tilt = Number(line.pitch || 0) * Math.PI / 180;
+    camera.near = 0.05;
+    camera.far = Math.max(200.0, radius * 40.0);
+    const to = new THREE.Vector3(line.x1 + ux * 2.0 * Math.cos(tilt), line.y1 + uy * 2.0 * Math.cos(tilt), eye + 2.0 * Math.sin(tilt));
+    if (line.smooth && window.afFlyCamera) { window.afFlyCamera(new THREE.Vector3(line.x1, line.y1, eye), to); applyViewState(); return; }
+    camera.position.set(line.x1, line.y1, eye);
+    controls.target.copy(to);
+  } else {
+    // Section: keep what lies ahead of the drag start, look along the drag.
+    sectionPlane = new THREE.Plane(new THREE.Vector3(ux, uy, 0), -(ux * line.x1 + uy * line.y1));
+    hiddenKinds = new Set();
+    setLens(10);
+    const along = ux * (center.x - line.x1) + uy * (center.y - line.y1);
+    const tx = center.x - ux * along, ty = center.y - uy * along;
+    const distance = radius / Math.tan((10 * Math.PI / 180) / 2) * 0.75;
+    // Generous depth range: orbiting a section must not clip the building.
+    camera.near = Math.max(0.05, distance * 0.02);
+    camera.far = distance + radius * 40.0;
+    camera.position.set(tx - ux * distance, ty - uy * distance, center.z);
+    controls.target.set(tx, ty, center.z);
+  }
+  camera.updateProjectionMatrix();
+  camera.lookAt(controls.target);
+  controls.update();
+  applyViewState();
+}
+
+window.setViewLine = function(line) {
+  applyViewLine(line);
+};
+
+// Mouse wheel in a Section moves the cut forward/back along the view; the
+// camera stays put so the cut can be scanned through the building.
+function moveSection(step) {
+  if (!activeViewLine || activeViewLine.kind !== "section") return false;
+  const dx = activeViewLine.x2 - activeViewLine.x1, dy = activeViewLine.y2 - activeViewLine.y1;
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-6) return false;
+  const ux = dx / len, uy = dy / len;
+  activeViewLine.x1 += ux * step; activeViewLine.y1 += uy * step;
+  activeViewLine.x2 += ux * step; activeViewLine.y2 += uy * step;
+  activeViewLine.offset = (activeViewLine.offset || 0) + step;
+  sectionPlane = new THREE.Plane(new THREE.Vector3(ux, uy, 0), -(ux * activeViewLine.x1 + uy * activeViewLine.y1));
+  applyViewState();
+  if (bridge && bridge.reportStatus) {
+    bridge.reportStatus("Τομή: μετατόπιση " + activeViewLine.offset.toFixed(2) + " m (ρόδα = μπρος/πίσω)");
+  }
+  return true;
+}
+
 function setCameraPreset(mode) {
   const bounds = sceneBounds();
   if (!bounds) return;
   const {center, radius} = bounds;
   activeCameraPreset = mode;
+  activeViewLine = null;
+  setWalkMode(mode === "eye");
+  sectionPlane = null;
+  hiddenKinds = mode === "dollhouse" ? new Set(DOLLHOUSE_HIDDEN) : new Set();
+  if (mode !== "dollhouse") dollhousePlane = null;
+  setLens(mode === "ortho" ? 8 : 48);
   controls.enabled = true;
   camera.up.set(0, 0, 1);
   camera.near = Math.max(0.02, radius / 500.0);
@@ -522,6 +1104,13 @@ function setCameraPreset(mode) {
   } else if (mode === "eye") {
     camera.position.set(center.x, center.y - radius * 1.7, 1.7);
     controls.target.set(center.x, center.y, Math.min(center.z + 0.3, 1.7));
+  } else if (mode === "dollhouse") {
+    placeIsoCamera(center, radius * 1.9, 55);
+  } else if (mode === "ortho") {
+    const distance = radius / Math.tan((8 * Math.PI / 180) / 2) * 0.62;
+    placeIsoCamera(center, distance, 35);
+    camera.near = Math.max(0.05, distance - radius * 3.0);
+    camera.far = distance + radius * 6.0;
   } else {
     camera.position.set(center.x + radius, center.y - radius * 1.25, center.z + radius * 0.85);
     controls.target.copy(center);
@@ -529,15 +1118,102 @@ function setCameraPreset(mode) {
   camera.updateProjectionMatrix();
   camera.lookAt(controls.target);
   controls.update();
+  applyViewState();
 }
 
 function fitCamera() {
+  if (activeViewLine) { applyViewLine(activeViewLine); return; }
   setCameraPreset(activeCameraPreset || "orbit");
 }
+
+// The sun's shadow frustum hugs the model so shadows stay crisp for a small
+// house and still cover a large site.
+// Shadow frustum: the building (not the terrain) plus where its shadow falls
+// on the ground along the sun, so a low sun still draws the long shadow.
+// Fitted in light space (asymmetric), shadow length capped at 60 m.
+function fitSunShadow() {
+  const box = new THREE.Box3();
+  modelRoot.children.forEach((mesh) => {
+    if (mesh.userData.kind !== "terrain" && mesh.visible) box.expandByObject(mesh);
+  });
+  if (box.isEmpty()) return;
+  const center = box.getCenter(new THREE.Vector3());
+  const radius = Math.max(box.getSize(new THREE.Vector3()).length() * 0.55, 1.5);
+  const dir = sunState && activeTechnique === "pbr"
+    ? sunVector(Math.max(2.0, sunState.elevation), sunState.azimuth)
+    : new THREE.Vector3(9, -11, 15).normalize();
+  const gz = Math.min(ground.position.z, box.min.z);
+  const points = [];
+  for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
+    const p = new THREE.Vector3(x, y, z);
+    points.push(p);
+    const t = Math.min((z - gz) / Math.max(dir.z, 1e-3), 60.0);
+    points.push(p.clone().addScaledVector(dir, -t));
+  }
+  const reach = radius * 2.5 + 60.0;
+  key.position.copy(center).addScaledVector(dir, reach);
+  key.target.position.copy(center);
+  key.target.updateMatrixWorld();
+  // Same orientation three.js gives the shadow camera (lookAt with its own up).
+  const view = new THREE.Matrix4().lookAt(key.position, center, key.shadow.camera.up);
+  view.setPosition(key.position);
+  view.invert();
+  const lo = new THREE.Vector3(Infinity, Infinity, Infinity), hi = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
+  for (const p of points) { p.applyMatrix4(view); lo.min(p); hi.max(p); }
+  const pad = 0.5;
+  const cam = key.shadow.camera;
+  cam.left = lo.x - pad; cam.right = hi.x + pad; cam.bottom = lo.y - pad; cam.top = hi.y + pad;
+  cam.near = Math.max(0.1, -hi.z - pad); cam.far = -lo.z + pad;
+  cam.updateProjectionMatrix();
+  key.shadow.needsUpdate = true;
+}
+
+// A terrain solid shares its rim vertices between the top and the sides, so
+// averaged normals tilt the outer row of the top and draw a light/dark line
+// along the edge.  Smooth normals from the top triangles only; sides and
+// bottom stay flat.  Keeps triangle order (faceIndex -> surface role).
+function terrainNormals(geometry, roles) {
+  const index = geometry.index.array, pos = geometry.attributes.position;
+  const top = [];
+  for (let f = 0; f < roles.length; f++) if (roles[f] === "top") top.push(index[3 * f], index[3 * f + 1], index[3 * f + 2]);
+  const smooth = new THREE.BufferGeometry();
+  smooth.setAttribute("position", pos);
+  smooth.setIndex(top);
+  smooth.computeVertexNormals();
+  const sn = smooth.attributes.normal;
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
+  const flat = geometry.toNonIndexed();
+  const fn = flat.attributes.normal;
+  for (let f = 0; f < roles.length; f++) {
+    const i0 = index[3 * f], i1 = index[3 * f + 1], i2 = index[3 * f + 2];
+    if (roles[f] === "top") {
+      for (let k = 0; k < 3; k++) {
+        const v = index[3 * f + k];
+        fn.setXYZ(3 * f + k, sn.getX(v), sn.getY(v), sn.getZ(v));
+      }
+    } else {
+      a.fromBufferAttribute(pos, i0); b.fromBufferAttribute(pos, i1); c.fromBufferAttribute(pos, i2);
+      n.subVectors(c, b).cross(a.sub(b)).normalize();
+      for (let k = 0; k < 3; k++) fn.setXYZ(3 * f + k, n.x, n.y, n.z);
+    }
+  }
+  smooth.dispose();
+  // Swap the attributes in place so callers keep the same geometry object.
+  geometry.setIndex(null);
+  geometry.setAttribute("position", flat.attributes.position);
+  geometry.setAttribute("normal", fn);
+  flat.dispose();
+}
+
+let cameraMovedByHuman = false;
+controls.addEventListener("start", () => { cameraMovedByHuman = true; });
+window.__cameraMovedByHuman = () => cameraMovedByHuman;
+window.__forgetCameraMoved = () => { cameraMovedByHuman = false; };   // a new project is framed again
 
 window.archforgeSetScene = function(payload, fit = true) {
   disposeModel();
   const objects = (payload && payload.objects) || [];
+  Object.assign(patternGeo, (payload && payload.patterns) || {});
   for (const item of objects) {
     const positions = [];
     for (const v of item.vertices) positions.push(v[0], v[1], v[2]);
@@ -547,19 +1223,30 @@ window.archforgeSetScene = function(payload, fit = true) {
     geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
     geometry.setIndex(indices);
     geometry.computeVertexNormals();
-    geometry.computeBoundingSphere();
-    const mesh = new THREE.Mesh(geometry, materialFor(item.material || {}));
+    if (item.kind === "terrain" && item.surfaces) terrainNormals(geometry, item.surfaces);
+    const spec = item.material || {};
+    const geom = ((spec.pattern_key && patternGeo[spec.pattern_key]) || spec.grain) ? withMetricUVs(geometry) : geometry;
+    geom.computeBoundingSphere();
+    const mesh = new THREE.Mesh(geom, materialFor(spec));
     mesh.name = item.id || item.kind || "entity";
     mesh.userData.entityId = item.id || "";
     mesh.userData.kind = item.kind || "";
     mesh.userData.surfaceRoles = item.surfaces || [];
-    mesh.visible = !(cutawayEnabled && item.kind === "room_roof");
+    mesh.userData.renderPart = item.render_part || "";
+    mesh.visible = meshShouldShow(mesh);
+    mesh.material.clippingPlanes = clipPlanes();
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     modelRoot.add(mesh);
   }
+  // The ground to the horizon meets a site terrain at its lowest top edge.
+  ground.position.z = groundLevel(objects);
+  fitSunShadow();
   applyTechnique();
-  if (fit) fitCamera();
+  // Once the human has moved the camera, a scene update never refits it
+  // (owner: «η κάμερα με πέταγε έξω κάθε φορά που άλλαζα κλίσεις στο terrain»).
+  // The Fit command and the view presets call fitCamera()/setCameraPreset directly.
+  if (fit && !cameraMovedByHuman) fitCamera();
 };
 
 window.setTechnique = function(mode) {
@@ -572,17 +1259,9 @@ window.setTechnique = function(mode) {
 
 
 window.setCameraPreset = function(mode) {
-  const allowed = ["cutaway", "top", "front", "side", "iso30", "eye", "orbit"];
+  const allowed = ["cutaway", "top", "front", "side", "iso30", "eye", "orbit", "dollhouse", "ortho"];
   if (!allowed.includes(mode)) return;
-  if (mode === "cutaway") {
-    cutawayEnabled = true;
-    modelRoot.children.forEach((mesh) => {
-      if (mesh.userData && mesh.userData.kind === "room_roof") mesh.visible = false;
-    });
-  } else {
-    cutawayEnabled = false;
-    modelRoot.children.forEach((mesh) => mesh.visible = true);
-  }
+  cutawayEnabled = mode === "cutaway";
   setCameraPreset(mode);
 };
 
@@ -597,11 +1276,7 @@ window.setAutoRotate = function(enabled) {
 
 window.setCutaway = function(enabled) {
   cutawayEnabled = !!enabled;
-  modelRoot.children.forEach((mesh) => {
-    if (mesh.userData && mesh.userData.kind === "room_roof") {
-      mesh.visible = !cutawayEnabled;
-    }
-  });
+  applyViewState();
 };
 
 function resetTransientInteraction() {
@@ -647,6 +1322,16 @@ window.setMoveGhostDelta = function(dx, dy, snapped) {
   }
 };
 
+let markingWheel = "";
+window.setMarkingCenter = function(text) { markingTitle.textContent = text || ""; };
+// While the menu is open the wheel belongs to it (brush size, angle step), not to the zoom.
+window.addEventListener("wheel", (event) => {
+  if (markingRoot.style.display !== "block" || !markingWheel || !bridge) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  bridge.markingWheel(event.deltaY < 0 ? 1 : -1);
+}, { capture: true, passive: false });
+
 function hideMarkingMenu() {
   markingRoot.style.display = "none";
   radialMenu.replaceChildren();
@@ -655,58 +1340,88 @@ function hideMarkingMenu() {
 }
 
 function dispatchMarkingAction(actionId) {
-  if (!bridge || !markingEntityId || !actionId) return;
+  if (!bridge || !actionId) return;
   const entityId = markingEntityId;
   hideMarkingMenu();
   bridge.contextAction(entityId, actionId);
 }
 
-window.showMarkingMenu = function(entityId, x, y, entries) {
-  hideMarkingMenu();
-  markingEntityId = entityId || "";
-  if (!markingEntityId) return;
+// Submenus open in place: the centre title becomes «‹ title» (click = back), like the plan's Qt menu.
+let markingStack = [];
+function markingButton(entry, className, onSub) {
+  const button = document.createElement("button");
+  button.className = className + ((entry.id === "delete" || entry.danger) ? " danger" : "") + (entry.checked ? " checked" : "")
+    + (entry.small ? " small" : "");
+  if (entry.small) button.title = entry.label;
+  if (entry.iconData) {
+    const img = document.createElement("img");
+    img.src = entry.iconData; img.className = "markIcon"; img.alt = "";
+    button.appendChild(img);
+  }
+  if (!entry.small) button.appendChild(document.createTextNode(entry.label + (entry.children && entry.children.length ? " ▸" : "")));
+  button.addEventListener("pointerdown", (event) => event.stopPropagation());
+  button.addEventListener("click", (event) => {
+    event.preventDefault(); event.stopPropagation();
+    if (entry.children && entry.children.length) onSub(entry);
+    else dispatchMarkingAction(entry.id);
+  });
+  return button;
+}
 
-  const radial = (entries || []).filter((entry) => entry && entry.placement === "radial");
-  const panel = (entries || []).filter((entry) => entry && entry.placement === "panel");
+window.showMarkingMenu = function(entityId, x, y, entries, center, wheelKind, keepStack) {
+  hideMarkingMenu();
+  if (!keepStack) markingStack = [];
+  markingEntityId = entityId || "";
+  markingWheel = wheelKind || "";
+  const sub = markingStack.length > 0;
+  markingTitle.textContent = (sub ? "‹ " : "") + (center || "");
+  markingTitle.style.display = center ? "block" : "none";
+  markingTitle.style.cursor = sub ? "pointer" : "default";
+  markingTitle.style.pointerEvents = sub ? "auto" : "";
+  markingTitle.onclick = sub ? (event) => {
+    event.preventDefault(); event.stopPropagation();
+    const prev = markingStack.pop();
+    window.showMarkingMenu(entityId, x, y, prev[0], prev[1], prev[2], true);
+  } : null;
+
+  let all = (entries || []).filter((entry) => entry);
+  let radial = all.filter((entry) => entry.placement === "radial");
+  let panel = all.filter((entry) => entry.placement === "panel");
+  if (radial.length > 8) { panel = radial.concat(panel); radial = []; }   // a long submenu: a list
   const cx = Math.max(145, Math.min(window.innerWidth - 145, Number(x)));
   const cy = Math.max(150, Math.min(window.innerHeight - 110, Number(y)));
+  const openSub = (entry) => {
+    markingStack.push([entries, center, wheelKind]);
+    window.showMarkingMenu(entityId, x, y, entry.children, entry.label, "", true);
+  };
 
   markingRoot.style.display = "block";
   markingCenter.style.left = cx + "px";
   markingCenter.style.top = cy + "px";
+  markingTitle.style.left = cx + "px";
+  markingTitle.style.top = cy + "px";
   radialMenu.style.left = cx + "px";
   radialMenu.style.top = cy + "px";
 
-  const radius = 92;
+  const radius = 98;
+  const titleHalf = markingTitle.offsetWidth / 2;
   radial.forEach((entry, index) => {
-    const angle = -Math.PI / 2 + index * (2 * Math.PI / Math.max(1, radial.length));
-    const button = document.createElement("button");
-    button.className = "markAction" + (entry.id === "delete" ? " danger" : "");
-    button.textContent = entry.label;
-    button.style.left = (130 + Math.cos(angle) * radius) + "px";
-    button.style.top = (130 + Math.sin(angle) * radius) + "px";
-    button.addEventListener("pointerdown", (event) => event.stopPropagation());
-    button.addEventListener("click", (event) => {
-      event.preventDefault(); event.stopPropagation();
-      dispatchMarkingAction(entry.id);
-    });
+    // Fixed compass slots, north first (Inventor marking menu): N, NE, E, SE, S, SW, W, NW; few: N, E, S, W.
+    const slot = radial.length <= 4 ? index * 2 : index;
+    const angle = -Math.PI / 2 + slot * (Math.PI / 4);
+    const button = markingButton(entry, "markAction", openSub);
     radialMenu.appendChild(button);
+    const c = Math.cos(angle);
+    // Side buttons step out so they never cover the title in the centre (same rule as the plan's menu).
+    const push = Math.abs(c) > 0.5 ? Math.sign(c) * Math.max(0, titleHalf + 10 - radius * Math.abs(c) + button.offsetWidth / 2) : 0;
+    button.style.left = (130 + c * radius + push) + "px";
+    button.style.top = (130 + Math.sin(angle) * radius) + "px";
   });
 
   if (panel.length) {
     commandStrip.style.left = cx + "px";
     commandStrip.style.top = Math.max(42, cy - 116) + "px";
-    panel.forEach((entry) => {
-      const button = document.createElement("button");
-      button.className = "stripAction";
-      button.textContent = entry.label;
-      button.addEventListener("pointerdown", (event) => event.stopPropagation());
-      button.addEventListener("click", (event) => {
-        event.preventDefault(); event.stopPropagation();
-        dispatchMarkingAction(entry.id);
-      });
-      commandStrip.appendChild(button);
-    });
+    panel.forEach((entry) => commandStrip.appendChild(markingButton(entry, "stripAction", openSub)));
   }
 };
 
@@ -718,8 +1433,31 @@ function pickModel(event) {
   );
   const raycaster = new THREE.Raycaster();
   raycaster.setFromCamera(mouse, camera);
-  const hits = raycaster.intersectObjects(modelRoot.children, false);
+  const hits = raycaster.intersectObjects(modelRoot.children, false).filter((h) => h.object.visible);
   return hits.length ? hits[0] : null;
+}
+
+// Picking an object to act on (select, move, rotate, mouse menu): the most specific
+// thing along the ray wins. Slabs, roofs and ground only when nothing else is there;
+// in Glass, and while a Stair/Ramp is being worked, walls are see-through for the mouse.
+const CONTAINER_KINDS = new Set(["room_floor", "room_ceiling", "room_foundation", "room_roof", "floor", "room",
+                                 "pitched_roof", "ceiling_joists", "terrain"]);
+function pickForSelection(event) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  const mouse = new THREE.Vector2(
+    ((event.clientX - rect.left) / rect.width) * 2 - 1,
+    -((event.clientY - rect.top) / rect.height) * 2 + 1
+  );
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(modelRoot.children, false)
+    .filter((h) => h.object.visible && h.face && h.object.userData.entityId);
+  if (!hits.length) return null;
+  const wallsInactive = activeTechnique === "glass" || activeTool === "stair" || activeTool === "ramp";
+  const kindOf = (h) => h.object.userData.kind || "";
+  return hits.find((h) => !CONTAINER_KINDS.has(kindOf(h)) && !(wallsInactive && kindOf(h) === "wall"))
+    || hits.find((h) => !CONTAINER_KINDS.has(kindOf(h)))
+    || hits[0];
 }
 
 function pointOnHorizontalPlane(event, z) {
@@ -734,6 +1472,8 @@ function pointOnHorizontalPlane(event, z) {
   const target = new THREE.Vector3();
   return raycaster.ray.intersectPlane(plane, target) ? target : null;
 }
+
+/*__ARCHFORGE_WALL_EDIT_3D__*/
 
 renderer.domElement.addEventListener("pointerdown", (event) => {
   if (!bridge) return;
@@ -772,11 +1512,10 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
       return;
     }
 
-    const hit = pickModel(event);
+    const hit = pickForSelection(event);
     if (!hit || !hit.face) return;
     const kind = hit.object.userData.kind || "";
-    const supported = ["stair", "ramp", "wall", "box", "pod", "floor", "room", "mechanical_part"];
-    if (!supported.includes(kind)) {
+    if (!MOVABLE_3D.includes(kind)) {
       bridge.reportStatus("Move in 3D is not supported for " + kind);
       event.preventDefault();
       event.stopPropagation();
@@ -828,11 +1567,10 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
       return;
     }
 
-    const hit = pickModel(event);
+    const hit = pickForSelection(event);
     if (!hit || !hit.face) return;
     const kind = hit.object.userData.kind || "";
-    const supported = ["stair", "ramp", "wall", "box", "pod"];
-    if (!supported.includes(kind)) {
+    if (!ROTATABLE_3D.includes(kind)) {
       bridge.reportStatus("Rotate in 3D is not supported for " + kind);
       event.preventDefault();
       event.stopPropagation();
@@ -909,24 +1647,13 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     }
     if (event.button !== 0) return;
 
-    if (stairing) {
-      const point = pointOnHorizontalPlane(event, stairPlaneZ);
-      if (point) bridge.updateStair(Number(point.x), Number(point.y));
-      pendingStairPoint = null;
-      stairing = false;
-      controls.enabled = true;
-      bridge.endStair();
-      event.preventDefault();
-      event.stopPropagation();
-      return;
-    }
-
-    const hit = pickModel(event);
-    if (!hit || !hit.face) return;
-    stairing = true;
-    stairPlaneZ = Number(hit.point.z);
-    controls.enabled = false;
-    bridge.beginStair(Number(hit.point.x), Number(hit.point.y));
+    // The ghost already follows the cursor on the floor (walls are air): a click places it.
+    const point = pointOnHorizontalPlane(event, workPlaneZ);
+    if (!point) return;
+    if (bridge.hoverStair) bridge.hoverStair(Number(point.x), Number(point.y));
+    pendingStairPoint = null;
+    stairing = false;
+    bridge.endStair();
     event.preventDefault();
     event.stopPropagation();
     return;
@@ -958,12 +1685,12 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
       return;
     }
 
-    const hit = pickModel(event);
-    if (!hit || !hit.face) return;
+    const start = placementPoint(event);
+    if (!start) return;
     ramping = true;
-    rampPlaneZ = Number(hit.point.z);
+    rampPlaneZ = workPlaneZ;
     controls.enabled = false;
-    bridge.beginRamp(Number(hit.point.x), Number(hit.point.y));
+    bridge.beginRamp(start.x, start.y);
     event.preventDefault();
     event.stopPropagation();
     return;
@@ -1013,8 +1740,8 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
 
 renderer.domElement.addEventListener("dblclick", (event) => {
   if (!bridge || sculpting || stairing || ramping || movingEntity || rotatingEntity) return;
-  if (activeTool === "door" || activeTool === "window" || activeTool === "opening_rect" || activeTool === "opening_arch" || activeTool === "sculpt" || activeTool === "stair" || activeTool === "ramp" || activeTool === "move" || activeTool === "rotate") return;
-  const hit = pickModel(event);
+  if (activeTool === "door" || activeTool === "window" || activeTool === "opening_rect" || activeTool === "opening_arch" || activeTool === "sculpt" || activeTool === "stair" || activeTool === "ramp" || activeTool === "move" || activeTool === "rotate" || activeTool === "wall") return;
+  const hit = pickForSelection(event);
   if (!hit || !hit.face) return;
   bridge.selectEntity(hit.object.userData.entityId || "");
   event.preventDefault();
@@ -1062,30 +1789,52 @@ renderer.domElement.addEventListener("contextmenu", (event) => {
     event.stopPropagation();
     return;
   }
-  const hit = pickModel(event);
-  if (!hit || !hit.face) { hideMarkingMenu(); return; }
+  const hit = pickForSelection(event);
+  // Empty space gets the task menu too; Python decides its content.
   bridge.showContextMenu(
-    hit.object.userData.entityId || "",
+    (hit && hit.face && hit.object.userData.entityId) || "",
     Number(event.clientX),
     Number(event.clientY)
   );
   event.stopPropagation();
 }, true);
 
+// Capture phase + stopImmediatePropagation: the wheel must pick the next
+// Stair/Ramp option and never reach OrbitControls' zoom. A touchpad sends a
+// burst of small wheel events, so one option change per gesture step.
+let lastOptionWheel = 0;
 renderer.domElement.addEventListener("wheel", (event) => {
   hideMarkingMenu();
-  if (stairing && bridge) {
-    bridge.cycleStair(event.deltaY > 0 ? 1 : -1);
+  if (!stairing && !ramping && activeViewLine && activeViewLine.kind === "section") {
     event.preventDefault();
-    event.stopPropagation();
+    event.stopImmediatePropagation();
+    const now = performance.now();
+    if (now - lastOptionWheel < 60) return;
+    lastOptionWheel = now;
+    moveSection(event.deltaY > 0 ? 0.10 : -0.10);
+    return;
   }
-  if (ramping && bridge) {
-    bridge.cycleRamp(event.deltaY > 0 ? 1 : -1);
+  if ((stairing || ramping) && bridge) {
     event.preventDefault();
-    event.stopPropagation();
+    event.stopImmediatePropagation();
+    const now = performance.now();
+    if (now - lastOptionWheel < 180) return;
+    lastOptionWheel = now;
+    const step = event.deltaY > 0 ? 1 : -1;
+    if (stairing) bridge.cycleStair(step); else bridge.cycleRamp(step);
   }
-}, {passive: false});
+}, {passive: false, capture: true});
 window.addEventListener("keydown", (event) => {
+  if (stairing && bridge && (event.key === "r" || event.key === "R") && bridge.rotateStair) {
+    event.preventDefault();
+    bridge.rotateStair();
+    return;
+  }
+  if ((stairing || ramping) && bridge && (event.key === "Tab" || event.key === " ")) {
+    event.preventDefault();
+    if (stairing) bridge.cycleStair(1); else bridge.cycleRamp(1);
+    return;
+  }
   if (event.key === "Escape") {
     hideMarkingMenu();
     if (movingEntity && bridge) {
@@ -1136,11 +1885,12 @@ renderer.domElement.addEventListener("pointermove", (event) => {
     event.stopPropagation();
     return;
   }
-  if (stairing) {
-    const point = pointOnHorizontalPlane(event, stairPlaneZ);
+  if (activeTool === "stair" && !(event.buttons & 7)) {
+    // Hover: the stair ghost follows the cursor on the floor until a click places it.
+    stairing = true;
+    stairPlaneZ = workPlaneZ;
+    const point = pointOnHorizontalPlane(event, workPlaneZ);
     if (point) scheduleStairUpdate(point);
-    event.preventDefault();
-    event.stopPropagation();
     return;
   }
   if (ramping) {
@@ -1192,9 +1942,98 @@ if (window.__archforgePendingScene) window.archforgeSetScene(window.__archforgeP
 if (window.__archforgePendingStairPreview) window.setStairPreview(window.__archforgePendingStairPreview);
 if (window.__archforgePendingRampPreview) window.setRampPreview(window.__archforgePendingRampPreview);
 
+// Walk mode (Walkthrough / interior camera): W A S D or the arrows walk (left/right arrows turn),
+// Shift runs, Q / E go down / up, left-drag looks around, the wheel steps forward / back.
+// No collision: you walk through walls, as in a model.
+let walkMode = false;
+const walkKeys = new Set();
+let walkLast = performance.now();
+let walkDrag = null;
+const walkHint = document.createElement("div");
+walkHint.textContent = "Περιήγηση: W A S D / βελάκια = κίνηση · Shift = τρέξιμο · σύρσιμο = κοίτα γύρω · ροδέλα = βήματα · Q/E = κάτω/πάνω";
+walkHint.style.cssText = "position:fixed;left:50%;bottom:12px;transform:translateX(-50%);padding:6px 12px;border-radius:14px;" +
+  "background:rgba(20,24,30,.72);color:#f1f4f8;font:12px Segoe UI,Arial,sans-serif;display:none;pointer-events:none;z-index:20";
+document.body.appendChild(walkHint);
+function walkForward() {
+  const d = new THREE.Vector3().subVectors(controls.target, camera.position);
+  d.z = 0;
+  if (d.lengthSq() < 1e-9) d.set(0, 1, 0);
+  return d.normalize();
+}
+function setWalkMode(on) {
+  walkMode = !!on;
+  walkKeys.clear();
+  walkDrag = null;
+  controls.enabled = !walkMode;
+  walkHint.style.display = "none";   // owner 14/10: «αφαίρεσε αυτό το ενδεικτικό από κάτω, είναι άνουσιο»
+  if (walkMode) renderer.domElement.focus && renderer.domElement.focus();
+}
+window.setWalkMode = setWalkMode;
+function walkMove(forward, side, up) {
+  const f = walkForward(), r = new THREE.Vector3(f.y, -f.x, 0);
+  const delta = f.multiplyScalar(forward).add(r.multiplyScalar(side));
+  delta.z += up;
+  camera.position.add(delta);
+  controls.target.add(delta);
+}
+function walkLook(yaw, pitch) {
+  const d = new THREE.Vector3().subVectors(controls.target, camera.position);
+  const len = Math.max(d.length(), 1.0);
+  let heading = Math.atan2(d.y, d.x) + yaw;
+  let tilt = Math.asin(Math.max(-1, Math.min(1, d.z / len))) + pitch;
+  tilt = Math.max(-1.3, Math.min(1.3, tilt));
+  controls.target.set(camera.position.x + Math.cos(heading) * Math.cos(tilt) * 2.0,
+                      camera.position.y + Math.sin(heading) * Math.cos(tilt) * 2.0,
+                      camera.position.z + Math.sin(tilt) * 2.0);
+  camera.lookAt(controls.target);
+}
+const WALK_CODES = ["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "ShiftLeft", "ShiftRight"];
+window.addEventListener("keydown", (event) => {
+  if (!walkMode || !WALK_CODES.includes(event.code)) return;
+  walkKeys.add(event.code);
+  event.preventDefault();
+});
+window.addEventListener("keyup", (event) => { walkKeys.delete(event.code); });
+window.addEventListener("blur", () => walkKeys.clear());
+renderer.domElement.addEventListener("pointerdown", (event) => {
+  if (walkMode && event.button === 0) walkDrag = {x: event.clientX, y: event.clientY};
+});
+window.addEventListener("pointermove", (event) => {
+  if (!walkMode || !walkDrag || !(event.buttons & 1)) return;
+  walkLook(-(event.clientX - walkDrag.x) * 0.0045, -(event.clientY - walkDrag.y) * 0.0035);
+  walkDrag = {x: event.clientX, y: event.clientY};
+});
+window.addEventListener("pointerup", () => { walkDrag = null; });
+renderer.domElement.addEventListener("wheel", (event) => {
+  if (!walkMode || markingRoot.style.display === "block") return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  walkMove((event.deltaY < 0 ? 1 : -1) * (event.shiftKey ? 2.0 : 0.6), 0, 0);
+}, {passive: false, capture: true});
+function walkStep() {
+  const now = performance.now();
+  const dt = Math.min(0.1, (now - walkLast) / 1000);
+  walkLast = now;
+  if (!walkMode || !walkKeys.size) return;
+  const run = walkKeys.has("ShiftLeft") || walkKeys.has("ShiftRight");
+  const v = (run ? 6.0 : 2.4) * dt;
+  const fwd = (walkKeys.has("KeyW") || walkKeys.has("ArrowUp") ? 1 : 0) - (walkKeys.has("KeyS") || walkKeys.has("ArrowDown") ? 1 : 0);
+  const side = (walkKeys.has("KeyD") ? 1 : 0) - (walkKeys.has("KeyA") ? 1 : 0);
+  const up = (walkKeys.has("KeyE") ? 1 : 0) - (walkKeys.has("KeyQ") ? 1 : 0);
+  const turn = (walkKeys.has("ArrowLeft") ? 1 : 0) - (walkKeys.has("ArrowRight") ? 1 : 0);
+  if (turn) walkLook(turn * 1.8 * dt, 0);
+  if (fwd || side || up) walkMove(fwd * v, side * v, up * v * 0.6);
+}
+window.__walkStep = walkStep;
+window.__walkState = () => ({walkMode, x: camera.position.x, y: camera.position.y, z: camera.position.z});
+
 function animate() {
-  controls.update();
-  renderer.render(scene, camera);
+  walkStep();
+  // Haze ends before the far plane, so the ground never shows a cut edge.
+  if (scene.fog) { scene.fog.far = Math.min(1400, camera.far * 0.9); scene.fog.near = scene.fog.far * 0.1; }
+  if (walkMode) controls.enabled = false;
+  else controls.update();
+  if (useComposer()) composer.render(); else renderer.render(scene, camera);
   requestAnimationFrame(animate);
 }
 animate();
@@ -1203,6 +2042,20 @@ animate();
 </html>
 """
 
+
+
+_THREE_BUNDLE_PATH = Path(__file__).with_name("vendor") / "three_bundle.js"
+
+
+def pbr_page_html() -> str:
+    """The 3D Scene page with the bundled three.js inlined (offline desktop)."""
+    bundle = _THREE_BUNDLE_PATH.read_text(encoding="utf-8")
+    from archforge.ui.library_drag import js_3d
+    from archforge.ui.camera_tool import camera_js
+    from archforge.ui.pbr_look_js import pbr_look_js
+    page = _PBR_HTML.replace("/*__ARCHFORGE_WALL_EDIT_3D__*/", wall_edit_3d_js() + js_3d() + camera_js(), 1)
+    page = page.replace("/*__ARCHFORGE_LOOK__*/", pbr_look_js(), 1)
+    return page.replace("/*__ARCHFORGE_THREE_BUNDLE__*/", bundle, 1)
 
 class PBRInteractionBridge(QObject):
     """WebGL pointer bridge into ArchForge's existing semantic sculpt transaction."""
@@ -1230,6 +2083,10 @@ class PBRInteractionBridge(QObject):
     @Slot(str, float, float)
     def showContextMenu(self, entity_id: str, x: float, y: float) -> None:
         self.viewport._show_context_menu(entity_id, x, y)
+
+    @Slot(int)
+    def markingWheel(self, steps: int) -> None:
+        self.viewport._marking_wheel(int(steps))
 
     @Slot(str, str)
     def contextAction(self, entity_id: str, action_id: str) -> None:
@@ -1267,6 +2124,14 @@ class PBRInteractionBridge(QObject):
     def endStair(self) -> None:
         self.viewport._finish_stair_from_web()
 
+    @Slot(float, float)
+    def hoverStair(self, x: float, y: float) -> None:
+        self.viewport._hover_stair_from_web(x, y)
+
+    @Slot()
+    def rotateStair(self) -> None:
+        self.viewport._rotate_stair_from_web()
+
     @Slot(int)
     def cycleStair(self, step: int) -> None:
         self.viewport._cycle_stair_from_web(step)
@@ -1294,6 +2159,10 @@ class PBRInteractionBridge(QObject):
     @Slot()
     def cancelRamp(self) -> None:
         self.viewport._cancel_ramp_from_web()
+
+    @Slot(str)
+    def wallEvent(self, payload_json: str) -> None:
+        self.viewport._wall_event_from_web(payload_json)
 
     @Slot(str)
     def reportStatus(self, message: str) -> None:
@@ -1358,6 +2227,11 @@ class PBRViewport(QWidget):
         self._evaluation_cache = IncrementalEvaluationCache(SculptedPreviewBackend())
         self._technique = "pbr"
         self._camera_preset = "orbit"
+        self._view_line = None
+        self._ambient_occlusion = True
+        # Sun & sky (render state): solar hour and month, or None = studio light.
+        import datetime as _dt
+        self._sun = (11.0, _dt.date.today().month)
         self._axes_visible = False
         self._auto_rotate = False
         self._cutaway = False
@@ -1374,6 +2248,8 @@ class PBRViewport(QWidget):
         self._rotate_tx = None
         self._rotate_start_angle_deg = 0.0
         self._snap_enabled = True
+        # Walls drawn / edited in 3D through the plan's transactions (wall_edit_3d.py).
+        self.wall_editor = wall_edit_3d.Wall3DEditor(doc, stack)
         self.channel = None
         self.bridge = None
         layout = QVBoxLayout(self)
@@ -1396,37 +2272,121 @@ class PBRViewport(QWidget):
             return
         self._placeholder.hide()
         self.web_view = QWebEngineView(self)
+        try:
+            self.web_view.setPage(_console_page_class()(self.web_view))
+        except Exception:                    # keep the default page if the subclass is unavailable
+            pass
         self._layout.addWidget(self.web_view)
         self.channel = QWebChannel(self.web_view.page())
         self.bridge = PBRInteractionBridge(self)
         self.channel.registerObject("renderBridge", self.bridge)
         self.web_view.page().setWebChannel(self.channel)
         self.web_view.loadFinished.connect(self._on_load_finished)
-        self.web_view.setHtml(_PBR_HTML, QUrl("https://cdn.jsdelivr.net/"))
+        # Library items dropped on the 3D view (QMimeData, library_drag.py).
+        self.web_view.setAcceptDrops(True)
+        self.web_view.installEventFilter(self)
+        self.web_view.setHtml(pbr_page_html(), QUrl("https://archforge.local/"))
+
+    # ------------------------------------------------ library drag (library_drag.py)
+    carry = None
+
+    def eventFilter(self, obj, event):
+        from PySide6.QtCore import QEvent
+        t = event.type()
+        if t in (QEvent.Type.DragEnter, QEvent.Type.DragMove, QEvent.Type.Drop, QEvent.Type.DragLeave):
+            from archforge.ui.library_drag import LibraryCarry, action_from_mime, droppable
+            if t == QEvent.Type.DragLeave:
+                self.carry_leave()
+                return False
+            action = action_from_mime(event.mimeData())
+            window = getattr(self, "marking_menu_window", None)
+            if not droppable(action) or window is None:
+                return False
+            if self.carry is None or self.carry.action != action:
+                self.carry = LibraryCarry(window, action)
+            pos = event.position().toPoint()
+            if t == QEvent.Type.Drop:
+                self.carry_drop(self.carry, pos)
+            else:
+                self.carry_move(self.carry, pos)
+            event.acceptProposedAction()
+            return True
+        return super().eventFilter(obj, event)
+
+    def _drop_pick(self, pos, done):
+        """Point and object under ``pos`` (async, from the page): ``done(dict)``."""
+        if self.web_view is None:
+            done({})
+            return
+        script = f"window.afDropPick ? window.afDropPick({float(pos.x())}, {float(pos.y())}) : '{{}}'"
+        self.web_view.page().runJavaScript(script, 0, lambda raw: done(json.loads(raw or "{}") if isinstance(raw, str) else {}))
+
+    def carry_move(self, carry, pos):
+        self.carry = carry
+
+        def show(hit):
+            if self.carry is not carry or hit.get("x") is None:
+                return
+            carry.move(hit["x"], hit["y"], free=carry.free)
+            carry._last_hit = hit
+            box = carry.ghost_box()
+            if self.web_view is not None:
+                self.web_view.page().runJavaScript(
+                    "if (window.afDropGhost) window.afDropGhost(" + json.dumps(box) + ");")
+            self.statusChanged.emit(carry.label())
+        self._drop_pick(pos, show)
+
+    def carry_leave(self):
+        self.carry = None
+        if self.web_view is not None:
+            self.web_view.page().runJavaScript("if (window.afDropGhost) window.afDropGhost(null);")
+
+    def carry_drop(self, carry, pos):
+        def place(hit):
+            self.carry_leave()
+            hit = hit if hit.get("x") is not None else getattr(carry, "_last_hit", {}) or {}
+            if hit.get("x") is None:
+                self.statusChanged.emit("Δεν βρέθηκε σημείο στο δάπεδο κάτω από τον κέρσορα")
+                return
+            target = (hit.get("id"), hit.get("role") or None) if hit.get("id") else None
+            x, y = (hit.get("hx", hit["x"]), hit.get("hy", hit["y"])) if carry.kind == "material" and target else (hit["x"], hit["y"])
+            carry.drop(x, y, target)
+            self._evaluation_cache.clear()
+            self.redraw(force_full=False)   # an edit keeps the human's camera
+        self._drop_pick(pos, place)
 
     def _on_load_finished(self, ok: bool) -> None:
         if not ok:
             self.statusChanged.emit("PBR Preview HTML failed to load")
             return
-        self.statusChanged.emit("PBR Preview ready")
+        self.statusChanged.emit("3D έτοιμο")
         self.set_render_technique(self._technique)
         self.set_axes_visible(self._axes_visible)
         self.set_auto_rotate(self._auto_rotate)
         self.set_cutaway(self._cutaway)
         self.redraw(force_full=True)
+        self.set_ambient_occlusion(self._ambient_occlusion)
+        self._push_sun()
+        pending_line = self._view_line
         self.set_camera_preset(self._camera_preset)
+        self._view_line = pending_line
         self._push_stair_preview()
         self._push_ramp_preview()
         self.set_snap_enabled(self._snap_enabled)
+        self._push_view_line()
 
     def rebind(self, doc, stack) -> None:
         self.doc = doc
         self.stack = stack
+        self.wall_editor.rebind(doc, stack)
         self._evaluation_cache.clear()
+        if self.web_view is not None:
+            self.web_view.page().runJavaScript("if (window.__forgetCameraMoved) window.__forgetCameraMoved();")
         self.redraw(force_full=True)
 
     def set_snap_enabled(self, enabled: bool) -> None:
         self._snap_enabled = bool(enabled)
+        self.wall_editor.set_snap_enabled(self._snap_enabled)
         if self.web_view is not None:
             script = (
                 "if (window.setSnapEnabled) window.setSnapEnabled("
@@ -1434,13 +2394,25 @@ class PBRViewport(QWidget):
                 + ");"
             )
             self.web_view.page().runJavaScript(script)
-        self.statusChanged.emit("Snap ON" if self._snap_enabled else "Snap OFF — Free mode")
+        self.statusChanged.emit("Έλξη ενεργή" if self._snap_enabled else "Έλξη ανενεργή — ελεύθερη σχεδίαση")
 
     def set_tool(self, tool: str) -> None:
+        # Leaving Stair/Ramp drops a half-placed one, so its HUD and ghost never stay behind.
+        if str(tool) != "stair" and self._stair_tx is not None:
+            self._cancel_stair_from_web()
+        if str(tool) != "ramp" and getattr(self, "_ramp_tx", None) is not None:
+            self._cancel_ramp_from_web()
+        if str(tool) not in ("stair", "ramp"):
+            self._set_stair_candidate_params(())
+        if str(tool) != "wall" or self.wall_editor.editing:
+            self._push_wall_ghost(self.wall_editor.cancel_all())
+        self.opening_preset = None
         self.active_tool = str(tool)
         if self.web_view is not None:
             script = (
-                "if (window.setActiveTool) window.setActiveTool("
+                "if (window.setWorkPlaneZ) window.setWorkPlaneZ("
+                + json.dumps(float(self.doc.work_plane.origin[2]))
+                + "); if (window.setActiveTool) window.setActiveTool("
                 + json.dumps(self.active_tool)
                 + ");"
             )
@@ -1485,8 +2457,37 @@ class PBRViewport(QWidget):
             f"Selected {entity.name or entity.kind.title()} — press Delete to remove"
         )
 
+    def _marking_wheel(self, steps: int) -> None:
+        window = getattr(self, "marking_menu_window", None)
+        kind = getattr(self, "_marking_wheel_kind", None)
+        if window is None or not kind or self.web_view is None:
+            return
+        from archforge.ui.marking_menu import wheel
+        text = wheel(window, kind, steps)
+        self.web_view.page().runJavaScript("if (window.setMarkingCenter) window.setMarkingCenter(" + json.dumps(text) + ");")
+
     def _show_context_menu(self, entity_id: str, x: float, y: float) -> None:
         entity_id = str(entity_id)
+        self._last_marking_xy = (float(x), float(y))
+        window = getattr(self, "marking_menu_window", None)
+        if window is not None:
+            # One task-dependent menu (shared with the plan): object, Sculpt or empty space.
+            from archforge.ui.marking_menu import build_menu
+            eid = entity_id if entity_id in self.doc.entities else ""
+            if eid and not window.sculpt_action.isChecked() and eid not in self.doc.selection:
+                self.doc.select([eid])
+                self.selectionChangedByView.emit()
+            menu = build_menu(window, "pbr", eid or None)
+            self._marking_wheel_kind = menu["wheel"]
+            self.last_marking_menu = menu
+            if self.web_view is not None:
+                from archforge.ui.menu_icons import with_icon_data
+                self.web_view.page().runJavaScript(
+                    "if (window.showMarkingMenu) window.showMarkingMenu(" + json.dumps(eid) + "," + json.dumps(float(x)) + ","
+                    + json.dumps(float(y)) + "," + json.dumps(with_icon_data(menu["entries"]), separators=(',', ':')) + ","
+                    + json.dumps(menu["center"]) + "," + json.dumps(menu["wheel"] or "") + ");")
+            self.statusChanged.emit(f"{menu['center']} — δεξί κλικ: μενού εργασίας")
+            return
         if entity_id not in self.doc.entities:
             return
         self.doc.select([entity_id])
@@ -1605,7 +2606,24 @@ class PBRViewport(QWidget):
         self._stair_preview_payload = payload
         self._push_stair_preview()
 
+    def cancel_interaction(self) -> None:
+        """Esc: drop any Stair/Ramp/Move/Rotate in progress in this view."""
+        if self._stair_tx is not None:
+            self._cancel_stair_from_web()
+        if getattr(self, '_ramp_tx', None) is not None:
+            self._cancel_ramp_from_web()
+        self._set_stair_candidate_params(())
+        self._push_wall_ghost(self.wall_editor.cancel_all())
+        if self.web_view is not None:
+            self.web_view.page().runJavaScript(
+                "if (window.archforgeResetInteraction) window.archforgeResetInteraction();"
+            )
+
     def set_stair_preview(self, preview) -> None:
+        # A Stair being placed in this 3D view owns the preview; the plan's
+        # (empty) preview must not wipe it.
+        if self._stair_tx is not None:
+            return
         candidates = ()
         active_index = 0
         if preview is not None and getattr(preview, "kind", None) == "stair":
@@ -1629,21 +2647,12 @@ class PBRViewport(QWidget):
     def _place_structural_column_from_web(self, x: float, y: float) -> None:
         try:
             active_z = float(self.doc.work_plane.origin[2])
-            level_name = str(self.doc.work_plane.name)
-            above = sorted(
-                (float(z), str(name))
-                for name, z in self.doc.levels.items()
-                if float(z) > active_z + 1e-9
-            )
-            if above:
-                next_z, next_name = above[0]
-            else:
-                next_z, next_name = active_z + 2.70, "Unassigned"
+            level_name = self.doc.active_level_name()
             tx = StructuralColumnPlaceTransaction(
                 self.doc, self.stack, float(x), float(y),
-                z=active_z, height=max(0.05, next_z-active_z),
-                base_level=level_name, top_level=next_name,
+                z=active_z, base_level=level_name,
                 grid=(0.10 if self._snap_enabled else None), snap_tol=0.10,
+                snap_enabled=self._snap_enabled, follow_walls=True,
             )
             entity_id = tx.commit()
             self._evaluation_cache.clear()
@@ -1657,16 +2666,13 @@ class PBRViewport(QWidget):
     def _begin_structural_beam_from_web(self, x: float, y: float) -> None:
         try:
             active_z = float(self.doc.work_plane.origin[2])
-            level_name = str(self.doc.work_plane.name)
-            above = sorted(
-                (float(z), str(name)) for name, z in self.doc.levels.items()
-                if float(z) > active_z + 1e-9
-            )
-            next_z = above[0][0] if above else active_z + 2.70
+            level_name = self.doc.active_level_name()
+            from archforge.structure.column_wall import storey_member_top
+            top = storey_member_top(self.doc, float(x), float(y), active_z)
             beam_height = 0.30
             self._structural_beam_tx = StructuralBeamDrawTransaction(
                 self.doc, self.stack, (float(x), float(y)),
-                z=next_z-beam_height, width=0.20, height=beam_height,
+                z=top-beam_height, width=0.20, height=beam_height,
                 level=level_name, grid=(0.10 if self._snap_enabled else None),
                 snap_tol=0.10, angle_increment=15.0,
             )
@@ -1697,12 +2703,14 @@ class PBRViewport(QWidget):
             self._structural_beam_tx.cancel()
         self._structural_beam_tx = None
         if self.web_view is not None:
-            self.web_view.page().runJavaScript("window.__archforgeBeamStart = false; controls.enabled = true;")
+            self.web_view.page().runJavaScript("window.__archforgeBeamStart = false; window.__archforgeSetControlsEnabled?.(true);")
         self.statusChanged.emit("Beam placement cancelled")
 
     def _begin_stair_from_web(self, x: float, y: float) -> None:
         try:
-            self._stair_tx = StairPlaceTransaction(self.doc, self.stack, (float(x), float(y)))
+            self._stair_tx = StairPlaceTransaction(
+                self.doc, self.stack, (float(x), float(y)), layout=getattr(self, 'stair_layout', None),
+            )
             self._stair_tx.update(float(x), float(y))
             self._set_stair_candidate_params(
                 self._stair_tx.preview.get("candidates", ()),
@@ -1727,15 +2735,42 @@ class PBRViewport(QWidget):
         except Exception as exc:
             self.statusChanged.emit(f"Stair preview error: {exc}")
 
+    STAIR_SNAP = 0.05          # the ghost moves in 5 cm steps on the floor: magnetised, never stuck
+
+    def _hover_stair_from_web(self, x: float, y: float) -> None:
+        """The stair follows the cursor on the floor as a ghost (walls do not stop it); a click places it."""
+        import math
+        snap = self.STAIR_SNAP
+        x, y = round(float(x) / snap) * snap, round(float(y) / snap) * snap
+        heading = math.radians(getattr(self, "_stair_heading", 0.0))
+        try:
+            tx = StairPlaceTransaction(self.doc, self.stack, (x, y), layout=getattr(self, "stair_layout", None))
+            tx.active_index = getattr(self, "_stair_option", 0)
+            tx.update(x + math.cos(heading) * 3.0, y + math.sin(heading) * 3.0)
+            self._stair_option = tx.active_index
+            self._stair_tx = tx
+            # Only the stair you will place is shown — not every option at once.
+            self._set_stair_candidate_params(tx.preview.get("candidates", ())[tx.active_index:tx.active_index + 1], 0)
+            self._stair_status()
+        except Exception as exc:
+            self._stair_tx = None
+            self._set_stair_candidate_params(())
+            self.statusChanged.emit(f"Σκάλα: {exc}")
+
+    def _rotate_stair_from_web(self) -> None:
+        self._stair_heading = (getattr(self, "_stair_heading", 0.0) + 90.0) % 360.0
+        tx = self._stair_tx
+        if tx is not None:
+            self._hover_stair_from_web(*tx.origin)
+
     def _cycle_stair_from_web(self, step: int) -> None:
         if self._stair_tx is None:
             return
         try:
             self._stair_tx.cycle_candidate(1 if int(step) >= 0 else -1)
-            self._set_stair_candidate_params(
-                self._stair_tx.preview.get("candidates", ()),
-                self._stair_tx.active_index,
-            )
+            self._stair_option = self._stair_tx.active_index
+            i = self._stair_tx.active_index
+            self._set_stair_candidate_params(self._stair_tx.preview.get("candidates", ())[i:i + 1], 0)
             self._stair_status()
         except Exception as exc:
             self.statusChanged.emit(f"Cannot change stair option: {exc}")
@@ -1773,7 +2808,9 @@ class PBRViewport(QWidget):
             self.statusChanged.emit("Move target no longer exists")
             return
         entity = self.doc.get(entity_id)
-        supported = {"stair", "ramp", "wall", "box", "pod", "floor", "room", "mechanical_part", "structural_column", "structural_beam"}
+        from archforge.core.object_ops import USER_PLACED_KINDS
+        supported = {"stair", "ramp", "wall", "box", "pod", "floor", "room", "mechanical_part", "structural_column", "structural_beam",
+                     *USER_PLACED_KINDS}
         if entity.kind not in supported:
             self.statusChanged.emit(f"Move in 3D is not supported for {entity.kind}")
             return
@@ -1847,7 +2884,7 @@ class PBRViewport(QWidget):
             if abs(tx.dx) > 1e-12 or abs(tx.dy) > 1e-12:
                 tx.commit()
                 self._evaluation_cache.clear()
-                self.redraw(force_full=True)
+                self.redraw(force_full=False)   # an edit keeps the human's camera
                 self.selectionChangedByView.emit()
                 self.statusChanged.emit(
                     f"Moved object ΔX {tx.dx:.3f} m · ΔY {tx.dy:.3f} m — Undo is available"
@@ -1871,7 +2908,8 @@ class PBRViewport(QWidget):
             self.statusChanged.emit("Rotate target no longer exists")
             return
         entity = self.doc.get(entity_id)
-        supported = {"stair", "ramp", "wall", "box", "pod", "structural_column", "structural_beam"}
+        from archforge.core.object_ops import ROTATABLE_KINDS
+        supported = {"stair", "ramp", "wall", "box", "pod", "structural_column", "structural_beam", *ROTATABLE_KINDS}
         if entity.kind not in supported:
             self.statusChanged.emit(f"Rotate in 3D is not supported for {entity.kind}")
             return
@@ -1933,7 +2971,7 @@ class PBRViewport(QWidget):
             if abs(float(tx.angle)) > 1e-12:
                 tx.commit()
                 self._evaluation_cache.clear()
-                self.redraw(force_full=True)
+                self.redraw(force_full=False)   # an edit keeps the human's camera
                 self.selectionChangedByView.emit()
                 self.statusChanged.emit(
                     f"Rotated object {tx.angle:.1f}° — Undo is available"
@@ -2074,11 +3112,12 @@ class PBRViewport(QWidget):
             self.web_view.page().runJavaScript(
                 "if (typeof fitCamera === 'function') fitCamera();"
             )
-        self.statusChanged.emit("PBR camera: fit")
+        self.statusChanged.emit("3D: όλο το κτίριο στην οθόνη")
 
     def set_camera_preset(self, mode: str) -> None:
-        allowed = ("cutaway", "top", "front", "side", "iso30", "eye", "orbit")
+        allowed = ("cutaway", "top", "front", "side", "iso30", "eye", "orbit", "dollhouse", "ortho")
         mode = str(mode)
+        self._view_line = None
         if mode not in allowed:
             raise ValueError(f"unsupported camera preset: {mode}")
         self._camera_preset = mode
@@ -2092,7 +3131,94 @@ class PBRViewport(QWidget):
                 + json.dumps(mode)
                 + ");"
             )
-        self.statusChanged.emit(f"PBR camera: {mode}")
+            self._push_dollhouse_cut()
+        self.statusChanged.emit(f"3D προβολή: {CAMERA_LABELS.get(mode, mode)}"
+                                + (" — χωρίς στέγες, μόνο ο ενεργός όροφος (άλλαξε όροφο στο «Σχεδιάζω στο»)"
+                                   if mode == "dollhouse" else ""))
+
+    def _push_dollhouse_cut(self) -> None:
+        if self.web_view is None:
+            return
+        z = dollhouse_cut_z(self.doc) if self._camera_preset == "dollhouse" and not self._view_line else None
+        self.web_view.page().runJavaScript(
+            "if (window.setDollhouseCut) window.setDollhouseCut(" + json.dumps(z) + ");")
+
+    def set_sun(self, hour, month=None) -> None:
+        """Physical sky with the sun at solar ``hour`` of ``month`` (38° N);
+        ``hour=None`` returns to the neutral studio light."""
+        if hour is None:
+            self._sun = None
+        else:
+            month = int(month if month is not None else (self._sun[1] if self._sun else 6))
+            if not 1 <= month <= 12:
+                raise ValueError("month must be 1..12")
+            self._sun = (float(hour), month)
+        self._push_sun()
+
+    def sun_angles(self):
+        from archforge.rendering.sun import sun_position
+        return None if self._sun is None else sun_position(*self._sun)
+
+    def _push_sun(self) -> None:
+        if self.web_view is None:
+            return
+        angles = self.sun_angles()
+        args = "null, null" if angles is None else f"{angles[0]:.4f}, {angles[1]:.4f}"
+        self.web_view.page().runJavaScript("if (window.setSun) window.setSun(" + args + ");")
+
+    def set_ambient_occlusion(self, enabled: bool) -> None:
+        """Contact shadows (GTAO) in the PBR look; off for slow GPUs."""
+        self._ambient_occlusion = bool(enabled)
+        if self.web_view is not None:
+            self.web_view.page().runJavaScript(
+                "if (window.setAmbientOcclusion) window.setAmbientOcclusion("
+                + ("true" if self._ambient_occlusion else "false") + ");"
+            )
+
+    def set_view_line(self, kind: str, x1: float, y1: float, x2: float, y2: float, z: float = 0.0) -> None:
+        """Section ('section') or eye-level camera ('camera') from a 2D drag."""
+        if kind not in ("section", "camera"):
+            raise ValueError(f"unsupported view line: {kind}")
+        if math.hypot(float(x2) - float(x1), float(y2) - float(y1)) < 0.05:
+            raise ValueError("drag a longer line to set the view direction")
+        self._view_line = {
+            "kind": kind, "x1": float(x1), "y1": float(y1),
+            "x2": float(x2), "y2": float(y2), "z": float(z),
+        }
+        self._cutaway = False
+        self._push_view_line()
+        self.statusChanged.emit(
+            "Τομή: το 3D δείχνει ό,τι βρίσκεται μπροστά από τη γραμμή"
+            if kind == "section" else "Εσωτερική όψη από το σημείο της κάτοψης"
+        )
+
+    def set_camera_view(self, view: dict, smooth: bool = True) -> None:
+        """Stand at a saved camera (core/cameras.view_payload): the eye-level view line with
+        height, tilt and lens; the mouse can still look around (walk mode)."""
+        line = dict(view, kind="camera", smooth=bool(smooth))
+        for key in ("x1", "y1", "x2", "y2", "z", "eye", "pitch", "hfov"):
+            line[key] = float(line.get(key, 0.0))
+        self._view_line = line
+        self._cutaway = False
+        self._push_view_line()
+        self.statusChanged.emit(f"{line.get('name') or 'Κάμερα'} — σύρε για να κοιτάξεις γύρω · "
+                                "«Επιστροφή στην κάμερα» για να ξαναγυρίσεις")
+
+    def request_camera_state(self, callback) -> None:
+        """``callback({"position", "target", "hfov"})`` with the 3D view as it is now (None without 3D)."""
+        if self.web_view is None:
+            callback(None)
+            return
+        self.web_view.page().runJavaScript(
+            "window.afCameraState ? JSON.stringify(window.afCameraState()) : ''",
+            lambda raw: callback(json.loads(raw) if raw else None))
+
+    def _push_view_line(self) -> None:
+        if self.web_view is None or not getattr(self, "_view_line", None):
+            return
+        self.web_view.page().runJavaScript(
+            "if (window.setViewLine) window.setViewLine(" + json.dumps(self._view_line) + ");"
+        )
 
     def set_axes_visible(self, enabled: bool) -> None:
         self._axes_visible = bool(enabled)
@@ -2122,6 +3248,27 @@ class PBRViewport(QWidget):
             )
 
 
+    def _push_wall_ghost(self, ghost) -> None:
+        if self.web_view is None or not ghost:
+            return
+        script = wall_edit_3d.opening_script(ghost) if "opening" in ghost else wall_edit_3d.ghost_script(ghost)
+        self.web_view.page().runJavaScript(script)
+
+    def _wall_event_from_web(self, payload_json: str) -> None:
+        """Wall tool / wall handles / opening ghost in 3D: the plan's transactions, one undo each."""
+        try:
+            ghost = self.wall_editor.handle_event(payload_json, getattr(self, "opening_preset", None))
+        except Exception as exc:
+            ghost = self.wall_editor.handle_cancel()
+            self.statusChanged.emit(f"Τοίχος στο 3D: {exc}")
+        self._push_wall_ghost(ghost)
+        if ghost.get("status"):
+            self.statusChanged.emit(ghost["status"])
+        if ghost.get("committed"):
+            self._evaluation_cache.clear()
+            self.redraw(force_full=False)
+            self.selectionChangedByView.emit()
+
     def _place_opening_from_web(self, kind: str, payload_json: str) -> None:
         tool_kind = str(kind)
         if tool_kind in ("opening_rect", "opening_arch"):
@@ -2144,6 +3291,8 @@ class PBRViewport(QWidget):
                 if semantic_kind == "opening":
                     raise ValueError("architectural openings require a wall host")
                 raise ValueError("doors/windows require a wall or pod host")
+            preset = getattr(self, "opening_preset", None)
+            preset = preset if preset and preset.get("kind") == semantic_kind else {}
             tx = OpeningPlaceTransaction(
                 self.doc,
                 self.stack,
@@ -2152,10 +3301,14 @@ class PBRViewport(QWidget):
                 point[1],
                 tolerance=max(0.5, float(host.params.get("thickness", 0.0)) + 0.25),
                 shape=shape,
+                width=preset.get("width"), height=preset.get("height"), sill=preset.get("sill"),
+                extra=preset.get("params"), name=preset.get("name"),
+                level_z=_host_level(host),
             )
             if tx.host_id != entity_id:
                 raise ValueError("opening placement resolved to a different nearby host")
             opening_id = tx.commit()
+            self._push_wall_ghost({"opening": None})
             self._evaluation_cache.clear()
             self.doc.select([opening_id])
             self.selectionChangedByView.emit()
@@ -2200,17 +3353,16 @@ class PBRViewport(QWidget):
             doc=self.doc,
         )
         if self.structural_only:
-            # Structural is a derived 3D view of the same authoritative model.
-            # Keep semantic structural members plus slabs/foundations; do not
-            # create a second structural model or expose tessellation wireframe.
-            structural_kinds = {
-                "structural_column", "structural_beam",
-                "floor", "room_floor", "room_foundation",
-            }
-            payload["objects"] = [
-                item for item in payload.get("objects", ())
-                if item.get("kind") in structural_kinds
-            ]
+            payload["objects"] = structural_payload_objects(payload.get("objects", ()), self.doc)
+        else:
+            payload["objects"] = architectural_payload_objects(payload.get("objects", ()), self.doc)
+        if not self.structural_only:
+            # Layers / environment (core/layers.py): hidden out, locked unpickable, dim faint.
+            from archforge.core.layers import apply_to_scene_objects
+            payload["objects"] = apply_to_scene_objects(self.doc, payload.get("objects", ()))
+        hidden = getattr(self, "hidden_layers", set())
+        if hidden:
+            payload["objects"] = [o for o in payload.get("objects", ()) if o.get("layer") not in hidden]
         fit = "true" if force_full and self._sculpt_tx is None else "false"
         script = (
             "window.__archforgePendingScene = "
@@ -2220,3 +3372,7 @@ class PBRViewport(QWidget):
             + ");"
         )
         self.web_view.page().runJavaScript(script)
+        if getattr(self, "_camera_preset", None) == "dollhouse":
+            self._push_dollhouse_cut()          # follows the active storey
+        if not self.structural_only:
+            self.web_view.page().runJavaScript(wall_edit_3d.handles_script(self.wall_editor.handles_payload()))

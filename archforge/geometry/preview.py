@@ -29,7 +29,9 @@ def _room_slab_payload(doc,node)->Optional[PreviewPayload]:
     from archforge.architecture.rooms import room_slab_geometry
     g=room_slab_geometry(doc,doc.get(node.entity_id))
     if g is None:return None
-    pts=[(float(x),float(y),float(g['z'])) for x,y in g['points']];top=float(g['z'])+float(g['thickness'])
+    from archforge.architecture.rooms import slab_body_bottom
+    bottom=slab_body_bottom(node.semantic_kind,g)
+    pts=[(float(x),float(y),bottom) for x,y in g['points']];top=bottom+float(g['thickness'])
     return PreviewPayload('polygon_prism',_bounds(pts+[(x,y,top) for x,y,_ in pts]))
 
 def _organic_junction_payload(doc,node)->Optional[PreviewPayload]:
@@ -104,6 +106,20 @@ def _payload(doc,node)->Optional[PreviewPayload]:
         return PreviewPayload('polygon_prism' if kind=='floor' else 'room_volume',_bounds(pts+[(x,y,top) for x,y,_ in pts]))
     if kind in ('room_floor','room_ceiling','room_foundation','room_roof'):
         return _room_slab_payload(doc,node)
+    if kind=='site_path':
+        from archforge.site.paths import path_outline,path_top
+        pts=path_outline(p);tops=[path_top(doc,p,x,y) for x,y in pts]
+        return PreviewPayload('site_path',_bounds([(x,y,z) for (x,y),z in zip(pts,tops)]+[(x,y,z-float(p['thickness'])) for (x,y),z in zip(pts,tops)]))
+    if kind=='plant':
+        from archforge.site.plants import plant_base_z
+        z=plant_base_z(doc,p);r=float(p['canopy'])/2.0;x,y=float(p['x']),float(p['y'])
+        return PreviewPayload('plant',((x-r,y-r,z),(x+r,y+r,z+float(p['height']))))
+    if kind=='terrain':
+        from archforge.site.terrain import terrain_height
+        pts=[(float(p[a]),float(p[b])) for a,b in (('x0','y0'),('x1','y0'),('x1','y1'),('x0','y1'))]
+        tops=[terrain_height(p,x,y) for x,y in pts]
+        low=min(tops)-float(p.get('thickness',0.5))
+        return PreviewPayload('terrain',_bounds([(x,y,z) for (x,y),z in zip(pts,tops)]+[(x,y,low) for x,y in pts]))
     raise ValueError(f'preview backend does not support {kind}')
 
 class PreviewBackend(GeometryBackend):

@@ -144,7 +144,7 @@ def test_viewport_drag_path_has_no_scene_clear_or_tessellation_evaluation():
 
 def test_main_window_redraw_defaults_to_current_view_not_all_views():
     source = Path('archforge/ui/main_window.py').read_text(encoding='utf-8')
-    marker = '    def _redraw_views(self, *, all_views=False):'
+    marker = '    def _redraw_views(self, *, all_views=False, fit_camera=False):'
     assert marker in source
     start = source.index(marker)
     end = source.index('    def _undo', start)

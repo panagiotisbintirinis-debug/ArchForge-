@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="el"><head><meta charset="utf-8"><title>ArchForge διάταξη</title>
+<style>
+:root{--ink:#1f2a37;--muted:#6b7686;--line:#d8dee8;--bg:#f4f6f9;--panel:#fff;--accent:#2f6bd6;--accent2:#e8f0fc;--red:#d23b2f}
+*{box-sizing:border-box}body{margin:0;font:13px "Segoe UI",system-ui,sans-serif;color:var(--ink);background:#c9cfd8}
+.app{position:absolute;left:0;top:0;width:1536px;height:1000px;background:var(--bg);overflow:hidden;border:1px solid #9aa4b2}
+.title{height:34px;display:flex;align-items:center;gap:10px;padding:0 10px;background:#fff;border-bottom:1px solid var(--line)}
+.title b{font-size:14px}.qi{display:flex;gap:4px;margin-left:8px}.qi span{width:24px;height:24px;border-radius:5px;display:grid;place-items:center;color:var(--muted);border:1px solid transparent}
+.qi span:hover{border-color:var(--line)}
+.menus{display:flex;gap:2px;margin-left:14px}.menus span{padding:6px 9px;border-radius:5px}.menus .new{color:var(--accent);font-weight:600}
+.menus .open{background:var(--accent2);color:var(--accent);font-weight:600}
+.ribbon{height:64px;display:flex;align-items:center;gap:2px;padding:0 8px;background:#fff;border-bottom:1px solid var(--line)}
+.tool{width:66px;height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-radius:7px;font-size:12px;color:var(--ink)}
+.tool i{font-style:normal;font-size:20px;line-height:22px;color:#28466e}.tool.on{background:var(--accent);color:#fff}.tool.on i{color:#fff}
+.tool.new{outline:2px dashed var(--accent);outline-offset:-3px}
+.sep{width:1px;height:42px;background:var(--line);margin:0 6px}
+.env{margin-left:auto;display:flex;align-items:center;gap:6px;color:var(--muted)}.env span{padding:5px 10px;border-radius:6px;border:1px solid var(--line);color:var(--ink)}
+.env .on{background:var(--accent2);border-color:var(--accent);color:var(--accent);font-weight:600}
+.bar2{height:36px;display:flex;align-items:center;gap:8px;padding:0 10px;background:#fbfcfd;border-bottom:1px solid var(--line);color:var(--ink)}
+.combo{border:1px solid var(--line);border-radius:6px;padding:4px 10px;background:#fff}.chk{display:flex;gap:4px;align-items:center}
+.chk b{width:13px;height:13px;border-radius:3px;background:var(--accent);display:inline-block}
+.main{position:absolute;top:135px;left:0;right:0;bottom:26px;display:flex}
+.center{flex:1;display:flex;flex-direction:column;padding:6px 6px 6px 8px}
+.tabs{display:flex;gap:2px}.tabs span{padding:6px 14px;border-radius:7px 7px 0 0;color:var(--muted)}.tabs .on{background:#fff;color:var(--accent);font-weight:600;border:1px solid var(--line);border-bottom:none}
+.canvas{position:relative;flex:1;background:#fff;border:1px solid var(--line);overflow:hidden}
+.grid{position:absolute;inset:0;background-image:linear-gradient(#eef1f5 1px,transparent 1px),linear-gradient(90deg,#eef1f5 1px,transparent 1px);background-size:44px 44px}
+.right{width:400px;display:flex;flex-direction:column;gap:6px;padding:6px 8px 6px 0}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;display:flex;flex-direction:column;overflow:hidden}
+.ptabs{display:flex;border-bottom:1px solid var(--line)}.ptabs span{flex:1;text-align:center;padding:7px 0;color:var(--muted);font-size:12px}
+.ptabs .on{color:var(--accent);font-weight:600;border-bottom:2px solid var(--accent)}.ptabs .new{color:var(--accent)}
+.objhead{display:flex;gap:10px;align-items:center;padding:10px;border-bottom:1px solid var(--line)}
+.thumb{width:46px;height:46px;border-radius:6px;background:linear-gradient(135deg,#e9e4da,#c9c1b2);border:1px solid #b9b2a4}
+.props{display:flex;flex:1}.nav{width:116px;border-right:1px solid var(--line);padding:6px}.nav div{padding:7px 8px;border-radius:6px;color:var(--ink)}.nav .on{background:var(--accent2);color:var(--accent);font-weight:600}
+.fields{flex:1;padding:8px 10px}.row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px dashed #edf0f4}
+.row em{font-style:normal;color:var(--muted)}.val{border:1px solid var(--line);border-radius:5px;padding:2px 8px;min-width:76px;text-align:right}
+.tree{padding:6px 10px;line-height:22px}.tree .l2{padding-left:16px}.tree .l3{padding-left:32px;color:var(--muted)}
+.status{position:absolute;left:0;right:0;bottom:0;height:26px;background:#fff;border-top:1px solid var(--line);display:flex;align-items:center;gap:18px;padding:0 10px;color:var(--muted);font-size:12px}
+.status .xy{margin-left:auto;color:var(--ink);font-variant-numeric:tabular-nums}
+.drop{position:absolute;background:#fff;border:1px solid #b9c3d1;border-radius:8px;box-shadow:0 8px 24px rgba(20,40,70,.18);padding:5px;z-index:5;font-size:12.5px}
+.drop div{padding:5px 12px 5px 10px;border-radius:5px;display:flex;justify-content:space-between;gap:24px}.drop div:hover{background:var(--accent2)}
+.drop .h{color:var(--muted);font-size:11px;padding:6px 10px 2px}.drop kbd{color:var(--muted);font:11px monospace}
+.drop hr{border:none;border-top:1px solid var(--line);margin:4px 0}
+.markbar{position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;gap:4px;background:#fff;border:1px solid #b9c3d1;border-radius:9px;padding:5px 7px;box-shadow:0 4px 14px rgba(20,40,70,.15);z-index:4}
+.markbar span{padding:4px 9px;border-radius:6px;font-size:12px}.markbar .on{background:#fdebea;color:var(--red);font-weight:600}
+.dot{width:14px;height:14px;border-radius:50%;display:inline-block;vertical-align:middle}
+.callout{position:absolute;z-index:6;background:#0f2747;color:#fff;border-radius:10px;padding:8px 11px 8px 36px;font-size:12px;line-height:1.35;max-width:270px;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+.callout b{display:block;font-size:13px;margin-bottom:2px}
+.callout .n{position:absolute;left:8px;top:8px;width:20px;height:20px;border-radius:50%;background:#4b8cf5;display:grid;place-items:center;font-weight:700;font-size:12px}
+.viewchips{position:absolute;top:10px;right:10px;display:flex;gap:4px;z-index:3}.viewchips span{background:#fff;border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:12px}
+.bd{position:absolute;z-index:7;width:22px;height:22px;border-radius:50%;background:#e8590c;color:#fff;font-weight:700;font-size:12px;display:grid;place-items:center;box-shadow:0 0 0 3px #fff}
+.legend{position:absolute;left:1544px;top:0;width:330px;height:1000px;background:#0f2747;color:#e8eef8;padding:18px 18px;font-size:13px;line-height:1.45}
+.legend h2{margin:0 0 4px;font-size:17px;color:#fff}.legend .sub{color:#9fb3cf;margin-bottom:14px}
+.legend .it{display:flex;gap:10px;margin:0 0 13px}.legend .it span{flex:none;width:22px;height:22px;border-radius:50%;background:#e8590c;color:#fff;font-weight:700;display:grid;place-items:center;font-size:12px}
+.legend b{color:#fff}
+body{width:1880px}
+</style></head><body>
+<div class="app">
+  <div class="title">
+    <b>ArchForge</b><span style="color:var(--muted)">— Σπίτι Παπαδόπουλου</span>
+    <div class="qi"><span>💾</span><span>↶</span><span>↷</span></div>
+    <div class="menus">
+      <span>Αρχείο</span><span>Επεξεργασία</span><span>Προβολή</span><span>Σχεδίαση</span><span class="open">CAD</span><span>Κατασκευή</span><span>Έδαφος</span><span>Δομικά</span><span>Η/Μ</span><span>Κουζίνα</span><span>Βιβλιοθήκη</span><span>Εργαλεία</span><span>Απεικόνιση</span><span>Βοήθεια</span>
+    </div>
+  </div>
+  <div class="ribbon">
+    <div class="tool on"><i>➚</i>Επιλογή</div><div class="sep"></div>
+    <div class="tool"><i>▭</i>Τοίχος</div><div class="tool"><i>◫</i>Στοιχεία ▾</div><div class="tool"><i>☰</i>Σκάλα ▾</div><div class="tool"><i>▱</i>Πλάκα ▾</div><div class="tool"><i>⌂</i>Στέγη ▾</div>
+    <div class="sep"></div>
+    <div class="tool"><i>▣</i>Αντικείμενο</div><div class="tool"><i>◧</i>Υλικά</div><div class="tool"><i>✋</i>Γλυπτική</div>
+    <div class="sep"></div>
+    <div class="tool new"><i>⌖</i>CAD ▾</div><div class="tool new" style="color:var(--red)"><i style="color:var(--red)">✎</i>Σήμανση</div>
+    <div class="sep"></div>
+    <div class="tool"><i>✦</i>Αυτόματα ▾</div>
+    <div class="env">Περιβάλλον: <span class="on">Αρχιτεκτονικό</span><span>Φέρων</span><span>Η/Μ</span></div>
+  </div>
+  <div class="bar2">
+    <span class="combo">＋ Όροφος ▾</span><span>Σχεδιάζω στο:</span><span class="combo">Ισόγειο (0,00 m) ▾</span>
+    <div class="sep" style="height:22px"></div>
+    <span class="combo">Προβολή: Κάτοψη ▾</span><span class="combo">Στυλ ▾</span><span class="combo">Κάμερες ▾</span>
+    <div class="sep" style="height:22px"></div>
+    <span class="chk"><b></b>Κάνναβος</span><span class="chk"><b></b>Έλξη</span><span>Βήμα</span><span class="combo">0,10 m ▾</span>
+  </div>
+
+  <div class="main">
+    <div class="center">
+      <div class="tabs"><span class="on">2D Σχεδίαση</span><span>3D / Στατικά</span></div>
+      <div class="canvas">
+        <div class="grid"></div>
+        <div class="viewchips"><span>⊕ Ζουμ όλο</span><span>⤢</span></div>
+        <div class="markbar"><span class="on">✎ Σήμανση</span><span>➔ Βέλος</span><span>☁ Σύννεφο</span><span>T Κείμενο</span><span>〰 Ελεύθερο</span>
+          <span><i class="dot" style="background:#d23b2f"></i> <i class="dot" style="background:#2f6bd6"></i> <i class="dot" style="background:#1a9a52"></i></span><span>Σβήσιμο</span><span>✓ Τέλος</span></div>
+        <svg width="1120" height="780" style="position:absolute;left:0;top:0">
+          <!-- house -->
+          <g stroke="#1f2a37" stroke-width="7" fill="none">
+            <rect x="170" y="150" width="560" height="440" fill="#eef5ee"/>
+            <line x1="500" y1="150" x2="500" y2="590"/><line x1="500" y1="330" x2="730" y2="330"/><line x1="500" y1="470" x2="730" y2="470"/>
+          </g>
+          <g stroke="#c26a1c" stroke-width="7"><line x1="320" y1="590" x2="370" y2="590"/><line x1="170" y1="260" x2="170" y2="320"/><line x1="170" y1="430" x2="170" y2="490"/><line x1="730" y1="220" x2="730" y2="280"/><line x1="500" y1="380" x2="500" y2="420"/></g>
+          <!-- stair -->
+          <g stroke="#2a8a47" stroke-width="1.5" fill="#e4f3e9"><rect x="200" y="175" width="230" height="56"/></g>
+          <g stroke="#2a8a47" stroke-width="1">
+            <line x1="215" y1="175" x2="215" y2="231"/><line x1="230" y1="175" x2="230" y2="231"/><line x1="245" y1="175" x2="245" y2="231"/><line x1="260" y1="175" x2="260" y2="231"/><line x1="275" y1="175" x2="275" y2="231"/><line x1="290" y1="175" x2="290" y2="231"/><line x1="305" y1="175" x2="305" y2="231"/><line x1="320" y1="175" x2="320" y2="231"/><line x1="335" y1="175" x2="335" y2="231"/><line x1="350" y1="175" x2="350" y2="231"/><line x1="365" y1="175" x2="365" y2="231"/><line x1="380" y1="175" x2="380" y2="231"/><line x1="395" y1="175" x2="395" y2="231"/><line x1="410" y1="175" x2="410" y2="231"/>
+          </g>
+          <line x1="420" y1="203" x2="210" y2="203" stroke="#2f6bd6" stroke-width="1.5"/><text x="300" y="250" font-size="12" fill="#2a8a47">ΑΝ</text>
+          <text x="315" y="380" font-size="14" fill="#55705a">Σαλόνι–Κουζίνα · 48,00 m²</text>
+          <text x="560" y="250" font-size="13" fill="#55705a">Υπνοδ. · 10,00 m²</text><text x="565" y="405" font-size="13" fill="#55705a">Χολ · 10,00 m²</text><text x="570" y="540" font-size="13" fill="#55705a">Μπάνιο · 12,00 m²</text>
+          <!-- CAD dimension -->
+          <g stroke="#2f6bd6" stroke-width="1.2" fill="#2f6bd6"><line x1="170" y1="635" x2="730" y2="635"/><line x1="170" y1="620" x2="170" y2="645"/><line x1="730" y1="620" x2="730" y2="645"/></g>
+          <text x="420" y="628" font-size="13" fill="#2f6bd6">10,00</text>
+          <!-- markup: cloud + arrow + text -->
+          <path d="M600 470 q14 -22 34 -6 q12 -22 34 -4 q22 -10 26 14 q22 10 6 30 q14 22 -12 28 q-6 24 -30 12 q-18 18 -34 0 q-26 8 -26 -18 q-22 -12 -6 -30 q-12 -22 8 -26z" fill="rgba(210,59,47,.08)" stroke="#d23b2f" stroke-width="3"/>
+          <line x1="860" y1="430" x2="712" y2="482" stroke="#d23b2f" stroke-width="3"/><polygon points="712,482 730,468 734,488" fill="#d23b2f"/>
+          <rect x="812" y="388" width="230" height="44" rx="8" fill="#fff" stroke="#d23b2f" stroke-width="2"/>
+          <text x="824" y="408" font-size="13" fill="#d23b2f" font-weight="600">Εδώ θέλω παράθυρο 1,20 m</text><text x="824" y="425" font-size="11" fill="#8a3a33">Παναγιώτης · 14/10 21:40</text>
+          <path d="M760 210 C 800 180, 860 240, 900 200 S 980 220, 990 180" stroke="#2f6bd6" stroke-width="3" fill="none"/>
+          <text x="900" y="170" font-size="12" fill="#2f6bd6">ελεύθερο σχέδιο</text>
+        </svg>
+        <!-- CAD dropdown -->
+        <div class="drop" style="top:-2px;left:-2px;width:300px;display:none"></div>
+      </div>
+    </div>
+    <div class="right">
+      <div class="panel" style="flex:1.35">
+        <div class="ptabs"><span class="on">Ιδιότητες</span><span>Βοηθός</span><span>Layers</span><span>Κάμερες</span><span class="new">Σημειώσεις 1</span></div>
+        <div class="objhead"><div class="thumb"></div><div><b>Τοίχος</b><div style="color:var(--muted)">Τοίχος 6,00 m · Ισόγειο</div></div><span style="margin-left:auto;color:var(--muted)">🔒</span></div>
+        <div class="props">
+          <div class="nav"><div class="on">Γενικά</div><div>Υλικό</div><div>Γεωμετρία</div><div>Διαστάσεις</div><div>Μετασχηματ.</div><div>Φάση</div></div>
+          <div class="fields">
+            <div class="row"><em>Μήκος</em><span class="val">6,00 m</span></div>
+            <div class="row"><em>Ύψος</em><span class="val">2,70 m</span></div>
+            <div class="row"><em>Πάχος</em><span class="val">25 cm</span></div>
+            <div class="row"><em>Κατασκευή</em><span class="val">Isotex 25 ▾</span></div>
+            <div class="row"><em>Αναφορά</em><span class="val">Άξονας ▾</span></div>
+            <div class="row"><em>Ανοίγματα</em><span>1 πόρτα · 1 παράθυρο</span></div>
+            <div class="row"><em>Πλευρά Α</em><span>Σοβάς λευκός</span></div>
+            <div class="row"><em>Πλευρά Β</em><span>Πέτρα Πηλίου</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel" style="flex:1">
+        <div class="ptabs"><span class="on">Έργο</span><span>Βιβλιοθήκη</span><span>Επίπεδα</span><span>Υλικά έργου</span></div>
+        <div class="tree">
+          <div>▾ Ισόγειο (+0,00) · 13 τοίχοι</div><div class="l2">▾ Χώροι (4)</div><div class="l3">Σαλόνι–Κουζίνα 48,00 m²</div><div class="l3">Υπνοδωμάτιο 10,00 m²</div>
+          <div class="l2">▸ Σκάλα · Ξύλινη, κάγκελο αριστερά</div><div class="l2">▸ Τοίχοι (13)</div><div>▸ 1ος όροφος (+2,70) · 12 τοίχοι · μπαλκόνι</div><div>▸ Υπόγειο (−3,00)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="status"><span>Κατάσταση: Έτοιμο</span><span>Σήμανση: κλικ = βέλος · σύρε = σύννεφο · διπλό κλικ = κείμενο · Esc = τέλος</span>
+    <span class="xy">X 7,42 &nbsp; Y 3,15 &nbsp; Z 0,00</span><span>Μέτρα (m)</span><span>Κάνναβος 0,10</span></div>
+
+  <!-- CAD menu, open -->
+  <div class="drop" style="top:33px;left:684px;width:262px;display:none">
+    <div class="h">Σχεδίαση 2D (γραμμές σχεδίου, όχι τοίχοι)</div>
+    <div>Γραμμή<kbd>L</kbd></div><div>Πολυγραμμή<kbd>PL</kbd></div><div>Τόξο<kbd>A</kbd></div><div>Κύκλος<kbd>C</kbd></div><div>Ορθογώνιο<kbd>REC</kbd></div>
+    <hr><div class="h">Διαστάσεις &amp; κείμενο</div>
+    <div>Διάσταση γραμμική<kbd>DLI</kbd></div><div>Διάσταση αλυσίδα</div><div>Γωνία</div><div>Στάθμη ± (υψόμετρο)</div><div>Κείμενο / ετικέτα<kbd>T</kbd></div><div>Γραμμοσκίαση (hatch)<kbd>H</kbd></div>
+    <hr><div class="h">Επεξεργασία</div>
+    <div>Offset (παράλληλη)<kbd>O</kbd></div><div>Trim / Extend<kbd>TR</kbd></div><div>Καθρέφτισμα<kbd>MI</kbd></div><div>Πίνακας (array)<kbd>AR</kbd></div><div>Μετατροπή γραμμής → τοίχος</div>
+    <hr><div>Εισαγωγή DXF ως φόντο…</div><div>Εξαγωγή κάτοψης σε DXF…</div>
+  </div>
+
+
+  <div class="bd" style="top:6px;left:598px">1</div>
+  <div class="bd" style="top:6px;left:1158px">1</div>
+  <div class="bd" style="top:6px;left:676px">2</div>
+  <div class="bd" style="top:40px;left:662px">2</div>
+  <div class="bd" style="top:104px;left:4px">3</div>
+  <div class="bd" style="top:104px;left:362px">3</div>
+  <div class="bd" style="top:146px;left:1128px">4</div>
+  <div class="bd" style="top:616px;left:1128px">4</div>
+  <div class="bd" style="top:40px;left:734px">5</div>
+  <div class="bd" style="top:178px;left:280px">6</div>
+  <div class="bd" style="top:976px;left:1180px">7</div>
+</div>
+
+<div class="legend">
+  <h2>Πρόταση διάταξης</h2><div class="sub">Για συμφωνία πριν από κώδικα · 14/10</div>
+  <div class="it"><span>1</span><div><b>Μενού χωρίς άδεια ή διπλά.</b> «Σχεδίαση» γεμάτο με όλα τα εργαλεία σχεδίασης. Τα άδεια «Υλικά», «Γλυπτική», «Βοηθός AI» γίνονται ένα μενού <b>«Εργαλεία»</b>. Σειρά κατά τη ροή δουλειάς: Σχεδίαση → CAD → Κατασκευή → Έδαφος → Δομικά → Η/Μ → Κουζίνα → Βιβλιοθήκη.</div></div>
+  <div class="it"><span>2</span><div><b>Νέο μενού CAD</b> (και κουμπί). Γραμμές σχεδίου 2D που <i>δεν</i> είναι τοίχοι: γραμμή, πολυγραμμή, τόξο, κύκλος, διαστάσεις, κείμενο, γραμμοσκίαση, offset, trim/extend, καθρέφτισμα, πίνακας, γραμμή → τοίχος, DXF.</div></div>
+  <div class="it"><span>3</span><div><b>Κάθε κουμπί μία φορά.</b> «Υπόγειο» μόνο μέσα στο «＋ Όροφος ▾». Οι 4 όψεις (Πάνω, Πρόσοψη, Πλάγια, 3D) μέσα στο «Προβολή ▾». Η «Κάμερα» μόνο στο «Κάμερες ▾».</div></div>
+  <div class="it"><span>4</span><div><b>Όλα τα πάνελ δεξιά</b>, δίπλα στο χέρι με το ποντίκι. Πάνω: <b>Ιδιότητες</b> με ενότητες (Γενικά, Υλικό, Γεωμετρία, Διαστάσεις…), ανοιχτές πάντα πρώτες. Κάτω: <b>Έργο / Βιβλιοθήκη / Επίπεδα</b>. Η κάτοψη παίρνει όλο το αριστερό.</div></div>
+  <div class="it"><span>5</span><div><b>Σήμανση πάνω στο σχέδιο</b> (κόκκινο κουμπί). Βέλος, σύννεφο, κείμενο, ελεύθερο χέρι, 3 χρώματα. Μένει στο έργο ως «σημείωση», με όνομα και ώρα· <b>δεν</b> είναι κομμάτι του κτιρίου (δεν μπαίνει στο 3D, στις επιμετρήσεις, στα PDF εκτός αν το ζητήσεις).</div></div>
+  <div class="it"><span>6</span><div><b>Μικρή μπάρα σήμανσης</b> πάνω στο σχέδιο μόνο όσο είναι ενεργή· «✓ Τέλος» ή Esc.</div></div>
+  <div class="it"><span>7</span><div><b>Συντεταγμένες μία φορά</b>, κάτω δεξιά, με Z και μονάδες. Χωρίς τον οδηγό «Ξεκίνα» στη μέση της κάτοψης.</div></div>
+  <div class="sub" style="margin-top:18px">Τα υλικά (Βιβλιοθήκη Υλικών) τα σχεδιάζει το άλλο chat — εδώ δεν αλλάζουν.</div>
+</div>
+</body></html>

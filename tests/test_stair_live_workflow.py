@@ -1,3 +1,4 @@
+import pytest
 import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -477,3 +478,117 @@ def test_u_stair_opening_is_composed_from_multiple_flight_pieces():
 
     assert len(pieces) >= 3
     assert all(len(piece) == 4 for piece in pieces)
+
+
+def test_stair_options_offer_every_layout_and_keep_the_chosen_one_while_moving():
+    doc = _two_level_document()
+    tx = StairPlaceTransaction(doc, CommandStack(doc), (0.0, 0.0))
+    for pointer in ((5.0, 0.0), (2.0, 0.0)):
+        tx.update(*pointer)
+        offered = [c.layout for c in tx.candidates[:4]]
+        assert sorted(offered) == ['l', 'spiral', 'straight', 'u']
+
+    tx.update(5.0, 0.0)
+    while tx.active_candidate.layout != 'spiral':
+        tx.cycle_candidate(1)
+    for pointer in ((4.0, 0.5), (2.0, 0.0), (5.5, 0.0)):
+        tx.update(*pointer)
+        assert tx.active_candidate.layout == 'spiral'
+
+
+def test_stair_layout_can_be_chosen_explicitly_before_placing():
+    doc = _two_level_document()
+    stack = CommandStack(doc)
+    tx = StairPlaceTransaction(doc, stack, (0.0, 0.0), layout='u')
+    tx.update(5.0, 0.0)
+    assert tx.active_candidate.layout == 'u'
+    stair_id = tx.commit()
+    assert doc.get(stair_id).params['layout'] == 'u'
+
+
+def test_plan_pointer_stair_uses_the_chosen_layout_and_tab_cycles():
+    from archforge.core.viewport import PointerController, PointerEvent
+
+    doc = _two_level_document()
+    controller = PointerController(doc, CommandStack(doc))
+    controller.stair_layout = 'l'
+    controller.set_tool('stair')
+    controller.pointer_down(PointerEvent(0.0, 0.0))
+    controller.pointer_move(PointerEvent(5.0, 0.0))
+    assert controller.active.active_candidate.layout == 'l'
+    controller.cycle_option(1)
+    assert controller.active.active_candidate.layout != 'l'
+    result = controller.pointer_up(PointerEvent(5.0, 0.0))
+    assert doc.get(result.entity_id).params['layout'] != 'l'
+
+
+def _ground_room_with_flat_roof():
+    doc = Document()
+    for a, b in (((0, 0), (4, 0)), ((4, 0), (4, 3)), ((4, 3), (0, 3)), ((0, 3), (0, 0))):
+        doc.add(Entity('wall', {'x1': a[0], 'y1': a[1], 'x2': b[0], 'y2': b[1], 'z': 0.0,
+                                'height': 2.7, 'thickness': 0.2}))
+    stack = CommandStack(doc)
+    stack.execute(CreateRoomRoofs([doc.active_room_faces()[0].signature], thickness=0.20))
+    return doc, stack
+
+
+def test_external_stair_climbs_to_the_roof_terrace_without_a_second_floor():
+    doc, stack = _ground_room_with_flat_roof()
+    assert set(doc.levels) == {'Ground'}
+    roof = next(e for e in doc.entities.values() if e.kind == 'room_roof')
+    from archforge.architecture.rooms import room_slab_geometry
+    geom = room_slab_geometry(doc, roof)
+    roof_top = float(geom['z']) + float(geom['thickness'])
+
+    # Outside the building, running along the east wall.
+    tx = StairPlaceTransaction(doc, stack, (4.8, -2.0))
+    tx.update(4.8, 3.0)
+    stair_id = tx.commit()
+    stair = doc.get(stair_id)
+    assert abs(stair.params['upper_z'] - roof_top) < 1e-9
+    assert abs(stair.params['riser_count'] * stair.params['riser_height'] - roof_top) < 1e-6
+
+
+def test_stair_still_needs_a_target_without_floor_or_roof():
+    doc = Document()
+    with pytest.raises(ValueError):
+        StairPlaceTransaction(doc, CommandStack(doc), (0.0, 0.0))
+
+
+def test_stair_on_a_slab_is_selectable_by_click_in_the_plan_on_both_storeys():
+    """Reported: the stair could not be selected — the Auto Floor slab was drawn over it and took the click."""
+    from PySide6.QtCore import QPointF, Qt
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QApplication
+    from archforge.architecture.stairs import candidate_from_params
+    from archforge.core.commands import AddEntity
+    from archforge.ui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    w = MainWindow(); w.resize(1400, 900); w.show()
+    try:
+        doc = w.doc
+        doc.levels['Floor 2'] = 2.7
+        for z in (0.0, 2.7):
+            for s in [(0, 0, 6, 0), (6, 0, 6, 5), (6, 5, 0, 5), (0, 5, 0, 0)]:
+                w.stack.execute(AddEntity(Entity('wall', {'x1': s[0], 'y1': s[1], 'x2': s[2], 'y2': s[3], 'z': z,
+                                                          'height': 2.7, 'thickness': 0.2})))
+        tx = StairPlaceTransaction(doc, w.stack, (1.0, 1.0)); tx.update(5.0, 1.0); sid = tx.commit()
+        w._create_auto_floors()
+        assert any(e.kind == 'room_floor' for e in doc.entities.values())
+        fp = stair_footprint(candidate_from_params(doc.get(sid).params))
+        cx, cy = sum(p[0] for p in fp) / len(fp), sum(p[1] for p in fp) / len(fp)
+        w._set_active_tool('select')
+        for level in ('Ground', 'Floor 2'):
+            w._activate_level_by_name(level); w._redraw_views(all_views=True); app.processEvents()
+            doc.select([])
+            pos = w.plan_view.mapFromScene(QPointF(cx, cy))
+            QTest.mouseClick(w.plan_view.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, pos)
+            assert doc.selection == [sid], level
+        # The slab itself stays selectable where nothing else is on it.
+        w._activate_level_by_name('Ground'); w._redraw_views(all_views=True); app.processEvents()
+        doc.select([])
+        QTest.mouseClick(w.plan_view.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+                         w.plan_view.mapFromScene(QPointF(5.0, 4.2)))
+        assert [doc.get(i).kind for i in doc.selection] == ['room_floor']
+    finally:
+        w._mark_clean(); w.close(); app.processEvents()

@@ -68,7 +68,14 @@ ENTITY_MENUS = {
     'structural_support': (None, 'delete'),
     'structural_load': (None, 'delete'),
     'mesh': ('properties', 'materials', None, 'delete'),
+    'slab_opening': ('properties', 'move', None, 'delete'),
+    'drywall_ceiling': ('properties', None, 'delete'),
 }
+# Everything else the user places (core/object_ops.py): move, rotate, delete.
+for _kind in ('library_object', 'cabinet', 'kitchen_part', 'plant', 'railing', 'plumbing_point',
+              'electrical_point', 'ventilation_point', 'drainage_point'):
+    ENTITY_MENUS.setdefault(_kind, ('properties', 'materials', 'move', 'rotate', None, 'delete')
+                            if _kind in ('library_object', 'cabinet') else ('properties', 'move', 'rotate', None, 'delete'))
 
 
 def object_context_actions(kind: str, view: str):

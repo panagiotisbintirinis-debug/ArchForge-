@@ -110,7 +110,9 @@ def test_beam_placement_binds_top_face_to_next_level():
     beam=doc.get(result.entity_id)
 
     assert beam.kind=='structural_beam'
-    assert beam.params['level']=='Floor 2'
+    # The beam sits physically under the next level, but belongs to the storey
+    # it was authored from so it stays visible in that storey's plan.
+    assert beam.params['level']=='Ground'
     assert abs(float(beam.params['z'])-2.40)<1e-9
     assert abs(float(beam.params['z'])+float(beam.params['height'])-2.70)<1e-9
 

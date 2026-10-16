@@ -21,7 +21,22 @@ _KIND_ROLES:Dict[str,Tuple[Tuple[str,bool,bool,str],...]]={
  'organic_junction':(('junction',False,False,'derived flat organic junction surface'),),
  'organic_opening_patch':(('opening_patch',False,False,'derived flat host surface for a conventional pod opening'),),
  'floor':_slab('floor'),'room_floor':_slab('derived room floor'),'room_ceiling':_slab('derived room ceiling'),'room_foundation':_slab('derived foundation'),'room_roof':_slab('derived roof'),
- 'room':(('ceiling',True,False,'generated room ceiling'),('floor_boundary',False,False,'room floor boundary'))}
+ 'room':(('ceiling',True,False,'generated room ceiling'),('floor_boundary',False,False,'room floor boundary')),
+ 'site_path':(('top',False,False,'path surface'),('bottom',False,False,'path underside'),('side',False,False,'path edge')),
+ 'plant':(('trunk',False,False,'plant trunk'),('canopy',False,False,'plant crown')),
+ 'pitched_roof':tuple((r,False,False,f'roof {r}') for r in ('plate','gable','ridge','hip','rafter','batten','counter_batten','boarding','vapour_barrier','insulation','membrane','tiles')),
+ 'electrical_point':(('marker',False,False,'electrical point marker'),),
+ 'plumbing_point':(('marker',False,False,'plumbing point marker'),),
+ 'ventilation_point':(('marker',False,False,'ventilation device'),),
+ 'drainage_point':(('marker',False,False,'drainage fitting'),),
+ 'ceiling_joists':(('joist',False,False,'timber joist'),),
+ 'cabinet':tuple((r,False,False,f'cabinet {r}') for r in ('carcass','shelf','front','handle','plinth','worktop','rail','glass','mechanism')),
+ 'door':tuple((r,False,False,f'door joinery {r}') for r in ('frame','leaf','glass','handle','shading','sill')),
+ 'window':tuple((r,False,False,f'window joinery {r}') for r in ('frame','leaf','glass','handle','shading','sill')),
+ 'drywall_ceiling':(('board',False,False,'plasterboard ceiling'),('band',False,False,'ceiling step band')),
+ 'railing':tuple((r,False,False,f'railing {r}') for r in ('handrail','post','infill','glass','base')),
+ 'library_object':(('body',True,False,'library object surface (sculptable; coordinates local to the object)'),('placeholder',False,False,'box shown while the library asset is missing')),
+ 'terrain':(('top',False,False,'site ground surface'),('bottom',False,False,'site ground underside'),('side',False,False,'site ground edge'))}
 def surface_catalog(doc,owner_id):
  if owner_id not in doc.entities:raise ValueError('surface owner does not exist')
  e=doc.entities[owner_id];return tuple(SurfaceDescriptor(owner_id,*r) for r in _KIND_ROLES.get(e.kind,()))

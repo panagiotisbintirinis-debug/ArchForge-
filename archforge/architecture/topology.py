@@ -196,7 +196,9 @@ def _edge_wall_map(graph: WallGraph) -> Dict[Tuple[int,int],str]:
     return out
 
 
-def room_faces(doc, tolerance: float = 1e-6, z: Optional[float] = None, min_area: float = 1e-6) -> List[RoomFace]:
+def room_faces(doc, tolerance: float = 1e-6, z: Optional[float] = None, min_area: float = 0.05) -> List[RoomFace]:
+    # Below 0,05 m² (≈ 22×22 cm) a closed outline is a sliver between nearly touching walls, not a room
+    # (owner saw «Χώρος 1 · 0,00 m²» labels on the plan).
     """Return bounded room faces with stable semantic boundary signatures."""
     graph=build_wall_graph(doc,tolerance=tolerance,z=z);raw=_halfedge_faces(graph);edge_wall=_edge_wall_map(graph)
     rooms=[];seen=set()

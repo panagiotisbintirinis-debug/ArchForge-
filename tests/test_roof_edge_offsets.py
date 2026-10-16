@@ -55,3 +55,108 @@ def test_flat_roof_edge_offsets_round_trip_with_authoritative_document():
     restored_roof = restored.get(roof.id)
     assert restored_roof.params['edge_offsets'] == {'east': .40, 'north': -.05}
     assert room_slab_geometry(restored, restored_roof)['points'] == room_slab_geometry(doc, roof)['points']
+
+
+def _owner_room_with_short_closing_wall(z=0.0):
+    # Walls from the owner's project: an 11 cm closing wall meets the top
+    # wall only 1.6 deg off straight.
+    doc = Document()
+    pts = (((-4.545454545454545, 2.4727272727272727), (-0.2180290324909846, 2.4727272727272727)),
+           ((-0.2180290324909846, 2.4727272727272727), (-0.2180290324909846, -0.89213)),
+           ((-0.2180290324909846, -0.89213), (-4.65512, -0.89213)),
+           ((-4.65512, -0.89213), (-4.65512, 2.47584)),
+           ((-4.545454545454545, 2.4727272727272727), (-4.65512, 2.47584)))
+    for a, b in pts:
+        doc.add(Entity('wall', {'x1': a[0], 'y1': a[1], 'x2': b[0], 'y2': b[1],
+                                'z': z, 'height': 2.7, 'thickness': .15}))
+    return doc
+
+
+def test_flat_roof_has_no_spike_where_walls_meet_almost_straight():
+    doc = _owner_room_with_short_closing_wall()
+    stack = CommandStack(doc)
+    stack.execute(CreateRoomRoofs([doc.active_room_faces()[0].signature], thickness=.20))
+    points = room_slab_geometry(doc, _roof(doc))['points']
+    xs = [p[0] for p in points]; ys = [p[1] for p in points]
+    # Outer wall faces bound the roof (half thickness 0.075 m) plus a small margin.
+    assert min(xs) >= -4.65512 - 0.075 - 0.02
+    assert max(xs) <= -0.2180290324909846 + 0.075 + 0.02
+    assert min(ys) >= -0.89213 - 0.075 - 0.02
+    assert max(ys) <= 2.47584 + 0.075 + 0.02
+
+
+def test_flat_roof_square_corners_are_unchanged_by_the_miter_limit():
+    doc = _closed_room()
+    stack = CommandStack(doc)
+    stack.execute(CreateRoomRoofs([doc.active_room_faces()[0].signature], thickness=.20))
+    points = sorted((round(x, 9), round(y, 9)) for x, y in room_slab_geometry(doc, _roof(doc))['points'])
+    assert points == sorted([(-0.1, -0.1), (4.1, -0.1), (4.1, 3.1), (-0.1, 3.1)])
+
+
+def test_flat_roof_has_no_spike_at_a_very_sharp_corner():
+    # A sliver room: the corner at the origin is only ~2.9 deg wide, so an
+    # unbounded miter would shoot the roof ~4 m past the walls.
+    doc = Document()
+    for a, b in (((0, 0), (6, 0)), ((6, 0), (6, 0.3)), ((6, 0.3), (0, 0))):
+        doc.add(Entity('wall', {'x1': a[0], 'y1': a[1], 'x2': b[0], 'y2': b[1],
+                                'z': 0, 'height': 3, 'thickness': .2}))
+    stack = CommandStack(doc)
+    stack.execute(CreateRoomRoofs([doc.active_room_faces()[0].signature], thickness=.20))
+    points = room_slab_geometry(doc, _roof(doc))['points']
+    assert min(p[0] for p in points) >= -0.5
+    assert max(p[0] for p in points) <= 6.5
+    assert min(p[1] for p in points) >= -0.5
+    assert max(p[1] for p in points) <= 0.8
+
+
+def _two_rooms_sharing_a_wall():
+    # Two 4 x 3 rooms side by side; the wall at x = 4 is shared (interior).
+    doc = Document()
+    for a, b in (((0, 0), (4, 0)), ((4, 0), (8, 0)), ((8, 0), (8, 3)), ((8, 3), (4, 3)),
+                 ((4, 3), (0, 3)), ((0, 3), (0, 0)), ((4, 0), (4, 3))):
+        doc.add(Entity('wall', {'x1': a[0], 'y1': a[1], 'x2': b[0], 'y2': b[1],
+                                'z': 0, 'height': 3, 'thickness': .2}))
+    stack = CommandStack(doc)
+    stack.execute(CreateRoomRoofs([f.signature for f in doc.active_room_faces()], thickness=.20))
+    return doc, stack
+
+
+def _roof_extents(doc):
+    out = []
+    for roof in (e for e in doc.entities.values() if e.kind == 'room_roof'):
+        pts = room_slab_geometry(doc, roof)['points']
+        out.append((min(p[0] for p in pts), max(p[0] for p in pts),
+                    min(p[1] for p in pts), max(p[1] for p in pts)))
+    return sorted(out)
+
+
+def test_roofs_of_adjacent_rooms_meet_on_the_shared_wall_without_overlap():
+    doc, _ = _two_rooms_sharing_a_wall()
+    left, right = _roof_extents(doc)
+    assert left[0] == pytest.approx(-0.1) and right[1] == pytest.approx(8.1)
+    # Shared wall: both roofs stop at its centreline.
+    assert left[1] == pytest.approx(4.0) and right[0] == pytest.approx(4.0)
+    # Outer walls keep the full outer-face coverage.
+    assert left[2] == pytest.approx(-0.1) and left[3] == pytest.approx(3.1)
+
+
+def test_roof_overhang_property_extends_only_the_outer_edges_and_undoes():
+    doc, stack = _two_rooms_sharing_a_wall()
+    roofs = [e for e in doc.entities.values() if e.kind == 'room_roof']
+    assert all(r.params['overhang'] == 0.0 for r in roofs)
+    for roof in roofs:
+        stack.execute(UpdateEntity(roof.id, {'overhang': 0.5}))
+    left, right = _roof_extents(doc)
+    assert left[0] == pytest.approx(-0.6) and right[1] == pytest.approx(8.6)
+    assert left[2] == pytest.approx(-0.6) and left[3] == pytest.approx(3.6)
+    assert left[1] == pytest.approx(4.0) and right[0] == pytest.approx(4.0)
+    stack.undo(); stack.undo()
+    left, _ = _roof_extents(doc)
+    assert left[0] == pytest.approx(-0.1)
+
+
+def test_negative_roof_overhang_is_rejected():
+    doc, stack = _two_rooms_sharing_a_wall()
+    roof = next(e for e in doc.entities.values() if e.kind == 'room_roof')
+    with pytest.raises(ValueError):
+        stack.execute(UpdateEntity(roof.id, {'overhang': -0.2}))

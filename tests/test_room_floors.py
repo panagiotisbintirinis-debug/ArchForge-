@@ -76,3 +76,12 @@ def test_create_floor_rejects_inactive_room_signature():
         assert False
     except ValueError:
         pass
+
+
+def test_room_floor_hangs_below_the_storey_level_in_3d():
+    """The storey level is the finished floor: furniture at the level is not sunk 15 cm into the slab."""
+    from archforge.geometry.mesh import TessellatedPreviewBackend
+    d=Document();rectangle(d);sig=room_faces(d)[0].signature;f=create_room_floor(d,sig,thickness=.15)
+    body=next(b for b in TessellatedPreviewBackend().evaluate(d).bodies if b.entity_id==f.id)
+    zs=[v[2] for v in body.payload.vertices]
+    assert abs(max(zs)-0.0)<1e-6 and abs(min(zs)+0.15)<1e-6

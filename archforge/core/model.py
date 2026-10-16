@@ -131,6 +131,271 @@ def _stair_layout(v):
     return value
 
 
+def _wall_type(v):
+    from archforge.architecture.wall_types import WALL_TYPES
+    v = str(v)
+    if v not in WALL_TYPES:
+        raise ValueError(f'wall type must be one of {", ".join(WALL_TYPES)}')
+    return v
+
+
+def _plumbing_type(v):
+    from archforge.mep.plumbing import POINT_TYPES
+    v = str(v)
+    if v not in POINT_TYPES:
+        raise ValueError(f'plumbing point must be one of {", ".join(POINT_TYPES)}')
+    return v
+
+
+def _electrical_type(v):
+    from archforge.mep.electrical import POINT_TYPES
+    v = str(v)
+    if v not in POINT_TYPES:
+        raise ValueError(f'electrical point must be one of {", ".join(POINT_TYPES)}')
+    return v
+
+
+def _roof_form(v):
+    from archforge.structure.timber_roof import FORMS
+    v = str(v)
+    if v not in FORMS:
+        raise ValueError(f'roof form must be one of {", ".join(FORMS)}')
+    return v
+
+
+def _shed_high(v):
+    v = str(v)
+    if v not in ('auto', 'x0', 'x1', 'y0', 'y1'):
+        raise ValueError('shed high side must be auto, x0, x1, y0 or y1')
+    return v
+
+
+def _roof_tile(v):
+    from archforge.structure.timber_roof import TILES
+    v = str(v)
+    if v not in TILES:
+        raise ValueError(f'tile must be one of {", ".join(TILES)}')
+    return v
+
+
+def _roof_insulation(v):
+    from archforge.structure.timber_roof import INSULATIONS
+    v = str(v)
+    if v not in INSULATIONS:
+        raise ValueError(f'insulation must be one of {", ".join(INSULATIONS)}')
+    return v
+
+
+def _insulation_thickness(v):
+    v = _finite(v)
+    if not 0.0 <= v <= 0.30:
+        raise ValueError('insulation thickness must be between 0 and 0.30 m')
+    return v
+
+
+def _snow_zone(v):
+    v = int(round(float(v)))
+    if v not in (1, 2, 3):
+        raise ValueError('snow zone must be 1, 2 or 3')
+    return v
+
+
+def _pitch(v):
+    v = _finite(v)
+    if not 5.0 <= v <= 60.0:
+        raise ValueError('roof pitch must be between 5 and 60 degrees')
+    return v
+
+
+def _rafter_spacing(v):
+    v = _finite(v)
+    if not 0.3 <= v <= 1.2:
+        raise ValueError('rafter spacing must be between 0.30 and 1.20 m')
+    return v
+
+
+def _pipe_system(v):
+    v = str(v)
+    if v not in ('multilayer', 'copper', 'manifold'):
+        raise ValueError('pipe_system must be multilayer, copper or manifold')
+    return v
+
+
+def _drain_type(v):
+    from archforge.mep.drainage import POINT_TYPES
+    v = str(v)
+    if v not in POINT_TYPES:
+        raise ValueError(f'drainage point must be one of {", ".join(POINT_TYPES)}')
+    return v
+
+
+def _vent_type(v):
+    from archforge.mep.ventilation import POINT_TYPES
+    v = str(v)
+    if v not in POINT_TYPES:
+        raise ValueError(f'ventilation point must be one of {", ".join(POINT_TYPES)}')
+    return v
+
+
+def _vent_outlet(v):
+    v = str(v)
+    if v not in ('auto', 'wall', 'roof'):
+        raise ValueError('outlet must be auto, wall or roof')
+    return v
+
+
+def _joist_spacing(v):
+    v = _finite(v)
+    if not 0.25 <= v <= 1.0:
+        raise ValueError('joist spacing must be between 0.25 and 1.00 m')
+    return v
+
+
+def _joist_usage(v):
+    v = str(v)
+    if v not in ('ceiling', 'floor'):
+        raise ValueError('usage must be ceiling or floor')
+    return v
+
+
+def _joist_direction(v):
+    v = str(v)
+    if v not in ('auto', 'x', 'y'):
+        raise ValueError('direction must be auto, x or y')
+    return v
+
+
+def _cable_routing(v):
+    v = str(v)
+    if v not in ('auto', 'wall', 'floor'):
+        raise ValueError('routing must be auto, wall or floor')
+    return v
+
+
+def _supply_phases(v):
+    v = int(v)
+    if v not in (0, 1, 3):
+        raise ValueError('supply phases must be 1 or 3 (0 = not entered)')
+    return v
+
+
+def _kelvin(v):
+    v = _finite(v)
+    if not 1000.0 <= v <= 10000.0:
+        raise ValueError('colour temperature must be between 1000 and 10000 K')
+    return v
+
+
+def _beam(v):
+    v = _finite(v)
+    if not 1.0 <= v <= 180.0:
+        raise ValueError('beam angle must be between 1 and 180 degrees')
+    return v
+
+
+def _light_direction(v):
+    from archforge.mep.lighting import DIRECTIONS
+    v = str(v)
+    if v != 'auto' and v not in DIRECTIONS:
+        raise ValueError(f'direction must be auto or one of {", ".join(DIRECTIONS)}')
+    return v
+
+
+def _pieces_per_m2(v):
+    return {str(k): _positive(x) for k, x in dict(v or {}).items()}
+
+
+def _insulation_categories(v):
+    """``{category: {"thermal": key, "thickness": m, "waterproofing": key}}`` (construction/insulation.py)."""
+    from archforge.construction.insulation import CATEGORIES, THERMAL, WATERPROOFING
+    out = {}
+    for cat, entry in dict(v or {}).items():
+        if cat not in CATEGORIES:
+            raise ValueError(f'unknown insulation category {cat}')
+        clean = {}
+        for key, value in dict(entry or {}).items():
+            if value is None:
+                continue
+            if key == 'thermal' and value not in THERMAL:
+                raise ValueError(f'unknown thermal insulation {value}')
+            if key == 'waterproofing' and value not in WATERPROOFING:
+                raise ValueError(f'unknown waterproofing {value}')
+            if key == 'thickness':
+                value = _positive(value)
+            elif key not in ('thermal', 'waterproofing'):
+                raise ValueError(f'unknown insulation field {key}')
+            clean[key] = value
+        out[cat] = clean
+    return out
+
+
+def _trade_prices(v):
+    """``{code: {"material": €/unit, "labour": €/unit}}`` — non-negative numbers or absent (mep/trade_costing.py)."""
+    out = {}
+    for code, entry in dict(v or {}).items():
+        clean = {}
+        for key, value in dict(entry or {}).items():
+            if key not in ('material', 'labour'):
+                raise ValueError(f'price entry key must be material or labour, not {key}')
+            if value is not None:
+                clean[key] = _nonnegative(value)
+        out[str(code)] = clean
+    return out
+
+
+def _page_index(v):
+    value = int(round(float(v)))
+    if value < 0:
+        raise ValueError('page must be >= 0')
+    return value
+
+
+def _count(v):
+    value = int(round(float(v)))
+    if not 0 <= value <= 20:
+        raise ValueError('count must be between 0 and 20')
+    return value
+
+
+def _cabinet_type(v):
+    from archforge.kitchen.cabinets import TYPES
+    v = str(v)
+    if v not in TYPES:
+        raise ValueError(f'cabinet type must be one of {", ".join(TYPES)}')
+    return v
+
+
+def _cabinet_handle(v):
+    from archforge.kitchen.cabinets import HANDLES
+    v = str(v)
+    if v not in HANDLES:
+        raise ValueError(f'handle must be one of {", ".join(HANDLES)}')
+    return v
+
+
+def _cabinet_front_style(v):
+    from archforge.kitchen.cabinets import FRONT_STYLES
+    v = str(v)
+    if v not in FRONT_STYLES:
+        raise ValueError(f'front style must be one of {", ".join(FRONT_STYLES)}')
+    return v
+
+
+def _cabinet_mechanism(v):
+    from archforge.kitchen.cabinets import MECHANISMS
+    v = str(v)
+    if v not in MECHANISMS:
+        raise ValueError(f'mechanism must be one of {", ".join(MECHANISMS)}')
+    return v
+
+
+def _cabinet_blind_side(v):
+    v = str(v)
+    if v not in ('left', 'right'):
+        raise ValueError('blind side must be left or right')
+    return v
+
+
 def _positive_int(v):
     value = int(v)
     if value <= 0:
@@ -173,6 +438,36 @@ def _structural_section(v):
     return value
 
 
+def _steel_profile(v):
+    from archforge.structure.analysis.sections import PROFILES
+    v = str(v)
+    if v and v not in PROFILES:
+        raise ValueError(f'unknown steel profile {v}')
+    return v
+
+
+def _choice(options, label):
+    def check(v):
+        v = str(v)
+        if v not in options:
+            raise ValueError(f'{label} must be one of {", ".join(options)}')
+        return v
+    return check
+
+
+def _structural_design_schema():
+    from archforge.structure.analysis.sections import CONCRETE, STEEL_GRADES
+    from archforge.structure.analysis.settings import IMPORTANCE, OCCUPANCIES, ROOF_ACCESS, SOILS, SYSTEMS, ZONES
+    from archforge.structure.foundation import FOUNDATION_TYPES
+    return {'system': _choice(SYSTEMS, 'system'), 'occupancy': _choice(OCCUPANCIES, 'occupancy'),
+            'roof_access': _choice(ROOF_ACCESS, 'roof access'), 'seismic_zone': _choice(ZONES, 'seismic zone'),
+            'soil': _choice(SOILS, 'soil'), 'importance': _choice(IMPORTANCE, 'importance class'),
+            'concrete': _choice(CONCRETE, 'concrete'), 'steel_grade': _choice(STEEL_GRADES, 'steel grade'),
+            'slab_thickness': _positive, 'finishes': _nonnegative, 'partitions': _nonnegative,
+            'roof_finishes': _nonnegative, 'soil_pressure': _positive,
+            'foundation_type': _choice(FOUNDATION_TYPES, 'foundation type')}
+
+
 def _structural_support_type(v):
     value = str(v).lower()
     if value not in ('fixed', 'pinned', 'roller'):
@@ -199,6 +494,89 @@ def _unit_interval(v):
     if value < 0.0 or value > 1.0:
         raise ValueError('position must be between 0 and 1')
     return value
+
+
+def _path_style(v):
+    value = str(v).strip().lower()
+    if value not in ('path', 'sidewalk', 'road'):
+        raise ValueError("path style must be 'path', 'sidewalk' or 'road'")
+    return value
+
+
+def _plant_species(v):
+    value = str(v).strip().lower()
+    if value not in ('tree', 'shrub'):
+        raise ValueError("plant species must be 'tree' or 'shrub'")
+    return value
+
+
+def _terrain_points(v):
+    out = []
+    for item in v or ():
+        if len(item) != 3:
+            raise ValueError('terrain elevation point must be [x, y, z]')
+        out.append([_finite(item[0]), _finite(item[1]), _finite(item[2])])
+    return out
+
+
+def _terrain_regions(v):
+    from archforge.site.elevation_regions import validate_regions
+    return validate_regions(v)
+
+
+def _plot_boundary(v):
+    out = [[_finite(p[0]), _finite(p[1])] for p in (v or ())]
+    if out and len(out) < 3:
+        raise ValueError('plot boundary needs at least 3 corners')
+    return out
+
+
+def _wall_surface_role(v):
+    # Wall-hosted MEP mounts use the signed-offset roles; mechanical mounts
+    # keep using the semantic surface catalog roles (interior, exterior, ...).
+    # The host-specific check stays with the surface catalog.
+    from archforge.geometry.surfaces import _KIND_ROLES
+    value = str(v).lower().strip()
+    catalog = {role for roles in _KIND_ROLES.values() for role, *_ in roles}
+    if value not in ('positive_face', 'negative_face', 'centerline') and value not in catalog:
+        raise ValueError(
+            'mount surface role must be positive_face, negative_face, centerline, '
+            'or a semantic surface role'
+        )
+    return value
+
+
+def _kitchen_role(v):
+    return _nonempty(v)
+
+
+def _railing_points(v):
+    from archforge.architecture.railings import validate_points
+    return validate_points(v)
+
+
+def _railing_choice(table, label):
+    def check(v):
+        from archforge.architecture import railings
+        v = str(v)
+        options = getattr(railings, table)
+        if v not in options:
+            raise ValueError(f'{label} must be one of {", ".join(options)}')
+        return v
+    return check
+
+
+def _flag(v):
+    return 1 if int(round(float(v))) else 0
+
+
+def _between(lo, hi, label):
+    def check(v):
+        v = _finite(v)
+        if not lo <= v <= hi:
+            raise ValueError(f'{label} must be within {lo:g}..{hi:g}')
+        return v
+    return check
 
 
 def _load_direction(v):
@@ -257,12 +635,34 @@ class Entity:
         return copy.deepcopy(self)
 
 
-_ROOM_SLAB = {'room_signature': _room_signature, 'thickness': _positive, 'offset_z': _finite}
+def _slab_choice(name):
+    # Storey slabs and slab openings (architecture/storey_slabs.py).
+    def check(v):
+        from archforge.architecture import storey_slabs
+        return getattr(storey_slabs, name)(v)
+    return check
+
+
+_ROOM_SLAB = {'room_signature': _room_signature, 'thickness': _positive, 'offset_z': _finite,
+              'scope': _slab_choice('validate_scope'), 'level_z': _finite}
 _OPENING = {'offset': _finite, 'surface_u': _finite, 'width': _positive, 'height': _positive, 'sill': _finite, 'flat_margin': _nonnegative}
 _ARCH_OPENING = {**_OPENING, 'shape': _opening_shape, 'arch_rise': _positive}
+
+
+def _joinery(key):
+    # Door/window joinery parameters (architecture/joinery.py), all optional.
+    def check(v):
+        from archforge.architecture.joinery import validate_choice
+        return validate_choice(key, v)
+    return check
+
+
+_JOINERY_OPENING = {**_OPENING, **{k: _joinery(k) for k in (
+    'opening_type', 'hinge', 'swing', 'leaves', 'bars_h', 'bars_v', 'transom', 'shading', 'ledge', 'finish')},
+    'open_angle': _joinery('open_angle')}
 SCHEMAS = {
     'box': {'x': _finite, 'y': _finite, 'z': _finite, 'width': _positive, 'depth': _positive, 'height': _positive, 'rotation': _finite},
-    'wall': {'x1': _finite, 'y1': _finite, 'z': _finite, 'x2': _finite, 'y2': _finite, 'height': _positive, 'thickness': _positive},
+    'wall': {'x1': _finite, 'y1': _finite, 'z': _finite, 'x2': _finite, 'y2': _finite, 'height': _positive, 'thickness': _positive, 'wall_type': _wall_type},
     'pod': {'cx': _finite, 'cy': _finite, 'floor_level': _finite, 'diameter_x': _positive, 'diameter_y': _positive, 'height': _positive, 'shell_thickness': _positive, 'rotation': _finite},
     'stair': {
         'x': _finite,
@@ -280,6 +680,7 @@ SCHEMAS = {
         'landing_depth': _positive,
         'turn_direction': _turn_direction,
         'opening_margin': _nonnegative,
+        'plan_numbers': _flag,          # numbered steps in the plan symbol (optional)
     },
     'ramp': {
         'x': _finite,
@@ -302,9 +703,9 @@ SCHEMAS = {
     'room_floor': _ROOM_SLAB,
     'room_ceiling': _ROOM_SLAB,
     'room_foundation': _ROOM_SLAB,
-    'room_roof': {**_ROOM_SLAB, 'roof_type': _nonempty},
-    'door': _OPENING,
-    'window': _OPENING,
+    'room_roof': {**_ROOM_SLAB, 'roof_type': _nonempty, 'overhang': _nonnegative},
+    'door': _JOINERY_OPENING,
+    'window': _JOINERY_OPENING,
     'opening': _ARCH_OPENING,
     'organic_opening_patch': {'opening_id': _nonempty, 'host_id': _nonempty, 'status': _nonempty},
     'structural_column': {
@@ -316,6 +717,7 @@ SCHEMAS = {
         'section': _structural_section,
         'base_level': _nonempty,
         'top_level': _nonempty,
+        'profile': _steel_profile,
     },
     'structural_beam': {
         'x1': _finite, 'y1': _finite, 'x2': _finite, 'y2': _finite,
@@ -324,6 +726,7 @@ SCHEMAS = {
         'construction': _construction_system,
         'section': _structural_section,
         'level': _nonempty,
+        'profile': _steel_profile,
     },
     'structural_support': {
         'member_end': _member_end,
@@ -348,7 +751,92 @@ SCHEMAS = {
         'diameter': _conduit_diameter,
     },
     'mechanical_joint': {'joint_type': _nonempty, 'parent_part': _nonempty, 'child_part': _nonempty, 'anchor': _vec3, 'axis': _vec3, 'min_value': _finite, 'max_value': _finite, 'value': _finite},
-    'mechanical_mount': {'host_id': _nonempty, 'part_id': _nonempty, 'surface_role': _nonempty, 'clearance': _nonnegative, 'embed_depth': _nonnegative},
+    'mechanical_mount': {
+        'host_id': _nonempty, 'part_id': _nonempty,
+        'surface_u': _unit_interval, 'elevation': _finite,
+        'surface_role': _wall_surface_role, 'normal_offset': _finite,
+        'clearance': _nonnegative, 'embed_depth': _nonnegative,
+    },
+    'terrain': {
+        'x0': _finite, 'y0': _finite, 'x1': _finite, 'y1': _finite,
+        'elevation': _finite, 'slope_x': _finite, 'slope_y': _finite, 'thickness': _positive,
+        'points': _terrain_points, 'blend_radius': _positive, 'boundary': _plot_boundary,
+        'regions': _terrain_regions,
+        'altitude_ref': _finite,
+    },
+    'site_path': {
+        'x1': _finite, 'y1': _finite, 'x2': _finite, 'y2': _finite, 'z': _finite,
+        'width': _positive, 'thickness': _positive, 'style': _path_style,
+    },
+    'plant': {
+        'x': _finite, 'y': _finite, 'z': _finite, 'height': _positive, 'canopy': _positive,
+        'species': _plant_species,
+    },
+    'pitched_roof': {'x0': _finite, 'y0': _finite, 'x1': _finite, 'y1': _finite, 'eave_z': _finite,
+                     'pitch': _pitch, 'overhang': _nonnegative, 'rafter_spacing': _rafter_spacing,
+                     'roof_form': _roof_form, 'tile': _roof_tile, 'snow_zone': _snow_zone, 'altitude': _nonnegative,
+                     'insulation': _roof_insulation, 'insulation_thickness': _insulation_thickness,
+                     'shed_high': _shed_high},
+    'electrical_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _electrical_type, 'power_w': _nonnegative,
+                         'routing': _cable_routing, 'supply_kva': _nonnegative, 'supply_phases': _supply_phases, 'supply_fuse_a': _nonnegative,
+                         'demand_factor': _unit_interval, 'install_method': _choice(('A1', 'B1'), 'installation method'),
+                         'control_system': _choice(('conventional', 'knx'), 'control system'),
+                         'waste_pct': _nonnegative,
+                         # luminaires (mep/lighting.py): strip end, load, light effect, control
+                         'x2': _finite, 'y2': _finite, 'w_per_m': _nonnegative, 'lumen': _nonnegative, 'kelvin': _kelvin,
+                         'beam_deg': _beam, 'dim_level': _unit_interval, 'direction': _light_direction,
+                         'automation_group': str, 'mount_height': _nonnegative, 'catalog_id': str,
+                         'dimming': _choice(('onoff', 'phase_cut', 'dali2', '0_10v'), 'dimming protocol'),
+                         'target_x': _finite, 'target_y': _finite, 'target_z': _finite},
+    'plumbing_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _plumbing_type, 'pipe_system': _pipe_system},
+    'ceiling_joists': {'points': _polygon, 'z': _finite, 'spacing': _joist_spacing, 'usage': _joist_usage,
+                       'direction': _joist_direction},
+    'price_list': {'vat': _nonnegative, 'trade_prices': _trade_prices},
+    'drainage_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _drain_type, 'rain_area': _nonnegative},
+    'ventilation_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _vent_type, 'outlet': _vent_outlet,
+                          'airflow': _nonnegative},
+    'cabinet': {
+        'x': _finite, 'y': _finite, 'z': _finite, 'rotation': _finite,
+        'width': _positive, 'depth': _positive, 'height': _positive, 'plinth': _nonnegative, 'height_end': _positive,
+        'cabinet_type': _cabinet_type, 'doors': _count, 'drawers': _count, 'shelves': _count,
+        'worktop': _unit_interval, 'handle': _cabinet_handle,
+        'front_style': _cabinet_front_style, 'mechanism': _cabinet_mechanism, 'blind_side': _cabinet_blind_side,
+    },
+    'library_object': {
+        'x': _finite, 'y': _finite, 'z': _finite, 'rotation': _finite,
+        'width': _positive, 'depth': _positive, 'height': _positive,
+        'uniform': _unit_interval, 'asset': _nonempty, 'mirror': _unit_interval,
+    },
+    'kitchen_part': {
+        'x': _finite, 'y': _finite, 'z': _finite,
+        'width': _positive, 'depth': _positive, 'height': _positive,
+        'rotation': _finite, 'role': _kitchen_role, 'run_id': _nonempty,
+        'roughness': _unit_interval, 'metallic': _unit_interval,
+    },
+    'railing': {
+        'points': _railing_points, 'z': _finite, 'closed': _flag, 'height': _positive,
+        'railing_type': _railing_choice('TYPES', 'railing type'), 'handrail': _railing_choice('HANDRAILS', 'handrail'),
+        'handrail_size': _positive, 'post_spacing': _positive, 'gap': _positive, 'base_height': _nonnegative,
+        'metal': _railing_choice('METALS', 'metal'),
+    },
+    'drywall_ceiling': {'points': _polygon, 'level_z': _finite, 'room_id': _nonempty, 'drop': _positive,
+                        'board': _nonempty, 'layers': _positive_int, 'insulation': _nonnegative, 'cove': _flag,
+                        'cove_width': _positive, 'cove_depth': _positive},
+    'slab_opening': {'points': _polygon, 'level_z': _finite, 'room_id': _nonempty,
+                     'cuts': _slab_choice('validate_cuts'), 'use': _slab_choice('validate_use')},
+    # Section line drawn in the plan (output/section_cut.py): the drawing is derived, only the line is kept.
+    # Engineer's drawing under the plan (project/underlay.py): a picture to draw on, not design geometry.
+    'underlay': {'source': _choice(('pdf', 'dxf'), 'underlay source'), 'path': str, 'page': _page_index, 'x': _finite, 'y': _finite,
+                 'z': _finite, 'u0': _finite, 'v0': _finite, 'm_per_unit': _positive, 'rotation': _finite,
+                 'opacity': _unit_interval, 'page_w': _positive, 'page_h': _positive, 'scale_denominator': _positive},
+    'insulation_spec': {'categories': _insulation_categories},
+    # Data-sheet figures the user enters (construction/shell.py): pieces per m² of a brick / roof tile.
+    'construction_spec': {'pieces_per_m2': _pieces_per_m2},
+    'section_line': {'x1': _finite, 'y1': _finite, 'x2': _finite, 'y2': _finite, 'flip': _flag, 'depth': _nonnegative},
+    # Saved camera (core/cameras.py): a view preference, never building geometry.
+    'camera': {'x': _finite, 'y': _finite, 'level_z': _finite, 'height': _between(0.05, 50.0, 'eye height'),
+               'heading': _finite, 'pitch': _between(-80.0, 80.0, 'camera pitch'),
+               'fov': _between(20.0, 120.0, 'field of view')},
 }
 
 
@@ -360,9 +848,26 @@ def validate_params(kind, params):
     if kind == 'structural_column':
         out.setdefault('section', 'rectangular')
         out.setdefault('top_level', 'Unassigned')
-    for key, fn in SCHEMAS.get(kind, {}).items():
+    if kind == 'structural_design':
+        schema = _structural_design_schema()
+    elif kind == 'project_brief':
+        from archforge.project.brief import QUESTIONS
+        schema = {key: _choice(options, key) for key, _q, options in QUESTIONS}
+    else:
+        schema = SCHEMAS.get(kind, {})
+    if kind == 'wall' and 'reference' in out:
+        out['reference'] = _choice(('axis', 'exterior', 'interior'), 'wall reference')(out['reference'])
+    if 'phase' in out:
+        from archforge.project.brief import PHASES
+        out['phase'] = _choice(PHASES, 'phase')(out['phase'])
+    for key, fn in schema.items():
         if key in out:
             out[key] = fn(out[key])
+    if kind == 'terrain':
+        if float(out.get('x1', 0)) - float(out.get('x0', 0)) <= 1e-6 or float(out.get('y1', 0)) - float(out.get('y0', 0)) <= 1e-6:
+            raise ValueError('terrain extent must be positive (x1 > x0, y1 > y0)')
+        if abs(float(out.get('slope_x', 0))) > 100 or abs(float(out.get('slope_y', 0))) > 100:
+            raise ValueError('terrain slope must be within ±100 %')
     if kind == 'structural_column':
         required = {
             'x','y','z','width','depth','height','rotation',
@@ -381,6 +886,17 @@ def validate_params(kind, params):
             raise ValueError('structural beam is missing required fields: ' + ', '.join(sorted(missing)))
         if math.hypot(float(out['x2'])-float(out['x1']), float(out['y2'])-float(out['y1'])) <= 1e-9:
             raise ValueError('structural beam must have non-zero plan length')
+    if kind == 'railing':
+        from archforge.architecture.railings import validate as validate_railing
+        validate_railing(out)
+    if kind == 'drywall_ceiling':
+        from archforge.construction.drywall import validate as validate_drywall
+        validate_drywall(out)
+    if kind == 'slab_opening':
+        from archforge.architecture.storey_slabs import validate_opening
+        validate_opening(out)
+    if kind in ('room_floor', 'room_roof', 'room_ceiling') and out.get('scope') == 'storey' and 'level_z' not in out:
+        raise ValueError('storey slab needs level_z')
     if kind == 'mesh':
         required = {'vertices', 'faces', 'matrix'}
         missing = required - set(out)
@@ -479,6 +995,8 @@ class Document:
         self.room_data = {}
         self.room_bindings = {}
         self.surface_modifiers = {}
+        # Layers / working environment: view state saved with the project, outside undo (core/layers.py).
+        self.view_layers = {}
         self._change_serial = 0
         self._dirty_generation: Dict[str, int] = {}
 
@@ -552,6 +1070,22 @@ class Document:
                 related_id = entity.params.get(key)
                 if related_id in self.entities:
                     self.mark_dirty(str(related_id))
+        elif entity.kind == 'terrain':
+            # Plants (and other site elements) stand on the ground surface.
+            for related in self.entities.values():
+                if related.kind in ('plant', 'site_path'):
+                    self.mark_dirty(related.id)
+        elif entity.kind in ('wall', 'slab_opening', 'pitched_roof', 'room_floor', 'room_roof'):
+            # Storey slabs derive from every wall of their storey (and the roofs / slabs
+            # around them); slab openings cut any slab of their storey.
+            for related in self.entities.values():
+                if related.kind == 'terrain' and entity.kind == 'wall':
+                    self.mark_dirty(related.id)       # excavation follows added/moved/deleted walls
+                if related.kind in ('room_floor', 'room_roof', 'room_ceiling') and related.id != entity.id \
+                        and (entity.kind == 'slab_opening' or related.params.get('scope') == 'storey'):
+                    self.mark_dirty(related.id)
+                elif related.kind == 'drywall_ceiling' and entity.kind == 'wall':
+                    self.mark_dirty(related.id)       # a room ceiling follows its walls
         elif entity.kind in ('stair', 'ramp'):
             # Vertical circulation geometry can cut any slab occupying the
             # upper-floor plane. In legacy/current projects this may include
@@ -655,6 +1189,11 @@ class Document:
             raise ValueError('duplicate id')
         entity.params = validate_params(entity.kind, entity.params)
         self._validate_links(entity)
+        if entity.kind in ('structural_column', 'structural_beam'):
+            # Every column/beam carries its own mark (Κ1, Δ1 …) unless the user named it.
+            from archforge.structure.marks import is_unnamed, next_mark
+            if is_unnamed(entity):
+                entity.name = next_mark(self, entity.kind)
         self.entities[entity.id] = entity
         try:
             self._register_links(entity)
@@ -669,11 +1208,29 @@ class Document:
     def get(self, eid):
         return self.entities[eid]
 
+    def active_level_name(self, tolerance=1e-5):
+        """Name of the storey the work plane sits on.
+
+        A fresh document keeps the generic 'XY' work-plane name at z=0, which
+        is the Ground storey; resolve such planes by elevation.
+        """
+        name = str(self.work_plane.name)
+        if name in self.levels:
+            return name
+        z = float(self.work_plane.origin[2])
+        for level_name, level_z in self.levels.items():
+            if abs(float(level_z) - z) <= tolerance:
+                return str(level_name)
+        return name
+
     def update(self, eid, changes):
         entity = self.get(eid)
         if entity.locked:
             raise PermissionError('entity is locked')
         params = entity.params.copy()
+        if entity.kind == 'railing' and 'stair_side' in params and entity.parent_id in self.entities:
+            # A stair's railing follows the stair (sync_stair_railings): its line is not moved on its own.
+            changes = {k: v for k, v in changes.items() if k not in ('points', 'z')}
         params.update(changes)
         params = validate_params(entity.kind, params)
         candidate = entity.clone()
@@ -730,6 +1287,9 @@ class Document:
             if entity.kind in ('arboreal_branch', 'box') and (arboreal_snapshots or entity.kind == 'arboreal_branch'):
                 from archforge.organic.arboreal import sync_arboreal_mounted_pods
                 sync_arboreal_mounted_pods(self, eid)
+            if entity.kind == 'stair' and self.children.get(eid):
+                from archforge.architecture.railings import sync_stair_railings
+                sync_stair_railings(self, eid)
         except Exception:
             entity.params = old_params
             entity.revision = old_revision
@@ -894,11 +1454,26 @@ class Document:
             'room_data': copy.deepcopy(self.room_data),
             'room_bindings': copy.deepcopy(self.room_bindings),
             'surface_modifiers': [modifier_to_dict(m) for m in self.surface_modifiers.values()],
+            'view_layers': copy.deepcopy(self.view_layers),
         }
 
     @classmethod
-    def from_dict(cls, data):
+    def from_dict(cls, data, skipped=None):
+        # With a ``skipped`` list, an entity or surface modifier that fails
+        # its schema is reported there and left out instead of aborting the
+        # whole load (project file check on open, project/persistence.py).
         doc = cls()
+
+        def add(raw):
+            if skipped is None:
+                doc.add(Entity(**raw))
+                return
+            try:
+                doc.add(Entity(**raw))
+            except Exception as exc:
+                raw = raw if isinstance(raw, dict) else {}
+                skipped.append({'kind': str(raw.get('kind', '')), 'id': str(raw.get('id', '')),
+                                'name': str(raw.get('name', '')), 'reason': str(exc)})
         doc.levels = data.get('levels', {'Ground': 0.0})
         wp = data.get('work_plane')
         if wp:
@@ -912,23 +1487,31 @@ class Document:
         doc.constructions = data.get('constructions', {})
         doc.room_data = copy.deepcopy(data.get('room_data', {}))
         doc.room_bindings = copy.deepcopy(data.get('room_bindings', {}))
+        from .layers import view_layers_from_dict
+        doc.view_layers = view_layers_from_dict(data.get('view_layers'))
         deferred = []
         for raw in data.get('entities', []):
             if raw.get('kind') in ('door', 'window', 'opening', 'structural_support', 'structural_load', 'organic_opening_patch', 'mechanical_joint', 'mechanical_mount'):
                 deferred.append(raw)
             else:
-                doc.add(Entity(**raw))
+                add(raw)
         for raw in [r for r in deferred if r.get('kind') in ('door', 'window', 'opening', 'structural_support', 'structural_load')]:
-            doc.add(Entity(**raw))
+            add(raw)
         for raw in [r for r in deferred if r.get('kind') not in ('door', 'window', 'opening', 'structural_support', 'structural_load')]:
-            doc.add(Entity(**raw))
+            add(raw)
         for source, deps in data.get('dependencies', {}).items():
             for dep in deps:
                 if source in doc.entities and dep in doc.entities and dep not in doc.dependencies.get(source, set()):
                     doc.add_dependency(source, dep)
         from .modifiers import modifier_from_dict
         for raw in data.get('surface_modifiers', []):
-            doc.add_surface_modifier(modifier_from_dict(raw))
+            try:
+                doc.add_surface_modifier(modifier_from_dict(raw))
+            except Exception as exc:
+                if skipped is None:
+                    raise
+                skipped.append({'kind': 'surface_modifier', 'id': str(raw.get('id', '')) if isinstance(raw, dict) else '',
+                                'name': '', 'reason': str(exc)})
         doc.dirty.clear()
         doc._dirty_generation.clear()
         doc._change_serial = 0

@@ -50,6 +50,12 @@ def project_surface_point(doc, owner_id, role, world_point):
         if role in ('top','bottom'):return (lx/w,ly/d)
         if role in ('front','back'):return (lx/w,lz/h)
         if role in ('left','right'):return (ly/d,lz/h)
+    if e.kind=='library_object' and role=='body':
+        # Fractions of the object's own width/depth/height in its local frame
+        # (origin at the base centre), so sculpts follow move, rotate and resize.
+        a=math.radians(float(p.get('rotation',0.0)));c,s=math.cos(a),math.sin(a)
+        dx=x-float(p['x']);dy=y-float(p['y'])
+        return (( c*dx+s*dy)/float(p['width']),(-s*dx+c*dy)/float(p['depth']),(zp-float(p['z']))/float(p['height']))
     if e.kind=='pod' and role=='pod_shell':
         cx,cy,z,rx,ry,rz,c,s=_pod_frame(p)
         dx=x-cx;dy=y-cy
@@ -73,7 +79,13 @@ def _transform_point(matrix,p):
 
 def evaluate_surface_point(doc, owner_id, role, uv, transform=None):
     """Reconstruct a live world point from semantic surface coordinates."""
-    u,v=map(float,uv);e=doc.get(owner_id);p=e.params
+    e=doc.get(owner_id);p=e.params
+    if e.kind=='library_object' and role=='body' and len(uv)==3:
+        fu,fv,fw=map(float,uv)
+        lx,ly,lz=fu*float(p['width']),fv*float(p['depth']),fw*float(p['height'])
+        a=math.radians(float(p.get('rotation',0.0)));c,s=math.cos(a),math.sin(a)
+        return (float(p['x'])+c*lx-s*ly,float(p['y'])+s*lx+c*ly,float(p['z'])+lz)
+    u,v=map(float,uv)
     if e.kind=='wall':
         x1,y1,z,L,h,t,ux,uy,nx,ny=_wall_frame(p)
         if role=='exterior':return (x1+ux*(u*L)+nx*t/2,y1+uy*(u*L)+ny*t/2,z+v*h)

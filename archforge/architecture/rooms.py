@@ -50,8 +50,30 @@ def create_room_floor(doc, signature: str, thickness: float = 0.15, offset_z: fl
     return e
 
 
-def _flat_roof_outer_polygon(doc, face, tolerance: float, edge_offsets=None):
-    """Offset room edges to wall exterior faces plus semantic per-wall roof offsets."""
+# A roof corner may sit at most this many offset distances from its wall
+# corner; beyond that it is bevelled (a square corner needs ~1.41).
+MITER_LIMIT=4.0
+
+
+def _on_any_edge(point, polygons, tolerance=1e-4):
+    for poly in polygons:
+        n=len(poly)
+        for i in range(n):
+            c=poly[i];d=poly[(i+1)%n]
+            dx=d[0]-c[0];dy=d[1]-c[1];ll=dx*dx+dy*dy
+            if ll<=1e-18:continue
+            t=max(0.0,min(1.0,((point[0]-c[0])*dx+(point[1]-c[1])*dy)/ll))
+            if hypot(point[0]-(c[0]+t*dx),point[1]-(c[1]+t*dy))<=tolerance:return True
+    return False
+
+
+def _flat_roof_outer_polygon(doc, face, tolerance: float, edge_offsets=None, overhang=0.0, neighbours=()):
+    """Offset room edges to wall exterior faces plus semantic per-wall roof offsets.
+
+    An edge shared with a neighbouring room (interior wall) stops at the wall
+    centreline so adjacent roofs meet without overlapping; ``overhang`` and
+    per-wall offsets apply to outer edges only.
+    """
     polygon=[tuple(q) for q in face.polygon]
     if len(polygon)<3:
         return polygon
@@ -89,18 +111,35 @@ def _flat_roof_outer_polygon(doc, face, tolerance: float, edge_offsets=None):
         extra=float(edge_offsets.get(wall.id,0.0))
         half=.5*float(wall.params.get('thickness',0.0))
         nx=orientation*dy/length;ny=-orientation*dx/length
-        distance=half+extra
-        lines.append(((a[0]+nx*distance,a[1]+ny*distance),(dx,dy)))
+        distance=half+extra+float(overhang)
+        if neighbours and _on_any_edge(((a[0]+b[0])/2,(a[1]+b[1])/2),neighbours):
+            distance=0.0
+        lines.append(((a[0]+nx*distance,a[1]+ny*distance),(dx,dy),(nx,ny),distance))
 
     out=[]
     for i in range(len(lines)):
-        p0,d0=lines[i-1];p1,d1=lines[i]
+        p0,d0,n0,o0=lines[i-1];p1,d1,n1,o1=lines[i]
+        vertex=polygon[i]
+        bevel=(
+            (vertex[0]+n0[0]*o0,vertex[1]+n0[1]*o0),
+            (vertex[0]+n1[0]*o1,vertex[1]+n1[1]*o1),
+        )
         den=d0[0]*d1[1]-d0[1]*d1[0]
         if abs(den)<=tolerance:
             out.append(p1);continue
         qx=p1[0]-p0[0];qy=p1[1]-p0[1]
         t=(qx*d1[1]-qy*d1[0])/den
-        out.append((p0[0]+t*d0[0],p0[1]+t*d0[1]))
+        corner=(p0[0]+t*d0[0],p0[1]+t*d0[1])
+        # Miter limit: a sharp corner (or edges with different offsets
+        # meeting almost straight) would put the miter metres away and
+        # draw a roof spike. Bevel the corner instead.
+        limit=MITER_LIMIT*max(abs(o0),abs(o1),1e-3)
+        if hypot(corner[0]-vertex[0],corner[1]-vertex[1])>limit:
+            out.append(bevel[0])
+            if hypot(bevel[1][0]-bevel[0][0],bevel[1][1]-bevel[0][1])>tolerance:
+                out.append(bevel[1])
+            continue
+        out.append(corner)
     return out
 
 
@@ -109,6 +148,9 @@ def room_slab_geometry(doc, slab_entity: Entity, tolerance: float = 1e-5) -> Opt
     if slab_entity.kind not in ROOM_SLAB_KINDS:
         raise ValueError('entity is not a derived room slab')
     p=slab_entity.params
+    if p.get('scope')=='storey':
+        from archforge.architecture.storey_slabs import storey_slab_geometry
+        return storey_slab_geometry(doc,slab_entity,tolerance=tolerance)
     room_id=p.get('room_id')
     found=find_room_face_by_id(doc,room_id,tolerance=tolerance) if room_id else find_room_face(doc,p['room_signature'],tolerance=tolerance)
     if found is None:
@@ -117,13 +159,31 @@ def room_slab_geometry(doc, slab_entity: Entity, tolerance: float = 1e-5) -> Opt
     z=base_z+float(p.get('offset_z',0.0))
     points=[tuple(q) for q in face.polygon]
     if slab_entity.kind=='room_roof' and p.get('roof_type','flat')=='flat':
-        points=_flat_roof_outer_polygon(doc,face,tolerance,p.get('edge_offsets'))
-    return {'points':points,
+        neighbours=[tuple(f.polygon) for f in doc.active_room_faces(z=base_z,tolerance=tolerance) if f.signature!=face.signature]
+        points=_flat_roof_outer_polygon(doc,face,tolerance,p.get('edge_offsets'),float(p.get('overhang',0.0)),neighbours)
+        # Under part of the storey above: the terrace is only the open part (plan and 3D alike).
+        from archforge.architecture.roof_clip import open_parts,upper_cover
+        parts=open_parts(points,upper_cover(doc,base_z,tolerance))
+        if parts:
+            parts=sorted(parts,key=lambda q:-abs(sum(q[i][0]*q[(i+1)%len(q)][1]-q[(i+1)%len(q)][0]*q[i][1] for i in range(len(q)))))
+            from archforge.architecture.storey_slabs import cut_room_slab
+            return cut_room_slab(doc,slab_entity,{'points':[tuple(q) for q in parts[0]],'parts':[[tuple(q) for q in part] for part in parts],
+                                                 'z':z,'thickness':float(p['thickness']),'room_id':room_id,
+                                                 'room_signature':face.signature,'wall_ids':tuple(face.wall_ids)},tolerance=tolerance)
+    from archforge.architecture.storey_slabs import cut_room_slab
+    return cut_room_slab(doc,slab_entity,{'points':points,
             'z':z,
             'thickness':float(p['thickness']),
             'room_id':room_id,
             'room_signature':face.signature,
-            'wall_ids':tuple(face.wall_ids)}
+            'wall_ids':tuple(face.wall_ids)},tolerance=tolerance)
+
+
+def slab_body_bottom(kind: str, g: dict) -> float:
+    """Bottom of a room slab's solid. The storey level is the finished floor, so a floor slab
+    hangs below it (top at the level, where furniture and fixtures stand); others start at ``z``."""
+    z = float(g['z'])
+    return z - float(g['thickness']) if kind == 'room_floor' else z
 
 
 def room_floor_geometry(doc, floor_entity: Entity, tolerance: float = 1e-5) -> Optional[dict]:

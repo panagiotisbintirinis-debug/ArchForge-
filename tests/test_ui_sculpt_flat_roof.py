@@ -94,6 +94,16 @@ def test_flat_roof_footprint_reaches_outer_wall_faces():
     assert room_slab_geometry(doc, roof)['points'] == geom['points']
 
 
+def test_flat_roof_accepts_rounding_difference_within_existing_tolerance():
+    doc, walls = _closed_room(height=3.0)
+    doc.update(walls[1].id, {'height': 3.0000001})
+    stack = CommandStack(doc)
+    stack.execute(CreateRoomRoofs([doc.active_room_faces()[0].signature]))
+    assert sum(e.kind == 'room_roof' for e in doc.entities.values()) == 1
+    stack.undo()
+    assert not any(e.kind == 'room_roof' for e in doc.entities.values())
+
+
 def test_flat_roof_rejects_non_level_boundary_without_partial_creation():
     doc, walls = _closed_room(height=3.0)
     doc.update(walls[1].id, {'height': 3.5})

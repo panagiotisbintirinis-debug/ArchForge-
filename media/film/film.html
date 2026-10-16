@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="el">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ArchForge Film</title>
+<style>
+  :root { --bg: #0d0b09; --fg: #f6efe4; --accent: #e9b46c; }
+  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
+  #stage { position: relative; margin: 0 auto; overflow: hidden; background: var(--bg); }
+  #stage canvas { display: block; width: 100%; height: 100%; }
+  .title { position: absolute; left: 0; right: 0; text-align: center; color: var(--fg); opacity: 0;
+           font-family: Georgia, "DejaVu Serif", "Times New Roman", serif; pointer-events: none; }
+  #t1 { font-weight: 600; letter-spacing: .02em; text-shadow: 0 0 .35em rgba(255,150,60,.75), 0 .05em .2em rgba(0,0,0,.6); }
+  #t2 { color: var(--accent); text-shadow: 0 .05em .3em rgba(0,0,0,.8); }
+  #veil { position: absolute; inset: 0; background: #000; opacity: 1; pointer-events: none; }
+  #vignette { position: absolute; inset: 0; pointer-events: none;
+              background: radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 55%, rgba(0,0,0,.55) 100%); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="vignette"></div>
+  <div id="t1" class="title">ArchForge</div>
+  <div id="t2" class="title">From dream to dream home</div>
+  <div id="veil"></div>
+</div>
+<script src="../../archforge/ui/vendor/three_bundle.js"></script>
+<script>
+// ArchForge — short film. A landscape at golden hour; an arch is built stone by stone (each stone unfolds into
+// place) while ivy climbs it; a wrought-iron gate with flowers and stems grows inside it and opens; the camera
+// goes through and a stone house with modern elements grows the same way. render(t) is deterministic.
+const { THREE, Sky } = window.__ARCHFORGE_THREE;
+const Q = new URLSearchParams(location.search);
+const W = +(Q.get('w') || 720), H = +(Q.get('h') || 1280);
+const DURATION = 25.0;
+const stage = document.getElementById('stage');
+stage.style.width = W + 'px'; stage.style.height = H + 'px';
+if (!Q.has('capture')) { stage.style.transform = `scale(${Math.min(innerWidth / W, innerHeight / H)})`; stage.style.transformOrigin = 'top center'; }
+const vmin = Math.min(W, H);
+const t1 = document.getElementById('t1'), t2 = document.getElementById('t2');
+t1.style.fontSize = (vmin * .145) + 'px'; t2.style.fontSize = (vmin * .052) + 'px';
+t1.style.top = (H * .12) + 'px'; t2.style.top = (H * .12 + vmin * .19) + 'px';
+
+// ---------------------------------------------------------------- helpers
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const ease = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+const easeOut = x => 1 - Math.pow(1 - x, 3);
+const back = x => { if (x <= 0) return 0; if (x >= 1) return 1; const c1 = 1.4, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+let SEED = 7;
+const rand = () => { SEED = (SEED * 16807) % 2147483647; return (SEED - 1) / 2147483646; };
+const noise2 = (x, z) => Math.sin(x * .11 + Math.sin(z * .07) * 2) * Math.cos(z * .09 + Math.sin(x * .05)) + .5 * Math.sin(x * .23 + z * .19) * Math.cos(z * .21 - x * .13);
+
+// ---------------------------------------------------------------- renderer, scene, sky
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1); renderer.setSize(W, H);
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = .5;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+stage.insertBefore(renderer.domElement, stage.firstChild);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(W < H ? 52 : 38, W / H, .1, 2000);
+
+const sky = new Sky(); sky.scale.setScalar(1800);
+const su = sky.material.uniforms;
+su.turbidity.value = 4.5; su.rayleigh.value = 1.4; su.mieCoefficient.value = .0016; su.mieDirectionalG.value = .8;
+const sun = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(84), THREE.MathUtils.degToRad(205));
+su.sunPosition.value.copy(sun);
+scene.add(sky);
+const pmrem = new THREE.PMREMGenerator(renderer);
+const envScene = new THREE.Scene(); const sky2 = new Sky(); sky2.scale.setScalar(1800); Object.assign(sky2.material.uniforms, {});
+['turbidity', 'rayleigh', 'mieCoefficient', 'mieDirectionalG'].forEach(k => sky2.material.uniforms[k].value = su[k].value);
+sky2.material.uniforms.sunPosition.value.copy(sun); envScene.add(sky2);
+scene.environment = pmrem.fromScene(envScene, .02).texture;
+scene.fog = new THREE.FogExp2(0xd8cdb9, .0042);
+
+const sunLight = new THREE.DirectionalLight(0xffd2a0, 3.2);
+sunLight.position.copy(sun).multiplyScalar(60); sunLight.target.position.set(0, 0, -6);
+sunLight.castShadow = true; sunLight.shadow.mapSize.set(2048, 2048);
+const sc = sunLight.shadow.camera; sc.left = -22; sc.right = 22; sc.top = 22; sc.bottom = -22; sc.near = 1; sc.far = 160;
+sunLight.shadow.bias = -.0004; sunLight.shadow.normalBias = .02;
+scene.add(sunLight, sunLight.target);
+scene.add(new THREE.HemisphereLight(0xbfd6ff, 0x6b5a3a, .55));
+
+// ---------------------------------------------------------------- landscape
+const groundY = (x, z) => {
+  const plot = Math.exp(-((x * x) / 220 + ((z + 8) * (z + 8)) / 260));          // flat plot around arch & house
+  const hills = noise2(x, z) * 2.2 + Math.max(0, -z - 40) * .06 * (1 + Math.sin(x * .03));
+  return hills * (1 - plot) - .02;
+};
+{
+  const geo = new THREE.PlaneGeometry(420, 420, 220, 220); geo.rotateX(-Math.PI / 2);
+  const pos = geo.attributes.position, col = [];
+  const cA = new THREE.Color('#6f8a3c'), cB = new THREE.Color('#9a9a4a'), cC = new THREE.Color('#8a6e45'), tmp = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), z = pos.getZ(i);
+    pos.setY(i, groundY(x, z));
+    const n = .5 + .5 * Math.sin(x * .7 + Math.sin(z * .5) * 3) * Math.cos(z * .6);
+    tmp.copy(cA).lerp(cB, n * .7);
+    const path = Math.exp(-Math.pow(x * .9, 2)) * (z > -14 && z < 12 ? 1 : 0);       // earth path to the house
+    const site = Math.exp(-(x * x / 40 + (z + 17) * (z + 17) / 30));
+    tmp.lerp(cC, clamp(path * .85 + site * .9));
+    col.push(tmp.r, tmp.g, tmp.b);
+  }
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); geo.computeVertexNormals();
+  const ground = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .95 }));
+  ground.receiveShadow = true; scene.add(ground);
+}
+// Distant mountains: three ridges fading into the haze.
+[[170, 26, 0x5d6b4c, 1.0], [270, 48, 0x6f7f8c, 2.1], [400, 80, 0x8e9db0, 3.3]].forEach(([R, Hm, col, ph]) => {
+  const geo = new THREE.CylinderGeometry(R, R, 1, 360, 1, true);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    if (pos.getY(i) > 0) {
+      const a = Math.atan2(pos.getZ(i), pos.getX(i));
+      pos.setY(i, Hm * (.45 + .35 * Math.abs(Math.sin(a * 2.3 + ph)) + .2 * Math.sin(a * 6.1 + ph * 2) * Math.sin(a * 1.3) + .06 * Math.sin(a * 23 + ph)));
+    } else pos.setY(i, -4);
+  }
+  geo.computeVertexNormals();
+  scene.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: col, roughness: 1, side: THREE.BackSide })));
+});
+// Grass tufts (instanced blades).
+{
+  const blade = new THREE.ConeGeometry(.018, .3, 3, 1); blade.translate(0, .15, 0);
+  const n = 22000, mesh = new THREE.InstancedMesh(blade, new THREE.MeshStandardMaterial({ color: 0x7d9a45, roughness: .9 }), n);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), s = new THREE.Vector3(), c = new THREE.Color();
+  for (let i = 0; i < n; i++) {
+    let x, z;
+    do { x = (rand() - .5) * 40; z = 14 - rand() * 46; } while (Math.abs(x) < 1.4 && z > -13 && z < 12 || (Math.abs(x) < 7.5 && z < -12.5 && z > -21.5));
+    p.set(x, groundY(x, z), z);
+    e.set((rand() - .5) * .5, rand() * 6.3, (rand() - .5) * .5); q.setFromEuler(e);
+    s.setScalar(.5 + rand() * .7); m.compose(p, q, s); mesh.setMatrixAt(i, m);
+    c.setHSL(.2 + rand() * .06, .45, .32 + rand() * .14); mesh.setColorAt(i, c);
+  }
+  mesh.receiveShadow = true; mesh.frustumCulled = false; scene.add(mesh);
+}
+// Trees: olives and cypresses.
+function olive(x, z, k) {
+  const g = new THREE.Group();
+  const bark = new THREE.MeshStandardMaterial({ color: 0x6b5a48, roughness: 1 });
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.12 * k, .22 * k, 1.6 * k, 7), bark);
+  trunk.position.y = .8 * k; trunk.rotation.z = (rand() - .5) * .3; trunk.castShadow = true; g.add(trunk);
+  const leafM = new THREE.MeshStandardMaterial({ color: 0x7b8c5a, roughness: .85 });
+  for (let i = 0; i < 9; i++) {
+    const b = new THREE.Mesh(new THREE.IcosahedronGeometry((.55 + rand() * .4) * k, 1), leafM);
+    b.position.set((rand() - .5) * 1.6 * k, (1.7 + rand() * .9) * k, (rand() - .5) * 1.6 * k); b.scale.y = .7;
+    b.castShadow = true; g.add(b);
+  }
+  g.position.set(x, groundY(x, z), z); scene.add(g);
+}
+function cypress(x, z, k) {
+  const pts = []; for (let i = 0; i <= 12; i++) { const v = i / 12; pts.push(new THREE.Vector2(Math.sin(Math.pow(v, .7) * Math.PI) * .55 * k * (1 - v * .3), v * 6 * k)); }
+  const m = new THREE.Mesh(new THREE.LatheGeometry(pts, 10), new THREE.MeshStandardMaterial({ color: 0x2f4a2a, roughness: .9 }));
+  m.position.set(x, groundY(x, z), z); m.castShadow = true; scene.add(m);
+}
+[[-6.5, 4, 1], [7, 1, 1.1], [-16, -10, 1.2], [10.5, -9, 1], [-13, -20, 1.3], [14, -24, 1.2], [-5, 10, .9], [16, 6, 1.1]].forEach(a => olive(...a));
+[[-10.5, -12, 1], [-11.5, -14, .9], [11.5, -15, 1.1], [12.5, -17.5, 1], [-18, -30, 1.3], [20, -32, 1.2], [9.5, 5, .8]].forEach(a => cypress(...a));
+
+// ---------------------------------------------------------------- stones that unfold into place
+// Every stone has a final transform and a start time; it rises from the ground small and turned,
+// unfolds (width, then height) and settles; it flashes warm when it lands.
+const stoneGeo = (() => {
+  const g = new THREE.BoxGeometry(1, 1, 1, 3, 3, 3), p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    const r = .5 - .07 * (Math.abs(x) > .49 && Math.abs(y) > .49 ? 1 : 0) - .07 * (Math.abs(y) > .49 && Math.abs(z) > .49 ? 1 : 0);
+    const j = .025 * Math.sin(x * 13.1 + y * 7.7 + z * 5.3);
+    p.setXYZ(i, x * (1 + j), y * (1 + j * .6), z * (1 + j));
+    if (r < .5) p.setXYZ(i, x * .94, y * .94, z * .94);
+  }
+  g.computeVertexNormals(); return g;
+})();
+const stoneTex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d');
+  x.fillStyle = '#9a9a9a'; x.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 2600; i++) { const v = 120 + rand() * 110 | 0; x.fillStyle = `rgba(${v},${v},${v},${.18 + rand() * .3})`; const r = .6 + rand() * 3.2; x.beginPath(); x.arc(rand() * 256, rand() * 256, r, 0, 7); x.fill(); }
+  for (let i = 0; i < 40; i++) { x.strokeStyle = `rgba(60,60,60,${.15 + rand() * .2})`; x.lineWidth = .6 + rand(); x.beginPath(); let px = rand() * 256, py = rand() * 256; x.moveTo(px, py); for (let k = 0; k < 5; k++) { px += (rand() - .5) * 30; py += (rand() - .5) * 30; x.lineTo(px, py); } x.stroke(); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t;
+})();
+const stoneMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .9, metalness: 0, map: stoneTex, bumpMap: stoneTex, bumpScale: 2.2 });
+const stones = [];      // {pos, quat, scale, t, color, mesh, index}
+function addStone(list, pos, quat, scale, t, color) { list.push({ pos, quat, scale, t, color }); }
+function stoneMesh(list) {
+  const mesh = new THREE.InstancedMesh(stoneGeo, stoneMat, list.length);
+  mesh.castShadow = mesh.receiveShadow = true; mesh.frustumCulled = false;
+  list.forEach((s, i) => mesh.setColorAt(i, s.color));
+  mesh.userData.list = list; scene.add(mesh); return mesh;
+}
+const _m = new THREE.Matrix4(), _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _e = new THREE.Euler(), _c = new THREE.Color();
+function animateStones(mesh, t, dur) {
+  const list = mesh.userData.list;
+  list.forEach((s, i) => {
+    const k = seg(t, s.t, s.t + dur);
+    if (k <= 0) { _m.makeScale(0, 0, 0); mesh.setMatrixAt(i, _m); return; }
+    const rise = ease(seg(k, 0, .7)), unfoldW = back(seg(k, .1, .6)), unfoldH = back(seg(k, .35, .9));
+    _p.copy(s.pos); _p.y = s.pos.y - (1 - rise) * 1.2;
+    _e.set((1 - rise) * 1.2, (1 - rise) * 1.6, (1 - rise) * .8); _q.setFromEuler(_e).premultiply(s.quat);
+    _s.set(s.scale.x * Math.max(.02, unfoldW), s.scale.y * Math.max(.02, unfoldH), s.scale.z * Math.max(.02, unfoldW));
+    _m.compose(_p, _q, _s); mesh.setMatrixAt(i, _m);
+    const flash = seg(k, .75, .9) * (1 - seg(k, .9, 1.4));
+    _c.copy(s.color).lerp(new THREE.Color(1, .62, .3), flash * .6); mesh.setColorAt(i, _c);
+  });
+  mesh.instanceMatrix.needsUpdate = true; mesh.instanceColor.needsUpdate = true;
+}
+const stoneColor = () => new THREE.Color().setHSL(.08 + rand() * .04, .22 + rand() * .12, .5 + rand() * .16);
+
+// ---------------------------------------------------------------- the arch
+const A = { span: 3.4, rIn: 1.7, rOut: 2.25, spring: 2.5, depth: .7, z: 0 };
+const archStones = [];
+let archKeyT = 0;
+{
+  let t = 3.0;
+  const rows = 6, rowH = A.spring / rows;
+  for (let r = 0; r < rows; r++) {
+    for (const side of [-1, 1]) {
+      const cx = side * (A.rIn + A.rOut) / 2, w = A.rOut - A.rIn;
+      // two stones per course, offset each course (bond)
+      const half = r % 2 ? [[-.27, .46], [.23, .54]] : [[-.23, .54], [.27, .46]];
+      half.forEach(([dz, len], k) => addStone(archStones, new THREE.Vector3(cx, r * rowH + rowH / 2, A.z + dz * A.depth * 1.6 / 1.6 * (A.depth / .7) * 0 + (k ? .17 : -.17)),
+        new THREE.Quaternion(), new THREE.Vector3(w * .98, rowH * .96, A.depth * len), t + k * .12 + (side > 0 ? .18 : 0), stoneColor()));
+    }
+    t += .55;
+  }
+  const N = 15, order = [];
+  for (let k = 0; k < (N - 1) / 2; k++) order.push(k, N - 1 - k);
+  order.forEach((i, n) => {
+    const a = Math.PI - (i + .5) * Math.PI / N, rMid = (A.rIn + A.rOut) / 2;
+    const pos = new THREE.Vector3(rMid * Math.cos(a), A.spring + rMid * Math.sin(a), A.z);
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, a - Math.PI / 2));
+    const chord = 2 * rMid * Math.sin(Math.PI / N / 2);
+    addStone(archStones, pos, q, new THREE.Vector3(chord * .97, A.rOut - A.rIn, A.depth), t + Math.floor(n / 2) * .52 + (n % 2) * .2, stoneColor());
+  });
+  archKeyT = t + 7 * .52 + .35;
+  const a = Math.PI / 2, rMid = (A.rIn + A.rOut) / 2;
+  addStone(archStones, new THREE.Vector3(0, A.spring + rMid, A.z), new THREE.Quaternion(), new THREE.Vector3(2 * rMid * Math.sin(Math.PI / N / 2) * 1.08, (A.rOut - A.rIn) * 1.12, A.depth * 1.06), archKeyT, new THREE.Color().setHSL(.08, .25, .66));
+}
+const archMesh = stoneMesh(archStones);
+const keyLight = new THREE.PointLight(0xff9a40, 0, 9, 2); keyLight.position.set(0, A.spring + 2.1, .9); scene.add(keyLight);
+
+// Ivy: tubes that climb the arch and grow; leaves appear as it passes.
+const ivyMat = new THREE.MeshStandardMaterial({ color: 0x3f5f2c, roughness: .8 });
+const leafGeo = (() => { const s = new THREE.Shape(); s.moveTo(0, 0); s.quadraticCurveTo(.06, .05, 0, .13); s.quadraticCurveTo(-.06, .05, 0, 0); return new THREE.ShapeGeometry(s, 4); })();
+const leafMat = new THREE.MeshStandardMaterial({ color: 0x5f8f3e, roughness: .6, side: THREE.DoubleSide });
+const vines = [];
+function vine(points, t0, t1, radius = .02) {
+  const curve = new THREE.CatmullRomCurve3(points);
+  const geo = new THREE.TubeGeometry(curve, 220, radius, 5, false);
+  const mesh = new THREE.Mesh(geo, ivyMat); mesh.castShadow = true; scene.add(mesh);
+  const nLeaves = Math.floor(curve.getLength() * 16);
+  const leaves = new THREE.InstancedMesh(leafGeo, leafMat, nLeaves); leaves.castShadow = true; leaves.frustumCulled = false; scene.add(leaves);
+  const info = [];
+  for (let i = 0; i < nLeaves; i++) {
+    const u = (i + rand() * .6) / nLeaves, p = curve.getPointAt(Math.min(u, 1)), tg = curve.getTangentAt(Math.min(u, 1));
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), tg.clone().applyAxisAngle(new THREE.Vector3(0, 0, 1), (i % 2 ? 1 : -1) * 1.1));
+    q.multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(rand() - .5, rand() - .5, 0)));
+    info.push({ u, p, q, s: .9 + rand() * .9 });
+  }
+  vines.push({ mesh, geo, leaves, info, t0, t1, total: geo.index.count });
+}
+function animateVines(t) {
+  vines.forEach(v => {
+    const f = ease(seg(t, v.t0, v.t1));
+    v.geo.setDrawRange(0, Math.floor(v.total * f / 6) * 6);
+    v.info.forEach((l, i) => {
+      const k = back(clamp((f - l.u) * 9));
+      _s.setScalar(l.s * k + 1e-4); _m.compose(l.p, l.q, _s); v.leaves.setMatrixAt(i, _m);
+    });
+    v.leaves.instanceMatrix.needsUpdate = true;
+  });
+}
+for (const side of [-1, 1]) {
+  const pts = [];
+  const zf = A.z + A.depth / 2 + .03;
+  for (let y = 0; y <= A.spring; y += .25) pts.push(new THREE.Vector3(side * (A.rOut - .08 + .05 * Math.sin(y * 5)), y, zf));
+  for (let k = 0; k <= 10; k++) { const a = side < 0 ? Math.PI - k / 10 * Math.PI * .47 : k / 10 * Math.PI * .47; const r = A.rOut - .1 + .06 * Math.sin(k * 2); pts.push(new THREE.Vector3(r * Math.cos(a), A.spring + r * Math.sin(a), zf)); }
+  vine(pts, 3.4 + (side > 0 ? .5 : 0), 11.5, .022);
+  const p2 = []; for (let y = 0; y <= 1.8; y += .2) p2.push(new THREE.Vector3(side * (A.rOut + .02), y, A.z - .1 + .25 * Math.sin(y * 3)));
+  vine(p2, 4.5, 10.5, .016);
+}
+
+// ---------------------------------------------------------------- the wrought-iron gate
+const iron = new THREE.MeshStandardMaterial({ color: 0x1b1a19, metalness: .85, roughness: .38 });
+const gilt = new THREE.MeshStandardMaterial({ color: 0xb48a4e, metalness: 1, roughness: .3 });
+const gateLeaves = [];
+const gateTubes = [];   // {geo, total, t0, t1}
+function tube(group, pts, r, mat, t0, t1, closed = false) {
+  const curve = pts.isCurve ? pts : new THREE.CatmullRomCurve3(pts, closed);
+  const geo = new THREE.TubeGeometry(curve, Math.max(16, Math.floor(curve.getLength() * 40)), r, 6, closed);
+  const m = new THREE.Mesh(geo, mat); m.castShadow = true; group.add(m);
+  gateTubes.push({ geo, total: geo.index.count, t0, t1 }); return m;
+}
+function spiral(cx, cy, r0, turns, dir, z) {
+  const pts = []; for (let i = 0; i <= 40; i++) { const u = i / 40, a = dir * u * turns * Math.PI * 2, r = r0 * (1 - .82 * u); pts.push(new THREE.Vector3(cx + r * Math.cos(a), cy + r * Math.sin(a), z)); }
+  return pts;
+}
+function flower(group, cx, cy, z, size, t0) {
+  for (let k = 0; k < 5; k++) {
+    const a = k / 5 * Math.PI * 2 + .3, pts = [];
+    for (let i = 0; i <= 10; i++) { const u = i / 10, w = Math.sin(u * Math.PI) * .38; pts.push(new THREE.Vector3(cx + Math.cos(a) * size * u - Math.sin(a) * size * w, cy + Math.sin(a) * size * u + Math.cos(a) * size * w, z)); }
+    for (let i = 10; i >= 0; i--) { const u = i / 10, w = -Math.sin(u * Math.PI) * .38; pts.push(new THREE.Vector3(cx + Math.cos(a) * size * u - Math.sin(a) * size * w, cy + Math.sin(a) * size * u + Math.cos(a) * size * w, z)); }
+    tube(group, pts, .011, gilt, t0 + k * .05, t0 + .5 + k * .05);
+  }
+  const c = new THREE.Mesh(new THREE.SphereGeometry(size * .2, 12, 8), gilt); c.position.set(cx, cy, z); c.userData.appear = t0 + .4; group.add(c);
+}
+function gateLeaf(side) {
+  // side -1: left leaf, hinge at x = -rIn; local coords: hinge at 0, leaf extends towards +x*(-side)
+  const pivot = new THREE.Group(); pivot.position.set(side * A.rIn, 0, A.z + .05); scene.add(pivot);
+  const g = new THREE.Group(); pivot.add(g);
+  const X = x => -side * x;            // local x from the hinge towards the centre
+  const w = A.rIn - .02, z = 0, T0 = 11.0;
+  const top = x => { const cx = A.rIn - x; return A.spring + Math.sqrt(Math.max(0, A.rIn * A.rIn - cx * cx)) - .04; };
+  // Frame: hinge stile, bottom rail, meeting stile and the arched top.
+  tube(g, [new THREE.Vector3(X(.03), .05, z), new THREE.Vector3(X(.03), top(.03), z)], .03, iron, T0, T0 + .9);
+  tube(g, [new THREE.Vector3(X(.03), .08, z), new THREE.Vector3(X(w), .08, z)], .028, iron, T0, T0 + .7);
+  tube(g, [new THREE.Vector3(X(w), .05, z), new THREE.Vector3(X(w), top(w), z)], .03, iron, T0 + .1, T0 + 1.1);
+  const arc = []; for (let i = 0; i <= 24; i++) { const x = .03 + (w - .03) * i / 24; arc.push(new THREE.Vector3(X(x), top(x), z)); }
+  tube(g, arc, .026, iron, T0 + .8, T0 + 1.6);
+  tube(g, [new THREE.Vector3(X(.03), 1.15, z), new THREE.Vector3(X(w), 1.15, z)], .02, iron, T0 + .3, T0 + 1.0);
+  // Bars rising like stems, with a bud on top.
+  for (let k = 1; k < 7; k++) {
+    const x = w * k / 7;
+    tube(g, [new THREE.Vector3(X(x), .08, z), new THREE.Vector3(X(x), top(x) - .02, z)], .012, iron, T0 + .2 + k * .06, T0 + 1.4 + k * .06);
+  }
+  // Scrolls and stems with leaves in the lower panel; flowers higher up.
+  tube(g, spiral(X(w * .33), .62, .36, 1.4, side, z + .01), .011, iron, T0 + .9, T0 + 1.9);
+  tube(g, spiral(X(w * .68), .62, .36, 1.4, -side, z + .01), .011, iron, T0 + 1.0, T0 + 2.0);
+  const stem = []; for (let i = 0; i <= 20; i++) { const u = i / 20; stem.push(new THREE.Vector3(X(w * (.5 + .12 * Math.sin(u * 5))), 1.2 + u * 1.6, z + .015)); }
+  tube(g, stem, .012, iron, T0 + 1.2, T0 + 2.3);
+  for (let k = 0; k < 4; k++) {
+    const y = 1.45 + k * .38, dir = k % 2 ? 1 : -1, x0 = w * (.5 + .12 * Math.sin((y - 1.2) / 1.6 * 5));
+    const lf = []; for (let i = 0; i <= 8; i++) { const u = i / 8; lf.push(new THREE.Vector3(X(x0 + dir * u * .32), y + Math.sin(u * Math.PI) * .1 + u * .12, z + .015)); }
+    for (let i = 8; i >= 0; i--) { const u = i / 8; lf.push(new THREE.Vector3(X(x0 + dir * u * .32), y - Math.sin(u * Math.PI) * .05 + u * .12, z + .015)); }
+    tube(g, lf, .008, iron, T0 + 1.4 + k * .12, T0 + 2.0 + k * .12);
+  }
+  flower(g, X(w * .5), 3.0, z + .02, .2, T0 + 2.0);
+  flower(g, X(w * .25), 2.15, z + .02, .14, T0 + 2.15);
+  flower(g, X(w * .76), 2.35, z + .02, .14, T0 + 2.25);
+  gateLeaves.push({ pivot, side });
+}
+gateLeaf(-1); gateLeaf(1);
+function animateGate(t) {
+  gateTubes.forEach(tb => { const f = ease(seg(t, tb.t0, tb.t1)); tb.geo.setDrawRange(0, Math.floor(tb.total * f / 6) * 6); });
+  gateLeaves.forEach(({ pivot, side }) => {
+    pivot.children[0].traverse(o => { if (o.userData.appear !== undefined) o.scale.setScalar(back(seg(t, o.userData.appear, o.userData.appear + .4)) + 1e-4); });
+    pivot.rotation.y = side * -ease(seg(t, 14.0, 16.0)) * 1.75;   // swing open, away from the camera
+  });
+}
+
+// ---------------------------------------------------------------- the house (stone, glass, steel, concrete)
+const HZ = -17;                       // house centre z
+const houseStones = [];
+const houseParts = [];                // {mesh, t0, t1, mode}
+{
+  // Stone volume: 8 × 5.2 m, 3.3 m high, walls 0.45 thick; openings left free.
+  const x0 = -5.6, x1 = 2.4, z0 = HZ - 2.6, z1 = HZ + 2.6, h = 3.3, course = .3, th = .45;
+  const openings = [{ face: 'front', a: -4.6, b: -2.6, y0: .9, y1: 2.4 }, { face: 'front', a: -1.6, b: .2, y0: 0, y1: 2.6 },
+                    { face: 'left', a: HZ - 1, b: HZ + 1, y0: .9, y1: 2.4 }];
+  const walls = [{ face: 'front', ax: 'x', a: x0, b: x1, c: z1 - th / 2 }, { face: 'back', ax: 'x', a: x0, b: x1, c: z0 + th / 2 },
+                 { face: 'left', ax: 'z', a: z0 + th, b: z1 - th, c: x0 + th / 2 }];
+  const T0 = 15.6, PER = .3;
+  for (let r = 0; r * course < h - 1e-6; r++) {
+    const y = r * course + course / 2;
+    walls.forEach(wl => {
+      let s = wl.a, first = true;
+      const blocked = openings.filter(o => o.face === wl.face && y > o.y0 && y < o.y1).sort((p, q) => p.a - q.a);
+      while (s < wl.b - .02) {
+        const hole = blocked.find(o => s >= o.a - 1e-6 && s < o.b);
+        if (hole) { s = hole.b; first = true; continue; }
+        const next = blocked.find(o => o.a > s);
+        // Running bond: odd courses start with a short stone, so the joints never line up; stones stop at the jambs.
+        let len = Math.min(first && r % 2 ? .2 + rand() * .15 : .45 + rand() * .45, wl.b - s, next ? next.a - s : 1e9);
+        if (len < .12 && next) { s = next.a; continue; }
+        first = false;
+        const mid = s + len / 2;
+        {
+          const pos = wl.ax === 'x' ? new THREE.Vector3(mid, y, wl.c) : new THREE.Vector3(wl.c, y, mid);
+          const sc = wl.ax === 'x' ? new THREE.Vector3(len - .02, course - .02, th) : new THREE.Vector3(th, course - .02, len - .02);
+          const tt = T0 + r * PER + (wl.ax === 'x' ? (mid - x0) / (x1 - x0) : (mid - z0) / (z1 - z0)) * .35 + rand() * .08;
+          addStone(houseStones, pos, new THREE.Quaternion(), sc, tt, stoneColor());
+        }
+        s += len;
+      }
+    });
+  }
+}
+// Lintels over the openings and glazing in them.
+const lintels = [[-4.6, -2.6, 2.4], [-1.6, .2, 2.6]];
+lintels.forEach(([a, b, y1]) => addStone(houseStones, new THREE.Vector3((a + b) / 2, y1 + .15, HZ + 2.6 - .225), new THREE.Quaternion(),
+  new THREE.Vector3(b - a + .4, .28, .47), 15.6 + (y1 / .3) * .3 + .2, new THREE.Color().setHSL(.08, .2, .62)));
+const houseMesh = stoneMesh(houseStones);
+function part(geo, mat, pos, t0, t1, mode = 'grow-y') {
+  const m = new THREE.Mesh(geo, mat); m.position.copy(pos); m.castShadow = m.receiveShadow = true; scene.add(m);
+  houseParts.push({ mesh: m, t0, t1, mode, base: pos.clone() }); return m;
+}
+const concrete = new THREE.MeshStandardMaterial({ color: 0xc9c4ba, roughness: .8 });
+const steel = new THREE.MeshStandardMaterial({ color: 0x232527, metalness: .7, roughness: .35 });
+const glass = new THREE.MeshStandardMaterial({ color: 0x9cc2d4, metalness: .2, roughness: .04, transparent: true, opacity: .38, envMapIntensity: 1.6 });
+const wood = new THREE.MeshStandardMaterial({ color: 0x8a5a36, roughness: .7 });
+const corten = new THREE.MeshStandardMaterial({ color: 0x6e3a20, roughness: .65, metalness: .2 });
+const woodBody = new THREE.MeshStandardMaterial({ color: 0x7d5b3e, roughness: .75 });
+// Base slab, then the glass pavilion with a steel frame, the concrete cantilever and wooden louvres.
+part(new THREE.BoxGeometry(14.5, .28, 6.8), concrete, new THREE.Vector3(.4, .14, HZ), 14.9, 15.9, 'grow-x');
+const GX0 = 2.4, GX1 = 6.6;
+[[GX0 + .05, HZ + 2.5], [GX1 - .05, HZ + 2.5], [GX1 - .05, HZ - 2.5], [(GX0 + GX1) / 2, HZ + 2.5]].forEach(([x, z], i) =>
+  part(new THREE.BoxGeometry(.12, 3.3, .12), steel, new THREE.Vector3(x, .28 + 1.65, z), 17.4 + i * .15, 18.4 + i * .15));
+for (let k = 0; k < 4; k++) part(new THREE.BoxGeometry((GX1 - GX0) / 4 - .04, 3.2, .03), glass, new THREE.Vector3(GX0 + (k + .5) * (GX1 - GX0) / 4, .28 + 1.6, HZ + 2.5), 18.6 + k * .18, 19.4 + k * .18);
+part(new THREE.BoxGeometry(.03, 3.2, 4.9), glass, new THREE.Vector3(GX1 - .05, .28 + 1.6, HZ), 19.0, 19.8);
+part(new THREE.BoxGeometry(11.6, .32, 6.0), concrete, new THREE.Vector3(.6, 3.75, HZ + .2), 19.4, 20.6, 'grow-x');
+// Upper volume (corten + timber), cantilevered over the glass.
+part(new THREE.BoxGeometry(6.4, 2.6, 4.4), woodBody, new THREE.Vector3(2.6, 3.91 + 1.3, HZ - .3), 20.0, 21.0);
+part(new THREE.BoxGeometry(3.6, 1.7, .04), glass, new THREE.Vector3(3.9, 3.91 + 1.35, HZ + 1.93), 20.6, 21.2);
+part(new THREE.BoxGeometry(.18, 2.7, 4.6), corten, new THREE.Vector3(-.62, 3.91 + 1.3, HZ - .3), 20.4, 21.0);
+for (let k = 0; k < 8; k++) part(new THREE.BoxGeometry(.07, 2.3, .09), wood, new THREE.Vector3(-.1 + k * .3, 3.91 + 1.3, HZ + 1.97), 20.9 + k * .05, 21.4 + k * .05);
+part(new THREE.BoxGeometry(6.9, .2, 4.9), concrete, new THREE.Vector3(2.6, 6.31, HZ - .3), 21.3, 22.0, 'grow-x');
+[[-4.6, -2.6, .9, 2.4], [-1.6, .2, 0, 2.6]].forEach(([a, b, y0, y1], i) =>
+  part(new THREE.BoxGeometry(b - a, y1 - y0, .04), glass, new THREE.Vector3((a + b) / 2, .28 + (y0 + y1) / 2 - .28 * (y0 > 0 ? 1 : 0), HZ + 2.45), 19.2 + i * .2, 19.9 + i * .2));
+// Warm interior light behind the glass.
+const interior = new THREE.PointLight(0xffb36b, 0, 12, 2); interior.position.set(4.5, 2.2, HZ); scene.add(interior);
+function animateHouse(t) {
+  animateStones(houseMesh, t, .9);
+  houseParts.forEach(p => {
+    const k = back(seg(t, p.t0, p.t1)), m = p.mesh;
+    if (k <= 0) { m.visible = false; return; }
+    m.visible = true;
+    if (p.mode === 'grow-x') { m.scale.set(Math.max(.001, k), 1, 1); }
+    else { m.scale.set(1, Math.max(.001, k), 1); m.position.y = p.base.y - (1 - Math.min(k, 1)) * m.geometry.parameters.height / 2; }
+  });
+  interior.intensity = 18 * ease(seg(t, 21.0, 23.0));
+}
+
+// Sparks / pollen.
+const sparkGeo = new THREE.BufferGeometry(), NS = 60, sparkPos = new Float32Array(NS * 3), sparkSeed = [];
+for (let i = 0; i < NS; i++) sparkSeed.push([rand(), rand(), rand()]);
+sparkGeo.setAttribute('position', new THREE.BufferAttribute(sparkPos, 3));
+const sparkMat = new THREE.PointsMaterial({ color: 0xffb060, size: .06, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
+scene.add(new THREE.Points(sparkGeo, sparkMat));
+function animateSparks(t) {
+  const k = seg(t, archKeyT + .9, archKeyT + 3.2);
+  sparkMat.opacity = k > 0 && k < 1 ? (1 - k) : 0;
+  sparkSeed.forEach(([a, b, c], i) => {
+    const ang = a * Math.PI * 2, v = .8 + b * 1.6;
+    sparkPos[i * 3] = Math.cos(ang) * v * k * 1.4;
+    sparkPos[i * 3 + 1] = A.spring + 1.98 + Math.sin(ang) * v * k * .9 + k * .4 - k * k * 1.6;
+    sparkPos[i * 3 + 2] = .4 + (c - .5) * .8 * k;
+  });
+  sparkGeo.attributes.position.needsUpdate = true;
+}
+
+// ---------------------------------------------------------------- camera path
+const camKeys = [
+  [0, [6, 9, 34], [0, 2, -4]],
+  [3.5, [2.5, 3.6, 13], [0, 2.4, 0]],
+  [9.5, [-1.2, 2.6, 8.2], [0, 2.7, 0]],
+  [12.5, [0, 2.2, 6.6], [0, 2.4, 0]],
+  [15.5, [0, 1.9, 4.2], [0, 2.0, -8]],
+  [17.2, [0, 2.3, -1.2], [0, 2.0, -17]],
+  [19.8, [-4.5, 3.4, -3.0], [.6, 2.2, -17]],
+  [22.5, [-10.5, 5.6, -.5], [.8, 2.6, -17]],
+  [25.0, [-13.0, 6.8, 2.0], [.8, 3.0, -17]],
+];
+const camPos = new THREE.CatmullRomCurve3(camKeys.map(k => new THREE.Vector3(...k[1])), false, 'centripetal');
+const camTgt = new THREE.CatmullRomCurve3(camKeys.map(k => new THREE.Vector3(...k[2])), false, 'centripetal');
+function cameraAt(t) {
+  // Piecewise time → curve parameter, eased within each leg.
+  let i = 0; while (i < camKeys.length - 2 && t > camKeys[i + 1][0]) i++;
+  const [ta] = camKeys[i], [tb] = camKeys[i + 1];
+  const u = (i + ease(seg(t, ta, tb))) / (camKeys.length - 1);
+  camera.position.copy(camPos.getPoint(u)); camera.lookAt(camTgt.getPoint(u));
+}
+
+// ---------------------------------------------------------------- render
+function render(t) {
+  cameraAt(t);
+  animateStones(archMesh, t, 1.25);
+  animateVines(t);
+  animateGate(t);
+  animateHouse(t);
+  animateSparks(t);
+  keyLight.intensity = 30 * seg(t, archKeyT + .8, archKeyT + 1.0) * (1 - seg(t, archKeyT + 1.0, archKeyT + 2.6));
+  renderer.render(scene, camera);
+  document.getElementById('veil').style.opacity = String(1 - seg(t, 0, 1.6));
+  const title = easeOut(seg(t, 22.4, 23.6));
+  t1.style.opacity = title; t2.style.opacity = easeOut(seg(t, 23.0, 24.0));
+  t1.style.transform = `translateY(${(1 - title) * 14}px)`;
+}
+window.render = render; window.DURATION = DURATION;
+if (Q.has('capture')) render(0);
+else { let t0 = null; const loop = now => { if (t0 === null) t0 = now; render(Math.min((now - t0) / 1000, DURATION)); requestAnimationFrame(loop); }; requestAnimationFrame(loop); }
+</script>
+</body>
+</html>

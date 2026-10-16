@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, Any, List, Optional, Tuple
 import copy
 from .model import Document, Entity, WorkPlane
@@ -15,6 +15,18 @@ class AddEntity(Command):
     def undo(self,doc): doc.remove(self.entity.id)
 
 @dataclass
+class AddEntities(Command):
+    """Add a group of semantic entities as one undo/redo step."""
+    entities: List[Entity]
+    def do(self, doc):
+        for entity in self.entities:
+            doc.add(entity.clone())
+    def undo(self, doc):
+        for entity in reversed(self.entities):
+            if entity.id in doc.entities:
+                doc.remove(entity.id)
+
+@dataclass
 class UpdateEntity(Command):
     eid:str; changes:Dict[str,Any]; before:Dict[str,Any]|None=None
     before_state:Optional[Dict[str,Any]]=None
@@ -28,6 +40,20 @@ class UpdateEntity(Command):
     def undo(self,doc):
         if self.before_state is not None:
             _restore_document_state(doc,self.before_state,self.before_selection or [])
+
+@dataclass
+class RenameEntities(Command):
+    """Names (e.g. member marks Κ1, Δ1) of several entities as one undo step."""
+    names:Dict[str,str]; before:Dict[str,str]|None=None
+    def do(self,doc):
+        if self.before is None:
+            self.before={eid:doc.get(eid).name for eid in self.names}
+        for eid,name in self.names.items():
+            doc.get(eid).name=str(name);doc.mark_dirty(eid)
+    def undo(self,doc):
+        for eid,name in (self.before or {}).items():
+            if eid in doc.entities:
+                doc.get(eid).name=name;doc.mark_dirty(eid)
 
 @dataclass
 class UpdateEntities(Command):
@@ -72,15 +98,25 @@ class MoveEntities(Command):
             self.before_modifiers={mid:copy.deepcopy(m) for mid,m in doc.surface_modifiers.items() if m.target.owner_id in self.ids and _legacy_world_modifier(m)}
         for i in self.ids:
             e=doc.get(i); p=e.params
+            if e.kind in ('structural_column','structural_beam') and str(p.get('phase','new'))=='existing':
+                raise ValueError('υφιστάμενο φέρον στοιχείο (ανακαίνιση): δεν μετακινείται')
             if e.kind in ('structural_column','structural_beam') and abs(float(self.dz))>1e-12:
                 raise ValueError(f'{e.kind} vertical position is level-driven; change its level instead')
-            if e.kind in ('box','mechanical_part'):doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy,'z':p['z']+self.dz})
+            if e.kind in ('box','mechanical_part','library_object','kitchen_part','cabinet','plumbing_point','electrical_point','ventilation_point','drainage_point'):
+                changes={'x':p['x']+self.dx,'y':p['y']+self.dy,'z':p['z']+self.dz}
+                if e.kind=='electrical_point' and 'x2' in p:changes.update(x2=p['x2']+self.dx,y2=p['y2']+self.dy)   # LED strip: both ends
+                doc.update(i,changes)
+            elif e.kind=='underlay':doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy})
+            elif e.kind=='pitched_roof':doc.update(i,{'x0':p['x0']+self.dx,'x1':p['x1']+self.dx,'y0':p['y0']+self.dy,'y1':p['y1']+self.dy,'eave_z':p['eave_z']+self.dz})
+            elif e.kind=='plant':doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy,'z':p['z']+self.dz})
+            elif e.kind=='railing':doc.update(i,{'points':[[q[0]+self.dx,q[1]+self.dy,*q[2:]] for q in p['points']],'z':p['z']+self.dz})
             elif e.kind=='structural_column':doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy})
             elif e.kind=='mep_terminal':doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy,'elevation':p['elevation']+self.dz})
             elif e.kind=='wall':doc.update(i,{'x1':p['x1']+self.dx,'x2':p['x2']+self.dx,'y1':p['y1']+self.dy,'y2':p['y2']+self.dy,'z':p['z']+self.dz})
             elif e.kind=='structural_beam':doc.update(i,{'x1':p['x1']+self.dx,'x2':p['x2']+self.dx,'y1':p['y1']+self.dy,'y2':p['y2']+self.dy})
             elif e.kind=='pod':doc.update(i,{'cx':p['cx']+self.dx,'cy':p['cy']+self.dy,'floor_level':p['floor_level']+self.dz})
-            elif e.kind in ('floor','room'):
+            elif e.kind=='slab_opening' and p.get('points'):doc.update(i,{'points':[(x+self.dx,y+self.dy) for x,y in p['points']]})
+            elif e.kind in ('floor','room','ceiling_joists'):
                 doc.update(i,{'points':[(x+self.dx,y+self.dy) for x,y in p['points']], 'z':p['z']+self.dz})
             elif e.kind in ('stair','ramp'):
                 if abs(float(self.dz))>1e-12:
@@ -118,6 +154,8 @@ class RotateEntities(Command):
         for i in self.ids:
             e = doc.get(i)
             p = e.params
+            if e.kind in ('structural_column', 'structural_beam') and str(p.get('phase', 'new')) == 'existing':
+                raise ValueError('υφιστάμενο φέρον στοιχείο (ανακαίνιση): δεν περιστρέφεται')
             if e.kind == 'pod':
                 px, py = self.pivot if self.pivot is not None else (p['cx'], p['cy'])
                 if self.pivot is not None:
@@ -126,7 +164,14 @@ class RotateEntities(Command):
                     doc.update(i, {'cx': ncx, 'cy': ncy, 'rotation': (p.get('rotation', 0.0) + self.angle) % 360.0})
                 else:
                     doc.update(i, {'rotation': (p.get('rotation', 0.0) + self.angle) % 360.0})
-            elif e.kind == 'box':
+            elif e.kind in ('kitchen_part', 'plant', 'plumbing_point', 'electrical_point', 'ventilation_point',
+                            'drainage_point', 'mep_terminal'):
+                # Other placed pieces (object_ops.XY_KINDS): turn about the pivot, own rotation if any.
+                from archforge.core.object_ops import rotated_params
+                about = self.pivot if self.pivot is not None else (p['x'], p['y'])
+                new = rotated_params(e.kind, p, self.angle, about)
+                doc.update(i, {k: new[k] for k in ('x', 'y', 'rotation') if k in new})
+            elif e.kind in ('box', 'library_object', 'cabinet'):
                 px, py = self.pivot if self.pivot is not None else (p['x'], p['y'])
                 if self.pivot is not None:
                     dx, dy = p['x'] - px, p['y'] - py
@@ -161,6 +206,12 @@ class RotateEntities(Command):
                 nx1, ny1 = rot_beam(p['x1'], p['y1'])
                 nx2, ny2 = rot_beam(p['x2'], p['y2'])
                 doc.update(i, {'x1': nx1, 'y1': ny1, 'x2': nx2, 'y2': ny2})
+            elif e.kind == 'railing':
+                pts = p['points']
+                px, py = self.pivot if self.pivot is not None else (
+                    sum(q[0] for q in pts) / len(pts), sum(q[1] for q in pts) / len(pts))
+                doc.update(i, {'points': [[px + (q[0] - px) * c - (q[1] - py) * s,
+                                           py + (q[0] - px) * s + (q[1] - py) * c, *q[2:]] for q in pts]})
             elif e.kind in ('stair', 'ramp'):
                 px, py = self.pivot if self.pivot is not None else (p['x'], p['y'])
                 dx, dy = float(p['x']) - px, float(p['y']) - py
@@ -234,6 +285,63 @@ class DeleteEntities(Command):
         if self.before_state is None:return
         _restore_document_state(doc,self.before_state,self.before_selection or [])
 
+@dataclass
+class DeleteStorey(Command):
+    """Delete a storey: its level and the entities on it, as one undo step.
+
+    ``ids`` are the entities that belong to the storey (the caller decides
+    ownership, as the project tree shows it).  The work plane moves to the
+    nearest remaining level when it was on the deleted one.
+    """
+    name:str
+    ids:List[str]=field(default_factory=list)
+    before_state:Optional[Dict[str,Any]]=None
+    before_selection:Optional[List[str]]=None
+    def do(self,doc):
+        name=str(self.name)
+        if self.before_state is None:
+            self.before_state=copy.deepcopy(doc.to_dict())
+            self.before_selection=list(doc.selection)
+        z=doc.levels.get(name)
+        if z is None:
+            z=float(doc.work_plane.origin[2]) if str(doc.work_plane.name)==name else None
+        others={n:float(v) for n,v in doc.levels.items() if n!=name}
+        if not others and z is not None and name in doc.levels:
+            raise ValueError('ο μοναδικός όροφος δεν διαγράφεται')
+        for eid in dict.fromkeys(self.ids):
+            if eid in doc.entities:doc.remove(eid)
+        doc.levels.pop(name,None)
+        wp=doc.work_plane
+        on_it=str(wp.name)==name or (z is not None and abs(float(wp.origin[2])-float(z))<=1e-6)
+        if on_it and others:
+            target=min(others.items(),key=lambda kv:(abs(kv[1]-float(z if z is not None else 0.0)),kv[1]))
+            doc.work_plane=WorkPlane(name=target[0],origin=(float(wp.origin[0]),float(wp.origin[1]),target[1]),
+                                     u=tuple(wp.u),v=tuple(wp.v))
+        doc.selection=[]
+    def undo(self,doc):
+        if self.before_state is None:return
+        _restore_document_state(doc,self.before_state,self.before_selection or [])
+
+class CompositeCommand(Command):
+    """Several commands as one undo step; if one fails, the ones already done are undone."""
+    def __init__(self, commands, label=''):
+        self.commands = [c for c in commands if c is not None]
+        self.label = str(label)
+    def do(self, doc):
+        done = []
+        try:
+            for command in self.commands:
+                command.do(doc)
+                done.append(command)
+        except Exception:
+            for command in reversed(done):
+                command.undo(doc)
+            raise
+    def undo(self, doc):
+        for command in reversed(self.commands):
+            command.undo(doc)
+
+
 class CreateRoomFloors(Command):
     """Create one topology-linked floor per persistent semantic room as one undo step."""
     def __init__(self,signatures:List[str],thickness:float=.15,offset_z:float=0.0):
@@ -266,6 +374,18 @@ class CreateRoomFloors(Command):
     def undo(self,doc):
         for e in self.entities.values():
             if e.id in doc.entities:doc.remove(e.id)
+
+class FlatRoofElevationError(ValueError):
+    """A flat roof cannot meet boundary walls with materially different tops."""
+    def __init__(self, tops):
+        low, high = min(tops), max(tops)
+        super().__init__('flat roof requires boundary walls with a common top elevation')
+        self.user_message = (
+            f'Δεν δημιουργήθηκε δώμα: οι κορυφές των περιμετρικών τοίχων είναι από '
+            f'{low:.3f} έως {high:.3f} m (διαφορά {high-low:.3f} m). '
+            'Διόρθωσε τα ύψη/υψόμετρα των τοίχων ώστε οι κορυφές να συμπίπτουν.'
+        )
+
 
 class CreateRoomRoofs(Command):
     """Create topology-linked flat roof slabs at the common wall top elevation."""
@@ -316,9 +436,7 @@ class CreateRoomRoofs(Command):
                 if not tops:
                     raise ValueError('flat roof requires boundary walls')
                 if max(tops)-min(tops)>self.tolerance:
-                    raise ValueError(
-                        'flat roof requires boundary walls with a common top elevation'
-                    )
+                    raise FlatRoofElevationError(tops)
 
                 top_z=sum(tops)/len(tops)
                 offset_z=top_z-float(base_z)
@@ -330,6 +448,8 @@ class CreateRoomRoofs(Command):
                         'thickness':self.thickness,
                         'offset_z':offset_z,
                         'roof_type':'flat',
+                        # Extra eave beyond the outer wall faces (Properties).
+                        'overhang':0.0,
                     }
                     if room_id is not None:
                         params['room_id']=room_id
@@ -748,17 +868,34 @@ class AssignConstruction(Command):
             doc.mark_dirty(self.eid)
 
 class CommandStack:
-    def __init__(self,doc):self.doc=doc;self.done=[];self.undone=[]
+    def __init__(self,doc):self.doc=doc;self.done=[];self.undone=[];self.listeners=[]
+    def _notify(self):
+        # Views that are visible at the same time (2D + 3D) refresh on every
+        # committed change, not only the view that authored it.
+        for listener in tuple(getattr(self,'listeners',())):listener()
     @property
     def can_undo(self) -> bool:
         return bool(self.done)
     @property
     def can_redo(self) -> bool:
         return bool(self.undone)
-    def execute(self,c):c.do(self.doc);self.done.append(c);self.undone.clear()
+    def _check_layers(self,c):
+        # A locked layer (Layers panel / environment) refuses changes to its entities.
+        from .layers import check_command
+        check_command(self.doc,c)
+    def execute(self,c):self._check_layers(c);c.do(self.doc);self.done.append(c);self.undone.clear();self._notify()
+    def amend(self,c):
+        """Run ``c`` as part of the last step: one undo removes both (e.g. a wall and its dimension reference)."""
+        if not self.done:
+            return self.execute(c)
+        self._check_layers(c)
+        c.do(self.doc)
+        last=self.done.pop()
+        self.done.append(CompositeCommand([last,c]))
+        self.undone.clear();self._notify()
     def undo(self):
         if not self.done:return
-        c=self.done.pop();c.undo(self.doc);self.undone.append(c)
+        c=self.done.pop();c.undo(self.doc);self.undone.append(c);self._notify()
     def redo(self):
         if not self.undone:return
-        c=self.undone.pop();c.do(self.doc);self.done.append(c)
+        c=self.undone.pop();c.do(self.doc);self.done.append(c);self._notify()

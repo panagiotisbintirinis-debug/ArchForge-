@@ -8,6 +8,7 @@ from archforge.core.commands import CreateFloorLevel
 from archforge.core.model import Document, Entity, WorkPlane
 from archforge.core.plan_scene import build_plan_frame
 from archforge.core.viewport import PointerEvent
+from archforge.rendering.scene import build_pbr_scene_payload
 from archforge.ui.main_window import MainWindow
 from archforge.ui.object_context_menu import object_context_actions
 
@@ -57,8 +58,10 @@ def _closed_room(doc, prefix, z):
 
 def test_ui_removes_redundant_front_elevation_tab_but_keeps_pbr_front_camera():
     window = MainWindow()
+    central = [window._central_tabs.tabText(i) for i in range(window._central_tabs.count())]
+    assert central == ['2D Σχεδίαση', '3D / Στατικά']
     labels = [window.tabs.tabText(i) for i in range(window.tabs.count())]
-    assert labels == ['FLOOR PLAN', '3D STUDIO', 'STRUCTURAL']
+    assert labels == ['3D Σκηνή', 'Στατικά']
 
     action_labels = {
         action.text()
@@ -105,6 +108,25 @@ def test_floor_plan_only_shows_active_storey_walls():
         if primitive.entity_id and doc.get(primitive.entity_id).kind == 'wall'
     }
     assert wall_ids == {'upper-wall'}
+
+
+def test_upper_floor_plan_keeps_the_stair_down_but_hides_ground_walls():
+    from archforge.core.commands import CommandStack
+    from archforge.core.interaction import StairPlaceTransaction
+
+    doc = Document()
+    doc.levels = {'Ground': 0.0, 'Floor 2': 2.7}
+    doc.add(_wall('ground-wall', 0.0))
+    doc.add(_wall('upper-wall', 2.7))
+    stair_tx = StairPlaceTransaction(doc, CommandStack(doc), (0.0, 1.0))
+    stair_tx.update(5.0, 1.0)
+    stair_id = stair_tx.commit()
+
+    doc.work_plane = WorkPlane(name='Floor 2', origin=(0.0, 0.0, 2.7))
+    visible = {p.entity_id for p in build_plan_frame(doc).primitives if p.entity_id}
+    assert 'upper-wall' in visible
+    assert stair_id in visible
+    assert 'ground-wall' not in visible
 
 
 def test_auto_floor_uses_active_second_storey_room():
@@ -360,7 +382,8 @@ def test_wall_with_hosted_door_can_grow_10cm_and_redraw():
 def test_structure_toolbar_and_shared_structural_tab_exist():
     window=MainWindow()
     labels=[window.tabs.tabText(i) for i in range(window.tabs.count())]
-    assert labels==['FLOOR PLAN','3D STUDIO','STRUCTURAL']
+    assert labels==['3D Σκηνή','Στατικά']
+    assert window.tabs.widget(1) is window.structural_view
 
     toolbar_texts=[
         action.text()
@@ -375,28 +398,27 @@ def test_structure_toolbar_and_shared_structural_tab_exist():
 
 
 def test_human_can_place_column_and_beam_then_undo():
-    from archforge.core.viewport import PointerEvent
-
     window=MainWindow()
     window.doc.levels['Floor 2']=2.70
     window._refresh_floor_selector()
 
-    controller=window.structural_view.controller
-    controller.set_tool('structural_column')
-    controller.pointer_down(PointerEvent(1.0,1.0))
-    result=controller.pointer_up(PointerEvent(1.0,1.0))
-    column=window.doc.get(result.entity_id)
+    # The Structural tab is a 3D derived view; drive the same entry points its
+    # web picking bridge calls.
+    structural=window.structural_view
+    structural._place_structural_column_from_web(1.0,1.0)
+    column=window.doc.get(window.doc.selection[0])
     assert column.kind=='structural_column'
     assert column.params['height']==2.70
     assert column.params['role']=='structural'
+    assert column.params['base_level']=='Ground'
+    assert column.params['top_level']=='Floor 2'
 
-    controller.set_tool('structural_beam')
-    controller.pointer_down(PointerEvent(1.0,1.0))
-    controller.pointer_move(PointerEvent(4.0,1.0))
-    result=controller.pointer_up(PointerEvent(4.0,1.0))
-    beam=window.doc.get(result.entity_id)
+    structural._begin_structural_beam_from_web(1.0,1.0)
+    structural._finish_structural_beam_from_web(4.0,1.0)
+    beam=window.doc.get(window.doc.selection[0])
     assert beam.kind=='structural_beam'
-    assert beam.params['level']=='Floor 2'
+    # Physically under Floor 2, owned by the storey it was authored from.
+    assert beam.params['level']=='Ground'
     assert abs(beam.params['z']-2.40)<1e-9
 
     window._undo()
@@ -406,6 +428,8 @@ def test_human_can_place_column_and_beam_then_undo():
 
 
 def test_structural_view_filters_out_pergola_members():
+    from archforge.ui.pbr_viewport import structural_payload_objects
+
     window=MainWindow()
     structural=Entity(
         'structural_column',
@@ -426,11 +450,14 @@ def test_structural_view_filters_out_pergola_members():
         id='pergola-post',
     )
     window.doc.add(structural);window.doc.add(pergola)
-    window.structural_view.redraw()
+    window.doc.add(_wall('plain-wall',0.0))
 
-    visible_ids=set(window.structural_view._entity_items.values())
+    view=window.structural_view
+    payload=build_pbr_scene_payload(view._evaluation_cache.sync(window.doc),[],doc=window.doc)
+    visible_ids={item['id'] for item in structural_payload_objects(payload['objects'],window.doc)}
     assert 'structural-col' in visible_ids
     assert 'pergola-post' not in visible_ids
+    assert 'plain-wall' not in visible_ids
     _close_clean(window)
 
 
@@ -446,6 +473,7 @@ def test_structural_role_and_construction_update_undoably():
         id='role-col',
     )
     window.doc.add(col)
+    window._set_workspace('structure')      # columns are edited in the «Φέρων» environment (LAY1)
 
     window._apply_object_properties(
         col.id,
@@ -460,4 +488,30 @@ def test_structural_role_and_construction_update_undoably():
     restored=window.doc.get(col.id)
     assert restored.params['role']=='structural'
     assert restored.params['construction']=='reinforced_concrete'
+    _close_clean(window)
+
+
+def test_upper_floor_plan_shows_the_floor_below_as_grey_non_editable_underlay():
+    doc = Document()
+    doc.levels['Floor 2'] = 2.7
+    doc.add(_wall('ground-wall', 0.0))
+    doc.add(_wall('upper-wall', 2.7))
+    doc.work_plane = WorkPlane(name='Floor 2', origin=(0.0, 0.0, 2.7))
+    frame = build_plan_frame(doc)
+    underlay = [p for p in frame.primitives if p.role == 'floor-underlay']
+    assert len(underlay) == 1 and underlay[0].kind == 'line'
+    assert underlay[0].entity_id == ''          # cannot be picked or edited
+    assert underlay[0].points == ((0.0, 0.0), (4.0, 0.0))
+    # Ground floor plan has nothing below it.
+    doc.work_plane = WorkPlane(name='Ground', origin=(0.0, 0.0, 0.0))
+    assert not [p for p in build_plan_frame(doc).primitives if p.role == 'floor-underlay']
+
+
+def test_plan_title_follows_the_active_floor():
+    window = MainWindow()
+    assert window._plan_title.text() == 'Κάτοψη - Ισόγειο'
+    window.stack.execute(CreateFloorLevel('Floor 2', 2.7))
+    assert window._plan_title.text() == 'Κάτοψη - 1ος όροφος'
+    window._undo()
+    assert window._plan_title.text() == 'Κάτοψη - Ισόγειο'
     _close_clean(window)

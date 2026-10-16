@@ -92,6 +92,16 @@ def _opening_contains(opening,u,z):
     cap=spring+rise*math.sqrt(max(0.0,1.0-x*x))
     return z<cap
 
+def _arch_cap(opening,u):
+    """Height of the arch intrados above ``u`` (spring at the jambs)."""
+    u0,u1=float(opening['u0']),float(opening['u1'])
+    rise=float(opening.get('arch_rise',0.0));spring=float(opening['z1'])-rise
+    half=(u1-u0)/2.0
+    if half<=1e-12:return spring
+    x=max(-1.0,min(1.0,(u-(u0+u1)/2.0)/half))
+    return spring+rise*math.sqrt(max(0.0,1.0-x*x))
+
+
 def _wall_with_openings(p,target_step:float):
     x1,y1,zbase,x2,y2=map(float,(p['x1'],p['y1'],p['z'],p['x2'],p['y2']))
     height,thickness=float(p['height']),float(p['thickness'])
@@ -106,39 +116,73 @@ def _wall_with_openings(p,target_step:float):
     nu=max(1,int(math.ceil(length/step)));nv=max(1,int(math.ceil(height/step)))
     ubreaks={length*i/nu for i in range(nu+1)}
     zbreaks={height*j/nv for j in range(nv+1)}
+    arches=[]
     for opening in openings:
         u0,u1,z0,z1=(opening['u0'],opening['u1'],opening['z0'],opening['z1'])
         ubreaks.update((u0,u1));zbreaks.update((z0,z1))
-        if opening.get('shape')=='arch':
-            rise=float(opening.get('arch_rise',0.0))
-            spring=z1-rise
-            zbreaks.add(spring)
-            # Add local profile samples so the mesh follows the arch rather
-            # than collapsing it to one rectangular cut.
-            steps=max(6,int(math.ceil((u1-u0)/max(target_step/2.0,0.08))))
-            center=(u0+u1)/2.0;half=(u1-u0)/2.0
+        if opening.get('shape')=='arch' and float(opening.get('arch_rise',0.0))>1e-9:
+            zbreaks.add(z1-float(opening['arch_rise']))
+            arches.append(opening)
+            # Dense samples across the span; between samples the intrados is
+            # a straight sloped segment, so the arch reads as a smooth curve.
+            steps=max(16,int(math.ceil((u1-u0)/0.06)))
+            steps+=steps%2  # even: the apex is a vertex, not a flat slice
             for k in range(1,steps):
-                u=u0+(u1-u0)*k/steps
-                ubreaks.add(u)
-                x=(u-center)/max(half,1e-12)
-                zbreaks.add(spring+rise*math.sqrt(max(0.0,1.0-x*x)))
-    us=sorted(ubreaks);zs=sorted(zbreaks)
+                ubreaks.add(u0+(u1-u0)*k/steps)
+    # Never let a grid line fall a hair away from an opening edge (that
+    # produced slivers / zero-area triangles).
+    us=[]
+    for u in sorted(ubreaks):
+        if not us or u-us[-1]>1e-7:us.append(u)
+    zs=[]
+    for z in sorted(zbreaks):
+        if not zs or z-zs[-1]>1e-7:zs.append(z)
+    ni=len(us)-1;nj=len(zs)-1
+
+    # Column i lies under an arch: everything from the sill up to the
+    # intrados is void and the solid above starts on the sloped intrados.
+    arch_of=[None]*ni
+    for i in range(ni):
+        uc=(us[i]+us[i+1])/2.0
+        for opening in arches:
+            if opening['u0']<uc<opening['u1']:arch_of[i]=opening;break
 
     def is_void(u,z):
         return any(_opening_contains(opening,u,z) for opening in openings)
 
     solid=[]
-    for i in range(len(us)-1):
-        column=[]
-        uc=(us[i]+us[i+1])/2.0
-        for j in range(len(zs)-1):
+    for i in range(ni):
+        uc=(us[i]+us[i+1])/2.0;column=[]
+        for j in range(nj):
             zc=(zs[j]+zs[j+1])/2.0
-            column.append(not is_void(uc,zc))
+            if arch_of[i] is not None and zc>arch_of[i]['z0']:
+                column.append(False)  # handled by the arch column builder
+            else:
+                column.append(not is_void(uc,zc))
         solid.append(column)
+
+    def edge_covered(i,j,side):
+        """Is column i solid along its left/right edge over cell row j?"""
+        if i<0 or i>=ni:return False
+        opening=arch_of[i]
+        zc=(zs[j]+zs[j+1])/2.0
+        if opening is not None and zc>opening['z0']:
+            u=us[i] if side=='left' else us[i+1]
+            return zc>_arch_cap(opening,u)
+        return solid[i][j]
+
+    def covered_at(i,side,z):
+        """Is column i solid at height z along its left/right edge?"""
+        if i<0 or i>=ni:return False
+        opening=arch_of[i]
+        if opening is not None and z>opening['z0']:
+            return z>_arch_cap(opening,us[i] if side=='left' else us[i+1])
+        row=next((j for j in range(nj) if zs[j]<=z<zs[j+1]),None)
+        return row is not None and solid[i][row]
 
     verts:List[Vec3]=[];indices={};tris:List[Tri]=[];roles=[]
     def vid(u,side,zlocal):
-        key=(round(float(u),12),int(side),round(float(zlocal),12))
+        key=(round(float(u),9),int(side),round(float(zlocal),9))
         if key in indices:return indices[key]
         cx=x1+ux*u;cy=y1+uy*u;off=side*thickness/2.0
         idx=len(verts);verts.append((cx+nx*off,cy+ny*off,zbase+zlocal));indices[key]=idx
@@ -146,7 +190,6 @@ def _wall_with_openings(p,target_step:float):
     def quad(a,b,c,d,role):
         tris.extend(((a,b,c),(a,c,d)));roles.extend((role,role))
 
-    ni=len(us)-1;nj=len(zs)-1
     for i in range(ni):
         u0,u1=us[i],us[i+1]
         for j in range(nj):
@@ -156,8 +199,8 @@ def _wall_with_openings(p,target_step:float):
             quad(vid(u0,1,z0),vid(u0,1,z1),vid(u1,1,z1),vid(u1,1,z0),'exterior')
             quad(vid(u0,-1,z0),vid(u1,-1,z0),vid(u1,-1,z1),vid(u0,-1,z1),'interior')
 
-            left_solid=i>0 and solid[i-1][j]
-            right_solid=i+1<ni and solid[i+1][j]
+            left_solid=edge_covered(i-1,j,'right')
+            right_solid=edge_covered(i+1,j,'left')
             below_solid=j>0 and solid[i][j-1]
             above_solid=j+1<nj and solid[i][j+1]
 
@@ -173,6 +216,43 @@ def _wall_with_openings(p,target_step:float):
             if not above_solid:
                 role='top' if j==nj-1 else 'opening_reveal'
                 quad(vid(u0,-1,z1),vid(u1,-1,z1),vid(u1,1,z1),vid(u0,1,z1),role)
+
+    # Arch columns: solid from the sloped intrados (capL -> capR) to the top.
+    for i in range(ni):
+        opening=arch_of[i]
+        if opening is None:continue
+        u0,u1=us[i],us[i+1]
+        capL=_arch_cap(opening,u0);capR=_arch_cap(opening,u1)
+        left=[capL]+[z for z in zs if z>capL+1e-7]
+        right=[capR]+[z for z in zs if z>capR+1e-7]
+        # Zip the two edge chains bottom-up into triangles (both skins).
+        a=b=0
+        while a<len(left)-1 or b<len(right)-1:
+            advance_left=b>=len(right)-1 or (a<len(left)-1 and left[a+1]<=right[b+1])
+            if advance_left:
+                tri_ext=(vid(u0,1,left[a]),vid(u0,1,left[a+1]),vid(u1,1,right[b]))
+                tri_int=(vid(u0,-1,left[a]),vid(u1,-1,right[b]),vid(u0,-1,left[a+1]))
+                a+=1
+            else:
+                tri_ext=(vid(u0,1,left[a]),vid(u1,1,right[b+1]),vid(u1,1,right[b]))
+                tri_int=(vid(u0,-1,left[a]),vid(u1,-1,right[b]),vid(u1,-1,right[b+1]))
+                b+=1
+            tris.extend((tri_ext,tri_int));roles.extend(('exterior','interior'))
+        # Intrados (soffit) of this slice.
+        quad(vid(u0,-1,capL),vid(u0,1,capL),vid(u1,1,capR),vid(u1,-1,capR),'opening_reveal')
+        # Wall top over this slice.
+        quad(vid(u0,-1,height),vid(u1,-1,height),vid(u1,1,height),vid(u0,1,height),'top')
+        # Side faces where the neighbouring column does not cover this edge.
+        for side,u,chain in (('left',u0,left),('right',u1,right)):
+            nb=i-1 if side=='left' else i+1
+            for k in range(len(chain)-1):
+                za,zb=chain[k],chain[k+1]
+                if covered_at(nb,'right' if side=='left' else 'left',(za+zb)/2.0):continue
+                end_role=('start' if nb<0 else 'end') if nb<0 or nb>=ni else 'opening_reveal'
+                if side=='left':
+                    quad(vid(u,-1,za),vid(u,-1,zb),vid(u,1,zb),vid(u,1,za),end_role)
+                else:
+                    quad(vid(u,-1,za),vid(u,1,za),vid(u,1,zb),vid(u,-1,zb),end_role)
 
     return tuple(verts),tuple(tris),tuple(roles)
 

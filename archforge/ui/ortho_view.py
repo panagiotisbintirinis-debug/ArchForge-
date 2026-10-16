@@ -16,7 +16,9 @@ class OrthoView(QGraphicsView):
         self._scene=QGraphicsScene();super().__init__(self._scene,parent);self.doc=doc;self.stack=stack;self.axis=axis;self._entity_items={};self._handle_items={};self._drag_tx=None;self._drag_eid=None;self._preview_overrides={}
         self.setRenderHint(QPainter.RenderHint.Antialiasing,True);self.setMouseTracking(True);self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse);self.setBackgroundBrush(QColor(248,248,248));self.scale(55,-55);self.redraw()
     def rebind(self,doc,stack):self.doc=doc;self.stack=stack;self._drag_tx=None;self._drag_eid=None;self._preview_overrides.clear();self.redraw()
-    def wheelEvent(self,event):f=1.15 if event.angleDelta().y()>0 else 1/1.15;self.scale(f,f)
+    def wheelEvent(self,event):
+        from archforge.ui.view_zoom import zoom_about
+        zoom_about(self,event)
     def mousePressEvent(self,event):
         if event.button()==Qt.MouseButton.LeftButton:
             hit=self.itemAt(event.position().toPoint())
@@ -72,7 +74,9 @@ class OrthoView(QGraphicsView):
             else:
                 hp=elevation_top_handle(self.doc,eid,self.axis,override)
                 if hp:self._draw_handle(eid,*hp,'top')
-        r=self.mapToScene(self.viewport().rect()).boundingRect();self._scene.setSceneRect(r.adjusted(-5,-5,5,5))
+        # A fixed, very large sheet (±5 km): a scene rect that followed the visible area clamped the
+        # scroll bars, so the wheel zoom could not keep the point under the mouse (drawing slid left).
+        self._scene.setSceneRect(-5000,-5000,10000,10000)
     def _draw_grid(self):
         extent=100;pen=QPen(QColor(225,225,225));pen.setWidthF(0);axis=QPen(QColor(160,160,160));axis.setWidthF(0)
         for i in range(-extent,extent+1):self._scene.addLine(i,-extent,i,extent,axis if i==0 else pen).setZValue(-100);self._scene.addLine(-extent,i,extent,i,axis if i==0 else pen).setZValue(-100)
