@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from archforge.core.model import Document, Entity
 from archforge.mep.project_pricebook import (
     migrate_description_prices,
     price_list_params,
@@ -55,6 +56,26 @@ def test_price_list_params_never_invents_missing_component_price():
     saved = params["entries"]["valve"]
     assert saved["material_unit_price"] == 8.0
     assert saved["labour_unit_price"] is None
+
+
+def test_price_book_survives_document_save_load_roundtrip():
+    original = Document()
+    params = price_list_params({
+        "heating.point.radiator": PriceEntry(
+            material_unit_price=120.0,
+            labour_unit_price=35.0,
+            source="contractor",
+        )
+    }, vat=24.0)
+    original.add(Entity("price_list", params, name="Project prices"))
+
+    restored = Document.from_dict(original.to_dict())
+    prices = project_prices(restored)
+    assert prices["heating.point.radiator"].material_unit_price == 120.0
+    assert prices["heating.point.radiator"].labour_unit_price == 35.0
+    entity = next(e for e in restored.entities.values() if e.kind == "price_list")
+    assert entity.params["vat"] == 24.0
+    assert entity.params["entries"]["heating.point.radiator"]["source"] == "contractor"
 
 
 def test_legacy_description_migration_only_maps_unambiguous_items():
