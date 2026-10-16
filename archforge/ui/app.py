@@ -6,6 +6,8 @@ from .library_instance_integration import install_library_instance_model
 from .rendering_quality_upgrade import install_rendering_quality_upgrade
 from .plumbing_display import install_plumbing_display
 from .plumbing_tab import install_on_class as install_plumbing_tab
+from .plumbing_system_control import install_on_class as install_plumbing_system_control
+from .plumbing_technical_safety import install_safe_connectivity_overlay
 
 # Upgrade only the visual PBR presentation. Geometry/model ownership remains
 # untouched; the embedded Three.js viewport receives the improved look before
@@ -20,6 +22,10 @@ install_library_instance_model(MainWindow)
 # in a separate central report tab.
 install_plumbing_display(MainWindow)
 install_plumbing_tab(MainWindow)
+# Remove the scene-bounds regression from connectivity markers before any
+# technical-plan instance is created, then add the visible live system selector.
+install_safe_connectivity_overlay()
+install_plumbing_system_control(MainWindow)
 
 
 def main():
