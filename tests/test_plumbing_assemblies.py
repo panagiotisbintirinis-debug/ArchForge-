@@ -3,6 +3,8 @@ from types import SimpleNamespace
 from archforge.mep.plumbing_assemblies import (
     connection_assembly_details,
     connection_assembly_quantities,
+    manifold_assembly_details,
+    manifold_assembly_quantities,
 )
 
 
@@ -66,6 +68,42 @@ def test_source_equipment_can_have_explicit_parts_without_defaults():
     assert lines["plumbing.connection_component.solar_connector"].quantity == 2
     assert lines["plumbing.connection_component.safety_group"].quantity == 1
     assert all(line.rule_status == "MANUFACTURER_DATA" for line in lines.values())
+
+
+def test_explicit_manifold_assembly_components_are_costable(monkeypatch):
+    import archforge.mep.plumbing_assemblies as assemblies
+
+    supply = _point("supply", "water_supply", name="Παροχή")
+    supply.params["manifold_assemblies"] = {
+        "cold:Bath A": {
+            "name": "Selected 4-way cabinet",
+            "source_kind": "manufacturer_data",
+            "rule_status": "MANUFACTURER_DATA",
+            "rule_source": "CAB-4 datasheet",
+            "components": [
+                {"accessory_type": "manifold_cabinet", "quantity": 1, "unit": "pcs", "product_ref": "CAB-4"},
+                {"accessory_type": "manifold_valve", "quantity": 4, "unit": "pcs", "product_ref": "MV-1"},
+                {"accessory_type": "manifold_connector", "quantity": 4, "unit": "pcs", "product_ref": "MC-16"},
+            ],
+        }
+    }
+    monkeypatch.setattr(
+        assemblies,
+        "route_plumbing",
+        lambda doc: {
+            "manifolds": [{
+                "system": "cold", "room": "Bath A", "outlets": ["a", "b", "c", "d"]
+            }]
+        },
+    )
+    doc = _doc(supply)
+    details = manifold_assembly_details(doc)
+    assert details[0]["assembly_name"] == "Selected 4-way cabinet"
+    lines = {line.code: line for line in manifold_assembly_quantities(doc)}
+    assert lines["plumbing.manifold_component.manifold_cabinet.CAB-4"].quantity == 1
+    assert lines["plumbing.manifold_component.manifold_valve.MV-1"].quantity == 4
+    assert lines["plumbing.manifold_component.manifold_connector.MC-16"].quantity == 4
+    assert all(line.category == "Εξαρτήματα συλλεκτών" for line in lines.values())
 
 
 def test_pipe_bom_aggregates_route_segments(monkeypatch):
