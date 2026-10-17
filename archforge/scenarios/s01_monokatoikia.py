@@ -124,7 +124,7 @@ OWNER_PENDING = ("Θέρμανση/HVAC",)
 
 C1 = "d49c98f"          # walls with both faces, opening symbols
 C2 = "278d361"          # the gate's first round of fixes
-C3 = "επόμενο commit"     # strip footings sharing the base moments (filled after the commit)
+C3 = "8535f4b"          # strip footings sharing the base moments
 FINDINGS = [
     {"status": "FIXED", "found": "Τοίχοι στην κάτοψη ως γραμμή στον άξονα — 25 και 10 cm ίδιοι (απόφαση ιδιοκτήτη 3)",
      "fix": "Δύο παρειές + γέμισμα, ενώσεις κλειστές, ανοίγματα κομμένα", "files": ["core/plan_scene.py", "ui/plan_view.py"], "commit": C1},
