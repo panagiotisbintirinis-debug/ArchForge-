@@ -166,7 +166,7 @@ FINDINGS = [
      "fix": "Ιδιοκτήτης 17/10: εργαλείο θέρμανσης με προσαγωγή + επιστροφή — καλοριφέρ / ενδοδαπέδια / fan coil, συλλέκτες "
             "με υδρονομείς και βάνες, διατομές Φ18/Φ16/Φ20 (Φ20/Φ26 προς συλλέκτες), όλα στην προσφορά",
      "files": ["mep/heating_layout.py", "mep/heating.py", "ui/main_window.py", "core/plan_scene.py", "rendering/scene.py",
-               "scenarios/gate.py", "tests/test_heating_layout.py"], "commit": "(αυτό το commit)"},
+               "scenarios/gate.py", "tests/test_heating_layout.py"], "commit": "043cb00"},
 ]
 
 NOTES = """## Τι να ελέγξετε εσείς (Windows)
