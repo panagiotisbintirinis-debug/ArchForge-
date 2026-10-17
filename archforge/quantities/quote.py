@@ -30,13 +30,9 @@ def row_meta(row):
 
 def trade_prices(doc):
     """``{code: {"material": x|None, "labour": y|None}}`` — legacy description prices included as material."""
-    e = price_entity(doc)
-    p = dict(e.params) if e else {}
-    book = {"desc:" + str(d): {"material": float(v), "labour": None} for d, v in (p.get("prices") or {}).items()}
-    for code, v in (p.get("trade_prices") or {}).items():
-        book[str(code)] = {"material": None if v.get("material") is None else float(v["material"]),
-                           "labour": None if v.get("labour") is None else float(v["labour"])}
-    return book
+    from archforge.mep.project_pricebook import project_prices
+    return {code: {'material': price.material_unit_price, 'labour': price.labour_unit_price}
+            for code, price in project_prices(doc).items()}
 
 
 def settings(doc):
@@ -52,9 +48,8 @@ def settings(doc):
 
 
 def _price_entries(doc):
-    from archforge.mep.trade_costing import PriceEntry
-    return {code: PriceEntry(material_unit_price=v["material"], labour_unit_price=v["labour"], source="user")
-            for code, v in trade_prices(doc).items()}
+    from archforge.mep.project_pricebook import project_prices
+    return project_prices(doc)
 
 
 def costed(doc, name, rows):

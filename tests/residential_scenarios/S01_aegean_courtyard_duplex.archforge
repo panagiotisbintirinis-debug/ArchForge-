@@ -4,10 +4,10 @@
     {
       "kind": "wall",
       "params": {
-        "x1": 0,
-        "y1": 0,
-        "x2": 10,
-        "y2": 0,
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 10.0,
+        "y2": 0.0,
         "z": 0.0,
         "height": 2.7,
         "thickness": 0.25
@@ -22,10 +22,10 @@
     {
       "kind": "wall",
       "params": {
-        "x1": 10,
-        "y1": 0,
-        "x2": 10,
-        "y2": 8,
+        "x1": 10.0,
+        "y1": 0.0,
+        "x2": 10.0,
+        "y2": 8.0,
         "z": 0.0,
         "height": 2.7,
         "thickness": 0.25
@@ -40,10 +40,10 @@
     {
       "kind": "wall",
       "params": {
-        "x1": 10,
-        "y1": 8,
-        "x2": 0,
-        "y2": 8,
+        "x1": 10.0,
+        "y1": 8.0,
+        "x2": 0.0,
+        "y2": 8.0,
         "z": 0.0,
         "height": 2.7,
         "thickness": 0.25
@@ -58,10 +58,10 @@
     {
       "kind": "wall",
       "params": {
-        "x1": 0,
-        "y1": 8,
-        "x2": 0,
-        "y2": 0,
+        "x1": 0.0,
+        "y1": 8.0,
+        "x2": 0.0,
+        "y2": 0.0,
         "z": 0.0,
         "height": 2.7,
         "thickness": 0.25
@@ -77,9 +77,9 @@
       "kind": "wall",
       "params": {
         "x1": 5.0,
-        "y1": 0,
+        "y1": 0.0,
         "x2": 5.0,
-        "y2": 8,
+        "y2": 8.0,
         "z": 0.0,
         "height": 2.7,
         "thickness": 0.15
@@ -94,9 +94,9 @@
     {
       "kind": "wall",
       "params": {
-        "x1": 0,
+        "x1": 0.0,
         "y1": 4.0,
-        "x2": 10,
+        "x2": 10.0,
         "y2": 4.0,
         "z": 0.0,
         "height": 2.7,
@@ -104,91 +104,6 @@
       },
       "name": "Partition B L0",
       "id": "s01-part-0-b",
-      "parent_id": null,
-      "locked": false,
-      "visible": true,
-      "revision": 0
-    },
-    {
-      "kind": "floor",
-      "params": {
-        "points": [
-          [
-            0,
-            0
-          ],
-          [
-            10,
-            0
-          ],
-          [
-            10,
-            8
-          ],
-          [
-            0,
-            8
-          ]
-        ],
-        "z": -0.18,
-        "thickness": 0.18
-      },
-      "name": "Floor L0",
-      "id": "s01-floor-0",
-      "parent_id": null,
-      "locked": false,
-      "visible": true,
-      "revision": 0
-    },
-    {
-      "kind": "box",
-      "params": {
-        "x": 1.0,
-        "y": 1.0,
-        "z": 0.0,
-        "width": 2.2,
-        "depth": 0.9,
-        "height": 0.75,
-        "rotation": 0.0
-      },
-      "name": "Καναπές L0",
-      "id": "s01-furn-0-0",
-      "parent_id": null,
-      "locked": false,
-      "visible": true,
-      "revision": 0
-    },
-    {
-      "kind": "box",
-      "params": {
-        "x": 7.6,
-        "y": 6.0,
-        "z": 0.0,
-        "width": 2.0,
-        "depth": 1.6,
-        "height": 0.55,
-        "rotation": 0.0
-      },
-      "name": "Κρεβάτι L0",
-      "id": "s01-furn-0-1",
-      "parent_id": null,
-      "locked": false,
-      "visible": true,
-      "revision": 0
-    },
-    {
-      "kind": "box",
-      "params": {
-        "x": 4.2,
-        "y": 4.7,
-        "z": 0.0,
-        "width": 1.6,
-        "depth": 0.9,
-        "height": 0.75,
-        "rotation": 0.0
-      },
-      "name": "Τραπέζι L0",
-      "id": "s01-furn-0-2",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -255,10 +170,10 @@
     {
       "kind": "wall",
       "params": {
-        "x1": 0,
-        "y1": 0,
-        "x2": 10,
-        "y2": 0,
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 10.0,
+        "y2": 0.0,
         "z": 3.0,
         "height": 2.7,
         "thickness": 0.25
@@ -273,10 +188,10 @@
     {
       "kind": "wall",
       "params": {
-        "x1": 10,
-        "y1": 0,
-        "x2": 10,
-        "y2": 8,
+        "x1": 10.0,
+        "y1": 0.0,
+        "x2": 10.0,
+        "y2": 8.0,
         "z": 3.0,
         "height": 2.7,
         "thickness": 0.25
@@ -291,10 +206,10 @@
     {
       "kind": "wall",
       "params": {
-        "x1": 10,
-        "y1": 8,
-        "x2": 0,
-        "y2": 8,
+        "x1": 10.0,
+        "y1": 8.0,
+        "x2": 0.0,
+        "y2": 8.0,
         "z": 3.0,
         "height": 2.7,
         "thickness": 0.25
@@ -309,10 +224,10 @@
     {
       "kind": "wall",
       "params": {
-        "x1": 0,
-        "y1": 8,
-        "x2": 0,
-        "y2": 0,
+        "x1": 0.0,
+        "y1": 8.0,
+        "x2": 0.0,
+        "y2": 0.0,
         "z": 3.0,
         "height": 2.7,
         "thickness": 0.25
@@ -328,9 +243,9 @@
       "kind": "wall",
       "params": {
         "x1": 5.0,
-        "y1": 0,
+        "y1": 0.0,
         "x2": 5.0,
-        "y2": 8,
+        "y2": 8.0,
         "z": 3.0,
         "height": 2.7,
         "thickness": 0.15
@@ -345,9 +260,9 @@
     {
       "kind": "wall",
       "params": {
-        "x1": 0,
+        "x1": 0.0,
         "y1": 4.0,
-        "x2": 10,
+        "x2": 10.0,
         "y2": 4.0,
         "z": 3.0,
         "height": 2.7,
@@ -365,162 +280,19 @@
       "params": {
         "points": [
           [
-            0,
-            0
+            2.0,
+            0.0
           ],
           [
-            10,
-            0
+            8.0,
+            0.0
           ],
           [
-            10,
-            8
-          ],
-          [
-            0,
-            8
-          ]
-        ],
-        "z": 2.82,
-        "thickness": 0.18
-      },
-      "name": "Floor L1",
-      "id": "s01-floor-1",
-      "parent_id": null,
-      "locked": false,
-      "visible": true,
-      "revision": 0
-    },
-    {
-      "kind": "box",
-      "params": {
-        "x": 1.0,
-        "y": 1.0,
-        "z": 3.0,
-        "width": 2.2,
-        "depth": 0.9,
-        "height": 0.75,
-        "rotation": 0.0
-      },
-      "name": "Καναπές L1",
-      "id": "s01-furn-1-0",
-      "parent_id": null,
-      "locked": false,
-      "visible": true,
-      "revision": 0
-    },
-    {
-      "kind": "box",
-      "params": {
-        "x": 7.6,
-        "y": 6.0,
-        "z": 3.0,
-        "width": 2.0,
-        "depth": 1.6,
-        "height": 0.55,
-        "rotation": 0.0
-      },
-      "name": "Κρεβάτι L1",
-      "id": "s01-furn-1-1",
-      "parent_id": null,
-      "locked": false,
-      "visible": true,
-      "revision": 0
-    },
-    {
-      "kind": "box",
-      "params": {
-        "x": 4.2,
-        "y": 4.7,
-        "z": 3.0,
-        "width": 1.6,
-        "depth": 0.9,
-        "height": 0.75,
-        "rotation": 0.0
-      },
-      "name": "Τραπέζι L1",
-      "id": "s01-furn-1-2",
-      "parent_id": null,
-      "locked": false,
-      "visible": true,
-      "revision": 0
-    },
-    {
-      "kind": "cabinet",
-      "params": {
-        "x": 1.0,
-        "y": 7.5,
-        "z": 3.0,
-        "rotation": 0.0,
-        "width": 0.6,
-        "depth": 0.6,
-        "height": 0.86,
-        "plinth": 0.1,
-        "height_end": 0.86,
-        "cabinet_type": "base",
-        "doors": 1,
-        "drawers": 1,
-        "shelves": 1,
-        "worktop": 1.0,
-        "handle": "bar",
-        "front_style": "flat",
-        "mechanism": "none",
-        "blind_side": "left"
-      },
-      "name": "Kitchen base L1",
-      "id": "s01-cab-1-0",
-      "parent_id": null,
-      "locked": false,
-      "visible": true,
-      "revision": 0
-    },
-    {
-      "kind": "cabinet",
-      "params": {
-        "x": 1.8,
-        "y": 7.5,
-        "z": 3.0,
-        "rotation": 0.0,
-        "width": 0.8,
-        "depth": 0.6,
-        "height": 0.86,
-        "plinth": 0.1,
-        "height_end": 0.86,
-        "cabinet_type": "sink",
-        "doors": 2,
-        "drawers": 0,
-        "shelves": 0,
-        "worktop": 1.0,
-        "handle": "bar",
-        "front_style": "flat",
-        "mechanism": "bin",
-        "blind_side": "left"
-      },
-      "name": "Kitchen sink cabinet L1",
-      "id": "s01-cab-1-1",
-      "parent_id": null,
-      "locked": false,
-      "visible": true,
-      "revision": 0
-    },
-    {
-      "kind": "floor",
-      "params": {
-        "points": [
-          [
-            2,
-            0
-          ],
-          [
-            8,
-            0
-          ],
-          [
-            8,
+            8.0,
             -1.6
           ],
           [
-            2,
+            2.0,
             -1.6
           ]
         ],
@@ -539,25 +311,32 @@
       "params": {
         "points": [
           [
-            8,
-            0
+            8.0,
+            0.0
           ],
           [
-            8,
+            8.0,
             -1.6
           ],
           [
-            2,
+            2.0,
             -1.6
           ],
           [
-            2,
-            0
+            2.0,
+            0.0
           ]
         ],
         "z": 3.0,
         "closed": 0,
-        "height": 1.05
+        "height": 1.05,
+        "railing_type": "balusters",
+        "handrail": "square",
+        "handrail_size": 0.045,
+        "post_spacing": 1.2,
+        "gap": 0.1,
+        "base_height": 0.0,
+        "metal": "iron"
       },
       "name": "Balcony railing L1",
       "id": "s01-rail-1",
@@ -571,10 +350,10 @@
       "params": {
         "x0": 0.0,
         "y0": 0.0,
-        "x1": 10,
-        "y1": 8,
-        "eave_z": 6.0,
-        "pitch": 27,
+        "x1": 10.0,
+        "y1": 8.0,
+        "eave_z": 5.7,
+        "pitch": 27.0,
         "overhang": 0.45,
         "rafter_spacing": 0.6,
         "roof_form": "gable",
@@ -590,13 +369,13 @@
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "structural_column",
       "params": {
-        "x": 0,
-        "y": 0,
+        "x": 0.0,
+        "y": 0.0,
         "z": 0.0,
         "width": 0.4,
         "depth": 0.4,
@@ -609,7 +388,7 @@
         "top_level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "Κ1",
       "id": "s01-col-0-0-0",
       "parent_id": null,
       "locked": false,
@@ -619,7 +398,7 @@
     {
       "kind": "structural_column",
       "params": {
-        "x": 0,
+        "x": 0.0,
         "y": 4.0,
         "z": 0.0,
         "width": 0.4,
@@ -633,7 +412,7 @@
         "top_level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "Κ2",
       "id": "s01-col-0-0-1",
       "parent_id": null,
       "locked": false,
@@ -643,8 +422,8 @@
     {
       "kind": "structural_column",
       "params": {
-        "x": 0,
-        "y": 8,
+        "x": 0.0,
+        "y": 8.0,
         "z": 0.0,
         "width": 0.4,
         "depth": 0.4,
@@ -657,7 +436,7 @@
         "top_level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "Κ3",
       "id": "s01-col-0-0-2",
       "parent_id": null,
       "locked": false,
@@ -668,7 +447,7 @@
       "kind": "structural_column",
       "params": {
         "x": 5.0,
-        "y": 0,
+        "y": 0.0,
         "z": 0.0,
         "width": 0.4,
         "depth": 0.4,
@@ -681,7 +460,7 @@
         "top_level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "Κ4",
       "id": "s01-col-0-1-0",
       "parent_id": null,
       "locked": false,
@@ -705,7 +484,7 @@
         "top_level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "Κ5",
       "id": "s01-col-0-1-1",
       "parent_id": null,
       "locked": false,
@@ -716,7 +495,7 @@
       "kind": "structural_column",
       "params": {
         "x": 5.0,
-        "y": 8,
+        "y": 8.0,
         "z": 0.0,
         "width": 0.4,
         "depth": 0.4,
@@ -729,7 +508,7 @@
         "top_level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "Κ6",
       "id": "s01-col-0-1-2",
       "parent_id": null,
       "locked": false,
@@ -739,8 +518,8 @@
     {
       "kind": "structural_column",
       "params": {
-        "x": 10,
-        "y": 0,
+        "x": 10.0,
+        "y": 0.0,
         "z": 0.0,
         "width": 0.4,
         "depth": 0.4,
@@ -753,7 +532,7 @@
         "top_level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "Κ7",
       "id": "s01-col-0-2-0",
       "parent_id": null,
       "locked": false,
@@ -763,7 +542,7 @@
     {
       "kind": "structural_column",
       "params": {
-        "x": 10,
+        "x": 10.0,
         "y": 4.0,
         "z": 0.0,
         "width": 0.4,
@@ -777,7 +556,7 @@
         "top_level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "Κ8",
       "id": "s01-col-0-2-1",
       "parent_id": null,
       "locked": false,
@@ -787,8 +566,8 @@
     {
       "kind": "structural_column",
       "params": {
-        "x": 10,
-        "y": 8,
+        "x": 10.0,
+        "y": 8.0,
         "z": 0.0,
         "width": 0.4,
         "depth": 0.4,
@@ -801,7 +580,7 @@
         "top_level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "Κ9",
       "id": "s01-col-0-2-2",
       "parent_id": null,
       "locked": false,
@@ -811,10 +590,10 @@
     {
       "kind": "structural_beam",
       "params": {
-        "x1": 0,
-        "y1": 0,
-        "x2": 10,
-        "y2": 0,
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 10.0,
+        "y2": 0.0,
         "z": 2.5,
         "width": 0.25,
         "height": 0.5,
@@ -824,7 +603,7 @@
         "level": "Ground",
         "profile": ""
       },
-      "name": "",
+      "name": "Δ1",
       "id": "s01-beamx-0-0",
       "parent_id": null,
       "locked": false,
@@ -834,9 +613,9 @@
     {
       "kind": "structural_beam",
       "params": {
-        "x1": 0,
+        "x1": 0.0,
         "y1": 4.0,
-        "x2": 10,
+        "x2": 10.0,
         "y2": 4.0,
         "z": 2.5,
         "width": 0.25,
@@ -847,7 +626,7 @@
         "level": "Ground",
         "profile": ""
       },
-      "name": "",
+      "name": "Δ2",
       "id": "s01-beamx-0-1",
       "parent_id": null,
       "locked": false,
@@ -857,10 +636,10 @@
     {
       "kind": "structural_beam",
       "params": {
-        "x1": 0,
-        "y1": 8,
-        "x2": 10,
-        "y2": 8,
+        "x1": 0.0,
+        "y1": 8.0,
+        "x2": 10.0,
+        "y2": 8.0,
         "z": 2.5,
         "width": 0.25,
         "height": 0.5,
@@ -870,7 +649,7 @@
         "level": "Ground",
         "profile": ""
       },
-      "name": "",
+      "name": "Δ3",
       "id": "s01-beamx-0-2",
       "parent_id": null,
       "locked": false,
@@ -880,10 +659,10 @@
     {
       "kind": "structural_beam",
       "params": {
-        "x1": 0,
-        "y1": 0,
-        "x2": 0,
-        "y2": 8,
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 0.0,
+        "y2": 8.0,
         "z": 2.5,
         "width": 0.25,
         "height": 0.5,
@@ -893,7 +672,7 @@
         "level": "Ground",
         "profile": ""
       },
-      "name": "",
+      "name": "Δ4",
       "id": "s01-beamy-0-0",
       "parent_id": null,
       "locked": false,
@@ -904,9 +683,9 @@
       "kind": "structural_beam",
       "params": {
         "x1": 5.0,
-        "y1": 0,
+        "y1": 0.0,
         "x2": 5.0,
-        "y2": 8,
+        "y2": 8.0,
         "z": 2.5,
         "width": 0.25,
         "height": 0.5,
@@ -916,7 +695,7 @@
         "level": "Ground",
         "profile": ""
       },
-      "name": "",
+      "name": "Δ5",
       "id": "s01-beamy-0-1",
       "parent_id": null,
       "locked": false,
@@ -926,10 +705,10 @@
     {
       "kind": "structural_beam",
       "params": {
-        "x1": 10,
-        "y1": 0,
-        "x2": 10,
-        "y2": 8,
+        "x1": 10.0,
+        "y1": 0.0,
+        "x2": 10.0,
+        "y2": 8.0,
         "z": 2.5,
         "width": 0.25,
         "height": 0.5,
@@ -939,7 +718,7 @@
         "level": "Ground",
         "profile": ""
       },
-      "name": "",
+      "name": "Δ6",
       "id": "s01-beamy-0-2",
       "parent_id": null,
       "locked": false,
@@ -949,12 +728,12 @@
     {
       "kind": "structural_column",
       "params": {
-        "x": 0,
-        "y": 0,
+        "x": 0.0,
+        "y": 0.0,
         "z": 3.0,
         "width": 0.4,
         "depth": 0.4,
-        "height": 3.0,
+        "height": 2.7,
         "rotation": 0.0,
         "role": "structural",
         "construction": "reinforced_concrete",
@@ -963,22 +742,22 @@
         "top_level": "Unassigned",
         "profile": ""
       },
-      "name": "",
+      "name": "Κ10",
       "id": "s01-col-1-0-0",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "structural_column",
       "params": {
-        "x": 0,
+        "x": 0.0,
         "y": 4.0,
         "z": 3.0,
         "width": 0.4,
         "depth": 0.4,
-        "height": 3.0,
+        "height": 2.7,
         "rotation": 0.0,
         "role": "structural",
         "construction": "reinforced_concrete",
@@ -987,22 +766,22 @@
         "top_level": "Unassigned",
         "profile": ""
       },
-      "name": "",
+      "name": "Κ11",
       "id": "s01-col-1-0-1",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "structural_column",
       "params": {
-        "x": 0,
-        "y": 8,
+        "x": 0.0,
+        "y": 8.0,
         "z": 3.0,
         "width": 0.4,
         "depth": 0.4,
-        "height": 3.0,
+        "height": 2.7,
         "rotation": 0.0,
         "role": "structural",
         "construction": "reinforced_concrete",
@@ -1011,22 +790,22 @@
         "top_level": "Unassigned",
         "profile": ""
       },
-      "name": "",
+      "name": "Κ12",
       "id": "s01-col-1-0-2",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "structural_column",
       "params": {
         "x": 5.0,
-        "y": 0,
+        "y": 0.0,
         "z": 3.0,
         "width": 0.4,
         "depth": 0.4,
-        "height": 3.0,
+        "height": 2.7,
         "rotation": 0.0,
         "role": "structural",
         "construction": "reinforced_concrete",
@@ -1035,12 +814,12 @@
         "top_level": "Unassigned",
         "profile": ""
       },
-      "name": "",
+      "name": "Κ13",
       "id": "s01-col-1-1-0",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "structural_column",
@@ -1050,7 +829,7 @@
         "z": 3.0,
         "width": 0.4,
         "depth": 0.4,
-        "height": 3.0,
+        "height": 2.7,
         "rotation": 0.0,
         "role": "structural",
         "construction": "reinforced_concrete",
@@ -1059,22 +838,22 @@
         "top_level": "Unassigned",
         "profile": ""
       },
-      "name": "",
+      "name": "Κ14",
       "id": "s01-col-1-1-1",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "structural_column",
       "params": {
         "x": 5.0,
-        "y": 8,
+        "y": 8.0,
         "z": 3.0,
         "width": 0.4,
         "depth": 0.4,
-        "height": 3.0,
+        "height": 2.7,
         "rotation": 0.0,
         "role": "structural",
         "construction": "reinforced_concrete",
@@ -1083,22 +862,22 @@
         "top_level": "Unassigned",
         "profile": ""
       },
-      "name": "",
+      "name": "Κ15",
       "id": "s01-col-1-1-2",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "structural_column",
       "params": {
-        "x": 10,
-        "y": 0,
+        "x": 10.0,
+        "y": 0.0,
         "z": 3.0,
         "width": 0.4,
         "depth": 0.4,
-        "height": 3.0,
+        "height": 2.7,
         "rotation": 0.0,
         "role": "structural",
         "construction": "reinforced_concrete",
@@ -1107,22 +886,22 @@
         "top_level": "Unassigned",
         "profile": ""
       },
-      "name": "",
+      "name": "Κ16",
       "id": "s01-col-1-2-0",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "structural_column",
       "params": {
-        "x": 10,
+        "x": 10.0,
         "y": 4.0,
         "z": 3.0,
         "width": 0.4,
         "depth": 0.4,
-        "height": 3.0,
+        "height": 2.7,
         "rotation": 0.0,
         "role": "structural",
         "construction": "reinforced_concrete",
@@ -1131,22 +910,22 @@
         "top_level": "Unassigned",
         "profile": ""
       },
-      "name": "",
+      "name": "Κ17",
       "id": "s01-col-1-2-1",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "structural_column",
       "params": {
-        "x": 10,
-        "y": 8,
+        "x": 10.0,
+        "y": 8.0,
         "z": 3.0,
         "width": 0.4,
         "depth": 0.4,
-        "height": 3.0,
+        "height": 2.7,
         "rotation": 0.0,
         "role": "structural",
         "construction": "reinforced_concrete",
@@ -1155,21 +934,21 @@
         "top_level": "Unassigned",
         "profile": ""
       },
-      "name": "",
+      "name": "Κ18",
       "id": "s01-col-1-2-2",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "structural_beam",
       "params": {
-        "x1": 0,
-        "y1": 0,
-        "x2": 10,
-        "y2": 0,
-        "z": 5.5,
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 10.0,
+        "y2": 0.0,
+        "z": 5.2,
         "width": 0.25,
         "height": 0.5,
         "role": "structural",
@@ -1178,21 +957,21 @@
         "level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "Δ7",
       "id": "s01-beamx-1-0",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "structural_beam",
       "params": {
-        "x1": 0,
+        "x1": 0.0,
         "y1": 4.0,
-        "x2": 10,
+        "x2": 10.0,
         "y2": 4.0,
-        "z": 5.5,
+        "z": 5.2,
         "width": 0.25,
         "height": 0.5,
         "role": "structural",
@@ -1201,21 +980,21 @@
         "level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "Δ8",
       "id": "s01-beamx-1-1",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "structural_beam",
       "params": {
-        "x1": 0,
-        "y1": 8,
-        "x2": 10,
-        "y2": 8,
-        "z": 5.5,
+        "x1": 0.0,
+        "y1": 8.0,
+        "x2": 10.0,
+        "y2": 8.0,
+        "z": 5.2,
         "width": 0.25,
         "height": 0.5,
         "role": "structural",
@@ -1224,21 +1003,21 @@
         "level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "Δ9",
       "id": "s01-beamx-1-2",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "structural_beam",
       "params": {
-        "x1": 0,
-        "y1": 0,
-        "x2": 0,
-        "y2": 8,
-        "z": 5.5,
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 0.0,
+        "y2": 8.0,
+        "z": 5.2,
         "width": 0.25,
         "height": 0.5,
         "role": "structural",
@@ -1247,21 +1026,21 @@
         "level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "Δ10",
       "id": "s01-beamy-1-0",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "structural_beam",
       "params": {
         "x1": 5.0,
-        "y1": 0,
+        "y1": 0.0,
         "x2": 5.0,
-        "y2": 8,
-        "z": 5.5,
+        "y2": 8.0,
+        "z": 5.2,
         "width": 0.25,
         "height": 0.5,
         "role": "structural",
@@ -1270,21 +1049,21 @@
         "level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "Δ11",
       "id": "s01-beamy-1-1",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "structural_beam",
       "params": {
-        "x1": 10,
-        "y1": 0,
-        "x2": 10,
-        "y2": 8,
-        "z": 5.5,
+        "x1": 10.0,
+        "y1": 0.0,
+        "x2": 10.0,
+        "y2": 8.0,
+        "z": 5.2,
         "width": 0.25,
         "height": 0.5,
         "role": "structural",
@@ -1293,12 +1072,12 @@
         "level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "Δ12",
       "id": "s01-beamy-1-2",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "plumbing_point",
@@ -1319,7 +1098,7 @@
     {
       "kind": "plumbing_point",
       "params": {
-        "x": 1.0,
+        "x": 6.0,
         "y": 7.0,
         "z": 0.0,
         "point_type": "wc"
@@ -1329,12 +1108,12 @@
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "plumbing_point",
       "params": {
-        "x": 2.0,
+        "x": 7.0,
         "y": 7.0,
         "z": 0.0,
         "point_type": "basin"
@@ -1344,12 +1123,12 @@
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "plumbing_point",
       "params": {
-        "x": 3.0,
+        "x": 8.0,
         "y": 7.0,
         "z": 0.0,
         "point_type": "shower"
@@ -1359,7 +1138,7 @@
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "plumbing_point",
@@ -1484,7 +1263,7 @@
     {
       "kind": "plumbing_point",
       "params": {
-        "x": 1.0,
+        "x": 6.0,
         "y": 7.0,
         "z": 3.0,
         "point_type": "wc"
@@ -1494,12 +1273,12 @@
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "plumbing_point",
       "params": {
-        "x": 2.0,
+        "x": 7.0,
         "y": 7.0,
         "z": 3.0,
         "point_type": "basin"
@@ -1509,12 +1288,12 @@
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "plumbing_point",
       "params": {
-        "x": 3.0,
+        "x": 8.0,
         "y": 7.0,
         "z": 3.0,
         "point_type": "shower"
@@ -1524,22 +1303,7 @@
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
-    },
-    {
-      "kind": "plumbing_point",
-      "params": {
-        "x": 1.8,
-        "y": 7.3,
-        "z": 3.0,
-        "point_type": "kitchen_sink"
-      },
-      "name": "kitchen_sink L1",
-      "id": "s01-plumb-1-3",
-      "parent_id": null,
-      "locked": false,
-      "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "electrical_point",
@@ -1650,166 +1414,246 @@
       "kind": "price_list",
       "params": {
         "vat": 0.0,
-        "trade_prices": {
+        "entries": {
           "plumbing.pipe.cold.dn15": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.pipe.hot.dn15": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.pipe.cold.dn16": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.pipe.hot.dn16": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.pipe.cold.dn18": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.pipe.hot.dn18": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.pipe.cold.dn20": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.pipe.hot.dn20": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.pipe.cold.dn22": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.pipe.hot.dn22": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.pipe.cold.dn26": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.pipe.hot.dn26": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.point.wc": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.point.basin": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.point.shower": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.point.kitchen_sink": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.manifold.cold.1way": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.manifold.cold.2way": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.manifold.cold.3way": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.manifold.cold.4way": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.manifold.cold.5way": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.manifold.cold.6way": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.manifold.cold.7way": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.manifold.cold.8way": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.manifold.cold.9way": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.manifold.cold.10way": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.manifold.cold.11way": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.manifold.cold.12way": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.manifold.hot.1way": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.manifold.hot.2way": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.manifold.hot.3way": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.manifold.hot.4way": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.manifold.hot.5way": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.manifold.hot.6way": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.manifold.hot.7way": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.manifold.hot.8way": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.manifold.hot.9way": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.manifold.hot.10way": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.manifold.hot.11way": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           },
           "plumbing.manifold.hot.12way": {
-            "material": 1.0,
-            "labour": 1.0
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE — synthetic, not market data"
           }
         }
       },
@@ -1819,9 +1663,682 @@
       "locked": false,
       "visible": true,
       "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 2.9,
+        "width": 0.9,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "door L0",
+      "id": "s01-opening-0-0",
+      "parent_id": "s01-part-0-a",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 5.2,
+        "width": 0.8,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "door L0",
+      "id": "s01-opening-0-1",
+      "parent_id": "s01-part-0-a",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 1.2,
+        "width": 0.9,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "door L0",
+      "id": "s01-opening-0-2",
+      "parent_id": "s01-part-0-b",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 7.0,
+        "width": 0.8,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "door L0",
+      "id": "s01-opening-0-3",
+      "parent_id": "s01-part-0-b",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 1.4,
+        "width": 1.5,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "window L0",
+      "id": "s01-opening-0-4",
+      "parent_id": "s01-wall-0-1",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 6.4,
+        "width": 1.5,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "window L0",
+      "id": "s01-opening-0-5",
+      "parent_id": "s01-wall-0-2",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 6.5,
+        "width": 0.9,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "door L0",
+      "id": "s01-opening-0-6",
+      "parent_id": "s01-wall-0-0",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 2.9,
+        "width": 0.9,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "door L1",
+      "id": "s01-opening-1-0",
+      "parent_id": "s01-part-1-a",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 5.2,
+        "width": 0.8,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "door L1",
+      "id": "s01-opening-1-1",
+      "parent_id": "s01-part-1-a",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 1.2,
+        "width": 0.9,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "door L1",
+      "id": "s01-opening-1-2",
+      "parent_id": "s01-part-1-b",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 7.0,
+        "width": 0.8,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "door L1",
+      "id": "s01-opening-1-3",
+      "parent_id": "s01-part-1-b",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 1.4,
+        "width": 1.5,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "window L1",
+      "id": "s01-opening-1-4",
+      "parent_id": "s01-wall-1-1",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 6.4,
+        "width": 1.5,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "window L1",
+      "id": "s01-opening-1-5",
+      "parent_id": "s01-wall-1-2",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 6.6,
+        "width": 1.8,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "door L1",
+      "id": "s01-opening-1-6",
+      "parent_id": "s01-wall-1-0",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 9.0,
+        "y": 7.0,
+        "z": 0.0,
+        "point_type": "water_heater"
+      },
+      "name": "TEST_FIXTURE — θερμοσίφωνας",
+      "id": "s01-hot-source",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "stair",
+      "params": {
+        "x": 1.1,
+        "y": 1.0,
+        "lower_z": 0.0,
+        "upper_z": 3.0,
+        "upper_floor_z": 2.7,
+        "upper_slab_thickness": 0.3,
+        "layout": "u",
+        "angle_deg": 0.0,
+        "width": 1.0,
+        "riser_count": 18,
+        "riser_height": 0.16666666666666666,
+        "tread_depth": 0.29,
+        "landing_depth": 1.0,
+        "turn_direction": 1,
+        "opening_margin": 0.05
+      },
+      "name": "Σκάλα ισόγειο–όροφος",
+      "id": "s01-stair",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_floor",
+      "params": {
+        "scope": "storey",
+        "level_z": 0.0,
+        "thickness": 0.18,
+        "offset_z": 0.0
+      },
+      "name": "Πλάκα δαπέδου — Ισόγειο",
+      "id": "s01-room_floor-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_roof",
+      "params": {
+        "scope": "storey",
+        "level_z": 0.0,
+        "thickness": 0.3,
+        "offset_z": 2.7,
+        "roof_type": "flat",
+        "overhang": 0.0
+      },
+      "name": "Πλάκα δώματος — Ισόγειο",
+      "id": "s01-room_roof-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_floor",
+      "params": {
+        "scope": "storey",
+        "level_z": 3.0,
+        "thickness": 0.18,
+        "offset_z": 0.0
+      },
+      "name": "Πλάκα δαπέδου — Level 1",
+      "id": "s01-room_floor-3",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_ceiling",
+      "params": {
+        "room_signature": "room-158d5cbbe99b9f65",
+        "thickness": 0.15,
+        "offset_z": 2.5500000000000003,
+        "room_id": "s01-3-room-158d5cbbe99b9f65"
+      },
+      "name": "Οροφή σοφίτας",
+      "id": "s01-attic-ceiling-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_ceiling",
+      "params": {
+        "room_signature": "room-1c21dd389b209e7b",
+        "thickness": 0.15,
+        "offset_z": 2.5500000000000003,
+        "room_id": "s01-3-room-1c21dd389b209e7b"
+      },
+      "name": "Οροφή σοφίτας",
+      "id": "s01-attic-ceiling-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_ceiling",
+      "params": {
+        "room_signature": "room-a56f8a5b2aef1546",
+        "thickness": 0.15,
+        "offset_z": 2.5500000000000003,
+        "room_id": "s01-3-room-a56f8a5b2aef1546"
+      },
+      "name": "Οροφή σοφίτας",
+      "id": "s01-attic-ceiling-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_ceiling",
+      "params": {
+        "room_signature": "room-c98711f636fbb131",
+        "thickness": 0.15,
+        "offset_z": 2.5500000000000003,
+        "room_id": "s01-3-room-c98711f636fbb131"
+      },
+      "name": "Οροφή σοφίτας",
+      "id": "s01-attic-ceiling-3",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 7.7,
+        "y": 1.0,
+        "z": 0.0,
+        "rotation": 0.0,
+        "width": 2.1,
+        "depth": 0.9,
+        "height": 0.85,
+        "uniform": 1.0,
+        "asset": "a6b43b945fad7b6b8",
+        "source_asset_id": "a6b43b945fad7b6b8",
+        "source_size": [
+          2.1,
+          0.9,
+          0.85
+        ],
+        "material_id": "",
+        "surface_materials": {}
+      },
+      "name": "Καναπές τριθέσιος",
+      "id": "s01-library-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 7.4,
+        "y": 3.0,
+        "z": 0.0,
+        "rotation": 0.0,
+        "width": 1.4000000000000001,
+        "depth": 0.8,
+        "height": 0.75,
+        "uniform": 1.0,
+        "asset": "a528ce417973a22aa",
+        "source_asset_id": "a528ce417973a22aa",
+        "source_size": [
+          1.4000000000000001,
+          0.8,
+          0.75
+        ],
+        "material_id": "",
+        "surface_materials": {}
+      },
+      "name": "Τραπέζι τραπεζαρίας 4θέσιο",
+      "id": "s01-library-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 7.6,
+        "y": 1.5,
+        "z": 3.0,
+        "rotation": 0.0,
+        "width": 1.7,
+        "depth": 2.1,
+        "height": 1.1,
+        "uniform": 1.0,
+        "asset": "abc85ac0b53225c83",
+        "source_asset_id": "abc85ac0b53225c83",
+        "source_size": [
+          1.7,
+          2.1,
+          1.1
+        ],
+        "material_id": "",
+        "surface_materials": {}
+      },
+      "name": "Διπλό κρεβάτι 160×200",
+      "id": "s01-library-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 2.8,
+        "y": 6.4,
+        "z": 3.0,
+        "rotation": 0.0,
+        "width": 1.0,
+        "depth": 2.1,
+        "height": 1.1,
+        "uniform": 1.0,
+        "asset": "a78ff4d66f256569a",
+        "source_asset_id": "a78ff4d66f256569a",
+        "source_size": [
+          1.0,
+          2.1,
+          1.1
+        ],
+        "material_id": "",
+        "surface_materials": {}
+      },
+      "name": "Μονό κρεβάτι 90×200",
+      "id": "s01-library-3",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 6.0,
+        "y": 7.0,
+        "z": 0.0,
+        "rotation": 0.0,
+        "width": 0.36,
+        "depth": 0.66,
+        "height": 0.8,
+        "uniform": 1.0,
+        "asset": "a1f86d26b0bf5378e",
+        "source_asset_id": "a1f86d26b0bf5378e",
+        "source_size": [
+          0.36,
+          0.66,
+          0.8
+        ],
+        "material_id": "",
+        "surface_materials": {}
+      },
+      "name": "Λεκάνη WC με καζανάκι",
+      "id": "s01-library-4",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 7.0,
+        "y": 7.0,
+        "z": 0.0,
+        "rotation": 0.0,
+        "width": 0.8,
+        "depth": 0.46,
+        "height": 1.03,
+        "uniform": 1.0,
+        "asset": "a0c1970dbea04dc56",
+        "source_asset_id": "a0c1970dbea04dc56",
+        "source_size": [
+          0.8,
+          0.46,
+          1.03
+        ],
+        "material_id": "",
+        "surface_materials": {}
+      },
+      "name": "Νιπτήρας με έπιπλο 80",
+      "id": "s01-library-5",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 8.0,
+        "y": 7.0,
+        "z": 0.0,
+        "rotation": 0.0,
+        "width": 0.9,
+        "depth": 0.9,
+        "height": 2.0,
+        "uniform": 1.0,
+        "asset": "a3decaa11db07056f",
+        "source_asset_id": "a3decaa11db07056f",
+        "source_size": [
+          0.9,
+          0.9,
+          2.0
+        ],
+        "material_id": "",
+        "surface_materials": {}
+      },
+      "name": "Ντουζιέρα 90×90",
+      "id": "s01-library-6",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 6.0,
+        "y": 7.0,
+        "z": 3.0,
+        "rotation": 0.0,
+        "width": 0.36,
+        "depth": 0.66,
+        "height": 0.8,
+        "uniform": 1.0,
+        "asset": "a1f86d26b0bf5378e",
+        "source_asset_id": "a1f86d26b0bf5378e",
+        "source_size": [
+          0.36,
+          0.66,
+          0.8
+        ],
+        "material_id": "",
+        "surface_materials": {}
+      },
+      "name": "Λεκάνη WC με καζανάκι",
+      "id": "s01-library-7",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 7.0,
+        "y": 7.0,
+        "z": 3.0,
+        "rotation": 0.0,
+        "width": 0.8,
+        "depth": 0.46,
+        "height": 1.03,
+        "uniform": 1.0,
+        "asset": "a0c1970dbea04dc56",
+        "source_asset_id": "a0c1970dbea04dc56",
+        "source_size": [
+          0.8,
+          0.46,
+          1.03
+        ],
+        "material_id": "",
+        "surface_materials": {}
+      },
+      "name": "Νιπτήρας με έπιπλο 80",
+      "id": "s01-library-8",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 8.0,
+        "y": 7.0,
+        "z": 3.0,
+        "rotation": 0.0,
+        "width": 0.9,
+        "depth": 0.9,
+        "height": 2.0,
+        "uniform": 1.0,
+        "asset": "a3decaa11db07056f",
+        "source_asset_id": "a3decaa11db07056f",
+        "source_size": [
+          0.9,
+          0.9,
+          2.0
+        ],
+        "material_id": "",
+        "surface_materials": {}
+      },
+      "name": "Ντουζιέρα 90×90",
+      "id": "s01-library-9",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
     }
   ],
-  "dependencies": {},
+  "dependencies": {
+    "s01-part-0-a": [
+      "s01-opening-0-0",
+      "s01-opening-0-1"
+    ],
+    "s01-part-0-b": [
+      "s01-opening-0-2",
+      "s01-opening-0-3"
+    ],
+    "s01-wall-0-1": [
+      "s01-opening-0-4"
+    ],
+    "s01-wall-0-2": [
+      "s01-opening-0-5"
+    ],
+    "s01-wall-0-0": [
+      "s01-opening-0-6"
+    ],
+    "s01-part-1-a": [
+      "s01-opening-1-0",
+      "s01-opening-1-1"
+    ],
+    "s01-part-1-b": [
+      "s01-opening-1-2",
+      "s01-opening-1-3"
+    ],
+    "s01-wall-1-1": [
+      "s01-opening-1-4"
+    ],
+    "s01-wall-1-2": [
+      "s01-opening-1-5"
+    ],
+    "s01-wall-1-0": [
+      "s01-opening-1-6"
+    ]
+  },
   "levels": {
     "Ground": 0.0,
     "Level 1": 3.0
@@ -1846,7 +2363,218 @@
   },
   "materials": {},
   "constructions": {},
-  "room_data": {},
-  "room_bindings": {},
-  "surface_modifiers": []
+  "room_data": {
+    "s01-0-room-0cd0011e9d270492": {
+      "name": "Λουτρό"
+    },
+    "s01-0-room-223608dac8bbbe97": {
+      "name": "Κουζίνα"
+    },
+    "s01-0-room-9c4580e003c57a32": {
+      "name": "Κλιμακοστάσιο"
+    },
+    "s01-0-room-c883d8fd119d1746": {
+      "name": "Καθιστικό"
+    },
+    "s01-3-room-158d5cbbe99b9f65": {
+      "name": "Υπνοδωμάτιο 2"
+    },
+    "s01-3-room-1c21dd389b209e7b": {
+      "name": "Υπνοδωμάτιο 1"
+    },
+    "s01-3-room-a56f8a5b2aef1546": {
+      "name": "Κλιμακοστάσιο"
+    },
+    "s01-3-room-c98711f636fbb131": {
+      "name": "Λουτρό"
+    }
+  },
+  "room_bindings": {
+    "s01-0-room-0cd0011e9d270492": {
+      "signature": "room-0cd0011e9d270492",
+      "polygon": [
+        [
+          10.0,
+          4.0
+        ],
+        [
+          10.0,
+          8.0
+        ],
+        [
+          5.0,
+          8.0
+        ],
+        [
+          5.0,
+          4.0
+        ]
+      ],
+      "z": 0.0,
+      "status": "enclosed"
+    },
+    "s01-0-room-223608dac8bbbe97": {
+      "signature": "room-223608dac8bbbe97",
+      "polygon": [
+        [
+          5.0,
+          8.0
+        ],
+        [
+          0.0,
+          8.0
+        ],
+        [
+          0.0,
+          4.0
+        ],
+        [
+          5.0,
+          4.0
+        ]
+      ],
+      "z": 0.0,
+      "status": "enclosed"
+    },
+    "s01-0-room-9c4580e003c57a32": {
+      "signature": "room-9c4580e003c57a32",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          5.0,
+          0.0
+        ],
+        [
+          5.0,
+          4.0
+        ],
+        [
+          0.0,
+          4.0
+        ]
+      ],
+      "z": 0.0,
+      "status": "enclosed"
+    },
+    "s01-0-room-c883d8fd119d1746": {
+      "signature": "room-c883d8fd119d1746",
+      "polygon": [
+        [
+          5.0,
+          0.0
+        ],
+        [
+          10.0,
+          0.0
+        ],
+        [
+          10.0,
+          4.0
+        ],
+        [
+          5.0,
+          4.0
+        ]
+      ],
+      "z": 0.0,
+      "status": "enclosed"
+    },
+    "s01-3-room-158d5cbbe99b9f65": {
+      "signature": "room-158d5cbbe99b9f65",
+      "polygon": [
+        [
+          5.0,
+          8.0
+        ],
+        [
+          0.0,
+          8.0
+        ],
+        [
+          0.0,
+          4.0
+        ],
+        [
+          5.0,
+          4.0
+        ]
+      ],
+      "z": 3.0,
+      "status": "enclosed"
+    },
+    "s01-3-room-1c21dd389b209e7b": {
+      "signature": "room-1c21dd389b209e7b",
+      "polygon": [
+        [
+          5.0,
+          0.0
+        ],
+        [
+          10.0,
+          0.0
+        ],
+        [
+          10.0,
+          4.0
+        ],
+        [
+          5.0,
+          4.0
+        ]
+      ],
+      "z": 3.0,
+      "status": "enclosed"
+    },
+    "s01-3-room-a56f8a5b2aef1546": {
+      "signature": "room-a56f8a5b2aef1546",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          5.0,
+          0.0
+        ],
+        [
+          5.0,
+          4.0
+        ],
+        [
+          0.0,
+          4.0
+        ]
+      ],
+      "z": 3.0,
+      "status": "enclosed"
+    },
+    "s01-3-room-c98711f636fbb131": {
+      "signature": "room-c98711f636fbb131",
+      "polygon": [
+        [
+          10.0,
+          4.0
+        ],
+        [
+          10.0,
+          8.0
+        ],
+        [
+          5.0,
+          8.0
+        ],
+        [
+          5.0,
+          4.0
+        ]
+      ],
+      "z": 3.0,
+      "status": "enclosed"
+    }
+  },
+  "surface_modifiers": [],
+  "view_layers": {}
 }

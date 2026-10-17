@@ -2027,6 +2027,21 @@ function walkStep() {
 window.__walkStep = walkStep;
 window.__walkState = () => ({walkMode, x: camera.position.x, y: camera.position.y, z: camera.position.z});
 
+// Capture the same frame the user sees, including the active render technique.
+// Useful when a virtual display cannot composite a native WebEngine grab.
+window.archforgeCaptureFrame = (width, height) => {
+  if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    renderer.setSize(width, height, false);
+    composer.setSize(width, height);
+  }
+  if (useComposer()) composer.render(); else renderer.render(scene, camera);
+  const image = renderer.domElement.toDataURL("image/png");
+  resize();
+  return image;
+};
+
 function animate() {
   walkStep();
   // Haze ends before the far plane, so the ground never shows a cut edge.

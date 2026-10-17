@@ -78,10 +78,30 @@ def project_prices(doc) -> dict[str, PriceEntry]:
     raw_entries = params.get("entries", {}) or {}
     if not isinstance(raw_entries, Mapping):
         raise ValueError("price_list entries must be a mapping keyed by item code")
-    return {
+    entries = {
         str(code): price_entry_from_dict(raw, default_currency)
         for code, raw in raw_entries.items()
     }
+    # The main Prices dialog historically wrote trade_prices/prices while the
+    # trade tab wrote entries. Both must resolve through this one adapter.
+    legacy = {'desc:' + str(desc): {'material': value, 'labour': None}
+              for desc, value in (params.get('prices') or {}).items()}
+    legacy.update(params.get('trade_prices') or {})
+    for code, raw in legacy.items():
+        price = price_entry_from_dict({
+            'material_unit_price': raw.get('material'),
+            'labour_unit_price': raw.get('labour'),
+            'currency': default_currency,
+            'source': raw.get('source', 'project_price_list'),
+        }, default_currency)
+        existing = entries.get(str(code))
+        if existing is not None:
+            if (existing.material_unit_price, existing.labour_unit_price, existing.currency) != (
+                    price.material_unit_price, price.labour_unit_price, price.currency):
+                raise ValueError(f'conflicting project price entries for {code}')
+        else:
+            entries[str(code)] = price
+    return entries
 
 
 def serialize_prices(prices: Mapping[str, PriceEntry]) -> dict[str, dict]:
@@ -140,6 +160,9 @@ def set_project_prices(stack, doc, prices: Mapping[str, PriceEntry], *, vat=None
         vat=current_vat if vat is None else vat,
         currency=current_currency if currency is None else currency,
     )
+    # Migrate on edit, keeping a single active representation. Undo restores
+    # the complete original params, including old-format books.
+    params.update(trade_prices={}, prices={})
     stack.execute(UpdateEntity(existing.id, params))
     return existing.id
 

@@ -4171,7 +4171,9 @@ class MainWindow(QMainWindow):
             else:
                 trade.pop(code, None)
         prices = trade
-        params = {'prices': legacy, 'trade_prices': trade, 'client': client.text().strip(), 'project': project.text().strip(),
+        # The table contains the resolved shared book. Its edit replaces older
+        # canonical entries too, rather than leaving contradictory duplicates.
+        params = {'prices': legacy, 'trade_prices': trade, 'entries': {}, 'client': client.text().strip(), 'project': project.text().strip(),
                   'vat': float(vat.value()), 'validity_days': int(validity.value()), 'notes': notes.toPlainText().strip()}
         entity = price_entity(self.doc)
         if entity is None:

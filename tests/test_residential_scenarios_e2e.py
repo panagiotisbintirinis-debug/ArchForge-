@@ -11,6 +11,7 @@ turns ENGINEER_REVIEW or UNVERIFIED rules into certified engineering design.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from archforge.project.persistence import load_project
@@ -29,9 +30,15 @@ def _entities(doc, kind):
 
 def _architecture_stage(doc, spec):
     assert len(_entities(doc, "wall")) >= 6 * spec["storeys"]
-    assert len(_entities(doc, "floor")) >= spec["storeys"]
+    assert len(_entities(doc, "floor") + _entities(doc, "room_floor")) >= spec["storeys"]
     assert len(_entities(doc, "cabinet")) >= 2
-    assert len([e for e in _entities(doc, "box") if e.name]) >= 3 * spec["storeys"]
+    if spec['id'] == 'S01':
+        # Owner 17 Oct: inspect a furnished, usable house; named boxes are not
+        # proof of furniture. Require actual library instances and a stair.
+        assert len(_entities(doc, 'library_object')) >= 4
+        assert len(_entities(doc, 'stair')) == 1
+    else:
+        assert len([e for e in _entities(doc, "box") if e.name]) >= 3 * spec["storeys"]
     roofs = _entities(doc, "pitched_roof")
     assert len(roofs) == 1
     assert roofs[0].params["roof_form"] == spec["roof_form"]
@@ -78,14 +85,24 @@ def _quote_stage(doc):
     # Scenario prices are synthetic software-test fixtures, never real market data.
     price = _entities(doc, "price_list")
     assert len(price) == 1 and price[0].name.startswith("TEST_FIXTURE")
+    assert quote['pricing_complete'], quote['price_book_audit']
+    assert quote['summary']['subtotal'] > 0, 'A zero priced total must not hide a broken price-book path'
     return quote
 
 
-def test_residential_scenarios_sequentially():
+def test_residential_current_scenario_pipeline():
     manifest = json.loads((ROOT / "manifest.json").read_text(encoding="utf8"))
     assert [s["id"] for s in manifest] == [f"S{i:02d}" for i in range(1, 11)]
 
-    for spec in manifest:
+    # Owner 17 Oct: finish the ENTIRE scenario, including visual review, before
+    # advancing. A single pytest loop must not silently approve ten houses.
+    scenario = os.environ.get('ARCHFORGE_SCENARIO', 'S01')
+    assert scenario in [s['id'] for s in manifest]
+    selected = next(s for s in manifest if s['id'] == scenario)
+    for previous in manifest[:manifest.index(selected)]:
+        evidence = ROOT / 'output' / f"{previous['id']}_EVIDENCE.json"
+        assert evidence.exists() and json.loads(evidence.read_text())['status'] == 'PASS', f"STOP: {previous['id']} full gate is incomplete"
+    for spec in [selected]:
         project_path = ROOT / spec["file"]
         assert project_path.is_file(), f"missing human-openable fixture: {project_path.name}"
         report = load_project(project_path)
