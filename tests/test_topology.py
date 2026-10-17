@@ -99,3 +99,21 @@ def test_different_level_crossing_walls_do_not_connect():
     d=Document();d.add(wall(0,0,8,0,z=0));d.add(wall(4,-2,4,2,z=3))
     g=build_wall_graph(d)
     assert len(g.nodes)==4 and len(g.edges)==2
+
+
+def test_plan_draws_walls_with_both_faces_and_openings_cut():
+    """Owner 17/10: walls in plan with their thickness (both faces + fill), not one line on the axis."""
+    from archforge.core.model import Entity
+    from archforge.core.plan_scene import build_plan_frame, wall_poche
+    import pytest
+    from archforge.geometry.regions import islands_area, signed_area
+    d=Document()
+    for a,b in [((0,0),(4,0)),((4,0),(4,3)),((4,3),(0,3)),((0,3),(0,0))]:
+        d.add(Entity('wall',{'x1':a[0],'y1':a[1],'x2':b[0],'y2':b[1],'z':0,'height':2.7,'thickness':.2}))
+    # Closed corners: the four bands overlap at the corners instead of leaving notches.
+    outer=sum(abs(signed_area(o)) for o,_h in wall_poche(d))
+    assert outer==pytest.approx(4.2*3.2) and islands_area(wall_poche(d))==pytest.approx(4.2*3.2-3.8*2.8)
+    wall=next(e for e in d.entities.values() if e.params['y1']==0 and e.params['y2']==0)
+    d.add(Entity('window',{'offset':2.0,'width':1.0,'height':1.2,'sill':.9},parent_id=wall.id))
+    assert islands_area(wall_poche(d))==pytest.approx(4.2*3.2-3.8*2.8-1.0*.2)
+    assert any(p.role=='wall-poche' for p in build_plan_frame(d).primitives)

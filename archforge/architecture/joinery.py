@@ -706,9 +706,23 @@ def plan_symbol(kind, params, t, sign_in=1):
 
 
 def plan_symbol_world(doc, opening):
-    """Σύμβολο κάτοψης σε συντεταγμένες κόσμου ``[(style, [(x, y), ...])]`` ή [] (βασικό κούφωμα)."""
-    if opening.kind not in ("door", "window") or not is_typed(opening.params):
+    """Σύμβολο κάτοψης σε συντεταγμένες κόσμου ``[(style, [(x, y), ...])]``.
+
+    Βασικό κούφωμα (χωρίς τύπο): το συνηθισμένο σύμβολο (ιδιοκτήτης 17/10 — η κάτοψη να διαβάζεται): πόρτα
+    μονόφυλλη ανοιγόμενη, παράθυρο ανοιγόμενο (δίφυλλο πάνω από 1,00 m), μπαλκονόπορτα όταν φτάνει στο δάπεδο.
+    Μόνο το σύμβολο· ο τύπος του κουφώματος δεν αλλάζει.
+    """
+    if opening.kind not in ("door", "window"):
         return []
+    params = opening.params
+    if not is_typed(params):
+        if opening.kind == "door":
+            basic = "interior_flush"
+        elif float(params.get("sill", 0.9) or 0.0) < 0.05 and float(params.get("height", 1.4)) >= 1.9:
+            basic = "balcony_casement"
+        else:
+            basic = "casement"
+        params = dict(params, opening_type=basic)
     if opening.parent_id not in doc.entities or doc.get(opening.parent_id).kind != "wall":
         return []
     wall = doc.get(opening.parent_id)
@@ -722,7 +736,7 @@ def plan_symbol_world(doc, opening):
     nx, ny = -uy * sign_in, ux * sign_in
     start = float(opening.params["offset"]) - float(opening.params["width"]) / 2
     out = []
-    for style, pts in plan_symbol(opening.kind, opening.params, float(w["thickness"]), sign_in):
+    for style, pts in plan_symbol(opening.kind, params, float(w["thickness"]), sign_in):
         out.append((style, [(x1 + ux * (start + u) + nx * s, y1 + uy * (start + u) + ny * s) for u, s in pts]))
     return out
 

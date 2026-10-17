@@ -352,7 +352,7 @@ def entity_primitive(doc,eid):
         seg=_opening_segment(doc,e)
         if seg is None:return None
         a,b=seg
-        typed=e.kind in ('door','window') and str(p.get('opening_type','basic'))!='basic'
+        typed=e.kind in ('door','window')          # every door/window draws its symbol (basic ones a default one)
         return Primitive2D('line',(a,b),entity_id=eid,role='opening',meta=(('semantic',e.kind),('host',e.parent_id))+((('typed',True),) if typed else ()))
     if e.kind=='arboreal_branch':
         from archforge.organic.arboreal import arboreal_branch_geometry
@@ -647,9 +647,60 @@ def _axis_candidates(a,b,offset,first_side=1):
 _CONTOURS={'key':None,'value':[]}
 
 
+_POCHE={'key':None,'value':[]}
+
+
+def wall_poche(doc):
+    """Cut walls of the active storey as one region (owner 17/10: both faces + fill, not a line on the axis).
+
+    Union of every wall's band (half the thickness each side of the axis; an end that meets another wall runs
+    on by half its thickness so corners close), minus the openings.  ``[(outer, holes)]`` islands.
+    """
+    from archforge.geometry.regions import region
+    walls=[e for e in doc.entities.values() if e.kind=='wall' and e.visible and _entity_on_active_level(doc,e)]
+    openings=[e for e in doc.entities.values() if e.kind in ('door','window','opening') and e.parent_id in {w.id for w in walls}]
+    key=(tuple((w.id,repr(sorted(w.params.items()))) for w in walls),
+         tuple((o.id,o.parent_id,repr(sorted(o.params.items()))) for o in openings))
+    if _POCHE['key']==key:return _POCHE['value']
+    axes=[(w,(float(w.params['x1']),float(w.params['y1'])),(float(w.params['x2']),float(w.params['y2'])),float(w.params.get('thickness',.2))) for w in walls]
+    def meets(pt,own):
+        for w,a,b,t in axes:
+            if w is own:continue
+            dx,dy=b[0]-a[0],b[1]-a[1];ll=dx*dx+dy*dy
+            if ll<=1e-12:continue
+            u=max(0.,min(1.,((pt[0]-a[0])*dx+(pt[1]-a[1])*dy)/ll))
+            if math.hypot(pt[0]-a[0]-u*dx,pt[1]-a[1]-u*dy)<=t/2+1e-3:return True
+        return False
+    bands=[]
+    for w,a,b,t in axes:
+        L=math.hypot(b[0]-a[0],b[1]-a[1])
+        if L<=1e-9:continue
+        ux,uy=(b[0]-a[0])/L,(b[1]-a[1])/L;nx,ny=-uy*t/2,ux*t/2
+        ea=t/2 if meets(a,w) else 0.;eb=t/2 if meets(b,w) else 0.
+        a2=(a[0]-ux*ea,a[1]-uy*ea);b2=(b[0]+ux*eb,b[1]+uy*eb)
+        bands.append([(a2[0]-nx,a2[1]-ny),(b2[0]-nx,b2[1]-ny),(b2[0]+nx,b2[1]+ny),(a2[0]+nx,a2[1]+ny)])
+    cuts=[]
+    for o in openings:
+        seg=_opening_segment(doc,o)
+        if seg is None:continue
+        host=doc.get(o.parent_id);t=float(host.params.get('thickness',.2))/2+.01
+        (ax,ay),(bx,by)=seg;L=math.hypot(bx-ax,by-ay)
+        if L<=1e-9:continue
+        nx,ny=-(by-ay)/L*t,(bx-ax)/L*t
+        cuts.append([(ax-nx,ay-ny),(bx-nx,by-ny),(bx+nx,by+ny),(ax+nx,ay+ny)])
+    try:
+        value=region(bands,cuts,tolerance=1e-5) if bands else []
+    except Exception:
+        value=[]
+    _POCHE['key'],_POCHE['value']=key,value
+    return value
+
+
 def build_plan_frame(doc,preview=None,layers=True):
     f=PlanFrame()
     _lower_storey_underlay(doc,f)
+    for outer,holes in wall_poche(doc):
+        f.primitives.append(Primitive2D('polygon',tuple(outer),role='wall-poche',meta=(('islands',((tuple(outer),tuple(tuple(h) for h in holes)),)),)))
     try:
         from archforge.architecture.topology import room_metrics
         for index,face in enumerate(doc.active_room_faces(),start=1):
