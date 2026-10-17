@@ -1034,7 +1034,7 @@ class PlanView(QGraphicsView):
             # Void in the slab: thin cross; dashed when the void is in the slab above (roof only).
             pen=QPen(QColor(60,65,75));pen.setWidthF(.018 if p.role=='slab-opening' else .012)
             if dict(p.meta).get('above'):pen.setStyle(Qt.PenStyle.DashLine)
-        wall_line=p.kind=='line' and not p.role and bool(p.entity_id) and p.entity_id in self.doc.entities and self.doc.get(p.entity_id).kind=='wall'
+        wall_line=p.kind=='line' and p.role=='model' and bool(p.entity_id) and p.entity_id in self.doc.entities and self.doc.get(p.entity_id).kind=='wall'
         if wall_line:
             # The wall itself is drawn by the cut region (wall-poche); its axis line only picks, as wide as the wall.
             sel=p.entity_id in (self.doc.selection or ())

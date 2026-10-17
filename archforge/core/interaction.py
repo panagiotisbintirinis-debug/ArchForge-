@@ -6,6 +6,17 @@ from .model import Document,Entity
 from .commands import CommandStack,AddEntity,UpdateEntity,MoveEntities,RotateEntities
 from .snapping import best_snap
 
+# Owner 17/10: names in Greek, numbered per kind («Τοίχος 3», «Πόρτα 2») — never «Wall» / «Door».
+GREEK_NAMES={'wall':'Τοίχος','door':'Πόρτα','window':'Παράθυρο','opening':'Άνοιγμα','stair':'Σκάλα'}
+def next_name(doc,kind):
+    base=GREEK_NAMES[kind];n=0
+    for e in doc.entities.values():
+        if e.kind==kind and str(e.name or '').startswith(base+' '):
+            tail=str(e.name)[len(base)+1:]
+            if tail.isdigit():n=max(n,int(tail))
+    return f'{base} {n+1}'
+
+
 @dataclass
 class HUD:
     values: Dict[str,float]
@@ -413,7 +424,7 @@ class WallDrawTransaction:
         params={'x1':sx,'y1':sy,'x2':ex,'y2':ey,'z':self.z,'height':self.height,'thickness':self.thickness}
         if getattr(self,'wall_type',None):params['wall_type']=self.wall_type
         if getattr(self,'reference',None) in ('exterior','interior'):params['reference']=self.reference
-        e=Entity('wall',params,name='Wall')
+        e=Entity('wall',params,name=next_name(self.doc,'wall'))
         # Closing onto another wall just short of its end: the loose piece beyond is cut, the corner is clean.
         trims=[t for t in (self._loose_tail(sx,sy),self._loose_tail(ex,ey)) if t]
         if trims:
@@ -584,7 +595,7 @@ class StairPlaceTransaction:
         if not self.candidates:
             raise ValueError('stair has no valid preview')
         chosen=self.active_candidate
-        entity=Entity('stair',chosen.to_params(),name='Stair')
+        entity=Entity('stair',chosen.to_params(),name=next_name(self.doc,'stair'))
         self.stack.execute(AddEntity(entity))
         self.doc.select([entity.id])
         return entity.id
@@ -1062,7 +1073,7 @@ class OpeningPlaceTransaction:
             validate_pod_opening(host.params,self.preview,self.kind)
         else:
             raise ValueError('free architectural opening must be placed on a wall')
-        name=self.name or {'door':'Door','window':'Window','opening':'Opening'}[self.kind]
+        name=self.name or next_name(self.doc,self.kind)
         e=Entity(self.kind,dict(self.preview),name=name,parent_id=self.host_id)
         if host.kind=='pod':
             from .opening_commands import AddOpeningEntity

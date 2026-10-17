@@ -205,11 +205,14 @@ def validate_joinery(kind, params, wall_length=None):
 
 
 # --- Πλευρές ------------------------------------------------------------
-def inside_sign(doc, wall):
+def inside_sign(doc, wall, opening=None):
     """+1 αν το «μέσα» είναι η +n πλευρά του τοίχου (n = αριστερά της φοράς σχεδίασης), αλλιώς -1.
 
     Εξωτερικός τοίχος (ελεύθερος χώρος από τη μία μόνο πλευρά): μέσα = προς το
-    κτίριο. Εσωτερικός ή μόνος τοίχος: +n.
+    κτίριο. Εσωτερικός τοίχος με το κούφωμα ``opening``: μέσα = ο χώρος που
+    εξυπηρετεί η πόρτα — ο ιδιωτικός (υπνοδωμάτιο, μπάνιο, WC) αλλιώς ο μικρότερος
+    (σενάριο S01: η πόρτα του μπάνιου άνοιγε στον διάδρομο επειδή ο τοίχος είχε
+    σχεδιαστεί από δυτικά προς ανατολικά). Αλλιώς +n.
     """
     from archforge.mep.ventilation import _ray_hits, _walls
     p = wall.params
@@ -227,7 +230,41 @@ def inside_sign(doc, wall):
             free.append(sign)
     if len(free) == 1:
         return -int(free[0])
+    if opening is not None and not free:
+        served = _served_side(doc, wall, opening, nx, ny, t)
+        if served:
+            return served
     return 1
+
+
+PRIVATE_ROOMS = ("Υπνοδωμάτιο", "Μπάνιο", "WC", "Αποθήκη", "Λεβητοστάσιο", "Πλυσταριό")
+
+
+def _served_side(doc, wall, opening, nx, ny, t):
+    """+1/−1: the side of the room an interior door serves (private room, else the smaller one); 0 = unknown."""
+    from archforge.geometry.regions import point_in_polygon, signed_area
+    p = wall.params
+    x1, y1, x2, y2 = (float(p[k]) for k in ("x1", "y1", "x2", "y2"))
+    L = math.hypot(x2 - x1, y2 - y1)
+    c = float(opening.params.get("offset", L / 2))
+    cx, cy = x1 + (x2 - x1) / L * c, y1 + (y2 - y1) / L * c
+    try:
+        faces = doc.active_room_faces(z=float(p.get("z", 0.0)))
+    except Exception:                                            # noqa: BLE001
+        return 0
+    sides = {}
+    for sign in (1, -1):
+        qx, qy = cx + sign * nx * (t / 2 + 0.15), cy + sign * ny * (t / 2 + 0.15)
+        face = next((f for f in faces if point_in_polygon(qx, qy, f.polygon)), None)
+        if face is None:
+            return 0
+        name = str(doc.room_metadata(face.signature).get("name", ""))
+        sides[sign] = (name.startswith(PRIVATE_ROOMS), abs(signed_area(face.polygon)))
+    if sides[1][0] != sides[-1][0]:
+        return 1 if sides[1][0] else -1
+    if abs(sides[1][1] - sides[-1][1]) > 1e-6:
+        return 1 if sides[1][1] < sides[-1][1] else -1
+    return 0
 
 
 def pocket_fits(doc, opening):
@@ -240,7 +277,7 @@ def pocket_fits(doc, opening):
     L = math.hypot(float(w["x2"]) - float(w["x1"]), float(w["y2"]) - float(w["y1"]))
     width, offset = float(p["width"]), float(p["offset"])
     need = width - 2 * JAMB
-    at_w = _at_end(resolved(opening.kind, p)["hinge"], 1, inside_sign(doc, wall))
+    at_w = _at_end(resolved(opening.kind, p)["hinge"], 1, inside_sign(doc, wall, opening))
     free = L - offset - width / 2 if at_w else offset - width / 2
     return free >= need - 1e-9
 
@@ -732,7 +769,7 @@ def plan_symbol_world(doc, opening):
     if L < 1e-9:
         return []
     ux, uy = (x2 - x1) / L, (y2 - y1) / L
-    sign_in = inside_sign(doc, wall)
+    sign_in = inside_sign(doc, wall, opening)
     nx, ny = -uy * sign_in, ux * sign_in
     start = float(opening.params["offset"]) - float(opening.params["width"]) / 2
     out = []

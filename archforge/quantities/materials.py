@@ -303,6 +303,28 @@ def compare_control_options(doc):
     return out
 
 
+def furniture_list(doc):
+    """Library objects placed in the drawing (furniture, sanitary ware, appliances): pieces per item.
+
+    Code ``asset:<id>`` — the same item in every project, so one price in the price list serves them all.
+    """
+    from archforge.core.layers import entity_layer
+    groups = {}
+    for e in doc.entities.values():
+        if e.kind != "library_object":
+            continue
+        asset = str(e.params.get("asset", ""))
+        key = (e.name or "Αντικείμενο", asset)
+        layer = entity_layer(e.kind, e.params)
+        groups.setdefault(key, [0, layer])[0] += 1
+    rows = []
+    for (name, asset), (n, layer) in sorted(groups.items(), key=lambda kv: (kv[1][1], kv[0][0])):
+        why = {"sanitary": "Είδος υγιεινής", "kitchen": "Συσκευή κουζίνας"}.get(layer, "Έπιπλο / αντικείμενο")
+        rows.append((name, "τεμ.", n, {"code": f"asset:{asset}" if asset else f"desc:{name}",
+                                         "why": f"{why} τοποθετημένο στο σχέδιο (Βιβλιοθήκη)", "status": "MODEL_QUANTITY"}))
+    return rows
+
+
 def all_lists(doc):
     """``[(sheet name, title, rows, notes)]`` for the lists that have quantities."""
     from archforge.construction.drywall import PROVENANCE as DRYWALL, SOURCES as DRYWALL_SOURCES, drywall_list
@@ -339,6 +361,8 @@ def all_lists(doc):
              ("Τιμή ανά τρέχον μέτρο από τον προμηθευτή (με ορθοστάτες, στερέωση, τοποθέτηση).",)),
             ("Κουζίνα", "Ντουλάπια κουζίνας — κουφάρια, μηχανισμοί, χερούλια", kitchen_list(doc),
              ("Ενδεικτικές διαστάσεις ευρωπαϊκής πρακτικής, γενικοί τύποι χωρίς μάρκα.",)),
+            ("Έπιπλα", "Έπιπλα, είδη υγιεινής και συσκευές (Βιβλιοθήκη)", furniture_list(doc),
+             ("Ένα τεμάχιο ανά αντικείμενο του σχεδίου· τιμή από τον προμηθευτή — ίδιος κωδικός σε κάθε έργο.",)),
             ("Υλικά", "Υλικά και κωδικοί προμηθευτή (μελαμίνες, πάγκοι, τελειώματα)", finishes_list(doc),
              ("Ο κωδικός και ο προμηθευτής είναι όσα έγραψες στα «Υλικά / επιφάνειες».",
               "Τοίχοι: μικτό εμβαδόν όψης (χωρίς αφαίρεση ανοιγμάτων)· άλλα στοιχεία: πλήθος."))):

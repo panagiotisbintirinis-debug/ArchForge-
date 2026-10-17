@@ -28,8 +28,8 @@ def row_meta(row):
     return desc, unit, qty, meta
 
 
-def trade_prices(doc):
-    """``{code: {"material": x|None, "labour": y|None}}`` — legacy description prices included as material."""
+def project_prices(doc):
+    """The project's own prices only: ``{code: {"material": x|None, "labour": y|None}}`` (legacy description prices as material)."""
     e = price_entity(doc)
     p = dict(e.params) if e else {}
     book = {"desc:" + str(d): {"material": float(v), "labour": None} for d, v in (p.get("prices") or {}).items()}
@@ -37,6 +37,23 @@ def trade_prices(doc):
         book[str(code)] = {"material": None if v.get("material") is None else float(v["material"]),
                            "labour": None if v.get("labour") is None else float(v["labour"])}
     return book
+
+
+def trade_prices(doc):
+    """``{code: {"material", "labour"}}`` used to price the project: the common price book (owner 17/10, the
+    professional's own saved prices — ``quantities.price_book``) overridden code by code by the project's list."""
+    from archforge.quantities.price_book import load
+    book = load()
+    book.update(project_prices(doc))
+    return book
+
+
+def price_source(doc, code):
+    """«έργο» / «κοινός τιμοκατάλογος» / None — where the price of ``code`` comes from."""
+    if code in project_prices(doc):
+        return "έργο"
+    from archforge.quantities.price_book import load
+    return "κοινός τιμοκατάλογος" if code in load() else None
 
 
 def settings(doc):
@@ -53,7 +70,9 @@ def settings(doc):
 
 def _price_entries(doc):
     from archforge.mep.trade_costing import PriceEntry
-    return {code: PriceEntry(material_unit_price=v["material"], labour_unit_price=v["labour"], source="user")
+    own = project_prices(doc)
+    return {code: PriceEntry(material_unit_price=v["material"], labour_unit_price=v["labour"],
+                             source="user" if code in own else "price_book")
             for code, v in trade_prices(doc).items()}
 
 
@@ -78,7 +97,8 @@ def costed(doc, name, rows):
         if e is not None and (e.material_unit_price is not None or e.labour_unit_price is not None):
             unit_price = (e.material_unit_price or 0.0) + (e.labour_unit_price or 0.0)
         out.append({**base, "price": unit_price, "material": c["material_cost"], "labour": c["labour_cost"],
-                    "amount": c["total_cost"], "complete": c["complete_price"]})
+                    "amount": c["total_cost"], "complete": c["complete_price"],
+                    "price_source": None if e is None else ("έργο" if e.source == "user" else "κοινός τιμοκατάλογος")})
     return out
 
 
@@ -98,12 +118,17 @@ def quote(doc, only=None):
         owner += [{"trade": name, "item": r["description"], "why": r["why"], "quantity": r["quantity"], "unit": r["unit"],
                    "total": r["amount"], "status": r["status"], "priced": r["amount"] is not None} for r in out]
     rows = [r for _t, sec in sections for r in sec]
+    # Per trade (owner 17/10): each section's own material / labour / subtotal and what it is missing.
+    by_trade = [{"trade": title, "material": round(sum(r["material"] or 0.0 for r in sec if r["amount"] is not None), 2),
+                 "labour": round(sum(r["labour"] or 0.0 for r in sec if r["amount"] is not None), 2),
+                 "subtotal": round(sum(r["amount"] for r in sec if r["amount"] is not None), 2),
+                 "missing": sum(1 for r in sec if r["amount"] is None), "rows": len(sec)} for title, sec in sections]
     subtotal = round(sum(r["amount"] for r in rows if r["amount"] is not None), 2)
     material = round(sum(r["material"] for r in rows if r["material"] is not None), 2)
     labour = round(sum(r["labour"] for r in rows if r["labour"] is not None), 2)
     missing = sum(1 for r in rows if r["amount"] is None)
     vat_amount = round(subtotal * s["vat"] / 100, 2)
-    return {"sections": sections, "subtotal": subtotal, "material": material, "labour": labour, "vat": s["vat"],
+    return {"sections": sections, "by_trade": by_trade, "subtotal": subtotal, "material": material, "labour": labour, "vat": s["vat"],
             "vat_amount": vat_amount, "total": round(subtotal + vat_amount, 2), "missing": missing,
             "incomplete": sum(1 for r in rows if r["amount"] is not None and not r["complete"]),
             "owner_view": owner, "client": s["client"], "project": s["project"], "notes": s["notes"],

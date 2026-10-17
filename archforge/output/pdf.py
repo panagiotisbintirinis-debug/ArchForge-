@@ -424,12 +424,15 @@ def export_pdf(doc, path, project=None, client=None, include=("cover", "plans", 
         cols = [("Είδος / εργασία", 150, "left"), ("Μον.", 16, "center"), ("Ποσότητα", 26, "right"),
                 ("Τιμή μονάδας", 32, "right"), ("Σύνολο", 34, "right")]
         rows = []
-        for title, items in q["sections"]:
+        for (title, items), trade in zip(q["sections"], q["by_trade"]):
             rows.append({"cells": [title, "", "", "", ""]})
             for it in items:
                 qty = "" if it["quantity"] is None else f"{float(it['quantity']):.2f}".rstrip("0").rstrip(".").replace(".", ",")
                 rows.append([it["description"], it["unit"], qty, money(it["price"]) if it["price"] is not None else "—",
                              money(it["amount"]) if it["amount"] is not None else "—"])
+            # Each trade's own total: materials + labour, and how many of its items still have no price.
+            rows.append({"cells": [f"Σύνολο «{title.split(' — ')[0]}»: υλικά {money(trade['material'])} · εργασία {money(trade['labour'])}"
+                                   + (f" · {trade['missing']} χωρίς τιμή" if trade["missing"] else ""), "", "", "", money(trade["subtotal"])]})
         per, first = 22, True
         chunks = [rows[i:i + per] for i in range(0, len(rows), per)] or [[]]
         for n, chunk in enumerate(chunks):

@@ -37,6 +37,18 @@ def run(only=()):
         window._no_modal_dialogs = True
         try:
             s = mod.build(window)
+            if hasattr(mod, "NAME"):
+                # Quality gate (docs/scenarios/QUALITY_GATE.md): Sxx_<name>.archforge + Sxx_REPORT.md + images.
+                from archforge.project.persistence import save_project
+                from archforge.scenarios.gate import Gate
+                g = Gate(s, mod, str(OUT))
+                g.run()
+                g.env("arch")              # the owner opens it in the architectural environment
+                save_project(window.doc, str(OUT / f"{mod.NAME}.archforge"))
+                failed = g.report(str(OUT / f"S{mod.KEY}_REPORT.md"), extra=getattr(mod, "NOTES", ""))
+                results[mod.KEY] = failed
+                print(f"S{mod.KEY}: {len(s.steps)} βήματα, {len(g.checks)} έλεγχοι, {len(failed)} FAIL")
+                continue
             mod.checks(s)
             stem = OUT / f"{mod.KEY}_{mod.__name__.split('_', 1)[1]}"
             s.check_save_load(str(stem.with_suffix(".archforge")))

@@ -82,7 +82,7 @@ def opening_fixture_parts(doc, opening) -> List[Tuple[str, Tuple, Tuple]]:
         # Typed joinery (architecture/joinery.py): boxes per role in the
         # opening's frame (u along, s > 0 towards the inside, z up); open
         # leaves turn about their hinge / slide (pose, local frame first).
-        sign_in = inside_sign(doc, host)
+        sign_in = inside_sign(doc, host, opening)
         posed = joinery_boxes_posed(opening.kind, dict(o, width=u1 - u0, height=z1 - z0), t, sign_in,
                                     display_angle(o))
         for role, lo, hi, pose in posed:

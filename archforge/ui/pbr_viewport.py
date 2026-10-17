@@ -1937,10 +1937,6 @@ renderer.domElement.addEventListener("lostpointercapture", (event) => {
   if (bridge) bridge.endSculpt();
 }, true);
 
-if (window.__archforgePendingTechnique) window.setTechnique(window.__archforgePendingTechnique);
-if (window.__archforgePendingScene) window.archforgeSetScene(window.__archforgePendingScene);
-if (window.__archforgePendingStairPreview) window.setStairPreview(window.__archforgePendingStairPreview);
-if (window.__archforgePendingRampPreview) window.setRampPreview(window.__archforgePendingRampPreview);
 
 // Walk mode (Walkthrough / interior camera): W A S D or the arrows walk (left/right arrows turn),
 // Shift runs, Q / E go down / up, left-drag looks around, the wheel steps forward / back.
@@ -2036,6 +2032,12 @@ function animate() {
   if (useComposer()) composer.render(); else renderer.render(scene, camera);
   requestAnimationFrame(animate);
 }
+// Whatever Python sent before this page finished loading — applied last, once every
+// declaration above exists (a scene applied earlier stopped the script at «walkMode»).
+if (window.__archforgePendingTechnique) window.setTechnique(window.__archforgePendingTechnique);
+if (window.__archforgePendingScene) window.archforgeSetScene(window.__archforgePendingScene);
+if (window.__archforgePendingStairPreview) window.setStairPreview(window.__archforgePendingStairPreview);
+if (window.__archforgePendingRampPreview) window.setRampPreview(window.__archforgePendingRampPreview);
 animate();
 </script>
 </body>
@@ -2045,6 +2047,21 @@ animate();
 
 
 _THREE_BUNDLE_PATH = Path(__file__).with_name("vendor") / "three_bundle.js"
+
+
+def scene_payload(doc, evaluation, structural_only=False, overrides=None, hidden=()):
+    """The scene the 3D page draws — the same for the live viewport and an offline picture (scenario gate)."""
+    payload = build_pbr_scene_payload(evaluation, doc.selection, mesh_overrides=overrides, doc=doc)
+    if structural_only:
+        payload["objects"] = structural_payload_objects(payload.get("objects", ()), doc)
+    else:
+        payload["objects"] = architectural_payload_objects(payload.get("objects", ()), doc)
+        # Layers / environment (core/layers.py): hidden out, locked unpickable, dim faint.
+        from archforge.core.layers import apply_to_scene_objects
+        payload["objects"] = apply_to_scene_objects(doc, payload.get("objects", ()))
+    if hidden:
+        payload["objects"] = [o for o in payload.get("objects", ()) if o.get("layer") not in hidden]
+    return payload
 
 
 def pbr_page_html() -> str:
@@ -3346,23 +3363,8 @@ class PBRViewport(QWidget):
                 overrides = {self._sculpt_tx.hit.owner_id: self._sculpt_tx.preview_mesh()}
             except Exception as exc:
                 self.statusChanged.emit(f"PBR sculpt preview error: {exc}")
-        payload = build_pbr_scene_payload(
-            evaluation,
-            self.doc.selection,
-            mesh_overrides=overrides,
-            doc=self.doc,
-        )
-        if self.structural_only:
-            payload["objects"] = structural_payload_objects(payload.get("objects", ()), self.doc)
-        else:
-            payload["objects"] = architectural_payload_objects(payload.get("objects", ()), self.doc)
-        if not self.structural_only:
-            # Layers / environment (core/layers.py): hidden out, locked unpickable, dim faint.
-            from archforge.core.layers import apply_to_scene_objects
-            payload["objects"] = apply_to_scene_objects(self.doc, payload.get("objects", ()))
-        hidden = getattr(self, "hidden_layers", set())
-        if hidden:
-            payload["objects"] = [o for o in payload.get("objects", ()) if o.get("layer") not in hidden]
+        payload = scene_payload(self.doc, evaluation, self.structural_only, overrides,
+                                getattr(self, "hidden_layers", set()))
         fit = "true" if force_full and self._sculpt_tx is None else "false"
         script = (
             "window.__archforgePendingScene = "

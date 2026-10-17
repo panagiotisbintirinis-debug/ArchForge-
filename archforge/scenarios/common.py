@@ -112,6 +112,66 @@ class Scenario:
             return name
         return self.step(f"Χρήση χώρου στο ({x}, {y}): {name}", run)
 
+    def layout(self, kind, x, y, **options):
+        """«Κουζίνα εδώ» / «Μπάνιο εδώ» (mouse menu in the room) → first proposal → ✓ Εφαρμογή."""
+        from archforge.ui.layout_assist import run as layout_run
+
+        def run():
+            a = self.window._layout_assist
+            for key, value in options.items():
+                a.set_option(key, value)
+            layout_run(self.window, kind, None, (x, y))
+            p = a.proposal
+            if p is None or not p.entities:
+                raise ValueError("καμία πρόταση")
+            label, problems, counts = p.label, list(p.problems), p.summary()
+            layout_run(self.window, "apply")
+            return f"{label} · {counts.get('cabinet', 0)} ντουλάπια, {counts.get('library_object', 0)} είδη" + \
+                (" · ⚠ " + " · ".join(problems) if problems else "")
+        return self.step(f"{'Κουζίνα' if kind == 'kitchen' else 'Μπάνιο'} εδώ ({x}, {y})", run)
+
+    def furniture(self, name, x, y, turn=0.0):
+        """Library item dragged into the plan (snaps its back to a near wall), dropped: one undo."""
+        from archforge.library.assets import list_assets
+        from archforge.library.catalog import seed_core_library
+        from archforge.ui.library_drag import LibraryCarry
+
+        def run():
+            seed_core_library()
+            ids = {a["name"]: a["id"] for a in list_assets()}
+            if name not in ids:
+                raise ValueError(f"δεν υπάρχει στη Βιβλιοθήκη: {name}")
+            carry = LibraryCarry(self.window, ("asset", ids[name]))
+            carry.turn = float(turn)
+            done = carry.drop(x, y)
+            if not done:
+                raise ValueError("δεν τοποθετήθηκε")
+            p = self.doc.get(done).params
+            return f"στο ({float(p['x']):.2f}, {float(p['y']):.2f}) · {float(p.get('rotation', 0.0)) % 360:.0f}°"
+        return self.step(f"Έπιπλο: {name}", run)
+
+    def point(self, tool, x, y):
+        """Η/Μ point tool click (plumb_*, drain_*, elec_*, vent_*): the same handler as the plan click."""
+        def run():
+            n = len(self.doc.entities)
+            self.window._place_site_point(tool, float(x), float(y))
+            if len(self.doc.entities) <= n:
+                raise ValueError("δεν μπήκε σημείο")
+            return self.window.statusBar().currentMessage()[:140]
+        return self.step(f"Σημείο {tool} στο ({x}, {y})", run)
+
+    def at_wall_behind(self, name_part):
+        """Plan point on the wall face behind the first object (library object or cabinet) whose name contains
+        ``name_part`` — where its supply point goes."""
+        for e in self.doc.entities.values():
+            if e.kind in ("library_object", "cabinet") and name_part in (e.name or ""):
+                p = e.params
+                a = math.radians(float(p.get("rotation", 0.0)))
+                d = float(p.get("depth", 0.6)) / 2 - 0.02
+                # Local +y is the back (the side snapped to the wall).
+                return (round(float(p["x"]) - math.sin(a) * d, 3), round(float(p["y"]) + math.cos(a) * d, 3))
+        return None
+
     def level_z(self):
         return float(self.doc.work_plane.origin[2])
 

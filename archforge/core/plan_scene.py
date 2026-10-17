@@ -418,7 +418,7 @@ def _swing_handle_point(doc,e,a,b):
     L=math.hypot(b[0]-a[0],b[1]-a[1])
     if L<1e-9:return None
     nx,ny=-(b[1]-a[1])/L,(b[0]-a[0])/L
-    side=inside_sign(doc,host)*(1 if r['swing']=='in' else -1)
+    side=inside_sign(doc,host,e)*(1 if r['swing']=='in' else -1)
     reach=float(host.params.get('thickness',.2))/2+min(.45,L*.45)
     return ((a[0]+b[0])/2+nx*side*reach,(a[1]+b[1])/2+ny*side*reach)
 def preview_primitives(preview):
@@ -694,6 +694,28 @@ def wall_poche(doc):
         value=[]
     _POCHE['key'],_POCHE['value']=key,value
     return value
+
+
+MEP_LABEL_ROLES=('plumbing-label','electrical-label','lv-label','drain-label','ventilation-label')
+
+
+def _declutter_labels(f):
+    """MEP labels (owner 17/10, S01: unreadable where points crowd — sink, drain, panel): each takes the first
+    free spot round its point, else shows only from the zoom where it fits (same rule as the structural labels).
+    Room labels stay where they are and are kept clear."""
+    import dataclasses
+    fixed=[p for p in f.primitives if p.kind=='label' and p.role=='derived-room-label']
+    mep=[i for i,p in enumerate(f.primitives) if p.kind=='label' and p.role in MEP_LABEL_ROLES and 'align' not in dict(p.meta)]
+    if not mep:return
+    items=[(str(dict(p.meta).get('text','')),((p.points[0],(0.,0.)),)) for p in fixed]
+    for i in mep:
+        p=f.primitives[i];(x,y)=p.points[0]
+        cands=(((x,y),(0.,0.)),((x,y+.40),(0.,1.)),((x-.30,y),(1.,0.)),((x-.30,y+.40),(1.,1.)),((x,y-.25),(0.,0.)),((x+.30,y),(0.,0.)))
+        items.append((str(dict(p.meta).get('text','')),cands))
+    placed=place_labels(tuple(items))[len(fixed):]
+    for i,(anchor,align,min_scale) in zip(mep,placed):
+        p=f.primitives[i]
+        f.primitives[i]=dataclasses.replace(p,points=(anchor,),meta=tuple(p.meta)+(('align',align),('min_scale',min_scale)))
 
 
 def build_plan_frame(doc,preview=None,layers=True):
@@ -1032,5 +1054,6 @@ def build_plan_frame(doc,preview=None,layers=True):
         # Layers / environment (core/layers.py): hidden out, locked unpickable, dim faint.
         from .layers import apply_to_frame
         apply_to_frame(doc,f)
+    _declutter_labels(f)
     if preview:f.primitives.extend(preview_primitives(preview));f.hud=dict(preview.hud);f.snap=preview.snap
     return f

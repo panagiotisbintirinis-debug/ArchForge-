@@ -235,24 +235,14 @@ def _segments(grid, paths, loads, parent, z, offset=0.0, sizes=(16, 20, 26)):
     out = []
     for a, b, dia in runs:
         pa, pb = grid.point(a), grid.point(b)
-        ox = oy = 0.0
-        if offset:
-            dx, dy = pb[0] - pa[0], pb[1] - pa[1]
-            n = math.hypot(dx, dy) or 1.0
-            ox, oy = -dy / n * offset, dx / n * offset
-        out.append(((pa[0] + ox, pa[1] + oy, z), (pb[0] + ox, pb[1] + oy, z), dia))
+        # One shift for the whole network (not across each run): the runs still meet at every corner.
+        out.append(((pa[0] + offset, pa[1] + offset, z), (pb[0] + offset, pb[1] + offset, z), dia))
     return out
 
 
 def _room_key(doc, x, y, floor):
     from archforge.mep.electrical import _room_of
     return _room_of(doc, x, y, floor)
-
-
-def _offset(a, b, d):
-    dx, dy = b[0] - a[0], b[1] - a[1]
-    n = math.hypot(dx, dy) or 1.0
-    return -dy / n * d, dx / n * d
 
 
 def route_plumbing(doc):
@@ -313,6 +303,7 @@ def route_plumbing(doc):
                         target = min(others, key=lambda r: (math.dist(_centroid(groups[r]), _centroid(lone)), str(r)))
                         groups[target] += lone
                 feeds, home_runs, outlet_count = {}, [], {}
+                shift = {}                                # fixture id → plan shift of its own home run
                 for room, group in sorted(groups.items(), key=lambda kv: str(kv[0])):
                     if len(group) == 1 and group[0].params["point_type"] in SOURCES:
                         feeds[group[0].id] = cell_of[group[0].id]
@@ -329,6 +320,7 @@ def route_plumbing(doc):
                     for k, e in enumerate(group):
                         path = grid.route(cell_of[e.id], {mcell})
                         home_runs.append((path, k - (len(group) - 1) / 2))
+                        shift[e.id] = offset + (k - (len(group) - 1) / 2) * HOME_RUN_GAP
                 paths, _loads, parent = _grow(grid, source_cell, feeds)
                 outlets_on = {}
                 for key, path in paths.items():
@@ -342,9 +334,9 @@ def route_plumbing(doc):
                 # Independent pipes, drawn side by side so each one stays readable.
                 for path, slot in home_runs:
                     pts_ = _simplify([grid.point(c) for c in path])
+                    d = offset + slot * HOME_RUN_GAP          # one shift per pipe: its corners stay joined
                     for a, b in zip(pts_, pts_[1:]):
-                        ox, oy = _offset(a, b, offset + slot * HOME_RUN_GAP)
-                        pipes.append(((a[0] + ox, a[1] + oy, z), (b[0] + ox, b[1] + oy, z), sizes[0]))
+                        pipes.append(((a[0] + d, a[1] + d, z), (b[0] + d, b[1] + d, z), sizes[0]))
             else:
                 paths, loads, parent = _grow(grid, source_cell, cell_of)
                 pipes += _segments(grid, paths, loads, parent, z, offset, sizes)
@@ -352,13 +344,14 @@ def route_plumbing(doc):
             sxy = grid.point(source_cell)
             src_conn = sz + POINT_TYPES[src.params["point_type"]][3]
             if abs(src_conn - z) > 1e-6:
-                pipes.append(((sxy[0] + offset, sxy[1], src_conn), (sxy[0] + offset, sxy[1], z), _size(sizes, len(served))))
-            # Drop-ups to each fixture's connection height
+                pipes.append(((sxy[0] + offset, sxy[1] + offset, src_conn), (sxy[0] + offset, sxy[1] + offset, z), _size(sizes, len(served))))
+            # Drop-ups to each fixture's connection height (on its own pipe's shift).
             for e in served:
                 c = grid.point(cell_of[e.id])
                 top = float(e.params["z"]) + POINT_TYPES[e.params["point_type"]][3]
+                d = shift.get(e.id, offset) if system_key == "manifold" else offset
                 if top > z + 1e-6:
-                    pipes.append(((c[0] + offset, c[1], z), (c[0] + offset, c[1], top), sizes[0]))
+                    pipes.append(((c[0] + d, c[1] + d, z), (c[0] + d, c[1] + d, top), sizes[0]))
             result[system] += pipes
     for system in ("cold", "hot"):
         result["report"][f"{system}_m"] = round(sum(math.dist(a, b) for a, b, _d in result[system]), 2)
