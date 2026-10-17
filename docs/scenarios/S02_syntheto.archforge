@@ -1,0 +1,6455 @@
+{
+  "format": 7,
+  "entities": [
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 14.0,
+        "y2": 0.0,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 1",
+      "id": "83be9f2f-3313-47b8-8a97-20b7ea38f244",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 14.0,
+        "y1": 0.0,
+        "x2": 14.0,
+        "y2": 6.0,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 2",
+      "id": "5e794c94-ea69-4f46-a3db-8586ce5a2971",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 14.0,
+        "y1": 6.0,
+        "x2": 9.0,
+        "y2": 6.000000000000001,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 3",
+      "id": "f393364a-0e2d-4f7f-b049-f1942c5a9902",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 9.0,
+        "y1": 6.0,
+        "x2": 9.000000000000002,
+        "y2": 11.0,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 4",
+      "id": "92b8c0f0-1fdc-441b-b049-f490aaa1f44b",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 9.0,
+        "y1": 11.0,
+        "x2": 0.0,
+        "y2": 11.000000000000005,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 5",
+      "id": "0ddd186e-68f8-4cef-a88c-37e49b92815e",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0.0,
+        "y1": 11.0,
+        "x2": 0.0,
+        "y2": 0.0,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 6",
+      "id": "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 9.0,
+        "y1": 0.0,
+        "x2": 9.0,
+        "y2": 6.0,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.1
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 7",
+      "id": "fbe17d8a-2c94-4ef3-b14d-fc6afb0f4796",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0.0,
+        "y1": 6.0,
+        "x2": 9.0,
+        "y2": 6.0,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.1
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 8",
+      "id": "911a1b79-3595-4083-93fd-2b092b0d18ee",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 4.5,
+        "y1": 6.0,
+        "x2": 4.5,
+        "y2": 11.000000000000004,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.1
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 9",
+      "id": "1791644d-29e1-44c8-9a5f-87609744e147",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_floor",
+      "params": {
+        "scope": "storey",
+        "level_z": 0.0,
+        "thickness": 0.15,
+        "offset_z": 0.0
+      },
+      "name": "\u03a0\u03bb\u03ac\u03ba\u03b1 \u03b4\u03b1\u03c0\u03ad\u03b4\u03bf\u03c5 \u2014 \u0399\u03c3\u03cc\u03b3\u03b5\u03b9\u03bf",
+      "id": "d7d434c3-b6f0-4a24-b28b-b077c485594b",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 9.0,
+        "y2": 0.0,
+        "z": -3.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 10",
+      "id": "4da8fab5-7c09-413c-ad21-e56d119cab9b",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 9.0,
+        "y1": 0.0,
+        "x2": 9.0,
+        "y2": 11.0,
+        "z": -3.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 11",
+      "id": "9e92c643-569c-4dd5-952b-a50f76c54b19",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 9.0,
+        "y1": 11.0,
+        "x2": 0.0,
+        "y2": 11.000000000000002,
+        "z": -3.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 12",
+      "id": "c5ea0228-a087-4698-9914-8c7a9f8409a3",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0.0,
+        "y1": 11.0,
+        "x2": 0.0,
+        "y2": 0.0,
+        "z": -3.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 13",
+      "id": "bc8922b3-00e6-48e0-a775-a338f1cc2106",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0.0,
+        "y1": 6.0,
+        "x2": 9.0,
+        "y2": 6.0,
+        "z": -3.0,
+        "height": 2.7,
+        "thickness": 0.1
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 14",
+      "id": "9e596f2c-302e-450e-bff9-e046544d3ac4",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 4.5,
+        "y1": 6.0,
+        "x2": 4.5,
+        "y2": 11.0,
+        "z": -3.0,
+        "height": 2.7,
+        "thickness": 0.1
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 15",
+      "id": "8ee84f9e-4814-45cb-902a-97c39d2992f2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_floor",
+      "params": {
+        "scope": "storey",
+        "level_z": -3.0,
+        "thickness": 0.15,
+        "offset_z": 0.0
+      },
+      "name": "\u03a0\u03bb\u03ac\u03ba\u03b1 \u03b4\u03b1\u03c0\u03ad\u03b4\u03bf\u03c5 \u2014 Basement",
+      "id": "b587f1c9-1866-4f10-b508-0a441cbded83",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 9.0,
+        "y2": 0.0,
+        "z": 3.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 16",
+      "id": "6bd6f98f-3553-4273-8303-f362b8632996",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 9.0,
+        "y1": 0.0,
+        "x2": 9.0,
+        "y2": 11.0,
+        "z": 3.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 17",
+      "id": "2da69639-2e8e-4210-82d7-4c26bd39c2f2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 9.0,
+        "y1": 11.0,
+        "x2": 0.0,
+        "y2": 11.000000000000002,
+        "z": 3.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 18",
+      "id": "51e0bb0f-e262-45b4-af8a-791310c87c01",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0.0,
+        "y1": 11.0,
+        "x2": 0.0,
+        "y2": 0.0,
+        "z": 3.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 19",
+      "id": "fc58b494-9d4b-426b-91f0-339854565e77",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0.0,
+        "y1": 6.0,
+        "x2": 9.0,
+        "y2": 6.0,
+        "z": 3.0,
+        "height": 2.7,
+        "thickness": 0.1
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 20",
+      "id": "25b7d014-ff11-45f2-9b66-ca0b5bcce52a",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 4.5,
+        "y1": 0.0,
+        "x2": 4.5,
+        "y2": 6.0,
+        "z": 3.0,
+        "height": 2.7,
+        "thickness": 0.1
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 21",
+      "id": "448cbcb3-f168-43cc-9b38-84742b8227f8",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 3.0,
+        "y1": 6.0,
+        "x2": 3.0000000000000004,
+        "y2": 11.000000000000002,
+        "z": 3.0,
+        "height": 2.7,
+        "thickness": 0.1
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 22",
+      "id": "de6fefbf-ec58-47c3-88f1-e254898079fc",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_floor",
+      "params": {
+        "scope": "storey",
+        "level_z": 3.0,
+        "thickness": 0.15,
+        "offset_z": 0.0
+      },
+      "name": "\u03a0\u03bb\u03ac\u03ba\u03b1 \u03b4\u03b1\u03c0\u03ad\u03b4\u03bf\u03c5 \u2014 Floor 1",
+      "id": "bf9a3a98-4fed-4446-87dc-17fa0bcaac48",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "stair",
+      "params": {
+        "x": 6.300000000000001,
+        "y": 6.6,
+        "lower_z": -3.0,
+        "upper_z": 0.15,
+        "upper_floor_z": 0.0,
+        "upper_slab_thickness": 0.15,
+        "layout": "u",
+        "angle_deg": 90.0,
+        "width": 1.0,
+        "riser_count": 19,
+        "riser_height": 0.16578947368421051,
+        "tread_depth": 0.29,
+        "landing_depth": 1.0,
+        "turn_direction": 1,
+        "opening_margin": 0.05
+      },
+      "name": "\u03a3\u03ba\u03ac\u03bb\u03b1 1",
+      "id": "111abf82-a557-48c3-b931-97b2949154ed",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "stair",
+      "params": {
+        "x": 6.300000000000001,
+        "y": 6.6,
+        "lower_z": 0.0,
+        "upper_z": 3.15,
+        "upper_floor_z": 3.0,
+        "upper_slab_thickness": 0.15,
+        "layout": "u",
+        "angle_deg": 90.0,
+        "width": 1.0,
+        "riser_count": 19,
+        "riser_height": 0.16578947368421051,
+        "tread_depth": 0.29,
+        "landing_depth": 1.0,
+        "turn_direction": 1,
+        "opening_margin": 0.05
+      },
+      "name": "\u03a3\u03ba\u03ac\u03bb\u03b1 2",
+      "id": "2ae8f2f6-dfbd-48c7-afb8-b02158b51f50",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "pitched_roof",
+      "params": {
+        "x0": -0.125,
+        "y0": -0.125,
+        "x1": 9.125,
+        "y1": 11.125000000000002,
+        "eave_z": 5.7,
+        "pitch": 25.0,
+        "overhang": 0.5,
+        "rafter_spacing": 0.6,
+        "roof_form": "hip",
+        "tile": "roman",
+        "snow_zone": 2,
+        "altitude": 0.0,
+        "insulation": "xps",
+        "insulation_thickness": 0.08,
+        "gables": [
+          "y0",
+          "y1",
+          "x0",
+          "x1"
+        ]
+      },
+      "name": "\u039a\u03b5\u03c1\u03b1\u03bc\u03bf\u03c3\u03ba\u03b5\u03c0\u03ae \u03c4\u03b5\u03c4\u03c1\u03ac\u03c1\u03c1\u03b9\u03c7\u03c4\u03b7",
+      "id": "b99ea738-73ba-4aee-8938-28e5c8109bbc",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_roof",
+      "params": {
+        "room_signature": "room-134efa78395f96b0",
+        "thickness": 0.2,
+        "offset_z": 2.7,
+        "roof_type": "flat",
+        "overhang": 0.0,
+        "room_id": "bea9444a-56d6-4417-9d87-48220a9aa0ae"
+      },
+      "name": "Flat Roof",
+      "id": "f8cfc348-bf66-43c7-9109-26758d4f2e49",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_ceiling",
+      "params": {
+        "room_signature": "room-3c976e105e1ea761",
+        "thickness": 0.15,
+        "offset_z": 2.5500000000000003,
+        "room_id": "012c63e5-ce4d-4b7d-a0ee-00e88eb07c01"
+      },
+      "name": "\u039f\u03c1\u03bf\u03c6\u03ae \u03c3\u03bf\u03c6\u03af\u03c4\u03b1\u03c2",
+      "id": "b4577de7-f690-433c-b118-1209e065a466",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_ceiling",
+      "params": {
+        "room_signature": "room-2182df4484a08085",
+        "thickness": 0.15,
+        "offset_z": 2.5500000000000003,
+        "room_id": "c94ee657-b845-4833-bbf8-1b5cbf1ef959"
+      },
+      "name": "\u039f\u03c1\u03bf\u03c6\u03ae \u03c3\u03bf\u03c6\u03af\u03c4\u03b1\u03c2",
+      "id": "6d264864-8682-45cb-aef6-768c9ba40b45",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_ceiling",
+      "params": {
+        "room_signature": "room-300858249ad6b7a1",
+        "thickness": 0.15,
+        "offset_z": 2.5500000000000003,
+        "room_id": "61b892a5-62f4-4c3f-82bd-d8e6728ba800"
+      },
+      "name": "\u039f\u03c1\u03bf\u03c6\u03ae \u03c3\u03bf\u03c6\u03af\u03c4\u03b1\u03c2",
+      "id": "8bfdf367-ed04-404f-b2e9-188823ba4b58",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_ceiling",
+      "params": {
+        "room_signature": "room-8515b2e6780e1a74",
+        "thickness": 0.15,
+        "offset_z": 2.5500000000000003,
+        "room_id": "6621d2af-2004-468b-b404-9108b953dc5f"
+      },
+      "name": "\u039f\u03c1\u03bf\u03c6\u03ae \u03c3\u03bf\u03c6\u03af\u03c4\u03b1\u03c2",
+      "id": "e7efbf92-ab1e-4075-9039-a2b56962517d",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "cabinet",
+      "params": {
+        "width": 0.9,
+        "depth": 0.9,
+        "height": 0.86,
+        "plinth": 0.1,
+        "doors": 2,
+        "drawers": 0,
+        "shelves": 1,
+        "worktop": 1.0,
+        "z": 0.0,
+        "x": 0.575,
+        "y": 6.5,
+        "rotation": 90.0,
+        "cabinet_type": "corner",
+        "handle": "bar",
+        "front_style": "flat",
+        "mechanism": "carousel",
+        "layout_role": "corner",
+        "layout_id": "97f0860fe90d",
+        "layout_spec": {
+          "kind": "kitchen",
+          "options": {
+            "shape": "L",
+            "dishwasher": true,
+            "fridge": true
+          },
+          "z": 0.0,
+          "point": [
+            2.25,
+            8.500000000000004
+          ],
+          "shape": "L",
+          "legs": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              0.0,
+              1.0
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              0.0,
+              0.3757
+            ]
+          ],
+          "walls": [
+            "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+            "911a1b79-3595-4083-93fd-2b092b0d18ee"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u0393\u03c9\u03bd\u03b9\u03b1\u03ba\u03cc \u03bd\u03c4\u03bf\u03c5\u03bb\u03ac\u03c0\u03b9 \u03b2\u03ac\u03c3\u03b7\u03c2 (\u0393)",
+      "id": "1d35212e-439c-40aa-9ff8-ff77cb5bb4c8",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 0.45,
+        "y": 10.575000000000005,
+        "z": 0.0,
+        "rotation": 90.0,
+        "width": 0.6,
+        "depth": 0.65,
+        "height": 1.85,
+        "uniform": 1.0,
+        "asset": "afa4186c51f475e30",
+        "layout_role": "fridge",
+        "layout_id": "97f0860fe90d",
+        "layout_spec": {
+          "kind": "kitchen",
+          "options": {
+            "shape": "L",
+            "dishwasher": true,
+            "fridge": true
+          },
+          "z": 0.0,
+          "point": [
+            2.25,
+            8.500000000000004
+          ],
+          "shape": "L",
+          "legs": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              0.0,
+              1.0
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              0.0,
+              0.3757
+            ]
+          ],
+          "walls": [
+            "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+            "911a1b79-3595-4083-93fd-2b092b0d18ee"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u03a8\u03c5\u03b3\u03b5\u03b9\u03bf\u03ba\u03b1\u03c4\u03b1\u03c8\u03cd\u03ba\u03c4\u03b7\u03c2 60",
+      "id": "0dbbc30e-a39c-40b8-8b88-0b37b5800c32",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "cabinet",
+      "params": {
+        "width": 0.5000000000000001,
+        "depth": 0.6,
+        "height": 0.86,
+        "plinth": 0.1,
+        "doors": 1,
+        "drawers": 1,
+        "shelves": 1,
+        "worktop": 1.0,
+        "z": 0.0,
+        "x": 0.425,
+        "y": 10.025000000000006,
+        "rotation": 90.0,
+        "cabinet_type": "base",
+        "handle": "bar",
+        "front_style": "flat",
+        "mechanism": "none",
+        "layout_role": "base",
+        "layout_id": "97f0860fe90d",
+        "layout_spec": {
+          "kind": "kitchen",
+          "options": {
+            "shape": "L",
+            "dishwasher": true,
+            "fridge": true
+          },
+          "z": 0.0,
+          "point": [
+            2.25,
+            8.500000000000004
+          ],
+          "shape": "L",
+          "legs": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              0.0,
+              1.0
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              0.0,
+              0.3757
+            ]
+          ],
+          "walls": [
+            "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+            "911a1b79-3595-4083-93fd-2b092b0d18ee"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u039d\u03c4\u03bf\u03c5\u03bb\u03ac\u03c0\u03b9 \u03b2\u03ac\u03c3\u03b7\u03c2",
+      "id": "61d97602-aea9-4379-b9ed-34bdecd13b7a",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "cabinet",
+      "params": {
+        "width": 0.8,
+        "depth": 0.6,
+        "height": 0.86,
+        "plinth": 0.1,
+        "doors": 2,
+        "drawers": 0,
+        "shelves": 0,
+        "worktop": 1.0,
+        "z": 0.0,
+        "x": 0.425,
+        "y": 9.375000000000005,
+        "rotation": 90.0,
+        "cabinet_type": "sink",
+        "handle": "bar",
+        "front_style": "flat",
+        "mechanism": "none",
+        "layout_role": "sink",
+        "layout_id": "97f0860fe90d",
+        "layout_spec": {
+          "kind": "kitchen",
+          "options": {
+            "shape": "L",
+            "dishwasher": true,
+            "fridge": true
+          },
+          "z": 0.0,
+          "point": [
+            2.25,
+            8.500000000000004
+          ],
+          "shape": "L",
+          "legs": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              0.0,
+              1.0
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              0.0,
+              0.3757
+            ]
+          ],
+          "walls": [
+            "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+            "911a1b79-3595-4083-93fd-2b092b0d18ee"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u039d\u03c4\u03bf\u03c5\u03bb\u03ac\u03c0\u03b9 \u03bd\u03b5\u03c1\u03bf\u03c7\u03cd\u03c4\u03b7",
+      "id": "16f28cbd-40ef-4b21-a294-6497a626d01c",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 0.225,
+        "y": 9.375000000000005,
+        "z": 0.0,
+        "point_type": "kitchen_sink",
+        "layout_host": "16f28cbd-40ef-4b21-a294-6497a626d01c",
+        "layout_id": "97f0860fe90d",
+        "layout_spec": {
+          "kind": "kitchen",
+          "options": {
+            "shape": "L",
+            "dishwasher": true,
+            "fridge": true
+          },
+          "z": 0.0,
+          "point": [
+            2.25,
+            8.500000000000004
+          ],
+          "shape": "L",
+          "legs": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              0.0,
+              1.0
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              0.0,
+              0.3757
+            ]
+          ],
+          "walls": [
+            "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+            "911a1b79-3595-4083-93fd-2b092b0d18ee"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u039d\u03b5\u03c1\u03bf\u03c7\u03cd\u03c4\u03b7\u03c2 \u03ba\u03bf\u03c5\u03b6\u03af\u03bd\u03b1\u03c2",
+      "id": "2a3fde8d-318c-4cb6-a8c9-ada75d4e0a0c",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "cabinet",
+      "params": {
+        "width": 0.5999999999999999,
+        "depth": 0.6,
+        "height": 0.86,
+        "plinth": 0.1,
+        "doors": 1,
+        "drawers": 0,
+        "shelves": 0,
+        "worktop": 1.0,
+        "z": 0.0,
+        "x": 0.425,
+        "y": 8.675000000000004,
+        "rotation": 90.0,
+        "cabinet_type": "base",
+        "handle": "bar",
+        "front_style": "flat",
+        "mechanism": "none",
+        "layout_role": "dishwasher",
+        "layout_id": "97f0860fe90d",
+        "layout_spec": {
+          "kind": "kitchen",
+          "options": {
+            "shape": "L",
+            "dishwasher": true,
+            "fridge": true
+          },
+          "z": 0.0,
+          "point": [
+            2.25,
+            8.500000000000004
+          ],
+          "shape": "L",
+          "legs": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              0.0,
+              1.0
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              0.0,
+              0.3757
+            ]
+          ],
+          "walls": [
+            "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+            "911a1b79-3595-4083-93fd-2b092b0d18ee"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u03a0\u03bb\u03c5\u03bd\u03c4\u03ae\u03c1\u03b9\u03bf \u03c0\u03b9\u03ac\u03c4\u03c9\u03bd (\u03b5\u03bd\u03c4\u03bf\u03b9\u03c7\u03b9\u03b6\u03cc\u03bc\u03b5\u03bd\u03bf)",
+      "id": "4e9802bf-2afc-4445-b2a2-58505d1c991e",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 0.225,
+        "y": 8.675000000000004,
+        "z": 0.0,
+        "point_type": "dishwasher",
+        "layout_host": "4e9802bf-2afc-4445-b2a2-58505d1c991e",
+        "layout_id": "97f0860fe90d",
+        "layout_spec": {
+          "kind": "kitchen",
+          "options": {
+            "shape": "L",
+            "dishwasher": true,
+            "fridge": true
+          },
+          "z": 0.0,
+          "point": [
+            2.25,
+            8.500000000000004
+          ],
+          "shape": "L",
+          "legs": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              0.0,
+              1.0
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              0.0,
+              0.3757
+            ]
+          ],
+          "walls": [
+            "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+            "911a1b79-3595-4083-93fd-2b092b0d18ee"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u03a0\u03bb\u03c5\u03bd\u03c4\u03ae\u03c1\u03b9\u03bf \u03c0\u03b9\u03ac\u03c4\u03c9\u03bd",
+      "id": "beabae38-8e3d-4c07-9273-a500407f6848",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "cabinet",
+      "params": {
+        "width": 0.6000000000000001,
+        "depth": 0.6,
+        "height": 0.86,
+        "plinth": 0.1,
+        "doors": 0,
+        "drawers": 3,
+        "shelves": 0,
+        "worktop": 1.0,
+        "z": 0.0,
+        "x": 0.425,
+        "y": 8.075000000000006,
+        "rotation": 90.0,
+        "cabinet_type": "drawers",
+        "handle": "bar",
+        "front_style": "flat",
+        "mechanism": "none",
+        "layout_role": "hob_base",
+        "layout_id": "97f0860fe90d",
+        "layout_spec": {
+          "kind": "kitchen",
+          "options": {
+            "shape": "L",
+            "dishwasher": true,
+            "fridge": true
+          },
+          "z": 0.0,
+          "point": [
+            2.25,
+            8.500000000000004
+          ],
+          "shape": "L",
+          "legs": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              0.0,
+              1.0
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              0.0,
+              0.3757
+            ]
+          ],
+          "walls": [
+            "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+            "911a1b79-3595-4083-93fd-2b092b0d18ee"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u039d\u03c4\u03bf\u03c5\u03bb\u03ac\u03c0\u03b9 \u03b5\u03c3\u03c4\u03af\u03b1\u03c2 (\u03c3\u03c5\u03c1\u03c4\u03ac\u03c1\u03b9\u03b1)",
+      "id": "e1f7fe49-38cb-4696-b929-75a7cc315366",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 0.445,
+        "y": 8.075000000000006,
+        "z": 0.9,
+        "rotation": 90.0,
+        "width": 0.6,
+        "depth": 0.52,
+        "height": 0.052000000000000005,
+        "uniform": 1.0,
+        "asset": "a5c4ef91c9e849072",
+        "layout_role": "hob",
+        "layout_host": "e1f7fe49-38cb-4696-b929-75a7cc315366",
+        "layout_id": "97f0860fe90d",
+        "layout_spec": {
+          "kind": "kitchen",
+          "options": {
+            "shape": "L",
+            "dishwasher": true,
+            "fridge": true
+          },
+          "z": 0.0,
+          "point": [
+            2.25,
+            8.500000000000004
+          ],
+          "shape": "L",
+          "legs": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              0.0,
+              1.0
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              0.0,
+              0.3757
+            ]
+          ],
+          "walls": [
+            "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+            "911a1b79-3595-4083-93fd-2b092b0d18ee"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u0395\u03c3\u03c4\u03af\u03b1 \u03ba\u03b5\u03c1\u03b1\u03bc\u03b9\u03ba\u03ae 60",
+      "id": "0294aa6f-168e-4d19-8e66-ad2dd1c69e7f",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 0.375,
+        "y": 8.075000000000006,
+        "z": 1.55,
+        "rotation": 90.0,
+        "width": 0.6,
+        "depth": 0.5,
+        "height": 0.7000000000000001,
+        "uniform": 1.0,
+        "asset": "a3a2a64d7a0217957",
+        "layout_role": "hood",
+        "layout_host": "e1f7fe49-38cb-4696-b929-75a7cc315366",
+        "layout_id": "97f0860fe90d",
+        "layout_spec": {
+          "kind": "kitchen",
+          "options": {
+            "shape": "L",
+            "dishwasher": true,
+            "fridge": true
+          },
+          "z": 0.0,
+          "point": [
+            2.25,
+            8.500000000000004
+          ],
+          "shape": "L",
+          "legs": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              0.0,
+              1.0
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              0.0,
+              0.3757
+            ]
+          ],
+          "walls": [
+            "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+            "911a1b79-3595-4083-93fd-2b092b0d18ee"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u0391\u03c0\u03bf\u03c1\u03c1\u03bf\u03c6\u03b7\u03c4\u03ae\u03c1\u03b1\u03c2 60",
+      "id": "7bb232e3-518e-4d18-947c-794208e2676b",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "ventilation_point",
+      "params": {
+        "x": 0.425,
+        "y": 8.075000000000006,
+        "z": 0.0,
+        "point_type": "hood",
+        "outlet": "auto",
+        "airflow": 400.0,
+        "layout_host": "e1f7fe49-38cb-4696-b929-75a7cc315366",
+        "layout_id": "97f0860fe90d",
+        "layout_spec": {
+          "kind": "kitchen",
+          "options": {
+            "shape": "L",
+            "dishwasher": true,
+            "fridge": true
+          },
+          "z": 0.0,
+          "point": [
+            2.25,
+            8.500000000000004
+          ],
+          "shape": "L",
+          "legs": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              0.0,
+              1.0
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              0.0,
+              0.3757
+            ]
+          ],
+          "walls": [
+            "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+            "911a1b79-3595-4083-93fd-2b092b0d18ee"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u0391\u03c0\u03bf\u03c1\u03c1\u03bf\u03c6\u03b7\u03c4\u03ae\u03c1\u03b1\u03c2 \u03ba\u03bf\u03c5\u03b6\u03af\u03bd\u03b1\u03c2",
+      "id": "ef5e5812-962b-47b8-a362-7dbbc0bf301c",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "cabinet",
+      "params": {
+        "width": 0.8250000000000055,
+        "depth": 0.6,
+        "height": 0.86,
+        "plinth": 0.1,
+        "doors": 2,
+        "drawers": 1,
+        "shelves": 1,
+        "worktop": 1.0,
+        "z": 0.0,
+        "x": 0.425,
+        "y": 7.3625000000000025,
+        "rotation": 90.0,
+        "cabinet_type": "base",
+        "handle": "bar",
+        "front_style": "flat",
+        "mechanism": "none",
+        "layout_role": "base",
+        "layout_id": "97f0860fe90d",
+        "layout_spec": {
+          "kind": "kitchen",
+          "options": {
+            "shape": "L",
+            "dishwasher": true,
+            "fridge": true
+          },
+          "z": 0.0,
+          "point": [
+            2.25,
+            8.500000000000004
+          ],
+          "shape": "L",
+          "legs": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              0.0,
+              1.0
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              0.0,
+              0.3757
+            ]
+          ],
+          "walls": [
+            "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+            "911a1b79-3595-4083-93fd-2b092b0d18ee"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u039d\u03c4\u03bf\u03c5\u03bb\u03ac\u03c0\u03b9 \u03b2\u03ac\u03c3\u03b7\u03c2",
+      "id": "719122ef-992b-4a01-bb5a-49c4bab3a82f",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "cabinet",
+      "params": {
+        "width": 0.7250000000000002,
+        "depth": 0.6,
+        "height": 0.86,
+        "plinth": 0.1,
+        "doors": 2,
+        "drawers": 1,
+        "shelves": 1,
+        "worktop": 1.0,
+        "z": 0.0,
+        "x": 1.3875000000000002,
+        "y": 6.35,
+        "rotation": 180.0,
+        "cabinet_type": "base",
+        "handle": "bar",
+        "front_style": "flat",
+        "mechanism": "none",
+        "layout_role": "base",
+        "layout_id": "97f0860fe90d",
+        "layout_spec": {
+          "kind": "kitchen",
+          "options": {
+            "shape": "L",
+            "dishwasher": true,
+            "fridge": true
+          },
+          "z": 0.0,
+          "point": [
+            2.25,
+            8.500000000000004
+          ],
+          "shape": "L",
+          "legs": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              0.0,
+              1.0
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              0.0,
+              0.3757
+            ]
+          ],
+          "walls": [
+            "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+            "911a1b79-3595-4083-93fd-2b092b0d18ee"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u039d\u03c4\u03bf\u03c5\u03bb\u03ac\u03c0\u03b9 \u03b2\u03ac\u03c3\u03b7\u03c2",
+      "id": "b783eafd-69ec-41f3-99aa-452a97937378",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "cabinet",
+      "params": {
+        "width": 0.6333333333333333,
+        "depth": 0.35,
+        "height": 0.72,
+        "plinth": 0.0,
+        "doors": 2,
+        "drawers": 0,
+        "shelves": 2,
+        "worktop": 0.0,
+        "z": 1.45,
+        "x": 0.3,
+        "y": 9.95833333333334,
+        "rotation": 90.0,
+        "cabinet_type": "wall",
+        "handle": "bar",
+        "front_style": "flat",
+        "mechanism": "none",
+        "layout_role": "wall",
+        "layout_id": "97f0860fe90d",
+        "layout_spec": {
+          "kind": "kitchen",
+          "options": {
+            "shape": "L",
+            "dishwasher": true,
+            "fridge": true
+          },
+          "z": 0.0,
+          "point": [
+            2.25,
+            8.500000000000004
+          ],
+          "shape": "L",
+          "legs": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              0.0,
+              1.0
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              0.0,
+              0.3757
+            ]
+          ],
+          "walls": [
+            "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+            "911a1b79-3595-4083-93fd-2b092b0d18ee"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u039a\u03c1\u03b5\u03bc\u03b1\u03c3\u03c4\u03cc \u03bd\u03c4\u03bf\u03c5\u03bb\u03ac\u03c0\u03b9",
+      "id": "79353d40-eb37-4307-b22f-e6dce7875286",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "cabinet",
+      "params": {
+        "width": 0.6333333333333333,
+        "depth": 0.35,
+        "height": 0.72,
+        "plinth": 0.0,
+        "doors": 2,
+        "drawers": 0,
+        "shelves": 2,
+        "worktop": 0.0,
+        "z": 1.45,
+        "x": 0.3,
+        "y": 9.325000000000005,
+        "rotation": 90.0,
+        "cabinet_type": "wall",
+        "handle": "bar",
+        "front_style": "flat",
+        "mechanism": "none",
+        "layout_role": "wall",
+        "layout_id": "97f0860fe90d",
+        "layout_spec": {
+          "kind": "kitchen",
+          "options": {
+            "shape": "L",
+            "dishwasher": true,
+            "fridge": true
+          },
+          "z": 0.0,
+          "point": [
+            2.25,
+            8.500000000000004
+          ],
+          "shape": "L",
+          "legs": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              0.0,
+              1.0
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              0.0,
+              0.3757
+            ]
+          ],
+          "walls": [
+            "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+            "911a1b79-3595-4083-93fd-2b092b0d18ee"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u039a\u03c1\u03b5\u03bc\u03b1\u03c3\u03c4\u03cc \u03bd\u03c4\u03bf\u03c5\u03bb\u03ac\u03c0\u03b9",
+      "id": "a633c700-cce2-481d-9227-5819c7e7d92d",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "cabinet",
+      "params": {
+        "width": 0.6333333333333333,
+        "depth": 0.35,
+        "height": 0.72,
+        "plinth": 0.0,
+        "doors": 2,
+        "drawers": 0,
+        "shelves": 2,
+        "worktop": 0.0,
+        "z": 1.45,
+        "x": 0.3,
+        "y": 8.691666666666672,
+        "rotation": 90.0,
+        "cabinet_type": "wall",
+        "handle": "bar",
+        "front_style": "flat",
+        "mechanism": "none",
+        "layout_role": "wall",
+        "layout_id": "97f0860fe90d",
+        "layout_spec": {
+          "kind": "kitchen",
+          "options": {
+            "shape": "L",
+            "dishwasher": true,
+            "fridge": true
+          },
+          "z": 0.0,
+          "point": [
+            2.25,
+            8.500000000000004
+          ],
+          "shape": "L",
+          "legs": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              0.0,
+              1.0
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              0.0,
+              0.3757
+            ]
+          ],
+          "walls": [
+            "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+            "911a1b79-3595-4083-93fd-2b092b0d18ee"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u039a\u03c1\u03b5\u03bc\u03b1\u03c3\u03c4\u03cc \u03bd\u03c4\u03bf\u03c5\u03bb\u03ac\u03c0\u03b9",
+      "id": "27298e8d-8c98-43a5-8cb1-053ff2d95b8b",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "cabinet",
+      "params": {
+        "width": 0.5750000000000018,
+        "depth": 0.35,
+        "height": 0.72,
+        "plinth": 0.0,
+        "doors": 1,
+        "drawers": 0,
+        "shelves": 2,
+        "worktop": 0.0,
+        "z": 1.45,
+        "x": 0.3,
+        "y": 7.487500000000004,
+        "rotation": 90.0,
+        "cabinet_type": "wall",
+        "handle": "bar",
+        "front_style": "flat",
+        "mechanism": "none",
+        "layout_role": "wall",
+        "layout_id": "97f0860fe90d",
+        "layout_spec": {
+          "kind": "kitchen",
+          "options": {
+            "shape": "L",
+            "dishwasher": true,
+            "fridge": true
+          },
+          "z": 0.0,
+          "point": [
+            2.25,
+            8.500000000000004
+          ],
+          "shape": "L",
+          "legs": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              0.0,
+              1.0
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              0.0,
+              0.3757
+            ]
+          ],
+          "walls": [
+            "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+            "911a1b79-3595-4083-93fd-2b092b0d18ee"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u039a\u03c1\u03b5\u03bc\u03b1\u03c3\u03c4\u03cc \u03bd\u03c4\u03bf\u03c5\u03bb\u03ac\u03c0\u03b9",
+      "id": "42e58d4b-69a2-4f4b-8816-80ccb977e193",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "cabinet",
+      "params": {
+        "width": 0.5750000000000018,
+        "depth": 0.35,
+        "height": 0.72,
+        "plinth": 0.0,
+        "doors": 1,
+        "drawers": 0,
+        "shelves": 2,
+        "worktop": 0.0,
+        "z": 1.45,
+        "x": 0.3,
+        "y": 6.912500000000002,
+        "rotation": 90.0,
+        "cabinet_type": "wall",
+        "handle": "bar",
+        "front_style": "flat",
+        "mechanism": "none",
+        "layout_role": "wall",
+        "layout_id": "97f0860fe90d",
+        "layout_spec": {
+          "kind": "kitchen",
+          "options": {
+            "shape": "L",
+            "dishwasher": true,
+            "fridge": true
+          },
+          "z": 0.0,
+          "point": [
+            2.25,
+            8.500000000000004
+          ],
+          "shape": "L",
+          "legs": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              0.0,
+              1.0
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              0.0,
+              0.3757
+            ]
+          ],
+          "walls": [
+            "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+            "911a1b79-3595-4083-93fd-2b092b0d18ee"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u039a\u03c1\u03b5\u03bc\u03b1\u03c3\u03c4\u03cc \u03bd\u03c4\u03bf\u03c5\u03bb\u03ac\u03c0\u03b9",
+      "id": "5900e4be-359d-48a6-b7d8-09caba8aa9c3",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "cabinet",
+      "params": {
+        "width": 0.5750000000000018,
+        "depth": 0.35,
+        "height": 0.72,
+        "plinth": 0.0,
+        "doors": 1,
+        "drawers": 0,
+        "shelves": 2,
+        "worktop": 0.0,
+        "z": 1.45,
+        "x": 0.3,
+        "y": 6.337500000000001,
+        "rotation": 90.0,
+        "cabinet_type": "wall",
+        "handle": "bar",
+        "front_style": "flat",
+        "mechanism": "none",
+        "layout_role": "wall",
+        "layout_id": "97f0860fe90d",
+        "layout_spec": {
+          "kind": "kitchen",
+          "options": {
+            "shape": "L",
+            "dishwasher": true,
+            "fridge": true
+          },
+          "z": 0.0,
+          "point": [
+            2.25,
+            8.500000000000004
+          ],
+          "shape": "L",
+          "legs": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              0.0,
+              1.0
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              0.0,
+              0.3757
+            ]
+          ],
+          "walls": [
+            "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+            "911a1b79-3595-4083-93fd-2b092b0d18ee"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u039a\u03c1\u03b5\u03bc\u03b1\u03c3\u03c4\u03cc \u03bd\u03c4\u03bf\u03c5\u03bb\u03ac\u03c0\u03b9",
+      "id": "9e74d343-2998-405f-b67e-0cf68ed52326",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "cabinet",
+      "params": {
+        "width": 0.6375000000000002,
+        "depth": 0.35,
+        "height": 0.72,
+        "plinth": 0.0,
+        "doors": 2,
+        "drawers": 0,
+        "shelves": 2,
+        "worktop": 0.0,
+        "z": 1.45,
+        "x": 0.7937500000000001,
+        "y": 6.225,
+        "rotation": 180.0,
+        "cabinet_type": "wall",
+        "handle": "bar",
+        "front_style": "flat",
+        "mechanism": "none",
+        "layout_role": "wall",
+        "layout_id": "97f0860fe90d",
+        "layout_spec": {
+          "kind": "kitchen",
+          "options": {
+            "shape": "L",
+            "dishwasher": true,
+            "fridge": true
+          },
+          "z": 0.0,
+          "point": [
+            2.25,
+            8.500000000000004
+          ],
+          "shape": "L",
+          "legs": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              0.0,
+              1.0
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              0.0,
+              0.3757
+            ]
+          ],
+          "walls": [
+            "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+            "911a1b79-3595-4083-93fd-2b092b0d18ee"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u039a\u03c1\u03b5\u03bc\u03b1\u03c3\u03c4\u03cc \u03bd\u03c4\u03bf\u03c5\u03bb\u03ac\u03c0\u03b9",
+      "id": "09e835f9-5eba-4db5-9883-b5f5d05f07b8",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "cabinet",
+      "params": {
+        "width": 0.6375000000000002,
+        "depth": 0.35,
+        "height": 0.72,
+        "plinth": 0.0,
+        "doors": 2,
+        "drawers": 0,
+        "shelves": 2,
+        "worktop": 0.0,
+        "z": 1.45,
+        "x": 1.4312500000000004,
+        "y": 6.225,
+        "rotation": 180.0,
+        "cabinet_type": "wall",
+        "handle": "bar",
+        "front_style": "flat",
+        "mechanism": "none",
+        "layout_role": "wall",
+        "layout_id": "97f0860fe90d",
+        "layout_spec": {
+          "kind": "kitchen",
+          "options": {
+            "shape": "L",
+            "dishwasher": true,
+            "fridge": true
+          },
+          "z": 0.0,
+          "point": [
+            2.25,
+            8.500000000000004
+          ],
+          "shape": "L",
+          "legs": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              0.0,
+              1.0
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              0.0,
+              0.3757
+            ]
+          ],
+          "walls": [
+            "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+            "911a1b79-3595-4083-93fd-2b092b0d18ee"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u039a\u03c1\u03b5\u03bc\u03b1\u03c3\u03c4\u03cc \u03bd\u03c4\u03bf\u03c5\u03bb\u03ac\u03c0\u03b9",
+      "id": "0a6ad7cf-8e5c-4531-88dc-b9558bc4303a",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "cabinet",
+      "params": {
+        "width": 0.6,
+        "depth": 0.35,
+        "height": 0.3,
+        "plinth": 0.0,
+        "doors": 1,
+        "drawers": 0,
+        "shelves": 0,
+        "worktop": 0.0,
+        "z": 1.87,
+        "x": 0.3,
+        "y": 10.575000000000005,
+        "rotation": 90.0,
+        "cabinet_type": "wall",
+        "handle": "bar",
+        "front_style": "flat",
+        "mechanism": "none",
+        "layout_role": "wall",
+        "layout_id": "97f0860fe90d",
+        "layout_spec": {
+          "kind": "kitchen",
+          "options": {
+            "shape": "L",
+            "dishwasher": true,
+            "fridge": true
+          },
+          "z": 0.0,
+          "point": [
+            2.25,
+            8.500000000000004
+          ],
+          "shape": "L",
+          "legs": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              0.0,
+              1.0
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              0.0,
+              0.3757
+            ]
+          ],
+          "walls": [
+            "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+            "911a1b79-3595-4083-93fd-2b092b0d18ee"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ],
+            [
+              "911a1b79-3595-4083-93fd-2b092b0d18ee",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u039a\u03c1\u03b5\u03bc\u03b1\u03c3\u03c4\u03cc \u03c0\u03ac\u03bd\u03c9 \u03b1\u03c0\u03cc \u03c8\u03c5\u03b3\u03b5\u03af\u03bf",
+      "id": "4a5d064f-4586-4a94-a9cc-82ad9f022c9b",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 4.5,
+        "y": 5.7475,
+        "z": 0.0,
+        "rotation": 0.0,
+        "width": 1.8,
+        "depth": 0.405,
+        "height": 0.5,
+        "uniform": 1.0,
+        "asset": "a6c1d94f74bb2f74c"
+      },
+      "name": "\u0388\u03c0\u03b9\u03c0\u03bb\u03bf TV",
+      "id": "abc47aa3-da57-475f-b6e8-5a3d2859cf13",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 4.5,
+        "y": 3.6,
+        "z": 0.0,
+        "rotation": 180.0,
+        "width": 2.1,
+        "depth": 0.9,
+        "height": 0.85,
+        "uniform": 1.0,
+        "asset": "a6b43b945fad7b6b8"
+      },
+      "name": "\u039a\u03b1\u03bd\u03b1\u03c0\u03ad\u03c2 \u03c4\u03c1\u03b9\u03b8\u03ad\u03c3\u03b9\u03bf\u03c2",
+      "id": "8caf8682-0f69-429d-9986-27d78267871c",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 4.5,
+        "y": 4.7,
+        "z": 0.0,
+        "rotation": 0.0,
+        "width": 1.1,
+        "depth": 0.6,
+        "height": 0.42,
+        "uniform": 1.0,
+        "asset": "a39c148b738cd75e5"
+      },
+      "name": "\u03a4\u03c1\u03b1\u03c0\u03b5\u03b6\u03ac\u03ba\u03b9 \u03c3\u03b1\u03bb\u03bf\u03bd\u03b9\u03bf\u03cd",
+      "id": "efac36ec-2b93-430f-b700-4d5192318c57",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 1.9,
+        "y": 3.0,
+        "z": 0.0,
+        "rotation": 0.0,
+        "width": 1.8,
+        "depth": 0.9,
+        "height": 0.75,
+        "uniform": 1.0,
+        "asset": "aa496633c254a0eef"
+      },
+      "name": "\u03a4\u03c1\u03b1\u03c0\u03ad\u03b6\u03b9 \u03c4\u03c1\u03b1\u03c0\u03b5\u03b6\u03b1\u03c1\u03af\u03b1\u03c2 6\u03b8\u03ad\u03c3\u03b9\u03bf",
+      "id": "3e958188-b03a-466e-9464-47e0ea2598de",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 6.8,
+        "y": 4.4,
+        "z": 0.0,
+        "rotation": 0.0,
+        "width": 0.85,
+        "depth": 0.85,
+        "height": 0.85,
+        "uniform": 1.0,
+        "asset": "a31d78bef2f643483"
+      },
+      "name": "\u03a0\u03bf\u03bb\u03c5\u03b8\u03c1\u03cc\u03bd\u03b1",
+      "id": "36061c8c-9c67-45cc-99b1-b27d751a87b7",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 11.5,
+        "y": 0.47500000000000003,
+        "z": 0.0,
+        "rotation": 180.0,
+        "width": 1.4000000000000001,
+        "depth": 0.7000000000000001,
+        "height": 0.75,
+        "uniform": 1.0,
+        "asset": "aaee7712b6b2bd166"
+      },
+      "name": "\u0393\u03c1\u03b1\u03c6\u03b5\u03af\u03bf \u03b5\u03c1\u03b3\u03b1\u03c3\u03af\u03b1\u03c2 140",
+      "id": "e36cfbe6-86a6-4e27-94dd-521a2013e31d",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 13.725,
+        "y": 1.5,
+        "z": 0.0,
+        "rotation": 270.0,
+        "width": 0.9,
+        "depth": 0.3,
+        "height": 2.0,
+        "uniform": 1.0,
+        "asset": "ac8003783b783d3bc"
+      },
+      "name": "\u0392\u03b9\u03b2\u03bb\u03b9\u03bf\u03b8\u03ae\u03ba\u03b7 \u03bc\u03b5 \u03c1\u03ac\u03c6\u03b9\u03b1",
+      "id": "1e659cfa-2c9a-4386-82dc-a8a659e2f967",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 0.5,
+        "y": 10.025000000000002,
+        "z": 3.0,
+        "rotation": 90.0,
+        "width": 1.7,
+        "depth": 0.75,
+        "height": 0.5841,
+        "uniform": 1.0,
+        "asset": "a22fb1f2ca18b9054",
+        "layout_role": "bathtub",
+        "layout_id": "f2fc017fb0ce",
+        "layout_spec": {
+          "kind": "bath",
+          "options": {
+            "wet": "bathtub"
+          },
+          "z": 3.0,
+          "point": [
+            1.5000000000000002,
+            8.5
+          ],
+          "legs": [],
+          "walls": [
+            "25b7d014-ff11-45f2-9b66-ca0b5bcce52a",
+            "51e0bb0f-e262-45b4-af8a-791310c87c01",
+            "de6fefbf-ec58-47c3-88f1-e254898079fc",
+            "fc58b494-9d4b-426b-91f0-339854565e77"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "25b7d014-ff11-45f2-9b66-ca0b5bcce52a",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ],
+            [
+              "51e0bb0f-e262-45b4-af8a-791310c87c01",
+              [
+                9.0,
+                11.0,
+                0.0,
+                11.0,
+                0.25
+              ]
+            ],
+            [
+              "de6fefbf-ec58-47c3-88f1-e254898079fc",
+              [
+                3.0,
+                6.0,
+                3.0,
+                11.0,
+                0.1
+              ]
+            ],
+            [
+              "fc58b494-9d4b-426b-91f0-339854565e77",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u039c\u03c0\u03b1\u03bd\u03b9\u03ad\u03c1\u03b1 170\u00d775",
+      "id": "9b5bf4d7-307e-4af1-9a71-5d32d3f3a90d",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 0.225,
+        "y": 10.025000000000002,
+        "z": 3.0,
+        "point_type": "bathtub",
+        "layout_host": "9b5bf4d7-307e-4af1-9a71-5d32d3f3a90d",
+        "layout_id": "f2fc017fb0ce",
+        "layout_spec": {
+          "kind": "bath",
+          "options": {
+            "wet": "bathtub"
+          },
+          "z": 3.0,
+          "point": [
+            1.5000000000000002,
+            8.5
+          ],
+          "legs": [],
+          "walls": [
+            "25b7d014-ff11-45f2-9b66-ca0b5bcce52a",
+            "51e0bb0f-e262-45b4-af8a-791310c87c01",
+            "de6fefbf-ec58-47c3-88f1-e254898079fc",
+            "fc58b494-9d4b-426b-91f0-339854565e77"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "25b7d014-ff11-45f2-9b66-ca0b5bcce52a",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ],
+            [
+              "51e0bb0f-e262-45b4-af8a-791310c87c01",
+              [
+                9.0,
+                11.0,
+                0.0,
+                11.0,
+                0.25
+              ]
+            ],
+            [
+              "de6fefbf-ec58-47c3-88f1-e254898079fc",
+              [
+                3.0,
+                6.0,
+                3.0,
+                11.0,
+                0.1
+              ]
+            ],
+            [
+              "fc58b494-9d4b-426b-91f0-339854565e77",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u039c\u03c0\u03b1\u03bd\u03b9\u03ad\u03c1\u03b1",
+      "id": "d188eeb1-16ac-4cf1-9dff-2235c8686eea",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 0.455,
+        "y": 6.475000000000002,
+        "z": 3.0,
+        "rotation": 90.0,
+        "width": 0.36,
+        "depth": 0.66,
+        "height": 0.8,
+        "uniform": 1.0,
+        "asset": "a1f86d26b0bf5378e",
+        "layout_role": "wc",
+        "layout_id": "f2fc017fb0ce",
+        "layout_spec": {
+          "kind": "bath",
+          "options": {
+            "wet": "bathtub"
+          },
+          "z": 3.0,
+          "point": [
+            1.5000000000000002,
+            8.5
+          ],
+          "legs": [],
+          "walls": [
+            "25b7d014-ff11-45f2-9b66-ca0b5bcce52a",
+            "51e0bb0f-e262-45b4-af8a-791310c87c01",
+            "de6fefbf-ec58-47c3-88f1-e254898079fc",
+            "fc58b494-9d4b-426b-91f0-339854565e77"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "25b7d014-ff11-45f2-9b66-ca0b5bcce52a",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ],
+            [
+              "51e0bb0f-e262-45b4-af8a-791310c87c01",
+              [
+                9.0,
+                11.0,
+                0.0,
+                11.0,
+                0.25
+              ]
+            ],
+            [
+              "de6fefbf-ec58-47c3-88f1-e254898079fc",
+              [
+                3.0,
+                6.0,
+                3.0,
+                11.0,
+                0.1
+              ]
+            ],
+            [
+              "fc58b494-9d4b-426b-91f0-339854565e77",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u039b\u03b5\u03ba\u03ac\u03bd\u03b7 WC \u03bc\u03b5 \u03ba\u03b1\u03b6\u03b1\u03bd\u03ac\u03ba\u03b9",
+      "id": "60bc8fdf-c5c6-4591-b638-7a8485a76ad7",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 0.225,
+        "y": 6.475000000000002,
+        "z": 3.0,
+        "point_type": "wc",
+        "layout_host": "60bc8fdf-c5c6-4591-b638-7a8485a76ad7",
+        "layout_id": "f2fc017fb0ce",
+        "layout_spec": {
+          "kind": "bath",
+          "options": {
+            "wet": "bathtub"
+          },
+          "z": 3.0,
+          "point": [
+            1.5000000000000002,
+            8.5
+          ],
+          "legs": [],
+          "walls": [
+            "25b7d014-ff11-45f2-9b66-ca0b5bcce52a",
+            "51e0bb0f-e262-45b4-af8a-791310c87c01",
+            "de6fefbf-ec58-47c3-88f1-e254898079fc",
+            "fc58b494-9d4b-426b-91f0-339854565e77"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "25b7d014-ff11-45f2-9b66-ca0b5bcce52a",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ],
+            [
+              "51e0bb0f-e262-45b4-af8a-791310c87c01",
+              [
+                9.0,
+                11.0,
+                0.0,
+                11.0,
+                0.25
+              ]
+            ],
+            [
+              "de6fefbf-ec58-47c3-88f1-e254898079fc",
+              [
+                3.0,
+                6.0,
+                3.0,
+                11.0,
+                0.1
+              ]
+            ],
+            [
+              "fc58b494-9d4b-426b-91f0-339854565e77",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u039b\u03b5\u03ba\u03ac\u03bd\u03b7 WC",
+      "id": "f4da061b-0641-4c55-8d89-af98bb1167d5",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 2.5,
+        "y": 10.645000000000001,
+        "z": 3.0,
+        "rotation": 0.0,
+        "width": 0.8,
+        "depth": 0.46,
+        "height": 1.03,
+        "uniform": 1.0,
+        "asset": "a0c1970dbea04dc56",
+        "layout_role": "basin",
+        "layout_id": "f2fc017fb0ce",
+        "layout_spec": {
+          "kind": "bath",
+          "options": {
+            "wet": "bathtub"
+          },
+          "z": 3.0,
+          "point": [
+            1.5000000000000002,
+            8.5
+          ],
+          "legs": [],
+          "walls": [
+            "25b7d014-ff11-45f2-9b66-ca0b5bcce52a",
+            "51e0bb0f-e262-45b4-af8a-791310c87c01",
+            "de6fefbf-ec58-47c3-88f1-e254898079fc",
+            "fc58b494-9d4b-426b-91f0-339854565e77"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "25b7d014-ff11-45f2-9b66-ca0b5bcce52a",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ],
+            [
+              "51e0bb0f-e262-45b4-af8a-791310c87c01",
+              [
+                9.0,
+                11.0,
+                0.0,
+                11.0,
+                0.25
+              ]
+            ],
+            [
+              "de6fefbf-ec58-47c3-88f1-e254898079fc",
+              [
+                3.0,
+                6.0,
+                3.0,
+                11.0,
+                0.1
+              ]
+            ],
+            [
+              "fc58b494-9d4b-426b-91f0-339854565e77",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u039d\u03b9\u03c0\u03c4\u03ae\u03c1\u03b1\u03c2 \u03bc\u03b5 \u03ad\u03c0\u03b9\u03c0\u03bb\u03bf 80",
+      "id": "7ec9976c-bd9c-4674-b4b9-3d8083fdc96d",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 2.5,
+        "y": 10.775000000000002,
+        "z": 3.0,
+        "point_type": "basin",
+        "layout_host": "7ec9976c-bd9c-4674-b4b9-3d8083fdc96d",
+        "layout_id": "f2fc017fb0ce",
+        "layout_spec": {
+          "kind": "bath",
+          "options": {
+            "wet": "bathtub"
+          },
+          "z": 3.0,
+          "point": [
+            1.5000000000000002,
+            8.5
+          ],
+          "legs": [],
+          "walls": [
+            "25b7d014-ff11-45f2-9b66-ca0b5bcce52a",
+            "51e0bb0f-e262-45b4-af8a-791310c87c01",
+            "de6fefbf-ec58-47c3-88f1-e254898079fc",
+            "fc58b494-9d4b-426b-91f0-339854565e77"
+          ],
+          "variant": 0,
+          "signature": [
+            [
+              "25b7d014-ff11-45f2-9b66-ca0b5bcce52a",
+              [
+                0.0,
+                6.0,
+                9.0,
+                6.0,
+                0.1
+              ]
+            ],
+            [
+              "51e0bb0f-e262-45b4-af8a-791310c87c01",
+              [
+                9.0,
+                11.0,
+                0.0,
+                11.0,
+                0.25
+              ]
+            ],
+            [
+              "de6fefbf-ec58-47c3-88f1-e254898079fc",
+              [
+                3.0,
+                6.0,
+                3.0,
+                11.0,
+                0.1
+              ]
+            ],
+            [
+              "fc58b494-9d4b-426b-91f0-339854565e77",
+              [
+                0.0,
+                11.0,
+                0.0,
+                0.0,
+                0.25
+              ]
+            ]
+          ]
+        }
+      },
+      "name": "\u039d\u03b9\u03c0\u03c4\u03ae\u03c1\u03b1\u03c2",
+      "id": "d2f96c85-c1ea-4bd0-afa1-006a5254f5a7",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 1.175,
+        "y": 3.0,
+        "z": 3.0,
+        "rotation": 90.0,
+        "width": 1.7,
+        "depth": 2.1,
+        "height": 1.1,
+        "uniform": 1.0,
+        "asset": "abc85ac0b53225c83"
+      },
+      "name": "\u0394\u03b9\u03c0\u03bb\u03cc \u03ba\u03c1\u03b5\u03b2\u03ac\u03c4\u03b9 160\u00d7200",
+      "id": "66aa7de1-0172-45f1-9d00-e669ed8c51a5",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 0.3275,
+        "y": 1.4000000000000004,
+        "z": 3.0,
+        "rotation": 90.0,
+        "width": 0.45,
+        "depth": 0.405,
+        "height": 0.5,
+        "uniform": 1.0,
+        "asset": "a3024ba5d34f5236e"
+      },
+      "name": "\u039a\u03bf\u03bc\u03bf\u03b4\u03af\u03bd\u03bf",
+      "id": "1ebd599c-4bcf-4973-9861-836b9978a607",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 5.6,
+        "y": 1.1,
+        "z": 3.0,
+        "rotation": 90.0,
+        "width": 1.7,
+        "depth": 2.1,
+        "height": 1.1,
+        "uniform": 1.0,
+        "asset": "abc85ac0b53225c83"
+      },
+      "name": "\u0394\u03b9\u03c0\u03bb\u03cc \u03ba\u03c1\u03b5\u03b2\u03ac\u03c4\u03b9 160\u00d7200",
+      "id": "e891b6f9-6dbc-4490-a0aa-1565c3e11cfa",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 4.835,
+        "y": 3.5,
+        "z": 3.0,
+        "rotation": 90.0,
+        "width": 1.1400000000000001,
+        "depth": 0.5700000000000001,
+        "height": 2.105238227218272,
+        "uniform": 1.0,
+        "asset": "ac950d1ac20d4203b"
+      },
+      "name": "\u039d\u03c4\u03bf\u03c5\u03bb\u03ac\u03c0\u03b1-\u03b1\u03c1\u03bc\u03ac\u03c1\u03b9 \u03ba\u03bb\u03b1\u03c3\u03b9\u03ba\u03ae",
+      "id": "ce2cac51-0f2a-4f3a-8ec8-3bd3c59d30d0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 0.4,
+        "y": 0.4,
+        "z": 0.0,
+        "point_type": "water_supply"
+      },
+      "name": "\u03a0\u03b1\u03c1\u03bf\u03c7\u03ae \u03ba\u03c1\u03cd\u03bf\u03c5 \u03bd\u03b5\u03c1\u03bf\u03cd",
+      "id": "8c9d9171-8674-43fe-9011-da2e5d9a7fac",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 1.0,
+        "y": 10.4,
+        "z": -3.0,
+        "point_type": "water_heater"
+      },
+      "name": "\u0397\u03bb\u03b5\u03ba\u03c4\u03c1\u03b9\u03ba\u03cc\u03c2 \u03b8\u03b5\u03c1\u03bc\u03bf\u03c3\u03af\u03c6\u03c9\u03bd\u03b1\u03c2",
+      "id": "26e4062e-3957-487c-bf2f-8c17f95d28b2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 1.1,
+        "y": 10.4,
+        "z": -3.0,
+        "point_type": "water_heater",
+        "power_w": 4000.0
+      },
+      "name": "\u0398\u03b5\u03c1\u03bc\u03bf\u03c3\u03af\u03c6\u03c9\u03bd\u03b1\u03c2",
+      "id": "8c61a7b8-b2b2-4115-9b2b-cc0c51dded41",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 0.2,
+        "y": 4.5,
+        "z": 0.0,
+        "point_type": "air_conditioner",
+        "power_w": 2500.0
+      },
+      "name": "\u039a\u03bb\u03b9\u03bc\u03b1\u03c4\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc",
+      "id": "8b60ab38-92b3-4791-953f-36b617dae3ab",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 0.2,
+        "y": 4.5,
+        "z": 3.0,
+        "point_type": "air_conditioner",
+        "power_w": 2500.0
+      },
+      "name": "\u039a\u03bb\u03b9\u03bc\u03b1\u03c4\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc",
+      "id": "0227ee30-f16e-4c32-a0f6-b817f45feaac",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 8.8,
+        "y": 1.5,
+        "z": 3.0,
+        "point_type": "air_conditioner",
+        "power_w": 2500.0
+      },
+      "name": "\u039a\u03bb\u03b9\u03bc\u03b1\u03c4\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc",
+      "id": "e5a3f77d-b20d-4893-8bef-ab3d55fff5c5",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "drainage_point",
+      "params": {
+        "x": 2.2,
+        "y": 12.5,
+        "z": 0.0,
+        "point_type": "manhole"
+      },
+      "name": "\u03a6\u03c1\u03b5\u03ac\u03c4\u03b9\u03bf",
+      "id": "d62b43e4-12f8-4323-aa92-fe2174a2ff96",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 8.85,
+        "y": 9.6,
+        "z": 0.0,
+        "point_type": "panel",
+        "power_w": 0.0
+      },
+      "name": "\u0397\u03bb\u03b5\u03ba\u03c4\u03c1\u03b9\u03ba\u03cc\u03c2 \u03c0\u03af\u03bd\u03b1\u03ba\u03b1\u03c2",
+      "id": "202ef71f-0142-48fb-b4b7-42ac284553a6",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 8.85,
+        "y": 10.0,
+        "z": 0.0,
+        "point_type": "network_rack",
+        "power_w": 0.0
+      },
+      "name": "Rack \u03b4\u03b9\u03ba\u03c4\u03cd\u03bf\u03c5 / \u03ba\u03b1\u03c4\u03b1\u03bd\u03b5\u03bc\u03b7\u03c4\u03ae\u03c2 \u03b1\u03c3\u03b8\u03b5\u03bd\u03ce\u03bd",
+      "id": "f3a2e731-074c-498c-9220-df936b565519",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 6.713,
+        "y": 8.463,
+        "z": 0.0,
+        "point_type": "light",
+        "power_w": 60.0
+      },
+      "name": "\u03a6\u03c9\u03c4\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc \u03bf\u03c1\u03bf\u03c6\u03ae\u03c2",
+      "id": "01b74b7f-b4dc-4c15-9234-fcddacf63b1f",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 8.3,
+        "y": 6.1,
+        "z": 0.0,
+        "point_type": "switch",
+        "power_w": 0.0
+      },
+      "name": "\u0394\u03b9\u03b1\u03ba\u03cc\u03c0\u03c4\u03b7\u03c2",
+      "id": "85dde448-dfae-4d7c-9c45-8758727f7466",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 4.67,
+        "y": 8.463,
+        "z": 0.0,
+        "point_type": "socket",
+        "power_w": 200.0
+      },
+      "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
+      "id": "59937092-19a5-497f-b5be-4c2365949e6b",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 8.755,
+        "y": 8.463,
+        "z": 0.0,
+        "point_type": "socket",
+        "power_w": 200.0
+      },
+      "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
+      "id": "3100084f-6e7f-4d02-bcb9-341428967a74",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 2.288,
+        "y": 8.463,
+        "z": 0.0,
+        "point_type": "light",
+        "power_w": 60.0
+      },
+      "name": "\u03a6\u03c9\u03c4\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc \u03bf\u03c1\u03bf\u03c6\u03ae\u03c2",
+      "id": "fcfecb14-6d30-48e6-bd14-0271c5fdbe95",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 2.8,
+        "y": 6.1,
+        "z": 0.0,
+        "point_type": "switch",
+        "power_w": 0.0
+      },
+      "name": "\u0394\u03b9\u03b1\u03ba\u03cc\u03c0\u03c4\u03b7\u03c2",
+      "id": "95ffcdb0-e4f0-451b-b7cf-c87fc1808d3a",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 0.245,
+        "y": 8.463,
+        "z": 0.0,
+        "point_type": "socket",
+        "power_w": 200.0
+      },
+      "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
+      "id": "dff06730-26a0-417e-ada0-7a2debeb5529",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 4.33,
+        "y": 8.463,
+        "z": 0.0,
+        "point_type": "socket",
+        "power_w": 200.0
+      },
+      "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
+      "id": "e0f7f29c-54c9-414d-bf8c-01b6fdf3cd18",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 11.463,
+        "y": 3.0,
+        "z": 0.0,
+        "point_type": "light",
+        "power_w": 60.0
+      },
+      "name": "\u03a6\u03c9\u03c4\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc \u03bf\u03c1\u03bf\u03c6\u03ae\u03c2",
+      "id": "5d12a7c4-5dac-475c-ae2b-c1356d76f94f",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 11.35,
+        "y": 5.825,
+        "z": 0.0,
+        "point_type": "switch",
+        "power_w": 0.0
+      },
+      "name": "\u0394\u03b9\u03b1\u03ba\u03cc\u03c0\u03c4\u03b7\u03c2",
+      "id": "11113528-bec9-438e-9d47-7981b80669d6",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 9.17,
+        "y": 3.0,
+        "z": 0.0,
+        "point_type": "socket",
+        "power_w": 200.0
+      },
+      "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
+      "id": "4805a396-603d-452c-98c3-ba93caa25f0f",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 13.755,
+        "y": 3.0,
+        "z": 0.0,
+        "point_type": "socket",
+        "power_w": 200.0
+      },
+      "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
+      "id": "2d80bc22-11b4-4acc-94b0-db4e57cdfd02",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 4.53,
+        "y": 3.62,
+        "z": 0.0,
+        "point_type": "light",
+        "power_w": 60.0
+      },
+      "name": "\u03a6\u03c9\u03c4\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc \u03bf\u03c1\u03bf\u03c6\u03ae\u03c2",
+      "id": "e8808373-9866-4a96-8bf5-9aa3be211e81",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 3.7,
+        "y": 0.175,
+        "z": 0.0,
+        "point_type": "switch",
+        "power_w": 0.0
+      },
+      "name": "\u0394\u03b9\u03b1\u03ba\u03cc\u03c0\u03c4\u03b7\u03c2",
+      "id": "82c07dd4-f00f-42da-8da0-f41ae5ca0ef4",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 4.537,
+        "y": 0.245,
+        "z": 0.0,
+        "point_type": "socket",
+        "power_w": 200.0
+      },
+      "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
+      "id": "544ad7e6-9b42-40f2-96b2-0059a26f0f0d",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 8.83,
+        "y": 3.038,
+        "z": 0.0,
+        "point_type": "socket",
+        "power_w": 200.0
+      },
+      "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
+      "id": "4824d0db-8bf6-4554-bba8-c2f2cd537f95",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 0.205,
+        "y": 8.075,
+        "z": 0.0,
+        "point_type": "cooker",
+        "power_w": 6000.0
+      },
+      "name": "\u039a\u03bf\u03c5\u03b6\u03af\u03bd\u03b1/\u03c6\u03bf\u03cd\u03c1\u03bd\u03bf\u03c2",
+      "id": "fc4a76b2-954e-4fd9-8d38-cb575416d7aa",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 0.145,
+        "y": 8.675,
+        "z": 0.0,
+        "point_type": "dishwasher",
+        "power_w": 2000.0
+      },
+      "name": "\u03a0\u03bb\u03c5\u03bd\u03c4\u03ae\u03c1\u03b9\u03bf \u03c0\u03b9\u03ac\u03c4\u03c9\u03bd",
+      "id": "665feed3-a41d-4e6f-bc3d-472bbeaeb6e6",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 0.145,
+        "y": 10.575,
+        "z": 0.0,
+        "point_type": "socket",
+        "power_w": 200.0
+      },
+      "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
+      "id": "d258d4c3-df75-4164-a994-2e31af4c929a",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 6.713,
+        "y": 8.463,
+        "z": -3.0,
+        "point_type": "light",
+        "power_w": 60.0
+      },
+      "name": "\u03a6\u03c9\u03c4\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc \u03bf\u03c1\u03bf\u03c6\u03ae\u03c2",
+      "id": "0e2e5ede-c929-4539-9549-11c926148126",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 8.3,
+        "y": 6.1,
+        "z": -3.0,
+        "point_type": "switch",
+        "power_w": 0.0
+      },
+      "name": "\u0394\u03b9\u03b1\u03ba\u03cc\u03c0\u03c4\u03b7\u03c2",
+      "id": "4e49dc98-4cfd-476d-b9c1-e2095b2b4f9b",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 4.67,
+        "y": 8.463,
+        "z": -3.0,
+        "point_type": "socket",
+        "power_w": 200.0
+      },
+      "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
+      "id": "bd9b57b7-bd0f-47b8-82e0-e0110ed3fc1a",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 8.755,
+        "y": 8.463,
+        "z": -3.0,
+        "point_type": "socket",
+        "power_w": 200.0
+      },
+      "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
+      "id": "fad13c75-6e11-47fe-887c-c811592e49e4",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 2.288,
+        "y": 8.463,
+        "z": -3.0,
+        "point_type": "light",
+        "power_w": 60.0
+      },
+      "name": "\u03a6\u03c9\u03c4\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc \u03bf\u03c1\u03bf\u03c6\u03ae\u03c2",
+      "id": "222b3471-b7f7-4c3c-b05a-b0758142b3ef",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 2.8,
+        "y": 6.1,
+        "z": -3.0,
+        "point_type": "switch",
+        "power_w": 0.0
+      },
+      "name": "\u0394\u03b9\u03b1\u03ba\u03cc\u03c0\u03c4\u03b7\u03c2",
+      "id": "89013da6-12f7-4ed6-a8f3-8b6d0947dfe9",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 0.245,
+        "y": 8.463,
+        "z": -3.0,
+        "point_type": "socket",
+        "power_w": 200.0
+      },
+      "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
+      "id": "506a58d1-6e03-4c4c-bac9-d67d4fd342c2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 4.33,
+        "y": 8.463,
+        "z": -3.0,
+        "point_type": "socket",
+        "power_w": 200.0
+      },
+      "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
+      "id": "08777083-466b-49e5-a935-ef5a6961e43e",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 4.5,
+        "y": 3.62,
+        "z": -3.0,
+        "point_type": "light",
+        "power_w": 60.0
+      },
+      "name": "\u03a6\u03c9\u03c4\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc \u03bf\u03c1\u03bf\u03c6\u03ae\u03c2",
+      "id": "86425941-a23b-4233-81c7-c5d71572d203",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 3.7,
+        "y": 0.175,
+        "z": -3.0,
+        "point_type": "switch",
+        "power_w": 0.0
+      },
+      "name": "\u0394\u03b9\u03b1\u03ba\u03cc\u03c0\u03c4\u03b7\u03c2",
+      "id": "43626d38-3876-44b0-b892-c0f8fa0771d9",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 4.5,
+        "y": 0.245,
+        "z": -3.0,
+        "point_type": "socket",
+        "power_w": 200.0
+      },
+      "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
+      "id": "79280d85-5c0e-47b4-9699-27267759aa37",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 0.245,
+        "y": 3.038,
+        "z": -3.0,
+        "point_type": "socket",
+        "power_w": 200.0
+      },
+      "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
+      "id": "8ba05768-6b23-4991-a638-e8b73ed60daf",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 1.538,
+        "y": 8.463,
+        "z": 3.0,
+        "point_type": "light",
+        "power_w": 60.0
+      },
+      "name": "\u03a6\u03c9\u03c4\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc \u03bf\u03c1\u03bf\u03c6\u03ae\u03c2",
+      "id": "03f19647-7ed1-4a3c-a625-1eeee1ea968b",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 2.8,
+        "y": 6.1,
+        "z": 3.0,
+        "point_type": "switch",
+        "power_w": 0.0
+      },
+      "name": "\u0394\u03b9\u03b1\u03ba\u03cc\u03c0\u03c4\u03b7\u03c2",
+      "id": "0c7f3d5e-46d5-4f35-88ff-12646975f44a",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 2.83,
+        "y": 8.463,
+        "z": 3.0,
+        "point_type": "socket",
+        "power_w": 200.0
+      },
+      "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
+      "id": "fdd38610-5c00-4ec6-a296-b79f4a7945b4",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 0.245,
+        "y": 8.463,
+        "z": 3.0,
+        "point_type": "socket",
+        "power_w": 200.0
+      },
+      "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
+      "id": "ddecc0af-b6d6-45fc-9c39-0080e360fb5b",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 6.712,
+        "y": 3.038,
+        "z": 3.0,
+        "point_type": "light",
+        "power_w": 60.0
+      },
+      "name": "\u03a6\u03c9\u03c4\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc \u03bf\u03c1\u03bf\u03c6\u03ae\u03c2",
+      "id": "09dd0fdc-7ef4-478d-b21a-43f9e35f0f66",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 8.9,
+        "y": 3.0,
+        "z": 3.0,
+        "point_type": "switch",
+        "power_w": 0.0
+      },
+      "name": "\u0394\u03b9\u03b1\u03ba\u03cc\u03c0\u03c4\u03b7\u03c2",
+      "id": "922b7edb-6a67-4450-bed1-1fa2ded65d7c",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 4.67,
+        "y": 3.038,
+        "z": 3.0,
+        "point_type": "socket",
+        "power_w": 200.0
+      },
+      "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
+      "id": "1f718890-2556-4000-9121-e0ac88a82d2e",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 8.755,
+        "y": 3.038,
+        "z": 3.0,
+        "point_type": "socket",
+        "power_w": 200.0
+      },
+      "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
+      "id": "7efbe392-1b83-4981-a32b-19b0d93c9422",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 2.43,
+        "y": 3.62,
+        "z": 3.0,
+        "point_type": "light",
+        "power_w": 60.0
+      },
+      "name": "\u03a6\u03c9\u03c4\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc \u03bf\u03c1\u03bf\u03c6\u03ae\u03c2",
+      "id": "387afc92-dbec-4687-8f72-648006530b7a",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 3.7,
+        "y": 0.175,
+        "z": 3.0,
+        "point_type": "switch",
+        "power_w": 0.0
+      },
+      "name": "\u0394\u03b9\u03b1\u03ba\u03cc\u03c0\u03c4\u03b7\u03c2",
+      "id": "5354fc30-4e8d-4c40-ba57-4e539b473824",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 0.245,
+        "y": 3.038,
+        "z": 3.0,
+        "point_type": "socket",
+        "power_w": 200.0
+      },
+      "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
+      "id": "0b77bd6d-3a60-4fae-a93f-9442a61330ef",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 4.33,
+        "y": 3.038,
+        "z": 3.0,
+        "point_type": "socket",
+        "power_w": 200.0
+      },
+      "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
+      "id": "dafb6eff-e91b-478c-8959-8e68d7f8aaae",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 5.67,
+        "y": 7.98,
+        "z": 3.0,
+        "point_type": "light",
+        "power_w": 60.0
+      },
+      "name": "\u03a6\u03c9\u03c4\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc \u03bf\u03c1\u03bf\u03c6\u03ae\u03c2",
+      "id": "356d62c7-fd3c-4bb0-acf3-e94d3f484d30",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 8.3,
+        "y": 6.1,
+        "z": 3.0,
+        "point_type": "switch",
+        "power_w": 0.0
+      },
+      "name": "\u0394\u03b9\u03b1\u03ba\u03cc\u03c0\u03c4\u03b7\u03c2",
+      "id": "d4a30878-8465-42e9-a6a4-bb2680238f54",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 5.963,
+        "y": 10.755,
+        "z": 3.0,
+        "point_type": "socket",
+        "power_w": 200.0
+      },
+      "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
+      "id": "42e923cb-ea31-458d-95b1-2d422f9ced86",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 3.17,
+        "y": 8.463,
+        "z": 3.0,
+        "point_type": "socket",
+        "power_w": 200.0
+      },
+      "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
+      "id": "2f45b791-a063-4c11-9757-7d9299f3cd74",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_design",
+      "params": {
+        "system": "reinforced_concrete",
+        "occupancy": "residential",
+        "roof_access": "accessible",
+        "seismic_zone": "1",
+        "soil": "B",
+        "importance": "2",
+        "concrete": "C25/30",
+        "steel_grade": "S275",
+        "slab_thickness": 0.18,
+        "finishes": 1.5,
+        "partitions": 1.0,
+        "roof_finishes": 2.0,
+        "soil_pressure": 200.0,
+        "foundation_type": "strips",
+        "diaphragm": "rigid",
+        "seismic_method": "modal",
+        "behaviour_factor": 0.0
+      },
+      "name": "\u03a3\u03c4\u03bf\u03b9\u03c7\u03b5\u03af\u03b1 \u03c3\u03c4\u03b1\u03c4\u03b9\u03ba\u03ae\u03c2",
+      "id": "ffa65ce7-f297-4dc1-b30e-923368e10c54",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 0.075,
+        "y": 0.075,
+        "z": -3.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Basement",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a7",
+      "id": "d5385dc5-f5f0-4f07-b31b-f3330c186a60",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 0.075,
+        "y": 6.0,
+        "z": -3.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Basement",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a4",
+      "id": "4c99c47f-e767-4467-89da-50d69b92f732",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 0.075,
+        "y": 10.925,
+        "z": -3.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Basement",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a1",
+      "id": "ad8e7096-2741-4644-8ed5-c00cda66439c",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 4.5,
+        "y": 0.075,
+        "z": -3.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Basement",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a8",
+      "id": "466df41e-b150-444e-bbb2-77b3ea452096",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 4.5,
+        "y": 6.0,
+        "z": -3.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Basement",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a5",
+      "id": "08fa9948-9ba8-48c1-ab6e-5abcc3c51342",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 4.5,
+        "y": 10.925,
+        "z": -3.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Basement",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a2",
+      "id": "b953ae0e-5729-4658-af22-ce80a0ce03cc",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 8.925,
+        "y": 0.075,
+        "z": -3.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Basement",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a9",
+      "id": "60ee0d04-cd36-4da6-ab3b-d89efff8046b",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 8.925,
+        "y": 6.0,
+        "z": -3.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Basement",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a6",
+      "id": "a0d00850-3e29-4713-aa62-52a7a9a5777c",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 8.925,
+        "y": 10.925,
+        "z": -3.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Basement",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a3",
+      "id": "79dca1ff-82ba-45d8-b20c-b90ab09b57ec",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 0.0,
+        "y2": 6.0,
+        "z": -0.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Basement"
+      },
+      "name": "\u03946",
+      "id": "86dc87c7-1206-4408-916f-10de1d8a3d0d",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0.0,
+        "y1": 6.0,
+        "x2": 0.0,
+        "y2": 11.0,
+        "z": -0.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Basement"
+      },
+      "name": "\u03941",
+      "id": "229ec313-dc5c-40f7-a06d-4e8ec086df99",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 4.5,
+        "y1": 0.0,
+        "x2": 4.5,
+        "y2": 6.0,
+        "z": -0.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Basement"
+      },
+      "name": "\u03948",
+      "id": "a6de033c-212b-4446-b752-456f85eab6a7",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 4.5,
+        "y1": 6.0,
+        "x2": 4.5,
+        "y2": 11.0,
+        "z": -0.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Basement"
+      },
+      "name": "\u03943",
+      "id": "6a3cf897-9d38-4a77-9819-ddcfff55907f",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 9.0,
+        "y1": 0.0,
+        "x2": 9.0,
+        "y2": 6.0,
+        "z": -0.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Basement"
+      },
+      "name": "\u039410",
+      "id": "9b381ca5-4a4f-43f1-91d6-4e0223f9dd0c",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 9.0,
+        "y1": 6.0,
+        "x2": 9.0,
+        "y2": 11.0,
+        "z": -0.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Basement"
+      },
+      "name": "\u03945",
+      "id": "d87f696c-fb2b-4742-9e3f-43ab80770010",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 4.5,
+        "y2": 0.0,
+        "z": -0.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Basement"
+      },
+      "name": "\u039411",
+      "id": "9733bf7e-82f5-4cb4-8269-bcd1889acafa",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 4.5,
+        "y1": 0.0,
+        "x2": 9.0,
+        "y2": 0.0,
+        "z": -0.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Basement"
+      },
+      "name": "\u039412",
+      "id": "faa3a4bd-04fb-4cf2-ae05-ec53c8072cf9",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0.0,
+        "y1": 6.0,
+        "x2": 4.5,
+        "y2": 6.0,
+        "z": -0.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Basement"
+      },
+      "name": "\u03947",
+      "id": "8cd2a7de-d613-40a0-8f57-d8232d78d28c",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 4.5,
+        "y1": 6.0,
+        "x2": 9.0,
+        "y2": 6.0,
+        "z": -0.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Basement"
+      },
+      "name": "\u03949",
+      "id": "fe15ceac-35a4-4bf9-b2b1-fe5b2d0a6465",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0.0,
+        "y1": 11.0,
+        "x2": 4.5,
+        "y2": 11.0,
+        "z": -0.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Basement"
+      },
+      "name": "\u03942",
+      "id": "c8c36cbf-c3b1-4f4d-8406-8c55c69dc4b7",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 4.5,
+        "y1": 11.0,
+        "x2": 9.0,
+        "y2": 11.0,
+        "z": -0.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Basement"
+      },
+      "name": "\u03944",
+      "id": "6dc57a2e-b4ce-4f3a-bb2b-7d9af078c7d5",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 0.075,
+        "y": 0.075,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a17",
+      "id": "da486cda-e4cb-4b70-8f6c-b28c75a718ac",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 0.075,
+        "y": 6.0,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a13",
+      "id": "b12d4c53-3205-4e25-9be7-ec84ed93d1e4",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 0.075,
+        "y": 10.925,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a10",
+      "id": "fe746836-ab83-4e28-b600-63ebd15056a5",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 4.5,
+        "y": 0.075,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a18",
+      "id": "39d0c008-cda0-4c9e-be08-8aa89db8ad7a",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 4.5,
+        "y": 6.0,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a14",
+      "id": "e2ba521e-1d64-454d-b162-1f19daf184f6",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 4.5,
+        "y": 10.925,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a11",
+      "id": "abba11df-769e-40cb-8999-03381f756ad8",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 9.0,
+        "y": 0.075,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a19",
+      "id": "85deb5d4-68c8-4d6f-babe-74b3be1e8ed8",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 8.925,
+        "y": 5.925,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a15",
+      "id": "205517a8-8e3e-4b9c-88b5-dbef0ef7f475",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 8.925,
+        "y": 10.925,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a12",
+      "id": "355917e0-4b6e-4da6-8f89-99435161adf1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 13.925,
+        "y": 0.075,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a20",
+      "id": "546c03ea-f555-4c4f-ab64-1a0c0ac119ec",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 13.925,
+        "y": 5.925,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a16",
+      "id": "02fc9f7c-81e2-468c-8a6e-4876b58e9159",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 0.0,
+        "y2": 6.0,
+        "z": 2.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u039418",
+      "id": "9b41516b-2be9-4b80-8270-b7c8af6821ed",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0.0,
+        "y1": 6.0,
+        "x2": 0.0,
+        "y2": 11.0,
+        "z": 2.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u039413",
+      "id": "303eef79-ac04-4f96-9c2c-5ef4cc064d30",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 4.5,
+        "y1": 0.0,
+        "x2": 4.5,
+        "y2": 6.0,
+        "z": 2.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u039420",
+      "id": "383593e4-37bd-4b02-a4cf-a90e7f67ef99",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 4.5,
+        "y1": 6.0,
+        "x2": 4.5,
+        "y2": 11.0,
+        "z": 2.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u039415",
+      "id": "d5f4456d-2065-4a34-a6ee-e593b7c70952",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 9.0,
+        "y1": 0.0,
+        "x2": 9.0,
+        "y2": 6.0,
+        "z": 2.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u039422",
+      "id": "ae6c73d1-7c90-4aca-92b6-84d3b8c7a954",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 9.0,
+        "y1": 6.0,
+        "x2": 9.0,
+        "y2": 11.0,
+        "z": 2.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u039417",
+      "id": "54568edd-f7d8-4b19-b408-810377931505",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 14.0,
+        "y1": 0.0,
+        "x2": 14.0,
+        "y2": 6.0,
+        "z": 2.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u039424",
+      "id": "f9ca83cc-c723-4cdb-b4ac-42b941fc32b3",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 4.5,
+        "y2": 0.0,
+        "z": 2.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u039425",
+      "id": "8745bf40-f509-4cca-a19d-2a953fc200e5",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 4.5,
+        "y1": 0.0,
+        "x2": 9.0,
+        "y2": 0.0,
+        "z": 2.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u039426",
+      "id": "a4b7607e-a5a6-4d14-9697-a95030f2275c",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 9.0,
+        "y1": 0.0,
+        "x2": 14.0,
+        "y2": 0.0,
+        "z": 2.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u039427",
+      "id": "8b2d38df-7eb2-4aca-a6d5-d959bd5bb645",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0.0,
+        "y1": 6.0,
+        "x2": 4.5,
+        "y2": 6.0,
+        "z": 2.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u039419",
+      "id": "dd4f5be6-f5e2-4e7e-9c9e-e94a4d0878e9",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 4.5,
+        "y1": 6.0,
+        "x2": 9.0,
+        "y2": 6.0,
+        "z": 2.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u039421",
+      "id": "6ff68d5a-43ea-466e-9bae-6d388d2ea1c9",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 9.0,
+        "y1": 6.0,
+        "x2": 14.0,
+        "y2": 6.0,
+        "z": 2.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u039423",
+      "id": "84e1cf53-3263-4baf-9d6e-7739157ce5e6",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0.0,
+        "y1": 11.0,
+        "x2": 4.5,
+        "y2": 11.0,
+        "z": 2.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u039414",
+      "id": "15754bb6-1d13-4ed6-b531-6142b0bca0f8",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 4.5,
+        "y1": 11.0,
+        "x2": 9.0,
+        "y2": 11.0,
+        "z": 2.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u039416",
+      "id": "5f68eb67-4bab-4b7e-89ce-8147193341e8",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 0.075,
+        "y": 0.075,
+        "z": 3.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Floor 1",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a27",
+      "id": "db4c328d-4244-48c1-8f28-afde4eb63a56",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 0.075,
+        "y": 6.0,
+        "z": 3.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Floor 1",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a24",
+      "id": "9a6be28a-330a-4eaa-b5a9-346692510a2c",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 0.075,
+        "y": 10.925,
+        "z": 3.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Floor 1",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a21",
+      "id": "68d39805-e907-4427-8c67-e846f9fc77f4",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 4.5,
+        "y": 0.075,
+        "z": 3.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Floor 1",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a28",
+      "id": "63ee9aab-4f7d-4998-8f82-08c80a0b4164",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 4.5,
+        "y": 6.0,
+        "z": 3.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Floor 1",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a25",
+      "id": "7cf95bb1-bceb-4cbc-941d-f945b034b6dc",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 4.5,
+        "y": 10.925,
+        "z": 3.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Floor 1",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a22",
+      "id": "535d6c59-109a-42a1-b534-458afdc7e5af",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 8.925,
+        "y": 0.075,
+        "z": 3.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Floor 1",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a29",
+      "id": "23db06da-ce09-43f0-b781-a6d8bcc386c9",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 8.925,
+        "y": 6.0,
+        "z": 3.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Floor 1",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a26",
+      "id": "03eefd8e-cf09-4af3-8671-c94070e0b199",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 8.925,
+        "y": 10.925,
+        "z": 3.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Floor 1",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a23",
+      "id": "d2349e00-cbfb-41dd-8c4d-13cb5dbce6bf",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 0.0,
+        "y2": 6.0,
+        "z": 5.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Floor 1"
+      },
+      "name": "\u039433",
+      "id": "6a6af803-f5c4-4d9c-822a-533dccbae067",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0.0,
+        "y1": 6.0,
+        "x2": 0.0,
+        "y2": 11.0,
+        "z": 5.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Floor 1"
+      },
+      "name": "\u039428",
+      "id": "c2698f6c-c40e-4a50-a806-9ef6f9354b10",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 4.5,
+        "y1": 0.0,
+        "x2": 4.5,
+        "y2": 6.0,
+        "z": 5.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Floor 1"
+      },
+      "name": "\u039435",
+      "id": "6ce01cb0-5270-401a-863d-a66b63625192",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 4.5,
+        "y1": 6.0,
+        "x2": 4.5,
+        "y2": 11.0,
+        "z": 5.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Floor 1"
+      },
+      "name": "\u039430",
+      "id": "a6739e07-5f3b-4ca9-b8c3-5923a6bf808f",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 9.0,
+        "y1": 0.0,
+        "x2": 9.0,
+        "y2": 6.0,
+        "z": 5.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Floor 1"
+      },
+      "name": "\u039437",
+      "id": "08aec3a6-04fa-4cd4-a747-867463df094d",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 9.0,
+        "y1": 6.0,
+        "x2": 9.0,
+        "y2": 11.0,
+        "z": 5.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Floor 1"
+      },
+      "name": "\u039432",
+      "id": "28db1a44-1ded-4f44-8530-58543be0d05c",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 4.5,
+        "y2": 0.0,
+        "z": 5.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Floor 1"
+      },
+      "name": "\u039438",
+      "id": "9f18580d-0b72-4b39-9d4d-1b4b6a36aab5",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 4.5,
+        "y1": 0.0,
+        "x2": 9.0,
+        "y2": 0.0,
+        "z": 5.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Floor 1"
+      },
+      "name": "\u039439",
+      "id": "374ecc63-3c05-4ee2-bf47-ba7689bb8d06",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0.0,
+        "y1": 6.0,
+        "x2": 4.5,
+        "y2": 6.0,
+        "z": 5.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Floor 1"
+      },
+      "name": "\u039434",
+      "id": "a89eec68-c4ec-410a-ad3d-62cc25452728",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 4.5,
+        "y1": 6.0,
+        "x2": 9.0,
+        "y2": 6.0,
+        "z": 5.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Floor 1"
+      },
+      "name": "\u039436",
+      "id": "96a8b67f-7411-420e-a4bd-fb426b84d6e2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0.0,
+        "y1": 11.0,
+        "x2": 4.5,
+        "y2": 11.0,
+        "z": 5.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Floor 1"
+      },
+      "name": "\u039429",
+      "id": "a8b06d14-8e36-4f3c-b2bf-cd9129ff8d35",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 4.5,
+        "y1": 11.0,
+        "x2": 9.0,
+        "y2": 11.0,
+        "z": 5.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Floor 1"
+      },
+      "name": "\u039431",
+      "id": "e7155411-505b-4afb-ba19-23c7d898aef4",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 3.0,
+        "width": 1.0,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "\u03a0\u03cc\u03c1\u03c4\u03b1 1",
+      "id": "a41944f7-7d4b-4529-82da-878828e72727",
+      "parent_id": "83be9f2f-3313-47b8-8a97-20b7ea38f244",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 1.2,
+        "width": 1.4,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "\u03a0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf 1",
+      "id": "ece29b50-327a-469f-8c1d-c2e5cabcf8d8",
+      "parent_id": "83be9f2f-3313-47b8-8a97-20b7ea38f244",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 6.5,
+        "width": 2.0,
+        "height": 2.2,
+        "sill": 0.0
+      },
+      "name": "\u03a0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf 2",
+      "id": "f854150f-5fc2-416e-a013-9dc1ce56c230",
+      "parent_id": "83be9f2f-3313-47b8-8a97-20b7ea38f244",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 8.0,
+        "width": 1.4,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "\u03a0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf 3",
+      "id": "e7d8aed5-c918-4713-a155-c57b6ecbaffa",
+      "parent_id": "67955a6b-7e94-42ad-8b40-9edff8e247ce",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 6.8,
+        "width": 1.2,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "\u03a0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf 4",
+      "id": "2ab4c54b-8037-4d41-a137-563ac3baabd5",
+      "parent_id": "0ddd186e-68f8-4cef-a88c-37e49b92815e",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 11.5,
+        "width": 1.6,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "\u03a0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf 5",
+      "id": "1f774ff6-30aa-4f36-a807-ad5c24ba4ffb",
+      "parent_id": "83be9f2f-3313-47b8-8a97-20b7ea38f244",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 3.0,
+        "width": 1.2,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "\u03a0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf 6",
+      "id": "8c4ac03c-62ea-4edd-923e-09a075dfd53b",
+      "parent_id": "5e794c94-ea69-4f46-a3db-8586ce5a2971",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 2.0,
+        "width": 0.9,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "\u03a0\u03cc\u03c1\u03c4\u03b1 2",
+      "id": "cec192dd-2461-4aae-9c0e-bbf7edac6340",
+      "parent_id": "f393364a-0e2d-4f7f-b049-f1942c5a9902",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 3.0,
+        "width": 0.8,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "\u03a0\u03cc\u03c1\u03c4\u03b1 3",
+      "id": "8119ca4d-99f1-4cd9-81ce-3dc938cfe736",
+      "parent_id": "fbe17d8a-2c94-4ef3-b14d-fc6afb0f4796",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 2.2,
+        "width": 0.8,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "\u03a0\u03cc\u03c1\u03c4\u03b1 4",
+      "id": "afa27d83-e5e5-41db-81a7-5247bd395d61",
+      "parent_id": "911a1b79-3595-4083-93fd-2b092b0d18ee",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 7.599999999999999,
+        "width": 1.0,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "\u03a0\u03cc\u03c1\u03c4\u03b1 5",
+      "id": "b0932e0c-aa22-40a4-bd73-813e515a2240",
+      "parent_id": "911a1b79-3595-4083-93fd-2b092b0d18ee",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 2.2,
+        "width": 1.0,
+        "height": 0.5,
+        "sill": 1.9
+      },
+      "name": "\u03a0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf 7",
+      "id": "6ae1475c-7007-4b28-9f15-626bbe59d2e8",
+      "parent_id": "4da8fab5-7c09-413c-ad21-e56d119cab9b",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 6.5,
+        "width": 1.0,
+        "height": 0.5,
+        "sill": 1.9
+      },
+      "name": "\u03a0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf 8",
+      "id": "34960254-a903-41c3-9dfb-8f14ae814515",
+      "parent_id": "4da8fab5-7c09-413c-ad21-e56d119cab9b",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 7.599999999999999,
+        "width": 1.0,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "\u03a0\u03cc\u03c1\u03c4\u03b1 6",
+      "id": "e5b96cc6-7343-4c3c-aed1-33a16d5ba951",
+      "parent_id": "9e596f2c-302e-450e-bff9-e046544d3ac4",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 2.2,
+        "width": 0.8,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "\u03a0\u03cc\u03c1\u03c4\u03b1 7",
+      "id": "ecdd4743-824e-4238-89cf-7dc296f15586",
+      "parent_id": "9e596f2c-302e-450e-bff9-e046544d3ac4",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 2.2,
+        "width": 1.4,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "\u03a0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf 9",
+      "id": "fa84a105-5056-458e-864b-e9d092df337a",
+      "parent_id": "6bd6f98f-3553-4273-8303-f362b8632996",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 6.7,
+        "width": 1.4,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "\u03a0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf 10",
+      "id": "bd7df56c-db48-4d1e-9d2f-4dd16e287549",
+      "parent_id": "6bd6f98f-3553-4273-8303-f362b8632996",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 3.0,
+        "width": 1.2,
+        "height": 2.2,
+        "sill": 0.0
+      },
+      "name": "\u03a0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf 11",
+      "id": "ec9daa70-f749-4c2d-9e68-67e7da00904e",
+      "parent_id": "2da69639-2e8e-4210-82d7-4c26bd39c2f2",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 7.5,
+        "width": 0.6,
+        "height": 0.6,
+        "sill": 1.5
+      },
+      "name": "\u03a0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf 12",
+      "id": "9785d663-7d30-4f11-87bc-5ad80933c7ee",
+      "parent_id": "51e0bb0f-e262-45b4-af8a-791310c87c01",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 8.5,
+        "width": 1.0,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "\u03a0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf 13",
+      "id": "27671c84-ae32-425c-83b3-e268f790913b",
+      "parent_id": "2da69639-2e8e-4210-82d7-4c26bd39c2f2",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 3.7999999999999994,
+        "width": 0.8,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "\u03a0\u03cc\u03c1\u03c4\u03b1 8",
+      "id": "a421c50c-aefc-4747-8806-4898b9459530",
+      "parent_id": "25b7d014-ff11-45f2-9b66-ca0b5bcce52a",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 7.0,
+        "width": 0.8,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "\u03a0\u03cc\u03c1\u03c4\u03b1 9",
+      "id": "c700b8e8-0ff7-48bb-9ff7-a6dd119e1279",
+      "parent_id": "25b7d014-ff11-45f2-9b66-ca0b5bcce52a",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 2.4999999999999996,
+        "width": 0.8,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "\u03a0\u03cc\u03c1\u03c4\u03b1 10",
+      "id": "fa5f94e0-7c7d-4d33-94eb-d7ee8a3794a8",
+      "parent_id": "de6fefbf-ec58-47c3-88f1-e254898079fc",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    }
+  ],
+  "dependencies": {
+    "83be9f2f-3313-47b8-8a97-20b7ea38f244": [
+      "1f774ff6-30aa-4f36-a807-ad5c24ba4ffb",
+      "a41944f7-7d4b-4529-82da-878828e72727",
+      "ece29b50-327a-469f-8c1d-c2e5cabcf8d8",
+      "f854150f-5fc2-416e-a013-9dc1ce56c230",
+      "f8cfc348-bf66-43c7-9109-26758d4f2e49"
+    ],
+    "67955a6b-7e94-42ad-8b40-9edff8e247ce": [
+      "e7d8aed5-c918-4713-a155-c57b6ecbaffa"
+    ],
+    "0ddd186e-68f8-4cef-a88c-37e49b92815e": [
+      "2ab4c54b-8037-4d41-a137-563ac3baabd5"
+    ],
+    "5e794c94-ea69-4f46-a3db-8586ce5a2971": [
+      "8c4ac03c-62ea-4edd-923e-09a075dfd53b",
+      "f8cfc348-bf66-43c7-9109-26758d4f2e49"
+    ],
+    "f393364a-0e2d-4f7f-b049-f1942c5a9902": [
+      "cec192dd-2461-4aae-9c0e-bbf7edac6340",
+      "f8cfc348-bf66-43c7-9109-26758d4f2e49"
+    ],
+    "fbe17d8a-2c94-4ef3-b14d-fc6afb0f4796": [
+      "8119ca4d-99f1-4cd9-81ce-3dc938cfe736",
+      "f8cfc348-bf66-43c7-9109-26758d4f2e49"
+    ],
+    "911a1b79-3595-4083-93fd-2b092b0d18ee": [
+      "afa27d83-e5e5-41db-81a7-5247bd395d61",
+      "b0932e0c-aa22-40a4-bd73-813e515a2240"
+    ],
+    "4da8fab5-7c09-413c-ad21-e56d119cab9b": [
+      "34960254-a903-41c3-9dfb-8f14ae814515",
+      "6ae1475c-7007-4b28-9f15-626bbe59d2e8"
+    ],
+    "9e596f2c-302e-450e-bff9-e046544d3ac4": [
+      "e5b96cc6-7343-4c3c-aed1-33a16d5ba951",
+      "ecdd4743-824e-4238-89cf-7dc296f15586"
+    ],
+    "6bd6f98f-3553-4273-8303-f362b8632996": [
+      "bd7df56c-db48-4d1e-9d2f-4dd16e287549",
+      "fa84a105-5056-458e-864b-e9d092df337a"
+    ],
+    "2da69639-2e8e-4210-82d7-4c26bd39c2f2": [
+      "27671c84-ae32-425c-83b3-e268f790913b",
+      "ec9daa70-f749-4c2d-9e68-67e7da00904e"
+    ],
+    "51e0bb0f-e262-45b4-af8a-791310c87c01": [
+      "9785d663-7d30-4f11-87bc-5ad80933c7ee"
+    ],
+    "25b7d014-ff11-45f2-9b66-ca0b5bcce52a": [
+      "a421c50c-aefc-4747-8806-4898b9459530",
+      "c700b8e8-0ff7-48bb-9ff7-a6dd119e1279"
+    ],
+    "de6fefbf-ec58-47c3-88f1-e254898079fc": [
+      "fa5f94e0-7c7d-4d33-94eb-d7ee8a3794a8"
+    ]
+  },
+  "levels": {
+    "Ground": 0.0,
+    "Basement": -3.0,
+    "Floor 1": 3.0
+  },
+  "work_plane": {
+    "name": "Floor 1",
+    "origin": [
+      0.0,
+      0.0,
+      3.0
+    ],
+    "u": [
+      1.0,
+      0.0,
+      0.0
+    ],
+    "v": [
+      0.0,
+      1.0,
+      0.0
+    ]
+  },
+  "materials": {},
+  "constructions": {},
+  "room_data": {
+    "e9aebfc8-2332-4add-8799-9598c7d20dfb": {
+      "name": "\u03a3\u03b1\u03bb\u03cc\u03bd\u03b9",
+      "use": "\u03a3\u03b1\u03bb\u03cc\u03bd\u03b9"
+    },
+    "08d01202-a32e-460c-a22b-7e4cbe1c20e0": {
+      "name": "\u039a\u03bf\u03c5\u03b6\u03af\u03bd\u03b1",
+      "use": "\u039a\u03bf\u03c5\u03b6\u03af\u03bd\u03b1"
+    },
+    "f36c533c-8009-4537-80df-144e1ff1b8d2": {
+      "name": "\u039a\u03bb\u03b9\u03bc\u03b1\u03ba\u03bf\u03c3\u03c4\u03ac\u03c3\u03b9\u03bf",
+      "use": "\u039a\u03bb\u03b9\u03bc\u03b1\u03ba\u03bf\u03c3\u03c4\u03ac\u03c3\u03b9\u03bf"
+    },
+    "bea9444a-56d6-4417-9d87-48220a9aa0ae": {
+      "name": "\u0393\u03c1\u03b1\u03c6\u03b5\u03af\u03bf",
+      "use": "\u0393\u03c1\u03b1\u03c6\u03b5\u03af\u03bf"
+    },
+    "fa9b8895-90a6-42eb-9a20-223c1ddf3b98": {
+      "name": "\u0391\u03c0\u03bf\u03b8\u03ae\u03ba\u03b7",
+      "use": "\u0391\u03c0\u03bf\u03b8\u03ae\u03ba\u03b7"
+    },
+    "f27feb04-4a12-47c9-991a-9bdd54a70202": {
+      "name": "\u039b\u03b5\u03b2\u03b7\u03c4\u03bf\u03c3\u03c4\u03ac\u03c3\u03b9\u03bf",
+      "use": "\u039b\u03b5\u03b2\u03b7\u03c4\u03bf\u03c3\u03c4\u03ac\u03c3\u03b9\u03bf"
+    },
+    "a24b319e-eac5-4326-a6ef-c0b72b40c08c": {
+      "name": "\u039a\u03bb\u03b9\u03bc\u03b1\u03ba\u03bf\u03c3\u03c4\u03ac\u03c3\u03b9\u03bf",
+      "use": "\u039a\u03bb\u03b9\u03bc\u03b1\u03ba\u03bf\u03c3\u03c4\u03ac\u03c3\u03b9\u03bf"
+    },
+    "61b892a5-62f4-4c3f-82bd-d8e6728ba800": {
+      "name": "\u03a5\u03c0\u03bd\u03bf\u03b4\u03c9\u03bc\u03ac\u03c4\u03b9\u03bf 1",
+      "use": "\u03a5\u03c0\u03bd\u03bf\u03b4\u03c9\u03bc\u03ac\u03c4\u03b9\u03bf 1"
+    },
+    "c94ee657-b845-4833-bbf8-1b5cbf1ef959": {
+      "name": "\u03a5\u03c0\u03bd\u03bf\u03b4\u03c9\u03bc\u03ac\u03c4\u03b9\u03bf 2",
+      "use": "\u03a5\u03c0\u03bd\u03bf\u03b4\u03c9\u03bc\u03ac\u03c4\u03b9\u03bf 2"
+    },
+    "012c63e5-ce4d-4b7d-a0ee-00e88eb07c01": {
+      "name": "\u039c\u03c0\u03ac\u03bd\u03b9\u03bf",
+      "use": "\u039c\u03c0\u03ac\u03bd\u03b9\u03bf"
+    },
+    "6621d2af-2004-468b-b404-9108b953dc5f": {
+      "name": "\u039a\u03bb\u03b9\u03bc\u03b1\u03ba\u03bf\u03c3\u03c4\u03ac\u03c3\u03b9\u03bf",
+      "use": "\u039a\u03bb\u03b9\u03bc\u03b1\u03ba\u03bf\u03c3\u03c4\u03ac\u03c3\u03b9\u03bf"
+    }
+  },
+  "room_bindings": {
+    "11ea6018-707e-4019-a9fc-1651a4392577": {
+      "signature": "room-4684e72ded5e8e71",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          14.0,
+          0.0
+        ],
+        [
+          14.0,
+          6.0
+        ],
+        [
+          9.0,
+          6.000000000000001
+        ],
+        [
+          9.000000000000002,
+          11.0
+        ],
+        [
+          0.0,
+          11.000000000000005
+        ]
+      ],
+      "z": 0.0,
+      "status": "unclosed"
+    },
+    "bea9444a-56d6-4417-9d87-48220a9aa0ae": {
+      "signature": "room-134efa78395f96b0",
+      "polygon": [
+        [
+          9.0,
+          0.0
+        ],
+        [
+          14.0,
+          0.0
+        ],
+        [
+          14.0,
+          6.0
+        ],
+        [
+          9.0,
+          6.000000000000001
+        ]
+      ],
+      "z": 0.0,
+      "status": "enclosed"
+    },
+    "45f8636c-4558-4fd0-8fc3-9e367040316c": {
+      "signature": "room-22121670e985b9f5",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          9.0,
+          0.0
+        ],
+        [
+          9.0,
+          6.000000000000001
+        ],
+        [
+          9.000000000000002,
+          11.0
+        ],
+        [
+          0.0,
+          11.000000000000005
+        ]
+      ],
+      "z": 0.0,
+      "status": "unclosed"
+    },
+    "5c2e9d28-8bb9-47e1-bca0-19d3ed7ea00b": {
+      "signature": "room-9badd4ec5d996933",
+      "polygon": [
+        [
+          9.0,
+          6.000000000000001
+        ],
+        [
+          9.000000000000002,
+          11.0
+        ],
+        [
+          0.0,
+          11.000000000000005
+        ],
+        [
+          0.0,
+          6.0
+        ]
+      ],
+      "z": 0.0,
+      "status": "unclosed"
+    },
+    "e9aebfc8-2332-4add-8799-9598c7d20dfb": {
+      "signature": "room-5ab7ae896167342a",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          9.0,
+          0.0
+        ],
+        [
+          9.0,
+          6.000000000000001
+        ],
+        [
+          4.5,
+          6.0
+        ],
+        [
+          0.0,
+          6.0
+        ]
+      ],
+      "z": 0.0,
+      "status": "enclosed"
+    },
+    "f36c533c-8009-4537-80df-144e1ff1b8d2": {
+      "signature": "room-154fc901e5f6520b",
+      "polygon": [
+        [
+          9.0,
+          6.000000000000001
+        ],
+        [
+          9.000000000000002,
+          11.0
+        ],
+        [
+          4.5,
+          11.000000000000004
+        ],
+        [
+          4.5,
+          6.0
+        ]
+      ],
+      "z": 0.0,
+      "status": "enclosed"
+    },
+    "08d01202-a32e-460c-a22b-7e4cbe1c20e0": {
+      "signature": "room-a564f2a135092114",
+      "polygon": [
+        [
+          4.5,
+          11.000000000000004
+        ],
+        [
+          0.0,
+          11.000000000000005
+        ],
+        [
+          0.0,
+          6.0
+        ],
+        [
+          4.5,
+          6.0
+        ]
+      ],
+      "z": 0.0,
+      "status": "enclosed"
+    },
+    "23d113e1-6550-4590-ba94-d934d4bfee73": {
+      "signature": "room-6bdde0c1f4de665d",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          9.0,
+          0.0
+        ],
+        [
+          9.0,
+          11.0
+        ],
+        [
+          0.0,
+          11.000000000000002
+        ]
+      ],
+      "z": -3.0,
+      "status": "unclosed"
+    },
+    "3ff371f1-61a1-44a5-8c25-3341b6698658": {
+      "signature": "room-8da3b3a290ccc560",
+      "polygon": [
+        [
+          9.0,
+          6.0
+        ],
+        [
+          9.0,
+          11.0
+        ],
+        [
+          0.0,
+          11.000000000000002
+        ],
+        [
+          0.0,
+          6.0
+        ]
+      ],
+      "z": -3.0,
+      "status": "unclosed"
+    },
+    "fa9b8895-90a6-42eb-9a20-223c1ddf3b98": {
+      "signature": "room-b6f75f4bf9759eec",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          9.0,
+          0.0
+        ],
+        [
+          9.0,
+          6.0
+        ],
+        [
+          4.5,
+          6.0
+        ],
+        [
+          0.0,
+          6.0
+        ]
+      ],
+      "z": -3.0,
+      "status": "enclosed"
+    },
+    "a24b319e-eac5-4326-a6ef-c0b72b40c08c": {
+      "signature": "room-2eb18041830bc88a",
+      "polygon": [
+        [
+          9.0,
+          6.0
+        ],
+        [
+          9.0,
+          11.0
+        ],
+        [
+          4.5,
+          11.0
+        ],
+        [
+          4.5,
+          6.0
+        ]
+      ],
+      "z": -3.0,
+      "status": "enclosed"
+    },
+    "f27feb04-4a12-47c9-991a-9bdd54a70202": {
+      "signature": "room-4f0209810b9cdb8e",
+      "polygon": [
+        [
+          4.5,
+          11.0
+        ],
+        [
+          0.0,
+          11.000000000000002
+        ],
+        [
+          0.0,
+          6.0
+        ],
+        [
+          4.5,
+          6.0
+        ]
+      ],
+      "z": -3.0,
+      "status": "enclosed"
+    },
+    "c46216fa-63ed-43ac-99fc-db2aa06bc436": {
+      "signature": "room-c77acae8b59e9b22",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          9.0,
+          0.0
+        ],
+        [
+          9.0,
+          11.0
+        ],
+        [
+          0.0,
+          11.000000000000002
+        ]
+      ],
+      "z": 3.0,
+      "status": "unclosed"
+    },
+    "22f72d2a-b210-42a5-b045-7253ac9ad4e8": {
+      "signature": "room-15b72fcb0770177e",
+      "polygon": [
+        [
+          9.0,
+          6.0
+        ],
+        [
+          9.0,
+          11.0
+        ],
+        [
+          0.0,
+          11.000000000000002
+        ],
+        [
+          0.0,
+          6.0
+        ],
+        [
+          4.5,
+          6.0
+        ]
+      ],
+      "z": 3.0,
+      "status": "unclosed"
+    },
+    "e7ce6954-1f9a-4d19-a91e-9bbd26892c64": {
+      "signature": "room-7132c22b470bdf1c",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          9.0,
+          0.0
+        ],
+        [
+          9.0,
+          6.0
+        ],
+        [
+          0.0,
+          6.0
+        ]
+      ],
+      "z": 3.0,
+      "status": "unclosed"
+    },
+    "c94ee657-b845-4833-bbf8-1b5cbf1ef959": {
+      "signature": "room-2182df4484a08085",
+      "polygon": [
+        [
+          4.5,
+          0.0
+        ],
+        [
+          9.0,
+          0.0
+        ],
+        [
+          9.0,
+          6.0
+        ],
+        [
+          4.5,
+          6.0
+        ]
+      ],
+      "z": 3.0,
+      "status": "enclosed"
+    },
+    "61b892a5-62f4-4c3f-82bd-d8e6728ba800": {
+      "signature": "room-300858249ad6b7a1",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          4.5,
+          0.0
+        ],
+        [
+          4.5,
+          6.0
+        ],
+        [
+          3.0000000000000004,
+          6.0
+        ],
+        [
+          0.0,
+          6.0
+        ]
+      ],
+      "z": 3.0,
+      "status": "enclosed"
+    },
+    "012c63e5-ce4d-4b7d-a0ee-00e88eb07c01": {
+      "signature": "room-3c976e105e1ea761",
+      "polygon": [
+        [
+          3.0,
+          11.000000000000002
+        ],
+        [
+          0.0,
+          11.000000000000002
+        ],
+        [
+          0.0,
+          6.0
+        ],
+        [
+          3.0000000000000004,
+          6.0
+        ]
+      ],
+      "z": 3.0,
+      "status": "enclosed"
+    },
+    "6621d2af-2004-468b-b404-9108b953dc5f": {
+      "signature": "room-8515b2e6780e1a74",
+      "polygon": [
+        [
+          9.0,
+          6.0
+        ],
+        [
+          9.0,
+          11.0
+        ],
+        [
+          3.0,
+          11.000000000000002
+        ],
+        [
+          3.0000000000000004,
+          6.0
+        ],
+        [
+          4.5,
+          6.0
+        ]
+      ],
+      "z": 3.0,
+      "status": "enclosed"
+    }
+  },
+  "surface_modifiers": [],
+  "view_layers": {
+    "workspace": "arch",
+    "overrides": {}
+  }
+}

@@ -79,8 +79,8 @@ class Scenario:
                 return f"νέος όροφος στα {float(elevation):+.2f} m"
             w._refresh_floor_selector()
             w._activate_level_by_name(name)
-            if self.doc.work_plane.name != name:
-                raise ValueError(f"ο επιλογέας ορόφων δεν άλλαξε στο «{name}» (ενεργός: {self.doc.work_plane.name})")
+            if self.doc.active_level_name() != name:
+                raise ValueError(f"ο επιλογέας ορόφων δεν άλλαξε στο «{name}» (ενεργός: {self.doc.active_level_name()})")
             return f"ενεργός όροφος στα {self.level_z():+.2f} m"
         return self.step(f"Όροφος «{name}»", run)
 

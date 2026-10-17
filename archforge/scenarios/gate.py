@@ -146,10 +146,20 @@ class Gate:
         doors = [e for e in self.ents("door", "opening") if e.parent_id in self.doc.entities and
                  abs(float(self.doc.get(e.parent_id).params.get("z", 0.0)) - z) < 1e-3]
         bad = []
-        for face, name, _use in self.rooms(z):
+        rooms = self.rooms(z)
+
+        def doors_of(face):
+            return [d for d in doors if any(point_in_polygon(px, py, face.polygon) for px, py in _opening_sides(self.doc, d))]
+
+        def en_suite(d, face):
+            # The other side is a bathroom/WC whose only door is this one: an en-suite, not a passage.
+            other = [(f, n) for f, n, _u in rooms if f.signature != face.signature and
+                     any(point_in_polygon(px, py, f.polygon) for px, py in _opening_sides(self.doc, d))]
+            return bool(other) and other[0][1].startswith(("Μπάνιο", "WC")) and len(doors_of(other[0][0])) == 1
+        for face, name, _use in rooms:
             if not name.startswith(PRIVATE):
                 continue
-            n = sum(1 for d in doors if any(point_in_polygon(px, py, face.polygon) for px, py in _opening_sides(self.doc, d)))
+            n = sum(1 for d in doors_of(face) if not en_suite(d, face))
             if n > 1:
                 bad.append(f"{name} ({n} πόρτες)")
         self.add(1, f"Κανένα υπνοδωμάτιο/μπάνιο δεν είναι πέρασμα ({z:+.2f})", not bad,
@@ -193,7 +203,10 @@ class Gate:
             if d.parent_id not in self.doc.entities:
                 continue
             sq, into, _other = self._door_leaf_square(d)
+            dz = self._floor_z(self.doc.get(d.parent_id))
             for e in objs:
+                if abs(self._floor_z(e) - dz) > 1e-3:
+                    continue                                     # another storey
                 try:
                     if _overlap(footprint(e.params), sq) > 0.02:
                         bad.append(f"{d.name}: {e.name}")
@@ -287,10 +300,10 @@ class Gate:
                         bad.append(f"{name} χωρίς κρεβάτι")
                 if name.startswith("Σαλόνι"):
                     n += 1
-                    if "Καναπ" not in names:
+                    if "καναπ" not in names.lower():
                         bad.append(f"{name} χωρίς καναπέ")
-        self.add(1, "Έπιπλα: κρεβάτι σε κάθε υπνοδωμάτιο, καναπές στο σαλόνι", n > 0 and not bad,
-                 f"{len(self.ents('library_object'))} έπιπλα/είδη" + ("" if not bad else " · " + " · ".join(bad)))
+        self.add(1, "Έπιπλα: κρεβάτι σε κάθε υπνοδωμάτιο, καναπές στο σαλόνι", (not bad) if n else None,
+                 f"{len(self.ents('library_object'))} έπιπλα/είδη" + ("" if n else " · χωρίς σαλόνι/υπνοδωμάτιο (γραφεία)") + ("" if not bad else " · " + " · ".join(bad)))
 
     def _collisions(self):
         """Footprints (plan, low objects): outside every room, through a wall, or overlapping each other."""
@@ -300,6 +313,8 @@ class Gate:
                 if float(e.params.get("z", 0.0)) - self._floor_z(e) < 0.5 and str(e.params.get("cabinet_type", "base")) != "wall"]
         problems = []
         polys = {}
+        from archforge.library.assets import list_assets
+        outdoor = {a["id"] for a in list_assets() if "Εξωτερικοί χώροι" in (a.get("category") or ())}
         for e in objs:
             try:
                 poly = footprint(e.params)
@@ -312,6 +327,8 @@ class Gate:
             inner = [(cx + (p[0] - cx) * 0.98, cy + (p[1] - cy) * 0.98) for p in poly]
             face, room = self.room_of(cx, cy, z)
             if face is None:
+                if e.params.get("asset") in outdoor:
+                    continue                                     # garden furniture belongs outside
                 problems.append(f"{e.name}: έξω από χώρο")
                 continue
             from archforge.quantities.takeoff import net_polygon
@@ -325,6 +342,8 @@ class Gate:
                 a, b = self.doc.get(ids[i]), self.doc.get(ids[j])
                 if a.params.get("layout_id") and a.params.get("layout_id") == b.params.get("layout_id"):
                     continue                                     # the parts of one kitchen/bathroom fit by design
+                if abs(self._floor_z(a) - self._floor_z(b)) > 1e-3:
+                    continue                                     # different storeys never collide
                 if _overlap(polys[ids[i]], polys[ids[j]]) > 0.01:
                     problems.append(f"{a.name} ↔ {b.name}: επικάλυψη")
         self.add(1, "Έπιπλα/είδη μέσα σε χώρο, όχι πάνω σε τοίχο ή μεταξύ τους", not problems,
@@ -415,7 +434,7 @@ class Gate:
                  + ("" if not unsourced else " · χωρίς πηγή: " + ", ".join(unsourced)))
 
     def _column_continuity(self):
-        cols = self.ents("structural_column")
+        cols = [c for c in self.ents("structural_column") if c.params.get("role") != "pergola"]   # posts stand on the ground
         st = self.storeys()
         bad = []
         for c in cols:
@@ -472,21 +491,8 @@ class Gate:
                  + (f" · ασύνδετα τμήματα: {', '.join(loose)}" if loose else ""))
 
     def _pipe_islands(self, pipes, system, allowed=1):
-        nodes = {}
-        def key(p):
-            return (round(p[0], 2), round(p[1], 2), round(p[2], 2))
-        parent = {}
-        def find(a):
-            while parent.setdefault(a, a) != a:
-                parent[a] = parent[parent[a]]
-                a = parent[a]
-            return a
-        for seg in pipes:
-            a, b = key(seg[0]), key(seg[1])
-            parent[find(a)] = find(b)
-            nodes[a] = nodes[b] = True
-        roots = {find(n) for n in nodes}
-        return [f"{system}: {len(roots)} ξεχωριστά κομμάτια (επιτρέπονται {allowed})"] if len(roots) > allowed else []
+        n = len(_components([(seg[0], seg[1]) for seg in pipes]))      # tees into a pipe's middle count as joined
+        return [f"{system}: {n} ξεχωριστά κομμάτια (επιτρέπονται {allowed})"] if n > allowed else []
 
     def _pipe_system_change(self):
         from archforge.core.commands import UpdateEntity
@@ -888,8 +894,20 @@ def _components(segs):
         return a
     def key(p):
         return (round(p[0], 2), round(p[1], 2), round(p[2], 2))
+    segs = list(segs)
     for a, b in segs:
         parent[find(key(a))] = find(key(b))
+    # A branch teed into the middle of a pipe is connected to it (endpoint on the segment, within 1 cm).
+    ends = {key(q): q for s_ in segs for q in s_}
+    for a, b in segs:
+        d = [b[i] - a[i] for i in range(3)]
+        L2 = sum(v * v for v in d)
+        if L2 < 1e-8:
+            continue
+        for k, q in ends.items():
+            t = sum((q[i] - a[i]) * d[i] for i in range(3)) / L2
+            if 0.0 < t < 1.0 and math.dist(q, [a[i] + t * d[i] for i in range(3)]) < 0.01:
+                parent[find(k)] = find(key(a))
     comp = {}
     for n in list(parent):
         comp.setdefault(find(n), []).append(n)
