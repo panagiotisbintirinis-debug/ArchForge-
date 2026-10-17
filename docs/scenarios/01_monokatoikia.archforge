@@ -13,7 +13,7 @@
         "thickness": 0.25
       },
       "name": "Wall",
-      "id": "66bc28c7-a434-4552-8a1d-974a18be4a5b",
+      "id": "ea4bda80-db34-457f-bbe7-974b38125a8e",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -31,7 +31,7 @@
         "thickness": 0.25
       },
       "name": "Wall",
-      "id": "1bf0c583-372a-4c9e-b849-0e0d2ad9ba0c",
+      "id": "1d5b020a-5a52-4915-b872-83f72f59a40a",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -49,7 +49,7 @@
         "thickness": 0.25
       },
       "name": "Wall",
-      "id": "703cf92d-d8b2-4a4b-9001-eac202717c14",
+      "id": "11dc305a-ac9d-4958-b445-ab8786c0ab50",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -67,7 +67,7 @@
         "thickness": 0.25
       },
       "name": "Wall",
-      "id": "a723015a-3a2b-4c04-9845-e9cc54d9c274",
+      "id": "e5bb2386-ee70-4eec-889b-36a3452d39fc",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -85,7 +85,7 @@
         "thickness": 0.1
       },
       "name": "Wall",
-      "id": "8883d3d3-fb9a-47f5-aeb6-609c03676992",
+      "id": "5b25a8ad-a348-4638-b442-da746ada1f16",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -103,7 +103,7 @@
         "thickness": 0.1
       },
       "name": "Wall",
-      "id": "68e566d2-46e3-4e1a-b719-6e6c837ddc40",
+      "id": "043080c2-157f-4f66-8174-37f6324f4262",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -121,7 +121,7 @@
         "thickness": 0.1
       },
       "name": "Wall",
-      "id": "09182216-764a-4f36-8509-fd79765c545d",
+      "id": "72ff43f7-0767-4833-bfe6-ffa3e60b0cff",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -136,8 +136,8 @@
         "sill": 0.0
       },
       "name": "Door",
-      "id": "2d258033-6044-4d43-9554-6415d4a66f52",
-      "parent_id": "66bc28c7-a434-4552-8a1d-974a18be4a5b",
+      "id": "b0a01126-2c36-4c4c-9146-15d54a4c84d8",
+      "parent_id": "ea4bda80-db34-457f-bbe7-974b38125a8e",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -151,8 +151,8 @@
         "sill": 0.9
       },
       "name": "Window",
-      "id": "d00c6845-c0a3-4a04-9f4b-8ca2bafdcb25",
-      "parent_id": "66bc28c7-a434-4552-8a1d-974a18be4a5b",
+      "id": "daed7978-4a6f-44c9-ab28-35f6764a784a",
+      "parent_id": "ea4bda80-db34-457f-bbe7-974b38125a8e",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -166,8 +166,8 @@
         "sill": 0.9
       },
       "name": "Window",
-      "id": "ee47a647-00ab-4dcc-8df2-c827de5e5623",
-      "parent_id": "703cf92d-d8b2-4a4b-9001-eac202717c14",
+      "id": "5d267d0e-737c-43c5-9bd5-084f2f3a32f2",
+      "parent_id": "11dc305a-ac9d-4958-b445-ab8786c0ab50",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -181,8 +181,8 @@
         "sill": 0.9
       },
       "name": "Window",
-      "id": "d1cd4283-ffcf-429f-91f8-8bd6288a2ddf",
-      "parent_id": "703cf92d-d8b2-4a4b-9001-eac202717c14",
+      "id": "0d215b87-cb99-404f-8644-392eaaad92e8",
+      "parent_id": "11dc305a-ac9d-4958-b445-ab8786c0ab50",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -196,8 +196,8 @@
         "sill": 0.9
       },
       "name": "Window",
-      "id": "a427936d-ff90-4839-b0c1-8134cb2160ac",
-      "parent_id": "1bf0c583-372a-4c9e-b849-0e0d2ad9ba0c",
+      "id": "ad05f64e-f47b-4f29-99f4-306ef33840fa",
+      "parent_id": "1d5b020a-5a52-4915-b872-83f72f59a40a",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -211,8 +211,8 @@
         "sill": 0.9
       },
       "name": "Window",
-      "id": "a4a6c88e-ab79-4e2b-9b73-3adc223cf341",
-      "parent_id": "1bf0c583-372a-4c9e-b849-0e0d2ad9ba0c",
+      "id": "85852ef1-4bb9-4076-aba4-244507770c37",
+      "parent_id": "1d5b020a-5a52-4915-b872-83f72f59a40a",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -226,8 +226,8 @@
         "sill": 1.5
       },
       "name": "Window",
-      "id": "ae3adf00-158c-441b-927c-2e6051a20dc7",
-      "parent_id": "66bc28c7-a434-4552-8a1d-974a18be4a5b",
+      "id": "94dc2504-307e-462c-a334-ac46ae7e66e2",
+      "parent_id": "ea4bda80-db34-457f-bbe7-974b38125a8e",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -241,8 +241,8 @@
         "sill": 0.0
       },
       "name": "Door",
-      "id": "502f5dd5-d7c8-4b0c-810e-05e671f78ba8",
-      "parent_id": "8883d3d3-fb9a-47f5-aeb6-609c03676992",
+      "id": "a7c0861a-4a63-4061-9f49-b33c133fe012",
+      "parent_id": "5b25a8ad-a348-4638-b442-da746ada1f16",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -256,8 +256,8 @@
         "sill": 0.0
       },
       "name": "Door",
-      "id": "4fc7289f-365b-4901-8c9a-48cfc0500d1d",
-      "parent_id": "8883d3d3-fb9a-47f5-aeb6-609c03676992",
+      "id": "6ff41002-3c3f-488c-9ec3-b80b5f1f3780",
+      "parent_id": "5b25a8ad-a348-4638-b442-da746ada1f16",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -271,8 +271,8 @@
         "sill": 0.0
       },
       "name": "Door",
-      "id": "1a0d4368-34cc-46d4-865c-5a8c3b89bf1c",
-      "parent_id": "68e566d2-46e3-4e1a-b719-6e6c837ddc40",
+      "id": "12ef2a70-85ee-4d8e-b620-74a7938462e9",
+      "parent_id": "043080c2-157f-4f66-8174-37f6324f4262",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -302,7 +302,82 @@
         ]
       },
       "name": "\u039a\u03b5\u03c1\u03b1\u03bc\u03bf\u03c3\u03ba\u03b5\u03c0\u03ae \u03b4\u03af\u03c1\u03c1\u03b9\u03c7\u03c4\u03b7",
-      "id": "c45caf54-d368-40c7-af39-a9f17523d58a",
+      "id": "4830d27b-c2d7-484d-a49b-b4abf0643895",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_floor",
+      "params": {
+        "scope": "storey",
+        "level_z": 0.0,
+        "thickness": 0.15,
+        "offset_z": 0.0
+      },
+      "name": "\u03a0\u03bb\u03ac\u03ba\u03b1 \u03b4\u03b1\u03c0\u03ad\u03b4\u03bf\u03c5 \u2014 \u0399\u03c3\u03cc\u03b3\u03b5\u03b9\u03bf",
+      "id": "51504e1f-c151-48d1-9d53-aa8558944b20",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_ceiling",
+      "params": {
+        "room_signature": "room-f629cd8781a879e8",
+        "thickness": 0.15,
+        "offset_z": 2.5500000000000003,
+        "room_id": "fa6867d3-0c7e-4904-80fe-e49a6ed01c77"
+      },
+      "name": "\u039f\u03c1\u03bf\u03c6\u03ae \u03c3\u03bf\u03c6\u03af\u03c4\u03b1\u03c2",
+      "id": "7614562a-7122-4c8f-bc96-bd15a9396e13",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_ceiling",
+      "params": {
+        "room_signature": "room-b145e946526a578c",
+        "thickness": 0.15,
+        "offset_z": 2.5500000000000003,
+        "room_id": "42104716-2215-4f1c-9864-80bbb22b67d5"
+      },
+      "name": "\u039f\u03c1\u03bf\u03c6\u03ae \u03c3\u03bf\u03c6\u03af\u03c4\u03b1\u03c2",
+      "id": "714e0103-0f1a-4ee3-8053-ef075c65d9a2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_ceiling",
+      "params": {
+        "room_signature": "room-8d98844853498fb3",
+        "thickness": 0.15,
+        "offset_z": 2.5500000000000003,
+        "room_id": "76a17ead-dd6e-4cc6-942c-773a63ae8096"
+      },
+      "name": "\u039f\u03c1\u03bf\u03c6\u03ae \u03c3\u03bf\u03c6\u03af\u03c4\u03b1\u03c2",
+      "id": "366068e7-8d72-4f60-acd4-3d1fd685eccc",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_ceiling",
+      "params": {
+        "room_signature": "room-bdad6c4959f03b31",
+        "thickness": 0.15,
+        "offset_z": 2.5500000000000003,
+        "room_id": "cd547b88-47a9-48c8-9170-2fafac2e9bd4"
+      },
+      "name": "\u039f\u03c1\u03bf\u03c6\u03ae \u03c3\u03bf\u03c6\u03af\u03c4\u03b1\u03c2",
+      "id": "3bb20a0a-5ccc-4f00-9336-8988e41e703f",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -310,25 +385,25 @@
     }
   ],
   "dependencies": {
-    "66bc28c7-a434-4552-8a1d-974a18be4a5b": [
-      "2d258033-6044-4d43-9554-6415d4a66f52",
-      "ae3adf00-158c-441b-927c-2e6051a20dc7",
-      "d00c6845-c0a3-4a04-9f4b-8ca2bafdcb25"
+    "ea4bda80-db34-457f-bbe7-974b38125a8e": [
+      "94dc2504-307e-462c-a334-ac46ae7e66e2",
+      "b0a01126-2c36-4c4c-9146-15d54a4c84d8",
+      "daed7978-4a6f-44c9-ab28-35f6764a784a"
     ],
-    "703cf92d-d8b2-4a4b-9001-eac202717c14": [
-      "d1cd4283-ffcf-429f-91f8-8bd6288a2ddf",
-      "ee47a647-00ab-4dcc-8df2-c827de5e5623"
+    "11dc305a-ac9d-4958-b445-ab8786c0ab50": [
+      "0d215b87-cb99-404f-8644-392eaaad92e8",
+      "5d267d0e-737c-43c5-9bd5-084f2f3a32f2"
     ],
-    "1bf0c583-372a-4c9e-b849-0e0d2ad9ba0c": [
-      "a427936d-ff90-4839-b0c1-8134cb2160ac",
-      "a4a6c88e-ab79-4e2b-9b73-3adc223cf341"
+    "1d5b020a-5a52-4915-b872-83f72f59a40a": [
+      "85852ef1-4bb9-4076-aba4-244507770c37",
+      "ad05f64e-f47b-4f29-99f4-306ef33840fa"
     ],
-    "8883d3d3-fb9a-47f5-aeb6-609c03676992": [
-      "4fc7289f-365b-4901-8c9a-48cfc0500d1d",
-      "502f5dd5-d7c8-4b0c-810e-05e671f78ba8"
+    "5b25a8ad-a348-4638-b442-da746ada1f16": [
+      "6ff41002-3c3f-488c-9ec3-b80b5f1f3780",
+      "a7c0861a-4a63-4061-9f49-b33c133fe012"
     ],
-    "68e566d2-46e3-4e1a-b719-6e6c837ddc40": [
-      "1a0d4368-34cc-46d4-865c-5a8c3b89bf1c"
+    "043080c2-157f-4f66-8174-37f6324f4262": [
+      "12ef2a70-85ee-4d8e-b620-74a7938462e9"
     ]
   },
   "levels": {
@@ -356,8 +431,8 @@
   "constructions": {},
   "room_data": {},
   "room_bindings": {
-    "2ed2b895-7ccc-446b-a5dd-add85debfaec": {
-      "signature": "room-59ed6a3730bcfc49",
+    "669d6964-6b53-4f11-b9f5-665a22c8da67": {
+      "signature": "room-145be62f7a44c015",
       "polygon": [
         [
           0.0,
@@ -379,8 +454,8 @@
       "z": 0.0,
       "status": "unclosed"
     },
-    "2d9d586c-b956-4a97-89c5-a21b1bf109c1": {
-      "signature": "room-f04437f6e3560466",
+    "f07dcda5-58f9-4daf-815a-d9cec4321993": {
+      "signature": "room-8c605f2435aeafa8",
       "polygon": [
         [
           6.5,
@@ -402,8 +477,8 @@
       "z": 0.0,
       "status": "unclosed"
     },
-    "3601a991-5f79-42f0-a212-7054c4236a35": {
-      "signature": "room-7f6204b2b507f7f5",
+    "cd547b88-47a9-48c8-9170-2fafac2e9bd4": {
+      "signature": "room-bdad6c4959f03b31",
       "polygon": [
         [
           0.0,
@@ -429,8 +504,8 @@
       "z": 0.0,
       "status": "enclosed"
     },
-    "c9bd1237-87fd-43b1-82a8-90538a019868": {
-      "signature": "room-27ce2931bc2acf58",
+    "6ae93cfa-1745-4de0-8693-398753466f20": {
+      "signature": "room-117de406a883bbfb",
       "polygon": [
         [
           6.5,
@@ -452,8 +527,8 @@
       "z": 0.0,
       "status": "unclosed"
     },
-    "9e02b5a2-8fa6-4bfd-8469-e77208b731d6": {
-      "signature": "room-b2af80243c4ddc87",
+    "76a17ead-dd6e-4cc6-942c-773a63ae8096": {
+      "signature": "room-8d98844853498fb3",
       "polygon": [
         [
           12.0,
@@ -479,8 +554,8 @@
       "z": 0.0,
       "status": "enclosed"
     },
-    "def36424-5321-4a5b-a4ea-9bb06d6bb018": {
-      "signature": "room-35763d03a4ec46cb",
+    "fa6867d3-0c7e-4904-80fe-e49a6ed01c77": {
+      "signature": "room-f629cd8781a879e8",
       "polygon": [
         [
           6.5,
@@ -502,8 +577,8 @@
       "z": 0.0,
       "status": "enclosed"
     },
-    "4cccc91c-7f5f-45c5-bf1c-be8e43198af4": {
-      "signature": "room-01317cede5ffe861",
+    "42104716-2215-4f1c-9864-80bbb22b67d5": {
+      "signature": "room-b145e946526a578c",
       "polygon": [
         [
           9.0,

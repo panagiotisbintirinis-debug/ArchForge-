@@ -153,6 +153,18 @@ def test_room_under_timber_roof_can_take_a_flat_attic_ceiling():
     assert len(attic_rooms(doc)) == 1
 
 
+def test_attic_ceiling_only_under_the_roof_not_on_storeys_below():
+    """Scenario 02: the ground-floor room under the upper storey got an «attic» ceiling too."""
+    from archforge.architecture.roof_need import attic_rooms
+    from archforge.structure.timber_roof import default_params
+    doc, st, (left, right) = _two_storeys()
+    st.execute(AddEntity(Entity('pitched_roof', default_params(doc, z=2.7))))
+    found = {(f.signature, z) for f, z, _rid in attic_rooms(doc)}
+    upper = doc.active_room_faces(z=2.7)[0]
+    assert (upper.signature, 2.7) in found
+    assert all(sig != left.signature for sig, _z in found)               # under the upper storey: no attic
+
+
 def test_tiled_roof_goes_over_the_top_storey_even_from_the_ground_floor():
     doc, _st, _faces = _two_storeys()
     app, w = _window_with(doc)

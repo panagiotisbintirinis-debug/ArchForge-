@@ -146,6 +146,8 @@ def attic_rooms(doc):
         for face in faces:
             if face.signature in ceiled or not under_pitched_roof(doc, face.polygon, z):
                 continue
+            if coverage(doc, face.polygon, z) >= COVERED:
+                continue                      # a storey above: its ceiling is that floor slab, not an attic
             poly = [(float(p[0]), float(p[1])) for p in face.polygon]
             if any(abs(jz - z) < 0.05 and inside(poly, *c) for jz, c in joists):
                 continue

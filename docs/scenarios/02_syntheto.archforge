@@ -1,0 +1,1464 @@
+{
+  "format": 7,
+  "entities": [
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 14.0,
+        "y2": 0.0,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Wall",
+      "id": "094979db-2308-4d25-8da6-504fa1d63ec6",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 14.0,
+        "y1": 0.0,
+        "x2": 14.0,
+        "y2": 6.0,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Wall",
+      "id": "e7d1eb6a-a2c5-452d-a7ea-d6f51bfd1d18",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 14.0,
+        "y1": 6.0,
+        "x2": 9.0,
+        "y2": 6.000000000000001,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Wall",
+      "id": "3f42d223-90d4-4d86-91d6-a8175b20daed",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 9.0,
+        "y1": 6.0,
+        "x2": 9.000000000000002,
+        "y2": 11.0,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Wall",
+      "id": "17540793-41a3-427f-bd20-7cf260a6bd4c",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 9.0,
+        "y1": 11.0,
+        "x2": 0.0,
+        "y2": 11.000000000000005,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Wall",
+      "id": "16a7fbc4-d602-413a-b328-abfa14bc6888",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0.0,
+        "y1": 11.0,
+        "x2": 0.0,
+        "y2": 0.0,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Wall",
+      "id": "57599775-7e14-40bc-a14d-557a1b55d9a5",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 9.0,
+        "y1": 0.0,
+        "x2": 9.0,
+        "y2": 6.0,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.1
+      },
+      "name": "Wall",
+      "id": "705479b1-b983-4202-83b0-8bdd076b20e2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0.0,
+        "y1": 6.0,
+        "x2": 9.0,
+        "y2": 6.0,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.1
+      },
+      "name": "Wall",
+      "id": "44e990dc-2a4a-4d35-9ba7-378942d0b21d",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 4.5,
+        "y1": 6.0,
+        "x2": 4.5,
+        "y2": 11.000000000000004,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.1
+      },
+      "name": "Wall",
+      "id": "fe0ebb77-df76-479c-97bf-e336ffc6fcbe",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 3.0,
+        "width": 1.0,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "Door",
+      "id": "bc4562f0-c273-4e07-9582-b69816a9cc56",
+      "parent_id": "094979db-2308-4d25-8da6-504fa1d63ec6",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 1.2,
+        "width": 1.4,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "Window",
+      "id": "d8906f29-e00c-40ee-9d2e-c56f7b70ba0f",
+      "parent_id": "094979db-2308-4d25-8da6-504fa1d63ec6",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 6.5,
+        "width": 2.0,
+        "height": 2.2,
+        "sill": 0.0
+      },
+      "name": "Window",
+      "id": "a969bd10-0f39-4827-8d26-733bf1277715",
+      "parent_id": "094979db-2308-4d25-8da6-504fa1d63ec6",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 8.0,
+        "width": 1.4,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "Window",
+      "id": "335015f4-4d03-4872-89b9-832591a24e9c",
+      "parent_id": "57599775-7e14-40bc-a14d-557a1b55d9a5",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 6.8,
+        "width": 1.2,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "Window",
+      "id": "79c5f244-c737-483f-8ff4-cb00150046e7",
+      "parent_id": "16a7fbc4-d602-413a-b328-abfa14bc6888",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 11.5,
+        "width": 1.6,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "Window",
+      "id": "fc54ed3d-e004-4da3-ab30-7ca6a49d90bc",
+      "parent_id": "094979db-2308-4d25-8da6-504fa1d63ec6",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 3.0,
+        "width": 1.2,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "Window",
+      "id": "d7a770ef-0db8-4f96-8f39-3d8ca40e549b",
+      "parent_id": "e7d1eb6a-a2c5-452d-a7ea-d6f51bfd1d18",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 2.0,
+        "width": 0.9,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "Door",
+      "id": "ae0ada0c-e104-4a2c-bcd5-b5006f746f38",
+      "parent_id": "3f42d223-90d4-4d86-91d6-a8175b20daed",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 3.0,
+        "width": 0.8,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "Door",
+      "id": "a2b256e9-c54b-4647-ab96-31346567ce63",
+      "parent_id": "705479b1-b983-4202-83b0-8bdd076b20e2",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 2.2,
+        "width": 0.8,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "Door",
+      "id": "02fc49f1-c7a4-4c06-b222-a5477526a907",
+      "parent_id": "44e990dc-2a4a-4d35-9ba7-378942d0b21d",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 7.0,
+        "width": 1.0,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "Door",
+      "id": "0ec0a4d2-f304-4265-bb0d-c0dab90a6eec",
+      "parent_id": "44e990dc-2a4a-4d35-9ba7-378942d0b21d",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_floor",
+      "params": {
+        "scope": "storey",
+        "level_z": 0.0,
+        "thickness": 0.15,
+        "offset_z": 0.0
+      },
+      "name": "\u03a0\u03bb\u03ac\u03ba\u03b1 \u03b4\u03b1\u03c0\u03ad\u03b4\u03bf\u03c5 \u2014 \u0399\u03c3\u03cc\u03b3\u03b5\u03b9\u03bf",
+      "id": "b572ef9a-055f-471d-baa4-1b1af489fa32",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 9.0,
+        "y2": 0.0,
+        "z": -3.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Wall",
+      "id": "ca042617-a722-43f3-a31d-b3c7c390f671",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 9.0,
+        "y1": 0.0,
+        "x2": 9.0,
+        "y2": 11.0,
+        "z": -3.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Wall",
+      "id": "60c94cf7-3491-44b2-8bdf-87c383e13fda",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 9.0,
+        "y1": 11.0,
+        "x2": 0.0,
+        "y2": 11.000000000000002,
+        "z": -3.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Wall",
+      "id": "c9762e0a-202e-436f-bb10-f361e76b1e35",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0.0,
+        "y1": 11.0,
+        "x2": 0.0,
+        "y2": 0.0,
+        "z": -3.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Wall",
+      "id": "c437a958-3359-4fc7-9771-0b5e8122104a",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0.0,
+        "y1": 6.0,
+        "x2": 9.0,
+        "y2": 6.0,
+        "z": -3.0,
+        "height": 2.7,
+        "thickness": 0.1
+      },
+      "name": "Wall",
+      "id": "6deed7c0-fa17-45c3-a82b-8124a47c837c",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 4.5,
+        "y1": 6.0,
+        "x2": 4.5,
+        "y2": 11.0,
+        "z": -3.0,
+        "height": 2.7,
+        "thickness": 0.1
+      },
+      "name": "Wall",
+      "id": "9fc84563-9cfc-487b-b4bc-8b65be25ed72",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 2.2,
+        "width": 1.0,
+        "height": 0.5,
+        "sill": 1.9
+      },
+      "name": "Window",
+      "id": "d233d77a-a803-432c-9c76-cf7b37696f74",
+      "parent_id": "ca042617-a722-43f3-a31d-b3c7c390f671",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 6.5,
+        "width": 1.0,
+        "height": 0.5,
+        "sill": 1.9
+      },
+      "name": "Window",
+      "id": "946b1a76-2ed9-45c4-8d9d-d2bf890ae20d",
+      "parent_id": "ca042617-a722-43f3-a31d-b3c7c390f671",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 7.0,
+        "width": 1.0,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "Door",
+      "id": "e400b280-4acd-4102-90bd-d5a006e6e203",
+      "parent_id": "6deed7c0-fa17-45c3-a82b-8124a47c837c",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_floor",
+      "params": {
+        "scope": "storey",
+        "level_z": -3.0,
+        "thickness": 0.15,
+        "offset_z": 0.0
+      },
+      "name": "\u03a0\u03bb\u03ac\u03ba\u03b1 \u03b4\u03b1\u03c0\u03ad\u03b4\u03bf\u03c5 \u2014 Basement",
+      "id": "6a3c0e56-db0d-4423-b4e2-c8f25723f04a",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 9.0,
+        "y2": 0.0,
+        "z": 3.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Wall",
+      "id": "365b2365-2a59-4aef-bfb4-afb68f1e9b6f",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 9.0,
+        "y1": 0.0,
+        "x2": 9.0,
+        "y2": 11.0,
+        "z": 3.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Wall",
+      "id": "532d8460-59fb-4a7b-9a89-9516471d4312",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 9.0,
+        "y1": 11.0,
+        "x2": 0.0,
+        "y2": 11.000000000000002,
+        "z": 3.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Wall",
+      "id": "9002c0f2-b4df-4425-86cd-b0720e30c88e",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0.0,
+        "y1": 11.0,
+        "x2": 0.0,
+        "y2": 0.0,
+        "z": 3.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Wall",
+      "id": "729909f2-44ab-4986-a073-3e14eb918206",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0.0,
+        "y1": 6.0,
+        "x2": 9.0,
+        "y2": 6.0,
+        "z": 3.0,
+        "height": 2.7,
+        "thickness": 0.1
+      },
+      "name": "Wall",
+      "id": "cf2d96d0-aa33-41bf-9123-a2686b31f8ad",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 4.5,
+        "y1": 0.0,
+        "x2": 4.500000000000001,
+        "y2": 11.000000000000002,
+        "z": 3.0,
+        "height": 2.7,
+        "thickness": 0.1
+      },
+      "name": "Wall",
+      "id": "e9514556-2aac-447a-9a55-b53c9e2ddf49",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 2.2,
+        "width": 1.4,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "Window",
+      "id": "56c41d62-ab5b-46ac-a574-8a0388bc1e4b",
+      "parent_id": "365b2365-2a59-4aef-bfb4-afb68f1e9b6f",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 6.7,
+        "width": 1.4,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "Window",
+      "id": "893caeaf-009b-4e72-b563-efb318090034",
+      "parent_id": "365b2365-2a59-4aef-bfb4-afb68f1e9b6f",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 3.0,
+        "width": 1.2,
+        "height": 2.2,
+        "sill": 0.0
+      },
+      "name": "Window",
+      "id": "8d876e6a-2770-484b-b3c5-f1946f3344a7",
+      "parent_id": "532d8460-59fb-4a7b-9a89-9516471d4312",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 6.8,
+        "width": 0.6,
+        "height": 0.6,
+        "sill": 1.5
+      },
+      "name": "Window",
+      "id": "6218f6b3-6ac3-42f7-9a19-d65ef7bdb98f",
+      "parent_id": "9002c0f2-b4df-4425-86cd-b0720e30c88e",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 8.5,
+        "width": 1.0,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "Window",
+      "id": "5b0a12d2-3ae0-448b-84ac-2b6389ba59e1",
+      "parent_id": "532d8460-59fb-4a7b-9a89-9516471d4312",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 2.2,
+        "width": 0.8,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "Door",
+      "id": "e38a41fa-4b7d-496d-8e45-8c1d30ba8ef5",
+      "parent_id": "cf2d96d0-aa33-41bf-9123-a2686b31f8ad",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 7.0,
+        "width": 0.8,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "Door",
+      "id": "84384f77-f34a-4793-9423-105134df3e00",
+      "parent_id": "cf2d96d0-aa33-41bf-9123-a2686b31f8ad",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 8.5,
+        "width": 0.8,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "Door",
+      "id": "642cc030-2c7a-45b6-b413-99514922fc9f",
+      "parent_id": "e9514556-2aac-447a-9a55-b53c9e2ddf49",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_floor",
+      "params": {
+        "scope": "storey",
+        "level_z": 3.0,
+        "thickness": 0.15,
+        "offset_z": 0.0
+      },
+      "name": "\u03a0\u03bb\u03ac\u03ba\u03b1 \u03b4\u03b1\u03c0\u03ad\u03b4\u03bf\u03c5 \u2014 Floor 1",
+      "id": "23be1277-d377-4f96-b264-b5bd32ebe126",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "stair",
+      "params": {
+        "x": 6.300000000000001,
+        "y": 6.6,
+        "lower_z": -3.0,
+        "upper_z": 0.15,
+        "upper_floor_z": 0.0,
+        "upper_slab_thickness": 0.15,
+        "layout": "u",
+        "angle_deg": 90.0,
+        "width": 1.0,
+        "riser_count": 19,
+        "riser_height": 0.16578947368421051,
+        "tread_depth": 0.29,
+        "landing_depth": 1.0,
+        "turn_direction": 1,
+        "opening_margin": 0.05
+      },
+      "name": "Stair",
+      "id": "f5cc9fb2-8abf-4cf4-a1a2-1c31eec27478",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "stair",
+      "params": {
+        "x": 6.300000000000001,
+        "y": 6.6,
+        "lower_z": 0.0,
+        "upper_z": 3.15,
+        "upper_floor_z": 3.0,
+        "upper_slab_thickness": 0.15,
+        "layout": "u",
+        "angle_deg": 90.0,
+        "width": 1.0,
+        "riser_count": 19,
+        "riser_height": 0.16578947368421051,
+        "tread_depth": 0.29,
+        "landing_depth": 1.0,
+        "turn_direction": 1,
+        "opening_margin": 0.05
+      },
+      "name": "Stair",
+      "id": "d17a23e1-aaa9-449c-ab25-9a0c9c091844",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "pitched_roof",
+      "params": {
+        "x0": -0.125,
+        "y0": -0.125,
+        "x1": 9.125,
+        "y1": 11.125000000000002,
+        "eave_z": 5.7,
+        "pitch": 25.0,
+        "overhang": 0.5,
+        "rafter_spacing": 0.6,
+        "roof_form": "hip",
+        "tile": "roman",
+        "snow_zone": 2,
+        "altitude": 0.0,
+        "insulation": "xps",
+        "insulation_thickness": 0.08,
+        "gables": [
+          "y0",
+          "y1",
+          "x0",
+          "x1"
+        ]
+      },
+      "name": "\u039a\u03b5\u03c1\u03b1\u03bc\u03bf\u03c3\u03ba\u03b5\u03c0\u03ae \u03c4\u03b5\u03c4\u03c1\u03ac\u03c1\u03c1\u03b9\u03c7\u03c4\u03b7",
+      "id": "55d13d3a-0980-433c-9907-67db3bd9f36b",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_roof",
+      "params": {
+        "room_signature": "room-d3f0bc67bc1afed7",
+        "thickness": 0.2,
+        "offset_z": 2.7,
+        "roof_type": "flat",
+        "overhang": 0.0,
+        "room_id": "5c1f4671-cd34-4cca-be67-3c8012db5622"
+      },
+      "name": "Flat Roof",
+      "id": "7aac3f01-9853-48c9-8112-9a892c46872b",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_ceiling",
+      "params": {
+        "room_signature": "room-a0fe3ee752be8547",
+        "thickness": 0.15,
+        "offset_z": 2.5500000000000003,
+        "room_id": "625e22e8-1d8b-4c83-9651-db94b929f5b1"
+      },
+      "name": "\u039f\u03c1\u03bf\u03c6\u03ae \u03c3\u03bf\u03c6\u03af\u03c4\u03b1\u03c2",
+      "id": "8ddc0246-bef4-4e61-a571-66f1fda949ce",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_ceiling",
+      "params": {
+        "room_signature": "room-c058c4ad8d659deb",
+        "thickness": 0.15,
+        "offset_z": 2.5500000000000003,
+        "room_id": "fec0ba95-2e9a-46ba-83ad-58143228e2b7"
+      },
+      "name": "\u039f\u03c1\u03bf\u03c6\u03ae \u03c3\u03bf\u03c6\u03af\u03c4\u03b1\u03c2",
+      "id": "6526bf13-773c-4275-9f7a-17eea130f792",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_ceiling",
+      "params": {
+        "room_signature": "room-8398d78776d8ef32",
+        "thickness": 0.15,
+        "offset_z": 2.5500000000000003,
+        "room_id": "67fc708a-ef4d-4d94-b037-76f286288521"
+      },
+      "name": "\u039f\u03c1\u03bf\u03c6\u03ae \u03c3\u03bf\u03c6\u03af\u03c4\u03b1\u03c2",
+      "id": "7ab293cd-4673-43a4-a9fb-d3996f453ec9",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_ceiling",
+      "params": {
+        "room_signature": "room-ebd5401151d1df16",
+        "thickness": 0.15,
+        "offset_z": 2.5500000000000003,
+        "room_id": "af08646a-bf7d-4fe6-91ec-8a7d877f2b2b"
+      },
+      "name": "\u039f\u03c1\u03bf\u03c6\u03ae \u03c3\u03bf\u03c6\u03af\u03c4\u03b1\u03c2",
+      "id": "bc04c9f4-af24-4629-8d39-e54781338795",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    }
+  ],
+  "dependencies": {
+    "094979db-2308-4d25-8da6-504fa1d63ec6": [
+      "7aac3f01-9853-48c9-8112-9a892c46872b",
+      "a969bd10-0f39-4827-8d26-733bf1277715",
+      "bc4562f0-c273-4e07-9582-b69816a9cc56",
+      "d8906f29-e00c-40ee-9d2e-c56f7b70ba0f",
+      "fc54ed3d-e004-4da3-ab30-7ca6a49d90bc"
+    ],
+    "57599775-7e14-40bc-a14d-557a1b55d9a5": [
+      "335015f4-4d03-4872-89b9-832591a24e9c"
+    ],
+    "16a7fbc4-d602-413a-b328-abfa14bc6888": [
+      "79c5f244-c737-483f-8ff4-cb00150046e7"
+    ],
+    "e7d1eb6a-a2c5-452d-a7ea-d6f51bfd1d18": [
+      "7aac3f01-9853-48c9-8112-9a892c46872b",
+      "d7a770ef-0db8-4f96-8f39-3d8ca40e549b"
+    ],
+    "3f42d223-90d4-4d86-91d6-a8175b20daed": [
+      "7aac3f01-9853-48c9-8112-9a892c46872b",
+      "ae0ada0c-e104-4a2c-bcd5-b5006f746f38"
+    ],
+    "705479b1-b983-4202-83b0-8bdd076b20e2": [
+      "7aac3f01-9853-48c9-8112-9a892c46872b",
+      "a2b256e9-c54b-4647-ab96-31346567ce63"
+    ],
+    "44e990dc-2a4a-4d35-9ba7-378942d0b21d": [
+      "02fc49f1-c7a4-4c06-b222-a5477526a907",
+      "0ec0a4d2-f304-4265-bb0d-c0dab90a6eec"
+    ],
+    "ca042617-a722-43f3-a31d-b3c7c390f671": [
+      "946b1a76-2ed9-45c4-8d9d-d2bf890ae20d",
+      "d233d77a-a803-432c-9c76-cf7b37696f74"
+    ],
+    "6deed7c0-fa17-45c3-a82b-8124a47c837c": [
+      "e400b280-4acd-4102-90bd-d5a006e6e203"
+    ],
+    "365b2365-2a59-4aef-bfb4-afb68f1e9b6f": [
+      "56c41d62-ab5b-46ac-a574-8a0388bc1e4b",
+      "893caeaf-009b-4e72-b563-efb318090034"
+    ],
+    "532d8460-59fb-4a7b-9a89-9516471d4312": [
+      "5b0a12d2-3ae0-448b-84ac-2b6389ba59e1",
+      "8d876e6a-2770-484b-b3c5-f1946f3344a7"
+    ],
+    "9002c0f2-b4df-4425-86cd-b0720e30c88e": [
+      "6218f6b3-6ac3-42f7-9a19-d65ef7bdb98f"
+    ],
+    "cf2d96d0-aa33-41bf-9123-a2686b31f8ad": [
+      "84384f77-f34a-4793-9423-105134df3e00",
+      "e38a41fa-4b7d-496d-8e45-8c1d30ba8ef5"
+    ],
+    "e9514556-2aac-447a-9a55-b53c9e2ddf49": [
+      "642cc030-2c7a-45b6-b413-99514922fc9f"
+    ]
+  },
+  "levels": {
+    "Ground": 0.0,
+    "Basement": -3.0,
+    "Floor 1": 3.0
+  },
+  "work_plane": {
+    "name": "Floor 1",
+    "origin": [
+      0.0,
+      0.0,
+      3.0
+    ],
+    "u": [
+      1.0,
+      0.0,
+      0.0
+    ],
+    "v": [
+      0.0,
+      1.0,
+      0.0
+    ]
+  },
+  "materials": {},
+  "constructions": {},
+  "room_data": {},
+  "room_bindings": {
+    "49c285bb-8b37-4de6-afc1-b5224eff74b3": {
+      "signature": "room-ccfa9c2df8b5d15d",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          14.0,
+          0.0
+        ],
+        [
+          14.0,
+          6.0
+        ],
+        [
+          9.0,
+          6.000000000000001
+        ],
+        [
+          9.000000000000002,
+          11.0
+        ],
+        [
+          0.0,
+          11.000000000000005
+        ]
+      ],
+      "z": 0.0,
+      "status": "unclosed"
+    },
+    "5c1f4671-cd34-4cca-be67-3c8012db5622": {
+      "signature": "room-d3f0bc67bc1afed7",
+      "polygon": [
+        [
+          9.0,
+          0.0
+        ],
+        [
+          14.0,
+          0.0
+        ],
+        [
+          14.0,
+          6.0
+        ],
+        [
+          9.0,
+          6.000000000000001
+        ]
+      ],
+      "z": 0.0,
+      "status": "enclosed"
+    },
+    "9c4b2309-249f-4675-96ba-0f0e303dfa4b": {
+      "signature": "room-55e647829feca69b",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          9.0,
+          0.0
+        ],
+        [
+          9.0,
+          6.000000000000001
+        ],
+        [
+          9.000000000000002,
+          11.0
+        ],
+        [
+          0.0,
+          11.000000000000005
+        ]
+      ],
+      "z": 0.0,
+      "status": "unclosed"
+    },
+    "69ebe2f4-0102-43d3-ae4c-bc09160f9d91": {
+      "signature": "room-d1b7159bd34e76e9",
+      "polygon": [
+        [
+          9.0,
+          6.000000000000001
+        ],
+        [
+          9.000000000000002,
+          11.0
+        ],
+        [
+          0.0,
+          11.000000000000005
+        ],
+        [
+          0.0,
+          6.0
+        ]
+      ],
+      "z": 0.0,
+      "status": "unclosed"
+    },
+    "c62a2316-111f-474a-94fd-8ce67f6a37a8": {
+      "signature": "room-d0375a21b9ef1db6",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          9.0,
+          0.0
+        ],
+        [
+          9.0,
+          6.000000000000001
+        ],
+        [
+          4.5,
+          6.0
+        ],
+        [
+          0.0,
+          6.0
+        ]
+      ],
+      "z": 0.0,
+      "status": "enclosed"
+    },
+    "a7df8f1a-5ef6-451a-9f43-923cc12843b9": {
+      "signature": "room-21a6ab89a84f8d04",
+      "polygon": [
+        [
+          4.5,
+          11.000000000000004
+        ],
+        [
+          0.0,
+          11.000000000000005
+        ],
+        [
+          0.0,
+          6.0
+        ],
+        [
+          4.5,
+          6.0
+        ]
+      ],
+      "z": 0.0,
+      "status": "enclosed"
+    },
+    "3ca82dbf-29a5-4ddf-b355-eabf4ab8a388": {
+      "signature": "room-40daefb62b8eccde",
+      "polygon": [
+        [
+          9.0,
+          6.000000000000001
+        ],
+        [
+          9.000000000000002,
+          11.0
+        ],
+        [
+          4.5,
+          11.000000000000004
+        ],
+        [
+          4.5,
+          6.0
+        ]
+      ],
+      "z": 0.0,
+      "status": "enclosed"
+    },
+    "41cd28c0-9d7a-4d6c-9df1-c391e216d664": {
+      "signature": "room-7782f020dca6075f",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          9.0,
+          0.0
+        ],
+        [
+          9.0,
+          11.0
+        ],
+        [
+          0.0,
+          11.000000000000002
+        ]
+      ],
+      "z": -3.0,
+      "status": "unclosed"
+    },
+    "edd06728-6b98-4037-a4c2-14ef641b8000": {
+      "signature": "room-c569ff17f1ea91b1",
+      "polygon": [
+        [
+          9.0,
+          6.0
+        ],
+        [
+          9.0,
+          11.0
+        ],
+        [
+          0.0,
+          11.000000000000002
+        ],
+        [
+          0.0,
+          6.0
+        ]
+      ],
+      "z": -3.0,
+      "status": "unclosed"
+    },
+    "90279a90-8484-46c8-9414-f146522d223e": {
+      "signature": "room-433820f1363206f4",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          9.0,
+          0.0
+        ],
+        [
+          9.0,
+          6.0
+        ],
+        [
+          4.5,
+          6.0
+        ],
+        [
+          0.0,
+          6.0
+        ]
+      ],
+      "z": -3.0,
+      "status": "enclosed"
+    },
+    "c89aae19-95d4-45c6-9ad2-04ac41a82a47": {
+      "signature": "room-0c57a9223564adc7",
+      "polygon": [
+        [
+          9.0,
+          6.0
+        ],
+        [
+          9.0,
+          11.0
+        ],
+        [
+          4.5,
+          11.0
+        ],
+        [
+          4.5,
+          6.0
+        ]
+      ],
+      "z": -3.0,
+      "status": "enclosed"
+    },
+    "7ca877db-f5bc-4db8-87b7-12c0ff2afab7": {
+      "signature": "room-73002e4d6570e98c",
+      "polygon": [
+        [
+          4.5,
+          11.0
+        ],
+        [
+          0.0,
+          11.000000000000002
+        ],
+        [
+          0.0,
+          6.0
+        ],
+        [
+          4.5,
+          6.0
+        ]
+      ],
+      "z": -3.0,
+      "status": "enclosed"
+    },
+    "9a738814-4c9c-423d-ae65-4fc3681d1cf6": {
+      "signature": "room-a178a20cc5fca801",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          9.0,
+          0.0
+        ],
+        [
+          9.0,
+          11.0
+        ],
+        [
+          0.0,
+          11.000000000000002
+        ]
+      ],
+      "z": 3.0,
+      "status": "unclosed"
+    },
+    "a0f0c257-65bc-4e49-940e-475c2d49d6cb": {
+      "signature": "room-25b99f5c60e14413",
+      "polygon": [
+        [
+          9.0,
+          6.0
+        ],
+        [
+          9.0,
+          11.0
+        ],
+        [
+          0.0,
+          11.000000000000002
+        ],
+        [
+          0.0,
+          6.0
+        ]
+      ],
+      "z": 3.0,
+      "status": "unclosed"
+    },
+    "b68867ae-664d-4d92-9d31-f9c3b0055408": {
+      "signature": "room-04601012f6165041",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          9.0,
+          0.0
+        ],
+        [
+          9.0,
+          6.0
+        ],
+        [
+          0.0,
+          6.0
+        ]
+      ],
+      "z": 3.0,
+      "status": "unclosed"
+    },
+    "625e22e8-1d8b-4c83-9651-db94b929f5b1": {
+      "signature": "room-a0fe3ee752be8547",
+      "polygon": [
+        [
+          9.0,
+          6.0
+        ],
+        [
+          9.0,
+          11.0
+        ],
+        [
+          4.500000000000001,
+          11.0
+        ],
+        [
+          4.500000000000001,
+          6.0
+        ]
+      ],
+      "z": 3.0,
+      "status": "enclosed"
+    },
+    "fec0ba95-2e9a-46ba-83ad-58143228e2b7": {
+      "signature": "room-c058c4ad8d659deb",
+      "polygon": [
+        [
+          4.500000000000001,
+          11.0
+        ],
+        [
+          0.0,
+          11.000000000000002
+        ],
+        [
+          0.0,
+          6.0
+        ],
+        [
+          4.500000000000001,
+          6.0
+        ]
+      ],
+      "z": 3.0,
+      "status": "enclosed"
+    },
+    "67fc708a-ef4d-4d94-b037-76f286288521": {
+      "signature": "room-8398d78776d8ef32",
+      "polygon": [
+        [
+          4.5,
+          0.0
+        ],
+        [
+          9.0,
+          0.0
+        ],
+        [
+          9.0,
+          6.0
+        ],
+        [
+          4.500000000000001,
+          6.0
+        ]
+      ],
+      "z": 3.0,
+      "status": "enclosed"
+    },
+    "af08646a-bf7d-4fe6-91ec-8a7d877f2b2b": {
+      "signature": "room-ebd5401151d1df16",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          4.5,
+          0.0
+        ],
+        [
+          4.500000000000001,
+          6.0
+        ],
+        [
+          0.0,
+          6.0
+        ]
+      ],
+      "z": 3.0,
+      "status": "enclosed"
+    }
+  },
+  "surface_modifiers": [],
+  "view_layers": {
+    "workspace": "arch",
+    "overrides": {}
+  }
+}

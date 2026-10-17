@@ -67,6 +67,38 @@ class Scenario:
             return f"{label or kind} {width * 100:.0f} cm στον τοίχο {self.doc.get(t.host_id).name or t.host_id[:6]}"
         return self.step(f"{label or kind.capitalize()} στο ({x}, {y})", run)
 
+    def level(self, name, elevation=None):
+        """New storey («+ Όροφος» / «Υπόγειο») when the name is new, else switch to it from the floor selector."""
+        def run():
+            w = self.window
+            if name not in self.doc.levels:
+                from archforge.core.commands import CreateFloorLevel
+                self.stack.execute(CreateFloorLevel(name, float(elevation)))
+                w._refresh_floor_selector()
+                w._redraw_views(all_views=True)
+                return f"νέος όροφος στα {float(elevation):+.2f} m"
+            w._refresh_floor_selector()
+            w._activate_level_by_name(name)
+            if self.doc.work_plane.name != name:
+                raise ValueError(f"ο επιλογέας ορόφων δεν άλλαξε στο «{name}» (ενεργός: {self.doc.work_plane.name})")
+            return f"ενεργός όροφος στα {self.level_z():+.2f} m"
+        return self.step(f"Όροφος «{name}»", run)
+
+    def stair(self, origin, pointer, width=1.0, layout=None):
+        """Stair tool: click the start, move toward the run, click (StairPlaceTransaction)."""
+        from archforge.core.interaction import StairPlaceTransaction
+
+        def run():
+            t = StairPlaceTransaction(self.doc, self.stack, origin, width=width, layout=layout)
+            t.update(*pointer)
+            if not t.preview.get('fits', False):
+                raise ValueError("η σκάλα περνά από τοίχο — " + " · ".join(t.preview.get('suggestions', [])[:2]))
+            c = t.active_candidate
+            t.commit()
+            return (f"{c.layout} · {c.riser_count} ρίχτια {c.riser_height * 100:.1f} cm · πάτημα {c.tread_depth * 100:.0f} cm"
+                    f" · ως «{t.upper_level_name}»")
+        return self.step(f"Σκάλα από {tuple(origin)} προς {tuple(pointer)}", run)
+
     def level_z(self):
         return float(self.doc.work_plane.origin[2])
 
