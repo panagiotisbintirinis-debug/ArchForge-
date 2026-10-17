@@ -242,3 +242,60 @@ def test_electricians_quote_has_labour_and_only_the_electrical_section(tmp_path)
     from archforge.output.pdf import export_pdf
     out = export_pdf(doc, tmp_path / 'offer.pdf', include=('quote',), only=('Ηλεκτρολογικά',))
     assert out['pages'] >= 1 and (tmp_path / 'offer.pdf').stat().st_size > 1000
+
+
+def test_board_front_follows_phases_and_rcd_groups_without_inventing_ratings():
+    from archforge.mep.electrical_board import front
+    doc = Document(); stack = CommandStack(doc); panel = _flat(stack)
+    pid = panel if isinstance(panel, str) else panel.id
+    f = front(analyse(doc))
+    assert f['ask_phases'] and f['rcd_count'] == 1                         # not entered: the program asks
+    main = f['devices'][0]
+    assert main['kind'] == 'main' and main['poles'] is None and main['rating_a'] is None
+    mcbs = [d for d in f['devices'] if d['kind'] == 'mcb']
+    assert [d['circuit'] for d in mcbs] == [c['id'] for c in analyse(doc)['circuits']]
+    stack.execute(UpdateEntity(pid, {'supply_phases': 1, 'supply_fuse_a': 40.0}))
+    f = front(analyse(doc))
+    assert not f['ask_phases'] and f['devices'][0]['poles'] == 2 and f['devices'][0]['rating_a'] == 40.0
+    assert all(d['phase'] == 'L1' for d in f['devices'] if d['kind'] == 'mcb')
+    rcd = next(d for d in f['devices'] if d['kind'] == 'rcd')
+    assert rcd['poles'] == 2 and rcd['rating_a'] is None and rcd['sensitivity_ma'] == 30   # rating: from the study
+    first = mcbs[0]['circuit']
+    stack.execute(UpdateEntity(pid, {'supply_phases': 3, 'rcd_groups': {first: 2}, 'rcd_ratings': [40.0, 25.0]}))
+    f = front(analyse(doc))
+    assert f['rcd_count'] == 2 and f['devices'][0]['poles'] == 4
+    bars = {nb['group']: nb['terminals'] for nb in f['neutral_bars']}
+    assert bars[2] == [first] and first not in bars[1]                      # one neutral bar per RCD
+    assert [d['rating_a'] for d in f['devices'] if d['kind'] == 'rcd'] == [40.0, 25.0]
+    assert f['earth_bar'][0] == 'ΠΑΡΟΧΗ' and set(f['earth_bar'][1:]) == {d['circuit'] for d in mcbs}
+    assert all(sum(d['modules'] for d in rail) <= 12 for rail in f['rails'])
+    from archforge.core.provenance import VERIFIED, rule
+    assert rule('board.conductor_colours').status != VERIFIED and rule('board.rcd_groups').status != VERIFIED
+
+
+def test_board_tab_shows_the_front_first_and_the_rules_in_their_own_tab():
+    from PySide6.QtWidgets import QApplication
+    from archforge.ui.main_window import MainWindow
+    from archforge.ui.electrical_board_tab import BoardTab
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    try:
+        panel = _flat(window.stack)
+        pid = panel if isinstance(panel, str) else panel.id
+        tab = BoardTab(window)
+        r = tab.refresh()
+        assert tab.pages.tabText(0) == 'Πρόσοψη πίνακα' and tab.front_view.front is r['front']
+        assert tab.pages.tabText(tab.rules_index).startswith('Κατάσταση κανόνων (')
+        assert 'Κανένας' in tab.rules_line.text() and len(tab.rules_line.text()) < 200   # one line, not a wall of text
+        cid = r['circuits'][0]['id']
+        tab._assign_rcd(cid, 2)                                                # same command path: undoable
+        assert window.doc.get(pid).params['rcd_groups'] == {cid: 2} and tab.result['front']['rcd_count'] == 2
+        tab._rate_rcd(2, 25.0)
+        assert window.doc.get(pid).params['rcd_ratings'] == [0.0, 25.0]
+        window.stack.undo(); window.stack.undo()
+        assert not window.doc.get(pid).params.get('rcd_groups')
+        assert tab._select_circuit(cid) and set(window.doc.selection) == set(r['circuits'][0]['point_ids'])
+        tab.front_view.resize(tab.front_view.minimumSize())
+        assert not tab.front_view.grab().isNull()
+    finally:
+        window._mark_clean(); window.close(); app.processEvents()
