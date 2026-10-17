@@ -1,11 +1,11 @@
 """Visible plumbing connection-system selector for the Plumbing report tab.
 
 The choice is authoritative project intent: it updates ``pipe_system`` on the
-cold-water supply point through the normal CommandStack.  Routing, quantities
+cold-water supply point through the normal CommandStack. Routing, quantities
 and the technical plan then re-derive from the same Document.
 
 This UI does not assert that the currently encoded diameters are hydraulically
-verified.  Diameter selection remains ENGINEER_REVIEW until a sourced hydraulic
+verified. Diameter selection remains ENGINEER_REVIEW until a sourced hydraulic
 method is implemented.
 """
 from __future__ import annotations
@@ -38,7 +38,7 @@ def water_supply_point(doc):
 def set_plumbing_system(window, system_key: str) -> bool:
     """Change the project's plumbing topology through CommandStack.
 
-    Returns False when there is no cold-water supply yet.  Invalid system keys
+    Returns False when there is no cold-water supply yet. Invalid system keys
     are rejected rather than silently falling back to a different topology.
     """
     system_key = str(system_key)
@@ -84,6 +84,11 @@ class PlumbingSystemControl(QWidget):
         self.combo.activated.connect(self._activated)
         self.refresh()
 
+    def showEvent(self, event):
+        """Always re-read the currently loaded project when this control appears."""
+        super().showEvent(event)
+        self.refresh()
+
     def _activated(self, index):
         key = self.combo.itemData(int(index))
         if key is None:
@@ -100,6 +105,11 @@ class PlumbingSystemControl(QWidget):
             f"Υδραυλικά: {label} — το δίκτυο επαναχαράχθηκε από το ίδιο μοντέλο",
             4500,
         )
+        # Keep the control and report in sync immediately after the command.
+        self.refresh()
+        tab = getattr(self.window, "_plumbing_tab", None)
+        if tab is not None:
+            tab.mark_stale()
 
     def refresh(self):
         supply = water_supply_point(self.window.doc)
@@ -133,6 +143,20 @@ def install(window):
     tab.layout().insertWidget(1, control)
     window._plumbing_system_control = control
     window.stack.listeners.append(control.refresh)
+
+    # Project loading can replace/rebind the live Document/CommandStack while the
+    # report tab remains visible. The report already refreshes from window.doc;
+    # make that same refresh authoritative for the selector too so it never keeps
+    # stale "no supply" state from the previous/new empty document.
+    original_refresh = tab.refresh
+    if not getattr(tab, "_plumbing_system_refresh_wrapped", False):
+        def refresh_with_system(*args, **kwargs):
+            result = original_refresh(*args, **kwargs)
+            control.refresh()
+            return result
+        tab.refresh = refresh_with_system
+        tab._plumbing_system_refresh_wrapped = True
+
     return control
 
 
