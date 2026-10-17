@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import hashlib
 import tempfile
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
@@ -124,6 +125,10 @@ def audit(spec, out):
     run('Structure', 'Warnings explicitly inspected', lambda: require(not structure.get('warnings'), structure.get('warnings') or 'No top-level analysis warnings'))
     record('Structure', 'Engineering validation', 'REVIEW', f"verified={structure.get('verified')}; {structure.get('provenance')}")
     record('Structure', 'Member, footing, slab and joint engineering results', 'REVIEW', 'Raw results retained in evidence JSON; require structural engineer review, including any member failures')
+    failed_joints=[j for j in structure.get('capacity_joints',[]) if j.get('meets') is False]
+    record('Structure','Capacity-joint flags explicitly recorded','FAIL' if failed_joints else 'PASS',
+           f"{len(failed_joints)} meets=False results; roof/top-storey flags: {sum(bool(j.get('top')) for j in failed_joints)}. "
+           'Do not resize members or waive a rule without verified engineering inputs/provenance. This is a software-reported flag, not a confirmed code violation.')
 
     water = route_plumbing(doc); drain = route_drainage(doc); circuits = design_circuits(doc); cables = route_cables(doc)
     evidence['mep'] = {'plumbing':water,'drainage':drain,'circuits':circuits,'cables':cables}
@@ -185,34 +190,39 @@ def audit(spec, out):
     record('Quote', 'Whole-project commercial completeness', 'REVIEW', 'Unknown prices and study-dependent quantities prevent an actual priced construction offer; synthetic test prices do not resolve this')
 
     ui_file=out/f"{spec['id']}_UI_CHECKS.json"
-    ui=json.loads(ui_file.read_text()) if ui_file.exists() else {}
+    ui=json.loads(ui_file.read_text(encoding='utf-8')) if ui_file.exists() else {}
+    project_hash=hashlib.sha256((ROOT/spec['file']).read_bytes()).hexdigest()
+    if ui.get('_project_sha256') != project_hash:
+        ui = {'stale_evidence': 'UI images were not captured from the current project file'}
     evidence['ui']=ui
     for name in ('Plan: Ground','Plan: Level 1','PBR 3D','Structural','Plumbing plan','Drainage plan','Electrical plan','UI select','UI level switch','UI close/reopen'):
         result=ui.get(name)
         record('Visual/UI',name, result.get('status','NOT_TESTED') if result else 'NOT_TESTED',result.get('detail','') if result else 'No checked UI evidence yet')
     visual_file=out/f"{spec['id']}_VISUAL_REVIEW.json"
-    review=json.loads(visual_file.read_text()) if visual_file.exists() else {}
+    review=json.loads(visual_file.read_text(encoding='utf-8')) if visual_file.exists() else {}
+    if review.get('project_sha256') != project_hash:
+        review = {}
     record('Visual/UI','Human visual inspection', review.get('status','NOT_TESTED'),review.get('detail','Images must be opened and inspected; screenshot existence is insufficient'))
     status='PASS' if all(c['status'] in ('PASS','N/A') for c in checks) else 'BLOCKED'
-    result={'scenario':spec['id'],'status':status,'engineering_verified':False,'checks':checks,'evidence':plain(evidence)}
+    result={'scenario':spec['id'],'project_sha256':project_hash,'status':status,'engineering_verified':False,'checks':checks,'evidence':plain(evidence)}
     out.mkdir(exist_ok=True)
-    (out/f"{spec['id']}_EVIDENCE.json").write_text(json.dumps(result,ensure_ascii=False,indent=2,default=str)+'\n')
+    (out/f"{spec['id']}_EVIDENCE.json").write_text(json.dumps(result,ensure_ascii=False,indent=2,default=str)+'\n',encoding='utf-8')
     lines=[f"# {spec['id']} — {spec['name']}",'',f"Status: **{status}**. Next scenario is not authorised by a green unit test alone.",'',
            'Software fixture; not a certified engineering design. All prices are synthetic test values or explicitly missing.','',
            '| Area | Check | Status | Evidence / remaining work |','|---|---|---|---|']
     lines += [f"| {c['category']} | {c['check']} | {c['status']} | {c['detail'].replace('|','/').replace(chr(10),' ')} |" for c in checks]
-    (out/f"{spec['id']}_REPORT.md").write_text('\n'.join(lines)+'\n')
+    (out/f"{spec['id']}_REPORT.md").write_text('\n'.join(lines)+'\n',encoding='utf-8')
     return result
 
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--scenario',default='S01');args=parser.parse_args()
-    specs=json.loads((ROOT/'manifest.json').read_text()); spec=next(s for s in specs if s['id']==args.scenario)
+    specs=json.loads((ROOT/'manifest.json').read_text(encoding='utf-8')); spec=next(s for s in specs if s['id']==args.scenario)
     out=ROOT/'output'
     index=specs.index(spec)
     for previous in specs[:index]:
         p=out/f"{previous['id']}_EVIDENCE.json"
-        if not p.exists() or json.loads(p.read_text())['status']!='PASS':
+        if not p.exists() or json.loads(p.read_text(encoding='utf-8'))['status']!='PASS':
             raise SystemExit(f"STOP: {previous['id']} has not passed its complete gate")
     result=audit(spec,out)
     for row in result['checks']:print(row['status'],row['category'],row['check'],flush=True)

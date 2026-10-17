@@ -1,4 +1,4 @@
-"""Generate the ten human-openable ArchForge residential integration projects.
+"""Generate one human-openable fixture from the ordered residential suite.
 
 These files are TEST FIXTURES, not engineering designs. Geometry, MEP and structure
 exist to exercise the software pipeline. Any price values are synthetic test values
@@ -326,7 +326,7 @@ def main():
     selected = next(s for s in specs if s['id'] == args.scenario)
     for previous in specs[:specs.index(selected)]:
         evidence = ROOT / 'output' / f"{previous['id']}_EVIDENCE.json"
-        if not evidence.exists() or json.loads(evidence.read_text())['status'] != 'PASS':
+        if not evidence.exists() or json.loads(evidence.read_text(encoding='utf-8'))['status'] != 'PASS':
             raise SystemExit(f"STOP: {previous['id']} full gate is incomplete")
     for spec in [selected]:
         path = ROOT / spec["file"]

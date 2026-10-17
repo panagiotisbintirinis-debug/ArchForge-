@@ -1,0 +1,15 @@
+{
+  "status": "PASS",
+  "project_sha256": "9f863a6138c466a52c24d368f5fe20f00af03183034eb0a807afd2e2c3a32781",
+  "detail": "Opened and visually inspected the actual ground/upper plans, exterior PBR, dollhouse interior, Structural, plumbing, drainage and electrical images. Railing, upper/lower stair symbols, slabs/physical opening, bathroom assets and routes are visible. Plumbing label overlap fixed; drainage labels collision-managed and external manhole fits in capture. Images document software fixtures and are not engineering approval.",
+  "files": {
+    "S01_01b_upper_plan.png": "a834f9648158793d9a14c8cec50f4e91271aa1bf248c5ffb9da836e88b458716",
+    "S01_02_3d.png": "b15a1fe96f87e587995be514c60c4fa00a682d3ee70a9961cea0bd1b94e8c3b2",
+    "S01_02b_dollhouse.png": "236b43c4e518a0d1a4c8e7809a511eb2ca8b82038eee6e6ba11a8f68e74de6ec",
+    "S01_06_electrical.png": "76b932c6b4bb94f4ba6fa4d4fd509b306127867e6f5d1661d3b15c32917afccb",
+    "S01_01_plan.png": "ef3e89e260e61c776049c15506449ae696af35a3ec39b9dcd1f60a67bdd5a511",
+    "S01_05_drainage.png": "9e5fa84ceb3e081bdb4c7c1da1b9f3535de54bfc4899c223d78b4bda9f3a88d1",
+    "S01_03_structural.png": "30dd108416ef428381e48477d024350ad49e6dfc73d3dd5c0d517efff849c8e7",
+    "S01_04_plumbing.png": "664b95ef323d9bb149294c6d917119ef2b77235cbf6149401c58eddf5b1d4fa7"
+  }
+}

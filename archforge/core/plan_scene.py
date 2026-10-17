@@ -918,7 +918,7 @@ def build_plan_frame(doc,preview=None,layers=True):
         from archforge.mep.drainage import SLOPE,_floor_of as drain_floor,route_drainage_cached
         level=float(doc.work_plane.origin[2])
         drain=route_drainage_cached(doc)
-        labelled=set()
+        labelled=set();drain_specs=[]
         for a,b,dn,kind in drain['pipes']:
             if kind=='stack':
                 f.primitives.append(Primitive2D('ellipse',((a[0],a[1]),),dn/2000+.03,dn/2000+.03,0.,'','drain-stack',meta=(('diameter',dn),)))
@@ -926,16 +926,27 @@ def build_plan_frame(doc,preview=None,layers=True):
             if drain_floor(doc,max(a[2],b[2])+.5)!=level:
                 continue
             f.primitives.append(Primitive2D('polyline',((a[0],a[1]),(b[0],b[1])),role='drain',meta=(('diameter',dn),('kind',kind))))
-            if kind=='collector' and (dn,round(a[0],1),) not in labelled and abs(a[0]-b[0])+abs(a[1]-b[1])>.15 and len(labelled)<12:
-                labelled.add((dn,round(a[0],1)))
-                f.primitives.append(Primitive2D('label',(((a[0]+b[0])/2+.05,(a[1]+b[1])/2+.12),),role='drain-label',meta=(('text',f"Φ{dn} {SLOPE*100:.0f}%"),)))
+            # A* route segments can be only 20 cm long. Repeating their text
+            # produces a carpet of labels even though the pipe is continuous.
+            # These buckets affect annotation density only, never route/BOM.
+            mid=((a[0]+b[0])/2,(a[1]+b[1])/2)
+            key=(dn,abs(a[0]-b[0])<1e-6,round(mid[0]/1.5),round(mid[1]/1.5))
+            if kind=='collector' and key not in labelled and abs(a[0]-b[0])+abs(a[1]-b[1])>.15 and len(labelled)<12:
+                labelled.add(key)
+                drain_specs.append((1,f"Φ{dn} {SLOPE*100:.0f}%",_axis_candidates(a[:2],b[:2],.15)))
         for n in drain['nodes']:
             if abs(n['z']-level)>.05:
                 continue
             r={'manhole':.30,'floor_drain':.08,'stack':.10}[n['kind']]
             x,y=n['x'],n['y']
             f.primitives.append(Primitive2D('polyline',((x-r,y-r),(x+r,y-r),(x+r,y+r),(x-r,y+r),(x-r,y-r)),role='drain-node',meta=(('kind',n['kind']),('auto',n['auto']))))
-            f.primitives.append(Primitive2D('label',((x+r+.05,y-r-.12),),role='drain-label',meta=(('text',{'manhole':'Φρεάτιο','floor_drain':'Σιφώνι','stack':f"Στήλη Φ{n.get('dn',100)}"}[n['kind']]+(' (αυτ.)' if n['auto'] else '')),)))
+            text={'manhole':'Φρεάτιο','floor_drain':'Σιφώνι','stack':f"Στήλη Φ{n.get('dn',100)}"}[n['kind']]+(' (αυτ.)' if n['auto'] else '')
+            drain_specs.append((0,text,_corner_candidates(x,y,r,r)))
+        drain_specs.sort(key=lambda q:q[0])
+        placed=place_labels(tuple((text,cands) for _rank,text,cands in drain_specs))
+        for (_rank,text,_cands),(anchor,align,min_scale) in zip(drain_specs,placed):
+            f.primitives.append(Primitive2D('label',(anchor,),role='drain-label',
+                meta=(('text',text),('align',align),('min_scale',min_scale))))
     # Derived extract ducts of the active storey (under the ceiling) and their outlets.
     if any(e.kind=='ventilation_point' for e in doc.entities.values()):
         from archforge.mep.ventilation import POINT_TYPES as VENT,_floor_of as vent_floor,route_ventilation_cached

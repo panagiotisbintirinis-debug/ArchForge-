@@ -66,3 +66,30 @@ def test_s01_has_an_interstorey_slab_despite_the_roof_above_two_storeys():
     assert len(slabs) == 1
     assert slabs[0].params['level_z'] == 0.
     assert storey_slab_geometry(doc, slabs[0]) is not None
+
+
+def test_s01_plumbing_plan_uses_pipe_only_display_without_overlapping_point_names():
+    from archforge.core.layers import set_workspace
+    from archforge.core.plan_scene import build_plan_frame
+    from archforge.ui.plumbing_display import apply_display_state
+    doc = generated_s01(); set_workspace(doc, 'mep')
+    frame = apply_display_state(doc, build_plan_frame(doc))
+    roles = [p.role for p in frame.primitives]
+    assert 'pipe-cold' in roles and 'pipe-hot' in roles
+    assert 'plumbing-label' not in roles
+
+
+def test_s01_drainage_annotations_use_collision_managed_positions():
+    from archforge.core.plan_scene import build_plan_frame, label_box
+    frame = build_plan_frame(generated_s01(), layers=False)
+    labels = [p for p in frame.primitives if p.role == 'drain-label']
+    assert labels
+    boxes = []
+    for label in labels:
+        meta = dict(label.meta)
+        assert 'min_scale' in meta and 'align' in meta
+        if meta['min_scale'] <= 60:
+            boxes.append(label_box(label.points[0], meta['align'], meta['text'], 60))
+    for i, a in enumerate(boxes):
+        for b in boxes[i+1:]:
+            assert not (a[0]<b[2] and b[0]<a[2] and a[1]<b[3] and b[1]<a[3])

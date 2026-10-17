@@ -1,8 +1,9 @@
-"""Ten sequential whole-house regression scenarios.
+"""Current whole-house pipeline regression in an ordered ten-scenario suite.
 
 The order is deliberate: S01 must pass Architecture -> Structure -> MEP -> Quote
 before S02 starts, and so on. This mirrors the owner's requested workflow and
 makes the first broken real workflow the thing we repair before continuing.
+The pipeline test alone never approves the scenario's complete visual/engineering gate.
 
 The project files are human-openable .archforge fixtures. Engineering output is
 still subject to each module's provenance/status; a green software test never

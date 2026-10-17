@@ -1937,11 +1937,6 @@ renderer.domElement.addEventListener("lostpointercapture", (event) => {
   if (bridge) bridge.endSculpt();
 }, true);
 
-if (window.__archforgePendingTechnique) window.setTechnique(window.__archforgePendingTechnique);
-if (window.__archforgePendingScene) window.archforgeSetScene(window.__archforgePendingScene);
-if (window.__archforgePendingStairPreview) window.setStairPreview(window.__archforgePendingStairPreview);
-if (window.__archforgePendingRampPreview) window.setRampPreview(window.__archforgePendingRampPreview);
-
 // Walk mode (Walkthrough / interior camera): W A S D or the arrows walk (left/right arrows turn),
 // Shift runs, Q / E go down / up, left-drag looks around, the wheel steps forward / back.
 // No collision: you walk through walls, as in a model.
@@ -2041,6 +2036,15 @@ window.archforgeCaptureFrame = (width, height) => {
   resize();
   return image;
 };
+
+// Applying a scene also sets the camera, which calls setWalkMode. Drain the
+// initial payload only after all walk-mode let/const state is initialised.
+// Opening a populated project used to throw a temporal-dead-zone ReferenceError
+// here intermittently, leaving the 3D page only partly initialised.
+if (window.__archforgePendingTechnique) window.setTechnique(window.__archforgePendingTechnique);
+if (window.__archforgePendingScene) window.archforgeSetScene(window.__archforgePendingScene);
+if (window.__archforgePendingStairPreview) window.setStairPreview(window.__archforgePendingStairPreview);
+if (window.__archforgePendingRampPreview) window.setRampPreview(window.__archforgePendingRampPreview);
 
 function animate() {
   walkStep();

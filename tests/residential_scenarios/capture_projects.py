@@ -10,6 +10,7 @@ import json
 import os
 import time
 import base64
+import hashlib
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -51,7 +52,7 @@ def _js(view, source, timeout=30000):
 def _wait_renderer(view, timeout=45):
     end = time.monotonic() + timeout
     while time.monotonic() < end:
-        ready = _js(view, "typeof window.archforgeSetScene === 'function' && !!document.querySelector('canvas')")
+        ready = _js(view, "typeof window.archforgeCaptureFrame === 'function' && typeof window.archforgeSetScene === 'function' && !!document.querySelector('canvas')")
         if ready:
             _wait(500)
             return
@@ -84,6 +85,12 @@ def _fit_plan(window):
         raise RuntimeError('no active-storey walls for plan capture')
     xs = [float(p[k]) for p in walls for k in ('x1', 'x2')]
     ys = [float(p[k]) for p in walls for k in ('y1', 'y2')]
+    from archforge.core.layers import workspace
+    if workspace(window.doc) == 'mep':
+        from archforge.mep.drainage import route_drainage_cached
+        for node in route_drainage_cached(window.doc)['nodes']:
+            if abs(float(node['z'])-z) < .05:
+                xs.append(float(node['x']));ys.append(float(node['y']))
     rect = QRectF(min(xs)-1.5, min(ys)-2., max(xs)-min(xs)+3., max(ys)-min(ys)+3.5)
     window.plan_view.fitInView(rect, Qt.AspectRatioMode.KeepAspectRatio)
     window.plan_view.redraw()
@@ -110,17 +117,7 @@ def _save(widget, path):
     colors = {qimage.pixel(x, y) for x in range(0,qimage.width(),max(1,qimage.width()//40))
               for y in range(0,qimage.height(),max(1,qimage.height()//30))}
     if len(colors) < 8:
-        if getattr(widget, 'web_view', None) is None:
-            raise RuntimeError(f'blank screenshot rejected: {path.name}')
-        # Some virtual displays cannot composite the native WebEngine texture.
-        # Capture the real renderer's current canvas, never redraw the model in
-        # another renderer or fabricate an image. Report this capture method.
-        data = _js(widget, f"window.archforgeCaptureFrame({pix.width()}, {pix.height()})")
-        if not isinstance(data,str) or not data.startswith('data:image/png;base64,'):
-            raise RuntimeError(f'no real WebGL frame for {path.name}')
-        path.write_bytes(base64.b64decode(data.split(',',1)[1]))
-        print(f'{path.name}: actual WebGL canvas capture (native grab was blank)', flush=True)
-        return 'WebGL canvas'
+        raise RuntimeError(f'blank screenshot rejected: {path.name}')
     if not pix.save(str(path), "PNG"):
         raise RuntimeError(f"could not save screenshot: {path}")
     return 'Native Qt widget'
@@ -133,12 +130,12 @@ def capture_one(app, spec):
         raise RuntimeError(report.message())
 
     doc = report.doc
-    ui = {}
+    ui = {'_project_sha256': hashlib.sha256(project_path.read_bytes()).hexdigest()}
     OUT.mkdir(parents=True, exist_ok=True)
     ui_path = OUT / f"{spec['id']}_UI_CHECKS.json"
     def result(name, status, detail):
         ui[name] = {'status': status, 'detail': detail}
-        ui_path.write_text(json.dumps(ui,ensure_ascii=False,indent=2)+'\n')
+        ui_path.write_text(json.dumps(ui,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     for old in OUT.glob(f"{spec['id']}_*.png"):
         old.unlink()
     window = MainWindow()
@@ -227,6 +224,11 @@ def capture_one(app, spec):
         f"- `{spec['id']}_01_plan.png`",
         f"- `{spec['id']}_02_3d.png`",
         f"- `{spec['id']}_03_structural.png`",
+        f"- `{spec['id']}_01b_upper_plan.png`",
+        f"- `{spec['id']}_02b_dollhouse.png`",
+        f"- `{spec['id']}_04_plumbing.png`",
+        f"- `{spec['id']}_05_drainage.png`",
+        f"- `{spec['id']}_06_electrical.png`",
         "",
         "Software tests passing is not engineering approval. Rules carrying ENGINEER_REVIEW, DESIGN_DEFAULT, UNVERIFIED or similar provenance retain that status.",
     ]
@@ -255,6 +257,9 @@ def main():
     parser.add_argument('--scenario', default='S01')
     args = parser.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
+    if QApplication.instance() is None:
+        from PySide6.QtCore import QCoreApplication
+        QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
     app = QApplication.instance() or QApplication([])
     specs = [s for s in json.loads(MANIFEST.read_text(encoding="utf8")) if s['id'] == args.scenario]
     for spec in specs:
