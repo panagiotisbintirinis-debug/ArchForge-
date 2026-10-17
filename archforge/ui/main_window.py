@@ -1507,7 +1507,8 @@ class MainWindow(QMainWindow):
             ('Μπάνιο', [(None, by_cat.pop('Μπάνιο', []))]),
             ('Εξωτερικοί χώροι', [(None, by_cat.pop('Εξωτερικοί χώροι', []))]),
             ('Η/Μ', [('Υδραυλικά', [(v[0], ('tool', f'plumb_{k}')) for k, v in PLUMB.items()]),
-                     ('Ηλεκτρολογικά', [(v[0], ('tool', f'elec_{k}')) for k, v in ELEC.items()]),
+                     ('Ηλεκτρολογικά', [(v[0], ('tool', f'elec_{k}')) for k, v in ELEC.items() if v[1] != 'low_voltage']),
+                     ('Ασθενή', [(v[0], ('tool', f'elec_{k}')) for k, v in ELEC.items() if v[1] == 'low_voltage']),
                      ('Εξαερισμοί', [(v[0], ('tool', f'vent_{k}')) for k, v in VENT.items()])]),
         ]
         from archforge.architecture.joinery import PRESETS as JOINERY

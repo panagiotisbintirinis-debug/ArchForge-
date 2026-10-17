@@ -111,6 +111,22 @@ class BoardTab(QWidget):
         self.pages.addTab(self.circuits, "Κυκλώματα και αγωγοί")
         self.pages.addTab(self.walls, "Μέτρα ανά τοίχο")
         self.pages.addTab(self.purchase, "Αγορά καλωδίων")
+        # Ασθενή (owner 17/10): network, TV and automation, drawn in 2D/3D on their own layer.
+        lv_page = QWidget(); lv = QVBoxLayout(lv_page); lv.setContentsMargins(0, 4, 0, 0)
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Καλώδιο δικτύου (κατηγορία από τη μελέτη):"))
+        self.lv_cable = QComboBox(); self.lv_cable.setEditable(True)
+        for text in ("", "Cat 6", "Cat 6A", "Cat 7"):
+            self.lv_cable.addItem(text or "— εισάγετε", text)
+        self.lv_cable.activated.connect(lambda _i: self._set_rack("network_cable", self.lv_cable.currentData() or ""))
+        row.addWidget(self.lv_cable); row.addStretch(1)
+        lv.addLayout(row)
+        self.lv_tree = self._tree(["Σύστημα / σημείο", "Πλήθος", "Καλώδιο", "Σωλήνας", "Σημείωση"])
+        self.lv_tree.itemClicked.connect(self._select_item)
+        lv.addWidget(self.lv_tree, 1)
+        self.lv_warnings = QLabel(); self.lv_warnings.setWordWrap(True); self.lv_warnings.setStyleSheet("color:#b45309")
+        lv.addWidget(self.lv_warnings)
+        self.lv_index = self.pages.addTab(lv_page, "Ασθενή — δίκτυο · TV · αυτοματισμοί")
         # Rules and their status: one tab of their own, one short line in view (owner 17/10: «μόνο θόρυβος»).
         self.provenance = QLabel(); self.provenance.setWordWrap(True); self.provenance.setStyleSheet("font-size:11px")
         self.provenance.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -217,7 +233,62 @@ class BoardTab(QWidget):
                                 "προμελέτη, προς έλεγχο από ηλεκτρολόγο μηχανικό · λεπτομέρειες: «Κατάσταση κανόνων»")
         self.rules_line.setVisible(has)
         self._fill_front(r)
+        self._fill_low_voltage()
         return r
+
+    # ------------------------------------------------------------------------------------------------ ασθενή
+    def _set_rack(self, key, value):
+        lv = self.result.get("low_voltage") if self.result else None
+        if not lv or not lv["rack"] or self.window.doc.get(lv["rack"]).params.get(key) == value:
+            return
+        from archforge.core.commands import UpdateEntity
+        self.window.stack.execute(UpdateEntity(lv["rack"], {key: value}))
+        self.refresh()
+
+    def _fill_low_voltage(self):
+        from archforge.mep.low_voltage import SYSTEM_LABELS, lv_points, route_low_voltage_cached
+        lv = self.result["low_voltage"] = route_low_voltage_cached(self.window.doc)
+        t = self.lv_tree; t.clear()
+        has = bool(lv_points(self.window.doc)) or bool(lv["knx"])
+        if has and not self.pages.isVisible() and not self.result["circuits"]:
+            self.empty.setVisible(False); self.pages.setVisible(True); self.pages.setCurrentIndex(self.lv_index)
+        self.lv_cable.setEnabled(bool(lv["rack"]))
+        self._updating = True
+        try:
+            i = self.lv_cable.findData(lv["cable"])
+            if i < 0 and lv["cable"]:
+                self.lv_cable.addItem(lv["cable"], lv["cable"]); i = self.lv_cable.findData(lv["cable"])
+            self.lv_cable.setCurrentIndex(max(0, i))
+        finally:
+            self._updating = False
+        if lv["rack"]:
+            rack = QTreeWidgetItem(["Rack δικτύου / κατανεμητής", "1", "", "", "αφετηρία όλων των γραμμών (αστέρας)"])
+            rack.setData(0, Qt.ItemDataRole.UserRole, [lv["rack"]]); t.addTopLevelItem(rack)
+        for system in ("network", "tv"):
+            tot = lv["totals"].get(system)
+            if not tot:
+                continue
+            top = QTreeWidgetItem([SYSTEM_LABELS[system], str(tot["points"]), f"{_n(tot['cable_m'])} m",
+                                   f"{_n(tot['conduit_m'])} m", "ένα καλώδιο ανά σημείο ως το rack"])
+            top.setData(0, Qt.ItemDataRole.UserRole, [o["id"] for o in lv["outlets"] if o["system"] == system])
+            for o in (o for o in lv["outlets"] if o["system"] == system):
+                child = QTreeWidgetItem(top, [o["label"], "", f"{_n(o['cable_m'])} m", "", f"όροφος {_n(o['floor'], 2)} m"])
+                child.setData(0, Qt.ItemDataRole.UserRole, [o["id"]])
+            t.addTopLevelItem(top); top.setExpanded(True)
+        k = lv["knx"]
+        if k:
+            top = QTreeWidgetItem([SYSTEM_LABELS["knx"], str(k["buttons"]), f"{_n(k['bus_m'])} m", "",
+                                   f"ως την πιο μακρινή συσκευή {_n(k['bus_farthest_m'])} m"])
+            for label, value in (("Μπουτόν στο bus", k["buttons"]), ("Διευθύνσεις DALI-2", k["dali_addresses"]),
+                                 ("KNX-DALI gateways", k["dali_gateways"]), ("Κανάλια ρελέ (On/Off)", k["onoff_channels"])):
+                QTreeWidgetItem(top, [label, str(value), "", "", ""])
+            t.addTopLevelItem(top); top.setExpanded(True)
+        elif lv_points(self.window.doc) or self.result["circuits"]:
+            t.addTopLevelItem(QTreeWidgetItem(["Αυτοματισμοί", "", "", "", "συμβατικό σύστημα — KNX: επιλογή στην κορυφή"]))
+        notes = lv["warnings"] + list(k.get("warnings", []) if k else [])
+        if not lv_points(self.window.doc):
+            notes.append("Βάλτε σημεία από Μηχανολογικά ▸ «Ασθενή (δίκτυο / TV)»: rack, πρίζες RJ45 / TV, Wi-Fi.")
+        self.lv_warnings.setText("\n".join(f"⚠ {w}" if not w.startswith("Βάλτε") else w for w in notes))
 
     # ------------------------------------------------------------------------------------- board front view
     def _fill_front(self, r):

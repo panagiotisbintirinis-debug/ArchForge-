@@ -114,6 +114,14 @@ Agreed with the owner after an honest review of where an AI agent cannot be trus
 - Say plainly what was not verified (Windows, real users, performance on a full house) instead of reporting green tests as proof.
 - Prefer one branch at a time; when parallel work exists, write the integration contract in the HANDOFF instead of duplicating the feature.
 
+## Material economy (owner, 2026-10-17, binding)
+Owner: «πρέπει να υπάρχει η λογική της οικονομίας υλικών γενικά — αυτό είναι κανόνας».
+- Every routing / layout the program proposes (conduits, cables, pipes, ducts, members, cuts) takes the arrangement with the
+  least material that still meets the system's own rules: shared trees over separate runs, shortest path along the allowed
+  zones, one cable per point only where the system needs it (e.g. Ethernet home runs).
+- Where economy and a rule conflict, the rule wins and the extra material is shown with its reason.
+- Quantities are always reported, so the economy can be checked.
+
 ## Human intervention threshold
 Do not ask the human to choose routine implementation details. Escalate only when the answer would materially change product semantics, user-facing policy, safety, cost, or architecture direction and cannot be resolved from existing repository contracts.
 

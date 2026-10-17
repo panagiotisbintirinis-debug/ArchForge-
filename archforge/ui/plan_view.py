@@ -968,6 +968,10 @@ class PlanView(QGraphicsView):
             from archforge.mep.electrical import CABLE_COLORS
             pen=QPen(QColor(CABLE_COLORS.get(dict(p.meta).get('group'),'#e07a00')));pen.setWidthF(.015)
             pen.setStyle({'wall':Qt.PenStyle.SolidLine,'floor':Qt.PenStyle.DotLine}.get(dict(p.meta).get('run'),Qt.PenStyle.DashLine))
+        if p.role in ('lv-cable','lv-box'):
+            from archforge.mep.electrical import CABLE_COLORS
+            pen=QPen(QColor(CABLE_COLORS.get(dict(p.meta).get('system'),'#0e9aa7')));pen.setWidthF(.012 if p.role=='lv-cable' else .008)
+            if p.role=='lv-cable':pen.setStyle(Qt.PenStyle.DashDotLine)
         if p.role=='led-strip':
             pen=QPen(QColor(232,170,20));pen.setWidthF(.03);pen.setStyle(Qt.PenStyle.DashLine);pen.setCapStyle(Qt.PenCapStyle.FlatCap)
         if p.role=='manifold':

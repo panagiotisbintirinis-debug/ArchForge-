@@ -828,6 +828,16 @@ def build_plan_frame(doc,preview=None,layers=True):
                 if kind=='pull':
                     f.primitives.append(Primitive2D('polyline',((x-r,y-r),(x+r,y+r)),role='elec-box',meta=(('box',kind),)))
                     f.primitives.append(Primitive2D('polyline',((x-r,y+r),(x+r,y-r)),role='elec-box',meta=(('box',kind),)))
+        # Ασθενή of the active storey: data / TV star from the rack and the KNX bus (own layer and colours).
+        from archforge.mep.low_voltage import LV_RUN_DROP,route_low_voltage_cached
+        lv=route_low_voltage_cached(doc)
+        for a,b,system,tid in lv['runs']:
+            if abs(a[2]-b[2])<1e-9 and elec_floor(doc,a[2])==level:
+                f.primitives.append(Primitive2D('polyline',((a[0],a[1]),(b[0],b[1])),role='lv-cable',meta=(('system',system),('outlet',tid))))
+        for x,y,z,_kind,tid in lv['boxes']:
+            if elec_floor(doc,z)==level:
+                r=.05
+                f.primitives.append(Primitive2D('polyline',((x-r,y-r),(x+r,y-r),(x+r,y+r),(x-r,y+r),(x-r,y-r)),role='lv-box',meta=(('outlet',tid),)))
         names={pid:c['id'] for c in wiring['circuits'] for pid in c['points']}
         for eid in doc.entities:
             e=doc.get(eid)
@@ -837,7 +847,9 @@ def build_plan_frame(doc,preview=None,layers=True):
                     f.primitives.append(Primitive2D('polyline',((float(e.params['x']),float(e.params['y'])),(float(e.params['x2']),float(e.params['y2']))),
                                                     entity_id=eid,role='led-strip',meta=(('kelvin',float(e.params.get('kelvin',3000.0))),)))
                 text=ELEC[e.params['point_type']][4]+(f" {names[eid]}" if eid in names else '')
-                f.primitives.append(Primitive2D('label',((float(e.params['x'])+.12,float(e.params['y'])-.25),),entity_id=eid,role='electrical-label',meta=(('text',text),)))
+                lv_point=ELEC[e.params['point_type']][1]=='low_voltage'
+                f.primitives.append(Primitive2D('label',((float(e.params['x'])+.12,float(e.params['y'])-.25),),entity_id=eid,
+                                                role='lv-label' if lv_point else 'electrical-label',meta=(('text',text),)))
     # Derived joists of the active storey: one dashed line per joist and the solver's label.
     for eid in doc.entities:
         e=doc.get(eid)

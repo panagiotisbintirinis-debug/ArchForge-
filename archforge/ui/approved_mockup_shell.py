@@ -284,12 +284,18 @@ def install_approved_mockup_shell(window):
     window._mockup_plumbing_menu=plumbing
     from archforge.mep.electrical import POINT_TYPES as ELEC
     electrical=QMenu("Ηλεκτρολογικά σημεία",mep_menu); mep_menu.addMenu(electrical)
+    lv_menu=QMenu("Ασθενή (δίκτυο / TV)",mep_menu)
     for key,(label,_g,_w,_h,_l) in ELEC.items():
+        if _g=="low_voltage":
+            a=QAction(label,window)
+            a.triggered.connect(lambda _=False,k=key,l=label: window._start_site_tool(f"elec_{k}",f"{l}: κλικ στην κάτοψη — οι γραμμές ασθενών χαράζονται αυτόματα από το rack, Esc για τέλος"))
+            lv_menu.addAction(a); continue
         a=QAction(label,window)
         how="σύρε τη γραμμή της ταινίας (στην εσοχή της ψευδοροφής ακολουθεί το ύψος της)" if key=="led_strip" else "κλικ στην κάτοψη"
         a.triggered.connect(lambda _=False,k=key,l=label,h=how: window._start_site_tool(f"elec_{k}",f"{l}: {h} — τα κυκλώματα σχηματίζονται αυτόματα, Esc για τέλος"))
         electrical.addAction(a)
     window._mockup_electrical_menu=electrical
+    mep_menu.addMenu(lv_menu); window._mockup_lv_menu=lv_menu
     from archforge.mep.drainage import POINT_TYPES as DRAIN
     drainage=QMenu("Αποχετεύσεις",mep_menu); mep_menu.addMenu(drainage)
     for key,(label,_l) in DRAIN.items():
@@ -311,6 +317,9 @@ def install_approved_mockup_shell(window):
     elec_layer=QAction("Ηλεκτρολογικά στο 3D",window); elec_layer.setCheckable(True); elec_layer.setChecked(True)
     elec_layer.toggled.connect(lambda on: window._set_layer_visible("elec",on))
     mep_menu.addAction(elec_layer); window.view_menu.addAction(elec_layer); window._elec_layer_action=elec_layer
+    lv_layer=QAction("Ασθενή στο 3D",window); lv_layer.setCheckable(True); lv_layer.setChecked(True)
+    lv_layer.toggled.connect(lambda on: window._set_layer_visible("lv",on))
+    mep_menu.addAction(lv_layer); window.view_menu.addAction(lv_layer); window._lv_layer_action=lv_layer
     drain_layer=QAction("Αποχετεύσεις στο 3D",window); drain_layer.setCheckable(True); drain_layer.setChecked(True)
     drain_layer.toggled.connect(lambda on: window._set_layer_visible("drain",on))
     mep_menu.addAction(drain_layer); window.view_menu.addAction(drain_layer); window._drain_layer_action=drain_layer

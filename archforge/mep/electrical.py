@@ -91,6 +91,11 @@ POINT_TYPES = {
     "air_conditioner": ("Κλιματιστικό", "air_conditioner", 2500, 2.20, "ΚΛ"),
     "washing_machine": ("Πλυντήριο ρούχων", "washing_machine", 2300, 0.60, "ΠΡ"),
     "dishwasher": ("Πλυντήριο πιάτων", "dishwasher", 2000, 0.40, "ΠΠ"),
+    # Ασθενή (owner 17/10): same entity, own group — never part of a power circuit (mep/low_voltage.py).
+    "network_rack": ("Rack δικτύου / κατανεμητής ασθενών", "low_voltage", 0, 1.60, "RK"),
+    "data_outlet": ("Πρίζα δικτύου RJ45", "low_voltage", 0, 0.30, "D"),
+    "wifi_ap": ("Σημείο πρόσβασης Wi-Fi (οροφή)", "low_voltage", 0, None, "AP"),
+    "tv_outlet": ("Πρίζα TV / SAT", "low_voltage", 0, 0.30, "TV"),
 }
 # group: label, breaker A, cable mm², max points per circuit (None = dedicated)
 CIRCUIT_RULES = {
@@ -105,6 +110,7 @@ CIRCUIT_RULES = {
 }
 GROUP_ORDER = tuple(CIRCUIT_RULES)
 SWITCH_TYPES = ("switch", "dimmer")
+LOW_VOLTAGE_TYPES = ("network_rack", "data_outlet", "wifi_ap", "tv_outlet")
 # Luminaires added 15/10 carry no catalogue default (owner's rule: no values from memory) —
 # their W (or W/m for a strip) comes from the luminaire's data sheet.
 DATASHEET_TYPES = ("spot", "downlight", "wall_washer", "led_strip")
@@ -441,4 +447,6 @@ def point_marker_mesh(doc, params):
 
 CABLE_COLORS = {"lighting": "#e0b400", "sockets": "#e07a00", "kitchen_sockets": "#c2410c", "switch": "#9a8f00",
                 "cooker": "#7b2fbf", "water_heater": "#7b2fbf", "air_conditioner": "#7b2fbf",
-                "washing_machine": "#7b2fbf", "dishwasher": "#7b2fbf"}
+                "washing_machine": "#7b2fbf", "dishwasher": "#7b2fbf",
+                # Ασθενή (drawing convention): data, TV, KNX bus.
+                "network": "#0e9aa7", "tv": "#6d28d9", "knx": "#2e7d32"}

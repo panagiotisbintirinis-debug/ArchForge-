@@ -221,7 +221,7 @@ def electrical_list(doc, result=None):
     counts, strips = {}, {}
     for e in pts:
         t = e.params["point_type"]
-        if t == "panel":
+        if t == "panel" or POINT_TYPES[t][1] == "low_voltage":
             continue
         cid = e.params.get("catalog_id") or ""
         if t == "led_strip":
@@ -234,6 +234,8 @@ def electrical_list(doc, result=None):
                    f"electrical.point.{t}" + (f".{cid}" if cid else ""), "Σημείο που υπάρχει στο σχέδιο.")
         counts[key] = counts.get(key, 0) + 1
     rows += [(label, "τεμ.", n, meta(code, why)) for (label, code, why), n in sorted(counts.items())]
+    from archforge.mep.low_voltage import lv_material_rows
+    rows += lv_material_rows(doc, meta)
     for cid, m in sorted(strips.items()):
         rows.append((POINT_TYPES["led_strip"][0] + (f" — {entry(cid).label}" if cid else "") + " και τοποθέτηση (με προφίλ)",
                      "m", round(m, 2), meta("electrical.strip" + (f".{cid}" if cid else ""),
