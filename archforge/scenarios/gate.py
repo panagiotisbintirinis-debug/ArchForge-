@@ -961,7 +961,8 @@ def _components(segs):
     segs = list(segs)
     for a, b in segs:
         parent[find(key(a))] = find(key(b))
-    # A branch teed into the middle of a pipe is connected to it (endpoint on the segment, within 1 cm).
+    # A branch teed into the middle of a pipe is connected to it (endpoint on the segment, within 1 cm); so is an
+    # end within 1 cm of another end (the rounded keys split 6.325 / 6.3249999 into two pieces).
     ends = {key(q): q for s_ in segs for q in s_}
     for a, b in segs:
         d = [b[i] - a[i] for i in range(3)]
@@ -970,7 +971,8 @@ def _components(segs):
             continue
         for k, q in ends.items():
             t = sum((q[i] - a[i]) * d[i] for i in range(3)) / L2
-            if 0.0 < t < 1.0 and math.dist(q, [a[i] + t * d[i] for i in range(3)]) < 0.01:
+            t = min(1.0, max(0.0, t))
+            if math.dist(q, [a[i] + t * d[i] for i in range(3)]) < 0.01:
                 parent[find(k)] = find(key(a))
     comp = {}
     for n in list(parent):
