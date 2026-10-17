@@ -46,6 +46,13 @@ def contact_pressure(N, ex, ey, B, L):
 
 
 def _numerical(N, ex, ey, B, L):
+    def unresolved(reason):
+        # A failed grid solve is not proof of physical overturning. It also
+        # cannot be used as a successful equilibrium/pressure check.
+        return {"sigma_max": math.inf, "sigma_min": 0.0, "contact": 0.0,
+                "method": "numerical_failure", "stable": False,
+                "converged": False, "error": reason}
+
     xs = (np.arange(GRID) + 0.5) / GRID * B - B / 2
     ys = (np.arange(GRID) + 0.5) / GRID * L - L / 2
     X, Y = np.meshgrid(xs, ys, indexing="ij")
@@ -57,9 +64,11 @@ def _numerical(N, ex, ey, B, L):
     converged = False
     for _ in range(200):
         s = p[0] + p[1] * X + p[2] * Y
+        if not np.isfinite(s).all():
+            return unresolved("Non-finite contact-pressure iterate")
         on = s > 0
         if not on.any():
-            break
+            return unresolved("No active contact cells in the numerical solve")
         x, y, sv = X[on], Y[on], s[on]
         r = np.array([sv.sum(), (sv * x).sum(), (sv * y).sum()]) * dA - target
         if np.max(np.abs(r) / np.array([N, N * B, N * L])) < 1e-9:
@@ -68,19 +77,21 @@ def _numerical(N, ex, ey, B, L):
         Jm = np.array([[on.sum(), x.sum(), y.sum()],
                        [x.sum(), (x * x).sum(), (x * y).sum()],
                        [y.sum(), (x * y).sum(), (y * y).sum()]], float) * dA
-        # Least squares: the contact zone can shrink to a strip of grid cells on one line, where the
-        # Jacobian is singular (np.linalg.solve raised «Singular matrix» mid-analysis).
-        step = np.linalg.lstsq(Jm, r, rcond=None)[0]
+        try:
+            step = np.linalg.solve(Jm, r)
+        except np.linalg.LinAlgError:
+            return unresolved("Singular contact-pressure Jacobian")
+        if not np.isfinite(step).all():
+            return unresolved("Non-finite contact-pressure correction")
         p = p - step
     if not converged:
-        # No equilibrium plane found: the resultant is at the edge of the base — treated as not stable
-        # (the caller widens the base), never as a pressure that holds.
-        return {"sigma_max": math.inf, "sigma_min": 0.0, "contact": 0.0, "method": "numerical", "stable": False}
+        return unresolved("Contact-pressure iteration limit reached without equilibrium")
     s = p[0] + p[1] * X + p[2] * Y
     on = s > 0
     # The corner of the compressed side carries the peak (exact for the plane).
     smax = p[0] + abs(p[1]) * B / 2 + abs(p[2]) * L / 2
-    return {"sigma_max": float(smax), "sigma_min": 0.0, "contact": float(on.mean()), "method": "numerical", "stable": True}
+    return {"sigma_max": float(smax), "sigma_min": 0.0, "contact": float(on.mean()),
+            "method": "numerical", "stable": True, "converged": True}
 
 
 def eccentricity(N, Mx, My, Hx, Hy, h):

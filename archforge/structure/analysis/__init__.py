@@ -308,17 +308,25 @@ def analyze(doc):
     # Judged on what is built: the pads left on their own, and the strip footings (which share the columns'
     # moments — owner 17/10) instead of the pads they replace.
     for f in result["foundation"]["footings"]:
-        if not f["pressure_ok"]:
+        errors = f.get("contact_errors", {})
+        for combo, reason in errors.items():
+            result["warnings"].append(f"Πέδιλο κάτω από {f['column'] or 'κολόνα'}: αριθμητικός έλεγχος επαφής "
+                                      f"ανεπίλυτος ({combo}: {reason}) — δεν τεκμηριώνεται επάρκεια, έλεγχος μηχανικού")
+        if not f["pressure_ok"] and "G+Q" not in errors:
             result["warnings"].append(f"Πέδιλο κάτω από {f['column'] or 'κολόνα'}: σmax G+Q {f['sigma_max_sls_kPa']} kPa > σεδ "
                                       f"ακόμη και με B = {f['B_m']} m — θέλει άλλη θεμελίωση (μηχανικός)")
-        if f.get("seismic_stable") is False:
+        if f.get("seismic_stable") is False and f.get("seismic_combo") not in errors:
             result["warnings"].append(f"Πέδιλο κάτω από {f['column'] or 'κολόνα'}: στον συνδυασμό {f['seismic_combo']} "
                                       "η συνισταμένη βγαίνει έξω από το πέδιλο (ανατροπή) — έλεγχος από μηχανικό")
     for st in result["foundation"].get("strips", ()):
-        if not st.get("pressure_ok", True):
+        errors = st.get("contact_errors", {})
+        for combo, reason in errors.items():
+            result["warnings"].append(f"Πεδιλοδοκός {st['name']}: αριθμητικός έλεγχος επαφής ανεπίλυτος "
+                                      f"({combo}: {reason}) — δεν τεκμηριώνεται επάρκεια, έλεγχος μηχανικού")
+        if not st.get("pressure_ok", True) and "G+Q" not in errors:
             result["warnings"].append(f"Πεδιλοδοκός {st['name']}: σmax G+Q {st['sigma_max_sls_kPa']} kPa > σεδ "
                                       f"ακόμη και με πέλμα {st['B_m']} m — θέλει άλλη θεμελίωση (μηχανικός)")
-        if st.get("seismic_stable") is False:
+        if st.get("seismic_stable") is False and st.get("seismic_combo") not in errors:
             result["warnings"].append(f"Πεδιλοδοκός {st['name']}: στον συνδυασμό {st['seismic_combo']} η συνισταμένη "
                                       "βγαίνει έξω από το πέλμα (ανατροπή) — έλεγχος από μηχανικό")
     from archforge.structure.slabs import design_slabs
@@ -407,6 +415,7 @@ def _footings(model, frame, settings, seismic_cases=None, combos=(), seismic_rea
                 break
             B = round(B + 0.05, 2)
         seismic = None
+        contact_errors = {"G+Q": cp["error"]} if cp.get("error") else {}
         # Base reactions per combination (Hx, Hy, N, Mx, My): strip footings share them (structure/foundation.py).
         reactions = [("G+Q", False, [float(v) for v in sls[:5]])]
         for name, factors, is_seismic in combos:
@@ -415,6 +424,8 @@ def _footings(model, frame, settings, seismic_cases=None, combos=(), seismic_rea
             r = sum(f * R[c][n] for c, f in factors.items())
             reactions.append((name, True, [float(v) for v in r[:5]]))
             cps, _ex, _ey = pressure(r, B, h)
+            if cps.get("error"):
+                contact_errors[name] = cps["error"]
             if seismic is None or cps["sigma_max"] > seismic[1]["sigma_max"]:
                 seismic = (name, cps)
         col = next((m for m in model.members.values() if m.kind == "column"
@@ -430,6 +441,8 @@ def _footings(model, frame, settings, seismic_cases=None, combos=(), seismic_rea
             name, cps = seismic
             f.update({"seismic_combo": name, "sigma_max_seismic_kPa": round(cps["sigma_max"], 1) if cps["stable"] else None,
                       "contact_seismic": round(cps["contact"], 3), "seismic_stable": bool(cps["stable"])})
+        if contact_errors:
+            f["contact_errors"] = contact_errors
         out.append(f)
     return out
 
