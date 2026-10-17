@@ -5,7 +5,31 @@
 
 Τελευταία ενημέρωση: 2026-10-17 · branch **`claude/funny-ride-f05bva`** (συνέχεια του `claude/practical-cannon-jebioi`)
 
-## ΠΥΛΗ S01 — ΠΟΥ ΣΤΑΜΑΤΗΣΑΜΕ (17/10, `claude/funny-ride-f05bva`) — ΔΙΑΒΑΣΕ ΠΡΩΤΑ
+## ΤΕΛΟΣ CHAT (17/10 απόγευμα, 71%) — ΔΙΑΒΑΣΕ ΠΡΩΤΑ
+- **PR #128** (`claude/funny-ride-f05bva` → `develop`): περιέχει όλη τη δουλειά. CI: τα tests περνούσαν στα Windows
+  (1769 σε 11:15) αλλά το job ακυρωνόταν στο όριο των 15' → ανέβηκε σε 25' (`d48a4bf`). **Επόμενο: CI πράσινο → merge**
+  (ο ιδιοκτήτης ζήτησε να ανέβουν οι λύσεις για τους άλλους agents).
+- **S01: 1 FAIL — θέρμανση** (κανένα branch δεν έχει εργαλείο θέρμανσης· μόνο η απογραφή `mep/heating.py` του develop).
+  Ρώτα τον ιδιοκτήτη: εργαλείο + οδεύσεις προσαγωγής/επιστροφής (όπως η ύδρευση), διατομές ENGINEER_REVIEW;
+- **Θεμελίωση (απόφαση ιδιοκτήτη 17/10):** «να μοιράζονται τις πιέσεις/τάσεις, τις παίρνουν και τα δύο, περισσότερο οι
+  πεδιλοδοκοί» → `structure/foundation.py` (`_strip_moments`, `_strip_loads`, `design_strips`): ροπή κατά τη διεύθυνση του
+  πεδιλοδοκού σε όλο το μήκος του, η άλλη στον κάθετο ή στο πέλμα· έλεγχος G+Q και ανατροπής σε κάθε σεισμικό συνδυασμό, το
+  πέλμα φαρδαίνει. «Αυτόματα»: πέδιλο που ανατρέπεται → πεδιλοδοκός. **Ασφάλεια πριν από οικονομία** (AGENTS.md).
+  **Επόμενο που ζήτησε:** λύση «τραπέζι» (κοιτόστρωση/πλάκα θεμελίωσης) ανάλογα με τις τάσεις του κτιρίου και την κατασκευή.
+- **Ύποπτο test:** `test_structural_analysis.py::test_undersized_beam_fails_and_the_proposal_fixes_it_keeping_the_slab_level`
+  απέτυχε μία φορά στην πλήρη σουίτα (1 failed, 1772 passed, πριν την αλλαγή τιμών) αλλά περνά μόνο του και με τα
+  συγγενικά αρχεία — έλεγξε στο CI του PR #128· αν ξανασυμβεί, βρες την εξάρτηση σειράς (cache ανάλυσης), μην το παρακάμψεις.
+- **Τιμές:** μία πηγή ανά έργο `mep/project_pricebook.project_prices` (entries + trade_prices + prices) και
+  `effective_prices` = κοινός τιμοκατάλογος (`quantities/price_book.py`) + έργο — για προσφορά, ύδρευση, θέρμανση.
+- **Διπλή δουλειά με τον άλλο agent (Codex/GPT):** branch `codex/residential-s01-quality-gate` (+ `test/residential-scenario-suite`):
+  δική του σουίτα 10 σεναρίων (`tests/residential_scenarios`), πύλη, τιμοκατάλογος, ετικέτες αποχέτευσης, ίδια διόρθωση
+  `walkMode` και `attic_rooms`. **Συγκρούσεις** με το PR #128 σε `roof_need.py`, `quote.py`, `pbr_viewport.py` (ίδιες
+  διορθώσεις — κράτα μία). Χρειάζεται απόφαση ιδιοκτήτη: μία σουίτα σεναρίων/πύλη, όχι δύο.
+- **DXF του ιδιοκτήτη** (`archforge_buildings_full_cad.dxf`, κτίρια σεναρίων 7…): R12 με ελληνικά σε UTF‑8 χωρίς
+  `$DWGCODEPAGE` → τα CAD δεν το ανοίγουν. Δόθηκε διορθωμένο (cp1253 + ANSI_1253 + EXTMIN/EXTMAX). Στο ArchForge ένα DXF
+  ανοίγει ως υπόβαθρο (Αρχείο ▸ Υπόβαθρο PDF/DXF), όχι από το «Άνοιγμα».
+
+## ΠΥΛΗ S01 — ΠΟΥ ΣΤΑΜΑΤΗΣΑΜΕ (17/10, `claude/funny-ride-f05bva`)
 - **Μηχανισμός πύλης έτοιμος:** `archforge/scenarios/gate.py` (6 ενότητες, ~62 έλεγχοι), `render3d.py` (3D της ίδιας σελίδας
   σε headless Chromium/SwiftShader), `scripts/build_scenarios.py 01` → `docs/scenarios/S01_monokatoikia.archforge`,
   `S01_REPORT.md`, στιγμιότυπα `S01_*_2D_{arch,structure,mep}_*.png`, `S01_*_3D*.png`. **Κοιτάζουμε τις εικόνες.**
