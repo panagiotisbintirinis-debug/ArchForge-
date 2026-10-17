@@ -4,9 +4,12 @@ No prices and no guessed fittings are created here. Quantities come only from
 ``route_plumbing`` and authoritative plumbing entities. Diameter labels reflect
 the current model output; they are not asserted here as hydraulically verified.
 
-Explicit accessories (valves, manifold cabinets, unions, adapters, fittings,
-supports, insulation, fixture connectors, etc.) are included only when they
-exist in the model or later come from an explicitly selected sourced assembly.
+Pipes are intentionally aggregated to purchase-friendly totals by network and
+diameter. Individual route segments remain available in the technical network
+view but never become separate BOM rows.
+
+Explicit accessories and point connection assemblies are included only when
+they exist in the model or were explicitly selected from a sourced assembly.
 """
 from __future__ import annotations
 
@@ -16,6 +19,7 @@ from typing import Mapping
 
 from archforge.mep.plumbing import POINT_TYPES, plumbing_points, route_plumbing
 from archforge.mep.plumbing_accessories import accessory_quantities
+from archforge.mep.plumbing_assemblies import connection_assembly_quantities
 from archforge.mep.trade_costing import (
     PriceEntry,
     QuantityLine,
@@ -30,7 +34,11 @@ def _length(a, b) -> float:
 
 
 def plumbing_quantities(doc) -> list[QuantityLine]:
-    """Return measurable plumbing quantities, grouped by network and diameter."""
+    """Return purchase-friendly plumbing quantities.
+
+    Pipe geometry may contain many route segments.  The BOM deliberately emits
+    only one total-metre row per (cold/hot, diameter) combination.
+    """
     routed = route_plumbing(doc)
     lines: list[QuantityLine] = []
 
@@ -49,12 +57,15 @@ def plumbing_quantities(doc) -> list[QuantityLine]:
             unit="m",
             trade="plumbing",
             source="route_plumbing",
-            owner_explanation="Μήκος σωλήνωσης που προκύπτει από τη διαδρομή του συγκεκριμένου δικτύου στο σχέδιο.",
+            owner_explanation="Συνολικό μήκος σωλήνωσης αυτής της διαμέτρου στο συγκεκριμένο δίκτυο. Τα επιμέρους κομμάτια της χάραξης δεν εμφανίζονται ως ξεχωριστές αγορές.",
             rule_status="MODEL_QUANTITY_ENGINEER_REVIEW",
             rule_source=str(routed.get("report", {}).get("provenance", "")),
-            selection_basis="derived_route",
+            selection_basis="derived_route_aggregated",
         ))
 
+    # A derived manifold is a real costable system component.  Internal valves,
+    # cabinet, unions/adapters etc. are NOT inferred here; they come from an
+    # explicitly selected manifold/connection assembly or accessory entity.
     manifolds = routed.get("manifolds", [])
     by_manifold: dict[tuple[str, int], int] = defaultdict(int)
     for manifold in manifolds:
@@ -68,12 +79,14 @@ def plumbing_quantities(doc) -> list[QuantityLine]:
             unit="pcs",
             trade="plumbing",
             source="route_plumbing",
-            owner_explanation="Συλλέκτης που εξυπηρετεί τις δηλωμένες γραμμές του συγκεκριμένου δικτύου.",
+            owner_explanation="Συλλέκτης που εξυπηρετεί τις δηλωμένες ανεξάρτητες γραμμές του συγκεκριμένου δικτύου.",
             rule_status="MODEL_DERIVED_ENGINEER_REVIEW",
             rule_source=str(routed.get("report", {}).get("provenance", "")),
             selection_basis="derived_from_selected_system",
         ))
 
+    # Point labour/connection scope remains visible as a count, while the exact
+    # valves/unions/adapters/flexible connectors live in the selected assembly.
     by_point: dict[str, int] = defaultdict(int)
     for entity in plumbing_points(doc):
         point_type = str(entity.params.get("point_type", ""))
@@ -90,12 +103,14 @@ def plumbing_quantities(doc) -> list[QuantityLine]:
             unit="pcs",
             trade="plumbing",
             source="plumbing_point",
-            owner_explanation="Εργασία και υλικά σύνδεσης για το συγκεκριμένο σημείο που υπάρχει στο σχέδιο.",
+            owner_explanation="Εργασία σύνδεσης για το συγκεκριμένο σημείο. Τα επιμέρους εξαρτήματα εμφανίζονται ξεχωριστά όταν έχει επιλεγεί assembly σύνδεσης.",
             rule_status="MODEL_QUANTITY",
             selection_basis="placed_fixture_point",
         ))
 
-    # First-class accessories: counted only when explicitly present/selected.
+    # Exact components selected on fixture/appliance/source connection assemblies.
+    lines.extend(connection_assembly_quantities(doc))
+    # Stand-alone first-class accessories selected directly in the model.
     lines.extend(accessory_quantities(doc))
     return lines
 
@@ -103,7 +118,7 @@ def plumbing_quantities(doc) -> list[QuantityLine]:
 def plumbing_quote(doc, prices: Mapping[str, PriceEntry] | None = None) -> dict:
     """Price plumbing quantities through the shared project price book.
 
-    Passing an explicit mapping is useful for previews/tests.  Normal project
+    Passing an explicit mapping is useful for previews/tests. Normal project
     operation omits it and resolves the one ``price_list`` entity, so plumbing,
     heating and electrical cannot silently maintain competing price books.
     """
