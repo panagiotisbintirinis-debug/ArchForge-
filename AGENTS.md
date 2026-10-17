@@ -1,10 +1,12 @@
 # ArchForge Agent Operating Contract
 
+> **Authoritative product direction:** Read `ARCHFORGE_MASTER_CONTEXT.md` first. This operating contract governs agent workflow; if an older instruction conflicts with the Master Context, the Master Context wins unless the human owner explicitly changes it.
+
 This repository is developed by multiple AI agents and a human owner. The repository, not chat memory, is the source of truth.
 
 ## Source of truth
 - `develop` is the integration branch.
-- Before starting work, read the live `develop` HEAD, `ROADMAP.md`, open PRs, and open task issues.
+- Before starting work, read the live `develop` HEAD, `ARCHFORGE_MASTER_CONTEXT.md`, `ROADMAP.md`, open PRs, and open task issues.
 - Never assume a previous chat or local state is current.
 - Never reset, rewrite, force-push, or discard `develop` history.
 
