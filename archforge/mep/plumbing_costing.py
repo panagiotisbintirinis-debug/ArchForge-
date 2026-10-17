@@ -8,8 +8,9 @@ Pipes are intentionally aggregated to purchase-friendly totals by network and
 diameter. Individual route segments remain available in the technical network
 view but never become separate BOM rows.
 
-Explicit accessories and point connection assemblies are included only when
-they exist in the model or were explicitly selected from a sourced assembly.
+Explicit accessories, point connection assemblies and manifold assemblies are
+included only when they exist in the model or were explicitly selected from a
+sourced assembly.
 """
 from __future__ import annotations
 
@@ -19,7 +20,10 @@ from typing import Mapping
 
 from archforge.mep.plumbing import POINT_TYPES, plumbing_points, route_plumbing
 from archforge.mep.plumbing_accessories import accessory_quantities
-from archforge.mep.plumbing_assemblies import connection_assembly_quantities
+from archforge.mep.plumbing_assemblies import (
+    connection_assembly_quantities,
+    manifold_assembly_quantities,
+)
 from archforge.mep.trade_costing import (
     PriceEntry,
     QuantityLine,
@@ -36,7 +40,7 @@ def _length(a, b) -> float:
 def plumbing_quantities(doc) -> list[QuantityLine]:
     """Return purchase-friendly plumbing quantities.
 
-    Pipe geometry may contain many route segments.  The BOM deliberately emits
+    Pipe geometry may contain many route segments. The BOM deliberately emits
     only one total-metre row per (cold/hot, diameter) combination.
     """
     routed = route_plumbing(doc)
@@ -63,9 +67,9 @@ def plumbing_quantities(doc) -> list[QuantityLine]:
             selection_basis="derived_route_aggregated",
         ))
 
-    # A derived manifold is a real costable system component.  Internal valves,
-    # cabinet, unions/adapters etc. are NOT inferred here; they come from an
-    # explicitly selected manifold/connection assembly or accessory entity.
+    # A derived manifold is a real costable system component. Internal valves,
+    # cabinet, unions/adapters etc. are NOT inferred here; they come from the
+    # explicitly selected manifold assembly below.
     manifolds = routed.get("manifolds", [])
     by_manifold: dict[tuple[str, int], int] = defaultdict(int)
     for manifold in manifolds:
@@ -110,6 +114,8 @@ def plumbing_quantities(doc) -> list[QuantityLine]:
 
     # Exact components selected on fixture/appliance/source connection assemblies.
     lines.extend(connection_assembly_quantities(doc))
+    # Exact cabinet/valve/union/etc. parts selected for derived manifolds.
+    lines.extend(manifold_assembly_quantities(doc))
     # Stand-alone first-class accessories selected directly in the model.
     lines.extend(accessory_quantities(doc))
     return lines
