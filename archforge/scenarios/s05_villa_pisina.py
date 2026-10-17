@@ -63,7 +63,10 @@ FINDINGS = [
     {"status": "FIXED", "found": "Κεραμοσκεπή σε Γ: μία στέγη ανά χώρο (10 στέγες, και πάνω από την πισίνα) — κάθε εσωτερικός τοίχος "
                                 "έπεφτε σε άκρη στέγης, κανένας δεν ανέβαινε ως αυτή, κορφιάδες μέσα στα δωμάτια",
      "fix": "Μία στέγη ανά ορθογώνιο της κάτοψης (κυρίως σώμα + πτέρυγα)· πισίνα/αυλή/αίθριο χωρίς στέγη",
-     "files": ["architecture/roof_choice.py", "tests/test_roof_choice.py"], "commit": "(αυτό το commit)"},
+     "files": ["architecture/roof_choice.py", "tests/test_roof_choice.py"], "commit": "37e2fff"},
+    {"status": "FIXED", "found": "Οπτικός έλεγχος 3D: η στέψη 30 cm της πισίνας πήρε 6 κολόνες και περιμετρική δοκό στα 2,70 m",
+     "fix": "Τοίχοι κάτω από 1,50 m (στέψη, στηθαίο, μαντρότοιχος) δεν παίρνουν κολόνες/δοκούς",
+     "files": ["structure/layout.py", "tests/test_frame_layout.py"], "commit": "(αυτό το commit)"},
 ]
 NOTES = ""
 

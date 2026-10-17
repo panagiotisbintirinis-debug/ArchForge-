@@ -29,6 +29,7 @@ import math
 MAX_SPAN = 6.0
 MERGE = 1.2           # columns closer than this become one (the stronger reason wins)
 MIN_WALL = 0.40       # shorter wall pieces are drawing leftovers, not structure
+LOW_WALL = 1.5        # lower walls (pool rim, parapet, garden wall) carry no storey: no column/beam on them
 LIGHT_TYPES = ("drywall_100", "drywall_double_125")   # partitions on the slab: no frame under them
 SNAP = 0.05
 EXISTING = 0.30
@@ -49,6 +50,8 @@ def _walls(doc, z):
         if math.hypot(float(p["x2"]) - float(p["x1"]), float(p["y2"]) - float(p["y1"])) < MIN_WALL:
             continue
         if str(p.get("wall_type", "")) in LIGHT_TYPES and not p.get("load_bearing"):
+            continue
+        if float(p.get("height", 3.0)) < LOW_WALL:       # a pool rim, a parapet, a garden wall: no slab on it
             continue
         out.append(e)
     return out

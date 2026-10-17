@@ -33,6 +33,16 @@ def test_excluded_wall_storey_does_not_crash_frame_or_assistant(length, wall_typ
     assert all(e.params['z'] < 3.0 for e in entities)
 
 
+def test_low_walls_like_a_pool_rim_get_no_columns_or_beams():
+    """S05: the 30 cm rim of the pool got six columns and a ring beam at 2.70 m."""
+    doc = Document(); st = CommandStack(doc); _house(st)
+    for s in [(14, 0, 22, 0), (22, 0, 22, 4), (22, 4, 14, 4), (14, 4, 14, 0)]:
+        st.execute(AddEntity(Entity('wall', {'x1': s[0], 'y1': s[1], 'x2': s[2], 'y2': s[3], 'z': 0.0, 'height': 0.3, 'thickness': 0.3})))
+    entities, report = propose_frame(doc)
+    assert report['columns'] == 8 and report['beams'] == 10           # the house only, as without the pool
+    assert all(float(e.params.get('x', e.params.get('x1', 0.0))) <= 12.0 for e in entities)
+
+
 def test_columns_at_corners_junctions_and_every_6m_never_in_an_opening():
     doc = Document(); st = CommandStack(doc); _house(st)
     pts = column_points(doc, 0.0)
