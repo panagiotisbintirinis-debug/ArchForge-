@@ -47,12 +47,14 @@ def test_visible_system_choice_changes_authoritative_routing_and_is_undoable():
     assert before["manifolds"] == []
 
     assert set_plumbing_system(window, "manifold") is True
-    assert supply.params["pipe_system"] == "manifold"
+    assert doc.get(supply.id).params["pipe_system"] == "manifold"
     after = route_plumbing(doc)
     assert after["report"]["system"] == "manifold"
     assert after["manifolds"]
 
     stack.undo()
+    restored_supply = doc.get(supply.id)
+    assert restored_supply.params.get("pipe_system", "multilayer") == "multilayer"
     restored = route_plumbing(doc)
     assert restored["report"]["system"] == "multilayer"
     assert restored["manifolds"] == []
