@@ -10,6 +10,8 @@ from .plumbing_tab import install_on_class as install_plumbing_tab
 from .plumbing_system_control import install_on_class as install_plumbing_system_control
 from .plumbing_technical_safety import install_safe_connectivity_overlay
 from .mep_3d_visibility import install as install_mep_3d_visibility
+from .plumbing_manifold_3d import install as install_plumbing_manifold_3d
+from .plumbing_connection_details import install as install_plumbing_connection_details
 
 # Upgrade only the visual PBR presentation. Geometry/model ownership remains
 # untouched; the embedded Three.js viewport receives the improved look before
@@ -23,9 +25,13 @@ install_library_instance_model(MainWindow)
 # The Layers workspace is authoritative for 3D MEP visibility. Prevent the
 # legacy PBR hidden-layer set from silently overriding the H/M environment.
 install_mep_3d_visibility(PBRViewport)
+# Add a separate, identifiable manifold/cabinet presentation object to PBR.
+install_plumbing_manifold_3d()
 # Plumbing plan presentation is intentionally pipe-only; technical details live
 # in a separate central report tab.
 install_plumbing_display(MainWindow)
+# Extend the report class before MainWindow instances create the plumbing tab.
+install_plumbing_connection_details()
 install_plumbing_tab(MainWindow)
 # Remove the scene-bounds regression from connectivity markers before any
 # technical-plan instance is created, then add the visible live system selector.
