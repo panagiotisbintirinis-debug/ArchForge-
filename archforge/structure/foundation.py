@@ -183,7 +183,11 @@ def strip_runs(fts, mode):
         for a, b in zip(idx, idx[1:]):
             gap = (fts[b][along] - fts[a][along]) - fts[a]["B_m"] / 2 - fts[b]["B_m"] / 2
             # auto: also where a pad would overturn in the earthquake — safety before material (owner 17/10).
-            tips = fts[a].get("seismic_stable") is False or fts[b].get("seismic_stable") is False
+            # An unresolved numerical check is not a demonstrated overturning
+            # condition and must not drive the automatic topology change.
+            tips = any(f.get("seismic_stable") is False
+                       and f.get("seismic_combo") not in f.get("contact_errors", {})
+                       for f in (fts[a], fts[b]))
             if mode == "strips" or gap < STRIP_GAP or (mode == "auto" and tips):
                 run.append(b)
             else:
@@ -342,6 +346,9 @@ def design_strips(fts, runs, settings):
                           "sigma_max_seismic_kPa": round(pick[2]["sigma_max"], 1) if pick[2]["stable"] else None,
                           "contact_seismic": round(pick[2]["contact"], 3),
                           "e_along_seismic_m": round(pick[3], 3), "e_across_seismic_m": round(pick[4], 3)})
+        contact_errors = {c[0]: c[2]["error"] for c in checks if c[2].get("error")}
+        if contact_errors:
+            entry["contact_errors"] = contact_errors
         out.append(entry)
     return out
 
@@ -406,10 +413,14 @@ def _pressure_cells(f):
     if "sigma_max_sls_kPa" not in f:
         return "—</td><td>—</td><td>—"
     sls = f"{f['sigma_max_sls_kPa']}" + ("" if f.get("pressure_ok", True) else " ⚠ > σεδ")
+    if f.get("contact_errors", {}).get("G+Q"):
+        sls = "⚠ αριθμητικός έλεγχος επαφής ανεπίλυτος"
     if f.get("contact_sls", 1.0) < 1.0:
         sls += f" (επαφή {f['contact_sls']:.0%})"
     if "seismic_combo" not in f:
         seis = "—"
+    elif f.get("contact_errors", {}).get(f.get("seismic_combo")):
+        seis = f"⚠ αριθμητικός έλεγχος ανεπίλυτος ({f['seismic_combo']})"
     elif not f.get("seismic_stable", True):
         seis = f"⚠ ανατροπή ({f['seismic_combo']})"
     else:
