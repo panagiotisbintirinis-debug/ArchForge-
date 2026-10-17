@@ -122,6 +122,25 @@ Owner: «πρέπει να υπάρχει η λογική της οικονομ�
 - Where economy and a rule conflict, the rule wins and the extra material is shown with its reason.
 - Quantities are always reported, so the economy can be checked.
 
+## Scenario quality gate & shared tools (owner, 2026-10-17, binding)
+
+Every test scenario passes the full gate in `docs/scenarios/QUALITY_GATE.md` before the next one starts: all six
+sections (design, statics, MEP, quote, program behaviour, visual), fix, rerun the WHOLE list, regression on earlier
+scenarios. "Built without an exception" is never a pass. Reuse these instead of writing your own:
+
+- `archforge/scenarios/gate.py` — the checks (`Gate(s, module, out).run()`), report `Sxx_REPORT.md` with PASS / FAIL /
+  N/A and the findings history (FIXED / OPEN, files, commit). Build: `py scripts/build_scenarios.py 01`.
+- `archforge/scenarios/render3d.py` — real 3D pictures without a GPU: the app's own 3D page (`pbr_page_html`) and scene
+  (`pbr_viewport.scene_payload`) in headless Chromium; camera presets `top` / `dollhouse`. Look at the pictures.
+- `archforge/scenarios/common.py` — scenario steps through the UI's own paths (walls, openings, levels, stairs,
+  room use, «Κουζίνα/Μπάνιο εδώ», Library furniture, MEP point tools).
+- `archforge/quantities/price_book.py` — the user's common price book (project prices override; never invents a
+  price); `quote()['by_trade']` = totals per trade. Tests isolate it (`tests/conftest.py`).
+- Plan: `plan_scene.wall_poche` (walls with both faces), `_declutter_labels` (MEP labels without overlap);
+  `joinery.inside_sign(doc, wall, opening)` (an interior door opens into the room it serves);
+  `interaction.next_name` (Greek numbered names); `SetRoomMetadata` (room name/use, one undo).
+- Full suite in the cloud: `QTWEBENGINE_DISABLE_SANDBOX=1 QT_QPA_PLATFORM=offscreen python -m pytest -q` (~10 min).
+
 ## Human intervention threshold
 Do not ask the human to choose routine implementation details. Escalate only when the answer would materially change product semantics, user-facing policy, safety, cost, or architecture direction and cannot be resolved from existing repository contracts.
 
