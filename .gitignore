@@ -17,3 +17,6 @@ Thumbs.db
 hd-cache/
 .claude/worktrees/
 scripts/user_drive/out/
+
+# Scenario backups written by save_project
+docs/scenarios/*.archforge.bak*
