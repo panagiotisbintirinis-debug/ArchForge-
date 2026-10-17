@@ -1,0 +1,534 @@
+{
+  "format": 7,
+  "entities": [
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 12.0,
+        "y2": 0.0,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Wall",
+      "id": "66bc28c7-a434-4552-8a1d-974a18be4a5b",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 12.0,
+        "y1": 0.0,
+        "x2": 12.0,
+        "y2": 8.5,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Wall",
+      "id": "1bf0c583-372a-4c9e-b849-0e0d2ad9ba0c",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 12.0,
+        "y1": 8.5,
+        "x2": 0.0,
+        "y2": 8.500000000000002,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Wall",
+      "id": "703cf92d-d8b2-4a4b-9001-eac202717c14",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0.0,
+        "y1": 8.5,
+        "x2": 0.0,
+        "y2": 0.0,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Wall",
+      "id": "a723015a-3a2b-4c04-9845-e9cc54d9c274",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 6.5,
+        "y1": 0.0,
+        "x2": 6.500000000000001,
+        "y2": 8.500000000000002,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.1
+      },
+      "name": "Wall",
+      "id": "8883d3d3-fb9a-47f5-aeb6-609c03676992",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 6.5,
+        "y1": 4.2,
+        "x2": 12.0,
+        "y2": 4.2,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.1
+      },
+      "name": "Wall",
+      "id": "68e566d2-46e3-4e1a-b719-6e6c837ddc40",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 9.0,
+        "y1": 0.0,
+        "x2": 9.0,
+        "y2": 4.2,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.1
+      },
+      "name": "Wall",
+      "id": "09182216-764a-4f36-8509-fd79765c545d",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 3.0,
+        "width": 1.0,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "Door",
+      "id": "2d258033-6044-4d43-9554-6415d4a66f52",
+      "parent_id": "66bc28c7-a434-4552-8a1d-974a18be4a5b",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 1.2,
+        "width": 1.4,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "Window",
+      "id": "d00c6845-c0a3-4a04-9f4b-8ca2bafdcb25",
+      "parent_id": "66bc28c7-a434-4552-8a1d-974a18be4a5b",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 8.8,
+        "width": 1.6,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "Window",
+      "id": "ee47a647-00ab-4dcc-8df2-c827de5e5623",
+      "parent_id": "703cf92d-d8b2-4a4b-9001-eac202717c14",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 6.400000000000001,
+        "width": 1.0,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "Window",
+      "id": "d1cd4283-ffcf-429f-91f8-8bd6288a2ddf",
+      "parent_id": "703cf92d-d8b2-4a4b-9001-eac202717c14",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 6.299999999999999,
+        "width": 1.4,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "Window",
+      "id": "a427936d-ff90-4839-b0c1-8134cb2160ac",
+      "parent_id": "1bf0c583-372a-4c9e-b849-0e0d2ad9ba0c",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 2.0,
+        "width": 1.2,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "Window",
+      "id": "a4a6c88e-ab79-4e2b-9b73-3adc223cf341",
+      "parent_id": "1bf0c583-372a-4c9e-b849-0e0d2ad9ba0c",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 7.75,
+        "width": 0.6,
+        "height": 0.6,
+        "sill": 1.5
+      },
+      "name": "Window",
+      "id": "ae3adf00-158c-441b-927c-2e6051a20dc7",
+      "parent_id": "66bc28c7-a434-4552-8a1d-974a18be4a5b",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 6.300000000000001,
+        "width": 0.8,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "Door",
+      "id": "502f5dd5-d7c8-4b0c-810e-05e671f78ba8",
+      "parent_id": "8883d3d3-fb9a-47f5-aeb6-609c03676992",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 2.0,
+        "width": 0.8,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "Door",
+      "id": "4fc7289f-365b-4901-8c9a-48cfc0500d1d",
+      "parent_id": "8883d3d3-fb9a-47f5-aeb6-609c03676992",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 4.0,
+        "width": 0.8,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "Door",
+      "id": "1a0d4368-34cc-46d4-865c-5a8c3b89bf1c",
+      "parent_id": "68e566d2-46e3-4e1a-b719-6e6c837ddc40",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "pitched_roof",
+      "params": {
+        "x0": -0.125,
+        "y0": -0.125,
+        "x1": 12.125,
+        "y1": 8.625000000000002,
+        "eave_z": 2.7,
+        "pitch": 25.0,
+        "overhang": 0.5,
+        "rafter_spacing": 0.6,
+        "roof_form": "gable",
+        "tile": "roman",
+        "snow_zone": 2,
+        "altitude": 0.0,
+        "insulation": "xps",
+        "insulation_thickness": 0.08,
+        "gables": [
+          "y0",
+          "y1",
+          "x0",
+          "x1"
+        ]
+      },
+      "name": "\u039a\u03b5\u03c1\u03b1\u03bc\u03bf\u03c3\u03ba\u03b5\u03c0\u03ae \u03b4\u03af\u03c1\u03c1\u03b9\u03c7\u03c4\u03b7",
+      "id": "c45caf54-d368-40c7-af39-a9f17523d58a",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    }
+  ],
+  "dependencies": {
+    "66bc28c7-a434-4552-8a1d-974a18be4a5b": [
+      "2d258033-6044-4d43-9554-6415d4a66f52",
+      "ae3adf00-158c-441b-927c-2e6051a20dc7",
+      "d00c6845-c0a3-4a04-9f4b-8ca2bafdcb25"
+    ],
+    "703cf92d-d8b2-4a4b-9001-eac202717c14": [
+      "d1cd4283-ffcf-429f-91f8-8bd6288a2ddf",
+      "ee47a647-00ab-4dcc-8df2-c827de5e5623"
+    ],
+    "1bf0c583-372a-4c9e-b849-0e0d2ad9ba0c": [
+      "a427936d-ff90-4839-b0c1-8134cb2160ac",
+      "a4a6c88e-ab79-4e2b-9b73-3adc223cf341"
+    ],
+    "8883d3d3-fb9a-47f5-aeb6-609c03676992": [
+      "4fc7289f-365b-4901-8c9a-48cfc0500d1d",
+      "502f5dd5-d7c8-4b0c-810e-05e671f78ba8"
+    ],
+    "68e566d2-46e3-4e1a-b719-6e6c837ddc40": [
+      "1a0d4368-34cc-46d4-865c-5a8c3b89bf1c"
+    ]
+  },
+  "levels": {
+    "Ground": 0.0
+  },
+  "work_plane": {
+    "name": "XY",
+    "origin": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "u": [
+      1.0,
+      0.0,
+      0.0
+    ],
+    "v": [
+      0.0,
+      1.0,
+      0.0
+    ]
+  },
+  "materials": {},
+  "constructions": {},
+  "room_data": {},
+  "room_bindings": {
+    "2ed2b895-7ccc-446b-a5dd-add85debfaec": {
+      "signature": "room-59ed6a3730bcfc49",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          12.0,
+          0.0
+        ],
+        [
+          12.0,
+          8.5
+        ],
+        [
+          0.0,
+          8.500000000000002
+        ]
+      ],
+      "z": 0.0,
+      "status": "unclosed"
+    },
+    "2d9d586c-b956-4a97-89c5-a21b1bf109c1": {
+      "signature": "room-f04437f6e3560466",
+      "polygon": [
+        [
+          6.5,
+          0.0
+        ],
+        [
+          12.0,
+          0.0
+        ],
+        [
+          12.0,
+          8.5
+        ],
+        [
+          6.500000000000002,
+          8.5
+        ]
+      ],
+      "z": 0.0,
+      "status": "unclosed"
+    },
+    "3601a991-5f79-42f0-a212-7054c4236a35": {
+      "signature": "room-7f6204b2b507f7f5",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          6.5,
+          0.0
+        ],
+        [
+          6.5,
+          4.2
+        ],
+        [
+          6.500000000000002,
+          8.5
+        ],
+        [
+          0.0,
+          8.500000000000002
+        ]
+      ],
+      "z": 0.0,
+      "status": "enclosed"
+    },
+    "c9bd1237-87fd-43b1-82a8-90538a019868": {
+      "signature": "room-27ce2931bc2acf58",
+      "polygon": [
+        [
+          6.5,
+          0.0
+        ],
+        [
+          12.0,
+          0.0
+        ],
+        [
+          12.0,
+          4.2
+        ],
+        [
+          6.5,
+          4.2
+        ]
+      ],
+      "z": 0.0,
+      "status": "unclosed"
+    },
+    "9e02b5a2-8fa6-4bfd-8469-e77208b731d6": {
+      "signature": "room-b2af80243c4ddc87",
+      "polygon": [
+        [
+          12.0,
+          4.2
+        ],
+        [
+          12.0,
+          8.5
+        ],
+        [
+          6.500000000000002,
+          8.5
+        ],
+        [
+          6.5,
+          4.2
+        ],
+        [
+          9.0,
+          4.2
+        ]
+      ],
+      "z": 0.0,
+      "status": "enclosed"
+    },
+    "def36424-5321-4a5b-a4ea-9bb06d6bb018": {
+      "signature": "room-35763d03a4ec46cb",
+      "polygon": [
+        [
+          6.5,
+          0.0
+        ],
+        [
+          9.0,
+          0.0
+        ],
+        [
+          9.0,
+          4.2
+        ],
+        [
+          6.5,
+          4.2
+        ]
+      ],
+      "z": 0.0,
+      "status": "enclosed"
+    },
+    "4cccc91c-7f5f-45c5-bf1c-be8e43198af4": {
+      "signature": "room-01317cede5ffe861",
+      "polygon": [
+        [
+          9.0,
+          0.0
+        ],
+        [
+          12.0,
+          0.0
+        ],
+        [
+          12.0,
+          4.2
+        ],
+        [
+          9.0,
+          4.2
+        ]
+      ],
+      "z": 0.0,
+      "status": "enclosed"
+    }
+  },
+  "surface_modifiers": [],
+  "view_layers": {
+    "workspace": "arch",
+    "overrides": {}
+  }
+}
