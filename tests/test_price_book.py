@@ -33,3 +33,17 @@ def test_saved_prices_reach_every_project_and_project_prices_win():
 def test_unreadable_book_is_empty_not_guessed(tmp_path):
     price_book.path().write_text('{not json', encoding='utf-8')
     assert price_book.load() == {}
+
+
+def test_one_price_book_for_every_trade_whatever_the_format():
+    """The tab writes trade_prices, the trade modules wrote entries: both read the same book (and the common one)."""
+    from archforge.mep.project_pricebook import effective_prices, project_prices
+    from archforge.quantities.quote import trade_prices
+    doc = _project({'tab.code': {'material': 2.0, 'labour': 1.0}})
+    pl = next(e for e in doc.entities.values() if e.kind == 'price_list')
+    pl.params['entries'] = {'mod.code': {'material_unit_price': 5.0, 'labour_unit_price': None, 'currency': 'EUR'}}
+    assert set(project_prices(doc)) == {'tab.code', 'mod.code'}
+    assert trade_prices(doc)['mod.code'] == {'material': 5.0, 'labour': None}
+    price_book.save({'common.code': {'material': 9.0, 'labour': 0.0}})
+    eff = effective_prices(doc)
+    assert eff['common.code'].source == 'price_book' and eff['tab.code'].material_unit_price == 2.0

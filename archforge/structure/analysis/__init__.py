@@ -302,15 +302,24 @@ def analyze(doc):
         from archforge.structure.analysis.capacity import joint_checks
         result["capacity_joints"] = joint_checks(model, result["members"], designs, settings)
     result["footings"] = _footings(model, frame, settings, seismic_cases, combos, seismic_reactions)
-    for f in result["footings"]:
+    from archforge.structure.foundation import design_foundation
+    result["foundation"] = design_foundation(result["footings"], settings)
+    # Judged on what is built: the pads left on their own, and the strip footings (which share the columns'
+    # moments — owner 17/10) instead of the pads they replace.
+    for f in result["foundation"]["footings"]:
         if not f["pressure_ok"]:
             result["warnings"].append(f"Πέδιλο κάτω από {f['column'] or 'κολόνα'}: σmax G+Q {f['sigma_max_sls_kPa']} kPa > σεδ "
                                       f"ακόμη και με B = {f['B_m']} m — θέλει άλλη θεμελίωση (μηχανικός)")
         if f.get("seismic_stable") is False:
             result["warnings"].append(f"Πέδιλο κάτω από {f['column'] or 'κολόνα'}: στον συνδυασμό {f['seismic_combo']} "
                                       "η συνισταμένη βγαίνει έξω από το πέδιλο (ανατροπή) — έλεγχος από μηχανικό")
-    from archforge.structure.foundation import design_foundation
-    result["foundation"] = design_foundation(result["footings"], settings)
+    for st in result["foundation"].get("strips", ()):
+        if not st.get("pressure_ok", True):
+            result["warnings"].append(f"Πεδιλοδοκός {st['name']}: σmax G+Q {st['sigma_max_sls_kPa']} kPa > σεδ "
+                                      f"ακόμη και με πέλμα {st['B_m']} m — θέλει άλλη θεμελίωση (μηχανικός)")
+        if st.get("seismic_stable") is False:
+            result["warnings"].append(f"Πεδιλοδοκός {st['name']}: στον συνδυασμό {st['seismic_combo']} η συνισταμένη "
+                                      "βγαίνει έξω από το πέλμα (ανατροπή) — έλεγχος από μηχανικό")
     from archforge.structure.slabs import design_slabs
     result["slabs"] = design_slabs(doc)
     return result
@@ -397,10 +406,13 @@ def _footings(model, frame, settings, seismic_cases=None, combos=(), seismic_rea
                 break
             B = round(B + 0.05, 2)
         seismic = None
+        # Base reactions per combination (Hx, Hy, N, Mx, My): strip footings share them (structure/foundation.py).
+        reactions = [("G+Q", False, [float(v) for v in sls[:5]])]
         for name, factors, is_seismic in combos:
             if not is_seismic or not all(c in R for c in factors):
                 continue
             r = sum(f * R[c][n] for c, f in factors.items())
+            reactions.append((name, True, [float(v) for v in r[:5]]))
             cps, _ex, _ey = pressure(r, B, h)
             if seismic is None or cps["sigma_max"] > seismic[1]["sigma_max"]:
                 seismic = (name, cps)
@@ -412,7 +424,7 @@ def _footings(model, frame, settings, seismic_cases=None, combos=(), seismic_rea
              "N_sls_kN": round(N, 1), "B_m": round(B, 2), "h_m": round(h, 2),
              "e_x_m": round(ex, 3), "e_y_m": round(ey, 3), "sigma_max_sls_kPa": round(cp["sigma_max"], 1),
              "sigma_min_sls_kPa": round(cp["sigma_min"], 1), "contact_sls": round(cp["contact"], 3),
-             "pressure_ok": bool(cp["stable"] and cp["sigma_max"] <= sigma + 1e-9)}
+             "pressure_ok": bool(cp["stable"] and cp["sigma_max"] <= sigma + 1e-9), "reactions": reactions}
         if seismic:
             name, cps = seismic
             f.update({"seismic_combo": name, "sigma_max_seismic_kPa": round(cps["sigma_max"], 1) if cps["stable"] else None,

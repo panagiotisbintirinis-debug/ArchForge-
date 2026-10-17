@@ -122,6 +122,10 @@ Owner: «πρέπει να υπάρχει η λογική της οικονομ�
 - Where economy and a rule conflict, the rule wins and the extra material is shown with its reason.
 - Quantities are always reported, so the economy can be checked.
 
+- **Safety first (owner 17/10):** economy applies only after safety — above all seismic safety in Greece. Never pick
+  the lighter solution if it fails a check («τι είναι καλύτερο, να γλιτώσεις 15 κυβικά ή να χάσεις το σπίτι;»):
+  e.g. strip footings that keep every seismic resultant on the base win over cheaper pads that overturn.
+
 ## Scenario quality gate & shared tools (owner, 2026-10-17, binding)
 
 Every test scenario passes the full gate in `docs/scenarios/QUALITY_GATE.md` before the next one starts: all six

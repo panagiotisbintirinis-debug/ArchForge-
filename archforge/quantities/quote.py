@@ -29,14 +29,10 @@ def row_meta(row):
 
 
 def project_prices(doc):
-    """The project's own prices only: ``{code: {"material": x|None, "labour": y|None}}`` (legacy description prices as material)."""
-    e = price_entity(doc)
-    p = dict(e.params) if e else {}
-    book = {"desc:" + str(d): {"material": float(v), "labour": None} for d, v in (p.get("prices") or {}).items()}
-    for code, v in (p.get("trade_prices") or {}).items():
-        book[str(code)] = {"material": None if v.get("material") is None else float(v["material"]),
-                           "labour": None if v.get("labour") is None else float(v["labour"])}
-    return book
+    """The project's own prices only: ``{code: {"material": x|None, "labour": y|None}}`` — the one project book
+    (``mep.project_pricebook``: ``entries``, ``trade_prices`` and older description ``prices``)."""
+    from archforge.mep.project_pricebook import project_prices as book
+    return {code: {"material": p.material_unit_price, "labour": p.labour_unit_price} for code, p in book(doc).items()}
 
 
 def trade_prices(doc):
@@ -69,11 +65,8 @@ def settings(doc):
 
 
 def _price_entries(doc):
-    from archforge.mep.trade_costing import PriceEntry
-    own = project_prices(doc)
-    return {code: PriceEntry(material_unit_price=v["material"], labour_unit_price=v["labour"],
-                             source="user" if code in own else "price_book")
-            for code, v in trade_prices(doc).items()}
+    from archforge.mep.project_pricebook import effective_prices
+    return effective_prices(doc)
 
 
 def costed(doc, name, rows):
@@ -98,7 +91,7 @@ def costed(doc, name, rows):
             unit_price = (e.material_unit_price or 0.0) + (e.labour_unit_price or 0.0)
         out.append({**base, "price": unit_price, "material": c["material_cost"], "labour": c["labour_cost"],
                     "amount": c["total_cost"], "complete": c["complete_price"],
-                    "price_source": None if e is None else ("έργο" if e.source == "user" else "κοινός τιμοκατάλογος")})
+                    "price_source": None if e is None else ("κοινός τιμοκατάλογος" if e.source == "price_book" else "έργο")})
     return out
 
 

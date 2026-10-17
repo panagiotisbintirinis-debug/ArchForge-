@@ -389,8 +389,12 @@ class Gate:
             self.add(2, "Στατική ανάλυση χωρίς crash", False, f"{type(exc).__name__}: {exc}")
             return
         self.add(2, "Στατική ανάλυση χωρίς crash", not res.get("error"), res.get("error") or "ολοκληρώθηκε")
-        fnd = res.get("footings") or []
-        self.add(2, "Θεμελίωση", bool(fnd), f"{len(fnd)} πέδιλα")
+        fd = res.get("foundation") or {}
+        pads, strips, ties = fd.get("footings") or [], fd.get("strips") or [], fd.get("ties") or []
+        self.add(2, "Θεμελίωση", bool(pads or strips),
+                 f"{len(pads)} πέδιλα, {len(strips)} πεδιλοδοκοί, {len(ties)} συνδετήριες · σκυρόδεμα {fd.get('concrete_m3', 0)} m³"
+                 + (" · πεδιλοδοκοί: " + ", ".join(f"{st['name']} {st['section']} σmax σεισμού {st.get('sigma_max_seismic_kPa')} kPa"
+                                                   for st in strips[:6]) if strips else ""))
         failing = [m.get("name") for m in (res.get("members") or {}).values() if not m.get("ok", True)]
         self.add(2, "Μέλη επαρκή στη διαστασιολόγηση", not failing, "όλα" if not failing else "ανεπαρκή: " + ", ".join(map(str, failing)))
         reviewed = getattr(self.m, "REVIEWED_WARNINGS", {})

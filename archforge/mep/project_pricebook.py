@@ -78,10 +78,33 @@ def project_prices(doc) -> dict[str, PriceEntry]:
     raw_entries = params.get("entries", {}) or {}
     if not isinstance(raw_entries, Mapping):
         raise ValueError("price_list entries must be a mapping keyed by item code")
-    return {
+    entries = {
         str(code): price_entry_from_dict(raw, default_currency)
         for code, raw in raw_entries.items()
     }
+    # The «Υλικά & τιμές» tab and the Prices dialog write ``trade_prices`` (and older projects ``prices``,
+    # description -> material price): the same book, read here so every trade sees one set of prices.
+    # ``entries`` win for a code present in both.
+    legacy = {"desc:" + str(d): {"material": v, "labour": None} for d, v in (params.get("prices") or {}).items()}
+    legacy.update(params.get("trade_prices") or {})
+    for code, raw in legacy.items():
+        if str(code) in entries or not isinstance(raw, Mapping):
+            continue
+        price = price_entry_from_dict({"material_unit_price": raw.get("material"), "labour_unit_price": raw.get("labour"),
+                                       "currency": default_currency, "source": "project_price_list"}, default_currency)
+        if price.material_unit_price is not None or price.labour_unit_price is not None:
+            entries[str(code)] = price
+    return entries
+
+
+def effective_prices(doc) -> dict[str, PriceEntry]:
+    """Prices used to cost the project: the user's common price book (``quantities.price_book``, kept once for
+    every project) overridden code by code by this project's own book.  Nothing is invented."""
+    from archforge.quantities.price_book import load
+    out = {code: PriceEntry(material_unit_price=v["material"], labour_unit_price=v["labour"], source="price_book")
+           for code, v in load().items()}
+    out.update(project_prices(doc))
+    return out
 
 
 def serialize_prices(prices: Mapping[str, PriceEntry]) -> dict[str, dict]:

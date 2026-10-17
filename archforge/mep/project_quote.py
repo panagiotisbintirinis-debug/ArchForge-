@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from archforge.mep.project_pricebook import price_book_audit, project_price_list, project_prices
+from archforge.mep.project_pricebook import effective_prices, price_book_audit, project_price_list, project_prices
 from archforge.mep.trade_costing import combine_trade_quotes
 
 
@@ -35,7 +35,7 @@ def project_quote(doc, trades: Iterable[str] = ("plumbing", "heating")) -> dict:
     to every trade. Missing entries remain missing; no trade can fall back to a
     private/default price source through this path.
     """
-    prices = project_prices(doc)
+    prices = effective_prices(doc)
     trade_quotes = {}
     all_quantities = []
     for trade in trades:

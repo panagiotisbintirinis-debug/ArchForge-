@@ -53,6 +53,5 @@ def save(prices):
 
 def save_project_prices(doc):
     """«Στον κοινό τιμοκατάλογο»: the project's own prices go to the book (the project keeps them too)."""
-    from archforge.quantities.quote import price_entity
-    e = price_entity(doc)
-    return save(dict((e.params.get("trade_prices") or {}) if e else {}))
+    from archforge.quantities.quote import project_prices
+    return save(project_prices(doc))

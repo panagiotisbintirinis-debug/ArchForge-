@@ -20,7 +20,7 @@ Rules (stated so a structural engineer can check them):
   the beam's own bending are for the study.
 * Strip footings (πεδιλοδοκοί, inverted T): by the setting «Θεμελίωση» —
   *auto*: where two neighbouring pads on one line come closer than 0.50 m
-  (or overlap) they become one strip; *strips*: every line of columns is a
+  (or overlap), or where either pad would overturn in a seismic combination, they become one strip; *strips*: every line of columns is a
   strip (grid); *pads*: never.  Each column's load goes to its strip (half
   to each when it sits on two).  Flange width B = 1.1·ΣN(G+Q) / (σεδ·L),
   ≥ 0.80 m in 5 cm steps, over the length L = first-to-last column + 0.50 m
@@ -32,6 +32,12 @@ Rules (stated so a structural engineer can check them):
   ≥ 4Ø16 each face; shear V = 0.6·q·l_max with stirrups (cot θ = 2.5)
   Ø8/Ø10 at ≤ 150 mm; skin bars 2Ø12 per side when H ≥ 0.70 m.
   Tie beams along a strip are not needed (the strip is the tie).
+  Moments (owner 17/10, «να μοιράζονται … περισσότερο οι πεδιλοδοκοί»): each column's N goes to the strips
+  through it; its base moment about a strip's direction is taken by that strip over its whole length (the
+  long lever), the other component by the crossing strip, or by this strip's flange where none crosses.
+  With its own weight (25 kN/m³) the strip's contact pressure (rigid, no tension) must stay within σεδ
+  under G + Q and keep the resultant on the base in every seismic combination; the flange widens
+  (5 cm steps, ≤ 4.0 m) until both hold — else a warning for the engineer.
 * Levels: tie beams under the ground floor, top at the column base, 50 cm
   deep; footings below them; strips with their web top at the column base.
 
@@ -176,7 +182,9 @@ def strip_runs(fts, mode):
         run = [idx[0]]
         for a, b in zip(idx, idx[1:]):
             gap = (fts[b][along] - fts[a][along]) - fts[a]["B_m"] / 2 - fts[b]["B_m"] / 2
-            if mode == "strips" or gap < STRIP_GAP:
+            # auto: also where a pad would overturn in the earthquake — safety before material (owner 17/10).
+            tips = fts[a].get("seismic_stable") is False or fts[b].get("seismic_stable") is False
+            if mode == "strips" or gap < STRIP_GAP or (mode == "auto" and tips):
                 run.append(b)
             else:
                 if len(run) >= 2:
@@ -208,13 +216,57 @@ def _stirrups(v_kn, d):
     return "Ø12/10 ⚠"
 
 
+GAMMA_C = 25.0            # kN/m³, reinforced concrete (EN 1991-1-1 Πίν. A.1)
+STRIP_MAX_B = 4.0
+
+
+def _strip_moments(fts, runs):
+    """How the columns' base moments are shared (owner 17/10: «να μοιράζονται … περισσότερο οι πεδιλοδοκοί»).
+
+    For every footing ``i``: the strips through it per axis.  A moment about the strip's own axis turns the
+    strip over its length (it takes all of it — the long lever); the moment in the other direction goes to
+    the crossing strip when there is one, else to this strip's flange (transverse eccentricity).
+    """
+    on = {}
+    for k, (axis, run) in enumerate(runs):
+        for i in run:
+            on.setdefault(i, {0: [], 1: []})[axis].append(k)
+    return on
+
+
+def _strip_loads(fts, run, axis, k, on, H):
+    """Per combination: (name, seismic, V, M along the strip about its centre, M across) — kN, kNm."""
+    from archforge.structure.soil_pressure import eccentricity
+    along = "x" if axis == 0 else "y"
+    pos = [fts[i][along] for i in run]
+    centre = (pos[0] + pos[-1]) / 2
+    combos = {}
+    for i, s_i in zip(run, pos):
+        share_n = sum(len(v) for v in on[i].values())           # every strip through the column takes a part of N
+        same, other = on[i][axis], on[i][1 - axis]
+        for name, seismic, r in fts[i].get("reactions") or (("G+Q", False, [0, 0, float(fts[i]["N_sls_kN"]), 0, 0]),):
+            hx, hy, n, mx, my = (float(v) for v in r)
+            if n <= 0:
+                continue
+            ex, ey = eccentricity(n, mx, my, hx, hy, H)
+            m_along = n * (ex if axis == 0 else ey) / len(same)
+            m_across = 0.0 if other else n * (ey if axis == 0 else ex) / len(same)
+            c = combos.setdefault(name, [seismic, 0.0, 0.0, 0.0])
+            c[1] += n / share_n
+            c[2] += n / share_n * (s_i - centre) + m_along
+            c[3] += m_across
+    return [(name, v[0], v[1], v[2], v[3]) for name, v in combos.items()]
+
+
 def design_strips(fts, runs, settings):
+    from archforge.structure.soil_pressure import contact_pressure
     fck, fctm, _E = CONCRETE[settings["concrete"]]
     sigma_allow = float(settings["soil_pressure"])
     share = {}
     for _axis, run in runs:
         for i in run:
             share[i] = share.get(i, 0) + 1
+    on = _strip_moments(fts, runs)
     out = []
     for n, (axis, run) in enumerate(runs, 1):
         along = "x" if axis == 0 else "y"
@@ -226,14 +278,36 @@ def design_strips(fts, runs, settings):
         l_max = max(spans)
         N = sum(float(fts[i]["N_sls_kN"]) / share[i] for i in run)
         n_ed = ULS_RATIO * N
-        B = max(STRIP_MIN_B, _round_up(1.1 * N / (sigma_allow * L)))
         col = max(float(fts[i].get("column_m", 0.30)) for i in run)
         bw = max(0.40, _round_up(col + 0.10))
-        B = max(B, bw + 0.20)
-        a = (B - bw) / 2
-        hf = max(0.30, _round_up(0.10 + a / 2))
-        H = max(0.80, _round_up(l_max / 8), hf + 0.30)
+        B = max(STRIP_MIN_B, _round_up(1.1 * N / (sigma_allow * L)), bw + 0.20)
+
+        def shape(B):
+            a = (B - bw) / 2
+            hf = max(0.30, _round_up(0.10 + a / 2))
+            H = max(0.80, _round_up(l_max / 8), hf + 0.30)
+            return a, hf, H, L * (B * hf + bw * (H - hf))
+
+        # Pressure with the shared moments: G+Q within σεδ, every seismic combination with its resultant
+        # on the base (statics, structure/soil_pressure.py); the flange widens until both hold.
+        while True:
+            a, hf, H, vol = shape(B)
+            weight = GAMMA_C * vol
+            checks = []
+            for name, seismic, V, m_al, m_ac in _strip_loads(fts, run, axis, n - 1, on, H):
+                V_tot = V + weight
+                cp = contact_pressure(V_tot, abs(m_al) / V_tot, abs(m_ac) / V_tot, L, B)
+                checks.append((name, seismic, cp, m_al / V_tot, m_ac / V_tot))
+            sls = next((c for c in checks if not c[1]), None)
+            seis = [c for c in checks if c[1]]
+            ok_sls = sls is None or (sls[2]["stable"] and sls[2]["sigma_max"] <= sigma_allow + 1e-9)
+            ok_seis = all(c[2]["stable"] for c in seis)
+            if (ok_sls and ok_seis) or B >= STRIP_MAX_B:
+                break
+            B = round(B + 0.05, 2)
         sigma_ed = n_ed / (B * L)
+        if sls is not None and sls[2]["stable"]:
+            sigma_ed = max(sigma_ed, ULS_RATIO * (sls[2]["sigma_max"] - weight / (B * L)))
         M_t = sigma_ed * a * a / 2
         d_f = hf - 0.06
         as_min_f = max(0.26 * fctm / FYK, 0.0013) * d_f
@@ -247,16 +321,28 @@ def design_strips(fts, runs, settings):
         a_pt = (pos[0] - STRIP_END, line) if axis == 0 else (line, pos[0] - STRIP_END)
         b_pt = (pos[-1] + STRIP_END, line) if axis == 0 else (line, pos[-1] + STRIP_END)
         cols = [fts[i].get("column", "") for i in run]
-        out.append({"name": f"ΠΔ{n}", "axis": "x" if axis == 0 else "y", "a": a_pt, "b": b_pt, "members": run,
-                    "z": float(fts[run[0]].get("z", 0.0)), "columns": cols,
-                    "column_xy": [(fts[i]["x"], fts[i]["y"]) for i in run], "length_m": round(L, 2), "l_max_m": round(l_max, 2),
-                    "N_sls_kN": round(N, 1), "N_Ed_kN": round(n_ed, 1), "sigma_kPa": round(N * 1.1 / (B * L), 1),
-                    "B_m": round(B, 2), "hf_m": round(hf, 2), "bw_m": round(bw, 2), "H_m": round(H, 2),
-                    "flange_mesh": f"Ø{dia}/{s * 100:g}", "flange_dist": "Ø10/20",
-                    "M_kNm": round(M, 1), "bars_top": f"{nb}Ø{db}", "bars_bottom": f"{nb}Ø{db}", "As_cm2": round(prov * 1e4, 2),
-                    "V_kN": round(V, 1), "stirrups": _stirrups(V, d), "skin": "2×2Ø12" if H >= 0.70 else "—",
-                    "section": f"Τ {B * 100:.0f}/{hf * 100:.0f} · {bw * 100:.0f}/{H * 100:.0f}",
-                    "concrete_m3": round(L * (B * hf + bw * (H - hf)), 2)})
+        worst = max(seis, key=lambda c: c[2]["sigma_max"]) if seis else None
+        entry = {"name": f"ΠΔ{n}", "axis": "x" if axis == 0 else "y", "a": a_pt, "b": b_pt, "members": run,
+                 "z": float(fts[run[0]].get("z", 0.0)), "columns": cols,
+                 "column_xy": [(fts[i]["x"], fts[i]["y"]) for i in run], "length_m": round(L, 2), "l_max_m": round(l_max, 2),
+                 "N_sls_kN": round(N, 1), "N_Ed_kN": round(n_ed, 1), "sigma_kPa": round(N * 1.1 / (B * L), 1),
+                 "B_m": round(B, 2), "hf_m": round(hf, 2), "bw_m": round(bw, 2), "H_m": round(H, 2),
+                 "flange_mesh": f"Ø{dia}/{s * 100:g}", "flange_dist": "Ø10/20",
+                 "M_kNm": round(M, 1), "bars_top": f"{nb}Ø{db}", "bars_bottom": f"{nb}Ø{db}", "As_cm2": round(prov * 1e4, 2),
+                 "V_kN": round(V, 1), "stirrups": _stirrups(V, d), "skin": "2×2Ø12" if H >= 0.70 else "—",
+                 "section": f"Τ {B * 100:.0f}/{hf * 100:.0f} · {bw * 100:.0f}/{H * 100:.0f}",
+                 "concrete_m3": round(vol, 2), "pressure_ok": bool(ok_sls)}
+        if sls is not None:
+            entry.update({"sigma_max_sls_kPa": round(sls[2]["sigma_max"], 1) if sls[2]["stable"] else None,
+                          "e_along_sls_m": round(sls[3], 3), "e_across_sls_m": round(sls[4], 3)})
+        if worst is not None:
+            unstable = next((c for c in seis if not c[2]["stable"]), None)
+            pick = unstable or worst
+            entry.update({"seismic_combo": pick[0], "seismic_stable": unstable is None,
+                          "sigma_max_seismic_kPa": round(pick[2]["sigma_max"], 1) if pick[2]["stable"] else None,
+                          "contact_seismic": round(pick[2]["contact"], 3),
+                          "e_along_seismic_m": round(pick[3], 3), "e_across_seismic_m": round(pick[4], 3)})
+        out.append(entry)
     return out
 
 

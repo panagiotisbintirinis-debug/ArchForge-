@@ -99,7 +99,15 @@ def build(window):
             s.step(f"Παροχή για «{appliance}»", lambda a=appliance: (_ for _ in ()).throw(ValueError(f"δεν βρέθηκε {a}")))
         else:
             s.point(tool, *xy)
-    # 11. Load-bearing frame: columns, beams, footings in one go, then the analysis.
+    # 11. Foundation (owner 17/10): strip footings in every column line — they share the base moments with the
+    #     footings and take the most of them (dialog «Στοιχεία κτιρίου για στατική» ▸ Θεμελίωση).
+    def foundation():
+        from archforge.structure.analysis.settings import get_settings
+        params = {**get_settings(window.doc), "foundation_type": "strips"}
+        window._apply_structural_settings(params)
+        return "Πεδιλοδοκοί σε όλους τους άξονες (εσχάρα)"
+    s.step("Θεμελίωση: πεδιλοδοκοί (Στοιχεία κτιρίου για στατική)", foundation)
+    # 12. Load-bearing frame: columns, beams, footings in one go, then the analysis.
     def structure():
         out = window._design_structure()
         res = out.get("result") or {}
@@ -112,10 +120,11 @@ def build(window):
 
 
 # Checks waiting on an owner decision (S01_REPORT.md says which): the gate test lets only these fail.
-OWNER_PENDING = ("Προειδοποίηση: Πέδιλο", "Θέρμανση/HVAC")
+OWNER_PENDING = ("Θέρμανση/HVAC",)
 
 C1 = "d49c98f"          # walls with both faces, opening symbols
 C2 = "278d361"          # the gate's first round of fixes
+C3 = "επόμενο commit"     # strip footings sharing the base moments (filled after the commit)
 FINDINGS = [
     {"status": "FIXED", "found": "Τοίχοι στην κάτοψη ως γραμμή στον άξονα — 25 και 10 cm ίδιοι (απόφαση ιδιοκτήτη 3)",
      "fix": "Δύο παρειές + γέμισμα, ενώσεις κλειστές, ανοίγματα κομμένα", "files": ["core/plan_scene.py", "ui/plan_view.py"], "commit": C1},
@@ -143,9 +152,11 @@ FINDINGS = [
      "fix": "Οι εκκρεμείς κλήσεις εφαρμόζονται στο τέλος της σελίδας", "files": ["ui/pbr_viewport.py"], "commit": C2},
     {"status": "FIXED", "found": "Στιγμιότυπα 3D/Φέροντος δεν έβγαιναν στο cloud",
      "fix": "Η ίδια σελίδα 3D σε headless Chromium (SwiftShader)", "files": ["scenarios/render3d.py", "ui/pbr_viewport.py"], "commit": C2},
-    {"status": "OPEN", "found": "Πέδιλα Κ1, Κ4, Κ8: στον σεισμό η συνισταμένη βγαίνει έξω από το πέδιλο (ανατροπή)",
-     "fix": "Απόφαση ιδιοκτήτη/μηχανικού: μεγάλωμα πεδίλου ώσπου να μένει μέσα, ή ροπή στις συνδετήριες, ή μόνο σήμανση",
-     "files": [], "commit": ""},
+    {"status": "FIXED", "found": "Πέδιλα Κ1, Κ4, Κ8: στον σεισμό η συνισταμένη βγαίνει έξω από το πέδιλο (ανατροπή)",
+     "fix": "Απόφαση ιδιοκτήτη: πεδιλοδοκοί που μοιράζονται τις ροπές με τα πέδιλα και παίρνουν τις περισσότερες — "
+            "έλεγχος ανατροπής/πίεσης σε κάθε πεδιλοδοκό, το πέλμα φαρδαίνει όσο χρειάζεται (S01: 6 πεδιλοδοκοί, όλοι ευσταθείς, "
+            "σmax 41–56 kPa· σκυρόδεμα 33 m³ αντί 15,4 με πέδιλα)",
+     "files": ["structure/foundation.py", "structure/analysis/__init__.py"], "commit": C3},
     {"status": "OPEN", "found": "Θέρμανση: mep/heating.py μόνο απογραφή — κανένα εργαλείο στο UI, καμία όδευση",
      "fix": "Απόφαση ιδιοκτήτη για το εύρος", "files": [], "commit": ""},
 ]

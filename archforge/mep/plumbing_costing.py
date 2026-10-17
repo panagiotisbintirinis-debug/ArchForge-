@@ -108,8 +108,8 @@ def plumbing_quote(doc, prices: Mapping[str, PriceEntry] | None = None) -> dict:
     heating and electrical cannot silently maintain competing price books.
     """
     if prices is None:
-        from archforge.mep.project_pricebook import project_prices
-        prices = project_prices(doc)
+        from archforge.mep.project_pricebook import effective_prices
+        prices = effective_prices(doc)
     quantities = plumbing_quantities(doc)
     rows = cost_lines(quantities, prices)
     return {
