@@ -66,7 +66,10 @@ FINDINGS = [
      "files": ["architecture/roof_choice.py", "tests/test_roof_choice.py"], "commit": "37e2fff"},
     {"status": "FIXED", "found": "Οπτικός έλεγχος 3D: η στέψη 30 cm της πισίνας πήρε 6 κολόνες και περιμετρική δοκό στα 2,70 m",
      "fix": "Τοίχοι κάτω από 1,50 m (στέψη, στηθαίο, μαντρότοιχος) δεν παίρνουν κολόνες/δοκούς",
-     "files": ["structure/layout.py", "tests/test_frame_layout.py"], "commit": "(αυτό το commit)"},
+     "files": ["structure/layout.py", "tests/test_frame_layout.py"], "commit": "62a4c2f"},
+    {"status": "FIXED", "found": "Στατική: «Στάθμη +2.70: χώρος χωρίς δοκούς» — η ανάλυση φόρτωνε πλάκα πάνω από την πισίνα",
+     "fix": "Χώροι ανοιχτοί στον ουρανό χωρίς φορτίο πλάκας",
+     "files": ["structure/analysis/building.py", "tests/test_frame_layout.py"], "commit": "(αυτό το commit)"},
 ]
 NOTES = ""
 

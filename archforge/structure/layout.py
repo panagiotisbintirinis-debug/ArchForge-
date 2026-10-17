@@ -189,9 +189,10 @@ def _inside_building(doc, z, walls, x, y):
         t = max(0.0, min(1.0, ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / L2))
         if math.hypot(ax + (bx - ax) * t - x, ay + (by - ay) * t - y) <= float(p["thickness"]) / 2 + SNAP:
             return "wall"
+    from archforge.architecture.roof_need import OPEN_AIR_USES
     for f in doc.active_room_faces(z=z):
-        if inside(f.polygon, x, y):
-            return "room"
+        if inside(f.polygon, x, y) and doc.room_metadata(f.signature).get("use") not in OPEN_AIR_USES:
+            return "room"                    # a yard or pool is outside: no slab, so no beam across it
     return None
 
 
@@ -312,8 +313,9 @@ def propose_frame(doc, settings=None):
     steel = settings["system"] == "steel"
     construction = "steel" if steel else "reinforced_concrete"
     col_size, beam_size = ((0.20, 0.20), (0.15, 0.30)) if steel else ((0.40, 0.40), (0.25, 0.50))
-    existing_cols = [e for e in doc.entities.values() if e.kind == "structural_column"]
-    existing_beams = [e for e in doc.entities.values() if e.kind == "structural_beam"]
+    # A pergola's posts and beams are its own light frame: the building's grid never ties into them.
+    existing_cols = [e for e in doc.entities.values() if e.kind == "structural_column" and e.params.get("role") != "pergola"]
+    existing_beams = [e for e in doc.entities.values() if e.kind == "structural_beam" and e.params.get("role") != "pergola"]
     entities, report = [], {"storeys": [], "columns": 0, "beams": 0}
     # Top down: what does each storey carry? Its own grid, plus every column of the storeys above
     # that stands over it — a column is never left without one under it down to the foundation.

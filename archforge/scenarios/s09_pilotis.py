@@ -57,7 +57,7 @@ FINDINGS = [
                                 "(καμία κολόνα/δοκός από κάτω)· ο έλεγχος «συνέχεια κολονών» δεχόταν οποιαδήποτε δοκό στο ίδιο ύψος",
      "fix": "Οι κολόνες των ορόφων κατεβαίνουν ως τη θεμελίωση και έξω από τους τοίχους του κάτω ορόφου (πιλοτή)· δοκοί κάτω από "
             "την πλάκα του ορόφου· η πύλη θέλει δοκό που περνά κάτω από την κολόνα",
-     "files": ["structure/layout.py", "scenarios/gate.py", "tests/test_frame_layout.py"], "commit": "(αυτό το commit)"},
+     "files": ["structure/layout.py", "scenarios/gate.py", "tests/test_frame_layout.py"], "commit": "8be5897"},
 ]
 NOTES = ""
 
