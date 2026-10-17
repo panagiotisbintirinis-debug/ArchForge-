@@ -272,9 +272,11 @@ def flush_with_facade(x, y, size, outer):
     return round(x + dx, 4), round(y + dy, 4)
 
 
-def grid_beams(doc, z, points):
-    """Beams on the grid axes between consecutive columns (inside the building)."""
+def grid_beams(doc, z, points, above=None):
+    """Beams on the grid axes between consecutive columns (inside the building, or under the storey ``above``:
+    the slab of a pilotis / an overhang rests on them)."""
     walls = _walls(doc, z)
+    walls_above = _walls(doc, above) if above is not None else []
     pts = list(points)
     out = []
     for axis in ("x", "y"):
@@ -287,7 +289,7 @@ def grid_beams(doc, z, points):
                 if math.dist(a, b) < 0.3:
                     continue
                 mid = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
-                if _inside_building(doc, z, walls, *mid):
+                if _inside_building(doc, z, walls, *mid) or (walls_above and _inside_building(doc, above, walls_above, *mid)):
                     out.append((a, b))
     # Diagonal exterior walls: a beam along each, end to end.
     from archforge.mep.ventilation import exterior_walls
@@ -316,21 +318,26 @@ def propose_frame(doc, settings=None):
     # Top down: what does each storey carry? Its own grid, plus every column of the storeys above
     # that stands over it — a column is never left without one under it down to the foundation.
     per_storey, carried = {}, {}
-    for z in reversed(_storeys(doc)):
+    storeys = _storeys(doc)
+    if storeys and storeys[0] > 0.5 and any(abs(float(v)) < 1e-4 for v in doc.levels.values()):
+        storeys = [0.0] + storeys                  # a ground storey left fully open (pilotis): no walls, still the base
+    above_of = {z: (storeys[i + 1] if i + 1 < len(storeys) else None) for i, z in enumerate(storeys)}
+    for z in reversed(storeys):
         walls = _walls(doc, z)
-        # A storey may contain only drawing leftovers or non-bearing partitions.
-        # It has no frame to propose and no wall top from which to derive one.
-        if not walls:
+        # A storey may contain only drawing leftovers or non-bearing partitions: no frame of its own, but the
+        # columns of the storeys above still go down through it (an open pilotis) to the foundation.
+        if not walls and not carried:
             continue
-        pts = column_points(doc, z)
+        pts = column_points(doc, z) if walls else {}
         for q, why in carried.items():
-            if all(math.hypot(q[0] - p[0], q[1] - p[1]) >= MERGE for p in pts) and _inside_building(doc, z, walls, *q):
-                pts[q] = "στηρίζει κολόνα του ορόφου από πάνω"
+            if all(math.hypot(q[0] - p[0], q[1] - p[1]) >= MERGE for p in pts):
+                # Outside this storey's walls (pilotis, overhang) too: a column never stands on the slab.
+                pts[q] = "στηρίζει κολόνα του ορόφου από πάνω" + ("" if walls and _inside_building(doc, z, walls, *q) else " (πιλοτή / ανοιχτός χώρος)")
         per_storey[z] = pts
         carried = {**carried, **pts}
     for z in sorted(per_storey):
         walls = _walls(doc, z)
-        top = _top_of(doc, z, walls)
+        top = _top_of(doc, z, walls) if walls else above_of[z]
         level = _level_name(doc, z)
         pts = per_storey[z]
         new_cols = 0
@@ -354,7 +361,7 @@ def propose_frame(doc, settings=None):
             if abs(float(c.params["z"]) - z) < 0.05:
                 all_pts.setdefault((float(c.params["x"]), float(c.params["y"])), "υπάρχουσα")
         new_beams = 0
-        for (x1, y1), (x2, y2) in grid_beams(doc, z, all_pts):
+        for (x1, y1), (x2, y2) in grid_beams(doc, z, all_pts, above=above_of[z]):
             if any(abs(float(e.params["z"]) + float(e.params["height"]) - top) < 0.05 and
                    math.hypot((float(e.params["x1"]) + float(e.params["x2"])) / 2 - (x1 + x2) / 2,
                               (float(e.params["y1"]) + float(e.params["y2"])) / 2 - (y1 + y2) / 2) < 0.3

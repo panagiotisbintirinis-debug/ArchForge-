@@ -1,4 +1,5 @@
 """Columns and beams proposed from the walls, after drawing walls and rooms."""
+import math
 import os
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
@@ -7,7 +8,7 @@ import pytest
 
 from archforge.core.commands import AddEntities, AddEntity, CommandStack
 from archforge.core.model import Document, Entity
-from archforge.structure.layout import column_points, propose_frame
+from archforge.structure.layout import MERGE, column_points, propose_frame
 
 
 def _house(stack, z=0.0, x_max=12.0):
@@ -138,6 +139,26 @@ def test_columns_never_hang_outside_the_facade():
         assert x - h >= -0.1 - 1e-6 and x + h <= 12.1 + 1e-6 and y - h >= -0.1 - 1e-6 and y + h <= 6.1 + 1e-6
     corner = min((e for e in entities if e.kind == 'structural_column'), key=lambda e: e.params['x'] + e.params['y'])
     assert (corner.params['x'], corner.params['y']) == pytest.approx((0.1, 0.1))   # outer faces flush, inwards both ways
+
+
+@pytest.mark.parametrize('core', [True, False])
+def test_pilotis_carries_every_column_of_the_flats_down_to_the_ground(core):
+    """S09: over an open pilotis (only a stair core, or nothing) the flats' columns stood on the slab."""
+    doc = Document(); st = CommandStack(doc); doc.levels['Ground'] = 0.0; doc.levels['Floor 1'] = 3.0
+    _house(st, 3.0)                                                      # flat 12 × 6 on +3.00
+    if core:
+        for s in [(9, 3, 12, 3), (12, 3, 12, 6), (12, 6, 9, 6), (9, 6, 9, 3)]:
+            st.execute(AddEntity(Entity('wall', {'x1': s[0], 'y1': s[1], 'x2': s[2], 'y2': s[3], 'z': 0.0, 'height': 3.0, 'thickness': 0.2})))
+    entities, _r = propose_frame(doc)
+    cols = [e for e in entities if e.kind == 'structural_column']
+    upper = [c for c in cols if c.params['z'] == 3.0]
+    ground = [c for c in cols if c.params['z'] == 0.0]
+    assert len(upper) == 8
+    for c in upper:                                     # a column under it (merged with a near one: ≤ MERGE away)
+        assert any(math.hypot(g.params['x'] - c.params['x'], g.params['y'] - c.params['y']) < MERGE for g in ground)
+    assert all(g.params['z'] + g.params['height'] == pytest.approx(3.0) for g in ground)
+    slab_beams = [e for e in entities if e.kind == 'structural_beam' and e.params['z'] + e.params['height'] == pytest.approx(3.0)]
+    assert any(b.params['y1'] == b.params['y2'] and b.params['y1'] < .5 and max(b.params['x1'], b.params['x2']) < 6 for b in slab_beams)
 
 
 def test_lower_storey_carries_every_column_of_the_storey_above():

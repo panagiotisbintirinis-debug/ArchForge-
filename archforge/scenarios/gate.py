@@ -443,8 +443,12 @@ class Gate:
             if not below:
                 continue
             x, y = float(c.params["x"]), float(c.params["y"])
-            if not any(abs(float(d.params.get("z", 0.0)) - max(below)) < 1e-3 and math.hypot(float(d.params["x"]) - x, float(d.params["y"]) - y) < 0.05
-                       for d in cols) and not any(abs(float(b.params.get("z", 0.0)) + 0 - z) < 0.6 for b in self.ents("structural_beam")):
+            # On a column of the storey below, or on a beam that passes under it (a beam anywhere at that
+            # level used to count — S09's pilotis columns stood on the slab and passed).
+            if not any(abs(float(d.params.get("z", 0.0)) - max(below)) < 1e-3 and math.hypot(float(d.params["x"]) - x, float(d.params["y"]) - y) < 0.3
+                       for d in cols) and not any(abs(float(b.params.get("z", 0.0)) + float(b.params.get("height", 0.0)) - z) < 0.6 and
+                                                  _seg_dist((x, y), b) <= float(b.params.get("width", 0.25)) / 2 + 0.05
+                                                  for b in self.ents("structural_beam")):
                 bad.append(c.name or c.id[:6])
         self.add(2, "Συνέχεια κολονών μεταξύ ορόφων", not bad, "όλες πατούν σε κολόνα ή δοκό" if not bad else "χωρίς στήριξη: " + ", ".join(bad))
 
@@ -883,6 +887,16 @@ def _overlap(a, b):
             return 0.0
         out = clip(out, b[i - 1], b[i])
     return abs(area(out)) if len(out) >= 3 else 0.0
+
+
+
+def _seg_dist(q, beam):
+    """Plan distance from point ``q`` to the axis of ``beam``."""
+    p = beam.params
+    ax, ay, bx, by = (float(p[k]) for k in ("x1", "y1", "x2", "y2"))
+    L2 = (bx - ax) ** 2 + (by - ay) ** 2
+    t = 0.0 if L2 < 1e-12 else max(0.0, min(1.0, ((q[0] - ax) * (bx - ax) + (q[1] - ay) * (by - ay)) / L2))
+    return math.hypot(ax + (bx - ax) * t - q[0], ay + (by - ay) * t - q[1])
 
 
 def _components(segs):
