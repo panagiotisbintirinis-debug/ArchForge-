@@ -120,7 +120,9 @@ def build(window):
 
 
 # Checks waiting on an owner decision (S01_REPORT.md says which): the gate test lets only these fail.
-OWNER_PENDING = ("Θέρμανση/HVAC",)
+# Θέρμανση: no tool yet (owner decides). Κόμβοι: Codex's capacity-joint flags (ΣMRc/ΣMRb < 1,30, an UNVERIFIED
+# criterion) became warnings on merge — examined by an engineer, never waived or «fixed» by resizing here.
+OWNER_PENDING = ("Θέρμανση/HVAC", "Προειδοποίηση: Κόμβος")
 
 C1 = "d49c98f"          # walls with both faces, opening symbols
 C2 = "278d361"          # the gate's first round of fixes

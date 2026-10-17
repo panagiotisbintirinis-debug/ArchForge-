@@ -1937,7 +1937,6 @@ renderer.domElement.addEventListener("lostpointercapture", (event) => {
   if (bridge) bridge.endSculpt();
 }, true);
 
-
 // Walk mode (Walkthrough / interior camera): W A S D or the arrows walk (left/right arrows turn),
 // Shift runs, Q / E go down / up, left-drag looks around, the wheel steps forward / back.
 // No collision: you walk through walls, as in a model.
@@ -2023,6 +2022,30 @@ function walkStep() {
 window.__walkStep = walkStep;
 window.__walkState = () => ({walkMode, x: camera.position.x, y: camera.position.y, z: camera.position.z});
 
+// Capture the same frame the user sees, including the active render technique.
+// Useful when a virtual display cannot composite a native WebEngine grab.
+window.archforgeCaptureFrame = (width, height) => {
+  if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    renderer.setSize(width, height, false);
+    composer.setSize(width, height);
+  }
+  if (useComposer()) composer.render(); else renderer.render(scene, camera);
+  const image = renderer.domElement.toDataURL("image/png");
+  resize();
+  return image;
+};
+
+// Applying a scene also sets the camera, which calls setWalkMode. Drain the
+// initial payload only after all walk-mode let/const state is initialised.
+// Opening a populated project used to throw a temporal-dead-zone ReferenceError
+// here intermittently, leaving the 3D page only partly initialised.
+if (window.__archforgePendingTechnique) window.setTechnique(window.__archforgePendingTechnique);
+if (window.__archforgePendingScene) window.archforgeSetScene(window.__archforgePendingScene);
+if (window.__archforgePendingStairPreview) window.setStairPreview(window.__archforgePendingStairPreview);
+if (window.__archforgePendingRampPreview) window.setRampPreview(window.__archforgePendingRampPreview);
+
 function animate() {
   walkStep();
   // Haze ends before the far plane, so the ground never shows a cut edge.
@@ -2032,12 +2055,6 @@ function animate() {
   if (useComposer()) composer.render(); else renderer.render(scene, camera);
   requestAnimationFrame(animate);
 }
-// Whatever Python sent before this page finished loading — applied last, once every
-// declaration above exists (a scene applied earlier stopped the script at «walkMode»).
-if (window.__archforgePendingTechnique) window.setTechnique(window.__archforgePendingTechnique);
-if (window.__archforgePendingScene) window.archforgeSetScene(window.__archforgePendingScene);
-if (window.__archforgePendingStairPreview) window.setStairPreview(window.__archforgePendingStairPreview);
-if (window.__archforgePendingRampPreview) window.setRampPreview(window.__archforgePendingRampPreview);
 animate();
 </script>
 </body>

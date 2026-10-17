@@ -1,0 +1,2732 @@
+{
+  "format": 7,
+  "entities": [
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0,
+        "y1": 0,
+        "x2": 12,
+        "y2": 0,
+        "z": 0.0,
+        "height": 2.8000000000000003,
+        "thickness": 0.25
+      },
+      "name": "Exterior wall L0",
+      "id": "s10-wall-0-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 12,
+        "y1": 0,
+        "x2": 12,
+        "y2": 8,
+        "z": 0.0,
+        "height": 2.8000000000000003,
+        "thickness": 0.25
+      },
+      "name": "Exterior wall L0",
+      "id": "s10-wall-0-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 12,
+        "y1": 8,
+        "x2": 0,
+        "y2": 8,
+        "z": 0.0,
+        "height": 2.8000000000000003,
+        "thickness": 0.25
+      },
+      "name": "Exterior wall L0",
+      "id": "s10-wall-0-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0,
+        "y1": 8,
+        "x2": 0,
+        "y2": 0,
+        "z": 0.0,
+        "height": 2.8000000000000003,
+        "thickness": 0.25
+      },
+      "name": "Exterior wall L0",
+      "id": "s10-wall-0-3",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 6.0,
+        "y1": 0,
+        "x2": 6.0,
+        "y2": 8,
+        "z": 0.0,
+        "height": 2.8000000000000003,
+        "thickness": 0.15
+      },
+      "name": "Partition A L0",
+      "id": "s10-part-0-a",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0,
+        "y1": 4.0,
+        "x2": 12,
+        "y2": 4.0,
+        "z": 0.0,
+        "height": 2.8000000000000003,
+        "thickness": 0.15
+      },
+      "name": "Partition B L0",
+      "id": "s10-part-0-b",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "floor",
+      "params": {
+        "points": [
+          [
+            0,
+            0
+          ],
+          [
+            12,
+            0
+          ],
+          [
+            12,
+            8
+          ],
+          [
+            0,
+            8
+          ]
+        ],
+        "z": -0.18,
+        "thickness": 0.18
+      },
+      "name": "Floor L0",
+      "id": "s10-floor-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "box",
+      "params": {
+        "x": 1.0,
+        "y": 1.0,
+        "z": 0.0,
+        "width": 2.2,
+        "depth": 0.9,
+        "height": 0.75,
+        "rotation": 0.0
+      },
+      "name": "Καναπές L0",
+      "id": "s10-furn-0-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "box",
+      "params": {
+        "x": 9.6,
+        "y": 6.0,
+        "z": 0.0,
+        "width": 2.0,
+        "depth": 1.6,
+        "height": 0.55,
+        "rotation": 0.0
+      },
+      "name": "Κρεβάτι L0",
+      "id": "s10-furn-0-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "box",
+      "params": {
+        "x": 5.2,
+        "y": 4.7,
+        "z": 0.0,
+        "width": 1.6,
+        "depth": 0.9,
+        "height": 0.75,
+        "rotation": 0.0
+      },
+      "name": "Τραπέζι L0",
+      "id": "s10-furn-0-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "cabinet",
+      "params": {
+        "x": 1.0,
+        "y": 7.5,
+        "z": 0.0,
+        "rotation": 0.0,
+        "width": 0.6,
+        "depth": 0.6,
+        "height": 0.86,
+        "plinth": 0.1,
+        "height_end": 0.86,
+        "cabinet_type": "base",
+        "doors": 1,
+        "drawers": 1,
+        "shelves": 1,
+        "worktop": 1.0,
+        "handle": "bar",
+        "front_style": "flat",
+        "mechanism": "none",
+        "blind_side": "left"
+      },
+      "name": "Kitchen base L0",
+      "id": "s10-cab-0-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "cabinet",
+      "params": {
+        "x": 1.8,
+        "y": 7.5,
+        "z": 0.0,
+        "rotation": 0.0,
+        "width": 0.8,
+        "depth": 0.6,
+        "height": 0.86,
+        "plinth": 0.1,
+        "height_end": 0.86,
+        "cabinet_type": "sink",
+        "doors": 2,
+        "drawers": 0,
+        "shelves": 0,
+        "worktop": 1.0,
+        "handle": "bar",
+        "front_style": "flat",
+        "mechanism": "bin",
+        "blind_side": "left"
+      },
+      "name": "Kitchen sink cabinet L0",
+      "id": "s10-cab-0-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0,
+        "y1": 0,
+        "x2": 12,
+        "y2": 0,
+        "z": 3.1,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Exterior wall L1",
+      "id": "s10-wall-1-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 12,
+        "y1": 0,
+        "x2": 12,
+        "y2": 8,
+        "z": 3.1,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Exterior wall L1",
+      "id": "s10-wall-1-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 12,
+        "y1": 8,
+        "x2": 0,
+        "y2": 8,
+        "z": 3.1,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Exterior wall L1",
+      "id": "s10-wall-1-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0,
+        "y1": 8,
+        "x2": 0,
+        "y2": 0,
+        "z": 3.1,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Exterior wall L1",
+      "id": "s10-wall-1-3",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 6.0,
+        "y1": 0,
+        "x2": 6.0,
+        "y2": 8,
+        "z": 3.1,
+        "height": 2.7,
+        "thickness": 0.15
+      },
+      "name": "Partition A L1",
+      "id": "s10-part-1-a",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0,
+        "y1": 4.0,
+        "x2": 12,
+        "y2": 4.0,
+        "z": 3.1,
+        "height": 2.7,
+        "thickness": 0.15
+      },
+      "name": "Partition B L1",
+      "id": "s10-part-1-b",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "floor",
+      "params": {
+        "points": [
+          [
+            0,
+            0
+          ],
+          [
+            12,
+            0
+          ],
+          [
+            12,
+            8
+          ],
+          [
+            0,
+            8
+          ]
+        ],
+        "z": 2.92,
+        "thickness": 0.18
+      },
+      "name": "Floor L1",
+      "id": "s10-floor-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "box",
+      "params": {
+        "x": 1.0,
+        "y": 1.0,
+        "z": 3.1,
+        "width": 2.2,
+        "depth": 0.9,
+        "height": 0.75,
+        "rotation": 0.0
+      },
+      "name": "Καναπές L1",
+      "id": "s10-furn-1-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "box",
+      "params": {
+        "x": 9.6,
+        "y": 6.0,
+        "z": 3.1,
+        "width": 2.0,
+        "depth": 1.6,
+        "height": 0.55,
+        "rotation": 0.0
+      },
+      "name": "Κρεβάτι L1",
+      "id": "s10-furn-1-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "box",
+      "params": {
+        "x": 5.2,
+        "y": 4.7,
+        "z": 3.1,
+        "width": 1.6,
+        "depth": 0.9,
+        "height": 0.75,
+        "rotation": 0.0
+      },
+      "name": "Τραπέζι L1",
+      "id": "s10-furn-1-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0,
+        "y1": 0,
+        "x2": 12,
+        "y2": 0,
+        "z": 6.1,
+        "height": 2.6,
+        "thickness": 0.25
+      },
+      "name": "Exterior wall L2",
+      "id": "s10-wall-2-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 12,
+        "y1": 0,
+        "x2": 12,
+        "y2": 8,
+        "z": 6.1,
+        "height": 2.6,
+        "thickness": 0.25
+      },
+      "name": "Exterior wall L2",
+      "id": "s10-wall-2-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 12,
+        "y1": 8,
+        "x2": 0,
+        "y2": 8,
+        "z": 6.1,
+        "height": 2.6,
+        "thickness": 0.25
+      },
+      "name": "Exterior wall L2",
+      "id": "s10-wall-2-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0,
+        "y1": 8,
+        "x2": 0,
+        "y2": 0,
+        "z": 6.1,
+        "height": 2.6,
+        "thickness": 0.25
+      },
+      "name": "Exterior wall L2",
+      "id": "s10-wall-2-3",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 6.0,
+        "y1": 0,
+        "x2": 6.0,
+        "y2": 8,
+        "z": 6.1,
+        "height": 2.6,
+        "thickness": 0.15
+      },
+      "name": "Partition A L2",
+      "id": "s10-part-2-a",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0,
+        "y1": 4.0,
+        "x2": 12,
+        "y2": 4.0,
+        "z": 6.1,
+        "height": 2.6,
+        "thickness": 0.15
+      },
+      "name": "Partition B L2",
+      "id": "s10-part-2-b",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "floor",
+      "params": {
+        "points": [
+          [
+            0,
+            0
+          ],
+          [
+            12,
+            0
+          ],
+          [
+            12,
+            8
+          ],
+          [
+            0,
+            8
+          ]
+        ],
+        "z": 5.92,
+        "thickness": 0.18
+      },
+      "name": "Floor L2",
+      "id": "s10-floor-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "box",
+      "params": {
+        "x": 1.0,
+        "y": 1.0,
+        "z": 6.1,
+        "width": 2.2,
+        "depth": 0.9,
+        "height": 0.75,
+        "rotation": 0.0
+      },
+      "name": "Καναπές L2",
+      "id": "s10-furn-2-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "box",
+      "params": {
+        "x": 9.6,
+        "y": 6.0,
+        "z": 6.1,
+        "width": 2.0,
+        "depth": 1.6,
+        "height": 0.55,
+        "rotation": 0.0
+      },
+      "name": "Κρεβάτι L2",
+      "id": "s10-furn-2-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "box",
+      "params": {
+        "x": 5.2,
+        "y": 4.7,
+        "z": 6.1,
+        "width": 1.6,
+        "depth": 0.9,
+        "height": 0.75,
+        "rotation": 0.0
+      },
+      "name": "Τραπέζι L2",
+      "id": "s10-furn-2-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "cabinet",
+      "params": {
+        "x": 1.0,
+        "y": 7.5,
+        "z": 6.1,
+        "rotation": 0.0,
+        "width": 0.6,
+        "depth": 0.6,
+        "height": 0.86,
+        "plinth": 0.1,
+        "height_end": 0.86,
+        "cabinet_type": "base",
+        "doors": 1,
+        "drawers": 1,
+        "shelves": 1,
+        "worktop": 1.0,
+        "handle": "bar",
+        "front_style": "flat",
+        "mechanism": "none",
+        "blind_side": "left"
+      },
+      "name": "Kitchen base L2",
+      "id": "s10-cab-2-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "cabinet",
+      "params": {
+        "x": 1.8,
+        "y": 7.5,
+        "z": 6.1,
+        "rotation": 0.0,
+        "width": 0.8,
+        "depth": 0.6,
+        "height": 0.86,
+        "plinth": 0.1,
+        "height_end": 0.86,
+        "cabinet_type": "sink",
+        "doors": 2,
+        "drawers": 0,
+        "shelves": 0,
+        "worktop": 1.0,
+        "handle": "bar",
+        "front_style": "flat",
+        "mechanism": "bin",
+        "blind_side": "left"
+      },
+      "name": "Kitchen sink cabinet L2",
+      "id": "s10-cab-2-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "floor",
+      "params": {
+        "points": [
+          [
+            2,
+            0
+          ],
+          [
+            10,
+            0
+          ],
+          [
+            10,
+            -1.6
+          ],
+          [
+            2,
+            -1.6
+          ]
+        ],
+        "z": 2.92,
+        "thickness": 0.18
+      },
+      "name": "Balcony L1",
+      "id": "s10-balcony-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "railing",
+      "params": {
+        "points": [
+          [
+            10,
+            0
+          ],
+          [
+            10,
+            -1.6
+          ],
+          [
+            2,
+            -1.6
+          ],
+          [
+            2,
+            0
+          ]
+        ],
+        "z": 3.1,
+        "closed": 0,
+        "height": 1.05
+      },
+      "name": "Balcony railing L1",
+      "id": "s10-rail-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "floor",
+      "params": {
+        "points": [
+          [
+            0,
+            2
+          ],
+          [
+            -1.5,
+            2
+          ],
+          [
+            -1.5,
+            6
+          ],
+          [
+            0,
+            6
+          ]
+        ],
+        "z": 5.92,
+        "thickness": 0.18
+      },
+      "name": "Balcony L2",
+      "id": "s10-balcony-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "railing",
+      "params": {
+        "points": [
+          [
+            -1.5,
+            2
+          ],
+          [
+            -1.5,
+            6
+          ],
+          [
+            0,
+            6
+          ],
+          [
+            0,
+            2
+          ]
+        ],
+        "z": 6.1,
+        "closed": 0,
+        "height": 1.05
+      },
+      "name": "Balcony railing L2",
+      "id": "s10-rail-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "floor",
+      "params": {
+        "points": [
+          [
+            13.0,
+            1.0
+          ],
+          [
+            17.0,
+            1.0
+          ],
+          [
+            17.0,
+            7.0
+          ],
+          [
+            13.0,
+            7.0
+          ]
+        ],
+        "z": 1.22,
+        "thickness": 0.18
+      },
+      "name": "Split-level wing floor",
+      "id": "s10-split-floor",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 13.0,
+        "y1": 1.0,
+        "x2": 17.0,
+        "y2": 1.0,
+        "z": 1.4,
+        "height": 2.7,
+        "thickness": 0.2
+      },
+      "name": "Split-level wing wall",
+      "id": "s10-split-wall-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 17.0,
+        "y1": 1.0,
+        "x2": 17.0,
+        "y2": 7.0,
+        "z": 1.4,
+        "height": 2.7,
+        "thickness": 0.2
+      },
+      "name": "Split-level wing wall",
+      "id": "s10-split-wall-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 17.0,
+        "y1": 7.0,
+        "x2": 13.0,
+        "y2": 7.0,
+        "z": 1.4,
+        "height": 2.7,
+        "thickness": 0.2
+      },
+      "name": "Split-level wing wall",
+      "id": "s10-split-wall-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 13.0,
+        "y1": 7.0,
+        "x2": 13.0,
+        "y2": 1.0,
+        "z": 1.4,
+        "height": 2.7,
+        "thickness": 0.2
+      },
+      "name": "Split-level wing wall",
+      "id": "s10-split-wall-3",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "pitched_roof",
+      "params": {
+        "x0": 0.0,
+        "y0": 0.0,
+        "x1": 12,
+        "y1": 8,
+        "eave_z": 9.0,
+        "pitch": 25,
+        "overhang": 0.45,
+        "rafter_spacing": 0.6,
+        "roof_form": "gable",
+        "tile": "roman",
+        "snow_zone": 2,
+        "altitude": 0.0,
+        "insulation": "none",
+        "insulation_thickness": 0.0,
+        "shed_high": "auto"
+      },
+      "name": "Full-System Family Residence tiled roof",
+      "id": "s10-roof",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 0,
+        "y": 0,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.1,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Level 1",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-col-0-0-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 0,
+        "y": 4.0,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.1,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Level 1",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-col-0-0-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 0,
+        "y": 8,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.1,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Level 1",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-col-0-0-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 6.0,
+        "y": 0,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.1,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Level 1",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-col-0-1-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 6.0,
+        "y": 4.0,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.1,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Level 1",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-col-0-1-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 6.0,
+        "y": 8,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.1,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Level 1",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-col-0-1-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 12,
+        "y": 0,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.1,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Level 1",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-col-0-2-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 12,
+        "y": 4.0,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.1,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Level 1",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-col-0-2-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 12,
+        "y": 8,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.1,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Level 1",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-col-0-2-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0,
+        "y1": 0,
+        "x2": 12,
+        "y2": 0,
+        "z": 2.6,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-beamx-0-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0,
+        "y1": 4.0,
+        "x2": 12,
+        "y2": 4.0,
+        "z": 2.6,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-beamx-0-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0,
+        "y1": 8,
+        "x2": 12,
+        "y2": 8,
+        "z": 2.6,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-beamx-0-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0,
+        "y1": 0,
+        "x2": 0,
+        "y2": 8,
+        "z": 2.6,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-beamy-0-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 6.0,
+        "y1": 0,
+        "x2": 6.0,
+        "y2": 8,
+        "z": 2.6,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-beamy-0-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 12,
+        "y1": 0,
+        "x2": 12,
+        "y2": 8,
+        "z": 2.6,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-beamy-0-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 0,
+        "y": 0,
+        "z": 3.1,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Level 1",
+        "top_level": "Level 2",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-col-1-0-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 0,
+        "y": 4.0,
+        "z": 3.1,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Level 1",
+        "top_level": "Level 2",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-col-1-0-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 0,
+        "y": 8,
+        "z": 3.1,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Level 1",
+        "top_level": "Level 2",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-col-1-0-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 6.0,
+        "y": 0,
+        "z": 3.1,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Level 1",
+        "top_level": "Level 2",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-col-1-1-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 6.0,
+        "y": 4.0,
+        "z": 3.1,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Level 1",
+        "top_level": "Level 2",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-col-1-1-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 6.0,
+        "y": 8,
+        "z": 3.1,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Level 1",
+        "top_level": "Level 2",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-col-1-1-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 12,
+        "y": 0,
+        "z": 3.1,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Level 1",
+        "top_level": "Level 2",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-col-1-2-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 12,
+        "y": 4.0,
+        "z": 3.1,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Level 1",
+        "top_level": "Level 2",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-col-1-2-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 12,
+        "y": 8,
+        "z": 3.1,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Level 1",
+        "top_level": "Level 2",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-col-1-2-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0,
+        "y1": 0,
+        "x2": 12,
+        "y2": 0,
+        "z": 5.6,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Level 1",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-beamx-1-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0,
+        "y1": 4.0,
+        "x2": 12,
+        "y2": 4.0,
+        "z": 5.6,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Level 1",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-beamx-1-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0,
+        "y1": 8,
+        "x2": 12,
+        "y2": 8,
+        "z": 5.6,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Level 1",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-beamx-1-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0,
+        "y1": 0,
+        "x2": 0,
+        "y2": 8,
+        "z": 5.6,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Level 1",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-beamy-1-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 6.0,
+        "y1": 0,
+        "x2": 6.0,
+        "y2": 8,
+        "z": 5.6,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Level 1",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-beamy-1-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 12,
+        "y1": 0,
+        "x2": 12,
+        "y2": 8,
+        "z": 5.6,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Level 1",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-beamy-1-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 0,
+        "y": 0,
+        "z": 6.1,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.9,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Level 2",
+        "top_level": "Unassigned",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-col-2-0-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 0,
+        "y": 4.0,
+        "z": 6.1,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.9,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Level 2",
+        "top_level": "Unassigned",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-col-2-0-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 0,
+        "y": 8,
+        "z": 6.1,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.9,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Level 2",
+        "top_level": "Unassigned",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-col-2-0-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 6.0,
+        "y": 0,
+        "z": 6.1,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.9,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Level 2",
+        "top_level": "Unassigned",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-col-2-1-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 6.0,
+        "y": 4.0,
+        "z": 6.1,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.9,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Level 2",
+        "top_level": "Unassigned",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-col-2-1-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 6.0,
+        "y": 8,
+        "z": 6.1,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.9,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Level 2",
+        "top_level": "Unassigned",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-col-2-1-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 12,
+        "y": 0,
+        "z": 6.1,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.9,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Level 2",
+        "top_level": "Unassigned",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-col-2-2-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 12,
+        "y": 4.0,
+        "z": 6.1,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.9,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Level 2",
+        "top_level": "Unassigned",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-col-2-2-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 12,
+        "y": 8,
+        "z": 6.1,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.9,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Level 2",
+        "top_level": "Unassigned",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-col-2-2-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0,
+        "y1": 0,
+        "x2": 12,
+        "y2": 0,
+        "z": 8.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Level 2",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-beamx-2-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0,
+        "y1": 4.0,
+        "x2": 12,
+        "y2": 4.0,
+        "z": 8.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Level 2",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-beamx-2-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0,
+        "y1": 8,
+        "x2": 12,
+        "y2": 8,
+        "z": 8.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Level 2",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-beamx-2-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0,
+        "y1": 0,
+        "x2": 0,
+        "y2": 8,
+        "z": 8.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Level 2",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-beamy-2-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 6.0,
+        "y1": 0,
+        "x2": 6.0,
+        "y2": 8,
+        "z": 8.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Level 2",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-beamy-2-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 12,
+        "y1": 0,
+        "x2": 12,
+        "y2": 8,
+        "z": 8.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Level 2",
+        "profile": ""
+      },
+      "name": "",
+      "id": "s10-beamy-2-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 0.6,
+        "y": 0.6,
+        "z": 0.0,
+        "point_type": "water_supply",
+        "pipe_system": "manifold"
+      },
+      "name": "Παροχή κρύου νερού",
+      "id": "s10-water",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 1.0,
+        "y": 7.0,
+        "z": 0.0,
+        "point_type": "wc"
+      },
+      "name": "wc L0",
+      "id": "s10-plumb-0-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 2.0,
+        "y": 7.0,
+        "z": 0.0,
+        "point_type": "basin"
+      },
+      "name": "basin L0",
+      "id": "s10-plumb-0-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 3.0,
+        "y": 7.0,
+        "z": 0.0,
+        "point_type": "shower"
+      },
+      "name": "shower L0",
+      "id": "s10-plumb-0-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 1.8,
+        "y": 7.3,
+        "z": 0.0,
+        "point_type": "kitchen_sink"
+      },
+      "name": "kitchen_sink L0",
+      "id": "s10-plumb-0-3",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 0.7,
+        "y": 0.7,
+        "z": 0.0,
+        "point_type": "panel"
+      },
+      "name": "panel L0",
+      "id": "s10-elec-0-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 3.0,
+        "y": 2.0,
+        "z": 0.0,
+        "point_type": "light"
+      },
+      "name": "light L0",
+      "id": "s10-elec-0-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 9.0,
+        "y": 6.0,
+        "z": 0.0,
+        "point_type": "light"
+      },
+      "name": "light L0",
+      "id": "s10-elec-0-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 0.8,
+        "y": 4.0,
+        "z": 0.0,
+        "point_type": "switch"
+      },
+      "name": "switch L0",
+      "id": "s10-elec-0-3",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 2.0,
+        "y": 0.5,
+        "z": 0.0,
+        "point_type": "socket"
+      },
+      "name": "socket L0",
+      "id": "s10-elec-0-4",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 10.0,
+        "y": 0.5,
+        "z": 0.0,
+        "point_type": "socket"
+      },
+      "name": "socket L0",
+      "id": "s10-elec-0-5",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 1.5,
+        "y": 7.6,
+        "z": 0.0,
+        "point_type": "kitchen_socket"
+      },
+      "name": "kitchen_socket L0",
+      "id": "s10-elec-0-6",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 1.0,
+        "y": 7.0,
+        "z": 3.1,
+        "point_type": "wc"
+      },
+      "name": "wc L1",
+      "id": "s10-plumb-1-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 2.0,
+        "y": 7.0,
+        "z": 3.1,
+        "point_type": "basin"
+      },
+      "name": "basin L1",
+      "id": "s10-plumb-1-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 3.0,
+        "y": 7.0,
+        "z": 3.1,
+        "point_type": "shower"
+      },
+      "name": "shower L1",
+      "id": "s10-plumb-1-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 1.8,
+        "y": 7.3,
+        "z": 3.1,
+        "point_type": "kitchen_sink"
+      },
+      "name": "kitchen_sink L1",
+      "id": "s10-plumb-1-3",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 0.7,
+        "y": 0.7,
+        "z": 3.1,
+        "point_type": "panel"
+      },
+      "name": "panel L1",
+      "id": "s10-elec-1-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 3.0,
+        "y": 2.0,
+        "z": 3.1,
+        "point_type": "light"
+      },
+      "name": "light L1",
+      "id": "s10-elec-1-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 9.0,
+        "y": 6.0,
+        "z": 3.1,
+        "point_type": "light"
+      },
+      "name": "light L1",
+      "id": "s10-elec-1-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 0.8,
+        "y": 4.0,
+        "z": 3.1,
+        "point_type": "switch"
+      },
+      "name": "switch L1",
+      "id": "s10-elec-1-3",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 2.0,
+        "y": 0.5,
+        "z": 3.1,
+        "point_type": "socket"
+      },
+      "name": "socket L1",
+      "id": "s10-elec-1-4",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 10.0,
+        "y": 0.5,
+        "z": 3.1,
+        "point_type": "socket"
+      },
+      "name": "socket L1",
+      "id": "s10-elec-1-5",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 1.5,
+        "y": 7.6,
+        "z": 3.1,
+        "point_type": "kitchen_socket"
+      },
+      "name": "kitchen_socket L1",
+      "id": "s10-elec-1-6",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 1.0,
+        "y": 7.0,
+        "z": 6.1,
+        "point_type": "wc"
+      },
+      "name": "wc L2",
+      "id": "s10-plumb-2-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 2.0,
+        "y": 7.0,
+        "z": 6.1,
+        "point_type": "basin"
+      },
+      "name": "basin L2",
+      "id": "s10-plumb-2-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 3.0,
+        "y": 7.0,
+        "z": 6.1,
+        "point_type": "shower"
+      },
+      "name": "shower L2",
+      "id": "s10-plumb-2-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 1.8,
+        "y": 7.3,
+        "z": 6.1,
+        "point_type": "kitchen_sink"
+      },
+      "name": "kitchen_sink L2",
+      "id": "s10-plumb-2-3",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 0.7,
+        "y": 0.7,
+        "z": 6.1,
+        "point_type": "panel"
+      },
+      "name": "panel L2",
+      "id": "s10-elec-2-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 3.0,
+        "y": 2.0,
+        "z": 6.1,
+        "point_type": "light"
+      },
+      "name": "light L2",
+      "id": "s10-elec-2-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 9.0,
+        "y": 6.0,
+        "z": 6.1,
+        "point_type": "light"
+      },
+      "name": "light L2",
+      "id": "s10-elec-2-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 0.8,
+        "y": 4.0,
+        "z": 6.1,
+        "point_type": "switch"
+      },
+      "name": "switch L2",
+      "id": "s10-elec-2-3",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 2.0,
+        "y": 0.5,
+        "z": 6.1,
+        "point_type": "socket"
+      },
+      "name": "socket L2",
+      "id": "s10-elec-2-4",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 10.0,
+        "y": 0.5,
+        "z": 6.1,
+        "point_type": "socket"
+      },
+      "name": "socket L2",
+      "id": "s10-elec-2-5",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 1.5,
+        "y": 7.6,
+        "z": 6.1,
+        "point_type": "kitchen_socket"
+      },
+      "name": "kitchen_socket L2",
+      "id": "s10-elec-2-6",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "price_list",
+      "params": {
+        "vat": 0.0,
+        "trade_prices": {
+          "plumbing.pipe.cold.dn15": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.pipe.hot.dn15": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.pipe.cold.dn16": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.pipe.hot.dn16": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.pipe.cold.dn18": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.pipe.hot.dn18": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.pipe.cold.dn20": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.pipe.hot.dn20": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.pipe.cold.dn22": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.pipe.hot.dn22": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.pipe.cold.dn26": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.pipe.hot.dn26": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.point.wc": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.point.basin": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.point.shower": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.point.kitchen_sink": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.manifold.cold.1way": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.manifold.cold.2way": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.manifold.cold.3way": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.manifold.cold.4way": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.manifold.cold.5way": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.manifold.cold.6way": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.manifold.cold.7way": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.manifold.cold.8way": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.manifold.cold.9way": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.manifold.cold.10way": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.manifold.cold.11way": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.manifold.cold.12way": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.manifold.hot.1way": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.manifold.hot.2way": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.manifold.hot.3way": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.manifold.hot.4way": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.manifold.hot.5way": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.manifold.hot.6way": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.manifold.hot.7way": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.manifold.hot.8way": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.manifold.hot.9way": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.manifold.hot.10way": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.manifold.hot.11way": {
+            "material": 1.0,
+            "labour": 1.0
+          },
+          "plumbing.manifold.hot.12way": {
+            "material": 1.0,
+            "labour": 1.0
+          }
+        }
+      },
+      "name": "TEST_FIXTURE prices — not market data",
+      "id": "s10-prices",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    }
+  ],
+  "dependencies": {},
+  "levels": {
+    "Ground": 0.0,
+    "Level 1": 3.1,
+    "Level 2": 6.1,
+    "Split +1.40": 1.4
+  },
+  "work_plane": {
+    "name": "XY",
+    "origin": [
+      0,
+      0,
+      0
+    ],
+    "u": [
+      1,
+      0,
+      0
+    ],
+    "v": [
+      0,
+      1,
+      0
+    ]
+  },
+  "materials": {},
+  "constructions": {},
+  "room_data": {},
+  "room_bindings": {},
+  "surface_modifiers": []
+}

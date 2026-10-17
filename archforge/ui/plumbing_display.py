@@ -26,7 +26,7 @@ def apply_display_state(doc, frame):
     out = []
     for primitive in frame.primitives:
         role = str(getattr(primitive, "role", ""))
-        if role in ("plumbing-point", "manifold", "plumbing-overlay-label"):
+        if role in ("plumbing-point", "manifold", "plumbing-overlay-label", "plumbing-label"):
             continue
         out.append(primitive)
     frame.primitives = out

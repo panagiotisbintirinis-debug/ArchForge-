@@ -88,10 +88,16 @@ def project_prices(doc) -> dict[str, PriceEntry]:
     legacy = {"desc:" + str(d): {"material": v, "labour": None} for d, v in (params.get("prices") or {}).items()}
     legacy.update(params.get("trade_prices") or {})
     for code, raw in legacy.items():
-        if str(code) in entries or not isinstance(raw, Mapping):
+        if not isinstance(raw, Mapping):
             continue
         price = price_entry_from_dict({"material_unit_price": raw.get("material"), "labour_unit_price": raw.get("labour"),
                                        "currency": default_currency, "source": "project_price_list"}, default_currency)
+        existing = entries.get(str(code))
+        if existing is not None:
+            # Two different prices for one code: reported, never silently picked (Codex's rule, kept on merge).
+            if (existing.material_unit_price, existing.labour_unit_price) != (price.material_unit_price, price.labour_unit_price):
+                raise ValueError(f"conflicting project price entries for {code}")
+            continue
         if price.material_unit_price is not None or price.labour_unit_price is not None:
             entries[str(code)] = price
     return entries
@@ -163,6 +169,9 @@ def set_project_prices(stack, doc, prices: Mapping[str, PriceEntry], *, vat=None
         vat=current_vat if vat is None else vat,
         currency=current_currency if currency is None else currency,
     )
+    # Migrate on edit, keeping a single active representation. Undo restores
+    # the complete original params, including old-format books.
+    params.update(trade_prices={}, prices={})
     stack.execute(UpdateEntity(existing.id, params))
     return existing.id
 

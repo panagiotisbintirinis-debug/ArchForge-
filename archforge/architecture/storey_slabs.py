@@ -194,7 +194,8 @@ def storey_faces(doc, kind, level_z):
         if kind == 'room_roof':
             # The slab over a storey is one plate, under a terrace or under the next storey alike
             # (owner: «πάλι μέρη της πλάκας εξαφανίζονται»); only a tiled roof replaces it.
-            if under_pitched_roof(doc, f.polygon, level_z):
+            if (under_pitched_roof(doc, f.polygon, level_z)
+                    and coverage(doc, f.polygon, level_z) < COVERED):
                 continue
         out.append(f)
     return out
