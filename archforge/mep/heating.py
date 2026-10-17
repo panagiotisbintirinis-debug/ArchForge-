@@ -140,12 +140,16 @@ def heating_quantities(doc) -> list[QuantityLine]:
 
 
 def heating_review(doc) -> dict:
-    """Expose what exists and what is intentionally not yet auto-calculated."""
+    """Expose inventory, verified metadata and still-unimplemented calculations."""
+    from archforge.mep.heating_rules import heating_rule_audit, has_verified_automatic_sizing
+
     return {
         "status": RULE_STATUS,
         "provenance": PROVENANCE,
         "points": len(heating_points(doc)),
         "zones": len(heating_zones(doc)),
+        "rule_audit": heating_rule_audit(),
+        "verified_automatic_sizing": has_verified_automatic_sizing(),
         "automatic_calculations": {
             "heat_loss": False,
             "emitter_sizing": False,
@@ -156,7 +160,11 @@ def heating_review(doc) -> dict:
     }
 
 
-def heating_quote(doc, prices: Mapping[str, PriceEntry]) -> dict:
+def heating_quote(doc, prices: Mapping[str, PriceEntry] | None = None) -> dict:
+    """Price heating inventory through the same project price book as other trades."""
+    if prices is None:
+        from archforge.mep.project_pricebook import project_prices
+        prices = project_prices(doc)
     quantities = heating_quantities(doc)
     rows = cost_lines(quantities, prices)
     return {
