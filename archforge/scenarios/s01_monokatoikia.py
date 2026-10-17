@@ -115,7 +115,7 @@ def build(window):
 OWNER_PENDING = ("Προειδοποίηση: Πέδιλο", "Θέρμανση/HVAC")
 
 C1 = "d49c98f"          # walls with both faces, opening symbols
-C2 = "ΑΥΤΟ_ΤΟ_COMMIT"   # replaced by the commit of the gate's first round (see below)
+C2 = "278d361"          # the gate's first round of fixes
 FINDINGS = [
     {"status": "FIXED", "found": "Τοίχοι στην κάτοψη ως γραμμή στον άξονα — 25 και 10 cm ίδιοι (απόφαση ιδιοκτήτη 3)",
      "fix": "Δύο παρειές + γέμισμα, ενώσεις κλειστές, ανοίγματα κομμένα", "files": ["core/plan_scene.py", "ui/plan_view.py"], "commit": C1},
