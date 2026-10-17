@@ -255,7 +255,7 @@ def test_roof_form_from_menu_leaves_terrace_rooms_alone():
     for e in doc.entities.values():
         if e.kind == 'wall':
             doc2.add(Entity('wall', dict(e.params)))
-    assert form_roofs(doc2, 'hip', 0.0)[0]['x1'] > 9.9
+    assert max(p['x1'] for p in form_roofs(doc2, 'hip', 0.0)) > 9.9          # the east room is roofed too
 
 
 def test_menu_roof_on_a_smaller_l_shaped_upper_floor():
