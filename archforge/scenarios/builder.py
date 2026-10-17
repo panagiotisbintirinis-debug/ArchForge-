@@ -13,6 +13,7 @@
   heating:    {"system": "radiators" | "underfloor" | "fan_coil", "source": (level, "boiler" | "heat_pump", x, y),
                "distribution": "manifold" | "two_pipe", "spacing": m (underfloor, declared), "manifolds": [(level, x, y)]}
                — radiators / fan coils go in every heated room by the «σε κάθε χώρο (αυτόματα)» command
+  pools:      [{"x", "y", + any pool parameter (site/pool.py DEFAULTS)}] on the main storey (Οικόπεδο ▸ Πισίνα)
   pergolas:   [(material, (x1, y1), (x2, y2))] on the main storey
   foundation: "strips" | "auto" | "pads";  occupancy: settings key (e.g. "office")
 Every room gets a ceiling light, a switch beside its door and sockets on its two longest walls; appliances from
@@ -69,6 +70,12 @@ def build_spec(window, key, title, spec):
             s.furniture(fname, x, y, turn)
     _mep(s, window, spec)
     _heating(s, window, spec)
+    for pool in spec.get("pools", ()):
+        s.level(spec.get("main", spec["levels"][0][0]))
+        args = dict(pool)
+        x, y = args.pop("x"), args.pop("y")
+        s.step(f"Οικόπεδο ▸ Πισίνα στο ({x}, {y})", lambda x=x, y=y, a=args: window.statusBar().currentMessage()[:160]
+               if window._place_pool(x, y, **a) is not None else None)
     for material, a, b in spec.get("pergolas", ()):
         s.level(spec.get("main", spec["levels"][0][0]))
         s.step(f"Πέργκολα ({material})", lambda m=material, a=a, b=b: (window._place_pergola(m, a[0], a[1], b[0], b[1]), "πέργκολα")[1])

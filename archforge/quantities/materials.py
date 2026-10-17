@@ -49,6 +49,12 @@ def drainage_list(doc):
     return rows
 
 
+def pool_list(doc):
+    """Pools: earthworks, concrete, waterproofing, mosaic, coping / overflow channel, pipes, equipment (site/pool.py)."""
+    from archforge.site.pool import analyse, pools
+    return [row for e in pools(doc) for row in analyse(doc, e)["rows"]]
+
+
 def heating_list(doc):
     """Heating: equipment, pipes by the owner's Ø, loops, manifolds and every fitting of the derived layout."""
     if not any(e.kind == "heating_point" for e in doc.entities.values()):
@@ -354,6 +360,9 @@ def all_lists(doc):
             ("Θέρμανση", "Θέρμανση — πηγή, σώματα / βρόχοι, σωλήνες, συλλέκτες, υδρονομείς, βάνες", heating_list(doc),
              ("Προμελέτη: διατομές από κανόνα ιδιοκτήτη, μήκη από τη χάραξη· θερμικά φορτία, ισχύς σωμάτων, "
               "κυκλοφορητής και εξισορρόπηση από μηχανολόγο.",)),
+            ("Πισίνα", "Πισίνα — εκσκαφή, σκυρόδεμα, στεγάνωση, ψηφίδα, στέψη / κανάλι, σωλήνες, εξοπλισμός", pool_list(doc),
+             ("Ποσότητες από το σχέδιο· αντλία, φίλτρο, χημεία, στατική λεκάνης και ηλεκτρολογική μελέτη από μηχανικούς· "
+              "εξοπλισμός όπως δηλώθηκε στις Ιδιότητες της πισίνας.",)),
             ("Φέρων", "Φέρων οργανισμός και θεμελίωση", structure_list(doc), ("Προμελέτη — προς έλεγχο στατικού μηχανικού.",)),
             ("Χωματουργικά", "Χωματουργικά — εκσκαφές από ό,τι δίνει το σχέδιο", _earth(doc)["rows"],
              tuple(_earth(doc)["basis"]) + tuple("Δεν μετρήθηκε — " + m for m in _earth(doc)["missing"])

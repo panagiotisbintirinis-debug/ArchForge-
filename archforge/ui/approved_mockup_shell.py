@@ -206,6 +206,9 @@ def install_approved_mockup_shell(window):
         ("Φυτό: Θάμνος",lambda: window._start_site_tool(
             "plant_shrub","Κλικ στην κάτοψη για θάμνο — Esc για τέλος")),
         (None,None),
+        ("Πισίνα",lambda: window._start_site_tool(
+            "pool_place","Κλικ στο κέντρο της πισίνας — διαστάσεις, βάθη, τύπος και εξοπλισμός στις Ιδιότητες, Esc για τέλος")),
+        (None,None),
         ("Μονοπάτι",lambda: window._start_site_tool("path_path","Σύρε στην κάτοψη από την αρχή ως το τέλος — Esc για τέλος")),
         ("Πεζοδρόμιο",lambda: window._start_site_tool("path_sidewalk","Σύρε στην κάτοψη από την αρχή ως το τέλος — Esc για τέλος")),
         ("Δρόμος",lambda: window._start_site_tool("path_road","Σύρε στην κάτοψη από την αρχή ως το τέλος — Esc για τέλος")),

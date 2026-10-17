@@ -66,7 +66,7 @@ KIND_LAYERS = {
     'electrical_point': 'electrical',
     'ventilation_point': 'ventilation',
     'heating_point': 'heating',
-    'terrain': 'site', 'plant': 'site', 'site_path': 'site',
+    'terrain': 'site', 'plant': 'site', 'site_path': 'site', 'pool': 'site',
     'camera': 'cameras',
 }
 
@@ -85,6 +85,8 @@ ROLE_LAYERS = {
     'heat-supply': 'heating', 'heat-return': 'heating', 'heat-loop': 'heating', 'heat-manifold': 'heating',
     'heat-fitting': 'heating', 'heat-label': 'heating',
     'terrain': 'site', 'terrain-label': 'site',
+    'pool-rim': 'site', 'pool-label': 'site', 'pool-plant': 'site', 'pool-pipe': 'plumbing', 'pool-zone': 'electrical',
+    'pool-zone-label': 'electrical',
     'floor-underlay': 'underlay',
     'worktop': 'kitchen', 'worktop-cutout': 'kitchen', 'sink-symbol': 'kitchen', 'hob-symbol': 'kitchen', 'hood': 'kitchen',
     'camera': 'cameras', 'camera-cone': 'cameras', 'camera-label': 'cameras',
@@ -94,7 +96,7 @@ UNLAYERED_ROLES = ('preview', 'wall-move-arrow', 'wall-move-label', 'wall-move-o
 
 # 3D payload ``layer`` tags (rendering/scene.py) -> layer.
 SCENE_LAYERS = {'roof_structure': 'slabs', 'roof_tiles': 'slabs', 'foundation': 'foundation', 'mep': 'plumbing',
-                'drain': 'drainage', 'elec': 'electrical', 'lv': 'low_voltage', 'vent': 'ventilation', 'heat': 'heating',
+                'drain': 'drainage', 'elec': 'electrical', 'lv': 'low_voltage', 'vent': 'ventilation', 'heat': 'heating', 'pool': 'site',
                 'kitchen': 'kitchen'}
 
 BATH_CATEGORIES = ('Μπάνιο',)

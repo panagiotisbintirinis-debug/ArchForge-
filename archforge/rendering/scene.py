@@ -50,6 +50,10 @@ _MATERIALS: Mapping[str, dict] = {
     "vent_terminal": {"color": "#5b6470", "roughness": 0.5, "metalness": 0.3},
     "mep_cold": {"color": "#1f6fd1", "roughness": 0.35, "metalness": 0.0},
     "heating_point": {"color": "#f2f2ee", "roughness": 0.35, "metalness": 0.2},
+    "pool": {"color": "#e6ddc9", "roughness": 0.7, "metalness": 0.0},
+    "pool_tile": {"color": "#4fb3d9", "roughness": 0.25, "metalness": 0.0},
+    "pool_water": {"color": "#2b8fd8", "roughness": 0.05, "metalness": 0.0, "opacity": 0.55},
+    "pool_plant": {"color": "#9a9a95", "roughness": 0.8, "metalness": 0.0},
     "heat_supply": {"color": "#d1301f", "roughness": 0.35, "metalness": 0.0},
     "heat_return": {"color": "#2a5fd1", "roughness": 0.35, "metalness": 0.0},
     "heat_loop": {"color": "#e26a28", "roughness": 0.4, "metalness": 0.0},
@@ -463,6 +467,15 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                 objects.append({"id": "", "render_part": "drain:pipes", "kind": "drain_pipe", "layer": "drain",
                                 "vertices": verts, "triangles": tris, "surfaces": ["pipe"] * len(tris),
                                 "material": dict(_MATERIALS["drain_pipe"])})
+        # Pools (layer "pool"): lined basin with its slope, the water, the underground equipment room.
+        if any(e.kind == "pool" for e in doc.entities.values()):
+            from archforge.site.pool import basin_meshes, pools
+            for e in pools(doc):
+                for part, (verts, tris) in basin_meshes(e.params).items():
+                    if tris:
+                        objects.append({"id": "", "render_part": f"pool:{part}", "kind": f"pool_{part}", "layer": "pool",
+                                        "vertices": [list(map(float, q)) for q in verts], "triangles": [list(t) for t in tris],
+                                        "surfaces": [part] * len(tris), "material": dict(_MATERIALS[f"pool_{part}"])})
         # Derived heating (layer "heat"): supply / return at the owner's Ø, underfloor loops, manifolds with their parts.
         if any(e.kind == "heating_point" for e in doc.entities.values()):
             from archforge.mep.heating_layout import PIPE_SIZES, manifold_parts, route_heating_cached

@@ -51,7 +51,7 @@ class PlanView(QGraphicsView):
     VIEW_LINE_TOOLS={'view_section':'section','view_camera':'camera'}
     # Single-click site tools: (tool, x, y) handled by the main window.
     sitePointRequested=Signal(str,float,float)
-    SITE_POINT_TOOLS=('terrain_point','plot_point','plant_tree','plant_shrub','library_place','underlay_calibrate')
+    SITE_POINT_TOOLS=('terrain_point','plot_point','plant_tree','plant_shrub','library_place','underlay_calibrate','pool_place')
     # Drag tools for site strips: (tool, x1, y1, x2, y2).
     siteLineRequested=Signal(str,float,float,float,float)
     SITE_LINE_TOOLS=('path_path','path_sidewalk','path_road','pergola_timber','pergola_aluminium','elec_led_strip')
@@ -985,6 +985,13 @@ class PlanView(QGraphicsView):
             pen=QPen(QColor(200,40,30) if p.role=='heat-supply' else QColor(30,80,200))
             pen.setWidthF(max(.012,float(dict(p.meta).get('diameter',16))/1500.))
             if p.role=='heat-return':pen.setStyle(Qt.PenStyle.DashLine)
+        if p.role in ('pool','pool-rim'):pen=QPen(QColor(20,120,170));pen.setWidthF(.03 if p.role=='pool-rim' else .015)
+        if p.role=='pool-zone':
+            # Electrical safety zones around the basin (HD 60364-7-702): dash-dot, zone 2 fainter.
+            pen=QPen(QColor(200,60,140) if dict(p.meta).get('zone')==1 else QColor(200,60,140,110));pen.setWidthF(.015)
+            pen.setStyle(Qt.PenStyle.DashDotLine)
+        if p.role=='pool-pipe':pen=QPen(QColor(70,70,70));pen.setWidthF(max(.015,float(dict(p.meta).get('diameter',50))/2500.))
+        if p.role=='pool-plant':pen=QPen(QColor(90,90,90));pen.setWidthF(.02);pen.setStyle(Qt.PenStyle.DashLine)
         if p.role=='heat-loop':pen=QPen(QColor(225,110,40,200));pen.setWidthF(.012)
         if p.role in ('heat-manifold','heat-fitting','heating-point'):pen=QPen(QColor(170,40,40));pen.setWidthF(.012)
         if p.role=='duct':

@@ -186,7 +186,7 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
         cz=float(p.get('z',0.0))
         owner=max([float(v) for v in doc.levels.values() if float(v)<=cz+tolerance]+[min([float(v) for v in doc.levels.values()]+[0.0])])
         return abs(owner-z)<=tolerance
-    if e.kind in ('plant','site_path','library_object'):return abs(float(p.get('z',0.0))-z)<=tolerance
+    if e.kind in ('plant','site_path','library_object','pool'):return abs(float(p.get('z',0.0))-z)<=tolerance
     if e.kind=='railing':
         # Its storey, and (a stair railing) the storey its walking line reaches.
         rz=float(p.get('z',0.0))
@@ -196,6 +196,42 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
         lowest=min([float(v) for v in doc.levels.values()]+[0.0])
         return z<=lowest+tolerance
     return True
+
+def _pool_primitives(doc,f):
+    from archforge.site.pool import POOL_TYPES,ZONE1,ZONE2,analyse,param as pp,plant_rect,pools,rim,to_world
+    level=float(doc.work_plane.origin[2])
+    specs=[]
+    for e in pools(doc):
+        p=e.params
+        if abs(float(p.get('z',0.0))-level)>.05:
+            continue
+        a=analyse(doc,e)
+        inner=rim(p)
+        f.primitives.append(Primitive2D('polyline',tuple(inner)+(inner[0],),entity_id=e.id,role='pool-rim'))
+        for zone,grow in ((1,ZONE1),(2,ZONE1+ZONE2)):
+            ring=rim(p,grow)
+            f.primitives.append(Primitive2D('polyline',tuple(ring)+(ring[0],),role='pool-zone',meta=(('zone',zone),)))
+            f.primitives.append(Primitive2D('label',((ring[2][0]-.1,ring[2][1]-.25),),role='pool-zone-label',meta=(('text',f"Ζώνη {zone}"),)))
+        route=a['route']
+        for k,(ax,ay) in enumerate(route[:-1]):
+            bx,by=route[k+1]
+            for off,dn in ((0.0,pp(p,'suction_dn')),(.10,pp(p,'delivery_dn'))):
+                f.primitives.append(Primitive2D('polyline',((ax+off,ay+off),(bx+off,by+off)),role='pool-pipe',meta=(('diameter',dn),)))
+        pr=plant_rect(p)
+        f.primitives.append(Primitive2D('polyline',tuple(pr)+(pr[0],),entity_id=e.id,role='pool-plant'))
+        L=pp(p,'length')
+        for u,key in ((-L/2+.4,'depth_shallow'),(L/2-.4,'depth_deep')):
+            x,y=to_world(p,u,0.0)
+            specs.append((1,f"βάθος {pp(p,key):.2f}",_corner_candidates(x,y,.05,.05)))
+        cx,cy=float(p['x']),float(p['y'])
+        specs.append((0,f"Πισίνα {pp(p,'length'):.2f}×{pp(p,'width'):.2f} · {POOL_TYPES[pp(p,'pool_type')]} · {a['volume_m3']:.0f} m³",
+                      _corner_candidates(cx,cy,.1,.1)))
+        px,py=(pr[0][0]+pr[2][0])/2,(pr[0][1]+pr[2][1])/2
+        specs.append((1,f"Μηχανοστάσιο πισίνας · Φ{pp(p,'suction_dn')}/Φ{pp(p,'delivery_dn')}",_corner_candidates(px,py,.1,.1)))
+    specs.sort(key=lambda q:q[0])
+    placed=place_labels(tuple((text,c) for _r,text,c in specs))
+    for (_r,text,_c),(anchor,align,min_scale) in zip(specs,placed):
+        f.primitives.append(Primitive2D('label',(anchor,),role='pool-label',meta=(('text',text),('align',align),('min_scale',min_scale))))
 
 def _heating_primitives(doc,f):
     from archforge.mep.heating import POINT_TYPES as HEAT
@@ -285,6 +321,10 @@ def entity_primitive(doc,eid):
         x,y=float(p['x']),float(p['y'])
         return Primitive2D('polygon',((x-r,y-r*.8),(x+r,y-r*.8),(x+r,y+r*.8),(x-r,y+r*.8)),entity_id=eid,role='ventilation-point',
                            meta=(('text',VENT[p['point_type']][4]),('point_type',p['point_type'])))
+    if e.kind=='pool':
+        from archforge.site.pool import CHANNEL_W,param as pool_param,rim
+        grow=CHANNEL_W if pool_param(p,'pool_type')=='overflow' else pool_param(p,'coping')
+        return Primitive2D('polygon',tuple(rim(p,grow)),entity_id=eid,role='pool',meta=(('pool_type',pool_param(p,'pool_type')),))
     if e.kind=='heating_point':
         from archforge.mep.heating_layout import footprint as heat_footprint
         pts=heat_footprint(p)
@@ -1116,6 +1156,9 @@ def build_plan_frame(doc,preview=None,layers=True):
                 where={'wall':'τοίχο','roof':'στέγη'}.get(info.get('outlet'),'')
                 text=f"{VENT[e.params['point_type']][4]} Ø{info.get('diameter','')} → {where}"
                 f.primitives.append(Primitive2D('label',((float(e.params['x'])+.15,float(e.params['y'])+.30),),entity_id=eid,role='ventilation-label',meta=(('text',text),)))
+    # Pools of the active storey: inside edge, depths, safety zones 0/1/2, pipes to the equipment room.
+    if any(e.kind=='pool' for e in doc.entities.values()):
+        _pool_primitives(doc,f)
     # Derived heating of the active storey: supply (red) / return (blue), loops, manifolds with their parts.
     if any(e.kind=='heating_point' for e in doc.entities.values()):
         _heating_primitives(doc,f)

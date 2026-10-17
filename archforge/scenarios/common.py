@@ -215,6 +215,10 @@ class Scenario:
             if e.kind == "wall":
                 xs += [float(e.params["x1"]), float(e.params["x2"])]
                 ys += [float(e.params["y1"]), float(e.params["y2"])]
+            elif e.kind == "pool":                         # the pool, its zones and equipment room are in the frame too
+                from archforge.site.pool import ZONE1, plant_rect, rim
+                for q in rim(e.params, ZONE1) + plant_rect(e.params):
+                    xs.append(q[0]); ys.append(q[1])
         if xs:
             r = QRectF(min(xs) - 1.5, min(ys) - 1.5, max(xs) - min(xs) + 3.0, max(ys) - min(ys) + 3.0)
             pv.fitInView(r, Qt.AspectRatioMode.KeepAspectRatio)

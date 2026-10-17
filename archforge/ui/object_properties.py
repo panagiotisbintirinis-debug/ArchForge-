@@ -69,6 +69,15 @@ PARAM_LABELS = {
     'elevation': 'Υψόμετρο', 'slope_x': 'Κλίση X %', 'slope_y': 'Κλίση Y %', 'blend_radius': 'Ακτίνα επιρροής σημείων',
     'altitude_ref': 'Απόλυτο υψόμετρο ±0.00', 'overhang': 'Προεξοχή', 'diameter': 'Διάμετρος',
     'offset_z': 'Ανύψωση (m)', 'own_plinth': 'Δική του μπάζα (0 = της γραμμής)',
+    # Pool (site/pool.py)
+    'depth_shallow': 'Βάθος ρηχό (m)', 'depth_deep': 'Βάθος βαθύ (m)', 'wall': 'Πάχος τοιχωμάτων', 'floor': 'Πάχος πυθμένα',
+    'coping': 'Πλάτος στέψης', 'plant_x': 'Μηχανοστάσιο X', 'plant_y': 'Μηχανοστάσιο Y', 'plant_w': 'Μηχανοστάσιο πλάτος',
+    'plant_d': 'Μηχανοστάσιο βάθος', 'suction_dn': 'Φ αναρρόφησης (mm)', 'delivery_dn': 'Φ κατάθλιψης (mm)',
+    'pump_flow_m3h': 'Παροχή αντλίας (m³/h)', 'skimmers': 'Skimmer (τεμ.)', 'inlets': 'Στόμια επιστροφής (τεμ.)',
+    'main_drains': 'Σιφώνια πυθμένα (τεμ.)', 'lights': 'Φωτιστικά SELV (τεμ.)', 'balance_tank_m3': 'Δεξαμενή εξισορρόπησης (m³)',
+    'heat_pump_kw': 'Αντλία θερμότητας πισίνας (kW)', 'electrolysis': 'Ηλεκτρόλυση άλατος (1 = ναι)',
+    # Heating (mep/heating_layout.py)
+    'loop_spacing': 'Βήμα βρόχων ενδοδαπέδιας (m)', 'power_w': 'Ισχύς (W)',
 }
 
 

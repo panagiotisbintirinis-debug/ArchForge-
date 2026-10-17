@@ -860,6 +860,9 @@ class MainWindow(QMainWindow):
         if str(tool).startswith('plumb_'):
             self._place_plumbing_point(tool[len('plumb_'):], x, y)
             return
+        if tool == 'pool_place':
+            self._place_pool(x, y)
+            return
         if str(tool).startswith('heat_'):
             self._place_heating_point(tool[len('heat_'):], x, y)
             return
@@ -1246,6 +1249,26 @@ class MainWindow(QMainWindow):
             f"{label} · {report['system_label']} · κρύο {report['cold_m']:.1f} m, ζεστό {report['hot_m']:.1f} m{extra} — προμελέτη, προς έλεγχο μηχανολόγου",
             7000)
         return point
+
+    def _place_pool(self, x, y, **params):
+        """A pool centred on the click (8 × 4, 1,10–1,80 by default — sizes, type and equipment in Ιδιότητες), its
+        equipment room beside it, outside zone 1 (one undo)."""
+        from archforge.site.pool import DEFAULTS, ZONE1, analyse
+        z = float(self.doc.work_plane.origin[2])
+        p = {'x': float(x), 'y': float(y), 'z': z, **{k: v for k, v in DEFAULTS.items()}, **params}
+        p.setdefault('plant_x', float(x) + float(p['length']) / 2 + ZONE1 + float(p['plant_w']) / 2 + 0.5)
+        p.setdefault('plant_y', float(y))
+        pool = Entity('pool', p, name='Πισίνα')
+        self.stack.execute(AddEntity(pool))
+        self._redraw_views(all_views=True)
+        self._refresh_project_tree()
+        a = analyse(self.doc, pool)
+        failing = [c[0] for c in a['checks'] if not c[1]]
+        self.statusBar().showMessage(
+            f"Πισίνα {float(p['length']):.2f}×{float(p['width']):.2f} · {a['volume_m3']:.1f} m³ νερό · σκυρόδεμα {a['concrete_m3']:.1f} m³"
+            + (f" · ⚠ {failing[0]}" if failing else '') + (f" · {a['warnings'][0]}" if a['warnings'] else '')
+            + ' — διαστάσεις, τύπος, εξοπλισμός στις Ιδιότητες · Ctrl+Z για αναίρεση', 12000)
+        return pool
 
     def _place_heating_point(self, point_type, x, y):
         """Heat source, radiator, fan coil, manifold or thermostat; emitters and manifolds sit against the nearest wall."""
@@ -2066,6 +2089,20 @@ class MainWindow(QMainWindow):
         if entity.kind == 'camera':
             from archforge.ui.camera_tool import add_rows as camera_rows
             camera_rows(self, eid)
+        if entity.kind == 'pool':
+            from archforge.site.pool import POOL_TYPES, analyse
+            combo = QComboBox()
+            for value, label in POOL_TYPES.items():
+                combo.addItem(label, value)
+            combo.setCurrentIndex(max(0, combo.findData(params.get('pool_type', 'skimmer'))))
+            combo.currentIndexChanged.connect(lambda _i, w=combo: self._set_entity_choice(eid, 'pool_type', w.currentData()))
+            self.form.addRow('Τύπος πισίνας', combo)
+            a = analyse(self.doc, entity)
+            self.form.addRow('Νερό / σκυρόδεμα', QLabel(f"{a['volume_m3']:.1f} m³ / {a['concrete_m3']:.1f} m³"))
+            for text, ok, note in a['checks']:
+                self.form.addRow('✅' if ok else '⚠', QLabel(text + (f" — {note}" if note else '')))
+            for w in a['warnings']:
+                self.form.addRow('ℹ', QLabel(w))
         if entity.kind == 'plumbing_point' and params.get('point_type') == 'water_supply':
             from archforge.mep.plumbing import DEFAULT_SYSTEM, PIPE_SYSTEMS
             combo = QComboBox()

@@ -30,6 +30,7 @@ _KIND_ROLES:Dict[str,Tuple[Tuple[str,bool,bool,str],...]]={
  'ventilation_point':(('marker',False,False,'ventilation device'),),
  'drainage_point':(('marker',False,False,'drainage fitting'),),
  'heating_point':(('marker',False,False,'heating equipment'),),
+ 'pool':(('coping',False,False,'pool coping / overflow grating'),),
  'ceiling_joists':(('joist',False,False,'timber joist'),),
  'cabinet':tuple((r,False,False,f'cabinet {r}') for r in ('carcass','shelf','front','handle','plinth','worktop','rail','glass','mechanism')),
  'door':tuple((r,False,False,f'door joinery {r}') for r in ('frame','leaf','glass','handle','shading','sill')),

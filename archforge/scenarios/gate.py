@@ -462,6 +462,8 @@ class Gate:
         self.guard(3, "Διπλά σημεία Η/Μ", self._duplicates)
         self.guard(3, "Θέρμανση: κάθε θερμαινόμενος χώρος με σώμα/βρόχο, προσαγωγή και επιστροφή ως την πηγή", self._heating)
         self.guard(3, "Αλλαγή συστήματος θέρμανσης", self._heating_system_change)
+        if self.ents("pool"):
+            self.guard(3, "Πισίνα: ταχύτητα στους σωλήνες, ζώνες HD 60364-7-702, ποσότητες", self._pools)
         if len(self.storeys()) > 1:
             self.add(3, "Συνέχεια Η/Μ μεταξύ ορόφων", None, "ελέγχεται μέσα στις διαδρομές κάθε δικτύου")
         else:
@@ -548,6 +550,16 @@ class Gate:
                  + (f" · χωρίς σώμα/βρόχο: {', '.join(bare)}" if bare else "") + (f" · {loose[0]}" if loose else "")
                  + (f" · χωρίς γραμμή προσφοράς: {', '.join(missing)}" if missing else "")
                  + (f" · ⚠ {rep['warnings'][0]}" if rep["warnings"] else "") + (f" · ⚠ {rep['unserved'][0]}" if rep["unserved"] else ""))
+
+    def _pools(self):
+        from archforge.site.pool import analyse
+        for e in self.ents("pool"):
+            a = analyse(self.doc, e)
+            bad = [f"{c[0]} — {c[2]}" for c in a["checks"] if not c[1]]
+            self.add(3, "Πισίνα: ταχύτητα στους σωλήνες, ζώνες HD 60364-7-702, ποσότητες", not bad and not a["warnings"],
+                     f"{a['volume_m3']:.1f} m³ νερό · σκυρόδεμα {a['concrete_m3']:.1f} m³ · στεγάνωση/ψηφίδα {a['wet_area_m2']:.1f} m² · "
+                     f"σωλήνες {a['pipe_m']:.1f} m ×2 · " + " · ".join(c[0] for c in a["checks"] if c[1])
+                     + (" · ⚠ " + " · ".join(bad) if bad else "") + (" · " + " · ".join(a["warnings"]) if a["warnings"] else ""))
 
     def _heating_system_change(self):
         from archforge.core.commands import UpdateEntity
@@ -677,7 +689,7 @@ class Gate:
                    "Ηλεκτρολογικά": self.ents("electrical_point"), "Φέρων": self.ents("structural_column"),
                    "Κεραμοσκεπή": self.ents("pitched_roof"), "Κουφώματα": self.ents("door", "window"),
                    "Τοιχοποιίες": self.ents("wall"), "Πλάκες": self.ents("room_floor", "room_roof"),
-                   "Κουζίνα": self.ents("cabinet"), "Θέρμανση": self.ents("heating_point")}
+                   "Κουζίνα": self.ents("cabinet"), "Θέρμανση": self.ents("heating_point"), "Πισίνα": self.ents("pool")}
         missing = [k for k, v in present.items() if v and k not in names]
         self.add(4, "Κάθε ειδικότητα του μοντέλου έχει γραμμές στην προσφορά", not missing,
                  f"{len(q['sections'])} ενότητες" + ("" if not missing else " · λείπουν: " + ", ".join(missing)))
