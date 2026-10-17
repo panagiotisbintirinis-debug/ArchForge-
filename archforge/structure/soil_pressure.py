@@ -54,6 +54,7 @@ def _numerical(N, ex, ey, B, L):
     target = np.array([N, N * ex, N * ey])
     # Start from the full-contact plane.
     p = np.array([N / (B * L), 12 * N * ex / (B ** 3 * L), 12 * N * ey / (B * L ** 3)])
+    converged = False
     for _ in range(200):
         s = p[0] + p[1] * X + p[2] * Y
         on = s > 0
@@ -62,12 +63,19 @@ def _numerical(N, ex, ey, B, L):
         x, y, sv = X[on], Y[on], s[on]
         r = np.array([sv.sum(), (sv * x).sum(), (sv * y).sum()]) * dA - target
         if np.max(np.abs(r) / np.array([N, N * B, N * L])) < 1e-9:
+            converged = True
             break
         Jm = np.array([[on.sum(), x.sum(), y.sum()],
                        [x.sum(), (x * x).sum(), (x * y).sum()],
                        [y.sum(), (x * y).sum(), (y * y).sum()]], float) * dA
-        step = np.linalg.solve(Jm, r)
+        # Least squares: the contact zone can shrink to a strip of grid cells on one line, where the
+        # Jacobian is singular (np.linalg.solve raised «Singular matrix» mid-analysis).
+        step = np.linalg.lstsq(Jm, r, rcond=None)[0]
         p = p - step
+    if not converged:
+        # No equilibrium plane found: the resultant is at the edge of the base — treated as not stable
+        # (the caller widens the base), never as a pressure that holds.
+        return {"sigma_max": math.inf, "sigma_min": 0.0, "contact": 0.0, "method": "numerical", "stable": False}
     s = p[0] + p[1] * X + p[2] * Y
     on = s > 0
     # The corner of the compressed side carries the peak (exact for the plane).

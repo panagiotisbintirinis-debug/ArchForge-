@@ -63,9 +63,12 @@ def test_single_storey_drains_to_an_auto_manhole_with_floor_drain_and_slope():
 def test_stack_is_phi100_or_phi125_by_volume_and_rainwater():
     for floors, served in ((2, 1), (3, 2)):
         r = route_drainage(_building(floors)[0])
-        (st,) = [p for p in r['pipes'] if p[3] == 'stack']
+        pieces = sorted((p for p in r['pipes'] if p[3] == 'stack'), key=lambda p: p[0][2])
+        st = pieces[0]
         (node,) = [n for n in r['nodes'] if n['kind'] == 'stack']
         assert (node['floors'], st[2], node['dn']) == (served, 100, 100) and node['flow_ls'] <= 4.0
+        # One vertical line in pieces that meet at every storey's branch-in (a tee), never a gap.
+        assert all(a[1] == b[0] for a, b in zip(pieces, pieces[1:])) and len(pieces) == served + 1
     doc, stack = _building(2)
     st = Entity('drainage_point', {'x': 0.1, 'y': 5.5, 'z': 0.0, 'point_type': 'stack', 'rain_area': 120.0})
     stack.execute(AddEntity(st))

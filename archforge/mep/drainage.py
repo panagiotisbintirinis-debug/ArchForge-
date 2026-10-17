@@ -149,6 +149,7 @@ def route_drainage(doc):
     top_z = max(_levels(doc) + [storeys[-1]])
     stack_du = {i: (0.0, False) for i in range(len(stacks))}
     stack_floors = {i: 0 for i in range(len(stacks))}
+    stack_joints = {i: set() for i in range(len(stacks))}     # elevations where a storey's collector meets the stack
     floor_drains = [e for e in placed if e.params["point_type"] == "floor_drain"]
     for z in sorted(by_storey, reverse=True) + ([ground] if ground not in by_storey and upper else []):
         members = by_storey.get(z, [])
@@ -192,8 +193,14 @@ def route_drainage(doc):
                 dx, dy, did = float(drain.params["x"]), float(drain.params["y"]), drain.id
             else:
                 anchor = next((o for o in fx if o.params["point_type"] in ("shower", "bathtub")), None)
-                if anchor is not None:
-                    dx, dy = float(anchor.params["x"]) + 0.3, float(anchor.params["y"])
+                ax, ay = (float(anchor.params["x"]), float(anchor.params["y"])) if anchor is not None else (None, None)
+                # 30 cm beside the shower/bathtub, on whichever side is still inside the same room (a fixed +x put it
+                # in the wall or outside the building when the fixture stood against an east wall).
+                side = None if anchor is None else next(
+                    ((ax + ox, ay + oy) for ox, oy in ((0.3, 0.0), (-0.3, 0.0), (0.0, 0.3), (0.0, -0.3))
+                     if _room_key(doc, ax + ox, ay + oy, z) == room), None)
+                if side is not None:
+                    dx, dy = side
                 else:
                     dx = sum(float(o.params["x"]) for o in fx) / len(fx)
                     dy = sum(float(o.params["y"]) for o in fx) / len(fx)
@@ -244,8 +251,27 @@ def route_drainage(doc):
             dn = collector_dn(du, edge_wc[(c, p)])
             a, b = grid.point(c), grid.point(p)
             result["pipes"].append(((a[0], a[1], invert(c)), (b[0], b[1], invert(p)), dn, "collector"))
+        # The collector's last grid node → the outlet itself (manhole or stack), else the network stopped short of it.
+        g = grid.point(root)
+        L = math.dist((rx, ry), g)
+        z_out = z_root - SLOPE * L
+        if L > 1e-6:
+            result["pipes"].append(((g[0], g[1], z_root), (rx, ry, z_out), dn_max, "collector"))
+        if not is_ground:
+            stack_joints[k].add(round(z_out, 4))
+        # Off-grid targets (a floor drain or fixture between grid nodes): a short stub to their collector node, else
+        # the branch ended 5–15 cm short of the collector and the network fell apart in pieces.
+        for tid, (tx, ty, _du, _wc, dn) in targets.items():
+            g = grid.point(cell_of[tid])
+            L = math.dist((tx, ty), g)
+            zc = invert(cell_of[tid])
+            if L > 1e-6:
+                result["pipes"].append(((tx, ty, zc + SLOPE * L), (g[0], g[1], zc), dn, "branch"))
+            if str(tid).startswith("stack:"):
+                stack_joints[int(str(tid)[6:])].add(round(zc + SLOPE * L, 4))     # the stack's foot
         for (fx_, dr, dn) in branches:
-            dz = invert(grid.cell(*dr))
+            g = grid.point(grid.cell(*dr))
+            dz = invert(grid.cell(*dr)) + SLOPE * math.dist(dr, g)
             L = math.dist(fx_, dr)
             result["pipes"].append(((fx_[0], fx_[1], dz + SLOPE * L), (dr[0], dr[1], dz), dn, "branch"))
         depth = z - z_root
@@ -274,7 +300,10 @@ def route_drainage(doc):
             report["warnings"].append(
                 f"Στήλη ({sx:.2f}, {sy:.2f}): δέχεται και όμβρια {area:.0f} m² — μικτή στήλη Φ{dn} "
                 f"({stack_flow(stack_du[i][0], area):.2f} l/s), να επιβεβαιωθεί από μηχανολόγο")
-        result["pipes"].append(((sx, sy, ground - 0.3), (sx, sy, roof), dn, "stack"))
+        # One piece between consecutive joints (foot, each storey's branch-in, vent top): a tee, not a pass-by.
+        levels = sorted(stack_joints[i] | {roof} if stack_joints[i] else {ground - 0.3, roof})
+        for a, b in zip(levels, levels[1:]):
+            result["pipes"].append(((sx, sy, a), (sx, sy, b), dn, "stack"))
         result["nodes"].append({"kind": "stack", "x": sx, "y": sy, "z": ground, "auto": sid is None, "dn": dn,
                                 "floors": stack_floors[i], "flow_ls": round(stack_flow(stack_du[i][0], area), 2),
                                 "rain_area": area})

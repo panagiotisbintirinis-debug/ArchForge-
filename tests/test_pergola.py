@@ -59,3 +59,16 @@ def test_menu_tool_drags_a_pergola_in_one_undo_and_roofs_are_in_the_ribbon_menus
         assert not any(e.params.get('role') == 'pergola' for e in window.doc.entities.values())
     finally:
         window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_a_pergola_does_not_count_as_the_houses_frame():
+    """Scenario S10: with a pergola drawn first, «Φέρων οργανισμός» proposed nothing (its posts looked like a frame)."""
+    from archforge.structure.analysis import has_structure
+    from archforge.structure.design_all import design_structure
+    doc = Document(); stack = CommandStack(doc)
+    _house(stack)
+    ents, _rep = pergola_entities(doc, 0.5, -4, 7.5, -0.5)
+    stack.execute(AddEntities(ents))
+    assert not has_structure(doc)
+    out = design_structure(doc, stack)
+    assert out['added']['columns'] >= 4 and not (out['result'] or {}).get('error')
