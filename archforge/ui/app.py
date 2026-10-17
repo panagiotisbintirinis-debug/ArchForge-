@@ -1,5 +1,6 @@
 from PySide6.QtWidgets import QApplication
 from .main_window import MainWindow
+from .pbr_viewport import PBRViewport
 from .material_library import install_material_library
 from .material_object_integration import install_material_object_integration
 from .library_instance_integration import install_library_instance_model
@@ -8,6 +9,7 @@ from .plumbing_display import install_plumbing_display
 from .plumbing_tab import install_on_class as install_plumbing_tab
 from .plumbing_system_control import install_on_class as install_plumbing_system_control
 from .plumbing_technical_safety import install_safe_connectivity_overlay
+from .mep_3d_visibility import install as install_mep_3d_visibility
 
 # Upgrade only the visual PBR presentation. Geometry/model ownership remains
 # untouched; the embedded Three.js viewport receives the improved look before
@@ -18,6 +20,9 @@ install_rendering_quality_upgrade()
 install_material_library(MainWindow)
 install_material_object_integration()
 install_library_instance_model(MainWindow)
+# The Layers workspace is authoritative for 3D MEP visibility. Prevent the
+# legacy PBR hidden-layer set from silently overriding the H/M environment.
+install_mep_3d_visibility(PBRViewport)
 # Plumbing plan presentation is intentionally pipe-only; technical details live
 # in a separate central report tab.
 install_plumbing_display(MainWindow)
