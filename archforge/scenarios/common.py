@@ -99,6 +99,19 @@ class Scenario:
                     f" · ως «{t.upper_level_name}»")
         return self.step(f"Σκάλα από {tuple(origin)} προς {tuple(pointer)}", run)
 
+    def name_room(self, x, y, name):
+        """Name / use of the room under (x, y) (right click on the room ▸ Χρήση χώρου)."""
+        from archforge.core.commands import SetRoomMetadata
+        from archforge.geometry.regions import point_in_polygon
+
+        def run():
+            face = next((f for f in self.doc.active_room_faces() if point_in_polygon(x, y, f.polygon)), None)
+            if face is None:
+                raise ValueError("δεν βρέθηκε κλειστός χώρος εκεί")
+            self.stack.execute(SetRoomMetadata(face.signature, {"name": name, "use": name}))
+            return name
+        return self.step(f"Χρήση χώρου στο ({x}, {y}): {name}", run)
+
     def level_z(self):
         return float(self.doc.work_plane.origin[2])
 
@@ -114,7 +127,7 @@ class Scenario:
         for p in frame.primitives:
             if p.role == "derived-room":
                 m = dict(p.meta)
-                out.append((str(m.get("name", "")), round(float(m.get("area", 0.0)), 2)))
+                out.append((str(m.get("name", "")), round(float(m.get("net_area", m.get("area", 0.0))), 2)))
         return sorted(out, key=lambda r: -r[1])
 
     def check_save_load(self, path):

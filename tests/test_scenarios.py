@@ -25,10 +25,10 @@ def test_scenario_01_house(window, tmp_path):
     by = {c.action: c for c in s.checks}
     assert by['Χώροι που αναγνωρίστηκαν από τους τοίχους'].ok
     assert by['Κουφώματα στο έργο'].ok and by['Στέγη'].ok
-    assert by['Δάπεδο ισογείου'].ok and by['Οροφή κάτω από την κεραμοσκεπή σε κάθε χώρο'].ok
+    assert by['Δάπεδο ισογείου'].ok and by['Εμφανής κεραμοσκεπή: οι εσωτερικοί τοίχοι φτάνουν ως τη στέγη'].ok
     assert by['Αποθήκευση και ξανά άνοιγμα: ίδιες οντότητες και παράμετροι'].ok
-    # Open finding (owner decision pending): plan labels show axis areas, not net areas.
-    assert not by['Εμβαδά χώρων = καθαρά εμβαδά ανάμεσα στις παρειές'].ok
+    # Owner 17/10: plan labels show the net area, as the take-off.
+    assert by['Εμβαδά χώρων = καθαρά εμβαδά ανάμεσα στις παρειές'].ok
 
 
 def test_scenario_02_complex(window, tmp_path):

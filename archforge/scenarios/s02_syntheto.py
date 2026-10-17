@@ -51,6 +51,9 @@ def build(window):
     s.opening("door", 9.0, 3.0, 0.80, label="Πόρτα σαλονιού–γραφείου")
     s.opening("door", 2.2, 6.0, 0.80, label="Πόρτα κουζίνας")
     s.opening("door", 7.0, 6.0, 1.00, label="Άνοιγμα κλιμακοστασίου (ισόγειο)")
+    for xy, name in (((4.5, 3.0), "Σαλόνι"), ((2.2, 8.5), "Κουζίνα"), ((6.7, 8.5), "Κλιμακοστάσιο"),
+                     ((11.5, 3.0), "Γραφείο")):
+        s.name_room(*xy, name)
     _floors(s, window, "ισόγειο")
     # 2. Basement −3,00 under the main body: storage + stair hall.
     s.level("Basement", -3.0)
@@ -60,6 +63,8 @@ def build(window):
     s.opening("window", 2.2, 0.0, 1.00, height=0.50, sill=1.90, label="Φεγγίτης υπογείου (Ν)")
     s.opening("window", 6.5, 0.0, 1.00, height=0.50, sill=1.90, label="Φεγγίτης υπογείου (Ν) 2")
     s.opening("door", 7.0, 6.0, 1.00, label="Άνοιγμα κλιμακοστασίου (υπόγειο)")
+    for xy, name in (((4.5, 3.0), "Αποθήκη"), ((2.2, 8.5), "Λεβητοστάσιο"), ((6.7, 8.5), "Κλιμακοστάσιο")):
+        s.name_room(*xy, name)
     _floors(s, window, "υπόγειο")
     # 3. First floor +3,00 over the main body only: two bedrooms, bath, stair hall.
     s.level("Floor 1", 3.0)
@@ -74,6 +79,9 @@ def build(window):
     s.opening("door", 2.2, 6.0, 0.80, label="Πόρτα υπνοδωματίου 1")
     s.opening("door", 7.0, 6.0, 0.80, label="Πόρτα υπνοδωματίου 2")
     s.opening("door", 4.5, 8.5, 0.80, label="Πόρτα μπάνιου")
+    for xy, name in (((2.2, 3.0), "Υπνοδωμάτιο 1"), ((6.7, 3.0), "Υπνοδωμάτιο 2"), ((2.2, 8.5), "Μπάνιο"),
+                     ((6.7, 8.5), "Κλιμακοστάσιο")):
+        s.name_room(*xy, name)
     _floors(s, window, "όροφος")
     # 4. Two stairs at the same place: basement → ground, ground → first floor.
     s.level("Basement")
@@ -121,6 +129,9 @@ def checks(s):
     top = len(s.doc.active_room_faces(z=3.0))
     s.check("Οροφή κάτω από την κεραμοσκεπή μόνο στους χώρους του ορόφου", len(ceilings) == top,
             f"{len(ceilings)} οροφές για {top} χώρους του ορόφου (όχι στο ισόγειο/υπόγειο: εκεί είναι η πλάκα από πάνω)")
+    from archforge.structure.timber_roof import interior_walls
+    inner = sum(len(interior_walls(s.doc, r.params)) for r in roofs)
+    s.check("Με ταβάνι οι εσωτερικοί τοίχοι του ορόφου μένουν στο ύψος τους", inner == 0, f"{inner} τοίχοι ως τη στέγη")
     undo_ok = True
     n = len(s.doc.entities)
     try:

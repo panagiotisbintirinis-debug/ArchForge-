@@ -730,6 +730,21 @@ class SetWorkPlane(Command):
             doc.work_plane = copy.deepcopy(self.before)
 
 @dataclass
+class SetRoomMetadata(Command):
+    """Name / use of a room (Σαλόνι, Κουζίνα, Υπνοδωμάτιο, Μπάνιο …) — one undo step."""
+    signature: str
+    changes: Dict[str, Any]
+    before: Optional[Dict[str, Dict[str, str]]] = None
+    def do(self, doc: Document):
+        # The whole (small) room table: room identity may move a room's data to another key meanwhile.
+        if self.before is None:
+            self.before = copy.deepcopy(doc.room_data)
+        doc.set_room_metadata(self.signature, **self.changes)
+    def undo(self, doc: Document):
+        if self.before is not None:
+            doc.room_data = copy.deepcopy(self.before)
+
+@dataclass
 class CreateFloorLevel(Command):
     """Create one named storey elevation and activate it as the current work plane."""
     name: str

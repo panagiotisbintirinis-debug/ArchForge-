@@ -655,8 +655,11 @@ def build_plan_frame(doc,preview=None,layers=True):
         for index,face in enumerate(doc.active_room_faces(),start=1):
             m=room_metrics(face.polygon);data=doc.room_metadata(face.signature)
             name=data.get('name') or f'Χώρος {index}';use=data.get('use','')
-            label=name+(f' — {use}' if use else '')+f'\n{m["area"]:.2f} m²'
-            meta=(('semantic','derived-room'),('signature',face.signature),('wall_ids',face.wall_ids),('area',m['area']),('perimeter',m['perimeter']),('name',name),('use',use))
+            # Owner 17/10: the label shows the net area between the wall faces (as the take-off), not the axes.
+            from archforge.quantities.takeoff import _area,net_polygon
+            net=abs(_area(net_polygon(doc,face.polygon,float(doc.work_plane.origin[2]))))
+            label=name+(f' — {use}' if use and use!=name else '')+f'\n{net:.2f} m²'
+            meta=(('semantic','derived-room'),('signature',face.signature),('wall_ids',face.wall_ids),('area',m['area']),('net_area',net),('perimeter',m['perimeter']),('name',name),('use',use))
             f.primitives.append(Primitive2D('polygon',tuple(face.polygon),role='derived-room',meta=meta))
             cx,cy=m['centroid'];f.primitives.append(Primitive2D('label',((cx,cy),),role='derived-room-label',meta=(('signature',face.signature),('text',label))))
     except (ValueError,KeyError):

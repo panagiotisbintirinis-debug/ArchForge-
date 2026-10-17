@@ -6,6 +6,9 @@ from .backend import GeometryBody, GeometryEvaluation, GeometryIssue
 from .plan import build_evaluation_plan
 
 
+ROOF_INPUTS = frozenset({'wall', 'room_ceiling', 'ceiling_joists'})
+
+
 class IncrementalEvaluationCache:
     """Entity-granular cache for expensive geometry backend evaluation.
 
@@ -61,6 +64,11 @@ class IncrementalEvaluationCache:
                     or doc.dirty_generation(eid) > self._seen_generation.get(eid, -1)
                 )
             }
+
+        if rebuild_ids or deleted_ids:
+            # A tiled roof is derived from the walls and ceilings under it (inner walls up to the roof).
+            if deleted_ids or any(doc.entities[eid].kind in ROOF_INPUTS for eid in rebuild_ids):
+                rebuild_ids = set(rebuild_ids) | {eid for eid, e in doc.entities.items() if e.kind == 'pitched_roof'}
 
         if rebuild_ids:
             plan = build_evaluation_plan(doc, joint_values, entity_ids=rebuild_ids)
