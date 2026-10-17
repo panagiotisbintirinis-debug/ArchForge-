@@ -38,7 +38,7 @@ SPEC = {
     "stairs": [("Ground",) + STAIR, ("Floor 1",) + STAIR],
     "roof": "flat",
     "mep": {"supply": (8.4, 4.4), "heater": ("Floor 1", 7.6, 9.6), "panel": ("Ground", 8.3, 9.6), "manhole": (10.0, -1.5),
-            "points": [("Floor 1", "drain_stack", 4.15, 7.4), ("Floor 2", "plumb_water_heater", 7.6, 9.6), ("Floor 2", "elec_water_heater", 7.7, 9.6),
+            "points": [("Floor 1", "drain_stack", 6.0, 9.85), ("Floor 1", "drain_stack", 3.85, 5.65), ("Floor 2", "plumb_water_heater", 7.6, 9.6), ("Floor 2", "elec_water_heater", 7.7, 9.6),
                        ("Floor 1", "plumb_washing_machine", 4.4, 9.6), ("Floor 1", "elec_washing_machine", 4.5, 9.6),
                        ("Floor 2", "plumb_washing_machine", 4.4, 9.6), ("Floor 2", "elec_washing_machine", 4.5, 9.6),
                        ("Floor 1", "elec_air_conditioner", 0.2, 1.5), ("Floor 2", "elec_air_conditioner", 0.2, 1.5)]},
@@ -47,7 +47,12 @@ SPEC = {
 OWNER_PENDING = ("Θέρμανση/HVAC", "Προειδοποίηση: Κόμβος")
 FINDINGS = [
     {"status": "FIXED", "found": "Σχέδιο: η αυτόματη στήλη μπήκε στον τοίχο του μπάνιου, μακριά από την κουζίνα — βάθος αποχέτευσης 21 cm > 20 cm γεμίσματος",
-     "fix": "Στήλη ανάμεσα σε κουζίνα και μπάνιο (εργαλείο «Στήλη αποχέτευσης»)", "files": ["scenarios/s09_pilotis.py"], "commit": "(αυτό το commit)"},
+     "fix": "Στήλη ανάμεσα σε κουζίνα και μπάνιο (εργαλείο «Στήλη αποχέτευσης»)", "files": ["scenarios/s09_pilotis.py"], "commit": "c10d889"},
+    {"status": "FIXED", "found": "Πρόγραμμα: με συνεχή αποχέτευση το βάθος έγινε 23 cm > 20 cm· κάθε όροφος πήγαινε όλους τους υποδοχείς σε "
+     "μία στήλη και μια δεύτερη στήλη δίπλα στην κουζίνα αγνοούνταν",
+     "fix": "Κάθε υποδοχέας στην πλησιέστερη στήλη (mep/drainage.route_drainage)· σχέδιο: στήλη στον τοίχο του μπάνιου + στήλη "
+     "κουζίνας — βάθος 15,6 cm", "files": ["mep/drainage.py", "scenarios/s09_pilotis.py", "tests/test_drainage.py"],
+     "commit": "(αυτό το commit)"},
 ]
 NOTES = ""
 

@@ -94,6 +94,23 @@ def test_floor_depth_beyond_20cm_is_made_up_with_cement_screed():
     assert rep['depth_m'][3.0] <= SCREED and not any('τσιμεντοκονία' in w for w in rep['warnings'])
 
 
+def test_each_fixture_goes_to_its_nearest_stack_so_far_apart_kitchen_and_wc_need_no_extra_screed():
+    """S09: one stack per storey made a kitchen 12 m from the WC need 23 cm under the floor; a second stack beside
+    the kitchen must take the kitchen's flow instead of being ignored."""
+    doc = Document(); stack = CommandStack(doc)
+    _storey(stack, 0.0, w=14.0, partition_x=7.0); _storey(stack, 3.0, w=14.0, partition_x=7.0)
+    _fix(stack, 'wc', 1.0, 5.5, 3.0); _fix(stack, 'kitchen_sink', 13.5, 0.5, 3.0)
+    assert route_drainage(doc)['report']['depth_m'][3.0] > SCREED          # one stack (auto) for both: too deep
+    for x, y in ((0.2, 5.5), (13.8, 0.3)):
+        stack.execute(AddEntity(Entity('drainage_point', {'x': x, 'y': y, 'z': 3.0, 'point_type': 'stack'})))
+    r = route_drainage(doc)
+    assert r['report']['depth_m'][3.0] <= SCREED
+    assert not any('τσιμεντοκονία' in w for w in r['report']['warnings'])
+    nodes = [n for n in r['nodes'] if n['kind'] == 'stack']
+    assert len(nodes) == 2 and all(n['floors'] == 1 for n in nodes)
+    assert {n['dn'] for n in nodes if n['x'] < 1.0} == {100}              # the WC's stack stays Φ100
+
+
 def test_placed_points_are_entities_that_replace_the_auto_ones_and_move_with_undo():
     doc, stack = _building(1)
     m = Entity('drainage_point', {'x': 2.0, 'y': -1.5, 'z': 0.0, 'point_type': 'manhole'}, name=POINT_TYPES['manhole'][0])

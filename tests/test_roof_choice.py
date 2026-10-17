@@ -124,3 +124,28 @@ def test_auto_roof_on_an_l_shaped_floor_leaves_the_terrace_open_and_raises_no_ga
     # A gable is never drawn on a side without a wall.
     p = dict(roofs[0], gables=[])
     assert gable_walls(p) == []
+
+
+def test_tiled_roof_on_an_l_plan_is_one_roof_per_rectangle_and_leaves_the_pool_open():
+    """S05: a roof per room left every inner wall on a roof edge (none went up to the roof) and roofed the pool."""
+    from archforge.architecture.roof_choice import form_roofs
+    from archforge.assistant.understanding import inside
+    from archforge.geometry.regions import point_in_polygon
+    from archforge.structure.timber_roof import interior_walls
+    doc = Document(); st = CommandStack(doc)
+    outline = [(0, 0), (10, 0), (10, 5), (5, 5), (5, 10), (0, 10), (0, 0)]
+    segs = list(zip(outline, outline[1:])) + [((5, 0), (5, 5)), ((0, 5), (5, 5))] + \
+        [((12, 0), (16, 0)), ((16, 0), (16, 3)), ((16, 3), (12, 3)), ((12, 3), (12, 0))]
+    for a, b in segs:
+        st.execute(AddEntity(Entity('wall', {'x1': a[0], 'y1': a[1], 'x2': b[0], 'y2': b[1], 'z': 0.0, 'height': 2.7, 'thickness': 0.25})))
+    pool = next(f for f in doc.active_room_faces(z=0.0) if point_in_polygon(14.0, 1.5, f.polygon))
+    doc.set_room_metadata(pool.signature, use='Πισίνα')
+    roofs = form_roofs(doc, 'hip', 0.0)
+    boxes = sorted(((p['x0'], p['y0'], p['x1'], p['y1']) for p in roofs), key=lambda b: -(b[2] - b[0]) * (b[3] - b[1]))
+    assert len(roofs) == 2                                          # body 10 × 5 + wing 5 × 5, not 3 rooms
+    assert sorted(round((b[2] - b[0] - .25) * (b[3] - b[1] - .25), 3) for b in boxes) == [25.0, 50.0]
+    for cx, cy in ((2.5, 2.5), (7.5, 2.5), (2.5, 7.5)):            # every room under one of them
+        assert any(b[0] < cx < b[2] and b[1] < cy < b[3] for b in boxes)
+    for x0, y0, x1, y1 in boxes:
+        assert not inside([(x0, y0), (x1, y0), (x1, y1), (x0, y1)], 14.0, 1.5)   # the pool stays open to the sky
+    assert sum(len(interior_walls(doc, p)) for p in roofs) > 0      # the inner walls go up to the roof
