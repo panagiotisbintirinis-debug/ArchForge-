@@ -53,7 +53,11 @@ class TradesTab(QWidget):
         self.order = QPushButton("Λίστα παραγγελίας…"); self.order.clicked.connect(lambda: self.export_order())
         self.offer = QPushButton("Προσφορά…"); self.offer.clicked.connect(lambda: self.export_offer())
         self.offer.setToolTip("Προσφορά για τα επιλεγμένα επαγγέλματα (☑) — ή μόνο για την ανοιχτή καρτέλα")
-        head.addWidget(self.order); head.addWidget(self.offer)
+        self.to_book = QPushButton("Στον κοινό τιμοκατάλογο")
+        self.to_book.setToolTip("Οι τιμές αυτού του έργου αποθηκεύονται στον κοινό τιμοκατάλογό σου και τις παίρνει "
+                                "κάθε έργο· η τιμή του έργου υπερισχύει της κοινής")
+        self.to_book.clicked.connect(lambda: self.save_to_book())
+        head.addWidget(self.order); head.addWidget(self.offer); head.addWidget(self.to_book)
         root.addLayout(head)
         self.empty = QLabel("Δεν υπάρχουν ακόμη ποσότητες: σχεδίασε ή εισήγαγε το σχέδιο και βάλε τα στοιχεία της δουλειάς σου.")
         self.empty.setWordWrap(True)
@@ -216,6 +220,15 @@ class TradesTab(QWidget):
             self.window.stack.execute(UpdateEntity(e.id, {"trade_prices": trade}))
         from PySide6.QtCore import QTimer
         QTimer.singleShot(0, self.refresh)
+
+    def save_to_book(self):
+        from archforge.quantities.price_book import path, save_project_prices
+        n = save_project_prices(self.window.doc)
+        self.window.statusBar().showMessage(
+            f"Κοινός τιμοκατάλογος: {n} τιμές αποθηκεύτηκαν ({path()}) — τις παίρνει κάθε έργο" if n
+            else "Το έργο δεν έχει δικές του τιμές για αποθήκευση", 8000)
+        self.refresh()
+        return n
 
     def ask_pieces(self, name, rows):
         from PySide6.QtWidgets import QInputDialog

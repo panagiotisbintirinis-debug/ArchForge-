@@ -9,7 +9,8 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QFileDialog, QFrame, QGridLayout, QHBoxLayout, QHeaderView,
-                               QLabel, QPushButton, QTabWidget, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
+                               QLabel, QPushButton, QScrollArea, QTabWidget, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
+                               QWidget)
 
 TAB_TITLE = "Ηλεκτρ. πίνακας"
 
@@ -89,8 +90,18 @@ class BoardTab(QWidget):
         root.addWidget(self.empty)
 
         self.pages = QTabWidget()
+        # The board as seen from the front, first: what the electrician recognises.
+        from archforge.ui.board_front_view import BoardFrontView
+        front_page = QWidget(); fv = QVBoxLayout(front_page); fv.setContentsMargins(0, 4, 0, 0)
+        self.rcd_bar = QHBoxLayout(); self.rcd_bar.setSpacing(6)
+        fv.addLayout(self.rcd_bar)
+        self.front_view = BoardFrontView()
+        self.front_view.circuit_clicked.connect(self._select_circuit)
+        scroll = QScrollArea(); scroll.setWidget(self.front_view); scroll.setWidgetResizable(True)
+        fv.addWidget(scroll, 1)
+        self.pages.addTab(front_page, "Πρόσοψη πίνακα")
         self.circuits = self._tree(["Κύκλωμα", "Περιγραφή", "Φάση", "Ασφάλεια", "Διατομή", "Σημεία", "Χώροι",
-                                    "Φορτίο", "Μήκος", "Ως πιο μακρινό", "Iz*", "ΔU*", "Έλεγχος"])
+                                    "Φορτίο", "Μήκος", "Ως πιο μακρινό", "Iz*", "ΔU*", "Έλεγχος", "Διαφορικός"])
         self.circuits.itemClicked.connect(self._select_item)
         self.circuits.itemDoubleClicked.connect(lambda item, _c: self._select_item(item, show=True))
         self.walls = self._tree(["Θέση", "Κυκλώματα", "Σωλήνας"])
@@ -100,11 +111,32 @@ class BoardTab(QWidget):
         self.pages.addTab(self.circuits, "Κυκλώματα και αγωγοί")
         self.pages.addTab(self.walls, "Μέτρα ανά τοίχο")
         self.pages.addTab(self.purchase, "Αγορά καλωδίων")
+        # Ασθενή (owner 17/10): network, TV and automation, drawn in 2D/3D on their own layer.
+        lv_page = QWidget(); lv = QVBoxLayout(lv_page); lv.setContentsMargins(0, 4, 0, 0)
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Καλώδιο δικτύου (κατηγορία από τη μελέτη):"))
+        self.lv_cable = QComboBox(); self.lv_cable.setEditable(True)
+        for text in ("", "Cat 6", "Cat 6A", "Cat 7"):
+            self.lv_cable.addItem(text or "— εισάγετε", text)
+        self.lv_cable.activated.connect(lambda _i: self._set_rack("network_cable", self.lv_cable.currentData() or ""))
+        row.addWidget(self.lv_cable); row.addStretch(1)
+        lv.addLayout(row)
+        self.lv_tree = self._tree(["Σύστημα / σημείο", "Πλήθος", "Καλώδιο", "Σωλήνας", "Σημείωση"])
+        self.lv_tree.itemClicked.connect(self._select_item)
+        lv.addWidget(self.lv_tree, 1)
+        self.lv_warnings = QLabel(); self.lv_warnings.setWordWrap(True); self.lv_warnings.setStyleSheet("color:#b45309")
+        lv.addWidget(self.lv_warnings)
+        self.lv_index = self.pages.addTab(lv_page, "Ασθενή — δίκτυο · TV · αυτοματισμοί")
+        # Rules and their status: one tab of their own, one short line in view (owner 17/10: «μόνο θόρυβος»).
+        self.provenance = QLabel(); self.provenance.setWordWrap(True); self.provenance.setStyleSheet("font-size:11px")
+        self.provenance.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        rules_scroll = QScrollArea(); rules_scroll.setWidget(self.provenance); rules_scroll.setWidgetResizable(True)
+        self.rules_index = self.pages.addTab(rules_scroll, "Κατάσταση κανόνων")
         root.addWidget(self.pages, 1)
 
         self.warnings = QLabel(); self.warnings.setWordWrap(True); self.warnings.setStyleSheet("color:#b45309")
-        self.provenance = QLabel(); self.provenance.setWordWrap(True); self.provenance.setStyleSheet("color:palette(mid);font-size:11px")
-        root.addWidget(self.warnings); root.addWidget(self.provenance)
+        self.rules_line = QLabel(); self.rules_line.setStyleSheet("color:palette(mid);font-size:11px")
+        root.addWidget(self.warnings); root.addWidget(self.rules_line)
 
     @staticmethod
     def _tree(headers):
@@ -196,8 +228,111 @@ class BoardTab(QWidget):
         lines = [r["provenance"], "* Iz και ΔU: ενδεικτικός έλεγχος με τιμές ENGINEER_REVIEW (σύνοψη ΕΛΟΤ HD 60364-5-52), "
                  "χωρίς k1/k2 — όχι απόδειξη συμμόρφωσης", "Κατάσταση κανόνων (μόνο τα επαληθευμένα είναι τεχνική απαίτηση· κανένας δεν είναι ακόμη):"] + [f" • {u}" for u in r["unverified"]]
         self.provenance.setText("\n".join(lines))
-        self.provenance.setVisible(has)
+        self.pages.setTabText(self.rules_index, f"Κατάσταση κανόνων ({len(r['unverified'])})")
+        self.rules_line.setText(f"⚠ Κανένας από τους {len(r['unverified'])} κανόνες δεν είναι επαληθευμένος — "
+                                "προμελέτη, προς έλεγχο από ηλεκτρολόγο μηχανικό · λεπτομέρειες: «Κατάσταση κανόνων»")
+        self.rules_line.setVisible(has)
+        self._fill_front(r)
+        self._fill_low_voltage()
         return r
+
+    # ------------------------------------------------------------------------------------------------ ασθενή
+    def _set_rack(self, key, value):
+        lv = self.result.get("low_voltage") if self.result else None
+        if not lv or not lv["rack"] or self.window.doc.get(lv["rack"]).params.get(key) == value:
+            return
+        from archforge.core.commands import UpdateEntity
+        self.window.stack.execute(UpdateEntity(lv["rack"], {key: value}))
+        self.refresh()
+
+    def _fill_low_voltage(self):
+        from archforge.mep.low_voltage import SYSTEM_LABELS, lv_points, route_low_voltage_cached
+        lv = self.result["low_voltage"] = route_low_voltage_cached(self.window.doc)
+        t = self.lv_tree; t.clear()
+        has = bool(lv_points(self.window.doc)) or bool(lv["knx"])
+        if has and not self.pages.isVisible() and not self.result["circuits"]:
+            self.empty.setVisible(False); self.pages.setVisible(True); self.pages.setCurrentIndex(self.lv_index)
+        self.lv_cable.setEnabled(bool(lv["rack"]))
+        self._updating = True
+        try:
+            i = self.lv_cable.findData(lv["cable"])
+            if i < 0 and lv["cable"]:
+                self.lv_cable.addItem(lv["cable"], lv["cable"]); i = self.lv_cable.findData(lv["cable"])
+            self.lv_cable.setCurrentIndex(max(0, i))
+        finally:
+            self._updating = False
+        if lv["rack"]:
+            rack = QTreeWidgetItem(["Rack δικτύου / κατανεμητής", "1", "", "", "αφετηρία όλων των γραμμών (αστέρας)"])
+            rack.setData(0, Qt.ItemDataRole.UserRole, [lv["rack"]]); t.addTopLevelItem(rack)
+        for system in ("network", "tv"):
+            tot = lv["totals"].get(system)
+            if not tot:
+                continue
+            top = QTreeWidgetItem([SYSTEM_LABELS[system], str(tot["points"]), f"{_n(tot['cable_m'])} m",
+                                   f"{_n(tot['conduit_m'])} m", "ένα καλώδιο ανά σημείο ως το rack"])
+            top.setData(0, Qt.ItemDataRole.UserRole, [o["id"] for o in lv["outlets"] if o["system"] == system])
+            for o in (o for o in lv["outlets"] if o["system"] == system):
+                child = QTreeWidgetItem(top, [o["label"], "", f"{_n(o['cable_m'])} m", "", f"όροφος {_n(o['floor'], 2)} m"])
+                child.setData(0, Qt.ItemDataRole.UserRole, [o["id"]])
+            t.addTopLevelItem(top); top.setExpanded(True)
+        k = lv["knx"]
+        if k:
+            top = QTreeWidgetItem([SYSTEM_LABELS["knx"], str(k["buttons"]), f"{_n(k['bus_m'])} m", "",
+                                   f"ως την πιο μακρινή συσκευή {_n(k['bus_farthest_m'])} m"])
+            for label, value in (("Μπουτόν στο bus", k["buttons"]), ("Διευθύνσεις DALI-2", k["dali_addresses"]),
+                                 ("KNX-DALI gateways", k["dali_gateways"]), ("Κανάλια ρελέ (On/Off)", k["onoff_channels"])):
+                QTreeWidgetItem(top, [label, str(value), "", "", ""])
+            t.addTopLevelItem(top); top.setExpanded(True)
+        elif lv_points(self.window.doc) or self.result["circuits"]:
+            t.addTopLevelItem(QTreeWidgetItem(["Αυτοματισμοί", "", "", "", "συμβατικό σύστημα — KNX: επιλογή στην κορυφή"]))
+        notes = lv["warnings"] + list(k.get("warnings", []) if k else [])
+        if not lv_points(self.window.doc):
+            notes.append("Βάλτε σημεία από Μηχανολογικά ▸ «Ασθενή (δίκτυο / TV)»: rack, πρίζες RJ45 / TV, Wi-Fi.")
+        self.lv_warnings.setText("\n".join(f"⚠ {w}" if not w.startswith("Βάλτε") else w for w in notes))
+
+    # ------------------------------------------------------------------------------------- board front view
+    def _fill_front(self, r):
+        from archforge.mep.electrical_board import front
+        f = self.result["front"] = front(r) if r["circuits"] else None
+        self.front_view.set_front(f)
+        while self.rcd_bar.count():
+            item = self.rcd_bar.takeAt(0)
+            if item.widget() is not None:
+                item.widget().deleteLater()
+        if not f:
+            return
+        self.rcd_bar.addWidget(QLabel("Διαφορικοί (ονομαστικό ρεύμα από τη μελέτη):"))
+        ratings = list(r["settings"]["rcd_ratings"])
+        for nb in f["neutral_bars"]:
+            g = nb["group"]
+            spin = QDoubleSpinBox(); spin.setRange(0.0, 400.0); spin.setDecimals(0); spin.setSingleStep(1.0)
+            spin.setPrefix(f"Δ{g} "); spin.setSuffix(" A"); spin.setSpecialValueText(f"Δ{g} — εισάγετε")
+            spin.setValue(float(ratings[g - 1]) if g - 1 < len(ratings) and ratings[g - 1] else 0.0)
+            spin.editingFinished.connect(lambda g=g, spin=spin: self._rate_rcd(g, spin.value()))
+            self.rcd_bar.addWidget(spin)
+        self.rcd_bar.addWidget(QLabel("· κυκλώματα σε διαφορικό: στήλη «Διαφορικός» στα «Κυκλώματα και αγωγοί»"))
+        self.rcd_bar.addStretch(1)
+
+    def _rate_rcd(self, group, value):
+        ratings = list(self.result["settings"]["rcd_ratings"])
+        while len(ratings) < group:
+            ratings.append(0.0)
+        ratings[group - 1] = float(value)
+        self._set("rcd_ratings", ratings)
+
+    def _assign_rcd(self, circuit_id, group):
+        groups = dict(self.result["settings"]["rcd_groups"])
+        groups[circuit_id] = int(group)
+        self._set("rcd_groups", groups)
+
+    def _select_circuit(self, circuit_id):
+        c = next((c for c in self.result["circuits"] if c["id"] == circuit_id), None) if self.result else None
+        ids = [i for i in (c["point_ids"] if c else []) if i in self.window.doc.entities]
+        if ids:
+            self.window.doc.select(ids)
+            if hasattr(self.window, "_redraw_views"):
+                self.window._redraw_views(all_views=True)
+        return ids
 
     def _fill_circuits(self, r):
         t = self.circuits; t.clear()
@@ -218,6 +353,14 @@ class BoardTab(QWidget):
                 for code, label in (("L", "Φάση προς διακόπτες"), ("R", "Επιστροφή διακόπτη")):
                     QTreeWidgetItem(item, [code, label, "", "", f"{_n(c['mm2'])} mm²", "", "", "", f"{_n(leg)} m", "", "", "", ""])
             t.addTopLevelItem(item)
+            groups = r["settings"]["rcd_groups"]
+            used = max([int(v) for v in groups.values()] + [1])
+            combo = QComboBox()
+            for g in range(1, used + 2):
+                combo.addItem(f"Δ{g}" + (" (νέος)" if g == used + 1 else ""), g)
+            combo.setCurrentIndex(max(0, combo.findData(int(groups.get(c["id"], 1) or 1))))
+            combo.activated.connect(lambda _i, cid=c["id"], combo=combo: self._assign_rcd(cid, combo.currentData()))
+            t.setItemWidget(item, 13, combo)
 
     def _fill_walls(self, r):
         t = self.walls; t.clear()

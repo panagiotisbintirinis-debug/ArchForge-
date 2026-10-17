@@ -31,7 +31,7 @@ def recheck(entry, settings, b, h, rebar=None):
     if entry["kind"] == "beam":
         out = design_beam(b, h, i["M_sag"], i["M_hog"], i["V"], i["span"], settings, i["cantilever"], rebar=rebar)
     else:
-        out = design_column(b, h, i["L"], i["actions"], i["V"], settings, i["seismic"], rebar=rebar)
+        out = design_column(b, h, i["L"], i["actions"], i["V"], settings, i["seismic"], rebar=rebar, wall=bool(entry.get("wall")))
     out.update({k: entry[k] for k in ("id", "name", "kind", "material") if k in entry})
     out["section"] = f"{b * 100:.0f}/{h * 100:.0f}"
     out["text"] = describe_member(out)

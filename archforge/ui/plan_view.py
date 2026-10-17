@@ -968,6 +968,10 @@ class PlanView(QGraphicsView):
             from archforge.mep.electrical import CABLE_COLORS
             pen=QPen(QColor(CABLE_COLORS.get(dict(p.meta).get('group'),'#e07a00')));pen.setWidthF(.015)
             pen.setStyle({'wall':Qt.PenStyle.SolidLine,'floor':Qt.PenStyle.DotLine}.get(dict(p.meta).get('run'),Qt.PenStyle.DashLine))
+        if p.role in ('lv-cable','lv-box'):
+            from archforge.mep.electrical import CABLE_COLORS
+            pen=QPen(QColor(CABLE_COLORS.get(dict(p.meta).get('system'),'#0e9aa7')));pen.setWidthF(.012 if p.role=='lv-cable' else .008)
+            if p.role=='lv-cable':pen.setStyle(Qt.PenStyle.DashDotLine)
         if p.role=='led-strip':
             pen=QPen(QColor(232,170,20));pen.setWidthF(.03);pen.setStyle(Qt.PenStyle.DashLine);pen.setCapStyle(Qt.PenCapStyle.FlatCap)
         if p.role=='manifold':
@@ -1030,6 +1034,13 @@ class PlanView(QGraphicsView):
             # Void in the slab: thin cross; dashed when the void is in the slab above (roof only).
             pen=QPen(QColor(60,65,75));pen.setWidthF(.018 if p.role=='slab-opening' else .012)
             if dict(p.meta).get('above'):pen.setStyle(Qt.PenStyle.DashLine)
+        wall_line=p.kind=='line' and p.role=='model' and bool(p.entity_id) and p.entity_id in self.doc.entities and self.doc.get(p.entity_id).kind=='wall'
+        if wall_line:
+            # The wall itself is drawn by the cut region (wall-poche); its axis line only picks, as wide as the wall.
+            sel=p.entity_id in (self.doc.selection or ())
+            pen=QPen(QColor(20,110,220,110) if sel else QColor(0,0,0,0));pen.setWidthF(float(dict(p.meta).get('thickness',.2)))
+            pen.setCapStyle(Qt.PenCapStyle.FlatCap)
+        if p.role=='wall-poche':pen=QPen(QColor(40,45,55));pen.setWidthF(.02);pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
         if p.kind=='polygon' and dict(p.meta).get('islands'):
             # Slab with openings / several parts: one path, holes left empty.
             path=QPainterPath();path.setFillRule(Qt.FillRule.OddEvenFill)
@@ -1038,7 +1049,7 @@ class PlanView(QGraphicsView):
                     path.moveTo(QPointF(*loop[0]))
                     for q in loop[1:]:path.lineTo(QPointF(*q))
                     path.closeSubpath()
-            item=self._scene.addPath(path,pen,QBrush(QColor(80,160,220,40)))
+            item=self._scene.addPath(path,pen,QBrush(QColor(205,200,190) if p.role=='wall-poche' else QColor(80,160,220,40)))
         elif p.kind=='line':a,b=p.points;item=self._scene.addLine(a[0],a[1],b[0],b[1],pen)
         elif p.kind=='polyline':
             if len(p.points)>=2:
@@ -1080,7 +1091,7 @@ class PlanView(QGraphicsView):
             return
         if item is not None:
             container=bool(p.entity_id) and p.entity_id in self.doc.entities and self.doc.get(p.entity_id).kind in self.CONTAINER_KINDS
-            item.setZValue(-30 if p.role=='contour' else -20 if context else (-10 if room else (10 if opening else (20 if preview else (-5 if container else 0)))))
+            item.setZValue(-30 if p.role=='contour' else -20 if context else (-10 if room else (10 if opening else (20 if preview else (-5 if container else (-1 if p.role=='wall-poche' else (1 if wall_line else 0)))))))
             if p.entity_id and not preview:self._entity_items[item]=p.entity_id
             if preview and p.kind=='polygon' and dict(p.meta).get('fits') is False:item.setBrush(QBrush(QColor(210,40,40,45)))
             # Dim layer (Layers panel / environment): a faint reference under the work.

@@ -56,6 +56,7 @@ class Member:
     profile: str = ""
     y_dir: Tuple[float, float, float] = (1.0, 0.0, 0.0)
     elements: List[int] = field(default_factory=list)
+    wall: bool = False              # RC shear wall (τοιχίο): b = its length along y_dir, h = its thickness
 
     @property
     def length(self):
@@ -129,7 +130,8 @@ def read_members(doc):
             x, y, z = (float(p[k]) for k in ("x", "y", "z"))
             rot = math.radians(float(p.get("rotation", 0.0)))
             members[eid] = Member(eid, kind, name, material, (x, y, z), (x, y, z + float(p["height"])),
-                                  float(p["width"]), float(p["depth"]), prof, (math.cos(rot), math.sin(rot), 0.0))
+                                  float(p["width"]), float(p["depth"]), prof, (math.cos(rot), math.sin(rot), 0.0),
+                                  wall=bool(p.get("wall")) and material == "rc")
         else:
             top = float(p["z"]) + float(p["height"])
             members[eid] = Member(eid, kind, name, material, (float(p["x1"]), float(p["y1"]), top),
@@ -205,6 +207,7 @@ def build_model(doc, settings):
             m.elements.append(len(elements))
             elements.append(Element(a, b, y_dir=m.y_dir if m.kind == "column" else None, tag=m.id, **props))
             weights.append(w)
+    _wall_arms(members, nodes, elements, weights, settings)
     # Supports.
     supports = {}
     for e in doc.entities.values():
@@ -277,6 +280,36 @@ def build_model(doc, settings):
         mass.pop(nid, None)
     diaphragms = _diaphragms(planes, members, elements, supports) if settings.get("diaphragm", "rigid") != "none" else []
     return Model(nodes, elements, members, supports, loads, mass, planes, base_z, warnings, excluded, diaphragms)
+
+
+RIGID = 100.0       # rigid arms of a wall: 100 × the wall's own section properties
+
+
+def _wall_arms(members, nodes, elements, weights, settings):
+    """Rigid arms from a wall's axis to every node of the same level inside its footprint.
+
+    A wall is one element on its centreline ("wide column"); a beam framing into it ends
+    at the wall's face or edge, not at the axis.  Each such node is tied to the axis node
+    of that level by a stiff horizontal element, so the beam's moment and shear reach the
+    wall and the beam's span is the clear one (structure.wall_model).
+    """
+    for m in members.values():
+        if not (m.kind == "column" and m.wall and m.elements):
+            continue
+        props, _w = element_props(m, settings)
+        stiff = dict(props, A=props["A"] * RIGID, Iy=props["Iy"] * RIGID, Iz=props["Iz"] * RIGID, J=props["J"] * RIGID)
+        axis = [elements[m.elements[0]].n1] + [elements[k].n2 for k in m.elements]
+        ux, uy = m.y_dir[0], m.y_dir[1]
+        for v in axis:
+            xc, yc, zc = nodes[v]
+            for n, (x, y, z) in enumerate(nodes):
+                if n in axis or abs(z - zc) > TOL_Z:
+                    continue
+                along = (x - xc) * ux + (y - yc) * uy
+                across = -(x - xc) * uy + (y - yc) * ux
+                if abs(along) <= m.b / 2 + TOL_XY and abs(across) <= m.h / 2 + TOL_XY:
+                    elements.append(Element(v, n, tag="rigid:" + m.id, **stiff))
+                    weights.append(0.0)
 
 
 def _diaphragms(planes, members, elements, supports):

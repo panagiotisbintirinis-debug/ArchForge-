@@ -180,8 +180,10 @@ def test_default_regression_untyped_openings_stay_as_before():
         assert {k for k, _v, _t in opening_fixture_parts(doc, win)} == {'window_frame', 'window_glass'}
         doc2, _s, _w, door = _doc('door', 0.9, 2.1, 0.0, params)
         assert {k for k, _v, _t in opening_fixture_parts(doc2, door)} == {'door_frame', 'door_leaf'}
-        assert not [p for p in build_plan_frame(doc).primitives if p.role.startswith('opening-symbol')]
-        assert joinery.plan_symbol_world(doc2, door) == []
+        # Owner 17/10: the plan reads like a drawing — a basic opening gets the usual symbol (3D unchanged above).
+        assert [p for p in build_plan_frame(doc).primitives if p.role.startswith('opening-symbol')]
+        assert joinery.plan_symbol_world(doc2, door) != []
+        assert win.params.get('opening_type', 'basic') == 'basic'                # the symbol does not type it
     # Ίδια γεωμετρία με πριν, κορυφή προς κορυφή.
     doc, _s, _w, win = _doc('window', 2.0, 1.2, 0.9, {})
     glass = [v for k, v, _t in opening_fixture_parts(doc, win) if k == 'window_glass']

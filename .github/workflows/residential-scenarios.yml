@@ -1,0 +1,54 @@
+name: residential-scenario-quality-gate
+
+on:
+  push:
+    branches: [test/residential-scenario-suite, codex/residential-s01-quality-gate]
+  pull_request:
+    branches: [test/residential-scenario-suite]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  current-scenario:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      PYTHONPATH: .
+      ARCHFORGE_SCENARIO: S01
+      QTWEBENGINE_DISABLE_SANDBOX: '1'
+      QTWEBENGINE_CHROMIUM_FLAGS: --no-sandbox --ignore-gpu-blocklist
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: python -m pip install pytest -r requirements.txt
+      - name: Generate current scenario only
+        id: generate
+        run: python tests/residential_scenarios/generate_projects.py --scenario S01
+      - name: Compile code
+        run: python -m compileall -q archforge tests/residential_scenarios
+      - name: Current scenario regression checks
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m pytest tests/test_capacity_joint_diagnostics.py tests/test_residential_scenarios_e2e.py tests/test_residential_scenario_gate.py tests/test_shared_pricebook_compat.py tests/test_project_pricebook.py tests/test_project_quote.py tests/test_roof_need.py tests/test_stair_slab_opening.py -q
+      - name: Capture real current-scenario UI including MEP and reopen
+        if: always() && steps.generate.outcome == 'success'
+        env:
+          QT_QPA_PLATFORM: windows
+        run: python tests/residential_scenarios/capture_projects.py --scenario S01
+      - name: Full current-scenario gate (unperformed checks remain blocked)
+        if: always() && steps.generate.outcome == 'success'
+        run: python tests/residential_scenarios/audit_scenario.py --scenario S01
+      - name: Upload actual project, images and unresolved-check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: S01-current-scenario-evidence
+          if-no-files-found: warn
+          path: |
+            tests/residential_scenarios/S01*.archforge
+            tests/residential_scenarios/output/S01*

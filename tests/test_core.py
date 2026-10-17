@@ -164,8 +164,9 @@ def test_pointer_controller_respects_offset_workplane_for_wall_start():
 def test_plan_scene_builds_semantic_primitives_and_handles():
     from archforge.core.plan_scene import build_plan_frame
     d=Document();w=wall();b=box(8,2);p=pod(12);p.params['floor_level']=0;d.add(w);d.add(b);d.add(p);d.select([w.id,b.id,p.id])
-    f=build_plan_frame(d);kinds=[x.kind for x in f.primitives]
+    f=build_plan_frame(d);kinds=[x.kind for x in f.primitives if x.role!='wall-poche']
     assert kinds.count('line')==1 and kinds.count('polygon')==1 and kinds.count('ellipse')==1
+    assert sum(1 for x in f.primitives if x.role=='wall-poche')==1          # the wall drawn with its thickness
     hs={(h.entity_id,h.handle) for h in f.handles};assert (w.id,'endpoint1') in hs and (b.id,'right') in hs and (p.id,'top') in hs
 
 

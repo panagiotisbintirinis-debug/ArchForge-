@@ -98,3 +98,17 @@ def test_without_diaphragm_the_slab_nodes_move_independently():
     assert len(build_model(doc, get_settings(doc)).diaphragms) == 1
     st.execute(AddEntity(Entity('structural_design', {'diaphragm': 'none'})))
     assert build_model(doc, get_settings(doc)).diaphragms == []
+
+
+def test_engineer_can_set_the_behaviour_factor():
+    from archforge.core.commands import AddEntity
+    from archforge.core.model import Entity
+    from archforge.structure.analysis import analyze
+    from tests.test_structural_analysis import _building
+    doc, st = _building(storeys=2)
+    auto = analyze(doc)['seismic']
+    assert auto['q'] == pytest.approx(3.9)                                    # program formula 3,0·1,3
+    st.execute(AddEntity(Entity('structural_design', {'behaviour_factor': 3.0})))
+    given = analyze(doc)['seismic']
+    assert given['q'] == pytest.approx(3.0)
+    assert given['Ex']['Fb_kN'] == pytest.approx(auto['Ex']['Fb_kN'] * 3.9 / 3.0, rel=0.02)   # plateau: Sd ∝ 1/q

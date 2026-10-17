@@ -153,6 +153,18 @@ def test_room_under_timber_roof_can_take_a_flat_attic_ceiling():
     assert len(attic_rooms(doc)) == 1
 
 
+def test_attic_ceiling_only_under_the_roof_not_on_storeys_below():
+    """Scenario 02: the ground-floor room under the upper storey got an «attic» ceiling too."""
+    from archforge.architecture.roof_need import attic_rooms
+    from archforge.structure.timber_roof import default_params
+    doc, st, (left, right) = _two_storeys()
+    st.execute(AddEntity(Entity('pitched_roof', default_params(doc, z=2.7))))
+    found = {(f.signature, z) for f, z, _rid in attic_rooms(doc)}
+    upper = doc.active_room_faces(z=2.7)[0]
+    assert (upper.signature, 2.7) in found
+    assert all(sig != left.signature for sig, _z in found)               # under the upper storey: no attic
+
+
 def test_tiled_roof_goes_over_the_top_storey_even_from_the_ground_floor():
     doc, _st, _faces = _two_storeys()
     app, w = _window_with(doc)
@@ -220,3 +232,46 @@ def test_auto_tiled_roof_menu_creates_them_in_one_undo():
         assert not any(e.kind in ('pitched_roof', 'room_roof') for e in w.doc.entities.values())
     finally:
         w._mark_clean(); w.close(); app.processEvents()
+
+
+def _house_with_inner_wall():
+    """8×6 storey, one inner wall across the ridge (x = 4) and a gable roof over it."""
+    from archforge.structure.timber_roof import default_params
+    doc = Document(); st = CommandStack(doc)
+    for s in [(0, 0, 8, 0), (8, 0, 8, 6), (8, 6, 0, 6), (0, 6, 0, 0), (4, 0, 4, 6)]:
+        st.execute(AddEntity(Entity('wall', {'x1': s[0], 'y1': s[1], 'x2': s[2], 'y2': s[3], 'z': 0, 'height': 2.7, 'thickness': 0.1})))
+    roof = Entity('pitched_roof', default_params(doc))
+    st.execute(AddEntity(roof))
+    return doc, st, roof
+
+
+def test_inner_wall_rises_to_an_exposed_roof_but_not_under_an_attic_ceiling():
+    """Owner 17/10: no automatic ceiling — inner walls reach the roof unless the rooms get one."""
+    from archforge.architecture.roof_need import attic_ceiling_entities
+    from archforge.core.commands import AddEntities
+    from archforge.structure.timber_roof import height_at, interior_walls, planes, rafter_section
+    doc, st, roof = _house_with_inner_wall()
+    p = doc.get(roof.id).params
+    [(wid, verts, tris)] = interior_walls(doc, p)
+    assert doc.get(wid).params['x1'] == 4
+    top = max(v[2] for v in verts)
+    ridge = min(height_at(p, pl, 4.0, 3.0) for pl in planes(p)) - rafter_section(p)[1]
+    assert top == pytest.approx(ridge) and min(v[2] for v in verts) == pytest.approx(2.7)
+    st.execute(AddEntities(attic_ceiling_entities(doc, 'slab')))
+    assert interior_walls(doc, p) == []                                  # attic ceiling: wall stays at 2.70
+    st.undo()
+    assert len(interior_walls(doc, p)) == 1
+
+
+def test_roof_body_rebuilds_when_a_wall_or_ceiling_changes():
+    from archforge.core.commands import UpdateEntity
+    from archforge.geometry.incremental import IncrementalEvaluationCache
+    from archforge.geometry.sculpt import SculptedPreviewBackend
+    doc, st, roof = _house_with_inner_wall()
+    cache = IncrementalEvaluationCache(SculptedPreviewBackend())
+    cache.sync(doc)
+    before = cache._bodies[roof.id]
+    inner = next(i for i, e in doc.entities.items() if e.kind == 'wall' and e.params['x1'] == 4 and e.params['x2'] == 4)
+    st.execute(UpdateEntity(inner, {'x1': 3.5, 'x2': 3.5}))
+    cache.sync(doc)
+    assert cache._bodies[roof.id] is not before                         # the inner-wall infill moved with it

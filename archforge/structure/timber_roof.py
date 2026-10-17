@@ -361,8 +361,94 @@ def gable_walls(p):
     return out
 
 
-def roof_mesh(p):
-    """World (vertices, triangles, roles): members, build-up layers and tiles."""
+def _ceiled(doc, face):
+    """True when the room already has a flat ceiling under the roof (attic slab or joists)."""
+    from archforge.geometry.regions import point_in_polygon
+    from archforge.assistant.understanding import centroid
+    for e in doc.entities.values():
+        if e.kind == "room_ceiling" and e.params.get("room_signature") == face.signature:
+            return True
+        if e.kind == "ceiling_joists":
+            c = centroid([(float(q[0]), float(q[1])) for q in e.params["points"]])
+            if point_in_polygon(c[0], c[1], [(float(q[0]), float(q[1])) for q in face.polygon]):
+                return True
+    return False
+
+
+def interior_walls(doc, p, tolerance=0.05):
+    """Owner 17/10: under a tiled roof without a ceiling the inner walls go up to the roof.
+
+    Infill prisms over each inner wall of the storey under the roof, from the wall top to the underside of
+    the rafters, following the slope (ridge and hips included).  A wall between rooms that all have an
+    attic ceiling stays at its height.  Derived only — the wall keeps its own height.
+    """
+    x0, y0, x1, y1 = _frame(p)
+    ez = float(p["eave_z"])
+    depth = rafter_section(p)[1]
+    roof_planes = planes(p)
+    slope = math.tan(math.radians(float(p["pitch"])))
+
+    def linear(plane, a, b):
+        _poly, ea, _eb, up = plane
+        h = lambda q: ez + ((q[0] - ea[0]) * up[0] + (q[1] - ea[1]) * up[1]) * slope
+        return h(a), h(b) - h(a)
+
+    walls = [w for w in doc.entities.values() if w.kind == "wall" and w.visible
+             and abs(float(w.params.get("z", 0.0)) + float(w.params.get("height", 0.0)) - ez) <= tolerance]
+    if not walls:
+        return []
+    z = float(walls[0].params.get("z", 0.0))
+    try:
+        faces = doc.active_room_faces(z=z)
+    except Exception:
+        faces = []
+    ceiled = {f.signature for f in faces if _ceiled(doc, f)}
+    out = []
+    for w in walls:
+        q = w.params
+        a, b = (float(q["x1"]), float(q["y1"])), (float(q["x2"]), float(q["y2"]))
+        t = float(q.get("thickness", 0.2))
+        if not all(x0 - tolerance <= c[0] <= x1 + tolerance and y0 - tolerance <= c[1] <= y1 + tolerance for c in (a, b)):
+            continue
+        edge = t / 2 + 0.15                       # on the frame: the gable infill or the eave already does it
+        if (abs(a[0] - b[0]) < 1e-6 and min(abs(a[0] - x0), abs(a[0] - x1)) <= edge) or \
+                (abs(a[1] - b[1]) < 1e-6 and min(abs(a[1] - y0), abs(a[1] - y1)) <= edge):
+            continue
+        sides = [f for f in faces if w.id in f.wall_ids]
+        if sides and all(f.signature in ceiled for f in sides):
+            continue
+        lines = [linear(pl, a, b) for pl in roof_planes]
+        ts = {0.0, 1.0}
+        for i in range(len(lines)):
+            for j in range(i + 1, len(lines)):
+                (h0, dh0), (h1, dh1) = lines[i], lines[j]
+                if abs(dh0 - dh1) > 1e-12:
+                    u = (h1 - h0) / (dh0 - dh1)
+                    if 0.0 < u < 1.0:
+                        ts.add(u)
+        top = float(q.get("z", 0.0)) + float(q.get("height", 0.0))
+        prof = [(u, max(top, min(h + dh * u for h, dh in lines) - depth)) for u in sorted(ts)]
+        if max(zz for _u, zz in prof) - top < 0.02:
+            continue
+        L = math.dist(a, b)
+        if L < 1e-6:
+            continue
+        nx, ny = -(b[1] - a[1]) / L * t / 2, (b[0] - a[0]) / L * t / 2
+        pt = lambda u: (a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u)
+        profile = [(pt(0.0), top), (pt(1.0), top)] + [(pt(u), zz) for u, zz in reversed(prof)]
+        n = len(profile)
+        front = [(c[0] + nx, c[1] + ny, zz) for c, zz in profile]
+        back = [(c[0] - nx, c[1] - ny, zz) for c, zz in profile]
+        tris = [(0, i, i + 1) for i in range(1, n - 1)] + [(n, n + i + 1, n + i) for i in range(1, n - 1)]
+        for i in range(n):
+            j = (i + 1) % n
+            tris += [(i, j, n + j), (i, n + j, n + i)]
+        out.append((w.id, front + back, tris))
+    return out
+
+
+def roof_mesh(p, doc=None):
+    """World (vertices, triangles, roles): members, build-up layers and tiles (+ inner walls up to it)."""
     verts, tris, roles = [], [], []
     cos_a = math.cos(math.radians(float(p["pitch"])))
 
@@ -404,6 +490,9 @@ def roof_mesh(p):
     # Gable walls (αετώματα): where the roof rises above a wall line, the wall goes up to meet it.
     for v, t in gable_walls(p):
         add(v, t, "gable")
+    if doc is not None:
+        for _wid, v, t in interior_walls(doc, p):
+            add(v, t, "gable")
     for plane in planes(p):
         for role, z0, z1 in layer_spans:
             slab(plane, z0, z1, role)

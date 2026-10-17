@@ -37,6 +37,7 @@ LAYERS = {
     'plumbing': 'Υδραυλικά',
     'drainage': 'Αποχέτευση',
     'electrical': 'Ηλεκτρολογικά',
+    'low_voltage': 'Ασθενή (δίκτυο / TV / KNX)',
     'ventilation': 'Εξαερισμοί',
     'dimensions': 'Διαστάσεις',
     'site': 'Οικόπεδο / έδαφος',
@@ -77,6 +78,7 @@ ROLE_LAYERS = {
     'mep-conduit': 'plumbing',
     'drain': 'drainage', 'drain-label': 'drainage', 'drain-node': 'drainage', 'drain-stack': 'drainage',
     'cable': 'electrical', 'elec-box': 'electrical', 'electrical-label': 'electrical',
+    'lv-cable': 'low_voltage', 'lv-box': 'low_voltage', 'lv-label': 'low_voltage',
     'duct': 'ventilation', 'vent-terminal': 'ventilation', 'ventilation-label': 'ventilation',
     'terrain': 'site', 'terrain-label': 'site',
     'floor-underlay': 'underlay',
@@ -88,7 +90,7 @@ UNLAYERED_ROLES = ('preview', 'wall-move-arrow', 'wall-move-label', 'wall-move-o
 
 # 3D payload ``layer`` tags (rendering/scene.py) -> layer.
 SCENE_LAYERS = {'roof_structure': 'slabs', 'roof_tiles': 'slabs', 'foundation': 'foundation', 'mep': 'plumbing',
-                'drain': 'drainage', 'elec': 'electrical', 'vent': 'ventilation', 'kitchen': 'kitchen'}
+                'drain': 'drainage', 'elec': 'electrical', 'lv': 'low_voltage', 'vent': 'ventilation', 'kitchen': 'kitchen'}
 
 BATH_CATEGORIES = ('Μπάνιο',)
 
@@ -106,6 +108,8 @@ def entity_layer(kind, params=None):
             return 'sanitary'
     if kind in ('structural_column', 'structural_beam') and str(params.get('role', 'structural')) != 'structural':
         return 'other'          # pergola posts / non-bearing members belong to the architecture
+    if kind == 'electrical_point' and params.get('point_type') in ('network_rack', 'data_outlet', 'wifi_ap', 'tv_outlet'):
+        return 'low_voltage'                      # ασθενή: their own layer, shown with or without the power
     if kind == 'mesh' and (params.get('metadata') or {}).get('semantic_type') == 'conduit':
         return 'plumbing'
     return KIND_LAYERS.get(kind, 'other')
@@ -128,7 +132,7 @@ def primitive_layer(doc, primitive):
 # ------------------------------------------------------------------ environments
 WORKSPACES = {'arch': 'Αρχιτεκτονικό', 'structure': 'Φέρων', 'mep': 'Η/Μ'}
 ARCH_LAYERS = ('walls', 'openings', 'rooms', 'slabs', 'stairs', 'furniture', 'kitchen', 'sanitary', 'other', 'site')
-MEP_LAYERS = ('plumbing', 'drainage', 'electrical', 'ventilation')
+MEP_LAYERS = ('plumbing', 'drainage', 'electrical', 'low_voltage', 'ventilation')
 ON = {'visible': True, 'locked': False, 'dim': False}
 OFF = {'visible': False, 'locked': False, 'dim': False}
 UNDER = {'visible': True, 'locked': True, 'dim': True}     # faint, unpickable reference

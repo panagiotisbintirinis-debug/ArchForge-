@@ -152,3 +152,29 @@ def test_manifold_system_feeds_each_fixture_with_its_own_pipe_and_switches_by_co
     assert route_plumbing(doc)['manifolds'] == []
     with pytest.raises(ValueError):
         stack.execute(UpdateEntity(supply.id, {'pipe_system': 'lead'}))
+
+
+@pytest.mark.parametrize('system', ['multilayer', 'manifold'])
+def test_hot_network_is_one_piece_with_joined_corners(system):
+    """Scenario S01: the hot pipes were shifted per run, so at every corner they missed each other by 5 cm."""
+    doc = Document(); stack = CommandStack(doc); _house(stack)
+    supply = _point(stack, 'water_supply', 0.3, 0.3)
+    stack.execute(__import__('archforge.core.commands', fromlist=['UpdateEntity']).UpdateEntity(supply.id, {'pipe_system': system}))
+    _point(stack, 'water_heater', 7.6, 0.4)
+    for kind, x, y in (('basin', 5.0, 5.7), ('shower', 7.6, 5.6), ('kitchen_sink', 1.0, 5.7)):
+        _point(stack, kind, x, y)
+    hot = route_plumbing(doc)['hot']
+    parent = {}
+
+    def find(a):
+        while parent.setdefault(a, a) != a:
+            a = parent[a]
+        return a
+    for a, b, _d in hot:
+        ka, kb = tuple(round(v, 3) for v in a), tuple(round(v, 3) for v in b)
+        parent[find(ka)] = find(kb)
+    roots = {find(n) for n in list(parent)}
+    if system == 'multilayer':
+        assert len(roots) == 1                      # one tree from the heater to every hot outlet
+    else:
+        assert len(roots) <= 1 + 3                  # the feed tree + one home run per outlet, each one unbroken

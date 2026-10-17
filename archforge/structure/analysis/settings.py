@@ -20,7 +20,8 @@ DIAPHRAGMS = {"rigid": "Ισχυρό διάφραγμα σε κάθε πλάκα
 DEFAULTS = {"system": "reinforced_concrete", "occupancy": "residential", "roof_access": "accessible",
             "seismic_zone": "1", "soil": "B", "importance": "2", "concrete": "C25/30", "steel_grade": "S275",
             "slab_thickness": 0.18, "finishes": 1.5, "partitions": 1.0, "roof_finishes": 2.0,
-            "soil_pressure": 200.0, "foundation_type": "auto", "diaphragm": "rigid", "seismic_method": "modal"}
+            "soil_pressure": 200.0, "foundation_type": "auto", "diaphragm": "rigid", "seismic_method": "modal",
+            "behaviour_factor": 0.0}
 
 
 def design_entity(doc):

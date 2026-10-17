@@ -90,10 +90,13 @@ def report_html(r):
                 st = (f"Ø{e['stirrups']['d']}/{e['stirrups']['s_crit'] * 100:.1f} κρίσιμη {e['stirrups']['l_crit']:.2f} m, "
                       f"Ø{e['stirrups']['d']}/{e['stirrups']['s'] * 100:.1f}") if "stirrups" in e else "—"
                 nu = f"{e.get('nu_d', 0):.2f}"
-            out.append(f"<tr><td>{e['name']}</td><td>{escape(e.get('section', ''))}</td><td>{e['length_m']} m</td>"
-                       f"<td>{e['N_max']}</td><td>{nu}</td><td>{bars}</td><td>{st}</td><td>{_pct(e.get('utilisation', 0))}</td>"
+            out.append(f"<tr><td>{e['name']}{' (τοιχίο)' if e.get('wall') else ''}</td><td>{escape(e.get('section', ''))}</td>"
+                       f"<td>{e['length_m']} m</td><td>{e['N_max']}</td><td>{nu}</td><td>{bars}</td><td>{st}</td><td>{_pct(e.get('utilisation', 0))}</td>"
                        f"<td>{_status(e)}</td></tr>")
         out.append("</table>")
+    if any(e.get("wall") for e in cols):
+        from archforge.structure.analysis.rc import WALL_NOTE
+        out.append(f"<p style='color:#c0392b'><b>⚠ {escape(WALL_NOTE)}</b></p>")
     if beams or cols:
         out.append("<p><i>Κρίσιμες περιοχές: δοκοί l<sub>cr</sub> = h από κάθε στήριξη· κολόνες l<sub>cr</sub> = max(h<sub>c</sub>, L/6, 0,45 m) "
                    "πάνω και κάτω (L = ύψος μέλους, όχι καθαρό ύψος — προς την ασφαλή πλευρά). Συνδετήρες κλειστοί· "

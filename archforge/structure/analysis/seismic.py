@@ -28,6 +28,9 @@ BETA = 0.2
 
 
 def behaviour_factor(settings, storeys):
+    given = float(settings.get("behaviour_factor") or 0.0)
+    if given > 0:                      # the engineer's choice (e.g. a conservative q) — structure.behaviour_factor_user
+        return given
     if settings["system"] == "steel":
         return 4.0
     return 3.0 * (1.1 if storeys <= 1 else 1.3)

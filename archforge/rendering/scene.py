@@ -385,6 +385,19 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                 objects.append({"id": "", "render_part": f"elec:{group}", "kind": "elec_cable", "layer": "elec",
                                 "vertices": verts, "triangles": tris, "surfaces": ["cable"] * len(tris),
                                 "material": {"color": CABLE_COLORS.get(group, "#e07a00"), "roughness": 0.5, "metalness": 0.0}})
+            # Ασθενή (layer "lv"): data / TV home runs and the KNX bus, thinner, one mesh per system.
+            from archforge.mep.low_voltage import route_low_voltage_cached
+            lv_groups = {}
+            for a, b, system, _tid in route_low_voltage_cached(doc)["runs"]:
+                v, t = pipe_mesh(a, b, 16, sides=6)
+                g = lv_groups.setdefault(system, ([], []))
+                base = len(g[0])
+                g[0].extend(list(map(float, q)) for q in v)
+                g[1].extend([base + i for i in tri] for tri in t)
+            for system, (verts, tris) in lv_groups.items():
+                objects.append({"id": "", "render_part": f"lv:{system}", "kind": "lv_cable", "layer": "lv",
+                                "vertices": verts, "triangles": tris, "surfaces": ["cable"] * len(tris),
+                                "material": {"color": CABLE_COLORS.get(system, "#0e9aa7"), "roughness": 0.5, "metalness": 0.0}})
         # Foundation (layer "foundation"): footings and tie beams from the up-to-date analysis (never computed here).
         if any(e.kind == "structural_column" for e in doc.entities.values()):
             from archforge.structure.analysis import last_result

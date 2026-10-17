@@ -352,7 +352,7 @@ def entity_primitive(doc,eid):
         seg=_opening_segment(doc,e)
         if seg is None:return None
         a,b=seg
-        typed=e.kind in ('door','window') and str(p.get('opening_type','basic'))!='basic'
+        typed=e.kind in ('door','window')          # every door/window draws its symbol (basic ones a default one)
         return Primitive2D('line',(a,b),entity_id=eid,role='opening',meta=(('semantic',e.kind),('host',e.parent_id))+((('typed',True),) if typed else ()))
     if e.kind=='arboreal_branch':
         from archforge.organic.arboreal import arboreal_branch_geometry
@@ -418,7 +418,7 @@ def _swing_handle_point(doc,e,a,b):
     L=math.hypot(b[0]-a[0],b[1]-a[1])
     if L<1e-9:return None
     nx,ny=-(b[1]-a[1])/L,(b[0]-a[0])/L
-    side=inside_sign(doc,host)*(1 if r['swing']=='in' else -1)
+    side=inside_sign(doc,host,e)*(1 if r['swing']=='in' else -1)
     reach=float(host.params.get('thickness',.2))/2+min(.45,L*.45)
     return ((a[0]+b[0])/2+nx*side*reach,(a[1]+b[1])/2+ny*side*reach)
 def preview_primitives(preview):
@@ -647,16 +647,92 @@ def _axis_candidates(a,b,offset,first_side=1):
 _CONTOURS={'key':None,'value':[]}
 
 
+_POCHE={'key':None,'value':[]}
+
+
+def wall_poche(doc):
+    """Cut walls of the active storey as one region (owner 17/10: both faces + fill, not a line on the axis).
+
+    Union of every wall's band (half the thickness each side of the axis; an end that meets another wall runs
+    on by half its thickness so corners close), minus the openings.  ``[(outer, holes)]`` islands.
+    """
+    from archforge.geometry.regions import region
+    walls=[e for e in doc.entities.values() if e.kind=='wall' and e.visible and _entity_on_active_level(doc,e)]
+    openings=[e for e in doc.entities.values() if e.kind in ('door','window','opening') and e.parent_id in {w.id for w in walls}]
+    key=(tuple((w.id,repr(sorted(w.params.items()))) for w in walls),
+         tuple((o.id,o.parent_id,repr(sorted(o.params.items()))) for o in openings))
+    if _POCHE['key']==key:return _POCHE['value']
+    axes=[(w,(float(w.params['x1']),float(w.params['y1'])),(float(w.params['x2']),float(w.params['y2'])),float(w.params.get('thickness',.2))) for w in walls]
+    def meets(pt,own):
+        for w,a,b,t in axes:
+            if w is own:continue
+            dx,dy=b[0]-a[0],b[1]-a[1];ll=dx*dx+dy*dy
+            if ll<=1e-12:continue
+            u=max(0.,min(1.,((pt[0]-a[0])*dx+(pt[1]-a[1])*dy)/ll))
+            if math.hypot(pt[0]-a[0]-u*dx,pt[1]-a[1]-u*dy)<=t/2+1e-3:return True
+        return False
+    bands=[]
+    for w,a,b,t in axes:
+        L=math.hypot(b[0]-a[0],b[1]-a[1])
+        if L<=1e-9:continue
+        ux,uy=(b[0]-a[0])/L,(b[1]-a[1])/L;nx,ny=-uy*t/2,ux*t/2
+        ea=t/2 if meets(a,w) else 0.;eb=t/2 if meets(b,w) else 0.
+        a2=(a[0]-ux*ea,a[1]-uy*ea);b2=(b[0]+ux*eb,b[1]+uy*eb)
+        bands.append([(a2[0]-nx,a2[1]-ny),(b2[0]-nx,b2[1]-ny),(b2[0]+nx,b2[1]+ny),(a2[0]+nx,a2[1]+ny)])
+    cuts=[]
+    for o in openings:
+        seg=_opening_segment(doc,o)
+        if seg is None:continue
+        host=doc.get(o.parent_id);t=float(host.params.get('thickness',.2))/2+.01
+        (ax,ay),(bx,by)=seg;L=math.hypot(bx-ax,by-ay)
+        if L<=1e-9:continue
+        nx,ny=-(by-ay)/L*t,(bx-ax)/L*t
+        cuts.append([(ax-nx,ay-ny),(bx-nx,by-ny),(bx+nx,by+ny),(ax+nx,ay+ny)])
+    try:
+        value=region(bands,cuts,tolerance=1e-5) if bands else []
+    except Exception:
+        value=[]
+    _POCHE['key'],_POCHE['value']=key,value
+    return value
+
+
+MEP_LABEL_ROLES=('plumbing-label','electrical-label','lv-label','drain-label','ventilation-label')
+
+
+def _declutter_labels(f):
+    """MEP labels (owner 17/10, S01: unreadable where points crowd — sink, drain, panel): each takes the first
+    free spot round its point, else shows only from the zoom where it fits (same rule as the structural labels).
+    Room labels stay where they are and are kept clear."""
+    import dataclasses
+    fixed=[p for p in f.primitives if p.kind=='label' and p.role=='derived-room-label']
+    mep=[i for i,p in enumerate(f.primitives) if p.kind=='label' and p.role in MEP_LABEL_ROLES and 'align' not in dict(p.meta)]
+    if not mep:return
+    items=[(str(dict(p.meta).get('text','')),((p.points[0],(0.,0.)),)) for p in fixed]
+    for i in mep:
+        p=f.primitives[i];(x,y)=p.points[0]
+        cands=(((x,y),(0.,0.)),((x,y+.40),(0.,1.)),((x-.30,y),(1.,0.)),((x-.30,y+.40),(1.,1.)),((x,y-.25),(0.,0.)),((x+.30,y),(0.,0.)))
+        items.append((str(dict(p.meta).get('text','')),cands))
+    placed=place_labels(tuple(items))[len(fixed):]
+    for i,(anchor,align,min_scale) in zip(mep,placed):
+        p=f.primitives[i]
+        f.primitives[i]=dataclasses.replace(p,points=(anchor,),meta=tuple(p.meta)+(('align',align),('min_scale',min_scale)))
+
+
 def build_plan_frame(doc,preview=None,layers=True):
     f=PlanFrame()
     _lower_storey_underlay(doc,f)
+    for outer,holes in wall_poche(doc):
+        f.primitives.append(Primitive2D('polygon',tuple(outer),role='wall-poche',meta=(('islands',((tuple(outer),tuple(tuple(h) for h in holes)),)),)))
     try:
         from archforge.architecture.topology import room_metrics
         for index,face in enumerate(doc.active_room_faces(),start=1):
             m=room_metrics(face.polygon);data=doc.room_metadata(face.signature)
             name=data.get('name') or f'Χώρος {index}';use=data.get('use','')
-            label=name+(f' — {use}' if use else '')+f'\n{m["area"]:.2f} m²'
-            meta=(('semantic','derived-room'),('signature',face.signature),('wall_ids',face.wall_ids),('area',m['area']),('perimeter',m['perimeter']),('name',name),('use',use))
+            # Owner 17/10: the label shows the net area between the wall faces (as the take-off), not the axes.
+            from archforge.quantities.takeoff import _area,net_polygon
+            net=abs(_area(net_polygon(doc,face.polygon,float(doc.work_plane.origin[2]))))
+            label=name+(f' — {use}' if use and use!=name else '')+f'\n{net:.2f} m²'
+            meta=(('semantic','derived-room'),('signature',face.signature),('wall_ids',face.wall_ids),('area',m['area']),('net_area',net),('perimeter',m['perimeter']),('name',name),('use',use))
             f.primitives.append(Primitive2D('polygon',tuple(face.polygon),role='derived-room',meta=meta))
             cx,cy=m['centroid'];f.primitives.append(Primitive2D('label',((cx,cy),),role='derived-room-label',meta=(('signature',face.signature),('text',label))))
     except (ValueError,KeyError):
@@ -828,6 +904,16 @@ def build_plan_frame(doc,preview=None,layers=True):
                 if kind=='pull':
                     f.primitives.append(Primitive2D('polyline',((x-r,y-r),(x+r,y+r)),role='elec-box',meta=(('box',kind),)))
                     f.primitives.append(Primitive2D('polyline',((x-r,y+r),(x+r,y-r)),role='elec-box',meta=(('box',kind),)))
+        # Ασθενή of the active storey: data / TV star from the rack and the KNX bus (own layer and colours).
+        from archforge.mep.low_voltage import LV_RUN_DROP,route_low_voltage_cached
+        lv=route_low_voltage_cached(doc)
+        for a,b,system,tid in lv['runs']:
+            if abs(a[2]-b[2])<1e-9 and elec_floor(doc,a[2])==level:
+                f.primitives.append(Primitive2D('polyline',((a[0],a[1]),(b[0],b[1])),role='lv-cable',meta=(('system',system),('outlet',tid))))
+        for x,y,z,_kind,tid in lv['boxes']:
+            if elec_floor(doc,z)==level:
+                r=.05
+                f.primitives.append(Primitive2D('polyline',((x-r,y-r),(x+r,y-r),(x+r,y+r),(x-r,y+r),(x-r,y-r)),role='lv-box',meta=(('outlet',tid),)))
         names={pid:c['id'] for c in wiring['circuits'] for pid in c['points']}
         for eid in doc.entities:
             e=doc.get(eid)
@@ -837,7 +923,9 @@ def build_plan_frame(doc,preview=None,layers=True):
                     f.primitives.append(Primitive2D('polyline',((float(e.params['x']),float(e.params['y'])),(float(e.params['x2']),float(e.params['y2']))),
                                                     entity_id=eid,role='led-strip',meta=(('kelvin',float(e.params.get('kelvin',3000.0))),)))
                 text=ELEC[e.params['point_type']][4]+(f" {names[eid]}" if eid in names else '')
-                f.primitives.append(Primitive2D('label',((float(e.params['x'])+.12,float(e.params['y'])-.25),),entity_id=eid,role='electrical-label',meta=(('text',text),)))
+                lv_point=ELEC[e.params['point_type']][1]=='low_voltage'
+                f.primitives.append(Primitive2D('label',((float(e.params['x'])+.12,float(e.params['y'])-.25),),entity_id=eid,
+                                                role='lv-label' if lv_point else 'electrical-label',meta=(('text',text),)))
     # Derived joists of the active storey: one dashed line per joist and the solver's label.
     for eid in doc.entities:
         e=doc.get(eid)
@@ -918,7 +1006,7 @@ def build_plan_frame(doc,preview=None,layers=True):
         from archforge.mep.drainage import SLOPE,_floor_of as drain_floor,route_drainage_cached
         level=float(doc.work_plane.origin[2])
         drain=route_drainage_cached(doc)
-        labelled=set()
+        labelled=set();drain_specs=[]
         for a,b,dn,kind in drain['pipes']:
             if kind=='stack':
                 f.primitives.append(Primitive2D('ellipse',((a[0],a[1]),),dn/2000+.03,dn/2000+.03,0.,'','drain-stack',meta=(('diameter',dn),)))
@@ -926,16 +1014,27 @@ def build_plan_frame(doc,preview=None,layers=True):
             if drain_floor(doc,max(a[2],b[2])+.5)!=level:
                 continue
             f.primitives.append(Primitive2D('polyline',((a[0],a[1]),(b[0],b[1])),role='drain',meta=(('diameter',dn),('kind',kind))))
-            if kind=='collector' and (dn,round(a[0],1),) not in labelled and abs(a[0]-b[0])+abs(a[1]-b[1])>.15 and len(labelled)<12:
-                labelled.add((dn,round(a[0],1)))
-                f.primitives.append(Primitive2D('label',(((a[0]+b[0])/2+.05,(a[1]+b[1])/2+.12),),role='drain-label',meta=(('text',f"Φ{dn} {SLOPE*100:.0f}%"),)))
+            # A* route segments can be only 20 cm long. Repeating their text
+            # produces a carpet of labels even though the pipe is continuous.
+            # These buckets affect annotation density only, never route/BOM.
+            mid=((a[0]+b[0])/2,(a[1]+b[1])/2)
+            key=(dn,abs(a[0]-b[0])<1e-6,round(mid[0]/1.5),round(mid[1]/1.5))
+            if kind=='collector' and key not in labelled and abs(a[0]-b[0])+abs(a[1]-b[1])>.15 and len(labelled)<12:
+                labelled.add(key)
+                drain_specs.append((1,f"Φ{dn} {SLOPE*100:.0f}%",_axis_candidates(a[:2],b[:2],.15)))
         for n in drain['nodes']:
             if abs(n['z']-level)>.05:
                 continue
             r={'manhole':.30,'floor_drain':.08,'stack':.10}[n['kind']]
             x,y=n['x'],n['y']
             f.primitives.append(Primitive2D('polyline',((x-r,y-r),(x+r,y-r),(x+r,y+r),(x-r,y+r),(x-r,y-r)),role='drain-node',meta=(('kind',n['kind']),('auto',n['auto']))))
-            f.primitives.append(Primitive2D('label',((x+r+.05,y-r-.12),),role='drain-label',meta=(('text',{'manhole':'Φρεάτιο','floor_drain':'Σιφώνι','stack':f"Στήλη Φ{n.get('dn',100)}"}[n['kind']]+(' (αυτ.)' if n['auto'] else '')),)))
+            text={'manhole':'Φρεάτιο','floor_drain':'Σιφώνι','stack':f"Στήλη Φ{n.get('dn',100)}"}[n['kind']]+(' (αυτ.)' if n['auto'] else '')
+            drain_specs.append((0,text,_corner_candidates(x,y,r,r)))
+        drain_specs.sort(key=lambda q:q[0])
+        placed=place_labels(tuple((text,cands) for _rank,text,cands in drain_specs))
+        for (_rank,text,_cands),(anchor,align,min_scale) in zip(drain_specs,placed):
+            f.primitives.append(Primitive2D('label',(anchor,),role='drain-label',
+                meta=(('text',text),('align',align),('min_scale',min_scale))))
     # Derived extract ducts of the active storey (under the ceiling) and their outlets.
     if any(e.kind=='ventilation_point' for e in doc.entities.values()):
         from archforge.mep.ventilation import POINT_TYPES as VENT,_floor_of as vent_floor,route_ventilation_cached
@@ -966,5 +1065,6 @@ def build_plan_frame(doc,preview=None,layers=True):
         # Layers / environment (core/layers.py): hidden out, locked unpickable, dim faint.
         from .layers import apply_to_frame
         apply_to_frame(doc,f)
+    _declutter_labels(f)
     if preview:f.primitives.extend(preview_primitives(preview));f.hud=dict(preview.hud);f.snap=preview.snap
     return f

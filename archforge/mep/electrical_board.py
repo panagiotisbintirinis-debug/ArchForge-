@@ -75,7 +75,18 @@ register(
     Rule("board.phase_balance", "Κατανομή φάσεων: το μεγαλύτερο φορτίο στην πιο ελαφριά φάση", DESIGN_DEFAULT,
          note="Αλγόριθμος του προγράμματος· ο ηλεκτρολόγος ορίζει την τελική κατανομή"),
     Rule("board.waste", "Φύρα αγοράς καλωδίων", DESIGN_DEFAULT, note="Ρύθμιση χρήστη, 0 % αν δεν οριστεί"),
+    Rule("board.front_layout", "Πρόσοψη πίνακα: γενικός → κάθε διαφορικός με τις ασφάλειές του, μία μπάρα ουδετέρων ανά "
+         "διαφορικό, κοινή μπάρα γειώσεων· ασφάλειες 1P στη φάση του κυκλώματος· πλάτος σε «θέσεις» και ράγες των "
+         f"{12} θέσεων μόνο για το σχέδιο", DESIGN_DEFAULT,
+         note="Σχηματική διάταξη του προγράμματος, όχι κατασκευαστικό σχέδιο· πόλοι, θέσεις και ράγες κατά τα προϊόντα "
+              "που επιλέγει ο ηλεκτρολόγος"),
+    Rule("board.rcd_groups", "Ποια κυκλώματα πάνε σε ποιον διαφορικό και ονομαστικό ρεύμα του καθενός", ENGINEER_REVIEW,
+         note="Ρύθμιση χρήστη (στήλη «Διαφορικός»)· χωρίς ρύθμιση όλα σε έναν διαφορικό. Τα 30 mA: κανόνας electrical.rcd_30ma"),
+    Rule("board.conductor_colours", "Χρώματα αγωγών στο σχέδιο: L1 καφέ, L2 μαύρο, L3 γκρι, N μπλε, PE πράσινο-κίτρινο",
+         UNVERIFIED, note="Σύμβαση σχεδίου· η κωδικοποίηση κατά ΕΛΟΤ HD 308 δεν διασταυρώθηκε με το κείμενο"),
 )
+
+RAIL_MODULES = 12          # drawing only (board.front_layout)
 
 
 def unverified_lines():
@@ -99,6 +110,7 @@ def settings(doc):
             "supply_phases": int(p.get("supply_phases", 0)), "supply_fuse_a": float(p.get("supply_fuse_a", 0.0)),
             "demand_factor": float(p.get("demand_factor", 0.0)), "waste_pct": float(p.get("waste_pct", 0.0)),
             "install_method": str(p.get("install_method", "B1")),
+            "rcd_groups": dict(p.get("rcd_groups") or {}), "rcd_ratings": list(p.get("rcd_ratings") or []),
             "control_system": str(p.get("control_system", "conventional"))}
 
 
@@ -450,3 +462,46 @@ def board_csv(result):
     lines += ["", "Κατάσταση κανόνων (μόνο τα επαληθευμένα είναι τεχνική απαίτηση)"] + list(result["unverified"])
     lines += ["", result["provenance"], result["circuit_provenance"]]
     return "\n".join(lines) + "\n"
+
+
+def front(result):
+    """The board as seen from the front: devices on DIN rails, neutral bars, earth bar (``board.front_layout``).
+
+    Built only from the analysis rows and the user's entries: phases and supply fuse (main switch),
+    which RCD each circuit is on (``rcd_groups``, default all on Δ1) and each RCD's rating
+    (``rcd_ratings``, «—» until entered).  No device rating is invented.
+    """
+    conf, rows, board = result["settings"], result["circuits"], result["board"] or {}
+    phases = conf["supply_phases"] or None
+    poles = {1: 2, 3: 4}.get(phases)
+    groups = {}
+    for r in rows:
+        g = int(conf["rcd_groups"].get(r["id"], 1) or 1)
+        groups.setdefault(g, []).append(r)
+    devices = [{"kind": "main", "label": "Γενικός", "rating_a": conf["supply_fuse_a"] or None, "poles": poles,
+                "modules": poles or 2, "phase": "L1–L3" if phases == 3 else ("L" if phases == 1 else None)}]
+    neutral_bars = []
+    for g in sorted(groups):
+        rating = conf["rcd_ratings"][g - 1] if g - 1 < len(conf["rcd_ratings"]) else None
+        devices.append({"kind": "rcd", "label": f"Δ{g}", "group": g, "rating_a": rating or None, "sensitivity_ma": 30,
+                        "poles": poles, "modules": poles or 2})
+        for r in groups[g]:
+            n = len(r["conductors"])
+            devices.append({"kind": "mcb", "label": r["id"], "group": g, "circuit": r["id"], "rating_a": r["breaker_a"],
+                            "poles": 1, "modules": 1, "phase": r.get("phase") or ("L1" if phases == 1 else None),
+                            "use": r["label"], "cable": f"{n}×{_mm2(r['mm2'])}"})
+        neutral_bars.append({"group": g, "label": f"N Δ{g}", "terminals": [r["id"] for r in groups[g]]})
+    rails, rail, used = [], [], 0
+    for d in devices:
+        if used + d["modules"] > RAIL_MODULES and rail:
+            rails.append(rail); rail, used = [], 0
+        rail.append(d); used += d["modules"]
+    if rail:
+        rails.append(rail)
+    return {"phases": phases, "ask_phases": phases is None, "rails": rails, "devices": devices,
+            "neutral_bars": neutral_bars, "earth_bar": ["ΠΑΡΟΧΗ"] + [r["id"] for r in rows],
+            "rcd_count": len(groups), "main_switch": board.get("main_switch")}
+
+
+def _mm2(v):
+    return f"{float(v):g}".replace(".", ",")

@@ -44,7 +44,7 @@ ICONS = {
     "mm:tool:structural_column": "column", "mm:tool:structural_beam": "beam",
     "mm:menu:stair": "stair", "mm:menu:kitchen": "cabinet", "mm:menu:structure": "column",
     "mm:menu:openings": "door", "mm:menu:way": "way_in_left", "mm:menu:build": "more", "mm:menu:wall_more": "more", "mm:tool:opening_arch": "opening",
-    "mm:group:room": "room", "mm:group:slab": "slab", "mm:more": "more", "mm:kgroup:0": "cabinet",
+    "mm:group:room": "room", "mm:menu:roomuse": "room", "mm:group:slab": "slab", "mm:more": "more", "mm:kgroup:0": "cabinet",
     "mm:kgroup:1": "cabinet", "mm:kgroup:2": "cabinet", "mm:kgroup:3": "cabinet", "mm:kgroup:4": "appliance",
     "properties": "properties", "move": "move", "rotate": "rotate", "stretch": "stretch", "materials": "materials",
     "delete": "delete", "mm:obj:duplicate": "duplicate", "mm:obj:mirror": "mirror", "mm:obj:rot90": "rotate",
@@ -287,6 +287,8 @@ def _build_menu(window, view, entity_id=None, xy=None):
         # «… σε αυτόν τον χώρο» only inside a closed room: outside one they do nothing (walk-through 14/10).
         if xy is None or _in_room(window.doc, *xy):
             rare.append(_e("mm:group:room", "Σε αυτόν τον χώρο", children=[
+                _e("mm:menu:roomuse", "Χρήση χώρου", children=[_e(f"mm:roomuse:{i}", u) for i, u in enumerate(ROOM_USES)]
+                   + [_e("mm:roomuse:name", "Όνομα…")]),
                 _e("mm:layout:bath", "Μπάνιο εδώ…"),
                 _e("mm:roofroom:tiled", "Κεραμοσκεπή"), _e("mm:roofroom:terrace", "Ταράτσα"),
                 _e("mm:slab:atrium", "Αίθριο"), _e("mm:slab:inner_balcony", "Κενό πλάκας (εσωτ. μπαλκόνι)"),
@@ -349,6 +351,25 @@ def _fit(entries):
         keep.append(_e("mm:more", "Περισσότερα", "panel", children=panel))
         return keep
     return entries
+
+
+# Owner 17/10: rooms by use, so finishes and materials can be told apart room by room. A kitchen is its own
+# room only when closed; open to the living room it is «Σαλόνι – κουζίνα».
+ROOM_USES = ("Σαλόνι", "Κουζίνα", "Σαλόνι – κουζίνα", "Υπνοδωμάτιο", "Μπάνιο", "WC", "Διάδρομος", "Γραφείο",
+             "Αποθήκη", "Πλυσταριό", "Λεβητοστάσιο", "Γκαράζ")
+
+
+def set_room_use(window, x, y, name):
+    """Name / use of the room under (x, y) — one undo step."""
+    from archforge.core.commands import SetRoomMetadata
+    from archforge.geometry.regions import point_in_polygon
+    face = next((f for f in window.doc.active_room_faces() if point_in_polygon(float(x), float(y), f.polygon)), None)
+    if face is None or not str(name).strip():
+        return False
+    window.stack.execute(SetRoomMetadata(face.signature, {"name": str(name).strip(), "use": str(name).strip()}))
+    window._redraw_views(all_views=True)
+    window.statusBar().showMessage(f"Χώρος: {str(name).strip()} — Ctrl+Z για αναίρεση", 5000)
+    return True
 
 
 def run(window, view, entity_id, action_id, plan_xy=None):
@@ -427,6 +448,16 @@ def run(window, view, entity_id, action_id, plan_xy=None):
     elif group == "krun":
         from archforge.ui.cabinet_run_tool import run as cabinet_run
         cabinet_run(window, arg, entity_id, plan_xy)
+    elif group == "roomuse" and plan_xy is not None:
+        if arg == "name":
+            if getattr(window, "_no_modal_dialogs", False):
+                return
+            from PySide6.QtWidgets import QInputDialog
+            text, ok = QInputDialog.getText(window, "Όνομα χώρου", "Όνομα (π.χ. Υπνοδωμάτιο 2):")
+            if ok:
+                set_room_use(window, *plan_xy, text)
+        else:
+            set_room_use(window, *plan_xy, ROOM_USES[int(arg)])
     elif group == "roofroom" and plan_xy is not None:
         window._set_room_roof(arg, *plan_xy)
     elif group == "slab":

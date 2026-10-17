@@ -7,7 +7,9 @@ on:
 jobs:
   core-tests:
     runs-on: windows-latest
-    timeout-minutes: 15
+    # The suite builds whole test buildings (docs/scenarios, quality gate): ~12 min of tests on the runner
+    # plus setup; one more scenario at a time keeps growing it.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6

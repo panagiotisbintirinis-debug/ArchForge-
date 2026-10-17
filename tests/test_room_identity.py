@@ -76,7 +76,8 @@ def test_plan_frame_uses_room_name_use_and_area_label():
     frame=build_plan_frame(d);labels=[p for p in frame.primitives if p.role=='derived-room-label']
     assert len(labels)==1
     text=dict(labels[0].meta)['text']
-    assert 'Kitchen' in text and 'Cooking' in text and '12.00 m²' in text
+    # Owner 17/10: net area between the wall faces (walls 15 cm): 3.85 × 2.85, not 12.00 on the axes.
+    assert 'Kitchen' in text and 'Cooking' in text and '10.97 m²' in text
     regions=[p for p in frame.primitives if p.role=='derived-room']
     assert dict(regions[0].meta)['signature']==sig
 
@@ -88,3 +89,44 @@ def test_room_metadata_rejects_unknown_fields():
         assert False
     except ValueError:
         pass
+
+
+def test_room_name_and_use_is_one_undo_step():
+    from archforge.core.commands import CommandStack, SetRoomMetadata
+    d=Document();rectangle(d);sig=room_faces(d)[0].signature;st=CommandStack(d)
+    st.execute(SetRoomMetadata(sig,{'name':'Σαλόνι','use':'Σαλόνι'}))
+    labels=[p for p in build_plan_frame(d).primitives if p.role=='derived-room-label']
+    assert dict(labels[0].meta)['text'].startswith('Σαλόνι\n')                 # use = name: written once
+    st.execute(SetRoomMetadata(sig,{'name':'Μπάνιο','use':'Μπάνιο'}))
+    st.undo()
+    assert d.room_metadata(sig)['name']=='Σαλόνι'
+    st.undo()
+    assert d.room_metadata(sig)=={}
+    st.redo()
+    assert d.room_metadata(sig)['name']=='Σαλόνι'
+
+
+def test_mouse_menu_sets_the_room_use_with_one_undo():
+    """Owner 17/10: rooms named by use (Σαλόνι, Κουζίνα, Υπνοδωμάτιο, Μπάνιο …) from right click on the room."""
+    import os
+    os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+    from PySide6.QtWidgets import QApplication
+    from archforge.ui.main_window import MainWindow
+    from archforge.ui.marking_menu import ROOM_USES, all_ids, build_menu, run
+    app = QApplication.instance() or QApplication([])
+    w = MainWindow(); w._no_modal_dialogs = True
+    try:
+        for e in rectangle(w.doc):
+            pass
+        sig = room_faces(w.doc)[0].signature
+        ids = all_ids(build_menu(w, 'plan', xy=(2.0, 1.5))['entries'])
+        bath = ROOM_USES.index('Μπάνιο')
+        assert f'mm:roomuse:{bath}' in ids and 'mm:roomuse:name' in ids
+        run(w, 'plan', None, f'mm:roomuse:{bath}', (2.0, 1.5))
+        assert w.doc.room_metadata(sig)['name'] == 'Μπάνιο'
+        from archforge.assistant.understanding import _use_from_text
+        assert _use_from_text(w.doc.room_metadata(sig)['use']) == 'bathroom'      # wet room: moisture boards etc.
+        w.stack.undo()
+        assert 'name' not in w.doc.room_metadata(sig)
+    finally:
+        w._mark_clean(); w.close(); app.processEvents()

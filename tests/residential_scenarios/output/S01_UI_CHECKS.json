@@ -1,0 +1,43 @@
+{
+  "_project_sha256": "9f863a6138c466a52c24d368f5fe20f00af03183034eb0a807afd2e2c3a32781",
+  "Plan: Ground": {
+    "status": "PASS",
+    "detail": "S01_01_plan.png — real Qt plan widget"
+  },
+  "Plan: Level 1": {
+    "status": "PASS",
+    "detail": "S01_01b_upper_plan.png"
+  },
+  "UI level switch": {
+    "status": "PASS",
+    "detail": "Floor selector changed work plane; no entity was removed"
+  },
+  "UI select": {
+    "status": "PASS",
+    "detail": "Actual double click in the plan on the sofa"
+  },
+  "Plumbing plan": {
+    "status": "PASS",
+    "detail": "S01_04_plumbing.png — actual layer visibility controls"
+  },
+  "Drainage plan": {
+    "status": "PASS",
+    "detail": "S01_05_drainage.png — actual layer visibility controls"
+  },
+  "Electrical plan": {
+    "status": "PASS",
+    "detail": "S01_06_electrical.png — actual layer visibility controls"
+  },
+  "PBR 3D": {
+    "status": "PASS",
+    "detail": "S01_02_3d.png — Actual WebGL viewport frame"
+  },
+  "Structural": {
+    "status": "PASS",
+    "detail": "S01_03_structural.png — Actual WebGL viewport frame"
+  },
+  "UI close/reopen": {
+    "status": "PASS",
+    "detail": "Saved project; closed real window; fresh MainWindow opened file via checked-open path"
+  }
+}

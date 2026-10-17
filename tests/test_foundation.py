@@ -40,8 +40,15 @@ def test_tie_beams_link_every_footing_in_both_directions_with_the_ec8_force():
     assert linked == {f['name'] for f in fts}
 
 
+def _pads(doc):
+    """«Θεμελίωση: μεμονωμένα πέδιλα» — these tests are about pads and ties («Αυτόματα» may choose strips
+    where a pad would overturn in the earthquake, owner 17/10)."""
+    doc.add(Entity('structural_design', {'foundation_type': 'pads'}))
+
+
 def test_analysis_result_carries_the_foundation_under_the_base():
     doc, _st = _building(storeys=1)
+    _pads(doc)
     r = analyze(doc)
     fd = r['foundation']
     assert len(fd['footings']) == 9 and len(fd['ties']) == 12
@@ -61,8 +68,10 @@ def test_one_command_from_walls_to_columns_beams_and_footings_in_one_undo():
     out = design_structure(doc, st)
     r = out['result']
     assert out['added']['columns'] > 0 and r and not r.get('error')
-    assert len(r['foundation']['footings']) == out['added']['columns']
-    assert 'πέδιλα' in summary(out)
+    fd = r['foundation']
+    under = {f['column'] for f in fd['footings']} | {c for sp in fd['strips'] for c in sp['columns']}
+    assert len(under) == out['added']['columns']                       # every column on a pad or a strip
+    assert 'πέδιλα' in summary(out) or 'πεδιλοδοκ' in summary(out)
     st.undo()
     assert not any(e.kind in ('structural_column', 'structural_beam') for e in doc.entities.values())
     assert sum(e.kind == 'wall' for e in doc.entities.values()) == 4
@@ -93,6 +102,7 @@ def test_footings_show_in_plan_3d_tree_and_report():
     from archforge.structure.analysis.report import report_html
     from archforge.ui.project_outline import project_outline
     doc, _st = _building(storeys=1)
+    _pads(doc)
     r = analyze_cached(doc)
     roles = [p.role for p in build_plan_frame(doc).primitives]
     assert roles.count('footing') == 9 and roles.count('tie-beam') == 24

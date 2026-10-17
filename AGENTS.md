@@ -114,6 +114,37 @@ Agreed with the owner after an honest review of where an AI agent cannot be trus
 - Say plainly what was not verified (Windows, real users, performance on a full house) instead of reporting green tests as proof.
 - Prefer one branch at a time; when parallel work exists, write the integration contract in the HANDOFF instead of duplicating the feature.
 
+## Material economy (owner, 2026-10-17, binding)
+Owner: «πρέπει να υπάρχει η λογική της οικονομίας υλικών γενικά — αυτό είναι κανόνας».
+- Every routing / layout the program proposes (conduits, cables, pipes, ducts, members, cuts) takes the arrangement with the
+  least material that still meets the system's own rules: shared trees over separate runs, shortest path along the allowed
+  zones, one cable per point only where the system needs it (e.g. Ethernet home runs).
+- Where economy and a rule conflict, the rule wins and the extra material is shown with its reason.
+- Quantities are always reported, so the economy can be checked.
+
+- **Safety first (owner 17/10):** economy applies only after safety — above all seismic safety in Greece. Never pick
+  the lighter solution if it fails a check («τι είναι καλύτερο, να γλιτώσεις 15 κυβικά ή να χάσεις το σπίτι;»):
+  e.g. strip footings that keep every seismic resultant on the base win over cheaper pads that overturn.
+
+## Scenario quality gate & shared tools (owner, 2026-10-17, binding)
+
+Every test scenario passes the full gate in `docs/scenarios/QUALITY_GATE.md` before the next one starts: all six
+sections (design, statics, MEP, quote, program behaviour, visual), fix, rerun the WHOLE list, regression on earlier
+scenarios. "Built without an exception" is never a pass. Reuse these instead of writing your own:
+
+- `archforge/scenarios/gate.py` — the checks (`Gate(s, module, out).run()`), report `Sxx_REPORT.md` with PASS / FAIL /
+  N/A and the findings history (FIXED / OPEN, files, commit). Build: `py scripts/build_scenarios.py 01`.
+- `archforge/scenarios/render3d.py` — real 3D pictures without a GPU: the app's own 3D page (`pbr_page_html`) and scene
+  (`pbr_viewport.scene_payload`) in headless Chromium; camera presets `top` / `dollhouse`. Look at the pictures.
+- `archforge/scenarios/common.py` — scenario steps through the UI's own paths (walls, openings, levels, stairs,
+  room use, «Κουζίνα/Μπάνιο εδώ», Library furniture, MEP point tools).
+- `archforge/quantities/price_book.py` — the user's common price book (project prices override; never invents a
+  price); `quote()['by_trade']` = totals per trade. Tests isolate it (`tests/conftest.py`).
+- Plan: `plan_scene.wall_poche` (walls with both faces), `_declutter_labels` (MEP labels without overlap);
+  `joinery.inside_sign(doc, wall, opening)` (an interior door opens into the room it serves);
+  `interaction.next_name` (Greek numbered names); `SetRoomMetadata` (room name/use, one undo).
+- Full suite in the cloud: `QTWEBENGINE_DISABLE_SANDBOX=1 QT_QPA_PLATFORM=offscreen python -m pytest -q` (~10 min).
+
 ## Human intervention threshold
 Do not ask the human to choose routine implementation details. Escalate only when the answer would materially change product semantics, user-facing policy, safety, cost, or architecture direction and cannot be resolved from existing repository contracts.
 
