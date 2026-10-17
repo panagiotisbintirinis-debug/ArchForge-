@@ -12,7 +12,7 @@ permissions:
 jobs:
   generate-and-test:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
         with:
@@ -20,6 +20,8 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
+      - name: Install dependencies
+        run: python -m pip install pytest -r requirements.txt
       - name: Generate 10 human-openable ArchForge projects
         run: python tests/residential_scenarios/generate_projects.py
       - name: Commit generated project fixtures when changed
@@ -32,11 +34,27 @@ jobs:
             git commit -m "Generate residential scenario project fixtures"
             git push origin HEAD:test/residential-scenario-suite
           }
-      - name: Install dependencies
-        run: python -m pip install pytest -r requirements.txt
-      - name: Run scenarios sequentially: design -> structure -> MEP -> quote
+      - name: "Run scenarios sequentially: design -> structure -> MEP -> quote"
         env:
           PYTHONPATH: .
           QT_QPA_PLATFORM: offscreen
           QT_QPA_FONTDIR: C:/Windows/Fonts
         run: python -m pytest tests/test_residential_scenarios_e2e.py -q -x
+      - name: Capture scenario screenshots
+        if: success()
+        env:
+          PYTHONPATH: .
+          QT_QPA_PLATFORM: offscreen
+          QT_QPA_FONTDIR: C:/Windows/Fonts
+          QTWEBENGINE_CHROMIUM_FLAGS: --disable-gpu --no-sandbox
+        run: python tests/residential_scenarios/capture_projects.py
+      - name: Upload projects, reports and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: residential-scenario-suite
+          if-no-files-found: warn
+          path: |
+            tests/residential_scenarios/*.archforge
+            tests/residential_scenarios/output/*.png
+            tests/residential_scenarios/output/*.md
