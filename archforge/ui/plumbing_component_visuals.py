@@ -1,21 +1,26 @@
-"""Install persistent 2D/3D presentation for explicit plumbing components."""
+"""Install persistent plumbing component presentation in technical 2D and PBR 3D."""
 from __future__ import annotations
 
 
 def install() -> None:
-    from archforge.ui import plan_view, pbr_viewport
+    from archforge.ui import pbr_viewport, plumbing_tab
 
-    current_plan = plan_view.build_plan_frame
-    if not getattr(current_plan, "_archforge_plumbing_component_visuals", False):
-        def wrapped_plan(doc, preview=None, layers=True):
-            frame = current_plan(doc, preview, layers=layers)
+    # Technical plumbing plan only: the normal floor plan intentionally stays
+    # pipe-only and uncluttered.
+    cls = plumbing_tab.PlumbingTechnicalPlan
+    if not getattr(cls, "_archforge_component_visuals_installed", False):
+        original_redraw = cls.redraw
+
+        def redraw(self):
+            original_redraw(self)
             from archforge.mep.plumbing_component_visuals import plan_primitives
-            frame.primitives.extend(plan_primitives(doc))
-            return frame
-        wrapped_plan._archforge_plumbing_component_visuals = True
-        wrapped_plan._archforge_original = current_plan
-        plan_view.build_plan_frame = wrapped_plan
+            for primitive in plan_primitives(self.doc):
+                self._draw_primitive(primitive)
 
+        cls.redraw = redraw
+        cls._archforge_component_visuals_installed = True
+
+    # PBR 3D: explicit accessories remain visible as identifiable MEP objects.
     current_pbr = pbr_viewport.build_pbr_scene_payload
     if not getattr(current_pbr, "_archforge_plumbing_component_visuals", False):
         def wrapped_pbr(evaluation, selected_ids=(), mesh_overrides=None, doc=None):
