@@ -34,7 +34,7 @@ jobs:
       - name: Current scenario regression checks
         env:
           QT_QPA_PLATFORM: offscreen
-        run: python -m pytest tests/test_residential_scenarios_e2e.py tests/test_residential_scenario_gate.py tests/test_shared_pricebook_compat.py tests/test_project_pricebook.py tests/test_project_quote.py tests/test_roof_need.py tests/test_stair_slab_opening.py -q
+        run: python -m pytest tests/test_capacity_joint_diagnostics.py tests/test_residential_scenarios_e2e.py tests/test_residential_scenario_gate.py tests/test_shared_pricebook_compat.py tests/test_project_pricebook.py tests/test_project_quote.py tests/test_roof_need.py tests/test_stair_slab_opening.py -q
       - name: Capture real current-scenario UI including MEP and reopen
         if: always() && steps.generate.outcome == 'success'
         env:

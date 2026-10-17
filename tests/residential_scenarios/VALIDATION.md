@@ -53,7 +53,9 @@ PR #127; Linux results must not be relabelled as Windows UI validation.
 ## Full gate remains BLOCKED
 
 - Six top-storey/roof capacity-joint entries report `meets=False` although the
-  solver's top-level warning list is empty. They are recorded as failures to
+  solver originally omitted them from its top-level warnings. The follow-up fix
+  exposes each flagged node/direction/ratio with unverified applicability. They
+  remain recorded as failures to
   examine, with the original unverified/review provenance. No regulatory waiver
   or member resizing has been invented to make them green.
 - The current heating/HVAC module is inventory-only; a heating-network continuity
@@ -65,3 +67,11 @@ PR #127; Linux results must not be relabelled as Windows UI validation.
 Read `output/S01_REPORT.md` and `output/S01_EVIDENCE.json` for the exact checklist.
 S02–S10 and every phase-two PDF case remain unapproved/unexecuted by this gate.
 No merge has been performed.
+
+## Follow-up diagnostic regression
+
+The added S01 regression reproduced missing per-joint provenance and the empty
+warning summary before the fix. Raw comparison flags and all member designs are
+preserved; the warnings now carry every flagged node/direction and review status.
+This fixes diagnostic visibility, not engineering applicability or member capacity.
+The .archforge file and the eight previously inspected geometry views are unchanged.

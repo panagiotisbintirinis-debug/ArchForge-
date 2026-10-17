@@ -20,6 +20,8 @@ import math
 import numpy as np
 
 from archforge.structure.analysis.rc import column_capacity
+from archforge.core.provenance import ENGINEER_REVIEW, rule
+import archforge.structure.rules  # registers the source/status of this comparison
 
 FACTOR = 1.30
 _AXES = {"X": np.array([1.0, 0.0, 0.0]), "Y": np.array([0.0, 1.0, 0.0])}
@@ -55,6 +57,7 @@ def _column_mrd(entry, member, rows, at, axis, cls):
 
 
 def joint_checks(model, members, designs, settings):
+    comparison_rule = rule("structure.capacity_joints")
     cls = settings["concrete"]
     cols = [m for m in model.members.values() if m.kind == "column" and m.material == "rc"]
     beams = [m for m in model.members.values() if m.kind == "beam" and m.material == "rc"]
@@ -110,5 +113,25 @@ def joint_checks(model, members, designs, settings):
                         "z": round(model.nodes[n][2], 2), "joint": (below[0] if below else col_at[n][0][0]).name,
                         "columns": names, "beams": sorted({m.name for m, _ in framing}),
                         "sum_MRc": round(mrc, 1), "sum_MRb": round(mrb, 1), "ratio": round(ratio, 2),
-                        "top": not any(end == "bottom" for _m, end, _ in col_at[n]), "meets": ratio >= FACTOR - 1e-9})
+                        "top": not any(end == "bottom" for _m, end, _ in col_at[n]), "meets": ratio >= FACTOR - 1e-9,
+                        "rule_id": comparison_rule.id, "rule_status": comparison_rule.status,
+                        "rule_source": comparison_rule.source, "rule_note": comparison_rule.note,
+                        "factor": FACTOR, "applicability": ENGINEER_REVIEW})
     return out
+
+
+def joint_review_warnings(joints):
+    """Expose raw comparison flags without asserting failure or applying exemptions.
+
+    ``meets`` remains the existing numerical comparison. Neither it nor a top
+    node proves that the regulatory check applies (or that an exemption does).
+    No member capacity or design input is changed by this diagnostic.
+    """
+    return [
+        f"Κόμβος {j['joint']} / {j['axis']} (z={j['z']:.2f} m"
+        f"{', κορυφή' if j['top'] else ''}): ΣMRc/ΣMRb={j['ratio']:.2f} "
+        f"< {j['factor']:.2f} — μη επαληθευμένο κριτήριο· "
+        "η εφαρμογή του και τυχόν εξαιρέσεις θέλουν έλεγχο μηχανικού. "
+        "Δεν αποτελεί επιβεβαιωμένη αστοχία ή εντολή αλλαγής διατομών."
+        for j in joints if j.get("meets") is False
+    ]

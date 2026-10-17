@@ -298,8 +298,9 @@ def analyze(doc):
             result["ok"] = False
     if seismic_cases:
         result["modal"] = modal
-        from archforge.structure.analysis.capacity import joint_checks
+        from archforge.structure.analysis.capacity import joint_checks, joint_review_warnings
         result["capacity_joints"] = joint_checks(model, result["members"], designs, settings)
+        result["warnings"].extend(joint_review_warnings(result["capacity_joints"]))
     result["footings"] = _footings(model, frame, settings, seismic_cases, combos, seismic_reactions)
     for f in result["footings"]:
         if not f["pressure_ok"]:

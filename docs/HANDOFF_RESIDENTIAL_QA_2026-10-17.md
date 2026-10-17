@@ -35,8 +35,10 @@ S01 remains **BLOCKED**; S02–S10 are not approved. Read the versioned
 `tests/residential_scenarios/output/S01_REPORT.md` and raw `S01_EVIDENCE.json`.
 
 The structural solver reports several `capacity_joints[].meets=False` at top/roof
-nodes while its top-level warnings list is empty. These flags must be exposed and
-examined. They are software output under unverified/review rules, not proof of a
+nodes. Follow-up correction: the same six flags now reach the top-level warnings
+with node, direction, elevation, ratio and explicit unverified/review wording.
+Each raw joint entry also carries rule ID/status/source, comparison factor and
+ENGINEER_REVIEW applicability. No exemption or section change is applied. They are software output under unverified/review rules, not proof of a
 confirmed code violation. Do not waive them, invent a regulatory exception, or
 resize members from memory merely to obtain a green test.
 
@@ -79,3 +81,34 @@ Unmodified source: `tests/residential_scenarios/phase2/owner_stress_scenarios.pd
 Execution order and trust requirements: `phase2/README.md`.
 Status: QUEUED, not executed. Its numeric expectations must be checked against
 primary engineering/manufacturer sources before they become verified rules.
+
+## Follow-up: unresolved checks investigated, 17 October
+
+The owner asked that remaining issues be investigated and fixed rather than just
+listed. Reproduced the missing joint diagnostics with a failing regression before
+fixing the analysis summary. All six raw numerical flags remain unchanged.
+The complete scenario audit remains BLOCKED, now also explicitly failing the
+no-warnings check: surfacing warnings is not resolving the underlying applicability.
+
+Source investigated: European Commission JRC, *Eurocode 8: Seismic Design of
+Buildings*, 2012, chapter 3, Fardis and Tsionis, printed p.61 (PDF p.74), section
+3.4.4:
+https://eurocodes.jrc.ec.europa.eu/sites/default/files/2022-06/EC8_Seismic_Design_of_Buildings-Worked_examples.pdf
+This is primary authored training/worked-example material, not the normative
+standard or the Greek National Annex. It explicitly depends on structural-system
+classification and its particular example. It does not establish a top-node
+exemption for S01. No rule status was promoted to VERIFIED from this report.
+Still needed: applicable normative edition/clauses and National Annex, verified
+applicability for the actual frame, and validation of capacities/actions.
+
+Heating investigation: archforge/mep/heating.py currently reads only authored
+points/zones and optional entered lengths. It has no pipe graph, source-to-emitter
+connections, supply/return model or hydraulic calculation. S01 contains no heating
+entities. Adding an automatic heat/pump/pipe design to clear this check would
+require a genuine user-editable model/UI and verified project/method/manufacturer
+inputs. No hidden fixture-only network or invented engineering sizing was added.
+This check is still unsupported, rather than a skipped test of an existing solver.
+
+The delivered .archforge geometry/state remains byte-identical. The fix is in the
+application analysis code; opening the project in an older application does not
+install this fix. Updated diagnostics require the PR branch version.
