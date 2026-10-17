@@ -36,7 +36,8 @@ SPEC = {
                        ("Ground", "elec_air_conditioner", 14.75, 7.0)]},
     "foundation": "strips", "occupancy": "office",
 }
-OWNER_PENDING = ("Θέρμανση/HVAC", "Προειδοποίηση: Κόμβος")
+SPEC["heating"] = {"system": "fan_coil", "source": ("Ground", "heat_pump", 14.6, 3.4), "distribution": "two_pipe"}
+OWNER_PENDING = ("Προειδοποίηση: Κόμβος",)
 FINDINGS = [
     {"status": "FIXED", "found": "Πύλη: σωλήνας σε ταυ στη μέση άλλου σωλήνα μετρούσε ως ασύνδετος", "fix": "Το άκρο πάνω στον σωλήνα = σύνδεση",
      "files": ["scenarios/gate.py"], "commit": "(αυτό το commit)"},

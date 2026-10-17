@@ -32,7 +32,8 @@ SPEC = {
             "panel": ("Ground", 5.85, 2.6), "manhole": (7.1, -1.5)},
     "foundation": "strips",
 }
-OWNER_PENDING = ("Θέρμανση/HVAC", "Προειδοποίηση: Κόμβος")
+SPEC["heating"] = {"system": "radiators", "source": ("Ground", "boiler", 8.65, 2.75)}
+OWNER_PENDING = ("Προειδοποίηση: Κόμβος",)
 FINDINGS = []
 NOTES = ""
 

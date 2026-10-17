@@ -35,7 +35,8 @@ SPEC = {
             "points": [("Ground", "elec_air_conditioner", 7.2, 2.0)]},
     "foundation": "strips",
 }
-OWNER_PENDING = ("Θέρμανση/HVAC", "Προειδοποίηση: Κόμβος")
+SPEC["heating"] = {"system": "radiators", "source": ("Ground", "boiler", 4.4, 8.6)}
+OWNER_PENDING = ("Προειδοποίηση: Κόμβος",)
 FINDINGS = []
 NOTES = ""
 

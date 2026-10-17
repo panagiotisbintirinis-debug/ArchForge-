@@ -229,6 +229,21 @@ def _drain_type(v):
     return v
 
 
+def _heat_type(v):
+    from archforge.mep.heating import POINT_TYPES
+    v = str(v)
+    if v not in POINT_TYPES:
+        raise ValueError(f'heating point must be one of {", ".join(POINT_TYPES)}')
+    return v
+
+
+def _loop_spacing(v):
+    v = float(v)
+    if not 0.05 <= v <= 0.50:
+        raise ValueError('loop spacing must be between 0.05 and 0.50 m')
+    return v
+
+
 def _vent_type(v):
     from archforge.mep.ventilation import POINT_TYPES
     v = str(v)
@@ -793,6 +808,11 @@ SCHEMAS = {
                        'direction': _joist_direction},
     'price_list': {'vat': _nonnegative, 'trade_prices': _trade_prices},
     'drainage_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _drain_type, 'rain_area': _nonnegative},
+    'heating_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _heat_type, 'rotation': _finite,
+                      'length': _positive, 'power_w': _nonnegative, 'loop_spacing': _loop_spacing,
+                      'heating_system': _choice(('radiators', 'underfloor', 'fan_coil'), 'heating system'),
+                      'distribution': _choice(('manifold', 'two_pipe'), 'heating distribution'),
+                      'pipe_type': str, 'pipe_length_m': _nonnegative},
     'ventilation_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _vent_type, 'outlet': _vent_outlet,
                           'airflow': _nonnegative},
     'cabinet': {

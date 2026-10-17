@@ -860,6 +860,9 @@ class MainWindow(QMainWindow):
         if str(tool).startswith('plumb_'):
             self._place_plumbing_point(tool[len('plumb_'):], x, y)
             return
+        if str(tool).startswith('heat_'):
+            self._place_heating_point(tool[len('heat_'):], x, y)
+            return
         if str(tool).startswith('drain_'):
             from archforge.mep.drainage import POINT_TYPES as DRAIN, route_drainage_cached
             kind = tool[len('drain_'):]
@@ -1243,6 +1246,74 @@ class MainWindow(QMainWindow):
             f"{label} · {report['system_label']} · κρύο {report['cold_m']:.1f} m, ζεστό {report['hot_m']:.1f} m{extra} — προμελέτη, προς έλεγχο μηχανολόγου",
             7000)
         return point
+
+    def _place_heating_point(self, point_type, x, y):
+        """Heat source, radiator, fan coil, manifold or thermostat; emitters and manifolds sit against the nearest wall."""
+        from archforge.mep.heating import POINT_TYPES as HEAT
+        from archforge.mep.heating_layout import BODY, EMITTERS, against_wall, route_heating_cached
+        z = float(self.doc.work_plane.origin[2])
+        params = {'x': float(x), 'y': float(y), 'z': z, 'point_type': point_type}
+        if point_type in EMITTERS + ('manifold', 'thermostat'):
+            params['x'], params['y'], params['rotation'] = against_wall(self.doc, z, float(x), float(y), BODY[point_type][1])
+        self.stack.execute(AddEntity(Entity('heating_point', params, name=HEAT[point_type])))
+        self._redraw_views(all_views=True)
+        self._refresh_project_tree()
+        self.statusBar().showMessage(f"{HEAT[point_type]} · " + self._heating_summary() + ' — Ctrl+Z για αναίρεση', 9000)
+
+    def _heating_summary(self):
+        from archforge.mep.heating_layout import route_heating_cached
+        rep = route_heating_cached(self.doc)['report']
+        if rep['unserved']:
+            return 'θέρμανση: χωρίς πηγή (λέβητας / αντλία θερμότητας) — ' + ', '.join(rep['unserved'][:3])
+        return (f"θέρμανση {rep['system_label']} ({rep['distribution_label']}): "
+                + ', '.join(f'Φ{k} {v:.1f} m' for k, v in sorted(rep['length_by_dn'].items()))
+                + (f" · βρόχοι {rep['loop_m']:.0f} m" if rep['loop_m'] else '')
+                + (f" · ⚠ {rep['warnings'][0]}" if rep['warnings'] else '') + ' — προς έλεγχο μηχανολόγου')
+
+    def _auto_heating_emitters(self, point_type='radiator'):
+        """A radiator / fan coil in every heated room without one, under its widest window (one undo)."""
+        from archforge.core.commands import AddEntities
+        from archforge.mep.heating import POINT_TYPES as HEAT
+        from archforge.mep.heating_layout import emitter_positions
+        new = []
+        for floor in sorted({float(v) for v in self.doc.levels.values()}):
+            for x, y, rot, _room in emitter_positions(self.doc, floor, point_type):
+                new.append(Entity('heating_point', {'x': x, 'y': y, 'z': floor, 'point_type': point_type, 'rotation': rot},
+                                  name=HEAT[point_type]))
+        if not new:
+            self.statusBar().showMessage('Κάθε θερμαινόμενος χώρος έχει ήδη σώμα', 5000)
+            return 0
+        self.stack.execute(AddEntities(new))
+        self._redraw_views(all_views=True)
+        self._refresh_project_tree()
+        self.statusBar().showMessage(f"{len(new)} × {HEAT[point_type]} κάτω από τα παράθυρα · " + self._heating_summary()
+                                     + ' — Ctrl+Z για αναίρεση', 12000)
+        return len(new)
+
+    def _heating_source(self):
+        from archforge.mep.heating_layout import source_of
+        src = source_of(self.doc)
+        if src is None:
+            self.statusBar().showMessage('Βάλε πρώτα πηγή θέρμανσης (Η/Μ ▸ Θέρμανση ▸ Λέβητας / Αντλία θερμότητας)', 6000)
+        return src
+
+    def _set_heating_option(self, key, value):
+        """System (radiators / underfloor / fan_coil), distribution (manifold / two_pipe) or loop spacing, kept on
+        the heat source (one undo)."""
+        src = self._heating_source()
+        if src is None:
+            return None
+        if key == 'loop_spacing' and value is None:
+            current = float(src.params.get('loop_spacing') or 0.15)
+            value, ok = QInputDialog.getDouble(self, 'Ενδοδαπέδια', 'Βήμα βρόχων (m) — όπως το ορίζει ο μηχανολόγος / το σύστημα:',
+                                               current, 0.05, 0.50, 3)
+            if not ok:
+                return None
+        self.stack.execute(UpdateEntity(src.id, {key: value}))
+        self._redraw_views(all_views=True)
+        self._refresh_project_tree()
+        self.statusBar().showMessage(self._heating_summary() + ' — Ctrl+Z για αναίρεση', 9000)
+        return value
 
     def _place_ventilation_point(self, point_type, x, y):
         """Add a hood or extract fan; its duct to the outside is derived automatically."""

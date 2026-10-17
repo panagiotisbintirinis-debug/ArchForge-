@@ -51,7 +51,8 @@ SPEC = {
             "points": [("Ground", "elec_air_conditioner", 0.2, 5.0), ("Floor 1", "elec_air_conditioner", 0.2, 9.0)]},
     "foundation": "strips",
 }
-OWNER_PENDING = ("Θέρμανση/HVAC", "Προειδοποίηση: Κόμβος")
+SPEC["heating"] = {"system": "radiators", "source": ("Ground", "boiler", 9.0, 0.45)}
+OWNER_PENDING = ("Προειδοποίηση: Κόμβος",)
 FINDINGS = [
     {"status": "FIXED", "found": "Σενάριο: ο απορροφητήρας της κουζίνας δεν έπαιρνε παροχή", "fix": "Πρίζα πίσω από τον απορροφητήρα",
      "files": ["scenarios/builder.py"], "commit": "(αυτό το commit)"},

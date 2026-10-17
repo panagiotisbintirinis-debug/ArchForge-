@@ -49,6 +49,15 @@ def drainage_list(doc):
     return rows
 
 
+def heating_list(doc):
+    """Heating: equipment, pipes by the owner's Ø, loops, manifolds and every fitting of the derived layout."""
+    if not any(e.kind == "heating_point" for e in doc.entities.values()):
+        return []
+    from archforge.mep.heating import heating_quantities
+    units = {"pcs": "τεμ.", "m": "m", "m2": "m²"}
+    return [(q.description, units.get(q.unit, q.unit), q.quantity) for q in heating_quantities(doc) if q.quantity > 0]
+
+
 def structure_list(doc):
     """Concrete of the frame and foundation from the up-to-date analysis (reinforcement weight: from the study)."""
     from archforge.structure.analysis import fresh_result
@@ -342,6 +351,9 @@ def all_lists(doc):
             ("Ηλεκτρολογικά", "Ηλεκτρολογικά — καλώδια, σωλήνες, κουτιά, ασφάλειες, σημεία, φωτιστικά", electrical_list(doc),
              ("Προμελέτη — προς έλεγχο ηλεκτρολόγου· κανόνες με την κατάστασή τους στην καρτέλα «Ηλεκτρ. πίνακας».",
               "Καλώδιο: μέτρα ανά αγωγό με τη φύρα που όρισες.")),
+            ("Θέρμανση", "Θέρμανση — πηγή, σώματα / βρόχοι, σωλήνες, συλλέκτες, υδρονομείς, βάνες", heating_list(doc),
+             ("Προμελέτη: διατομές από κανόνα ιδιοκτήτη, μήκη από τη χάραξη· θερμικά φορτία, ισχύς σωμάτων, "
+              "κυκλοφορητής και εξισορρόπηση από μηχανολόγο.",)),
             ("Φέρων", "Φέρων οργανισμός και θεμελίωση", structure_list(doc), ("Προμελέτη — προς έλεγχο στατικού μηχανικού.",)),
             ("Χωματουργικά", "Χωματουργικά — εκσκαφές από ό,τι δίνει το σχέδιο", _earth(doc)["rows"],
              tuple(_earth(doc)["basis"]) + tuple("Δεν μετρήθηκε — " + m for m in _earth(doc)["missing"])

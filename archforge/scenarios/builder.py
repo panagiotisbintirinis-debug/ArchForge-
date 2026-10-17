@@ -10,6 +10,9 @@
   roof:       "gable" | "hip" | "flat" | None;  attic: True → «Οροφή σοφίτας» slab
   mep:        {"supply": (x, y), "heater": (level, x, y), "panel": (level, x, y), "manhole": (x, y),
                "washing_machine": (level, x, y) | None, "points": [(level, tool, x, y)]}
+  heating:    {"system": "radiators" | "underfloor" | "fan_coil", "source": (level, "boiler" | "heat_pump", x, y),
+               "distribution": "manifold" | "two_pipe", "spacing": m (underfloor, declared), "manifolds": [(level, x, y)]}
+               — radiators / fan coils go in every heated room by the «σε κάθε χώρο (αυτόματα)» command
   pergolas:   [(material, (x1, y1), (x2, y2))] on the main storey
   foundation: "strips" | "auto" | "pads";  occupancy: settings key (e.g. "office")
 Every room gets a ceiling light, a switch beside its door and sockets on its two longest walls; appliances from
@@ -65,6 +68,7 @@ def build_spec(window, key, title, spec):
         for fname, x, y, turn in st.get("furniture", ()):
             s.furniture(fname, x, y, turn)
     _mep(s, window, spec)
+    _heating(s, window, spec)
     for material, a, b in spec.get("pergolas", ()):
         s.level(spec.get("main", spec["levels"][0][0]))
         s.step(f"Πέργκολα ({material})", lambda m=material, a=a, b=b: (window._place_pergola(m, a[0], a[1], b[0], b[1]), "πέργκολα")[1])
@@ -160,6 +164,26 @@ def _mep(s, window, spec):
                 xy = _behind_on_level(s, appliance, z)
                 if xy is not None:
                     s.point(tool, *xy)
+
+
+def _heating(s, window, spec):
+    h = spec.get("heating")
+    if not h:
+        return
+    lvl, kind, x, y = h["source"]
+    s.level(lvl)
+    s.point(f"heat_{kind}", x, y)
+    for key in ("heating_system", "distribution", "loop_spacing"):
+        value = {"heating_system": h.get("system"), "distribution": h.get("distribution"), "loop_spacing": h.get("spacing")}[key]
+        if value is not None:
+            s.step(f"Θέρμανση ▸ {key} = {value}", lambda k=key, v=value: (window._set_heating_option(k, v), window._heating_summary())[1])
+    for mlvl, mx, my in h.get("manifolds", ()):
+        s.level(mlvl)
+        s.point("heat_manifold", mx, my)
+    if h.get("system", "radiators") != "underfloor":
+        emitter = "fan_coil" if h.get("system") == "fan_coil" else "radiator"
+        s.step(f"Θέρμανση ▸ {'Fan coil' if emitter == 'fan_coil' else 'Σώματα'} σε κάθε χώρο (αυτόματα)",
+               lambda: f"{window._auto_heating_emitters(emitter)} σώματα · {window._heating_summary()}")
 
 
 def _behind_on_level(s, name_part, z):

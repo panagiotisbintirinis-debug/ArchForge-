@@ -37,7 +37,8 @@ SPEC = {
             "panel": ("Ground", 13.85, 4.0), "manhole": (10.75, -1.5)},
     "foundation": "strips",
 }
-OWNER_PENDING = ("Θέρμανση/HVAC", "Προειδοποίηση: Κόμβος")
+SPEC["heating"] = {"system": "radiators", "source": ("Ground", "boiler", 12.3, 3.2), "distribution": "two_pipe"}
+OWNER_PENDING = ("Προειδοποίηση: Κόμβος",)
 FINDINGS = [
     {"status": "FIXED", "found": "Αυτόματο σιφώνι πάντα 30 cm προς +x: μπάνιο σε ανατολικό τοίχο → σιφώνι μέσα στον τοίχο/έξω από το κτίριο, ασύνδετο",
      "fix": "Η πλευρά που μένει μέσα στον ίδιο χώρο", "files": ["mep/drainage.py"], "commit": "4fc5c2a"},

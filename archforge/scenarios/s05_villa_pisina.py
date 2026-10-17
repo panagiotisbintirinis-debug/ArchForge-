@@ -49,7 +49,8 @@ SPEC = {
             "points": [("Ground", "elec_air_conditioner", 0.2, 2.0), ("Ground", "elec_air_conditioner", 13.85, 3.6)]},
     "foundation": "strips",
 }
-OWNER_PENDING = ("Θέρμανση/HVAC", "Προειδοποίηση: Κόμβος")
+SPEC["heating"] = {"system": "underfloor", "source": ("Ground", "heat_pump", 6.6, 9.2), "spacing": 0.20}
+OWNER_PENDING = ("Προειδοποίηση: Κόμβος",)
 FINDINGS = [
     {"status": "OPEN", "found": "Δεν υπάρχει εργαλείο πισίνας (βάθος, λεκάνη, στεγάνωση, νερό, φίλτρα/αντλίες, ποσότητες)",
      "fix": "Απόφαση ιδιοκτήτη για το εύρος· προσωρινά χώρος «Πισίνα» με στέψη 30 cm", "files": [], "commit": ""},

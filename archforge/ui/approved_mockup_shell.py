@@ -303,6 +303,25 @@ def install_approved_mockup_shell(window):
         a.triggered.connect(lambda _=False,k=key,l=label: window._start_site_tool(f"drain_{k}",f"{l}: κλικ στην κάτοψη — η αποχέτευση ξαναχαράζεται αυτόματα, Esc για τέλος"))
         drainage.addAction(a)
     window._mockup_drainage_menu=drainage
+    from archforge.mep.heating import POINT_TYPES as HEAT
+    from archforge.mep.heating_layout import DISTRIBUTIONS,SYSTEMS
+    heating=QMenu("Θέρμανση",mep_menu); mep_menu.addMenu(heating)
+    system_menu=QMenu("Σύστημα θέρμανσης",heating); heating.addMenu(system_menu)
+    for key,label in SYSTEMS.items():
+        a=QAction(label,window); a.triggered.connect(lambda _=False,k=key: window._set_heating_option("heating_system",k)); system_menu.addAction(a)
+    dist_menu=QMenu("Διανομή (καλοριφέρ / fan coil)",heating); heating.addMenu(dist_menu)
+    for key,label in DISTRIBUTIONS.items():
+        a=QAction(label,window); a.triggered.connect(lambda _=False,k=key: window._set_heating_option("distribution",k)); dist_menu.addAction(a)
+    spacing=QAction("Βήμα βρόχων ενδοδαπέδιας…",window); spacing.triggered.connect(lambda: window._set_heating_option("loop_spacing",None))
+    heating.addAction(spacing); heating.addSeparator()
+    for key,label in HEAT.items():
+        a=QAction(label,window)
+        a.triggered.connect(lambda _=False,k=key,l=label: window._start_site_tool(f"heat_{k}",f"{l}: κλικ στην κάτοψη (κοντά σε τοίχο κολλάει πάνω του) — προσαγωγή/επιστροφή χαράζονται αυτόματα, Esc για τέλος"))
+        heating.addAction(a)
+    heating.addSeparator()
+    for key,label in (("radiator","Σώματα σε κάθε χώρο (αυτόματα)"),("fan_coil","Fan coil σε κάθε χώρο (αυτόματα)")):
+        a=QAction(label,window); a.triggered.connect(lambda _=False,k=key: window._auto_heating_emitters(k)); heating.addAction(a)
+    window._mockup_heating_menu=heating
     from archforge.mep.ventilation import POINT_TYPES as VENT
     ventilation=QMenu("Εξαερισμοί",mep_menu); mep_menu.addMenu(ventilation)
     for key,(label,_q,_h,_m,_l) in VENT.items():
@@ -323,6 +342,9 @@ def install_approved_mockup_shell(window):
     drain_layer=QAction("Αποχετεύσεις στο 3D",window); drain_layer.setCheckable(True); drain_layer.setChecked(True)
     drain_layer.toggled.connect(lambda on: window._set_layer_visible("drain",on))
     mep_menu.addAction(drain_layer); window.view_menu.addAction(drain_layer); window._drain_layer_action=drain_layer
+    heat_layer=QAction("Θέρμανση στο 3D",window); heat_layer.setCheckable(True); heat_layer.setChecked(True)
+    heat_layer.toggled.connect(lambda on: window._set_layer_visible("heat",on))
+    mep_menu.addAction(heat_layer); window.view_menu.addAction(heat_layer); window._heat_layer_action=heat_layer
     vent_layer=QAction("Εξαερισμοί στο 3D",window); vent_layer.setCheckable(True); vent_layer.setChecked(True)
     vent_layer.toggled.connect(lambda on: window._set_layer_visible("vent",on))
     mep_menu.addAction(vent_layer); window.view_menu.addAction(vent_layer); window._vent_layer_action=vent_layer

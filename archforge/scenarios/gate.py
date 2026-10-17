@@ -460,17 +460,8 @@ class Gate:
         self.guard(3, "Ηλεκτρολογικά: κάθε σημείο σε κύκλωμα, κάθε κύκλωμα ως τον πίνακα", self._electrical)
         self.guard(3, "Συσκευές με ηλεκτρική παροχή δίπλα τους", self._appliance_supply)
         self.guard(3, "Διπλά σημεία Η/Μ", self._duplicates)
-        heating = [e for e in self.doc.entities.values() if e.kind == "heating_point"]
-        try:
-            from archforge.ui import main_window as mw
-            has_tool = "heat_" in open(mw.__file__, encoding="utf-8").read()
-        except Exception:                                          # noqa: BLE001
-            has_tool = False
-        if heating:
-            self.add(3, "Θέρμανση/HVAC", True, f"{len(heating)} σημεία θέρμανσης")
-        else:
-            self.add(3, "Θέρμανση/HVAC", False if not has_tool else None,
-                     "δεν υπάρχει εργαλείο θέρμανσης στο UI (mep/heating.py χωρίς σημεία)" if not has_tool else "χωρίς θέρμανση στο σενάριο")
+        self.guard(3, "Θέρμανση: κάθε θερμαινόμενος χώρος με σώμα/βρόχο, προσαγωγή και επιστροφή ως την πηγή", self._heating)
+        self.guard(3, "Αλλαγή συστήματος θέρμανσης", self._heating_system_change)
         if len(self.storeys()) > 1:
             self.add(3, "Συνέχεια Η/Μ μεταξύ ορόφων", None, "ελέγχεται μέσα στις διαδρομές κάθε δικτύου")
         else:
@@ -520,6 +511,64 @@ class Gate:
 
     def _trade_state(self, exclude=()):
         return {i: (e.kind, repr(sorted(e.params.items()))) for i, e in self.doc.entities.items() if e.kind not in exclude}
+
+    def _heating(self):
+        from archforge.mep.heating import heating_quote
+        from archforge.mep.heating_layout import PIPE_SIZES, heated_rooms, route_heating_cached, source_of, _inside
+        name = "Θέρμανση: κάθε θερμαινόμενος χώρος με σώμα/βρόχο, προσαγωγή και επιστροφή ως την πηγή"
+        if source_of(self.doc) is None:
+            self.add(3, name, False, "χωρίς πηγή θέρμανσης στο σενάριο")
+            return
+        r = route_heating_cached(self.doc)
+        rep = r["report"]
+        bare = []
+        for z in self.storeys():
+            for f in heated_rooms(self.doc, z):
+                if rep["system"] == "underfloor":
+                    ok = any(lp["room"] == (self.doc.room_metadata(f.signature).get("use") or self.doc.room_metadata(f.signature).get("name") or "Χώρος")
+                             and abs(lp["z"] - z) < 0.2 and _inside(f.polygon, *lp["points"][0]) for lp in r["loops"])
+                else:
+                    ok = any(e.params.get("point_type") in ("radiator", "fan_coil") and abs(float(e.params["z"]) - z) < 0.5
+                             and _inside(f.polygon, float(e.params["x"]), float(e.params["y"])) for e in self.ents("heating_point"))
+                if not ok:
+                    bare.append(self.doc.room_metadata(f.signature).get("name") or f.signature[:8])
+        loose = self._pipe_islands(r["supply"], "προσαγωγή") + self._pipe_islands(r["return"], "επιστροφή")
+        sizes = set(PIPE_SIZES[rep["system"]])
+        quote = heating_quote(self.doc)
+        coded = {row["code"] for row in quote["rows"]}
+        missing = [f"Φ{dn}" for dn in rep["length_by_dn"] if f"heating.pipe.pexal.{dn}" not in coded]
+        parts = sum(m and len(m["outlets"]) for m in r["manifolds"])
+        ok = not rep["unserved"] and not bare and not loose and not missing and set(rep["length_by_dn"]) <= sizes \
+            and bool(r["supply"]) and not rep["warnings"]
+        self.add(3, name, ok,
+                 f"{rep['system_label']} · {rep['distribution_label']} · {rep['circuits']} κυκλώματα · "
+                 + ", ".join(f"Φ{k} {v:.1f} m" for k, v in sorted(rep["length_by_dn"].items()))
+                 + (f" · βρόχοι {rep['loop_m']:.0f} m / {rep['loop_area_m2']:.0f} m²" if rep["loop_m"] else "")
+                 + f" · συλλέκτες {len(r['manifolds'])} ({parts} κυκλ., υδρονομείς/βάνες)"
+                 + (f" · χωρίς σώμα/βρόχο: {', '.join(bare)}" if bare else "") + (f" · {loose[0]}" if loose else "")
+                 + (f" · χωρίς γραμμή προσφοράς: {', '.join(missing)}" if missing else "")
+                 + (f" · ⚠ {rep['warnings'][0]}" if rep["warnings"] else "") + (f" · ⚠ {rep['unserved'][0]}" if rep["unserved"] else ""))
+
+    def _heating_system_change(self):
+        from archforge.core.commands import UpdateEntity
+        from archforge.mep.heating_layout import SYSTEMS, route_heating_cached, source_of, system_of
+        src = source_of(self.doc)
+        if src is None:
+            self.add(3, "Αλλαγή συστήματος θέρμανσης", None, "χωρίς πηγή θέρμανσης")
+            return
+        before = system_of(self.doc)
+        other = "underfloor" if before != "underfloor" else "radiators"
+        others_before = self._trade_state(exclude=("heating_point",))
+        changes = {"heating_system": other} if src.params.get("loop_spacing") or other != "underfloor" else \
+            {"heating_system": other, "loop_spacing": 0.15}
+        self.w.stack.execute(UpdateEntity(src.id, changes))
+        after = route_heating_cached(self.doc)["report"]
+        untouched = self._trade_state(exclude=("heating_point",)) == others_before
+        self.w.stack.undo()
+        back = system_of(self.doc) == before
+        self.add(3, "Αλλαγή συστήματος θέρμανσης", after["system"] == other and untouched and back and (after["loop_m"] > 0 or other != "underfloor"),
+                 f"{SYSTEMS[before]} → {SYSTEMS[other]}: " + ", ".join(f"Φ{k} {v:.0f} m" for k, v in sorted(after["length_by_dn"].items()))
+                 + ("" if untouched else " · ⚠ άλλαξαν στοιχεία άλλης ειδικότητας") + ("" if back else " · ⚠ η αναίρεση δεν επανέφερε"))
 
     def _drainage(self):
         from archforge.mep.drainage import route_drainage_cached
@@ -611,10 +660,11 @@ class Gate:
     def _bom(self):
         from archforge.quantities.materials import all_lists
         lists = {name: rows for name, _t, rows, _n in all_lists(self.doc)}
-        need = [n for n, k in (("Ύδρευση", "plumbing_point"), ("Αποχέτευση", "plumbing_point"), ("Ηλεκτρολογικά", "electrical_point"))
+        need = [n for n, k in (("Ύδρευση", "plumbing_point"), ("Αποχέτευση", "plumbing_point"), ("Ηλεκτρολογικά", "electrical_point"),
+                               ("Θέρμανση", "heating_point"))
                 if self.ents(k) and not lists.get(n)]
         self.add(3, "BOM / ποσότητες ανά δίκτυο", not need,
-                 " · ".join(f"{n} {len(lists.get(n) or [])} γραμμές" for n in ("Ύδρευση", "Αποχέτευση", "Ηλεκτρολογικά"))
+                 " · ".join(f"{n} {len(lists.get(n) or [])} γραμμές" for n in ("Ύδρευση", "Αποχέτευση", "Ηλεκτρολογικά", "Θέρμανση"))
                  + ("" if not need else " · χωρίς λίστα: " + ", ".join(need)))
 
     # ============================================================================ 4. quote
@@ -627,7 +677,7 @@ class Gate:
                    "Ηλεκτρολογικά": self.ents("electrical_point"), "Φέρων": self.ents("structural_column"),
                    "Κεραμοσκεπή": self.ents("pitched_roof"), "Κουφώματα": self.ents("door", "window"),
                    "Τοιχοποιίες": self.ents("wall"), "Πλάκες": self.ents("room_floor", "room_roof"),
-                   "Κουζίνα": self.ents("cabinet")}
+                   "Κουζίνα": self.ents("cabinet"), "Θέρμανση": self.ents("heating_point")}
         missing = [k for k, v in present.items() if v and k not in names]
         self.add(4, "Κάθε ειδικότητα του μοντέλου έχει γραμμές στην προσφορά", not missing,
                  f"{len(q['sections'])} ενότητες" + ("" if not missing else " · λείπουν: " + ", ".join(missing)))

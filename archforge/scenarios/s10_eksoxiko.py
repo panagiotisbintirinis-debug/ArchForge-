@@ -53,7 +53,8 @@ SPEC = {
                        ("Ground", "elec_light", 10.4, -2.8), ("Ground", "elec_switch", 6.6, -0.3)]},
     "foundation": "strips",
 }
-OWNER_PENDING = ("Θέρμανση/HVAC", "Προειδοποίηση: Κόμβος")
+SPEC["heating"] = {"system": "underfloor", "source": ("Ground", "heat_pump", 9.2, 2.8), "spacing": 0.15}
+OWNER_PENDING = ("Προειδοποίηση: Κόμβος",)
 FINDINGS = [
     {"status": "FIXED", "found": "Με πέργκολα στο σχέδιο, «Φέρων οργανισμός» δεν πρότεινε τίποτα (τα κολονάκια της πέργκολας μετρούσαν σαν σκελετός) — σπίτι χωρίς κολόνες/θεμελίωση",
      "fix": "has_structure αγνοεί τα μέλη πέργκολας", "files": ["structure/analysis/__init__.py"], "commit": "4fc5c2a"},

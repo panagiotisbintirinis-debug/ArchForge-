@@ -44,7 +44,8 @@ SPEC = {
                        ("Floor 1", "elec_air_conditioner", 0.2, 1.5), ("Floor 2", "elec_air_conditioner", 0.2, 1.5)]},
     "foundation": "strips",
 }
-OWNER_PENDING = ("Θέρμανση/HVAC", "Προειδοποίηση: Κόμβος")
+SPEC["heating"] = {"system": "radiators", "source": ("Floor 1", "boiler", 7.6, 9.6)}
+OWNER_PENDING = ("Προειδοποίηση: Κόμβος",)
 FINDINGS = [
     {"status": "FIXED", "found": "Σχέδιο: η αυτόματη στήλη μπήκε στον τοίχο του μπάνιου, μακριά από την κουζίνα — βάθος αποχέτευσης 21 cm > 20 cm γεμίσματος",
      "fix": "Στήλη ανάμεσα σε κουζίνα και μπάνιο (εργαλείο «Στήλη αποχέτευσης»)", "files": ["scenarios/s09_pilotis.py"], "commit": "c10d889"},

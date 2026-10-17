@@ -99,6 +99,9 @@ def build(window):
             s.step(f"Παροχή για «{appliance}»", lambda a=appliance: (_ for _ in ()).throw(ValueError(f"δεν βρέθηκε {a}")))
         else:
             s.point(tool, *xy)
+    # 10β. Heating (owner 17/10): boiler beside the water heater, radiators in every heated room on one manifold.
+    from archforge.scenarios.builder import _heating
+    _heating(s, window, {"heating": {"system": "radiators", "source": ("Ground", "boiler", 8.6, 3.3)}})
     # 11. Foundation (owner 17/10): strip footings in every column line — they share the base moments with the
     #     footings and take the most of them (dialog «Στοιχεία κτιρίου για στατική» ▸ Θεμελίωση).
     def foundation():
@@ -120,9 +123,9 @@ def build(window):
 
 
 # Checks waiting on an owner decision (S01_REPORT.md says which): the gate test lets only these fail.
-# Θέρμανση: no tool yet (owner decides). Κόμβοι: Codex's capacity-joint flags (ΣMRc/ΣMRb < 1,30, an UNVERIFIED
+# Κόμβοι: Codex's capacity-joint flags (ΣMRc/ΣMRb < 1,30, an UNVERIFIED
 # criterion) became warnings on merge — examined by an engineer, never waived or «fixed» by resizing here.
-OWNER_PENDING = ("Θέρμανση/HVAC", "Προειδοποίηση: Κόμβος")
+OWNER_PENDING = ("Προειδοποίηση: Κόμβος",)
 
 C1 = "d49c98f"          # walls with both faces, opening symbols
 C2 = "278d361"          # the gate's first round of fixes
@@ -159,8 +162,11 @@ FINDINGS = [
             "έλεγχος ανατροπής/πίεσης σε κάθε πεδιλοδοκό, το πέλμα φαρδαίνει όσο χρειάζεται (S01: 6 πεδιλοδοκοί, όλοι ευσταθείς, "
             "σmax 41–56 kPa· σκυρόδεμα 33 m³ αντί 15,4 με πέδιλα)",
      "files": ["structure/foundation.py", "structure/analysis/__init__.py"], "commit": C3},
-    {"status": "OPEN", "found": "Θέρμανση: mep/heating.py μόνο απογραφή — κανένα εργαλείο στο UI, καμία όδευση",
-     "fix": "Απόφαση ιδιοκτήτη για το εύρος", "files": [], "commit": ""},
+    {"status": "FIXED", "found": "Θέρμανση: mep/heating.py μόνο απογραφή — κανένα εργαλείο στο UI, καμία όδευση",
+     "fix": "Ιδιοκτήτης 17/10: εργαλείο θέρμανσης με προσαγωγή + επιστροφή — καλοριφέρ / ενδοδαπέδια / fan coil, συλλέκτες "
+            "με υδρονομείς και βάνες, διατομές Φ18/Φ16/Φ20 (Φ20/Φ26 προς συλλέκτες), όλα στην προσφορά",
+     "files": ["mep/heating_layout.py", "mep/heating.py", "ui/main_window.py", "core/plan_scene.py", "rendering/scene.py",
+               "scenarios/gate.py", "tests/test_heating_layout.py"], "commit": "(αυτό το commit)"},
 ]
 
 NOTES = """## Τι να ελέγξετε εσείς (Windows)

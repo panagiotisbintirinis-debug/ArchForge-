@@ -53,7 +53,8 @@ SPEC = {
                        ("Floor 1", "elec_air_conditioner", 8.8, 1.5)]},
     "foundation": "strips",
 }
-OWNER_PENDING = ("Θέρμανση/HVAC", "Προειδοποίηση: Κόμβος")
+SPEC["heating"] = {"system": "underfloor", "source": ("Basement", "boiler", 1.0, 10.4), "spacing": 0.15}
+OWNER_PENDING = ("Προειδοποίηση: Κόμβος",)
 FINDINGS = [
     {"status": "FIXED", "found": "Αποχέτευση σε 4 κομμάτια: ο συλλέκτης κάθε ορόφου σταματούσε 10 cm πριν τη στήλη/φρεάτιο, η στήλη ένας σωλήνας χωρίς κόμβους",
      "fix": "Σύνδεση από τον τελευταίο κόμβο ως τη στήλη/φρεάτιο· στήλη σε κομμάτια ανά διακλάδωση ορόφου", "files": ["mep/drainage.py"], "commit": "4fc5c2a"},
