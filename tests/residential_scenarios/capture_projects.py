@@ -13,7 +13,7 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu --no-sandbox")
 
-from PySide6.QtCore import QEventLoop, QTimer
+from PySide6.QtCore import QEventLoop, QTimer, Qt
 from PySide6.QtWidgets import QApplication
 
 from archforge.core.commands import CommandStack
@@ -76,8 +76,10 @@ def capture_one(app, spec):
     try:
         scene_rect = window.plan_view.scene().itemsBoundingRect()
         if scene_rect.isValid() and scene_rect.width() > 0 and scene_rect.height() > 0:
-            window.plan_view.fitInView(scene_rect.adjusted(-0.6, -0.6, 0.6, 0.6),
-                                       window.plan_view.aspectRatioMode())
+            window.plan_view.fitInView(
+                scene_rect.adjusted(-0.6, -0.6, 0.6, 0.6),
+                Qt.AspectRatioMode.KeepAspectRatio,
+            )
     except Exception:
         pass
     window.plan_view.redraw()
@@ -142,7 +144,9 @@ def main():
 
     index = ["# Residential scenario handoff", ""]
     for spec in specs:
-        index.append(f"- **{spec['id']} {spec['name']}** — `{spec['file']}` + plan / 3D / structural screenshots + `{spec['id']}_REPORT.md`")
+        index.append(
+            f"- **{spec['id']} {spec['name']}** — `{spec['file']}` + plan / 3D / structural screenshots + `{spec['id']}_REPORT.md`"
+        )
     index += ["", "Generated after the sequential design -> structure -> MEP -> quote test passes."]
     (OUT / "INDEX.md").write_text("\n".join(index) + "\n", encoding="utf8")
 
