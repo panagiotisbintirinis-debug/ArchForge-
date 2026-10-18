@@ -151,3 +151,74 @@ def paint_preview(view, painter):
     painter.setPen(QColor(20, 70, 140))
     painter.drawText(at.x() + 12, at.y() - 8, text)
     painter.restore()
+
+
+# ------------------------------------------------------------------ changing a drawn house by numbers
+def wall_angle(window):
+    """Γωνία τοίχου…: the selected wall's corner angle typed (its far corner and the walls joined there follow)."""
+    from PySide6.QtWidgets import QInputDialog
+    from archforge.architecture.room_resize import corner_angle, set_corner_angle_command
+    doc = window.doc
+    wid = next((i for i in doc.selection if i in doc.entities and doc.get(i).kind == 'wall'), None)
+    if wid is None:
+        window.statusBar().showMessage('Γωνία τοίχου: επίλεξε πρώτα έναν τοίχο (κλικ πάνω του)', 6000)
+        return None
+    current, ref = corner_angle(doc, wid)
+    what = 'με τον τοίχο που ενώνεται στην αρχή του' if ref else 'με τον άξονα X'
+    value, ok = QInputDialog.getDouble(window, 'Γωνία τοίχου', f'Γωνία {what} (°):', round(current, 1), 1.0, 359.0, 1)
+    if not ok:
+        return None
+    return set_wall_angle(window, wid, value)
+
+
+def set_wall_angle(window, wid, value):
+    from archforge.architecture.room_resize import set_corner_angle_command
+    try:
+        window.stack.execute(set_corner_angle_command(window.doc, wid, value))
+    except Exception as exc:                          # noqa: BLE001 — e.g. a locked layer: said, not hidden
+        window.statusBar().showMessage(f'Γωνία τοίχου: {exc}', 8000)
+        return None
+    window._redraw_views(all_views=True)
+    window.refresh_inspector()
+    window.statusBar().showMessage(f'Γωνία τοίχου {value:g}° · Ctrl+Z = αναίρεση', 6000)
+    return wid
+
+
+def start_resize(window):
+    window._start_site_tool('room_resize', 'Διαστάσεις δωματίου: κλικ μέσα στο δωμάτιο · Esc = ακύρωση')
+
+
+def resize_at(window, x, y, size=None):
+    """Click inside a room → its clear size typed (width × depth); one side per direction moves."""
+    from archforge.architecture.room_resize import resize_room_command, room_size
+    from archforge.geometry.regions import point_in_polygon
+    face = next((f for f in window.doc.active_room_faces() if point_in_polygon(x, y, f.polygon)), None)
+    if face is None:
+        window.statusBar().showMessage('Διαστάσεις δωματίου: κλικ μέσα σε κλειστό χώρο', 6000)
+        return None
+    got = room_size(window.doc, face)
+    if got is None:
+        window.statusBar().showMessage('Διαστάσεις δωματίου: μόνο τετράπλευρο δωμάτιο — για άλλα σχήματα '
+                                       'μετακίνησε τους τοίχους (διπλό κλικ στην απόσταση)', 8000)
+        return None
+    if size is None:
+        text, ok = QInputDialog.getText(window, 'Διαστάσεις δωματίου', 'Καθαρές διαστάσεις πλάτος × βάθος (m):',
+                                        text=f'{got[0][0]:.2f} x {got[0][1]:.2f}'.replace('.', ','))
+        if not ok:
+            return None
+        size = parse_size(text)
+        if size is None:
+            window.statusBar().showMessage('Γράψε δύο διαστάσεις, π.χ. 3,50 x 3,00', 6000)
+            return None
+    try:
+        command = resize_room_command(window.doc, face, *size)
+        if command is not None:
+            window.stack.execute(command)
+    except Exception as exc:                          # noqa: BLE001 — e.g. a locked layer: said, not hidden
+        window.statusBar().showMessage(f'Διαστάσεις δωματίου: {exc}', 8000)
+        return None
+    window.plan_view.controller.set_tool('select')
+    window._redraw_views(all_views=True)
+    window.refresh_inspector()
+    window.statusBar().showMessage(f'Δωμάτιο {size[0]:.2f} × {size[1]:.2f} m · Ctrl+Z = αναίρεση'.replace('.', ','), 6000)
+    return size

@@ -20,7 +20,7 @@ def house(tmp_path, monkeypatch):
     w = MainWindow(); w._no_modal_dialogs = True; app.processEvents()
     w.plan_view.room_size = (10, 8)
     T.click(w, 'room_place', 0, 0)                                          # the house
-    for pts in (((0, 0), (3, 0), (1, 2.5)), ((3.1, 0), (6, 0), (4, 2.5))):  # kitchen and bath inside it
+    for pts in (((0, 0), (3, 0), (1, 2.5)), ((3.15, 0), (6, 0), (4, 2.5))):  # kitchen, bath next to it
         for x, y in pts:
             T.click(w, 'room_box', x, y)
     for x, y, n in ((1, 1, 'Κουζίνα'), (4.5, 1, 'Μπάνιο'), (7, 6, 'Σαλόνι')):
@@ -41,8 +41,13 @@ def _snapshot(doc):
 
 def test_one_command_completes_the_building_and_one_undo_takes_it_back(house):
     w = house
+    from archforge.core import layers as L
+    from archforge.ui.layers_panel import set_workspace
+    set_workspace(w, 'arch', announce=False)
+    states = L.layer_states(w.doc)
     before, n = _snapshot(w.doc), len(w.stack.done)
     report = complete(w)
+    assert L.workspace(w.doc) == 'arch' and L.layer_states(w.doc) == states   # the walls are not left locked
     assert all(ok for _l, ok, _note in report), report
     assert len(w.stack.done) == n + 1                                       # ONE undo step
     kinds = {}
@@ -78,3 +83,37 @@ def test_nothing_to_do_without_walls(tmp_path, monkeypatch):
         assert complete(w) == [] and not w.stack.done
     finally:
         w.hide()
+
+
+def test_change_by_numbers_then_update(house):
+    """Owner 18/10: «να μικρύνω ένα δωμάτιο ή να αλλάξω γωνία σε ένα τοίχο — πόσο εύκολο;» + «Ενημέρωση»."""
+    from archforge.architecture.room_resize import corner_angle, room_size
+    from archforge.ui import room_box_tool as T
+    w = house
+    complete(w)
+    kitchen = next(f for f in w.doc.active_room_faces() if point_in_polygon(1, 1, f.polygon))
+    (w0, d0), _sides = room_size(w.doc, kitchen)
+    assert (w0, d0) == pytest.approx((3.0, 2.5), abs=.01)
+    n = len(w.stack.done)
+    assert T.resize_at(w, 1, 1, size=(2.6, 2.2)) == (2.6, 2.2)              # smaller kitchen, typed
+    assert len(w.stack.done) == n + 1
+    kitchen = next(f for f in w.doc.active_room_faces() if point_in_polygon(1, 1, f.polygon))
+    assert room_size(w.doc, kitchen)[0] == pytest.approx((2.6, 2.2), abs=.01)
+    assert len(w.doc.active_room_faces()) == 3                              # every room still closed
+    # The house's east wall to 80° with the wall it starts from: the room stays closed.
+    wid = next(e.id for e in w.doc.entities.values() if e.kind == 'wall'
+               and abs(float(e.params['x1']) - float(e.params['x2'])) < 1e-6 and float(e.params['x1']) > 9.9)
+    before, _ref = corner_angle(w.doc, wid)
+    assert before == pytest.approx(90.0, abs=.1)
+    assert T.set_wall_angle(w, wid, 80.0) == wid
+    assert corner_angle(w.doc, wid)[0] == pytest.approx(80.0, abs=.1)
+    assert len(w.doc.active_room_faces()) == 3
+    # «Ενημέρωση»: roof and frame made again for the new walls, one undo step.
+    old = {e.id for e in w.doc.entities.values() if e.kind in ('pitched_roof', 'structural_column')}
+    n = len(w.stack.done)
+    report = complete(w, keys=['rebuild'])
+    assert all(ok for _l, ok, _n in report), report
+    assert len(w.stack.done) == n + 1
+    new = {e.id for e in w.doc.entities.values() if e.kind in ('pitched_roof', 'structural_column')}
+    assert new and not (new & old)
+    assert any(e.kind == 'pitched_roof' for e in w.doc.entities.values())

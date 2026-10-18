@@ -897,6 +897,10 @@ class MainWindow(QMainWindow):
         if tool == 'plot_point':
             self._plot_vertex(x, y)
             return
+        if tool == 'room_resize':
+            from archforge.ui.room_box_tool import resize_at
+            resize_at(self, x, y)
+            return
         if tool in ('room_box', 'room_place'):
             from archforge.ui.room_box_tool import click
             click(self, tool, x, y)

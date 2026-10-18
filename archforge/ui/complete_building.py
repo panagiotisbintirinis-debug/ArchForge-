@@ -174,6 +174,22 @@ def structure(window, options):
     return summary(out)
 
 
+REBUILT = ("pitched_roof", "structural_column", "structural_beam", "structural_support")
+
+
+def has_rebuildable(window):
+    return any(e.kind in REBUILT for e in window.doc.entities.values())
+
+
+def rebuild(window, options):
+    """After changes to the walls: the old roof and frame go, so the roof and frame parts are made again."""
+    from archforge.core.commands import DeleteEntities
+    ids = [e.id for e in window.doc.entities.values() if e.kind in REBUILT]
+    if ids:
+        window.stack.execute(DeleteEntities(ids))
+    return f"σβήστηκαν {len(ids)} στοιχεία στέγης / φέροντα" if ids else None
+
+
 def plan(window):
     """[(key, label, ticked, why-not-or-None, run)] — what «Ολοκλήρωση» would do in this project now."""
     doc = window.doc
@@ -182,6 +198,8 @@ def plan(window):
                 for m in getattr(doc, "room_data", {}).values() if isinstance(m, dict))
     no_walls = None if walls else "σχεδίασε πρώτα τοίχους / δωμάτια"
     return [
+        ("rebuild", "Ενημέρωση μετά από αλλαγές: στέγη και φέρων ξανά από την αρχή", False,
+         no_walls or (None if has_rebuildable(window) else "δεν υπάρχουν ακόμα"), rebuild),
         ("floors", "Δάπεδα σε κάθε όροφο", True, no_walls or (None if _need_floors(window) else "υπάρχουν ήδη"), floors),
         ("roof", "Στέγη στον τελευταίο όροφο", True, no_walls or ("υπάρχει ήδη" if has_roof(window) else None), roof),
         ("kitchen_bath", "Κουζίνα και μπάνια (όπου ο χώρος λέγεται έτσι)", True,
@@ -197,15 +215,29 @@ def plan(window):
 def complete(window, keys=None, options=None):
     """Run the chosen parts (default: every part that applies) as one undo step; [(label, ok, note)]."""
     options = dict(options or {})
+    if keys is not None and "rebuild" in keys:
+        keys = list(keys) + ["roof", "structure"]     # what «Ενημέρωση» clears is made again
     report = []
     since = len(window.stack.done)
     back = window.doc.active_level_name()
+    import copy
+    # Layers are view state: the human asked for the whole building, so no environment's lock stops a part;
+    # the environment (the frame's report brings «Φέρων» forward) and the locks come back as they were.
+    view_layers = copy.deepcopy(getattr(window.doc, "view_layers", None))
+    window.doc.view_layers = {}
     quiet = getattr(window, "_no_modal_dialogs", False)
     window._no_modal_dialogs = True
     try:
-        for key, label, ticked, why_not, run in plan(window):
-            if why_not or (keys is not None and key not in keys) or (keys is None and not ticked):
-                continue
+        done = set()
+        while True:
+            # Re-planned after every part: «Ενημέρωση» clears the roof and frame, which then apply again.
+            step = next(((key, label, run) for key, label, ticked, why_not, run in plan(window)
+                         if key not in done and not why_not
+                         and (key in keys if keys is not None else ticked)), None)
+            if step is None:
+                break
+            key, label, run = step
+            done.add(key)
             try:
                 note = run(window, options)
                 report.append((label, True, note or "τίποτα να προστεθεί"))
@@ -215,6 +247,9 @@ def complete(window, keys=None, options=None):
         window._no_modal_dialogs = quiet
         if back and window.doc.active_level_name() != back:
             window._activate_level_by_name(back)
+        window.doc.view_layers = view_layers
+        from archforge.ui.layers_panel import refresh as refresh_layers
+        refresh_layers(window)
         window.stack.squash(since, "Ολοκλήρωση κτιρίου")
         window._redraw_views(all_views=True)
         window.refresh_inspector()

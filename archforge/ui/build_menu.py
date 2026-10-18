@@ -145,7 +145,11 @@ def organize_build_menu(window):
     room_sized = QAction('Δωμάτιο με διαστάσεις…', window)
     room_sized.triggered.connect(lambda _=False: room_box_tool.start(window, sized=True))
     window._room_box_action, window._room_sized_action = room_box, room_sized
-    walls = _submenu(window, 'Τοίχοι && δωμάτια', 'wall', [wall, room_box, room_sized])
+    room_resize = QAction('Διαστάσεις δωματίου… (κλικ μέσα του)', window)
+    room_resize.triggered.connect(lambda _=False: room_box_tool.start_resize(window))
+    wall_angle = QAction('Γωνία επιλεγμένου τοίχου…', window)
+    wall_angle.triggered.connect(lambda _=False: room_box_tool.wall_angle(window))
+    walls = _submenu(window, 'Τοίχοι && δωμάτια', 'wall', [wall, room_box, room_sized, None, room_resize, wall_angle])
     complete = QAction('Ολοκλήρωση κτιρίου…', window); complete.setIcon(_icon('storey'))
     complete.setToolTip('Δάπεδα, στέγη, κουζίνα/μπάνια, φως-πρίζες, πίνακας, θέρμανση, φέρων — ό,τι λείπει, μία αναίρεση')
     complete.triggered.connect(lambda _=False: __import__('archforge.ui.complete_building', fromlist=['open_dialog']).open_dialog(window))
