@@ -29,10 +29,15 @@ def test_scenario_01_quality_gate(window, tmp_path):
     assert not fails, fails
 
 
-def test_scenario_02_complex(window, tmp_path):
-    from archforge.scenarios import s02_syntheto as m
+@pytest.mark.parametrize('name', ['s02_syntheto', 's03_diamerisma'])
+def test_scenario_builds_and_passes_the_gate(window, tmp_path, name):
+    """Built scenarios (builder.py specs) through the same gate; the slow ones run from scripts/build_scenarios.py."""
+    import importlib
+    from archforge.scenarios.gate import FAIL, Gate
+    m = importlib.import_module(f'archforge.scenarios.{name}')
     s = m.build(window)
     assert all(step.ok for step in s.steps), [st for st in s.steps if not st.ok]
-    m.checks(s)
-    s.check_save_load(str(tmp_path / 's02.archforge'))
-    assert all(c.ok for c in s.checks), [c for c in s.checks if not c.ok]
+    g = Gate(s, m, str(tmp_path))
+    g.run(visual=False)
+    fails = [c for c in g.checks if c.status == FAIL and not c.item.startswith(m.OWNER_PENDING)]
+    assert not fails, fails

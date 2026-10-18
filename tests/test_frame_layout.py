@@ -1,4 +1,5 @@
 """Columns and beams proposed from the walls, after drawing walls and rooms."""
+import math
 import os
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
@@ -7,7 +8,7 @@ import pytest
 
 from archforge.core.commands import AddEntities, AddEntity, CommandStack
 from archforge.core.model import Document, Entity
-from archforge.structure.layout import column_points, propose_frame
+from archforge.structure.layout import MERGE, column_points, propose_frame
 
 
 def _house(stack, z=0.0, x_max=12.0):
@@ -31,6 +32,53 @@ def test_excluded_wall_storey_does_not_crash_frame_or_assistant(length, wall_typ
     assert report['columns'] == 8 and report['beams'] == 10
     assert [s['z'] for s in report['storeys']] == [0.0]
     assert all(e.params['z'] < 3.0 for e in entities)
+
+
+def test_low_walls_like_a_pool_rim_get_no_columns_or_beams():
+    """S05: the 30 cm rim of the pool got six columns and a ring beam at 2.70 m."""
+    doc = Document(); st = CommandStack(doc); _house(st)
+    for s in [(14, 0, 22, 0), (22, 0, 22, 4), (22, 4, 14, 4), (14, 4, 14, 0)]:
+        st.execute(AddEntity(Entity('wall', {'x1': s[0], 'y1': s[1], 'x2': s[2], 'y2': s[3], 'z': 0.0, 'height': 0.3, 'thickness': 0.3})))
+    entities, report = propose_frame(doc)
+    assert report['columns'] == 8 and report['beams'] == 10           # the house only, as without the pool
+    assert all(float(e.params.get('x', e.params.get('x1', 0.0))) <= 12.0 for e in entities)
+
+
+def test_yard_and_pergola_stay_out_of_the_frame_and_carry_no_slab():
+    """S10: pergola posts became building columns and a 12.4 m beam ran across the yard, loaded as a slab."""
+    from archforge.geometry.regions import point_in_polygon
+    from archforge.structure.analysis import analyze
+    doc = Document(); st = CommandStack(doc); doc.levels['Ground'] = 0.0; doc.levels['Δώμα'] = 3.0; _house(st)
+    for s in [(0, 0, 0, -5), (0, -5, 12, -5), (12, -5, 12, 0)]:                      # 1 m yard wall
+        st.execute(AddEntity(Entity('wall', {'x1': s[0], 'y1': s[1], 'x2': s[2], 'y2': s[3], 'z': 0.0, 'height': 1.0, 'thickness': 0.2})))
+    yard = next(f for f in doc.active_room_faces(z=0.0) if point_in_polygon(6.0, -2.5, f.polygon))
+    doc.set_room_metadata(yard.signature, use='Αυλή')
+    for x, y in [(2.0, -4.0), (6.0, -4.0)]:
+        st.execute(AddEntity(Entity('structural_column', {'x': x, 'y': y, 'z': 0.0, 'width': .15, 'depth': .15, 'height': 2.8,
+                                                          'rotation': 0.0, 'construction': 'timber', 'base_level': 'Ground',
+                                                          'role': 'pergola'}, name='Κολονάκι πέργκολας')))
+    entities, report = propose_frame(doc)
+    assert report['columns'] == 8 and report['beams'] == 10                         # the house only
+    assert all(min(e.params.get('y', 0.0), e.params.get('y1', 0.0), e.params.get('y2', 0.0)) > -0.3 for e in entities)
+    st.execute(AddEntities(entities))
+    r = analyze(doc)
+    assert not r.get('error') and not any('χωρίς δοκούς' in w for w in r['warnings'])
+    assert all(m.get('ok', True) for m in r['members'].values())
+
+
+def test_under_a_timber_roof_alone_beams_follow_the_walls_never_across_a_room():
+    """Owner 18/10 (S05): concrete beams crossed the rooms under a tiled roof with no slab — they carry nothing.
+    The rafters sit on the ring beam; beams go over the walls.  With a slab over the storey the grid stays."""
+    from archforge.structure.layout import timber_roof_only
+    from archforge.structure.timber_roof import default_params
+    doc = Document(); st = CommandStack(doc); _house(st)                 # 12 × 6, wall at x = 5, column line x = 8.5
+    def across(entities):
+        return [e for e in entities if e.kind == 'structural_beam' and abs(e.params['x1'] - 8.5) < .3 and abs(e.params['x2'] - 8.5) < .3]
+    assert across(propose_frame(doc)[0])                                 # no roof yet: the slab's grid
+    st.execute(AddEntity(Entity('pitched_roof', default_params(doc, z=0.0, form='gable'))))
+    assert timber_roof_only(doc, 0.0)
+    entities, report = propose_frame(doc)
+    assert not across(entities) and report['beams'] == 9
 
 
 def test_columns_at_corners_junctions_and_every_6m_never_in_an_opening():
@@ -128,6 +176,26 @@ def test_columns_never_hang_outside_the_facade():
         assert x - h >= -0.1 - 1e-6 and x + h <= 12.1 + 1e-6 and y - h >= -0.1 - 1e-6 and y + h <= 6.1 + 1e-6
     corner = min((e for e in entities if e.kind == 'structural_column'), key=lambda e: e.params['x'] + e.params['y'])
     assert (corner.params['x'], corner.params['y']) == pytest.approx((0.1, 0.1))   # outer faces flush, inwards both ways
+
+
+@pytest.mark.parametrize('core', [True, False])
+def test_pilotis_carries_every_column_of_the_flats_down_to_the_ground(core):
+    """S09: over an open pilotis (only a stair core, or nothing) the flats' columns stood on the slab."""
+    doc = Document(); st = CommandStack(doc); doc.levels['Ground'] = 0.0; doc.levels['Floor 1'] = 3.0
+    _house(st, 3.0)                                                      # flat 12 × 6 on +3.00
+    if core:
+        for s in [(9, 3, 12, 3), (12, 3, 12, 6), (12, 6, 9, 6), (9, 6, 9, 3)]:
+            st.execute(AddEntity(Entity('wall', {'x1': s[0], 'y1': s[1], 'x2': s[2], 'y2': s[3], 'z': 0.0, 'height': 3.0, 'thickness': 0.2})))
+    entities, _r = propose_frame(doc)
+    cols = [e for e in entities if e.kind == 'structural_column']
+    upper = [c for c in cols if c.params['z'] == 3.0]
+    ground = [c for c in cols if c.params['z'] == 0.0]
+    assert len(upper) == 8
+    for c in upper:                                     # a column under it (merged with a near one: ≤ MERGE away)
+        assert any(math.hypot(g.params['x'] - c.params['x'], g.params['y'] - c.params['y']) < MERGE for g in ground)
+    assert all(g.params['z'] + g.params['height'] == pytest.approx(3.0) for g in ground)
+    slab_beams = [e for e in entities if e.kind == 'structural_beam' and e.params['z'] + e.params['height'] == pytest.approx(3.0)]
+    assert any(b.params['y1'] == b.params['y2'] and b.params['y1'] < .5 and max(b.params['x1'], b.params['x2']) < 6 for b in slab_beams)
 
 
 def test_lower_storey_carries_every_column_of_the_storey_above():

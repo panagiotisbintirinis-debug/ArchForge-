@@ -146,10 +146,20 @@ class Gate:
         doors = [e for e in self.ents("door", "opening") if e.parent_id in self.doc.entities and
                  abs(float(self.doc.get(e.parent_id).params.get("z", 0.0)) - z) < 1e-3]
         bad = []
-        for face, name, _use in self.rooms(z):
+        rooms = self.rooms(z)
+
+        def doors_of(face):
+            return [d for d in doors if any(point_in_polygon(px, py, face.polygon) for px, py in _opening_sides(self.doc, d))]
+
+        def en_suite(d, face):
+            # The other side is a bathroom/WC whose only door is this one: an en-suite, not a passage.
+            other = [(f, n) for f, n, _u in rooms if f.signature != face.signature and
+                     any(point_in_polygon(px, py, f.polygon) for px, py in _opening_sides(self.doc, d))]
+            return bool(other) and other[0][1].startswith(("Μπάνιο", "WC")) and len(doors_of(other[0][0])) == 1
+        for face, name, _use in rooms:
             if not name.startswith(PRIVATE):
                 continue
-            n = sum(1 for d in doors if any(point_in_polygon(px, py, face.polygon) for px, py in _opening_sides(self.doc, d)))
+            n = sum(1 for d in doors_of(face) if not en_suite(d, face))
             if n > 1:
                 bad.append(f"{name} ({n} πόρτες)")
         self.add(1, f"Κανένα υπνοδωμάτιο/μπάνιο δεν είναι πέρασμα ({z:+.2f})", not bad,
@@ -193,7 +203,10 @@ class Gate:
             if d.parent_id not in self.doc.entities:
                 continue
             sq, into, _other = self._door_leaf_square(d)
+            dz = self._floor_z(self.doc.get(d.parent_id))
             for e in objs:
+                if abs(self._floor_z(e) - dz) > 1e-3:
+                    continue                                     # another storey
                 try:
                     if _overlap(footprint(e.params), sq) > 0.02:
                         bad.append(f"{d.name}: {e.name}")
@@ -287,10 +300,10 @@ class Gate:
                         bad.append(f"{name} χωρίς κρεβάτι")
                 if name.startswith("Σαλόνι"):
                     n += 1
-                    if "Καναπ" not in names:
+                    if "καναπ" not in names.lower():
                         bad.append(f"{name} χωρίς καναπέ")
-        self.add(1, "Έπιπλα: κρεβάτι σε κάθε υπνοδωμάτιο, καναπές στο σαλόνι", n > 0 and not bad,
-                 f"{len(self.ents('library_object'))} έπιπλα/είδη" + ("" if not bad else " · " + " · ".join(bad)))
+        self.add(1, "Έπιπλα: κρεβάτι σε κάθε υπνοδωμάτιο, καναπές στο σαλόνι", (not bad) if n else None,
+                 f"{len(self.ents('library_object'))} έπιπλα/είδη" + ("" if n else " · χωρίς σαλόνι/υπνοδωμάτιο (γραφεία)") + ("" if not bad else " · " + " · ".join(bad)))
 
     def _collisions(self):
         """Footprints (plan, low objects): outside every room, through a wall, or overlapping each other."""
@@ -300,6 +313,8 @@ class Gate:
                 if float(e.params.get("z", 0.0)) - self._floor_z(e) < 0.5 and str(e.params.get("cabinet_type", "base")) != "wall"]
         problems = []
         polys = {}
+        from archforge.library.assets import list_assets
+        outdoor = {a["id"] for a in list_assets() if "Εξωτερικοί χώροι" in (a.get("category") or ())}
         for e in objs:
             try:
                 poly = footprint(e.params)
@@ -312,6 +327,8 @@ class Gate:
             inner = [(cx + (p[0] - cx) * 0.98, cy + (p[1] - cy) * 0.98) for p in poly]
             face, room = self.room_of(cx, cy, z)
             if face is None:
+                if e.params.get("asset") in outdoor:
+                    continue                                     # garden furniture belongs outside
                 problems.append(f"{e.name}: έξω από χώρο")
                 continue
             from archforge.quantities.takeoff import net_polygon
@@ -325,6 +342,8 @@ class Gate:
                 a, b = self.doc.get(ids[i]), self.doc.get(ids[j])
                 if a.params.get("layout_id") and a.params.get("layout_id") == b.params.get("layout_id"):
                     continue                                     # the parts of one kitchen/bathroom fit by design
+                if abs(self._floor_z(a) - self._floor_z(b)) > 1e-3:
+                    continue                                     # different storeys never collide
                 if _overlap(polys[ids[i]], polys[ids[j]]) > 0.01:
                     problems.append(f"{a.name} ↔ {b.name}: επικάλυψη")
         self.add(1, "Έπιπλα/είδη μέσα σε χώρο, όχι πάνω σε τοίχο ή μεταξύ τους", not problems,
@@ -415,7 +434,7 @@ class Gate:
                  + ("" if not unsourced else " · χωρίς πηγή: " + ", ".join(unsourced)))
 
     def _column_continuity(self):
-        cols = self.ents("structural_column")
+        cols = [c for c in self.ents("structural_column") if c.params.get("role") != "pergola"]   # posts stand on the ground
         st = self.storeys()
         bad = []
         for c in cols:
@@ -424,8 +443,12 @@ class Gate:
             if not below:
                 continue
             x, y = float(c.params["x"]), float(c.params["y"])
-            if not any(abs(float(d.params.get("z", 0.0)) - max(below)) < 1e-3 and math.hypot(float(d.params["x"]) - x, float(d.params["y"]) - y) < 0.05
-                       for d in cols) and not any(abs(float(b.params.get("z", 0.0)) + 0 - z) < 0.6 for b in self.ents("structural_beam")):
+            # On a column of the storey below, or on a beam that passes under it (a beam anywhere at that
+            # level used to count — S09's pilotis columns stood on the slab and passed).
+            if not any(abs(float(d.params.get("z", 0.0)) - max(below)) < 1e-3 and math.hypot(float(d.params["x"]) - x, float(d.params["y"]) - y) < 0.3
+                       for d in cols) and not any(abs(float(b.params.get("z", 0.0)) + float(b.params.get("height", 0.0)) - z) < 0.6 and
+                                                  _seg_dist((x, y), b) <= float(b.params.get("width", 0.25)) / 2 + 0.05
+                                                  for b in self.ents("structural_beam")):
                 bad.append(c.name or c.id[:6])
         self.add(2, "Συνέχεια κολονών μεταξύ ορόφων", not bad, "όλες πατούν σε κολόνα ή δοκό" if not bad else "χωρίς στήριξη: " + ", ".join(bad))
 
@@ -436,18 +459,12 @@ class Gate:
         self.guard(3, "Αποχέτευση: κάθε υποδοχέας ως το φρεάτιο", self._drainage)
         self.guard(3, "Ηλεκτρολογικά: κάθε σημείο σε κύκλωμα, κάθε κύκλωμα ως τον πίνακα", self._electrical)
         self.guard(3, "Συσκευές με ηλεκτρική παροχή δίπλα τους", self._appliance_supply)
+        self.guard(3, "Σωληνώσεις: αγωγοί κατά τον πίνακα πλήρωσης, ≤ 2 καμπύλες ανά μέγεθος", self._conduits)
         self.guard(3, "Διπλά σημεία Η/Μ", self._duplicates)
-        heating = [e for e in self.doc.entities.values() if e.kind == "heating_point"]
-        try:
-            from archforge.ui import main_window as mw
-            has_tool = "heat_" in open(mw.__file__, encoding="utf-8").read()
-        except Exception:                                          # noqa: BLE001
-            has_tool = False
-        if heating:
-            self.add(3, "Θέρμανση/HVAC", True, f"{len(heating)} σημεία θέρμανσης")
-        else:
-            self.add(3, "Θέρμανση/HVAC", False if not has_tool else None,
-                     "δεν υπάρχει εργαλείο θέρμανσης στο UI (mep/heating.py χωρίς σημεία)" if not has_tool else "χωρίς θέρμανση στο σενάριο")
+        self.guard(3, "Θέρμανση: κάθε θερμαινόμενος χώρος με σώμα/βρόχο, προσαγωγή και επιστροφή ως την πηγή", self._heating)
+        self.guard(3, "Αλλαγή συστήματος θέρμανσης", self._heating_system_change)
+        if self.ents("pool"):
+            self.guard(3, "Πισίνα: ταχύτητα στους σωλήνες, ζώνες HD 60364-7-702, ποσότητες", self._pools)
         if len(self.storeys()) > 1:
             self.add(3, "Συνέχεια Η/Μ μεταξύ ορόφων", None, "ελέγχεται μέσα στις διαδρομές κάθε δικτύου")
         else:
@@ -472,21 +489,8 @@ class Gate:
                  + (f" · ασύνδετα τμήματα: {', '.join(loose)}" if loose else ""))
 
     def _pipe_islands(self, pipes, system, allowed=1):
-        nodes = {}
-        def key(p):
-            return (round(p[0], 2), round(p[1], 2), round(p[2], 2))
-        parent = {}
-        def find(a):
-            while parent.setdefault(a, a) != a:
-                parent[a] = parent[parent[a]]
-                a = parent[a]
-            return a
-        for seg in pipes:
-            a, b = key(seg[0]), key(seg[1])
-            parent[find(a)] = find(b)
-            nodes[a] = nodes[b] = True
-        roots = {find(n) for n in nodes}
-        return [f"{system}: {len(roots)} ξεχωριστά κομμάτια (επιτρέπονται {allowed})"] if len(roots) > allowed else []
+        n = len(_components([(seg[0], seg[1]) for seg in pipes]))      # tees into a pipe's middle count as joined
+        return [f"{system}: {n} ξεχωριστά κομμάτια (επιτρέπονται {allowed})"] if n > allowed else []
 
     def _pipe_system_change(self):
         from archforge.core.commands import UpdateEntity
@@ -510,6 +514,74 @@ class Gate:
 
     def _trade_state(self, exclude=()):
         return {i: (e.kind, repr(sorted(e.params.items()))) for i, e in self.doc.entities.items() if e.kind not in exclude}
+
+    def _heating(self):
+        from archforge.mep.heating import heating_quote
+        from archforge.mep.heating_layout import PIPE_SIZES, heated_rooms, route_heating_cached, source_of, _inside
+        name = "Θέρμανση: κάθε θερμαινόμενος χώρος με σώμα/βρόχο, προσαγωγή και επιστροφή ως την πηγή"
+        if source_of(self.doc) is None:
+            self.add(3, name, False, "χωρίς πηγή θέρμανσης στο σενάριο")
+            return
+        r = route_heating_cached(self.doc)
+        rep = r["report"]
+        bare = []
+        for z in self.storeys():
+            for f in heated_rooms(self.doc, z):
+                if rep["system"] == "underfloor":
+                    ok = any(lp["room"] == (self.doc.room_metadata(f.signature).get("use") or self.doc.room_metadata(f.signature).get("name") or "Χώρος")
+                             and abs(lp["z"] - z) < 0.2 and _inside(f.polygon, *lp["points"][0]) for lp in r["loops"])
+                else:
+                    ok = any(e.params.get("point_type") in ("radiator", "fan_coil") and abs(float(e.params["z"]) - z) < 0.5
+                             and _inside(f.polygon, float(e.params["x"]), float(e.params["y"])) for e in self.ents("heating_point"))
+                if not ok:
+                    bare.append(self.doc.room_metadata(f.signature).get("name") or f.signature[:8])
+        loose = self._pipe_islands(r["supply"], "προσαγωγή") + self._pipe_islands(r["return"], "επιστροφή")
+        sizes = set(PIPE_SIZES[rep["system"]])
+        quote = heating_quote(self.doc)
+        coded = {row["code"] for row in quote["rows"]}
+        missing = [f"Φ{dn}" for dn in rep["length_by_dn"] if f"heating.pipe.pexal.{dn}" not in coded]
+        parts = sum(m and len(m["outlets"]) for m in r["manifolds"])
+        ok = not rep["unserved"] and not bare and not loose and not missing and set(rep["length_by_dn"]) <= sizes \
+            and bool(r["supply"]) and not rep["warnings"]
+        self.add(3, name, ok,
+                 f"{rep['system_label']} · {rep['distribution_label']} · {rep['circuits']} κυκλώματα · "
+                 + ", ".join(f"Φ{k} {v:.1f} m" for k, v in sorted(rep["length_by_dn"].items()))
+                 + (f" · βρόχοι {rep['loop_m']:.0f} m / {rep['loop_area_m2']:.0f} m²" if rep["loop_m"] else "")
+                 + f" · συλλέκτες {len(r['manifolds'])} ({parts} κυκλ., υδρονομείς/βάνες)"
+                 + (f" · χωρίς σώμα/βρόχο: {', '.join(bare)}" if bare else "") + (f" · {loose[0]}" if loose else "")
+                 + (f" · χωρίς γραμμή προσφοράς: {', '.join(missing)}" if missing else "")
+                 + (f" · ⚠ {rep['warnings'][0]}" if rep["warnings"] else "") + (f" · ⚠ {rep['unserved'][0]}" if rep["unserved"] else ""))
+
+    def _pools(self):
+        from archforge.site.pool import analyse
+        for e in self.ents("pool"):
+            a = analyse(self.doc, e)
+            bad = [f"{c[0]} — {c[2]}" for c in a["checks"] if not c[1]]
+            self.add(3, "Πισίνα: ταχύτητα στους σωλήνες, ζώνες HD 60364-7-702, ποσότητες", not bad and not a["warnings"],
+                     f"{a['volume_m3']:.1f} m³ νερό · σκυρόδεμα {a['concrete_m3']:.1f} m³ · στεγάνωση/ψηφίδα {a['wet_area_m2']:.1f} m² · "
+                     f"σωλήνες {a['pipe_m']:.1f} m ×2 · " + " · ".join(c[0] for c in a["checks"] if c[1])
+                     + (" · ⚠ " + " · ".join(bad) if bad else "") + (" · " + " · ".join(a["warnings"]) if a["warnings"] else ""))
+
+    def _heating_system_change(self):
+        from archforge.core.commands import UpdateEntity
+        from archforge.mep.heating_layout import SYSTEMS, route_heating_cached, source_of, system_of
+        src = source_of(self.doc)
+        if src is None:
+            self.add(3, "Αλλαγή συστήματος θέρμανσης", None, "χωρίς πηγή θέρμανσης")
+            return
+        before = system_of(self.doc)
+        other = "underfloor" if before != "underfloor" else "radiators"
+        others_before = self._trade_state(exclude=("heating_point",))
+        changes = {"heating_system": other} if src.params.get("loop_spacing") or other != "underfloor" else \
+            {"heating_system": other, "loop_spacing": 0.15}
+        self.w.stack.execute(UpdateEntity(src.id, changes))
+        after = route_heating_cached(self.doc)["report"]
+        untouched = self._trade_state(exclude=("heating_point",)) == others_before
+        self.w.stack.undo()
+        back = system_of(self.doc) == before
+        self.add(3, "Αλλαγή συστήματος θέρμανσης", after["system"] == other and untouched and back and (after["loop_m"] > 0 or other != "underfloor"),
+                 f"{SYSTEMS[before]} → {SYSTEMS[other]}: " + ", ".join(f"Φ{k} {v:.0f} m" for k, v in sorted(after["length_by_dn"].items()))
+                 + ("" if untouched else " · ⚠ άλλαξαν στοιχεία άλλης ειδικότητας") + ("" if back else " · ⚠ η αναίρεση δεν επανέφερε"))
 
     def _drainage(self):
         from archforge.mep.drainage import route_drainage_cached
@@ -565,6 +637,19 @@ class Gate:
                  f"{len(switches)} διακόπτες, {len(lights)} φωτιστικά · χωρίς διακόπτη: "
                  + str(sum(1 for l in lights if l.id not in lit)) + " · διακόπτες χωρίς φως: " + str(sum(1 for s in switches if s.id not in linked)))
 
+    def _conduits(self):
+        from archforge.mep.conduits import conduit_map
+        name = "Σωληνώσεις: αγωγοί κατά τον πίνακα πλήρωσης, ≤ 2 καμπύλες ανά μέγεθος"
+        if not any(e.params.get("point_type") == "panel" for e in self.ents("electrical_point")):
+            self.add(3, name, None, "χωρίς ηλεκτρικό πίνακα")
+            return
+        m = conduit_map(self.doc)
+        over = [p["id"] for p in m["pieces"] if p["fill"] > 1 + 1e-9]
+        self.add(3, name, not over and not m["warnings"],
+                 f"{m['conduits']} σωληνώσεις · {len(m['pieces'])} κομμάτια · " + ", ".join(f"Φ{dn} {v:.0f} m" for dn, v in m["by_size"].items())
+                 + f" · κουτιά χωρισμού {len(m['split_boxes'])}" + (f" · διπλού δομήματος {m['outdoor_m']:.0f} m" if m["outdoor_m"] else "")
+                 + (f" · πάνω από τον πίνακα: {', '.join(over)}" if over else "") + (f" · ⚠ {m['warnings'][0]}" if m["warnings"] else ""))
+
     def _appliance_supply(self):
         need = {"Εστία": ("cooker",), "Κουζίνα με φούρνο": ("cooker",), "Πλυντήριο πιάτων": ("dishwasher",),
                 "Ψυγ": ("socket", "kitchen_socket"), "Απορροφητήρας": ("socket", "kitchen_socket"),
@@ -589,8 +674,10 @@ class Gate:
             for i in range(len(pts)):
                 for j in range(i + 1, len(pts)):
                     a, b = pts[i].params, pts[j].params
+                    # Same type and same role (name): a boiler's supply and a manifold's wiring centre are both
+                    # «heating_supply» but two devices, each with its own feed.
                     if a.get("point_type") == b.get("point_type") and a.get("point_type") not in ("socket", "light", "switch", "kitchen_socket") \
-                            and abs(float(a.get("z", 0)) - float(b.get("z", 0))) < 0.5:
+                            and pts[i].name == pts[j].name and abs(float(a.get("z", 0)) - float(b.get("z", 0))) < 0.5:
                         fa, _ = self.room_of(float(a["x"]), float(a["y"]), float(a.get("z", 0)))
                         fb, _ = self.room_of(float(b["x"]), float(b["y"]), float(b.get("z", 0)))
                         if fa is not None and fb is not None and fa.signature == fb.signature and \
@@ -601,10 +688,11 @@ class Gate:
     def _bom(self):
         from archforge.quantities.materials import all_lists
         lists = {name: rows for name, _t, rows, _n in all_lists(self.doc)}
-        need = [n for n, k in (("Ύδρευση", "plumbing_point"), ("Αποχέτευση", "plumbing_point"), ("Ηλεκτρολογικά", "electrical_point"))
+        need = [n for n, k in (("Ύδρευση", "plumbing_point"), ("Αποχέτευση", "plumbing_point"), ("Ηλεκτρολογικά", "electrical_point"),
+                               ("Θέρμανση", "heating_point"))
                 if self.ents(k) and not lists.get(n)]
         self.add(3, "BOM / ποσότητες ανά δίκτυο", not need,
-                 " · ".join(f"{n} {len(lists.get(n) or [])} γραμμές" for n in ("Ύδρευση", "Αποχέτευση", "Ηλεκτρολογικά"))
+                 " · ".join(f"{n} {len(lists.get(n) or [])} γραμμές" for n in ("Ύδρευση", "Αποχέτευση", "Ηλεκτρολογικά", "Θέρμανση"))
                  + ("" if not need else " · χωρίς λίστα: " + ", ".join(need)))
 
     # ============================================================================ 4. quote
@@ -617,7 +705,7 @@ class Gate:
                    "Ηλεκτρολογικά": self.ents("electrical_point"), "Φέρων": self.ents("structural_column"),
                    "Κεραμοσκεπή": self.ents("pitched_roof"), "Κουφώματα": self.ents("door", "window"),
                    "Τοιχοποιίες": self.ents("wall"), "Πλάκες": self.ents("room_floor", "room_roof"),
-                   "Κουζίνα": self.ents("cabinet")}
+                   "Κουζίνα": self.ents("cabinet"), "Θέρμανση": self.ents("heating_point"), "Πισίνα": self.ents("pool")}
         missing = [k for k, v in present.items() if v and k not in names]
         self.add(4, "Κάθε ειδικότητα του μοντέλου έχει γραμμές στην προσφορά", not missing,
                  f"{len(q['sections'])} ενότητες" + ("" if not missing else " · λείπουν: " + ", ".join(missing)))
@@ -879,6 +967,16 @@ def _overlap(a, b):
     return abs(area(out)) if len(out) >= 3 else 0.0
 
 
+
+def _seg_dist(q, beam):
+    """Plan distance from point ``q`` to the axis of ``beam``."""
+    p = beam.params
+    ax, ay, bx, by = (float(p[k]) for k in ("x1", "y1", "x2", "y2"))
+    L2 = (bx - ax) ** 2 + (by - ay) ** 2
+    t = 0.0 if L2 < 1e-12 else max(0.0, min(1.0, ((q[0] - ax) * (bx - ax) + (q[1] - ay) * (by - ay)) / L2))
+    return math.hypot(ax + (bx - ax) * t - q[0], ay + (by - ay) * t - q[1])
+
+
 def _components(segs):
     parent = {}
     def find(a):
@@ -888,8 +986,22 @@ def _components(segs):
         return a
     def key(p):
         return (round(p[0], 2), round(p[1], 2), round(p[2], 2))
+    segs = list(segs)
     for a, b in segs:
         parent[find(key(a))] = find(key(b))
+    # A branch teed into the middle of a pipe is connected to it (endpoint on the segment, within 1 cm); so is an
+    # end within 1 cm of another end (the rounded keys split 6.325 / 6.3249999 into two pieces).
+    ends = {key(q): q for s_ in segs for q in s_}
+    for a, b in segs:
+        d = [b[i] - a[i] for i in range(3)]
+        L2 = sum(v * v for v in d)
+        if L2 < 1e-8:
+            continue
+        for k, q in ends.items():
+            t = sum((q[i] - a[i]) * d[i] for i in range(3)) / L2
+            t = min(1.0, max(0.0, t))
+            if math.dist(q, [a[i] + t * d[i] for i in range(3)]) < 0.01:
+                parent[find(k)] = find(key(a))
     comp = {}
     for n in list(parent):
         comp.setdefault(find(n), []).append(n)

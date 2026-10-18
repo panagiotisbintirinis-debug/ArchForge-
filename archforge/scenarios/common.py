@@ -79,8 +79,8 @@ class Scenario:
                 return f"νέος όροφος στα {float(elevation):+.2f} m"
             w._refresh_floor_selector()
             w._activate_level_by_name(name)
-            if self.doc.work_plane.name != name:
-                raise ValueError(f"ο επιλογέας ορόφων δεν άλλαξε στο «{name}» (ενεργός: {self.doc.work_plane.name})")
+            if self.doc.active_level_name() != name:
+                raise ValueError(f"ο επιλογέας ορόφων δεν άλλαξε στο «{name}» (ενεργός: {self.doc.active_level_name()})")
             return f"ενεργός όροφος στα {self.level_z():+.2f} m"
         return self.step(f"Όροφος «{name}»", run)
 
@@ -215,6 +215,10 @@ class Scenario:
             if e.kind == "wall":
                 xs += [float(e.params["x1"]), float(e.params["x2"])]
                 ys += [float(e.params["y1"]), float(e.params["y2"])]
+            elif e.kind == "pool":                         # the pool, its zones and equipment room are in the frame too
+                from archforge.site.pool import ZONE1, plant_rect, rim
+                for q in rim(e.params, ZONE1) + plant_rect(e.params):
+                    xs.append(q[0]); ys.append(q[1])
         if xs:
             r = QRectF(min(xs) - 1.5, min(ys) - 1.5, max(xs) - min(xs) + 3.0, max(ys) - min(ys) + 3.0)
             pv.fitInView(r, Qt.AspectRatioMode.KeepAspectRatio)

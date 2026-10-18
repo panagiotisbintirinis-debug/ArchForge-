@@ -136,10 +136,16 @@ def test_greek_practice_wall_runs_boxes_and_island_from_the_floor():
     assert {dict(p.meta)['run'] for p in prims if p.role == 'cable'} >= {'wall', 'floor'}
 
 
-def test_pull_boxes_every_10_m_and_after_two_bends():
-    from archforge.mep.electrical import _pull_boxes
+def test_pull_boxes_only_at_a_corner_after_a_long_run_never_on_a_straight():
+    """Owner 18/10: «αν δεν έχει κάθετη έξοδο ή μεγάλη διαδρομή σε γωνία δεν χρειάζονται — είναι φθορά υλικού»."""
+    from archforge.mep.electrical import _merge_boxes, _pull_boxes
     straight = [(float(x), 0.0) for x in range(0, 26)]
-    assert len(_pull_boxes(straight, 2.35, 'C1')) == 2              # 25 m -> boxes at 10 and 20 m
+    assert _pull_boxes(straight, 2.35, 'C1') == []                  # 25 m straight: no box
     zigzag = [(0, 0), (1, 0), (1, 1), (2, 1), (2, 2), (3, 2)]
-    boxes = _pull_boxes(zigzag, 2.35, 'C1')
-    assert len(boxes) == 1 and boxes[0][3] == 'pull' and boxes[0][:2] == (2, 1)
+    assert _pull_boxes(zigzag, 2.35, 'C1') == []                    # short run with bends: no box
+    long_corner = [(float(x), 0.0) for x in range(0, 13)] + [(12.0, 1.0), (12.0, 2.0)]
+    boxes = _pull_boxes(long_corner, 2.35, 'C1')
+    assert len(boxes) == 1 and boxes[0][:2] == (12.0, 0.0)          # at the corner after 12 m
+    # One box per place, shared by the circuits through it.
+    merged = _merge_boxes([(1.0, 1.0, 2.35, 'junction', 'Κ1'), (1.02, 1.0, 2.35, 'junction', 'Κ2'), (1.0, 1.0, 2.35, 'pull', 'Κ1')])
+    assert len(merged) == 2 and merged[0][4] == 'Κ1,Κ2'

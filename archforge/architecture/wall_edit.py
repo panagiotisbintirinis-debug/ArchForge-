@@ -37,8 +37,8 @@ TOUCH = 0.05           # objects whose side is this close to a wall face ride al
 
 # Things that stand against a wall (kitchen, fixtures, MEP points, library objects).
 RIDING_KINDS = ('cabinet', 'kitchen_part', 'library_object', 'box', 'plumbing_point', 'electrical_point',
-                'ventilation_point', 'drainage_point', 'mep_terminal')
-POINT_KINDS = ('plumbing_point', 'electrical_point', 'ventilation_point', 'drainage_point', 'mep_terminal')
+                'ventilation_point', 'drainage_point', 'heating_point', 'mep_terminal')
+POINT_KINDS = ('plumbing_point', 'electrical_point', 'ventilation_point', 'drainage_point', 'heating_point', 'mep_terminal')
 OPENING_KINDS = ('door', 'window', 'opening')
 
 

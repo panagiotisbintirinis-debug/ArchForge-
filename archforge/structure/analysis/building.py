@@ -369,7 +369,10 @@ def _slab_loads(doc, zp, nodes, elements, beam_els, g, q, add, warnings, cell=0.
         return
     A = np.array([nodes[elements[k].n1][:2] for k in beam_els])
     B = np.array([nodes[elements[k].n2][:2] for k in beam_els])
+    from archforge.architecture.roof_need import OPEN_AIR_USES
     for face in faces:
+        if doc.room_metadata(face.signature).get("use") in OPEN_AIR_USES:
+            continue                         # a pool / yard / atrium is open to the sky: no slab over it
         poly = [(float(p[0]), float(p[1])) for p in face.polygon]
         xs, ys = [p[0] for p in poly], [p[1] for p in poly]
         gx, gy = np.meshgrid(np.arange(min(xs) + cell / 2, max(xs), cell), np.arange(min(ys) + cell / 2, max(ys), cell))

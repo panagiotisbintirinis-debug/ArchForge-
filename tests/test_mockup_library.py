@@ -206,3 +206,25 @@ def test_library_is_one_tree_of_themes_with_search_and_actions():
         assert window.plan_view.controller.tool == 'vent_hood'
     finally:
         window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_menus_say_import_objects_without_naming_a_vendor():
+    """Owner 18/10: the menus say only «Εισαγωγή αντικειμένων» — no vendor name anywhere in them."""
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(); app.processEvents()
+    try:
+        texts = []
+
+        def walk(menu):
+            for a in menu.actions():
+                texts.append(a.text().replace('&', ''))
+                if a.menu() is not None:
+                    walk(a.menu())
+
+        for a in window.menuBar().actions():
+            if a.menu() is not None:
+                walk(a.menu())
+        assert any(t.startswith('Εισαγωγή αντικειμένων') for t in texts)
+        assert not [t for t in texts if 'Home Designer' in t or 'Chief' in t or '.calib' in t]
+    finally:
+        window.close()

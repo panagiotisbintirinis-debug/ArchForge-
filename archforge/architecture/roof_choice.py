@@ -100,6 +100,39 @@ def room_roof_command(doc, room, choice, z=None):
     return CompositeCommand(commands, f"Στέγη χώρου: {CHOICES[choice]}"), " · ".join(notes)
 
 
+def _rectangles(rooms):
+    """Axis-aligned rectangles that together cover exactly the rooms, largest first (an L → body + wing).
+
+    ``[]`` when a room is not axis-aligned (then each room keeps its own roof)."""
+    for r in rooms:
+        poly = r["polygon"]
+        for a, b in zip(poly, poly[1:] + poly[:1]):
+            if abs(a[0] - b[0]) > 1e-3 and abs(a[1] - b[1]) > 1e-3:
+                return []
+    xs = sorted({round(q[0], 3) for r in rooms for q in r["polygon"]})
+    ys = sorted({round(q[1], 3) for r in rooms for q in r["polygon"]})
+    filled = {(i, j) for i in range(len(xs) - 1) for j in range(len(ys) - 1)
+              if any(inside(r["polygon"], (xs[i] + xs[i + 1]) / 2, (ys[j] + ys[j + 1]) / 2) for r in rooms)}
+    out = []
+    while filled:
+        best = None
+        for i0, j0 in sorted(filled):
+            i1 = i0
+            while (i1 + 1, j0) in filled:
+                i1 += 1
+            for i_end in range(i0, i1 + 1):           # every width from i0, then as tall as it stays full
+                j1 = j0
+                while all((i, j1 + 1) in filled for i in range(i0, i_end + 1)):
+                    j1 += 1
+                area = (xs[i_end + 1] - xs[i0]) * (ys[j1 + 1] - ys[j0])
+                if best is None or area > best[0] + 1e-9:
+                    best = (area, i0, j0, i_end, j1)
+        _a, i0, j0, i1, j1 = best
+        filled -= {(i, j) for i in range(i0, i1 + 1) for j in range(j0, j1 + 1)}
+        out.append([(xs[i0], ys[j0]), (xs[i1 + 1], ys[j0]), (xs[i1 + 1], ys[j1 + 1]), (xs[i0], ys[j1 + 1])])
+    return out
+
+
 def form_roofs(doc, form, z):
     """Tiled roofs of the chosen form over the storey at ``z`` — never over a room chosen as terrace.
 
@@ -112,9 +145,12 @@ def form_roofs(doc, form, z):
     storey = next((s for s in read_drawing(doc)["storeys"] if abs(s["z"] - z) < 1e-6), None)
     terraces = {e.params.get("room_signature") for e in doc.entities.values()
                 if e.kind == "room_roof" and str(e.params.get("roof_type", "flat")) == "flat"}
+    from archforge.architecture.roof_need import OPEN_AIR_USES
     rooms = storey["rooms"] if storey else []
-    flat_rooms = [r for r in rooms if r["signature"] in terraces]
-    others = [r for r in rooms if r["signature"] not in terraces]
+    # A pool, yard or atrium stays open to the sky: no tiled roof over it, as for the terrace slabs.
+    open_air = {r["signature"] for r in rooms if doc.room_metadata(r["signature"]).get("use") in OPEN_AIR_USES}
+    flat_rooms = [r for r in rooms if r["signature"] in terraces or r["signature"] in open_air]
+    others = [r for r in rooms if r not in flat_rooms]
     if rooms and not others:
         raise ValueError("Όλοι οι χώροι του ορόφου έχουν ταράτσα — Στέγη → «Κεραμοσκεπή σε χώρο» για να αλλάξεις κάποιον")
     if not others:
@@ -130,7 +166,13 @@ def form_roofs(doc, form, z):
     if together and not flat_rooms:
         params = default_params(doc, z=z, form=form)
         return [dict(params, gables=wall_sides(doc, params, z=z))]
-    groups = [[{"polygon": union, "signature": "", "name": ""}]] if together else [[r] for r in others]
+    if together:
+        groups = [[{"polygon": union, "signature": "", "name": ""}]]
+    else:
+        # An L / T: one roof per rectangle of the plan (body + wing), not one per room — a roof per room left
+        # every inner wall on a roof's edge, so none went up to the roof, and hips stood inside the rooms.
+        rects = _rectangles(others)
+        groups = [[{"polygon": q, "signature": "", "name": ""}] for q in rects] if rects else [[r] for r in others]
     out = []
     for (room,) in groups:
         params, _reason = _tiled_params(doc, room, z)

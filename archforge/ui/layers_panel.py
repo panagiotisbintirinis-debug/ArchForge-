@@ -21,7 +21,7 @@ TIPS = {
 # Tools that belong to an environment: picking one brings its environment forward.
 STRUCTURE_TOOLS = ('structural_column', 'structural_beam')
 ARCH_TOOLS = ('wall', 'door', 'window', 'opening_rect', 'opening_arch', 'stair', 'ramp', 'component')
-MEP_PREFIXES = ('plumb_', 'elec_', 'drain_', 'vent_', 'mep_')
+MEP_PREFIXES = ('plumb_', 'elec_', 'drain_', 'vent_', 'heat_', 'mep_')
 
 
 # --------------------------------------------------------------------------- switching

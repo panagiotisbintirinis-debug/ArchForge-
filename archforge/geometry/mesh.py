@@ -640,6 +640,12 @@ def _payload(doc,node):
  if k=='drainage_point':
   from archforge.mep.drainage import point_marker_mesh as drain_marker
   v,t=drain_marker(p);return MeshPayload(tuple(v),tuple(tuple(x) for x in t),tuple('marker' for _ in t))
+ if k=='pool':
+  from archforge.site.pool import coping_mesh
+  v,t=coping_mesh(p);return MeshPayload(tuple(v),tuple(tuple(x) for x in t),tuple('coping' for _ in t))
+ if k=='heating_point':
+  from archforge.mep.heating_layout import point_mesh as heat_mesh
+  v,t=heat_mesh(p);return MeshPayload(tuple(v),tuple(tuple(x) for x in t),tuple('marker' for _ in t))
  if k=='ventilation_point':
   from archforge.mep.ventilation import point_marker_mesh as vent_marker
   v,t=vent_marker(doc,p);return MeshPayload(tuple(v),tuple(tuple(x) for x in t),tuple('marker' for _ in t))

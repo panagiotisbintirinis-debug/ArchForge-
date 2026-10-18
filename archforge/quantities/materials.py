@@ -49,6 +49,37 @@ def drainage_list(doc):
     return rows
 
 
+def roof_timber_list(doc):
+    """Roof timber from the cutting list (owner 18/10): pieces per market section and order length, battens, volume."""
+    from archforge.structure.roof_framing import cutting_list
+    rows = []
+    for e in doc.entities.values():
+        if e.kind != "pitched_roof":
+            continue
+        c = cutting_list(e.params)
+        for r in c["rows"]:
+            rows.append((f"{r['name']} {r['section']} — μήκος παραγγελίας {r['order_m']:.2f} m ({r['codes'][0]}…)".replace(".", ","),
+                         "τεμ.", r["count"]))
+        rows += [("Λάτες κεραμιδιών", "m", c["battens_m"]), ("Αντιλάτες αερισμού", "m", c["counter_battens_m"]),
+                 ("Κυβισμός ξυλείας στέγης (παραγγελία)", "m³", c["volume_total_m3"])]
+    return rows
+
+
+def pool_list(doc):
+    """Pools: earthworks, concrete, waterproofing, mosaic, coping / overflow channel, pipes, equipment (site/pool.py)."""
+    from archforge.site.pool import analyse, pools
+    return [row for e in pools(doc) for row in analyse(doc, e)["rows"]]
+
+
+def heating_list(doc):
+    """Heating: equipment, pipes by the owner's Ø, loops, manifolds and every fitting of the derived layout."""
+    if not any(e.kind == "heating_point" for e in doc.entities.values()):
+        return []
+    from archforge.mep.heating import heating_quantities
+    units = {"pcs": "τεμ.", "m": "m", "m2": "m²"}
+    return [(q.description, units.get(q.unit, q.unit), q.quantity) for q in heating_quantities(doc) if q.quantity > 0]
+
+
 def structure_list(doc):
     """Concrete of the frame and foundation from the up-to-date analysis (reinforcement weight: from the study)."""
     from archforge.structure.analysis import fresh_result
@@ -194,13 +225,27 @@ def electrical_list(doc, result=None):
     rows = [(f"Καλώδιο αγωγός {p['mm2']:g} mm² (H07V-U ή ισοδύναμο, ανά αγωγό)".replace(".", ","), "m", p["with_waste"],
              meta(f"electrical.cable.{p['mm2']:g}mm2", "Μέτρα αγωγών από τις διαδρομές στο σχέδιο (φάση, ουδέτερος, γείωση, "
                   "επιστροφές), με τη φύρα που όρισες.", circuits_status)) for p in r["purchase"]]
-    conduit = round(sum(w["conduit_m"] for w in r["walls"]), 1)
-    if conduit:
-        rows.append(("Σωλήνας ηλεκτρολογικός (σπιράλ) και σωλήνωση — όλες οι διαδρομές", "m", conduit,
-                     meta("electrical.conduit", "Οι διαδρομές μέσα σε τοίχους, οροφή και δάπεδο, όπως τις χάραξε το πρόγραμμα.")))
+    # Conduits by size (owner 18/10: each size has its own price) from the conduit map: shared where the lines fit.
+    from archforge.mep.conduits import RULE as CONDUIT_RULE, conduit_map
+    cmap = conduit_map(doc)
+    for dn, metres in cmap["by_size"].items():
+        outdoor = sum(p["length_m"] * p["count"] for p in cmap["pieces"] if p["dn"] == dn and p["outdoor"])
+        inside = round(metres - outdoor, 1)
+        if inside > 0:
+            rows.append((f"Σωλήνας ηλεκτρολογικός σπιράλ Φ{dn} και σωλήνωση", "m", inside,
+                         meta(f"electrical.conduit.{dn}", "Κομμάτια του χάρτη σωληνώσεων με αυτή τη διατομή (γραμμές που χωρούν "
+                              "με τις καμπύλες τους): " + CONDUIT_RULE, "DESIGN_DEFAULT", "mep/conduits.py")))
+        if outdoor > 0:
+            rows.append((f"Σωλήνας διπλού δομήματος Φ{dn} (έδαφος / εξωτερικά) και τοποθέτηση", "m", round(outdoor, 1),
+                         meta(f"electrical.conduit.outdoor.{dn}", "Οδεύσεις έξω από το κτίριο, στο έδαφος (π.χ. προς αντλιοστάσιο).",
+                              "DESIGN_DEFAULT", "mep/conduits.py")))
+    if cmap["split_boxes"]:
+        rows.append(("Κουτί διακλάδωσης σωληνώσεων (χωρισμός γραμμών)", "τεμ.", len(cmap["split_boxes"]),
+                     meta("electrical.box.split", "Όπου μια κοινή σωλήνωση χωρίζεται: τα καλώδια βγαίνουν μόνο από κουτί.",
+                          "DESIGN_DEFAULT", "mep/conduits.py")))
     for kind, label, why in (("junction", "Κουτί διακλάδωσης", "Πάνω από κάθε πρίζα/διακόπτη στη γραμμή όδευσης."),
                              ("floor", "Κουτί δαπέδου", "Για σημεία μακριά από τοίχο (π.χ. νησίδα κουζίνας)."),
-                             ("pull", "Κουτί διέλευσης", "Σε μεγάλες ευθείες ή μετά από καμπύλες, για να τραβιούνται τα καλώδια.")):
+                             ("pull", "Κουτί διέλευσης", "Σε γωνία μετά από μεγάλη διαδρομή, για να τραβιούνται τα καλώδια.")):
         n = r["boxes"].get(kind, 0)
         if n:
             rows.append((label, "τεμ.", n, meta(f"electrical.box.{kind}", why, rule("electrical.pull_boxes").status
@@ -342,6 +387,15 @@ def all_lists(doc):
             ("Ηλεκτρολογικά", "Ηλεκτρολογικά — καλώδια, σωλήνες, κουτιά, ασφάλειες, σημεία, φωτιστικά", electrical_list(doc),
              ("Προμελέτη — προς έλεγχο ηλεκτρολόγου· κανόνες με την κατάστασή τους στην καρτέλα «Ηλεκτρ. πίνακας».",
               "Καλώδιο: μέτρα ανά αγωγό με τη φύρα που όρισες.")),
+            ("Θέρμανση", "Θέρμανση — πηγή, σώματα / βρόχοι, σωλήνες, συλλέκτες, υδρονομείς, βάνες", heating_list(doc),
+             ("Προμελέτη: διατομές από κανόνα ιδιοκτήτη, μήκη από τη χάραξη· θερμικά φορτία, ισχύς σωμάτων, "
+              "κυκλοφορητής και εξισορρόπηση από μηχανολόγο.",)),
+            ("Ξυλεία στέγης", "Ξυλεία στέγης — λίστα κοπής ανά διατομή και μήκος παραγγελίας", roof_timber_list(doc),
+             ("Διατομές μόνο της αγοράς· μήκος παραγγελίας = καθαρό + 20 cm για λοξοτομές, ανά 5 cm· κοπές στη λίστα κοπής "
+              "(Κατασκευή ▸ Στέγη ▸ Στρώσεις και λίστα κοπής)· προδιάσταση προς έλεγχο από στατικό.",)),
+            ("Πισίνα", "Πισίνα — εκσκαφή, σκυρόδεμα, στεγάνωση, ψηφίδα, στέψη / κανάλι, σωλήνες, εξοπλισμός", pool_list(doc),
+             ("Ποσότητες από το σχέδιο· αντλία, φίλτρο, χημεία, στατική λεκάνης και ηλεκτρολογική μελέτη από μηχανικούς· "
+              "εξοπλισμός όπως δηλώθηκε στις Ιδιότητες της πισίνας.",)),
             ("Φέρων", "Φέρων οργανισμός και θεμελίωση", structure_list(doc), ("Προμελέτη — προς έλεγχο στατικού μηχανικού.",)),
             ("Χωματουργικά", "Χωματουργικά — εκσκαφές από ό,τι δίνει το σχέδιο", _earth(doc)["rows"],
              tuple(_earth(doc)["basis"]) + tuple("Δεν μετρήθηκε — " + m for m in _earth(doc)["missing"])

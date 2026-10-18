@@ -39,6 +39,7 @@ LAYERS = {
     'electrical': 'Ηλεκτρολογικά',
     'low_voltage': 'Ασθενή (δίκτυο / TV / KNX)',
     'ventilation': 'Εξαερισμοί',
+    'heating': 'Θέρμανση',
     'dimensions': 'Διαστάσεις',
     'site': 'Οικόπεδο / έδαφος',
     'underlay': 'Υπόβαθρο κάτω ορόφου',
@@ -64,7 +65,8 @@ KIND_LAYERS = {
     'drainage_point': 'drainage',
     'electrical_point': 'electrical',
     'ventilation_point': 'ventilation',
-    'terrain': 'site', 'plant': 'site', 'site_path': 'site',
+    'heating_point': 'heating',
+    'terrain': 'site', 'plant': 'site', 'site_path': 'site', 'pool': 'site',
     'camera': 'cameras',
 }
 
@@ -80,7 +82,11 @@ ROLE_LAYERS = {
     'cable': 'electrical', 'elec-box': 'electrical', 'electrical-label': 'electrical',
     'lv-cable': 'low_voltage', 'lv-box': 'low_voltage', 'lv-label': 'low_voltage',
     'duct': 'ventilation', 'vent-terminal': 'ventilation', 'ventilation-label': 'ventilation',
+    'heat-supply': 'heating', 'heat-return': 'heating', 'heat-loop': 'heating', 'heat-manifold': 'heating',
+    'heat-fitting': 'heating', 'heat-label': 'heating',
     'terrain': 'site', 'terrain-label': 'site',
+    'pool-rim': 'site', 'pool-label': 'site', 'pool-plant': 'site', 'pool-pipe': 'plumbing', 'pool-zone': 'electrical',
+    'pool-zone-label': 'electrical',
     'floor-underlay': 'underlay',
     'worktop': 'kitchen', 'worktop-cutout': 'kitchen', 'sink-symbol': 'kitchen', 'hob-symbol': 'kitchen', 'hood': 'kitchen',
     'camera': 'cameras', 'camera-cone': 'cameras', 'camera-label': 'cameras',
@@ -89,8 +95,9 @@ ROLE_LAYERS = {
 UNLAYERED_ROLES = ('preview', 'wall-move-arrow', 'wall-move-label', 'wall-move-opening', 'angle-arc', 'angle-label')
 
 # 3D payload ``layer`` tags (rendering/scene.py) -> layer.
-SCENE_LAYERS = {'roof_structure': 'slabs', 'roof_tiles': 'slabs', 'foundation': 'foundation', 'mep': 'plumbing',
-                'drain': 'drainage', 'elec': 'electrical', 'lv': 'low_voltage', 'vent': 'ventilation', 'kitchen': 'kitchen'}
+SCENE_LAYERS = {'roof_structure': 'slabs', 'roof_tiles': 'slabs', 'roof_layers': 'slabs', 'foundation': 'foundation', 'mep': 'plumbing',
+                'drain': 'drainage', 'elec': 'electrical', 'lv': 'low_voltage', 'vent': 'ventilation', 'heat': 'heating', 'pool': 'site',
+                'kitchen': 'kitchen'}
 
 BATH_CATEGORIES = ('Μπάνιο',)
 
@@ -132,7 +139,7 @@ def primitive_layer(doc, primitive):
 # ------------------------------------------------------------------ environments
 WORKSPACES = {'arch': 'Αρχιτεκτονικό', 'structure': 'Φέρων', 'mep': 'Η/Μ'}
 ARCH_LAYERS = ('walls', 'openings', 'rooms', 'slabs', 'stairs', 'furniture', 'kitchen', 'sanitary', 'other', 'site')
-MEP_LAYERS = ('plumbing', 'drainage', 'electrical', 'low_voltage', 'ventilation')
+MEP_LAYERS = ('plumbing', 'drainage', 'electrical', 'low_voltage', 'ventilation', 'heating')
 ON = {'visible': True, 'locked': False, 'dim': False}
 OFF = {'visible': False, 'locked': False, 'dim': False}
 UNDER = {'visible': True, 'locked': True, 'dim': True}     # faint, unpickable reference

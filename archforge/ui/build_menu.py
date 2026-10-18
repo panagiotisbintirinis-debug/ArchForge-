@@ -148,7 +148,8 @@ def organize_build_menu(window):
         getattr(window, '_mockup_auto_floor_action', None), getattr(window, '_mockup_flat_roof_action', None), None,
         *[a for a in slab_items if a is not None]))
     roof = take(getattr(window, '_roof_menu', None))
-    roof_views = [take_text('Σκελετός στέγης στο 3D'), take_text('Κεραμίδια στο 3D')]
+    roof_views = [take_text('Ξυλεία στέγης στο 3D'), take_text('Στρώσεις στέγης στο 3D (ταμπλάς, μόνωση, μεμβράνες)'),
+                  take_text('Κεραμίδια στο 3D')]
     if roof is not None and any(roof_views):
         roof.addSeparator()
         for a in roof_views:

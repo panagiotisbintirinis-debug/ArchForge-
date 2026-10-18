@@ -93,6 +93,10 @@ def under_pitched_roof(doc, polygon, base_z):
     return False
 
 
+# Room uses that are open to the sky: never given a roof or terrace slab.
+OPEN_AIR_USES = ("Πισίνα", "Αυλή", "Αίθριο")
+
+
 def roof_plan(doc):
     """What "Fix roofs" would do: ``{"remove": [roof ids under a storey], "add": [room signatures without a roof]}``."""
     remove, roofed = [], set()
@@ -120,6 +124,8 @@ def roof_plan(doc):
         for face in faces:
             if face.signature in roofed or under_pitched_roof(doc, face.polygon, z):
                 continue
+            if doc.room_metadata(face.signature).get("use") in OPEN_AIR_USES:
+                continue                                  # a pool or a courtyard stays open to the sky
             if coverage(doc, face.polygon, z) < COVERED:
                 add.append(face.signature)
     return {"remove": remove, "add": add}

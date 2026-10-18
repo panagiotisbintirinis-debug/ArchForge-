@@ -149,6 +149,7 @@ def route_drainage(doc):
     top_z = max(_levels(doc) + [storeys[-1]])
     stack_du = {i: (0.0, False) for i in range(len(stacks))}
     stack_floors = {i: 0 for i in range(len(stacks))}
+    stack_joints = {i: set() for i in range(len(stacks))}     # elevations where a storey's collector meets the stack
     floor_drains = [e for e in placed if e.params["point_type"] == "floor_drain"]
     for z in sorted(by_storey, reverse=True) + ([ground] if ground not in by_storey and upper else []):
         members = by_storey.get(z, [])
@@ -162,10 +163,6 @@ def route_drainage(doc):
                 rx, ry = _auto_manhole(doc, z, sum(ax_) / len(ax_), sum(ay_) / len(ay_))
                 report["auto"].append(f"Φρεάτιο (αυτόματα) 1 m έξω από τον πλησιέστερο εξωτερικό τοίχο: ({rx:.2f}, {ry:.2f})")
             result["nodes"].append({"kind": "manhole", "x": rx, "y": ry, "z": z, "auto": not manholes})
-        else:
-            # The nearest stack serves this storey.
-            k = min(range(len(stacks)), key=lambda i: math.hypot(stacks[i][0] - members[0].params["x"], stacks[i][1] - members[0].params["y"]))
-            rx, ry = stacks[k][0], stacks[k][1]
         # Targets: WCs and non-bathroom fixtures directly; bathroom fixtures via the room's floor drain.
         targets = {}            # id -> (x, y, du, has_wc, branch_dn, label)
         branches = []           # (fixture xy, drain xy, dn)
@@ -192,8 +189,14 @@ def route_drainage(doc):
                 dx, dy, did = float(drain.params["x"]), float(drain.params["y"]), drain.id
             else:
                 anchor = next((o for o in fx if o.params["point_type"] in ("shower", "bathtub")), None)
-                if anchor is not None:
-                    dx, dy = float(anchor.params["x"]) + 0.3, float(anchor.params["y"])
+                ax, ay = (float(anchor.params["x"]), float(anchor.params["y"])) if anchor is not None else (None, None)
+                # 30 cm beside the shower/bathtub, on whichever side is still inside the same room (a fixed +x put it
+                # in the wall or outside the building when the fixture stood against an east wall).
+                side = None if anchor is None else next(
+                    ((ax + ox, ay + oy) for ox, oy in ((0.3, 0.0), (-0.3, 0.0), (0.0, 0.3), (0.0, -0.3))
+                     if _room_key(doc, ax + ox, ay + oy, z) == room), None)
+                if side is not None:
+                    dx, dy = side
                 else:
                     dx = sum(float(o.params["x"]) for o in fx) / len(fx)
                     dy = sum(float(o.params["y"]) for o in fx) / len(fx)
@@ -203,7 +206,7 @@ def route_drainage(doc):
             targets[did] = (dx, dy, du, False, collector_dn(du, False))
             result["nodes"].append({"kind": "floor_drain", "x": dx, "y": dy, "z": z, "auto": drain is None, "room": str(room)})
             for o in fx:
-                branches.append(((float(o.params["x"]), float(o.params["y"])), (dx, dy), FIXTURES[o.params["point_type"]][1]))
+                branches.append(((float(o.params["x"]), float(o.params["y"])), (dx, dy), FIXTURES[o.params["point_type"]][1], did))
         # Stack feet arriving on the ground storey.
         if is_ground:
             for i, (sx, sy, _sid) in enumerate(stacks):
@@ -212,57 +215,87 @@ def route_drainage(doc):
                     targets[f"stack:{i}"] = (sx, sy, du, wc, stack_dn(du, rain.get(stacks[i][2], 0.0)))
         if not targets:
             continue
-        pts = [(v[0], v[1]) for v in targets.values()] + [(rx, ry)]
-        grid = _Grid(doc, z, pts)
-        root = grid.cell(rx, ry)
-        cell_of = {tid: grid.cell(v[0], v[1]) for tid, v in targets.items()}
-        paths, _loads, parent = _grow(grid, root, cell_of)
-        # Per edge: discharge units and whether a WC is upstream.
-        edge_du, edge_wc = {}, {}
-        for tid, path in paths.items():
-            du, wc = targets[tid][2], targets[tid][3]
-            c = path[0]
-            while parent.get(c) is not None:
-                key = (c, parent[c])
-                edge_du[key] = edge_du.get(key, 0.0) + du
-                edge_wc[key] = edge_wc.get(key, False) or wc
-                c = parent[c]
-        # Distance of every node to the outlet (along the tree) for the slope.
-        def dist(c):
-            n = 0
-            while parent.get(c) is not None:
-                c = parent[c]
-                n += 1
-            return n * CELL
-        far = max([dist(c) for c in cell_of.values()] + [0.0])
-        dn_max = max([collector_dn(edge_du[k], edge_wc[k]) for k in edge_du] + [50])
-        z_root = z - COVER - dn_max / 1000 - SLOPE * far
+        if is_ground:
+            groups = [(rx, ry, None, targets)]
+        else:
+            # Each fixture (or floor drain) goes to its nearest stack: a kitchen and a bathroom far apart each get the
+            # stack beside them, else one long collector needed more depth than the floor build-up has.
+            near = {}
+            for tid, v in targets.items():
+                k = min(range(len(stacks)), key=lambda i: math.hypot(stacks[i][0] - v[0], stacks[i][1] - v[1]))
+                near.setdefault(k, {})[tid] = v
+            groups = [(stacks[k][0], stacks[k][1], k, near[k]) for k in sorted(near)]
+        for rx, ry, k, targets in groups:
+            pts = [(v[0], v[1]) for v in targets.values()] + [(rx, ry)]
+            grid = _Grid(doc, z, pts)
+            root = grid.cell(rx, ry)
+            cell_of = {tid: grid.cell(v[0], v[1]) for tid, v in targets.items()}
+            paths, _loads, parent = _grow(grid, root, cell_of)
+            # Per edge: discharge units and whether a WC is upstream.
+            edge_du, edge_wc = {}, {}
+            for tid, path in paths.items():
+                du, wc = targets[tid][2], targets[tid][3]
+                c = path[0]
+                while parent.get(c) is not None:
+                    key = (c, parent[c])
+                    edge_du[key] = edge_du.get(key, 0.0) + du
+                    edge_wc[key] = edge_wc.get(key, False) or wc
+                    c = parent[c]
+            # Distance of every node to the outlet (along the tree) for the slope.
+            def dist(c):
+                n = 0
+                while parent.get(c) is not None:
+                    c = parent[c]
+                    n += 1
+                return n * CELL
+            far = max([dist(c) for c in cell_of.values()] + [0.0])
+            dn_max = max([collector_dn(edge_du[k], edge_wc[k]) for k in edge_du] + [50])
+            z_root = z - COVER - dn_max / 1000 - SLOPE * far
 
-        def invert(c):
-            return z_root + SLOPE * dist(c)
-        for (c, p), du in edge_du.items():
-            dn = collector_dn(du, edge_wc[(c, p)])
-            a, b = grid.point(c), grid.point(p)
-            result["pipes"].append(((a[0], a[1], invert(c)), (b[0], b[1], invert(p)), dn, "collector"))
-        for (fx_, dr, dn) in branches:
-            dz = invert(grid.cell(*dr))
-            L = math.dist(fx_, dr)
-            result["pipes"].append(((fx_[0], fx_[1], dz + SLOPE * L), (dr[0], dr[1], dz), dn, "branch"))
-        depth = z - z_root
-        report["depth_m"][round(z, 2)] = round(depth, 3)
-        if depth > SCREED + 1e-6 and not is_ground:
-            extra = math.ceil((depth - SCREED) * 100)
-            report.setdefault("screed_m", {})[round(z, 2)] = extra / 100
-            report["warnings"].append(
-                f"Όροφος +{z:.2f}: η αποχέτευση θέλει βάθος {depth * 100:.0f} cm κάτω από το δάπεδο — το γέμισμα παίρνει έως "
-                f"{SCREED * 100:.0f} cm, τα υπόλοιπα {extra} cm με τσιμεντοκονία (ανύψωση δαπέδου) ή υποβιβασμό πλάκας")
-        # This storey's flow goes down its stack.
-        if not is_ground:
-            total = sum(v[2] for v in targets.values())
-            wc = any(v[3] for v in targets.values())
-            prev = stack_du[k]
-            stack_du[k] = (prev[0] + total, prev[1] or wc)
-            stack_floors[k] += 1
+            def invert(c):
+                return z_root + SLOPE * dist(c)
+            for (c, p), du in edge_du.items():
+                dn = collector_dn(du, edge_wc[(c, p)])
+                a, b = grid.point(c), grid.point(p)
+                result["pipes"].append(((a[0], a[1], invert(c)), (b[0], b[1], invert(p)), dn, "collector"))
+            # The collector's last grid node → the outlet itself (manhole or stack), else the network stopped short of it.
+            g = grid.point(root)
+            L = math.dist((rx, ry), g)
+            z_out = z_root - SLOPE * L
+            if L > 1e-6:
+                result["pipes"].append(((g[0], g[1], z_root), (rx, ry, z_out), dn_max, "collector"))
+            if not is_ground:
+                stack_joints[k].add(round(z_out, 4))
+            # Off-grid targets (a floor drain or fixture between grid nodes): a short stub to their collector node, else
+            # the branch ended 5–15 cm short of the collector and the network fell apart in pieces.
+            for tid, (tx, ty, _du, _wc, dn) in targets.items():
+                g = grid.point(cell_of[tid])
+                L = math.dist((tx, ty), g)
+                zc = invert(cell_of[tid])
+                if L > 1e-6:
+                    result["pipes"].append(((tx, ty, zc + SLOPE * L), (g[0], g[1], zc), dn, "branch"))
+                if str(tid).startswith("stack:"):
+                    stack_joints[int(str(tid)[6:])].add(round(zc + SLOPE * L, 4))     # the stack's foot
+            for (fx_, dr, dn, _did) in (b for b in branches if b[3] in targets):
+                g = grid.point(grid.cell(*dr))
+                dz = invert(grid.cell(*dr)) + SLOPE * math.dist(dr, g)
+                L = math.dist(fx_, dr)
+                result["pipes"].append(((fx_[0], fx_[1], dz + SLOPE * L), (dr[0], dr[1], dz), dn, "branch"))
+            depth = z - z_root
+            report["depth_m"][round(z, 2)] = max(report["depth_m"].get(round(z, 2), 0.0), round(depth, 3))
+            if depth > SCREED + 1e-6 and not is_ground:
+                extra = math.ceil((depth - SCREED) * 100)
+                report.setdefault("screed_m", {})[round(z, 2)] = extra / 100
+                report["warnings"].append(
+                    f"Όροφος +{z:.2f}: η αποχέτευση θέλει βάθος {depth * 100:.0f} cm κάτω από το δάπεδο — το γέμισμα παίρνει έως "
+                    f"{SCREED * 100:.0f} cm, τα υπόλοιπα {extra} cm με τσιμεντοκονία (ανύψωση δαπέδου) ή υποβιβασμό πλάκας")
+            # This group's flow goes down its stack.
+            if not is_ground:
+                total = sum(v[2] for v in targets.values())
+                wc = any(v[3] for v in targets.values())
+                prev = stack_du[k]
+                stack_du[k] = (prev[0] + total, prev[1] or wc)
+                stack_floors[k] += 1
     # Stacks: vertical from the highest storey that uses them down to the ground collector, vented over the roof.
     for i, (sx, sy, sid) in enumerate(stacks):
         if stack_du[i][0] <= 0:
@@ -274,7 +307,10 @@ def route_drainage(doc):
             report["warnings"].append(
                 f"Στήλη ({sx:.2f}, {sy:.2f}): δέχεται και όμβρια {area:.0f} m² — μικτή στήλη Φ{dn} "
                 f"({stack_flow(stack_du[i][0], area):.2f} l/s), να επιβεβαιωθεί από μηχανολόγο")
-        result["pipes"].append(((sx, sy, ground - 0.3), (sx, sy, roof), dn, "stack"))
+        # One piece between consecutive joints (foot, each storey's branch-in, vent top): a tee, not a pass-by.
+        levels = sorted(stack_joints[i] | {roof} if stack_joints[i] else {ground - 0.3, roof})
+        for a, b in zip(levels, levels[1:]):
+            result["pipes"].append(((sx, sy, a), (sx, sy, b), dn, "stack"))
         result["nodes"].append({"kind": "stack", "x": sx, "y": sy, "z": ground, "auto": sid is None, "dn": dn,
                                 "floors": stack_floors[i], "flow_ls": round(stack_flow(stack_du[i][0], area), 2),
                                 "rain_area": area})

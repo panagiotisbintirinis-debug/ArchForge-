@@ -102,8 +102,9 @@ class MoveEntities(Command):
                 raise ValueError('υφιστάμενο φέρον στοιχείο (ανακαίνιση): δεν μετακινείται')
             if e.kind in ('structural_column','structural_beam') and abs(float(self.dz))>1e-12:
                 raise ValueError(f'{e.kind} vertical position is level-driven; change its level instead')
-            if e.kind in ('box','mechanical_part','library_object','kitchen_part','cabinet','plumbing_point','electrical_point','ventilation_point','drainage_point'):
+            if e.kind in ('box','mechanical_part','library_object','kitchen_part','cabinet','plumbing_point','electrical_point','ventilation_point','drainage_point','heating_point','pool'):
                 changes={'x':p['x']+self.dx,'y':p['y']+self.dy,'z':p['z']+self.dz}
+                if e.kind=='pool' and 'plant_x' in p:changes.update(plant_x=p['plant_x']+self.dx,plant_y=p['plant_y']+self.dy)   # its equipment room goes along
                 if e.kind=='electrical_point' and 'x2' in p:changes.update(x2=p['x2']+self.dx,y2=p['y2']+self.dy)   # LED strip: both ends
                 doc.update(i,changes)
             elif e.kind=='underlay':doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy})
@@ -165,7 +166,7 @@ class RotateEntities(Command):
                 else:
                     doc.update(i, {'rotation': (p.get('rotation', 0.0) + self.angle) % 360.0})
             elif e.kind in ('kitchen_part', 'plant', 'plumbing_point', 'electrical_point', 'ventilation_point',
-                            'drainage_point', 'mep_terminal'):
+                            'drainage_point', 'heating_point', 'mep_terminal'):
                 # Other placed pieces (object_ops.XY_KINDS): turn about the pivot, own rotation if any.
                 from archforge.core.object_ops import rotated_params
                 about = self.pivot if self.pivot is not None else (p['x'], p['y'])

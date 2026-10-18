@@ -288,7 +288,7 @@ def _categorise(ids, doc):
     """[(category title, ids)] in CATEGORIES order, then the rest."""
     out, listed = [], set()
     for title, kinds in CATEGORIES + (("Υδραυλικά", ("plumbing_point",)), ("Ηλεκτρολογικά", ("electrical_point",)),
-                                      ("Εξαερισμοί", ("ventilation_point",)), ("Αποχετεύσεις", ("drainage_point",)), ("Δοκίδες", ("ceiling_joists",)),
+                                      ("Εξαερισμοί", ("ventilation_point",)), ("Αποχετεύσεις", ("drainage_point",)), ("Θέρμανση", ("heating_point",)), ("Δοκίδες", ("ceiling_joists",)),
                                       ("Στέγες", ("pitched_roof",)), ("Στοιχεία στατικής", ("structural_design",))):
         group = [i for i in ids if doc.get(i).kind in kinds]
         listed.update(group)
@@ -349,6 +349,11 @@ def _mep_summary(doc):
     if "ventilation_point" in kinds:
         from archforge.mep.ventilation import route_ventilation_cached
         out["ventilation_point"] = f" · αεραγωγοί {route_ventilation_cached(doc)['report']['duct_m']:.1f} m"
+    if "heating_point" in kinds:
+        from archforge.mep.heating_layout import route_heating_cached
+        rep = route_heating_cached(doc)["report"]
+        out["heating_point"] = (f" · {rep['system_label']} · " + ", ".join(f"Φ{k} {v:.1f} m" for k, v in sorted(rep["length_by_dn"].items()))
+                                + (f" · βρόχοι {rep['loop_m']:.0f} m" if rep["loop_m"] else ""))
     return out
 
 
@@ -474,7 +479,7 @@ def project_outline(doc, title="Έργο"):
     # Derived networks (whole building): one line each, from the same points.
     if mep:
         names = {"plumbing_point": "Υδραυλικό δίκτυο", "drainage": "Αποχέτευση", "electrical_point": "Ηλεκτρολογικό δίκτυο",
-                 "ventilation_point": "Αεραγωγοί"}
+                 "ventilation_point": "Αεραγωγοί", "heating_point": "Θέρμανση"}
         children.append(_node("Η/Μ δίκτυα", None, None, [_node(names[k] + v, None, None) for k, v in mep.items()]))
     site = [i for i, e in doc.entities.items() if e.kind in SITE]
     if site:

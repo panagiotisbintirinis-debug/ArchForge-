@@ -136,6 +136,49 @@ def heating_quantities(doc) -> list[QuantityLine]:
             selection_basis="explicit_model_value",
         ))
 
+    lines += _layout_quantities(doc)
+    return lines
+
+
+def _layout_quantities(doc) -> list[QuantityLine]:
+    """Pipes (by the owner's Ø rule), loops and the manifold / emitter fittings of the derived layout."""
+    if not hasattr(doc, "levels"):
+        return []
+    from archforge.mep.heating_layout import SIZE_RULE, fittings, route_heating_cached, source_of
+    if source_of(doc) is None:
+        return []
+    route = route_heating_cached(doc)
+    rep = route["report"]
+    lines = []
+    for dn, metres in sorted(rep["length_by_dn"].items()):
+        lines.append(QuantityLine(
+            code=f"heating.pipe.pexal.{dn}",
+            description=f"Σωλήνας θέρμανσης PEX-Al-PEX Φ{dn} (προσαγωγή + επιστροφή" + (", βρόχοι" if dn == 16 and rep["loop_m"] else "") + ")",
+            category="Σωληνώσεις",
+            quantity=round(metres, 2),
+            unit="m",
+            trade="heating",
+            source="heating_layout",
+            owner_explanation=f"Μήκος από τη χάραξη στο σχέδιο ({rep['system_label']}, {rep['distribution_label']}).",
+            rule_status="OWNER_RULE_ENGINEER_REVIEW",
+            rule_source=SIZE_RULE,
+            selection_basis="derived_route",
+        ))
+    for code, (label, count, why) in sorted(fittings(route).items()):
+        unit = "m2" if code.endswith(".board") else ("m" if code.endswith(".edge_strip") else "pcs")
+        lines.append(QuantityLine(
+            code=code,
+            description=label,
+            category="Συλλέκτες & εξαρτήματα" if ".manifold." in code or code.startswith("heating.fitting.") else "Ενδοδαπέδια",
+            quantity=float(count),
+            unit=unit,
+            trade="heating",
+            source="heating_layout",
+            owner_explanation=f"Από τη χάραξη: {why}.",
+            rule_status="MODEL_QUANTITY_ENGINEER_REVIEW",
+            rule_source=PROVENANCE,
+            selection_basis="derived_layout",
+        ))
     return lines
 
 

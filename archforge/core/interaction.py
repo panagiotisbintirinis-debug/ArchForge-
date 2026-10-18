@@ -196,7 +196,7 @@ class MoveTransaction:
         for eid in self.ids:
             p = self.before[eid].copy()
             e = self.doc.get(eid)
-            if e.kind in ('box', 'mechanical_part', 'cabinet', 'library_object', 'plumbing_point', 'ventilation_point'):
+            if e.kind in ('box', 'mechanical_part', 'cabinet', 'library_object', 'plumbing_point', 'ventilation_point', 'heating_point'):
                 p['x'] = p['x'] + self.dx
                 p['y'] = p['y'] + self.dy
                 p['z'] = p['z'] + self.dz

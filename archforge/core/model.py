@@ -229,6 +229,40 @@ def _drain_type(v):
     return v
 
 
+def _ridge_posts(v):
+    v = int(v)
+    if v < -1 or v > 20:
+        raise ValueError('ridge posts: -1 (automatic) to 20')
+    return v
+
+
+def _market_section(role):
+    def check(v):
+        from archforge.structure.roof_framing import MARKET
+        if not v:
+            return []                                          # back to automatic
+        b, h = (float(x) for x in v)
+        if not any(abs(b - mb) < 1e-6 and abs(h - mh) < 1e-6 for mb, mh in MARKET[role]):
+            raise ValueError(f'{role} section must be one of the market sections')
+        return [b, h]
+    return check
+
+
+def _heat_type(v):
+    from archforge.mep.heating import POINT_TYPES
+    v = str(v)
+    if v not in POINT_TYPES:
+        raise ValueError(f'heating point must be one of {", ".join(POINT_TYPES)}')
+    return v
+
+
+def _loop_spacing(v):
+    v = float(v)
+    if not 0.05 <= v <= 0.50:
+        raise ValueError('loop spacing must be between 0.05 and 0.50 m')
+    return v
+
+
 def _vent_type(v):
     from archforge.mep.ventilation import POINT_TYPES
     v = str(v)
@@ -776,7 +810,11 @@ SCHEMAS = {
                      'pitch': _pitch, 'overhang': _nonnegative, 'rafter_spacing': _rafter_spacing,
                      'roof_form': _roof_form, 'tile': _roof_tile, 'snow_zone': _snow_zone, 'altitude': _nonnegative,
                      'insulation': _roof_insulation, 'insulation_thickness': _insulation_thickness,
-                     'shed_high': _shed_high},
+                     'shed_high': _shed_high,
+                     # Roof tool (owner 18/10): a section chosen by hand, from the market list only; posts under the ridge.
+                     'rafter_section': _market_section('rafter'), 'ridge_section': _market_section('ridge'),
+                     'hip_section': _market_section('hip'), 'plate_section': _market_section('plate'),
+                     'ridge_posts': _ridge_posts},
     'electrical_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _electrical_type, 'power_w': _nonnegative,
                          'routing': _cable_routing, 'supply_kva': _nonnegative, 'supply_phases': _supply_phases, 'supply_fuse_a': _nonnegative,
                          'demand_factor': _unit_interval, 'install_method': _choice(('A1', 'B1'), 'installation method'),
@@ -793,6 +831,17 @@ SCHEMAS = {
                        'direction': _joist_direction},
     'price_list': {'vat': _nonnegative, 'trade_prices': _trade_prices},
     'drainage_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _drain_type, 'rain_area': _nonnegative},
+    'pool': {'x': _finite, 'y': _finite, 'z': _finite, 'rotation': _finite, 'length': _positive, 'width': _positive,
+             'depth_shallow': _positive, 'depth_deep': _positive, 'wall': _positive, 'floor': _positive, 'coping': _nonnegative,
+             'pool_type': _choice(('skimmer', 'overflow'), 'pool type'), 'plant_x': _finite, 'plant_y': _finite,
+             'plant_w': _positive, 'plant_d': _positive, 'suction_dn': _positive, 'delivery_dn': _positive,
+             'pump_flow_m3h': _nonnegative, 'skimmers': _nonnegative, 'inlets': _nonnegative, 'main_drains': _nonnegative,
+             'lights': _nonnegative, 'balance_tank_m3': _nonnegative, 'heat_pump_kw': _nonnegative, 'electrolysis': _nonnegative},
+    'heating_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _heat_type, 'rotation': _finite,
+                      'length': _positive, 'power_w': _nonnegative, 'loop_spacing': _loop_spacing,
+                      'heating_system': _choice(('radiators', 'underfloor', 'fan_coil'), 'heating system'),
+                      'distribution': _choice(('manifold', 'two_pipe'), 'heating distribution'),
+                      'pipe_type': str, 'pipe_length_m': _nonnegative},
     'ventilation_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _vent_type, 'outlet': _vent_outlet,
                           'airflow': _nonnegative},
     'cabinet': {

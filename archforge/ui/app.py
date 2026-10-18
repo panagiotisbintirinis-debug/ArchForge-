@@ -1,3 +1,6 @@
+import os
+
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 from .main_window import MainWindow
 from .material_library import install_material_library
@@ -31,6 +34,12 @@ install_plumbing_system_control(MainWindow)
 def main():
     app=QApplication.instance() or QApplication([])
     app.setApplicationName('ArchForge')
-    w=MainWindow();w.show();return app.exec()
+    from .theme import use_light_theme
+    use_light_theme(app)
+    w=MainWindow();w.show()
+    smoke=os.environ.get('ARCHFORGE_SMOKE_EXIT')
+    if smoke:  # packaged-build check: open the window, then quit by itself
+        QTimer.singleShot(int(smoke),app.quit)
+    return app.exec()
 
 if __name__=='__main__':raise SystemExit(main())

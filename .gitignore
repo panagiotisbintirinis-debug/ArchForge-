@@ -20,3 +20,6 @@ scripts/user_drive/out/
 
 # Scenario backups written by save_project
 docs/scenarios/*.archforge.bak*
+
+# Written by the Windows package workflow
+build_info.json

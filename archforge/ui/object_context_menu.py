@@ -73,7 +73,7 @@ ENTITY_MENUS = {
 }
 # Everything else the user places (core/object_ops.py): move, rotate, delete.
 for _kind in ('library_object', 'cabinet', 'kitchen_part', 'plant', 'railing', 'plumbing_point',
-              'electrical_point', 'ventilation_point', 'drainage_point'):
+              'electrical_point', 'ventilation_point', 'drainage_point', 'heating_point', 'pool'):
     ENTITY_MENUS.setdefault(_kind, ('properties', 'materials', 'move', 'rotate', None, 'delete')
                             if _kind in ('library_object', 'cabinet') else ('properties', 'move', 'rotate', None, 'delete'))
 

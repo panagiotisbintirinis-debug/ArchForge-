@@ -51,7 +51,7 @@ class PlanView(QGraphicsView):
     VIEW_LINE_TOOLS={'view_section':'section','view_camera':'camera'}
     # Single-click site tools: (tool, x, y) handled by the main window.
     sitePointRequested=Signal(str,float,float)
-    SITE_POINT_TOOLS=('terrain_point','plot_point','plant_tree','plant_shrub','library_place','underlay_calibrate')
+    SITE_POINT_TOOLS=('terrain_point','plot_point','plant_tree','plant_shrub','library_place','underlay_calibrate','pool_place')
     # Drag tools for site strips: (tool, x1, y1, x2, y2).
     siteLineRequested=Signal(str,float,float,float,float)
     SITE_LINE_TOOLS=('path_path','path_sidewalk','path_road','pergola_timber','pergola_aluminium','elec_led_strip')
@@ -176,7 +176,7 @@ class PlanView(QGraphicsView):
         if self.controller.cycle_option(-1 if event.angleDelta().y()>0 else 1):
             self.redraw();event.accept();return
         from archforge.ui.view_zoom import zoom_about
-        zoom_about(self,event)   # the drawing point under the cursor stays under it
+        zoom_about(self,event)   # the drawing point under the cursor stays under it (touchpad: two fingers pan)
         self._update_label_visibility()
     def _overlay(self,kind,event):
         # Overlay tool (the assistant's kitchen/bath guide lines, fixture drag): gets the mouse first.
@@ -297,7 +297,7 @@ class PlanView(QGraphicsView):
         if self._slab_tool():
             ev=self._scene_to_plane(event.position().toPoint());self._slab_draft_get().down(ev.a,ev.b);self._mouse_down=True
             self.redraw();event.accept();return
-        if self.controller.tool not in self.SITE_LINE_TOOLS and (self.controller.tool in self.SITE_POINT_TOOLS or str(self.controller.tool).startswith(('plumb_','elec_','vent_','assist_','drain_','roofroom_','railingstair_','drywallroom'))):
+        if self.controller.tool not in self.SITE_LINE_TOOLS and (self.controller.tool in self.SITE_POINT_TOOLS or str(self.controller.tool).startswith(('plumb_','elec_','vent_','heat_','assist_','drain_','roofroom_','railingstair_','drywallroom'))):
             ev=self._scene_to_plane(event.position().toPoint())
             self.sitePointRequested.emit(self.controller.tool,float(ev.a),float(ev.b));event.accept();return
         if self.controller.tool in self.VIEW_LINE_TOOLS or self.controller.tool in self.SITE_LINE_TOOLS:
@@ -980,6 +980,20 @@ class PlanView(QGraphicsView):
             pen=QPen(QColor({'pull':'#c0262d','floor':'#0a8a5a'}.get(dict(p.meta).get('box'),'#3a3f48')));pen.setWidthF(.012)
         if p.role=='electrical-point':pen=QPen(QColor(200,120,0));pen.setWidthF(.02)
         if p.role=='plumbing-point':pen=QPen(QColor(31,90,160));pen.setWidthF(.02)
+        if p.role in ('heat-supply','heat-return'):
+            # Heating: supply red, return blue dashed, drawn at the owner's Ø.
+            pen=QPen(QColor(200,40,30) if p.role=='heat-supply' else QColor(30,80,200))
+            pen.setWidthF(max(.012,float(dict(p.meta).get('diameter',16))/1500.))
+            if p.role=='heat-return':pen.setStyle(Qt.PenStyle.DashLine)
+        if p.role in ('pool','pool-rim'):pen=QPen(QColor(20,120,170));pen.setWidthF(.03 if p.role=='pool-rim' else .015)
+        if p.role=='pool-zone':
+            # Electrical safety zones around the basin (HD 60364-7-702): dash-dot, zone 2 fainter.
+            pen=QPen(QColor(200,60,140) if dict(p.meta).get('zone')==1 else QColor(200,60,140,110));pen.setWidthF(.015)
+            pen.setStyle(Qt.PenStyle.DashDotLine)
+        if p.role=='pool-pipe':pen=QPen(QColor(70,70,70));pen.setWidthF(max(.015,float(dict(p.meta).get('diameter',50))/2500.))
+        if p.role=='pool-plant':pen=QPen(QColor(90,90,90));pen.setWidthF(.02);pen.setStyle(Qt.PenStyle.DashLine)
+        if p.role=='heat-loop':pen=QPen(QColor(225,110,40,200));pen.setWidthF(.012)
+        if p.role in ('heat-manifold','heat-fitting','heating-point'):pen=QPen(QColor(170,40,40));pen.setWidthF(.012)
         if p.role=='duct':
             # Overhead element (under the ceiling): dashed, drawn at its true Ø.
             pen=QPen(QColor(105,115,128,200));pen.setWidthF(float(dict(p.meta).get('diameter',125))/1000.)
@@ -1116,10 +1130,10 @@ class PlanView(QGraphicsView):
             r=.13;pen=QPen(QColor(230,120,20));pen.setWidthF(.03)
             it=self._scene.addEllipse(h.x-r,h.y-r,2*r,2*r,pen,QBrush(QColor(255,240,220)));it.setZValue(52);self._handle_items[it]=h
             arc=QPainterPath();arc.arcMoveTo(h.x-r*.6,h.y-r*.6,r*1.2,r*1.2,30);arc.arcTo(h.x-r*.6,h.y-r*.6,r*1.2,r*1.2,30,270)
-            self._scene.addPath(arc,pen).setZValue(53)
+            deco=self._scene.addPath(arc,pen);deco.setZValue(53);self._handle_items[deco]=h   # the arrow is part of the handle
             from PySide6.QtGui import QPolygonF
             end=arc.currentPosition();head=QPolygonF([QPointF(end.x()-.045,end.y()+.01),QPointF(end.x()+.045,end.y()+.01),QPointF(end.x(),end.y()-.05)])
-            self._scene.addPolygon(head,pen,QBrush(QColor(230,120,20))).setZValue(53);return
+            tip=self._scene.addPolygon(head,pen,QBrush(QColor(230,120,20)));tip.setZValue(53);self._handle_items[tip]=h;return
         if h.handle=='flip_swing':
             # Swing flip: small blue diamond on the arc side (click = other way).
             from PySide6.QtGui import QPolygonF

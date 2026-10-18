@@ -15,13 +15,13 @@ from archforge.core.commands import (AddEntities, CompositeCommand, DeleteEntiti
                                      RotateEntities, UpdateEntity)
 
 # Kinds placed by the user that can be moved, rotated and deleted with the mouse.
-POINT_KINDS = ('plumbing_point', 'electrical_point', 'ventilation_point', 'drainage_point', 'mep_terminal')
-XY_KINDS = ('library_object', 'cabinet', 'kitchen_part', 'box', 'plant') + POINT_KINDS
+POINT_KINDS = ('plumbing_point', 'electrical_point', 'ventilation_point', 'drainage_point', 'heating_point', 'mep_terminal')
+XY_KINDS = ('library_object', 'cabinet', 'kitchen_part', 'box', 'plant', 'pool') + POINT_KINDS
 USER_PLACED_KINDS = XY_KINDS + ('stair', 'ramp', 'railing', 'structural_column', 'structural_beam', 'door', 'window')
 # Doors and windows slide along their wall (OpeningEditTransaction) and flip instead of turning.
 ROTATABLE_KINDS = tuple(k for k in USER_PLACED_KINDS if k not in ('door', 'window'))
 # Kinds with a rotation of their own (the rest only turn about the pivot).
-OWN_ROTATION = ('library_object', 'cabinet', 'kitchen_part', 'box', 'structural_column')
+OWN_ROTATION = ('library_object', 'cabinet', 'kitchen_part', 'box', 'structural_column', 'heating_point', 'pool')
 
 
 def is_user_placed(e):

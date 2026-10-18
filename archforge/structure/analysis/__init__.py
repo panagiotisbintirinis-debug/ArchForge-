@@ -487,7 +487,10 @@ def analysis_key(doc):
 
 
 def has_structure(doc):
-    return any(e.kind in ("structural_column", "structural_beam") for e in doc.entities.values())
+    """A load-bearing frame exists: a pergola's posts and beams (role 'pergola') are not one — with only a
+    pergola drawn, «Φέρων οργανισμός» used to propose nothing and the house stayed without columns."""
+    return any(e.kind in ("structural_column", "structural_beam") and e.params.get("role") != "pergola"
+               for e in doc.entities.values())
 
 
 def fresh_result(doc):

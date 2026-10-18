@@ -195,7 +195,7 @@ def install_approved_mockup_shell(window):
         ("Διαγραφή εδάφους",window._delete_terrain),
         (None,None),
         ("Οικόπεδο: σχεδίαση ορίων (κλικ στις κορυφές)",lambda: window._start_site_tool(
-            "plot_point","Κλικ σε κάθε κορυφή του οικοπέδου — κλικ στην πρώτη για κλείσιμο, Esc ακύρωση")),
+            "plot_point","Κλικ σε κάθε κορυφή του οικοπέδου — Enter ή κλικ στην πρώτη για κλείσιμο, Esc ακύρωση")),
         ("Εισαγωγή τοπογραφικού μηχανικού (DXF / σημεία X Y Z)…",window._import_survey),
         (None,None),
         ("Υψομετρικά σημεία",lambda: window._start_site_tool(
@@ -205,6 +205,9 @@ def install_approved_mockup_shell(window):
             "plant_tree","Κλικ στην κάτοψη για δέντρο — Esc για τέλος")),
         ("Φυτό: Θάμνος",lambda: window._start_site_tool(
             "plant_shrub","Κλικ στην κάτοψη για θάμνο — Esc για τέλος")),
+        (None,None),
+        ("Πισίνα",lambda: window._start_site_tool(
+            "pool_place","Κλικ στο κέντρο της πισίνας — διαστάσεις, βάθη, τύπος και εξοπλισμός στις Ιδιότητες, Esc για τέλος")),
         (None,None),
         ("Μονοπάτι",lambda: window._start_site_tool("path_path","Σύρε στην κάτοψη από την αρχή ως το τέλος — Esc για τέλος")),
         ("Πεζοδρόμιο",lambda: window._start_site_tool("path_sidewalk","Σύρε στην κάτοψη από την αρχή ως το τέλος — Esc για τέλος")),
@@ -252,13 +255,24 @@ def install_approved_mockup_shell(window):
     fix_roofs.triggered.connect(lambda: window._fix_roofs()); roof_menu.addAction(fix_roofs)
     delete_roofs=QAction("Διαγραφή όλων των στεγών",window)
     delete_roofs.triggered.connect(lambda: window._delete_all_roofs()); roof_menu.addAction(delete_roofs)
-    roof_layer=QAction("Σκελετός στέγης στο 3D",window); roof_layer.setCheckable(True); roof_layer.setChecked(True)
+    roof_layer=QAction("Ξυλεία στέγης στο 3D",window); roof_layer.setCheckable(True); roof_layer.setChecked(True)
     roof_layer.toggled.connect(lambda on: window._set_layer_visible("roof_structure",on))
+    layers_layer=QAction("Στρώσεις στέγης στο 3D (ταμπλάς, μόνωση, μεμβράνες)",window); layers_layer.setCheckable(True); layers_layer.setChecked(True)
+    layers_layer.toggled.connect(lambda on: window._set_layer_visible("roof_layers",on))
     tiles_layer=QAction("Κεραμίδια στο 3D",window); tiles_layer.setCheckable(True); tiles_layer.setChecked(True)
     tiles_layer.toggled.connect(lambda on: window._set_layer_visible("roof_tiles",on))
-    for a in (roof_layer,tiles_layer):
+    for a in (roof_layer,layers_layer,tiles_layer):
         menus["Κατασκευή"].addAction(a); window.view_menu.addAction(a)
-    window._roof_tiles_layer_action=tiles_layer
+    # Framing view: only the timber (owner 18/10) — layers and tiles off, one click.
+    only_timber=QAction("Στέγη: μόνο ξυλεία",window)
+    only_timber.triggered.connect(lambda: (roof_layer.setChecked(True), layers_layer.setChecked(False), tiles_layer.setChecked(False)))
+    all_layers=QAction("Στέγη: όλες οι στρώσεις",window)
+    all_layers.triggered.connect(lambda: (roof_layer.setChecked(True), layers_layer.setChecked(True), tiles_layer.setChecked(True)))
+    cut_list=QAction("Στέγη: στρώσεις και λίστα κοπής ξυλείας…",window)
+    cut_list.triggered.connect(lambda: __import__("archforge.ui.roof_tool",fromlist=["show"]).show(window))
+    for a in (only_timber,all_layers,cut_list):
+        roof_menu.addAction(a)
+    window._roof_tiles_layer_action=tiles_layer; window._roof_layers_action=layers_layer; window._roof_timber_action=roof_layer
     structure_menu=menus["Δομικά"]
     structure_menu.addSeparator()
     for text,run in (("Υπολογισμός φέροντα: κολόνες, δοκάρια, βάσεις",lambda: window._design_structure()),
@@ -303,6 +317,30 @@ def install_approved_mockup_shell(window):
         a.triggered.connect(lambda _=False,k=key,l=label: window._start_site_tool(f"drain_{k}",f"{l}: κλικ στην κάτοψη — η αποχέτευση ξαναχαράζεται αυτόματα, Esc για τέλος"))
         drainage.addAction(a)
     window._mockup_drainage_menu=drainage
+    from archforge.mep.heating import POINT_TYPES as HEAT
+    from archforge.mep.heating_layout import DISTRIBUTIONS,SYSTEMS
+    heating=QMenu("Θέρμανση",mep_menu); mep_menu.addMenu(heating)
+    system_menu=QMenu("Σύστημα θέρμανσης",heating); heating.addMenu(system_menu)
+    for key,label in SYSTEMS.items():
+        a=QAction(label,window); a.triggered.connect(lambda _=False,k=key: window._set_heating_option("heating_system",k)); system_menu.addAction(a)
+    dist_menu=QMenu("Διανομή (καλοριφέρ / fan coil)",heating); heating.addMenu(dist_menu)
+    for key,label in DISTRIBUTIONS.items():
+        a=QAction(label,window); a.triggered.connect(lambda _=False,k=key: window._set_heating_option("distribution",k)); dist_menu.addAction(a)
+    spacing=QAction("Βήμα βρόχων ενδοδαπέδιας…",window); spacing.triggered.connect(lambda: window._set_heating_option("loop_spacing",None))
+    heating.addAction(spacing)
+    board=QAction("Πίνακας συλλεκτών θέρμανσης…",window)
+    board.triggered.connect(lambda: __import__("archforge.ui.heating_board",fromlist=["show"]).show(window))
+    heating.addAction(board)
+    supplies=QAction("Παροχές ρεύματος θέρμανσης (αυτόματα)",window); supplies.triggered.connect(lambda: window._heating_supplies())
+    heating.addAction(supplies); heating.addSeparator()
+    for key,label in HEAT.items():
+        a=QAction(label,window)
+        a.triggered.connect(lambda _=False,k=key,l=label: window._start_site_tool(f"heat_{k}",f"{l}: κλικ στην κάτοψη (κοντά σε τοίχο κολλάει πάνω του) — προσαγωγή/επιστροφή χαράζονται αυτόματα, Esc για τέλος"))
+        heating.addAction(a)
+    heating.addSeparator()
+    for key,label in (("radiator","Σώματα σε κάθε χώρο (αυτόματα)"),("fan_coil","Fan coil σε κάθε χώρο (αυτόματα)")):
+        a=QAction(label,window); a.triggered.connect(lambda _=False,k=key: window._auto_heating_emitters(k)); heating.addAction(a)
+    window._mockup_heating_menu=heating
     from archforge.mep.ventilation import POINT_TYPES as VENT
     ventilation=QMenu("Εξαερισμοί",mep_menu); mep_menu.addMenu(ventilation)
     for key,(label,_q,_h,_m,_l) in VENT.items():
@@ -312,6 +350,9 @@ def install_approved_mockup_shell(window):
     window._mockup_ventilation_menu=ventilation
     schedule=QAction("Ηλεκτρολογικός πίνακας",window); schedule.triggered.connect(lambda: window._show_circuit_schedule())
     mep_menu.addAction(schedule)
+    cmap=QAction("Χάρτης σωληνώσεων (ηλεκτρολογικά)…",window)
+    cmap.triggered.connect(lambda: __import__("archforge.ui.conduit_map",fromlist=["show"]).show(window))
+    mep_menu.addAction(cmap)
     cove=QAction("Κρυφός φωτισμός στην εσοχή ψευδοροφής",window); cove.triggered.connect(lambda: window._cove_lighting())
     mep_menu.addAction(cove); window._cove_lighting_action=cove
     elec_layer=QAction("Ηλεκτρολογικά στο 3D",window); elec_layer.setCheckable(True); elec_layer.setChecked(True)
@@ -323,6 +364,9 @@ def install_approved_mockup_shell(window):
     drain_layer=QAction("Αποχετεύσεις στο 3D",window); drain_layer.setCheckable(True); drain_layer.setChecked(True)
     drain_layer.toggled.connect(lambda on: window._set_layer_visible("drain",on))
     mep_menu.addAction(drain_layer); window.view_menu.addAction(drain_layer); window._drain_layer_action=drain_layer
+    heat_layer=QAction("Θέρμανση στο 3D",window); heat_layer.setCheckable(True); heat_layer.setChecked(True)
+    heat_layer.toggled.connect(lambda on: window._set_layer_visible("heat",on))
+    mep_menu.addAction(heat_layer); window.view_menu.addAction(heat_layer); window._heat_layer_action=heat_layer
     vent_layer=QAction("Εξαερισμοί στο 3D",window); vent_layer.setCheckable(True); vent_layer.setChecked(True)
     vent_layer.toggled.connect(lambda on: window._set_layer_visible("vent",on))
     mep_menu.addAction(vent_layer); window.view_menu.addAction(vent_layer); window._vent_layer_action=vent_layer
@@ -333,7 +377,7 @@ def install_approved_mockup_shell(window):
     for text,run in (("Τοποθέτηση αντικειμένου…",lambda: window._choose_library_asset()),
                      ("Επεξεργασία αντικειμένου (επιλεγμένο)…",lambda: window._open_object_modifier()),
                      ("Εισαγωγή μοντέλου glTF/GLB…",lambda: window._import_gltf_model()),
-                     ("Εισαγωγή από Home Designer (.calib/.calibz)…",lambda: window._import_hd_catalog())):
+                     ("Εισαγωγή αντικειμένων…",lambda: window._import_hd_catalog())):
         a=QAction(text,window); a.triggered.connect(lambda _=False,r=run: r()); library_menu.addAction(a)
     window._mockup_library_menu=library_menu
     ao=QAction("Σκιές επαφής (Ambient Occlusion)",window); ao.setCheckable(True); ao.setChecked(True)

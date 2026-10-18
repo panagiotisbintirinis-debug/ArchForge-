@@ -491,6 +491,10 @@ class MainWindow(QMainWindow):
         open_action.triggered.connect(self.open)
         toolbar.addAction(open_action)
         self.open_action = open_action
+        self.open_sample_action = QAction('Άνοιγμα δείγματος…', self)
+        self.open_sample_action.triggered.connect(lambda: self.open_sample())
+        from .updates_ui import install as install_updates
+        install_updates(self)          # Αρχείο ▸ Έλεγχος για ενημερώσεις… + the quiet check of the packaged program
         stl_action = QAction('Export STL', self)
         stl_action.triggered.connect(self.export_stl)
         toolbar.addAction(stl_action)
@@ -622,7 +626,10 @@ class MainWindow(QMainWindow):
         from archforge.site.survey import with_boundary, _area
         from archforge.site.terrain import default_terrain_params
         draft = self.plan_view.plot_draft = list(getattr(self.plan_view, 'plot_draft', None) or [])
-        if len(draft) >= 3 and ((x - draft[0][0]) ** 2 + (y - draft[0][1]) ** 2) ** .5 < .35:
+        # Closing tolerance in screen pixels (owner 18/10, laptop touchpad: 35 cm were 2–3 px on a whole plot).
+        px_per_m = abs(self.plan_view.transform().m11()) or 40.0
+        close_tol = max(.35, 14.0 / px_per_m)
+        if len(draft) >= 3 and ((x - draft[0][0]) ** 2 + (y - draft[0][1]) ** 2) ** .5 < close_tol:
             terrain = self._terrain_entity()
             try:
                 if terrain is None:
@@ -644,7 +651,8 @@ class MainWindow(QMainWindow):
         draft.append((float(x), float(y)))
         self.plan_view.redraw()
         self.statusBar().showMessage(
-            f'Κορυφή {len(draft)} — κλικ στην πρώτη / Enter / διπλό κλικ για κλείσιμο, Esc για ακύρωση', 8000)
+            f'Οικόπεδο: κορυφή {len(draft)}' + (' — Enter (ή κλικ στην πρώτη κορυφή) για κλείσιμο και δημιουργία εδάφους'
+                                                if len(draft) >= 3 else ' — συνέχισε με την επόμενη κορυφή') + ', Esc ακύρωση', 0)
 
     def _import_underlay(self):
         """Σχέδιο μηχανικού (PDF / DXF) ως υπόβαθρο του ενεργού ορόφου."""
@@ -860,6 +868,12 @@ class MainWindow(QMainWindow):
         if str(tool).startswith('plumb_'):
             self._place_plumbing_point(tool[len('plumb_'):], x, y)
             return
+        if tool == 'pool_place':
+            self._place_pool(x, y)
+            return
+        if str(tool).startswith('heat_'):
+            self._place_heating_point(tool[len('heat_'):], x, y)
+            return
         if str(tool).startswith('drain_'):
             from archforge.mep.drainage import POINT_TYPES as DRAIN, route_drainage_cached
             kind = tool[len('drain_'):]
@@ -951,8 +965,8 @@ class MainWindow(QMainWindow):
         from archforge.library import assets, hd_calib
         if path is None:
             path, _ = QFileDialog.getOpenFileName(
-                self, 'Κατάλογος Home Designer', r'C:\ProgramData',
-                'Κατάλογοι Home Designer (*.calib *.calibz)')
+                self, 'Εισαγωγή αντικειμένων', r'C:\ProgramData',
+                'Κατάλογοι αντικειμένων (*.calib *.calibz)')
             if not path:
                 return []
         try:
@@ -978,7 +992,7 @@ class MainWindow(QMainWindow):
                 })
                 imported.append(asset_id)
         self.statusBar().showMessage(
-            f'Βιβλιοθήκη: εισήχθησαν {len(imported)} αντικείμενα (Home Designer — μόνο τοπική χρήση)', 6000)
+            f'Βιβλιοθήκη: εισήχθησαν {len(imported)} αντικείμενα (μόνο τοπική χρήση)', 6000)
         self._refresh_library_panel()
         if imported and interactive:
             self._choose_library_asset()
@@ -1244,6 +1258,124 @@ class MainWindow(QMainWindow):
             7000)
         return point
 
+    def _place_pool(self, x, y, **params):
+        """A pool centred on the click (8 × 4, 1,10–1,80 by default — sizes, type and equipment in Ιδιότητες), its
+        equipment room beside it, outside zone 1 (one undo)."""
+        from archforge.site.pool import DEFAULTS, ZONE1, analyse
+        z = float(self.doc.work_plane.origin[2])
+        supply_w = params.pop('supply_w', None)          # the equipment room's W (data sheet), when known
+        p = {'x': float(x), 'y': float(y), 'z': z, **{k: v for k, v in DEFAULTS.items()}, **params}
+        p.setdefault('plant_x', float(x) + float(p['length']) / 2 + ZONE1 + float(p['plant_w']) / 2 + 0.5)
+        p.setdefault('plant_y', float(y))
+        pool = Entity('pool', p, name='Πισίνα')
+        # The equipment room's supply comes with it: its own circuit and its own 30 mA RCD on the board.
+        from archforge.core.commands import AddEntities
+        from archforge.mep.electrical import POINT_TYPES as ELEC
+        supply = Entity('electrical_point', {'x': float(p['plant_x']), 'y': float(p['plant_y']), 'z': z, 'point_type': 'pool_supply',
+                                             **({'power_w': float(supply_w)} if supply_w else {})},
+                        name=ELEC['pool_supply'][0])
+        self.stack.execute(AddEntities([pool, supply]))
+        self._redraw_views(all_views=True)
+        self._refresh_project_tree()
+        a = analyse(self.doc, pool)
+        failing = [c[0] for c in a['checks'] if not c[1]]
+        self.statusBar().showMessage(
+            f"Πισίνα {float(p['length']):.2f}×{float(p['width']):.2f} · {a['volume_m3']:.1f} m³ νερό · σκυρόδεμα {a['concrete_m3']:.1f} m³"
+            + (f" · ⚠ {failing[0]}" if failing else '') + (f" · {a['warnings'][0]}" if a['warnings'] else '')
+            + ' — διαστάσεις, τύπος, εξοπλισμός στις Ιδιότητες · Ctrl+Z για αναίρεση', 12000)
+        return pool
+
+    def _place_heating_point(self, point_type, x, y):
+        """Heat source, radiator, fan coil, manifold or thermostat; emitters and manifolds sit against the nearest wall."""
+        from archforge.mep.heating import POINT_TYPES as HEAT
+        from archforge.mep.heating_layout import BODY, EMITTERS, against_wall, route_heating_cached
+        z = float(self.doc.work_plane.origin[2])
+        params = {'x': float(x), 'y': float(y), 'z': z, 'point_type': point_type}
+        if point_type in EMITTERS + ('manifold', 'thermostat'):
+            params['x'], params['y'], params['rotation'] = against_wall(self.doc, z, float(x), float(y), BODY[point_type][1])
+        new = [Entity('heating_point', params, name=HEAT[point_type])]
+        # Its supply on the electrical board comes with it (source: burner / heat pump; manifold: wiring centre).
+        from archforge.mep.electrical import POINT_TYPES as ELEC
+        from archforge.mep.heating_layout import SUPPLY_FOR
+        kind = SUPPLY_FOR.get(point_type) or ('heating_supply' if point_type == 'manifold' else None)
+        if kind:
+            new.append(Entity('electrical_point', {'x': params['x'] + (0.15 if point_type != 'manifold' else 0.30), 'y': params['y'],
+                                                   'z': z, 'point_type': kind}, name=ELEC[kind][0]))
+        from archforge.core.commands import AddEntities
+        self.stack.execute(AddEntities(new))
+        self._redraw_views(all_views=True)
+        self._refresh_project_tree()
+        self.statusBar().showMessage(f"{HEAT[point_type]} · " + self._heating_summary() + ' — Ctrl+Z για αναίρεση', 9000)
+
+    def _heating_summary(self):
+        from archforge.mep.heating_layout import route_heating_cached
+        rep = route_heating_cached(self.doc)['report']
+        if rep['unserved']:
+            return 'θέρμανση: χωρίς πηγή (λέβητας / αντλία θερμότητας) — ' + ', '.join(rep['unserved'][:3])
+        return (f"θέρμανση {rep['system_label']} ({rep['distribution_label']}): "
+                + ', '.join(f'Φ{k} {v:.1f} m' for k, v in sorted(rep['length_by_dn'].items()))
+                + (f" · βρόχοι {rep['loop_m']:.0f} m" if rep['loop_m'] else '')
+                + (f" · ⚠ {rep['warnings'][0]}" if rep['warnings'] else '') + ' — προς έλεγχο μηχανολόγου')
+
+    def _auto_heating_emitters(self, point_type='radiator'):
+        """A radiator / fan coil in every heated room without one, under its widest window (one undo)."""
+        from archforge.core.commands import AddEntities
+        from archforge.mep.heating import POINT_TYPES as HEAT
+        from archforge.mep.heating_layout import emitter_positions
+        new = []
+        for floor in sorted({float(v) for v in self.doc.levels.values()}):
+            for x, y, rot, _room in emitter_positions(self.doc, floor, point_type):
+                new.append(Entity('heating_point', {'x': x, 'y': y, 'z': floor, 'point_type': point_type, 'rotation': rot},
+                                  name=HEAT[point_type]))
+        if not new:
+            self.statusBar().showMessage('Κάθε θερμαινόμενος χώρος έχει ήδη σώμα', 5000)
+            return 0
+        self.stack.execute(AddEntities(new))
+        self._redraw_views(all_views=True)
+        self._refresh_project_tree()
+        self.statusBar().showMessage(f"{len(new)} × {HEAT[point_type]} κάτω από τα παράθυρα · " + self._heating_summary()
+                                     + ' — Ctrl+Z για αναίρεση', 12000)
+        return len(new)
+
+    def _heating_supplies(self):
+        """Electrical supplies the heating still lacks (source, wiring centre at every manifold), one undo."""
+        from archforge.core.commands import AddEntities
+        from archforge.mep.heating_layout import missing_supplies
+        new = [Entity('electrical_point', {'x': x, 'y': y, 'z': z, 'point_type': kind}, name=name)
+               for x, y, z, kind, name in missing_supplies(self.doc)]
+        if new:
+            self.stack.execute(AddEntities(new))
+            self._redraw_views(all_views=True)
+            self._refresh_project_tree()
+        self.statusBar().showMessage(f"{len(new)} παροχές θέρμανσης στον ηλεκτρολογικό πίνακα — ισχύς από το φύλλο του εξοπλισμού"
+                                     if new else 'Η θέρμανση έχει ήδη τις παροχές της', 8000)
+        return len(new)
+
+    def _heating_source(self):
+        from archforge.mep.heating_layout import source_of
+        src = source_of(self.doc)
+        if src is None:
+            self.statusBar().showMessage('Βάλε πρώτα πηγή θέρμανσης (Η/Μ ▸ Θέρμανση ▸ Λέβητας / Αντλία θερμότητας)', 6000)
+        return src
+
+    def _set_heating_option(self, key, value):
+        """System (radiators / underfloor / fan_coil), distribution (manifold / two_pipe) or loop spacing, kept on
+        the heat source (one undo)."""
+        src = self._heating_source()
+        if src is None:
+            return None
+        if key == 'loop_spacing' and value is None:
+            current = float(src.params.get('loop_spacing') or 0.15)
+            value, ok = QInputDialog.getDouble(self, 'Ενδοδαπέδια', 'Βήμα βρόχων (m) — όπως το ορίζει ο μηχανολόγος / το σύστημα:',
+                                               current, 0.05, 0.50, 3)
+            if not ok:
+                return None
+        self.stack.execute(UpdateEntity(src.id, {key: value}))
+        self._redraw_views(all_views=True)
+        self._refresh_project_tree()
+        self.statusBar().showMessage(self._heating_summary() + ' — Ctrl+Z για αναίρεση', 9000)
+        return value
+
     def _place_ventilation_point(self, point_type, x, y):
         """Add a hood or extract fan; its duct to the outside is derived automatically."""
         from archforge.mep.ventilation import POINT_TYPES, route_ventilation_cached
@@ -1332,6 +1464,22 @@ class MainWindow(QMainWindow):
         (hidden.discard if visible else hidden.add)(layer)
         self.pbr_view.hidden_layers = hidden
         self._redraw_views(all_views=True)
+
+    def _set_roof_section(self, entity_id, key, value):
+        """Set (value) or release to automatic (None) a roof member's section / the ridge posts, then re-check (one undo)."""
+        from archforge.core.commands import UpdateEntity
+        from archforge.structure.roof_framing import checks
+        auto = -1 if key == 'ridge_posts' else []              # «Αυτόματα»: back to the calculation
+        value = auto if value is None else value
+        if self.doc.get(entity_id).params.get(key, auto) == value:
+            return None
+        self.stack.execute(UpdateEntity(entity_id, {key: value}))
+        self._redraw_views(all_views=True)
+        failing = [t for t, ok in checks(self.doc.get(entity_id).params) if not ok]
+        self.statusBar().showMessage(('⚠ ' + failing[0]) if failing else 'Στέγη: η νέα διατομή περνά τον επανέλεγχο', 9000)
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self.refresh_inspector)
+        return failing
 
     def _set_entity_choice(self, entity_id, key, value):
         if self.doc.get(entity_id).params.get(key) == value:
@@ -1456,7 +1604,7 @@ class MainWindow(QMainWindow):
                 item = QListWidgetItem(f"  {r['name']}  {w:.0f}×{d:.0f}×{h:.0f} cm")
                 item.setData(Qt.ItemDataRole.UserRole, r['id'])
                 if r['provenance'].get('source') == 'home-designer-calib':
-                    item.setToolTip('Home Designer — μόνο τοπική χρήση, δεν διανέμεται')
+                    item.setToolTip('Εισαγόμενο — μόνο τοπική χρήση, δεν διανέμεται')
                 elif r['provenance'].get('attribution'):
                     item.setToolTip(f"{r['provenance'].get('license', '')}: {r['provenance']['attribution']}")
                 listing.addItem(item)
@@ -1995,6 +2143,43 @@ class MainWindow(QMainWindow):
         if entity.kind == 'camera':
             from archforge.ui.camera_tool import add_rows as camera_rows
             camera_rows(self, eid)
+        if entity.kind == 'pitched_roof':
+            # Roof tool (owner 18/10): change a section if needed — market sizes only — and re-check with it.
+            from archforge.structure.roof_framing import MARKET, checks, section_label
+            for key, role, label in (('rafter_section', 'rafter', 'Ψαλίδια'), ('ridge_section', 'ridge', 'Κορφιάς'),
+                                     ('hip_section', 'hip', 'Γωνίες τετράρριχτης'), ('plate_section', 'plate', 'Τεγίδα')):
+                combo = QComboBox()
+                combo.addItem('Αυτόματα (υπολογισμός)', None)
+                for sec in MARKET[role]:
+                    combo.addItem(section_label(sec), [sec[0], sec[1]])
+                current = params.get(key)
+                combo.setCurrentIndex(max(0, combo.findData([float(v) for v in current]) if current else 0))
+                combo.currentIndexChanged.connect(lambda _i, w=combo, k=key: self._set_roof_section(eid, k, w.currentData()))
+                self.form.addRow(label, combo)
+            posts = QComboBox()
+            posts.addItem('Ορθοστάτες κορφιά: αυτόματα', None)
+            for n in range(0, 8):
+                posts.addItem(f'{n} ορθοστάτες', n)
+            posts.setCurrentIndex(max(0, posts.findData(int(params['ridge_posts'])) if int(params.get('ridge_posts', -1)) >= 0 else 0))
+            posts.currentIndexChanged.connect(lambda _i, w=posts: self._set_roof_section(eid, 'ridge_posts', w.currentData()))
+            self.form.addRow('Ορθοστάτες', posts)
+            for text, ok in checks(params):
+                row = QLabel(text); row.setWordWrap(True)
+                self.form.addRow('✅' if ok else '⚠', row)
+        if entity.kind == 'pool':
+            from archforge.site.pool import POOL_TYPES, analyse
+            combo = QComboBox()
+            for value, label in POOL_TYPES.items():
+                combo.addItem(label, value)
+            combo.setCurrentIndex(max(0, combo.findData(params.get('pool_type', 'skimmer'))))
+            combo.currentIndexChanged.connect(lambda _i, w=combo: self._set_entity_choice(eid, 'pool_type', w.currentData()))
+            self.form.addRow('Τύπος πισίνας', combo)
+            a = analyse(self.doc, entity)
+            self.form.addRow('Νερό / σκυρόδεμα', QLabel(f"{a['volume_m3']:.1f} m³ / {a['concrete_m3']:.1f} m³"))
+            for text, ok, note in a['checks']:
+                self.form.addRow('✅' if ok else '⚠', QLabel(text + (f" — {note}" if note else '')))
+            for w in a['warnings']:
+                self.form.addRow('ℹ', QLabel(w))
         if entity.kind == 'plumbing_point' and params.get('point_type') == 'water_supply':
             from archforge.mep.plumbing import DEFAULT_SYSTEM, PIPE_SYSTEMS
             combo = QComboBox()
@@ -3933,6 +4118,10 @@ class MainWindow(QMainWindow):
         self._refresh_floor_selector()
         self._redraw_views(all_views=True)
         self.refresh_inspector()
+        # An opened project starts framed in the plan (owner 18/10: «το σχέδιο δεν είναι κεντραρισμένο»).
+        from PySide6.QtCore import QTimer
+        from .shortcuts import _zoom_all
+        QTimer.singleShot(0, lambda: _zoom_all(self, quiet=True))
 
     def new_project(self):
         if not self._confirm_destructive_action():
@@ -4270,6 +4459,24 @@ class MainWindow(QMainWindow):
         if not self._confirm_destructive_action():
             return False
         return self._open_checked(path)
+
+    @staticmethod
+    def samples_dir():
+        """The sample projects: «samples» inside the packaged program, docs/scenarios in the repository."""
+        import sys
+        if getattr(sys, 'frozen', False):
+            return os.path.join(getattr(sys, '_MEIPASS', os.path.dirname(sys.executable)), 'samples')
+        return os.path.join(os.path.dirname(__file__), '..', '..', 'docs', 'scenarios')
+
+    def open_sample(self):
+        """Open one of the sample projects; saving it asks for a new place (the sample stays as it was)."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, 'Άνοιγμα δείγματος', os.path.normpath(self.samples_dir()), 'Έργο ArchForge (*.archforge)')
+        if not path or not self.open(path):
+            return False
+        self.current_path = None
+        self._update_window_title()
+        return True
 
     # ------------------------------------------------ project file check, autosave, recovery
     def _open_checked(self, path, project_path=None):

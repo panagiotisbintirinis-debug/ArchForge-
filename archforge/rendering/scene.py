@@ -49,6 +49,15 @@ _MATERIALS: Mapping[str, dict] = {
     "vent_duct": {"color": "#a9b0b8", "roughness": 0.35, "metalness": 0.7},
     "vent_terminal": {"color": "#5b6470", "roughness": 0.5, "metalness": 0.3},
     "mep_cold": {"color": "#1f6fd1", "roughness": 0.35, "metalness": 0.0},
+    "heating_point": {"color": "#f2f2ee", "roughness": 0.35, "metalness": 0.2},
+    "pool": {"color": "#e6ddc9", "roughness": 0.7, "metalness": 0.0},
+    "pool_tile": {"color": "#4fb3d9", "roughness": 0.25, "metalness": 0.0},
+    "pool_water": {"color": "#2b8fd8", "roughness": 0.05, "metalness": 0.0, "opacity": 0.55},
+    "pool_plant": {"color": "#9a9a95", "roughness": 0.8, "metalness": 0.0},
+    "heat_supply": {"color": "#d1301f", "roughness": 0.35, "metalness": 0.0},
+    "heat_return": {"color": "#2a5fd1", "roughness": 0.35, "metalness": 0.0},
+    "heat_loop": {"color": "#e26a28", "roughness": 0.4, "metalness": 0.0},
+    "heat_manifold": {"color": "#b08d3c", "roughness": 0.3, "metalness": 0.8},
     "mep_hot": {"color": "#d1301f", "roughness": 0.35, "metalness": 0.0},
     "cabinet_carcass": {"color": "#e9e5dd", "roughness": 0.6, "metalness": 0.0},
     "cabinet_shelf": {"color": "#e9e5dd", "roughness": 0.6, "metalness": 0.0},
@@ -87,6 +96,9 @@ _STRUCTURAL_CONSTRUCTION_MATERIAL = {
     "timber": "wood_oak",
     "aluminium": "aluminium",
 }
+
+
+ROOF_LAYER_ROLES = ("boarding", "vapour_barrier", "insulation", "membrane")
 
 
 def _surface_material_id(entity, surface_role: str | None = None):
@@ -195,7 +207,9 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                     material = _material(f"roof_{role}", body.entity_id in selected, entity=entity, doc=doc, surface_role=role)
                 objects.append({"id": str(body.entity_id), "render_part": f"{body.entity_id}:{role}", "kind": "pitched_roof",
                                 # Gable walls are walls: always shown, not part of the roof-frame layer.
-                                "layer": None if role == "gable" else ("roof_structure" if role != "tiles" else "roof_tiles"),
+                                # Layers view vs framing view (owner 18/10): build-up and tiles apart from the timber.
+                                "layer": None if role == "gable" else ("roof_tiles" if role == "tiles" else
+                                                                       "roof_layers" if role in ROOF_LAYER_ROLES else "roof_structure"),
                                 "vertices": vertices, "triangles": tris, "surfaces": [role] * len(tris), "material": material})
             continue
         if body.semantic_kind == "cabinet" and entity is not None:
@@ -458,6 +472,37 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                 objects.append({"id": "", "render_part": "drain:pipes", "kind": "drain_pipe", "layer": "drain",
                                 "vertices": verts, "triangles": tris, "surfaces": ["pipe"] * len(tris),
                                 "material": dict(_MATERIALS["drain_pipe"])})
+        # Pools (layer "pool"): lined basin with its slope, the water, the underground equipment room.
+        if any(e.kind == "pool" for e in doc.entities.values()):
+            from archforge.site.pool import basin_meshes, pools
+            for e in pools(doc):
+                for part, (verts, tris) in basin_meshes(e.params).items():
+                    if tris:
+                        objects.append({"id": "", "render_part": f"pool:{part}", "kind": f"pool_{part}", "layer": "pool",
+                                        "vertices": [list(map(float, q)) for q in verts], "triangles": [list(t) for t in tris],
+                                        "surfaces": [part] * len(tris), "material": dict(_MATERIALS[f"pool_{part}"])})
+        # Derived heating (layer "heat"): supply / return at the owner's Ø, underfloor loops, manifolds with their parts.
+        if any(e.kind == "heating_point" for e in doc.entities.values()):
+            from archforge.mep.heating_layout import PIPE_SIZES, manifold_parts, route_heating_cached
+            from archforge.mep.plumbing import pipe_mesh as _pipe
+            route = route_heating_cached(doc)
+            loops = [_pipe((a[0], a[1], lp["z"]), (b[0], b[1], lp["z"]), 16, sides=6)
+                     for lp in route["loops"] for a, b in zip(lp["points"], lp["points"][1:])]
+            main = PIPE_SIZES[route["report"]["system"]][1]
+            groups = (("supply", [_pipe(a, b, max(dn, 20), sides=8) for a, b, dn in route["supply"]]),
+                      ("return", [_pipe(a, b, max(dn, 20), sides=8) for a, b, dn in route["return"]]),
+                      ("loop", loops),
+                      ("manifold", [part for m in route["manifolds"] for part in manifold_parts(m, main)]))
+            for part, meshes in groups:
+                verts, tris = [], []
+                for v, t in meshes:
+                    base = len(verts)
+                    verts += [list(map(float, q)) for q in v]
+                    tris += [[base + i for i in tri] for tri in t]
+                if tris:
+                    objects.append({"id": "", "render_part": f"heat:{part}", "kind": f"heat_{part}", "layer": "heat",
+                                    "vertices": verts, "triangles": tris, "surfaces": ["pipe"] * len(tris),
+                                    "material": dict(_MATERIALS[f"heat_{part}"])})
         # Derived extract ducts (layer "vent"): ducts at their true Ø, grilles and roof caps.
         if any(e.kind == "ventilation_point" for e in doc.entities.values()):
             from archforge.mep.ventilation import duct_meshes, route_ventilation_cached
