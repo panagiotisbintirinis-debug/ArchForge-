@@ -98,6 +98,9 @@ _STRUCTURAL_CONSTRUCTION_MATERIAL = {
 }
 
 
+ROOF_LAYER_ROLES = ("boarding", "vapour_barrier", "insulation", "membrane")
+
+
 def _surface_material_id(entity, surface_role: str | None = None):
     if entity is None:
         return None
@@ -204,7 +207,9 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                     material = _material(f"roof_{role}", body.entity_id in selected, entity=entity, doc=doc, surface_role=role)
                 objects.append({"id": str(body.entity_id), "render_part": f"{body.entity_id}:{role}", "kind": "pitched_roof",
                                 # Gable walls are walls: always shown, not part of the roof-frame layer.
-                                "layer": None if role == "gable" else ("roof_structure" if role != "tiles" else "roof_tiles"),
+                                # Layers view vs framing view (owner 18/10): build-up and tiles apart from the timber.
+                                "layer": None if role == "gable" else ("roof_tiles" if role == "tiles" else
+                                                                       "roof_layers" if role in ROOF_LAYER_ROLES else "roof_structure"),
                                 "vertices": vertices, "triangles": tris, "surfaces": [role] * len(tris), "material": material})
             continue
         if body.semantic_kind == "cabinet" and entity is not None:

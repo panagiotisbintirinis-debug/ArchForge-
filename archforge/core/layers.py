@@ -95,7 +95,7 @@ ROLE_LAYERS = {
 UNLAYERED_ROLES = ('preview', 'wall-move-arrow', 'wall-move-label', 'wall-move-opening', 'angle-arc', 'angle-label')
 
 # 3D payload ``layer`` tags (rendering/scene.py) -> layer.
-SCENE_LAYERS = {'roof_structure': 'slabs', 'roof_tiles': 'slabs', 'foundation': 'foundation', 'mep': 'plumbing',
+SCENE_LAYERS = {'roof_structure': 'slabs', 'roof_tiles': 'slabs', 'roof_layers': 'slabs', 'foundation': 'foundation', 'mep': 'plumbing',
                 'drain': 'drainage', 'elec': 'electrical', 'lv': 'low_voltage', 'vent': 'ventilation', 'heat': 'heating', 'pool': 'site',
                 'kitchen': 'kitchen'}
 

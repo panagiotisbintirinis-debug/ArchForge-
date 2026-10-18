@@ -255,13 +255,24 @@ def install_approved_mockup_shell(window):
     fix_roofs.triggered.connect(lambda: window._fix_roofs()); roof_menu.addAction(fix_roofs)
     delete_roofs=QAction("Διαγραφή όλων των στεγών",window)
     delete_roofs.triggered.connect(lambda: window._delete_all_roofs()); roof_menu.addAction(delete_roofs)
-    roof_layer=QAction("Σκελετός στέγης στο 3D",window); roof_layer.setCheckable(True); roof_layer.setChecked(True)
+    roof_layer=QAction("Ξυλεία στέγης στο 3D",window); roof_layer.setCheckable(True); roof_layer.setChecked(True)
     roof_layer.toggled.connect(lambda on: window._set_layer_visible("roof_structure",on))
+    layers_layer=QAction("Στρώσεις στέγης στο 3D (ταμπλάς, μόνωση, μεμβράνες)",window); layers_layer.setCheckable(True); layers_layer.setChecked(True)
+    layers_layer.toggled.connect(lambda on: window._set_layer_visible("roof_layers",on))
     tiles_layer=QAction("Κεραμίδια στο 3D",window); tiles_layer.setCheckable(True); tiles_layer.setChecked(True)
     tiles_layer.toggled.connect(lambda on: window._set_layer_visible("roof_tiles",on))
-    for a in (roof_layer,tiles_layer):
+    for a in (roof_layer,layers_layer,tiles_layer):
         menus["Κατασκευή"].addAction(a); window.view_menu.addAction(a)
-    window._roof_tiles_layer_action=tiles_layer
+    # Framing view: only the timber (owner 18/10) — layers and tiles off, one click.
+    only_timber=QAction("Στέγη: μόνο ξυλεία",window)
+    only_timber.triggered.connect(lambda: (roof_layer.setChecked(True), layers_layer.setChecked(False), tiles_layer.setChecked(False)))
+    all_layers=QAction("Στέγη: όλες οι στρώσεις",window)
+    all_layers.triggered.connect(lambda: (roof_layer.setChecked(True), layers_layer.setChecked(True), tiles_layer.setChecked(True)))
+    cut_list=QAction("Στέγη: στρώσεις και λίστα κοπής ξυλείας…",window)
+    cut_list.triggered.connect(lambda: __import__("archforge.ui.roof_tool",fromlist=["show"]).show(window))
+    for a in (only_timber,all_layers,cut_list):
+        roof_menu.addAction(a)
+    window._roof_tiles_layer_action=tiles_layer; window._roof_layers_action=layers_layer; window._roof_timber_action=roof_layer
     structure_menu=menus["Δομικά"]
     structure_menu.addSeparator()
     for text,run in (("Υπολογισμός φέροντα: κολόνες, δοκάρια, βάσεις",lambda: window._design_structure()),

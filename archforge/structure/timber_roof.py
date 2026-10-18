@@ -51,8 +51,8 @@ INSULATIONS = {  # name, λ, weight kN/m³
 TILE_WEIGHT, BATTENS_WEIGHT = 0.55, 0.05
 RSI_ROOF, RSE_VENTILATED = 0.10, 0.10           # ISO 6946: upward flow; ventilated layer above the membrane
 F_MK, K_MOD, GAMMA_M, E_MEAN = 24.0, 0.9, 1.3, 11000.0   # C24 (MPa)
-SECTIONS = [(0.06, 0.12), (0.06, 0.14), (0.08, 0.14), (0.08, 0.16), (0.08, 0.18), (0.10, 0.20),
-            (0.10, 0.22), (0.12, 0.24), (0.12, 0.26), (0.14, 0.28)]
+# Rafters only in the sections the Greek timber yards sell (owner 18/10 — structure/roof_framing.MARKET).
+SECTIONS = [(0.065, 0.13), (0.075, 0.15), (0.08, 0.15), (0.08, 0.16), (0.08, 0.18), (0.10, 0.18), (0.10, 0.20)]
 PLATE, RIDGE = (0.10, 0.10), (0.10, 0.20)      # wall plate, ridge beam (b, h) m
 BATTEN = (0.05, 0.03)
 TILE_THICK = 0.03
@@ -274,13 +274,21 @@ def members(p):
         else:
             xm = (x0 + x1) / 2
             ra, rb_ = ((xm, y0 + half), (xm, y1 - half)) if form == "hip" else ((xm, y0 - o), (xm, y1 + o))
+        from archforge.structure.roof_framing import hip_section, ridge_design
         if math.dist(ra, rb_) > 1e-6:
-            out.append(("ridge", (*ra, rz), (*rb_, rz), RIDGE))
+            # Ridge in a market section on its supports, posts where no section spans it (roof tool, owner 18/10).
+            design = ridge_design(p, math.dist(ra, rb_))
+            out.append(("ridge", (*ra, rz), (*rb_, rz), design["section"]))
+            post = next((s for s in ((0.12, 0.12), (0.15, 0.15), (0.20, 0.20)) if s[0] >= design["section"][0] - 1e-9), (0.20, 0.20))
+            for k in range(1, design["posts"] + 1):
+                t = k / (design["posts"] + 1)
+                x, y = ra[0] + (rb_[0] - ra[0]) * t, ra[1] + (rb_[1] - ra[1]) * t
+                out.append(("post", (x, y, rz - design["section"][1]), (x, y, ez), post))
         if form == "hip":
             corners = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
             for c in corners:
                 end = min((ra, rb_), key=lambda r: math.dist(r, c))
-                out.append(("hip", (c[0], c[1], ez), (end[0], end[1], rz), (rb, rh + 0.04)))
+                out.append(("hip", (c[0], c[1], ez), (end[0], end[1], rz), hip_section((rb, rh))))
     # Battens at the tile gauge across each plane.
     gauge = TILES[p.get("tile", "roman")][1]
     for plane in planes(p):

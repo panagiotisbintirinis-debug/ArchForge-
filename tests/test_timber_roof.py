@@ -26,7 +26,8 @@ def test_gable_geometry_ridge_height_and_rafter_spacing():
         assert max(a[2], b[2]) == pytest.approx(ridge_z(p), abs=1e-6)
         assert min(a[2], b[2]) == pytest.approx(3.0 - 0.5 * math.tan(math.radians(25)), abs=1e-6)
     roles = {m[0] for m in members(p)}
-    assert roles == {'plate', 'rafter', 'ridge', 'batten'}
+    # An 11 m ridge: no market section spans it alone → posts under it (roof tool, owner 18/10).
+    assert roles == {'plate', 'rafter', 'ridge', 'batten', 'post'}
 
 
 def test_hip_and_shed_forms():
@@ -69,9 +70,10 @@ def test_roof_in_document_plan_3d_and_moves():
     assert 'roof-outline' in roles and 'roof-ridge' in roles
     objs = build_pbr_scene_payload(IncrementalEvaluationCache(SculptedPreviewBackend()).sync(doc), [], doc=doc)['objects']
     parts = {o['render_part'].split(':')[1]: o for o in objs if o['id'] == roof.id}
-    assert set(parts) == {'plate', 'gable', 'rafter', 'ridge', 'batten', 'counter_batten', 'boarding', 'vapour_barrier',
+    assert set(parts) == {'plate', 'gable', 'rafter', 'ridge', 'post', 'batten', 'counter_batten', 'boarding', 'vapour_barrier',
                           'insulation', 'membrane', 'tiles'}
     assert parts['tiles']['layer'] == 'roof_tiles' and parts['rafter']['layer'] == 'roof_structure'
+    assert parts['boarding']['layer'] == 'roof_layers' and parts['post']['layer'] == 'roof_structure'   # layers vs timber
     assert parts['gable']['layer'] is None                       # gable walls are walls, shown with them
     stack.execute(MoveEntities([roof.id], 1.0, 2.0))
     assert doc.get(roof.id).params['x0'] == 1.0 and doc.get(roof.id).params['y1'] == 10.0

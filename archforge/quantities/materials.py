@@ -49,6 +49,22 @@ def drainage_list(doc):
     return rows
 
 
+def roof_timber_list(doc):
+    """Roof timber from the cutting list (owner 18/10): pieces per market section and order length, battens, volume."""
+    from archforge.structure.roof_framing import cutting_list
+    rows = []
+    for e in doc.entities.values():
+        if e.kind != "pitched_roof":
+            continue
+        c = cutting_list(e.params)
+        for r in c["rows"]:
+            rows.append((f"{r['name']} {r['section']} — μήκος παραγγελίας {r['order_m']:.2f} m ({r['codes'][0]}…)".replace(".", ","),
+                         "τεμ.", r["count"]))
+        rows += [("Λάτες κεραμιδιών", "m", c["battens_m"]), ("Αντιλάτες αερισμού", "m", c["counter_battens_m"]),
+                 ("Κυβισμός ξυλείας στέγης (παραγγελία)", "m³", c["volume_total_m3"])]
+    return rows
+
+
 def pool_list(doc):
     """Pools: earthworks, concrete, waterproofing, mosaic, coping / overflow channel, pipes, equipment (site/pool.py)."""
     from archforge.site.pool import analyse, pools
@@ -374,6 +390,9 @@ def all_lists(doc):
             ("Θέρμανση", "Θέρμανση — πηγή, σώματα / βρόχοι, σωλήνες, συλλέκτες, υδρονομείς, βάνες", heating_list(doc),
              ("Προμελέτη: διατομές από κανόνα ιδιοκτήτη, μήκη από τη χάραξη· θερμικά φορτία, ισχύς σωμάτων, "
               "κυκλοφορητής και εξισορρόπηση από μηχανολόγο.",)),
+            ("Ξυλεία στέγης", "Ξυλεία στέγης — λίστα κοπής ανά διατομή και μήκος παραγγελίας", roof_timber_list(doc),
+             ("Διατομές μόνο της αγοράς· μήκος παραγγελίας = καθαρό + 20 cm για λοξοτομές, ανά 5 cm· κοπές στη λίστα κοπής "
+              "(Κατασκευή ▸ Στέγη ▸ Στρώσεις και λίστα κοπής)· προδιάσταση προς έλεγχο από στατικό.",)),
             ("Πισίνα", "Πισίνα — εκσκαφή, σκυρόδεμα, στεγάνωση, ψηφίδα, στέψη / κανάλι, σωλήνες, εξοπλισμός", pool_list(doc),
              ("Ποσότητες από το σχέδιο· αντλία, φίλτρο, χημεία, στατική λεκάνης και ηλεκτρολογική μελέτη από μηχανικούς· "
               "εξοπλισμός όπως δηλώθηκε στις Ιδιότητες της πισίνας.",)),
