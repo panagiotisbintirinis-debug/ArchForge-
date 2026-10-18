@@ -45,8 +45,45 @@ def test_door_and_window_openings_fit_their_host_walls():
 
 def test_real_furniture_and_cove_geometry_keep_missing_photometry_explicit():
     doc=document()
-    assert len([e for e in doc.entities.values() if e.kind=='library_object'])==22
+    assert len([e for e in doc.entities.values() if e.kind=='library_object'])==26
     assert not any(e.kind=='box' for e in doc.entities.values())
     strips=[e for e in doc.entities.values() if e.kind=='electrical_point' and e.params['point_type']=='led_strip']
-    assert len(strips)==8
+    assert len(strips)==9
     assert all(not e.params.get('lumens') and not e.params.get('watts_per_m') for e in strips)
+
+
+def test_space_is_used_instead_of_a_closed_stair_quarter_and_corridor():
+    from archforge.quantities.takeoff import take_off
+    d=document();rooms=take_off(d)['rooms']
+    assert not any(r['name'] in ('Κλιμακοστάσιο','Διάδρομος') for r in rooms)
+    living=next(r for r in rooms if r['storey']=='Ground' and 'Ενιαίος' in r['name'])
+    assert living['floor_m2']>45  # previous enclosed living area was under 20 m²
+    assert any(e.kind=='cabinet' and e.parent_id=='s02-stair-main' and e.params.get('under_stair') for e in d.entities.values())
+
+
+def test_opening_has_guards_except_at_the_stair_exit_and_retains_floor_above_low_steps():
+    from tests.residential_scenarios.space_economy import opening_guard_lines
+    d=document();stair=d.get('s02-stair-main');candidate=candidate_from_params(stair.params)
+    guards=[e for e in d.entities.values() if e.id.startswith('s02-stair-main-opening-guard-')]
+    assert guards
+    actual=[(tuple(a),tuple(b)) for e in guards for a,b in zip(e.params['points'],e.params['points'][1:])]
+    assert sorted(actual)==sorted(opening_guard_lines(stair,3.02))
+    assert all(e.params['z']==3.2 for e in guards)
+    path=stair_centerline(candidate)
+    assert _covered(d,d.get('s02-floor-1'),path[0][0]+.15,path[0][1])
+
+
+def test_pergola_has_no_second_frame_and_rafters_meet_existing_support_elevations():
+    import pytest
+    d=document()
+    pergola=[e for e in d.entities.values() if e.id.startswith('s02-terrace-pergola-')]
+    assert pergola and all(e.kind=='structural_beam' and e.name=='Τεγίδα πέργκολας' for e in pergola)
+    wall=d.get('s02-wall-1-1').params
+    edge=d.get('s02-beamy-1-2').params
+    for e in pergola:
+        p=e.params
+        assert p['x1']==wall['x1']
+        assert p['x2']==edge['x1']
+        assert p['z']==pytest.approx(wall['z']+wall['height'])
+        assert p['z']==pytest.approx(edge['z']+edge['height'])
+        assert wall['y1'] <= p['y1']==p['y2'] <= wall['y2']

@@ -70,14 +70,17 @@ def enriched_s02(project=None):
     opening('window','s02-annex-window-north','s02-split-wall-2',1.2,1.4,1.2,.9)
     base=dict(doc.get('s02-cab-0-0').params,x=3.6)
     add('cabinet',base,'s02-cab-worktop','Πάγκος προετοιμασίας')
+    # Owner 18 October: paid living area must not become an oversized stair
+    # room plus a full-width corridor. Keep the stair dimensions, remove the
+    # two unnecessary enclosures and use one open living / working space.
+    stack.execute(DeleteEntities([f's02-{part}-{k}' for k in (0,1)
+        for part in ('hall-south','part-south')]))
     # Real room uses drive surface and wet-room measurement.
     for z in (0.,1.4,3.2):
         for face in room_faces(doc,z=z):
             cx=sum(p[0] for p in face.polygon)/len(face.polygon);cy=sum(p[1] for p in face.polygon)/len(face.polygon)
             if z==1.4:name,use='Ξενώνας ημιορόφου','bedroom'
-            elif 3.5<cy<4.8:name,use='Διάδρομος','corridor'
-            elif cy<3.5 and cx<5.5:name,use='Κλιμακοστάσιο','other'
-            elif cy<3.5:name,use=('Καθιστικό — τραπεζαρία','living') if z==0 else ('Γραφείο','office')
+            elif cy<4.8:name,use=('Ενιαίος χώρος καθιστικού — τραπεζαρίας','living') if z==0 else ('Γραφείο — βιβλιοθήκη με ανοιχτό πλατύσκαλο','office')
             elif cx<5.5:name,use=('Κουζίνα','kitchen') if z==0 else ('Υπνοδωμάτιο 1','bedroom')
             else:name,use=('Μπάνιο','bathroom') if z==0 else ('Μπάνιο ορόφου','bathroom')
             rid=f's02-{z:g}-{face.signature}'
@@ -91,7 +94,7 @@ def enriched_s02(project=None):
     stack.execute(UpdateEntity('s02-plumb-0-3',dict(x=1.8,y=6.45)))
     add('plumbing_point',dict(x=9.,y=6.5,z=0.,point_type='water_heater'),'s02-water-heater','Θερμοσίφωνας — δοκιμαστική θέση')
     # Interior U stair: two flights, open space below, no intersected walls.
-    c=next(c for c in solve_stair_candidates(0.,3.2,(1.1,.9),(4.7,.9),
+    c=next(c for c in solve_stair_candidates(0.,3.2,(1.3,1.5),(4.9,1.5),
           upper_floor_z=3.02,upper_slab_thickness=.18) if c.layout=='u' and c.turn_direction==1)
     assert not stair_wall_conflicts(doc,c),stair_wall_conflicts(doc,c)
     add('stair',dict(c.to_params(),structure='timber'),'s02-stair-main','Ξύλινη σκάλα U — ισόγειο/όροφος')
@@ -108,6 +111,9 @@ def enriched_s02(project=None):
         for cmd in command.commands:
             for i,e in enumerate(getattr(cmd,'entities',[])):e.id=f'{sid}-rail-{i}'
         stack.execute(command)
+    from tests.residential_scenarios.space_economy import add_under_stair_storage, protect_upper_opening
+    add_under_stair_storage(doc,stack,'s02-stair-main')
+    protect_upper_opening(doc,stack,'s02-stair-main',3.02)
     add('railing',default_params('balusters',[[13.35,end[1]],[13.35,1.0]],z=1.4,height=1.05),
         's02-annex-landing-rail-left','Κάγκελο πλατύσκαλου — αριστερά')
     add('railing',default_params('balusters',[[14.65,end[1]],[14.65,1.0]],z=1.4,height=1.05),
@@ -124,7 +130,13 @@ def enriched_s02(project=None):
     add('railing',default_params('glass_channel',[[8.5,0],[11,0],[11,7],[8.5,7]],z=3.2,height=1.05),
         's02-terrace-rail','Γυάλινο κιγκλίδωμα δώματος — προς μελέτη')
     from archforge.architecture.pergola import pergola_entities
-    pergola,_report=pergola_entities(doc,8.65,.5,10.7,6.5,z=3.2,material='timber',level='Level 1')
+    # The exposed original RC frame already surrounds the terrace. Do not
+    # add a second set of timber columns and perimeter beams inside it.
+    # Retain canonical rafters only: inner ends at the upper wall, outer ends
+    # at the existing edge beam; their underside meets the existing top at 6.
+    # Connections/bearing capacity remain ENGINEER_REVIEW, not a sized design.
+    pergola,_report=pergola_entities(doc,8.5,0.,11.,7.,z=3.2,material='timber',level='Level 1')
+    pergola=[e for e in pergola if e.name=='Τεγίδα πέργκολας']
     from archforge.core.commands import AddEntities
     for i,e in enumerate(pergola):e.id=f's02-terrace-pergola-{i}'
     stack.execute(AddEntities(pergola))
@@ -155,7 +167,11 @@ def enriched_s02(project=None):
         ('Διπλό κρεβάτι 160×200',14.5,4.65,1.4,0),
         ('Γραφείο εργασίας 140',13.0,2.5,1.4,90),('Καρέκλα γραφείου',14.0,2.5,1.4,90),
         ('Λεκάνη WC με καζανάκι',6.2,6.35,3.2,0),('Νιπτήρας με έπιπλο 80',7.15,6.35,3.2,0),
-        ('Ντουζιέρα 90×90',7.75,5.4,3.2,0)]
+        ('Ντουζιέρα 90×90',7.75,5.4,3.2,0),
+        ('Βιβλιοθήκη με ράφια',3.2,4.45,0.,0),
+        ('Πολυθρόνα',4.9,4.1,0.,0),
+        ('Βιβλιοθήκη με ράφια',3.2,4.45,3.2,0),
+        ('Πολυθρόνα',2.3,.6,3.2,180)]
     asset_ids=set()
     for i,(name,x,y,z,rotation) in enumerate(furniture):
         sp=catalogue[name];triangles,colors,names=build(sp)

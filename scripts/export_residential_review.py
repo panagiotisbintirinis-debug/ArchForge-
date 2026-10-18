@@ -22,13 +22,13 @@ def table(headers, rows):
             '| ' + ' | '.join('---' for _ in headers) + ' |'] + [
             '| ' + ' | '.join(map(cell, row)) + ' |' for row in rows]
 
-def export(spec, output=OUT):
+def export(spec, output=OUT, source=None):
     from archforge.project.persistence import load_project
     from archforge.structure.analysis import analyze_cached
     from archforge.quantities.materials import all_lists
     from archforge.quantities.quote import row_meta
     from archforge.quantities.takeoff import take_off
-    path = (ROOT/'docs/scenarios/foundation_review/S01_strip_comparison.archforge'
+    path = Path(source) if source is not None else (ROOT/'docs/scenarios/foundation_review/S01_strip_comparison.archforge'
             if spec['id'] == 'S01' else FIXTURES/spec['file'])
     loaded = load_project(path)
     if not loaded.ok:
