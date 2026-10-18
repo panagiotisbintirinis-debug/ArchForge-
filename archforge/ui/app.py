@@ -31,9 +31,23 @@ install_safe_connectivity_overlay()
 install_plumbing_system_control(MainWindow)
 
 
+def use_light_theme(app):
+    """ArchForge's colours are drawn for a light window: a dark Windows theme made menus and panels dark (owner 18/10).
+    Qt 6.8 follows the system scheme unless told otherwise."""
+    from PySide6.QtCore import Qt
+    hints=app.styleHints()
+    if hasattr(hints,'setColorScheme'):
+        hints.setColorScheme(Qt.ColorScheme.Light)
+    if hints.colorScheme()==Qt.ColorScheme.Dark:      # older Qt or a style that ignores the request
+        from PySide6.QtWidgets import QStyleFactory
+        app.setStyle(QStyleFactory.create('Fusion'))
+        app.setPalette(app.style().standardPalette())
+
+
 def main():
     app=QApplication.instance() or QApplication([])
     app.setApplicationName('ArchForge')
+    use_light_theme(app)
     w=MainWindow();w.show()
     smoke=os.environ.get('ARCHFORGE_SMOKE_EXIT')
     if smoke:  # packaged-build check: open the window, then quit by itself
