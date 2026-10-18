@@ -8,7 +8,10 @@
 - **Πακέτο Windows χωρίς Python** (`.github/workflows/windows-package.yml`): PyInstaller → ArchForge.exe + βιβλιοθήκη
   υλικών/επίπλων (κώδικας) + δείγματα S01–S10 (`samples/`, Αρχείο ▸ Άνοιγμα δείγματος…)· έλεγχος ότι το exe ανοίγει
   (`ARCHFORGE_SMOKE_EXIT`). Σε κάθε push στο develop → release «ArchForge (develop)» με `ArchForge-windows.zip`.
-  Επόμενο βήμα: Inno Setup (Setup.exe με συντόμευση).
+  **Ενημερώσεις (ιδιοκτήτης 18/10 «πρέπει να είναι updatable»):** `archforge/updates.py` + `ui/updates_ui.py` — το πακέτο
+  έχει `build_info.json` (commit)· στην εκκίνηση ελέγχει αθόρυβα το release `develop-latest` (δημόσιο repo, GitHub API)
+  και ρωτά «Ενημέρωση τώρα;» → κατέβασμα, κλείσιμο (ρωτά για μη αποθηκευμένα), robocopy /E πάνω στον φάκελο, επανεκκίνηση·
+  και Αρχείο ▸ Έλεγχος για ενημερώσεις…. Επόμενο βήμα: Inno Setup (Setup.exe με συντόμευση).
 - Διορθώσεις: διακόπτες «Ξυλεία/Στρώσεις στέγης στο 3D» στο μενού Προβολή· `conduit_map` χωρίς γραμμές έχει
   `split_boxes` (KeyError στην προσφορά πισίνας)· πύλη «διπλά σημεία» = ίδιος τύπος ΚΑΙ ίδιο όνομα (λέβητας + συλλέκτης
   έχουν δική τους παροχή)· CI `faulthandler_timeout=300` (στα 90″ το dump έριχνε τη σουίτα στα Windows).

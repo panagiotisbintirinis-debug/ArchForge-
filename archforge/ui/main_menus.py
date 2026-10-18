@@ -154,7 +154,8 @@ def organize_main_menus(window):
                           getattr(window, "save_as_action", None) or None, None,
                           getattr(window, "_brief_action", None), None,
                           window._file_import_menu, window._file_export_menu, None,
-                          getattr(window, "recover_action", None), getattr(window, "autosave_action", None)])
+                          getattr(window, "recover_action", None), getattr(window, "autosave_action", None), None,
+                          getattr(window, "check_updates_action", None)])
 
     # --- Επεξεργασία: the editing commands that had only a key or a mouse-menu entry ---
     if edit_menu is not None:

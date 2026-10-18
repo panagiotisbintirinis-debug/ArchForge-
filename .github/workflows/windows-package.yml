@@ -30,11 +30,15 @@ jobs:
           python-version: '3.11'
       - name: Install dependencies
         run: python -m pip install -r requirements.txt pyinstaller
+      - name: Stamp the build (Αρχείο ▸ Έλεγχος για ενημερώσεις compares it with the release)
+        shell: bash
+        run: printf '{"sha": "%s", "date": "%s"}' "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%MZ)" > build_info.json
       - name: Build ArchForge.exe
         run: >
           pyinstaller --noconfirm --windowed --name ArchForge
           --collect-submodules archforge
           --add-data "archforge/ui/vendor;archforge/ui/vendor"
+          --add-data "build_info.json;."
           --add-data "docs/scenarios/S*.archforge;samples"
           --collect-all OCP
           run_app.py

@@ -493,6 +493,8 @@ class MainWindow(QMainWindow):
         self.open_action = open_action
         self.open_sample_action = QAction('Άνοιγμα δείγματος…', self)
         self.open_sample_action.triggered.connect(lambda: self.open_sample())
+        from .updates_ui import install as install_updates
+        install_updates(self)          # Αρχείο ▸ Έλεγχος για ενημερώσεις… + the quiet check of the packaged program
         stl_action = QAction('Export STL', self)
         stl_action.triggered.connect(self.export_stl)
         toolbar.addAction(stl_action)

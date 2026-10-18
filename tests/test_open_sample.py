@@ -18,6 +18,7 @@ def test_open_sample_from_the_file_menu(monkeypatch, tmp_path):
         assert len(names) == 10
         file_menu = next(a.menu() for a in window.menuBar().actions() if a.text().replace('&', '') == 'Αρχείο')
         assert window.open_sample_action in file_menu.actions()
+        assert window.check_updates_action in file_menu.actions()      # Αρχείο ▸ Έλεγχος για ενημερώσεις…
         seen = {}
 
         def pick(_parent, _title, folder, _filter):
