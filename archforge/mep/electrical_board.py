@@ -110,8 +110,20 @@ def settings(doc):
             "supply_phases": int(p.get("supply_phases", 0)), "supply_fuse_a": float(p.get("supply_fuse_a", 0.0)),
             "demand_factor": float(p.get("demand_factor", 0.0)), "waste_pct": float(p.get("waste_pct", 0.0)),
             "install_method": str(p.get("install_method", "B1")),
-            "rcd_groups": dict(p.get("rcd_groups") or {}), "rcd_ratings": list(p.get("rcd_ratings") or []),
+            "rcd_groups": _rcd_groups(doc, p), "rcd_ratings": list(p.get("rcd_ratings") or []),
             "control_system": str(p.get("control_system", "conventional"))}
+
+
+def _rcd_groups(doc, p):
+    """The user's RCD per circuit; a pool circuit not yet placed gets an RCD of its own (HD 60364-7-702: the pool's
+    equipment on its own 30 mA device, so a fault there does not cut the house — owner's scenario 9)."""
+    groups = dict(p.get("rcd_groups") or {})
+    from archforge.mep.electrical import design_circuits
+    pool = [c["id"] for c in design_circuits(doc)["circuits"] if c["group"] == "pool" and c["id"] not in groups]
+    if pool:
+        own = max([int(v or 1) for v in groups.values()] + [1]) + 1
+        groups.update({cid: own for cid in pool})
+    return groups
 
 
 def conductors(circuit, dali=False):

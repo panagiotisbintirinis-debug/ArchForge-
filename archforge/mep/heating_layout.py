@@ -237,9 +237,11 @@ def route_heating(doc):
             for f in rooms:
                 circuits.append((f"loop:{f.signature}", None, "loop", _room_use(doc, f) or "Χώρος", f.polygon))
         else:
-            for e in members:
+            for k, e in enumerate(members):
+                # The circuit is named after its room (the board reads «Κ3 Υπνοδωμάτιο 1»), else the emitter.
+                face = _face_of(rooms, float(e.params["x"]), float(e.params["y"]))
                 circuits.append((e.id, (float(e.params["x"]), float(e.params["y"])), e.params["point_type"],
-                                 e.name or e.params["point_type"], None))
+                                 (_room_use(doc, face) or f"Χώρος {k + 1}") if face is not None else (e.name or e.params["point_type"]), None))
         if not circuits:
             continue
         root = (sx, sy)
@@ -282,6 +284,10 @@ def route_heating(doc):
                         # The loop starts on the room side nearest the manifold, inset from the wall.
                         target = _entry_point(poly, (mx, my))
                     path = _simplify([grid.point(c_) for c_ in grid.route(grid.cell(*target), {mcell})])
+                    # One home run each way, from the bar to the circuit (and up to the emitter's valves).
+                    lead = sum(math.dist(a, b) for a, b in zip(path, path[1:])) + math.dist(path[0], target) \
+                        + math.dist(path[-1], (mx, my)) + (CONNECTION[kind] if xy is not None else 0.0)
+                    loop_m = 0.0
                     for system_key, off in (("supply", 0.0), ("return", RETURN_OFFSET)):
                         d = slot + off
                         for a, b in zip(path, path[1:]):
@@ -302,11 +308,14 @@ def route_heating(doc):
                             area = _area(poly)
                             result["loops"].append({"room": label, "points": loop, "z": z, "length_m": round(length, 2),
                                                     "area_m2": round(area, 2), "manifold": mid, "entry": target,
+                                                    "no": f"Κ{len(outlets) + 1}",
                                                     "perimeter_m": round(sum(math.dist(poly[i], poly[(i + 1) % len(poly)])
                                                                              for i in range(len(poly))), 2)})
                             report["loop_m"] += length
                             report["loop_area_m2"] += area
-                    outlets.append({"circuit": cid, "kind": kind, "label": label})
+                            loop_m = length
+                    outlets.append({"no": f"Κ{len(outlets) + 1}", "circuit": cid, "kind": kind, "label": label, "dn": circuit_dn,
+                                    "length_m": round(2 * lead + loop_m, 1), "loop_m": round(loop_m, 1)})
                 # The collector bar under the manifold joins its outlets (side by side) and its feed.
                 span = (len(group) - 1) / 2 * HOME_RUN_GAP
                 for system_key, off in (("supply", 0.0), ("return", RETURN_OFFSET)):
@@ -390,6 +399,25 @@ def _manifold_spot(doc, floor, x, y, rooms, into=0.15):
                 if best is None or d < best[0]:
                     best = (d, q)
     return best[1] if best else (x, y)
+
+
+def manifold_schedule(route):
+    """The board of each manifold (owner 18/10: «το σημαντικό είναι ο πίνακας διανομής»): one row per circuit —
+    number, room, what it feeds, Ø, length (supply + return [+ loop]), the parts on the manifold for it.
+    ``[{"manifold": label, "floor", "rows": [...], "totals": {...}}]``."""
+    out = []
+    for n, m in enumerate(route["manifolds"], 1):
+        rows = []
+        for k, o in enumerate(m["outlets"], 1):
+            what = {"loop": "Βρόχος ενδοδαπέδιας", "radiator": "Θερμαντικό σώμα", "fan_coil": "Fan coil"}[o["kind"]]
+            rows.append({"no": o["no"], "room": o["label"], "what": what, "dn": o["dn"], "length_m": o["length_m"],
+                         "supply": "Υδρονομέας" if m["underfloor"] else "Διακόπτης προσαγωγής",
+                         "return": "Βάνα + θερμοηλεκτρική κεφαλή", "flag": o["length_m"] > MAX_CIRCUIT and o["kind"] == "loop"})
+        out.append({"manifold": f"Συλλέκτης Σ{n}" + (" (αυτόματα)" if m["auto"] else ""), "floor": m["z"], "x": m["x"], "y": m["y"],
+                    "rows": rows, "mixing": m["mixing"],
+                    "totals": {"circuits": len(rows), "length_m": round(sum(r["length_m"] for r in rows), 1),
+                               "rooms": len({r["room"] for r in rows})}})
+    return out
 
 
 def _strip(poly, axis, lo, hi):
@@ -487,6 +515,10 @@ def fittings(route):
         add("heating.fitting.air_vent", "Αυτόματο εξαεριστικό", 2, "στα άκρα των δύο σωλήνων του συλλέκτη")
         add("heating.fitting.drain_cock", "Κρουνός εκκένωσης", 2, "στα άκρα των δύο σωλήνων του συλλέκτη")
         add("heating.manifold.cabinet", "Ερμάριο συλλέκτη (χωνευτό)", 1, "ένα ανά συλλέκτη")
+        add("heating.control.actuator", "Θερμοηλεκτρική κεφαλή (στη βάνα επιστροφής)", n, "μία ανά κύκλωμα του συλλέκτη")
+        add("heating.control.wiring_centre", "Κέντρο καλωδίωσης θερμοστατών", 1, "ένα ανά συλλέκτη")
+        add("heating.control.thermostat", "Θερμοστάτης χώρου", len({o["label"] for o in m["outlets"]}),
+            "ένας ανά θερμαινόμενο χώρο του συλλέκτη")
         if m["mixing"]:
             add("heating.fitting.mixing_group", "Ομάδα ανάμιξης (κυκλοφορητής + τρίοδη) ενδοδαπέδιας", 1,
                 "ενδοδαπέδια με λέβητα: χαμηλότερη θερμοκρασία νερού — επιλογή από μηχανολόγο")
@@ -576,3 +608,29 @@ def against_wall(doc, floor, x, y, depth):
         return x, y, ang
     off = float(p["thickness"]) / 2 + depth / 2 + 0.03
     return fx + (x - fx) / d * off, fy + (y - fy) / d * off, ang
+
+
+SUPPLY_FOR = {"boiler": "heating_supply", "heat_source": "heating_supply", "heat_pump": "heat_pump_supply"}
+
+
+def missing_supplies(doc):
+    """Electrical supplies the heating still needs on the board: the source's, and a wiring centre at each manifold
+    (placed or automatic) — ``[(x, y, z, electrical point_type, name)]`` for those without one within 1 m."""
+    from archforge.mep.electrical import POINT_TYPES as ELEC
+    have = [(float(e.params["x"]), float(e.params["y"]), float(e.params["z"]), e.params["point_type"])
+            for e in doc.entities.values() if e.kind == "electrical_point"]
+
+    def supplied(x, y, z, kind):
+        return any(k == kind and abs(ez - z) < 0.5 and math.hypot(ex - x, ey - y) <= 1.0 for ex, ey, ez, k in have)
+    out = []
+    src = source_of(doc)
+    if src is not None:
+        kind = SUPPLY_FOR[src.params["point_type"]]
+        x, y, z = float(src.params["x"]) + 0.15, float(src.params["y"]), float(src.params["z"])
+        if not supplied(x, y, z, kind):
+            out.append((x, y, z, kind, ELEC[kind][0]))
+    for m in route_heating_cached(doc)["manifolds"]:
+        x, y, z = m["x"] + 0.30, m["y"], m["z"]
+        if not supplied(x, y, z, "heating_supply"):
+            out.append((x, y, z, "heating_supply", "Κέντρο καλωδίωσης θερμοστατών (συλλέκτης)"))
+    return out

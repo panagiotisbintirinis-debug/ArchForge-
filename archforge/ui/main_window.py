@@ -1255,11 +1255,18 @@ class MainWindow(QMainWindow):
         equipment room beside it, outside zone 1 (one undo)."""
         from archforge.site.pool import DEFAULTS, ZONE1, analyse
         z = float(self.doc.work_plane.origin[2])
+        supply_w = params.pop('supply_w', None)          # the equipment room's W (data sheet), when known
         p = {'x': float(x), 'y': float(y), 'z': z, **{k: v for k, v in DEFAULTS.items()}, **params}
         p.setdefault('plant_x', float(x) + float(p['length']) / 2 + ZONE1 + float(p['plant_w']) / 2 + 0.5)
         p.setdefault('plant_y', float(y))
         pool = Entity('pool', p, name='Πισίνα')
-        self.stack.execute(AddEntity(pool))
+        # The equipment room's supply comes with it: its own circuit and its own 30 mA RCD on the board.
+        from archforge.core.commands import AddEntities
+        from archforge.mep.electrical import POINT_TYPES as ELEC
+        supply = Entity('electrical_point', {'x': float(p['plant_x']), 'y': float(p['plant_y']), 'z': z, 'point_type': 'pool_supply',
+                                             **({'power_w': float(supply_w)} if supply_w else {})},
+                        name=ELEC['pool_supply'][0])
+        self.stack.execute(AddEntities([pool, supply]))
         self._redraw_views(all_views=True)
         self._refresh_project_tree()
         a = analyse(self.doc, pool)
@@ -1278,7 +1285,16 @@ class MainWindow(QMainWindow):
         params = {'x': float(x), 'y': float(y), 'z': z, 'point_type': point_type}
         if point_type in EMITTERS + ('manifold', 'thermostat'):
             params['x'], params['y'], params['rotation'] = against_wall(self.doc, z, float(x), float(y), BODY[point_type][1])
-        self.stack.execute(AddEntity(Entity('heating_point', params, name=HEAT[point_type])))
+        new = [Entity('heating_point', params, name=HEAT[point_type])]
+        # Its supply on the electrical board comes with it (source: burner / heat pump; manifold: wiring centre).
+        from archforge.mep.electrical import POINT_TYPES as ELEC
+        from archforge.mep.heating_layout import SUPPLY_FOR
+        kind = SUPPLY_FOR.get(point_type) or ('heating_supply' if point_type == 'manifold' else None)
+        if kind:
+            new.append(Entity('electrical_point', {'x': params['x'] + (0.15 if point_type != 'manifold' else 0.30), 'y': params['y'],
+                                                   'z': z, 'point_type': kind}, name=ELEC[kind][0]))
+        from archforge.core.commands import AddEntities
+        self.stack.execute(AddEntities(new))
         self._redraw_views(all_views=True)
         self._refresh_project_tree()
         self.statusBar().showMessage(f"{HEAT[point_type]} · " + self._heating_summary() + ' — Ctrl+Z για αναίρεση', 9000)
@@ -1311,6 +1327,20 @@ class MainWindow(QMainWindow):
         self._refresh_project_tree()
         self.statusBar().showMessage(f"{len(new)} × {HEAT[point_type]} κάτω από τα παράθυρα · " + self._heating_summary()
                                      + ' — Ctrl+Z για αναίρεση', 12000)
+        return len(new)
+
+    def _heating_supplies(self):
+        """Electrical supplies the heating still lacks (source, wiring centre at every manifold), one undo."""
+        from archforge.core.commands import AddEntities
+        from archforge.mep.heating_layout import missing_supplies
+        new = [Entity('electrical_point', {'x': x, 'y': y, 'z': z, 'point_type': kind}, name=name)
+               for x, y, z, kind, name in missing_supplies(self.doc)]
+        if new:
+            self.stack.execute(AddEntities(new))
+            self._redraw_views(all_views=True)
+            self._refresh_project_tree()
+        self.statusBar().showMessage(f"{len(new)} παροχές θέρμανσης στον ηλεκτρολογικό πίνακα — ισχύς από το φύλλο του εξοπλισμού"
+                                     if new else 'Η θέρμανση έχει ήδη τις παροχές της', 8000)
         return len(new)
 
     def _heating_source(self):

@@ -44,7 +44,7 @@ SPEC = {
     "roof": "hip",
     "pergolas": [("timber", (0.4, -3.6), (7.6, -0.4))],
     "pools": [{"x": 13.0, "y": -6.75, "length": 8.0, "width": 4.5, "pump_flow_m3h": 12.0, "suction_dn": 75, "delivery_dn": 63,
-               "lights": 2, "plant_x": 20.75, "plant_y": -6.75}],
+               "lights": 2, "plant_x": 20.75, "plant_y": -6.75, "supply_w": 1800.0}],
     "mep": {"supply": (0.4, 1.0), "heater": ("Ground", 6.6, 9.2), "washing_machine": ("Ground", 6.6, 8.0),
             "panel": ("Ground", 4.08, 12.5), "manhole": (-1.5, 8.0),
             "points": [("Ground", "elec_air_conditioner", 0.2, 2.0), ("Ground", "elec_air_conditioner", 13.85, 3.6)]},

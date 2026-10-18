@@ -91,6 +91,10 @@ POINT_TYPES = {
     "air_conditioner": ("Κλιματιστικό", "air_conditioner", 2500, 2.20, "ΚΛ"),
     "washing_machine": ("Πλυντήριο ρούχων", "washing_machine", 2300, 0.60, "ΠΡ"),
     "dishwasher": ("Πλυντήριο πιάτων", "dishwasher", 2000, 0.40, "ΠΠ"),
+    # Equipment supplies (owner 18/10: heating and the pool on the board) — W from the equipment's data sheet.
+    "heating_supply": ("Παροχή θέρμανσης (λέβητας / κέντρο καλωδίωσης)", "heating", 0, 1.50, "ΘΡ"),
+    "heat_pump_supply": ("Παροχή αντλίας θερμότητας", "heat_pump", 0, 0.60, "ΑΘ"),
+    "pool_supply": ("Παροχή μηχανοστασίου πισίνας", "pool", 0, 1.20, "ΠΣ"),
     # Ασθενή (owner 17/10): same entity, own group — never part of a power circuit (mep/low_voltage.py).
     "network_rack": ("Rack δικτύου / κατανεμητής ασθενών", "low_voltage", 0, 1.60, "RK"),
     "data_outlet": ("Πρίζα δικτύου RJ45", "low_voltage", 0, 0.30, "D"),
@@ -107,13 +111,18 @@ CIRCUIT_RULES = {
     "air_conditioner": ("Κλιματιστικό", 16, 2.5, 1),
     "washing_machine": ("Πλυντήριο ρούχων", 16, 2.5, 1),
     "dishwasher": ("Πλυντήριο πιάτων", 16, 2.5, 1),
+    # Owner 18/10, installer practice like the cooker / water heater (ENGINEER_REVIEW): the burner / wiring centres of
+    # a heating system share one line, a heat pump and the pool's equipment room each have their own.
+    "heating": ("Θέρμανση (λέβητας / κέντρα καλωδίωσης)", 10, 1.5, 3),
+    "heat_pump": ("Αντλία θερμότητας", 16, 2.5, 1),
+    "pool": ("Πισίνα — μηχανοστάσιο (δικός του διαφορικός 30 mA)", 16, 2.5, 1),
 }
 GROUP_ORDER = tuple(CIRCUIT_RULES)
 SWITCH_TYPES = ("switch", "dimmer")
 LOW_VOLTAGE_TYPES = ("network_rack", "data_outlet", "wifi_ap", "tv_outlet")
 # Luminaires added 15/10 carry no catalogue default (owner's rule: no values from memory) —
 # their W (or W/m for a strip) comes from the luminaire's data sheet.
-DATASHEET_TYPES = ("spot", "downlight", "wall_washer", "led_strip")
+DATASHEET_TYPES = ("spot", "downlight", "wall_washer", "led_strip", "heating_supply", "heat_pump_supply", "pool_supply")
 
 
 def strip_length(params):

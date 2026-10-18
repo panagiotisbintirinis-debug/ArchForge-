@@ -316,7 +316,12 @@ def install_approved_mockup_shell(window):
     for key,label in DISTRIBUTIONS.items():
         a=QAction(label,window); a.triggered.connect(lambda _=False,k=key: window._set_heating_option("distribution",k)); dist_menu.addAction(a)
     spacing=QAction("Βήμα βρόχων ενδοδαπέδιας…",window); spacing.triggered.connect(lambda: window._set_heating_option("loop_spacing",None))
-    heating.addAction(spacing); heating.addSeparator()
+    heating.addAction(spacing)
+    board=QAction("Πίνακας συλλεκτών θέρμανσης…",window)
+    board.triggered.connect(lambda: __import__("archforge.ui.heating_board",fromlist=["show"]).show(window))
+    heating.addAction(board)
+    supplies=QAction("Παροχές ρεύματος θέρμανσης (αυτόματα)",window); supplies.triggered.connect(lambda: window._heating_supplies())
+    heating.addAction(supplies); heating.addSeparator()
     for key,label in HEAT.items():
         a=QAction(label,window)
         a.triggered.connect(lambda _=False,k=key,l=label: window._start_site_tool(f"heat_{k}",f"{l}: κλικ στην κάτοψη (κοντά σε τοίχο κολλάει πάνω του) — προσαγωγή/επιστροφή χαράζονται αυτόματα, Esc για τέλος"))

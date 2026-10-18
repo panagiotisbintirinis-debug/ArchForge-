@@ -100,3 +100,25 @@ def test_menu_tool_places_a_pool_shown_in_plan_3d_and_quote():
         assert not [e for e in window.doc.entities.values() if e.kind == 'pool']
     finally:
         window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_pool_supply_has_its_own_circuit_and_its_own_rcd_on_the_board():
+    from PySide6.QtWidgets import QApplication
+    from archforge.mep.electrical import design_circuits
+    from archforge.mep.electrical_board import settings
+    from archforge.ui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    try:
+        window._no_modal_dialogs = True
+        window.stack.execute(AddEntity(Entity('electrical_point', {'x': 0.0, 'y': 5.0, 'z': 0.0, 'point_type': 'panel'})))
+        window.stack.execute(AddEntity(Entity('electrical_point', {'x': 1.0, 'y': 5.0, 'z': 0.0, 'point_type': 'socket'})))
+        window._place_pool(3.0, -8.0, supply_w=1800.0)
+        (pool,) = [c for c in design_circuits(window.doc)['circuits'] if c['group'] == 'pool']
+        assert pool['breaker_a'] == 16 and pool['load_w'] == 1800
+        groups = settings(window.doc)['rcd_groups']
+        assert groups[pool['id']] == 2                                     # Δ2: its own 30 mA RCD, the house on Δ1
+        window.stack.undo()                                                # pool and its supply go together
+        assert not [e for e in window.doc.entities.values() if e.params.get('point_type') == 'pool_supply']
+    finally:
+        window._mark_clean(); window.close(); app.processEvents()

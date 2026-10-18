@@ -161,3 +161,37 @@ def test_underfloor_circuits_stay_within_100_m_with_their_leads():
         lead = abs(loop['entry'][0] - m['x']) + abs(loop['entry'][1] - m['y'])
         assert loop['length_m'] + 2 * lead <= MAX_CIRCUIT + 1.0
     assert sum(l['area_m2'] for l in r['loops']) == pytest.approx(96.0, abs=0.1)
+
+
+def test_manifold_board_lists_every_circuit_and_the_controls_reach_the_quote():
+    """Owner 18/10: «το σημαντικό είναι ο πίνακας διανομής» — each manifold's circuits, numbered, with their parts."""
+    from archforge.mep.heating_layout import manifold_schedule
+    doc, _st, _src = _radiator_house()
+    r = route_heating(doc)
+    (board,) = manifold_schedule(r)
+    assert [row['no'] for row in board['rows']] == ['Κ1', 'Κ2']
+    assert all(row['dn'] == 18 and row['length_m'] > 0 and 'κεφαλή' in row['return'] for row in board['rows'])
+    parts = fittings(r)
+    assert parts['heating.control.actuator'][1] == 2 and parts['heating.control.wiring_centre'][1] == 1
+    assert parts['heating.control.thermostat'][1] == 2
+
+
+def test_heating_supplies_go_on_the_electrical_board():
+    """The burner and every manifold's wiring centre get their supply; the board shows a heating circuit."""
+    from archforge.core.commands import AddEntities
+    from archforge.mep.electrical import design_circuits
+    from archforge.mep.heating_layout import missing_supplies
+    doc, st, _src = _radiator_house()
+    st.execute(AddEntity(Entity('electrical_point', {'x': 7.5, 'y': 3.0, 'z': 0.0, 'point_type': 'panel'})))
+    need = missing_supplies(doc)
+    assert sorted(k for *_xyz, k, _n in need) == ['heating_supply', 'heating_supply']      # burner + wiring centre
+    st.execute(AddEntities([Entity('electrical_point', {'x': x, 'y': y, 'z': z, 'point_type': k, 'power_w': 60.0})
+                            for x, y, z, k, _n in need]))
+    assert not missing_supplies(doc)
+    (heating,) = [c for c in design_circuits(doc)['circuits'] if c['group'] == 'heating']
+    assert len(heating['points']) == 2 and heating['breaker_a'] == 10
+    # Without the data-sheet W the board asks for it, never guesses.
+    doc2, st2, _ = _radiator_house()
+    st2.execute(AddEntity(Entity('electrical_point', {'x': 7.5, 'y': 3.0, 'z': 0.0, 'point_type': 'panel'})))
+    st2.execute(AddEntity(Entity('electrical_point', {'x': 7.6, 'y': 5.5, 'z': 0.0, 'point_type': 'heat_pump_supply'})))
+    assert any('φύλλο' in w for w in design_circuits(doc2)['report']['warnings'])

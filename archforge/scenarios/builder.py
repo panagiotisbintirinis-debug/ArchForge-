@@ -191,6 +191,19 @@ def _heating(s, window, spec):
         emitter = "fan_coil" if h.get("system") == "fan_coil" else "radiator"
         s.step(f"Θέρμανση ▸ {'Fan coil' if emitter == 'fan_coil' else 'Σώματα'} σε κάθε χώρο (αυτόματα)",
                lambda: f"{window._auto_heating_emitters(emitter)} σώματα · {window._heating_summary()}")
+    s.step("Θέρμανση ▸ Παροχές ρεύματος θέρμανσης (αυτόματα)", lambda: f"{window._heating_supplies()} παροχές")
+    # The W of each supply as its data sheet gives it (scenario input — the program never assumes it).
+    watts = h.get("supply_w", {"heating_supply": 120.0, "heat_pump_supply": 3500.0})
+
+    def power():
+        from archforge.core.commands import UpdateEntity
+        done = 0
+        for e in list(window.doc.entities.values()):
+            if e.kind == "electrical_point" and e.params.get("point_type") in watts and not e.params.get("power_w"):
+                window.stack.execute(UpdateEntity(e.id, {"power_w": float(watts[e.params["point_type"]])}))
+                done += 1
+        return f"ισχύς από το φύλλο σε {done} παροχές"
+    s.step("Ιδιότητες ▸ Ισχύς παροχών θέρμανσης (φύλλο εξοπλισμού)", power)
 
 
 def _behind_on_level(s, name_part, z):

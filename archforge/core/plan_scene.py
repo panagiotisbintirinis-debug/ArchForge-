@@ -250,7 +250,7 @@ def _heating_primitives(doc,f):
             continue
         f.primitives.append(Primitive2D('polyline',tuple(loop['points']),role='heat-loop',meta=(('room',loop['room']),)))
         q=loop['points'][len(loop['points'])//2]
-        specs.append((1,f"Βρόχος {loop['room']} Φ{circuit_dn} · {loop['length_m']:.0f} m",_corner_candidates(q[0],q[1],.1,.1)))
+        specs.append((1,f"{loop.get('no','')} {loop['room']} Φ{circuit_dn} · {loop['length_m']:.0f} m",_corner_candidates(q[0],q[1],.1,.1)))
     for m in route['manifolds']:
         if abs(m['z']-level)>.05:
             continue
@@ -266,7 +266,7 @@ def _heating_primitives(doc,f):
         for xx in (x-w/2-.02,):
             for yy in (y+.035,y-.035):     # ball valves on the feed
                 f.primitives.append(Primitive2D('polygon',((xx-.015,yy),(xx,yy+.015),(xx+.015,yy),(xx,yy-.015)),role='heat-fitting',meta=(('part','ball_valve'),)))
-        text=f"Συλλέκτης θέρμανσης {n} κυκλ."+(' · υδρονομείς' if m['underfloor'] else '')+(' · ομάδα ανάμιξης' if m['mixing'] else '')+(' (αυτ.)' if m['auto'] else '')
+        text=f"Σ{route['manifolds'].index(m)+1} συλλέκτης θέρμανσης {n} κυκλ. (Κ1–Κ{n})"+(' · υδρονομείς' if m['underfloor'] else '')+(' · ομάδα ανάμιξης' if m['mixing'] else '')+(' (αυτ.)' if m['auto'] else '')
         specs.append((0,text,_corner_candidates(x,y,w/2,.07)))
     for eid in doc.entities:
         e=doc.get(eid)
