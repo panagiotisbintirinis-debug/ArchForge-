@@ -75,6 +75,18 @@ def ridge_design(p, length):
     g_plan = dead_load(p) / math.cos(alpha)
     width = rafter_span(p)                       # half of each side = one rafter span (plan)
     q_uls, q_sls = (1.35 * g_plan + 1.5 * s) * width, (g_plan + s) * width
+    fixed = tuple(float(v) for v in p["ridge_section"]) if p.get("ridge_section") else None
+    fixed_posts = int(p["ridge_posts"]) if p.get("ridge_posts") is not None and int(p["ridge_posts"]) >= 0 else None
+    if fixed or fixed_posts is not None:
+        # Chosen by hand (roof tool): what is fixed stays, the rest is sized; the last try is reported as it is.
+        tries = [(n, sec) for n in ([fixed_posts] if fixed_posts is not None else range(0, 12))
+                 for sec in ([fixed] if fixed else MARKET["ridge"])]
+        for k, (posts, sec) in enumerate(tries):
+            span = length / (posts + 1)
+            ok, sigma, defl = _bending_ok(sec, q_uls, q_sls, span)
+            if ok or k == len(tries) - 1:
+                return {"section": sec, "posts": posts, "span_m": round(span, 2), "sigma_mpa": sigma, "deflection_mm": defl,
+                        "q_uls_kn_m": round(q_uls, 2), "ok": ok, "chosen_by_hand": True}
     for posts in range(0, 12):
         span = length / (posts + 1)
         for sec in MARKET["ridge"]:
@@ -85,8 +97,10 @@ def ridge_design(p, length):
     return {"section": MARKET["ridge"][-1], "posts": 11, "span_m": round(length / 12, 2), "ok": False, "q_uls_kn_m": round(q_uls, 2)}
 
 
-def hip_section(rafter):
-    """Smallest market hip deep enough for the jack rafters' cuts (rafter h + 4 cm)."""
+def hip_section(rafter, p=None):
+    """Smallest market hip deep enough for the jack rafters' cuts (rafter h + 4 cm), or the one chosen by hand."""
+    if p is not None and p.get("hip_section"):
+        return tuple(float(v) for v in p["hip_section"])
     return next((s for s in MARKET["hip"] if s[1] >= rafter[1] + 0.04 - 1e-9), MARKET["hip"][-1])
 
 
@@ -101,7 +115,7 @@ def framing(p):
     rsec = (rafter["section"]["b"], rafter["section"]["h"]) if rafter["section"] else MARKET["rafter"][-1]
     rz = ridge_z(p) if p.get("roof_form", "gable") != "shed" else None
     raw = members(p)
-    plate = MARKET["plate"][0]
+    plate = tuple(float(v) for v in p["plate_section"]) if p.get("plate_section") else MARKET["plate"][0]
     seat = round(min(SEAT_DEPTH[1], max(SEAT_DEPTH[0], rsec[1] / 5)), 3)
     hip_pitch = math.degrees(math.atan(math.tan(alpha) / math.sqrt(2)))
     pieces, battens_m = [], 0.0
@@ -120,7 +134,7 @@ def framing(p):
                     "Άκρο γείσου: κάθετη κοπή"]
             pieces.append({"role": kind, "section": rsec, "a": a, "b": b, "net_m": net, "cuts": cuts})
         elif role == "hip":
-            pieces.append({"role": "hip", "section": hip_section(rsec), "a": a, "b": b, "net_m": net,
+            pieces.append({"role": "hip", "section": hip_section(rsec, p), "a": a, "b": b, "net_m": net,
                            "cuts": [f"Πάνω: κάθετη κοπή {hip_pitch:.1f}° (κλίση γωνίας) + διπλή λοξή 45° στον κορφιά".replace(".", ","),
                                     "Κάτω: σαμάρι στη γωνία της τεγίδας (διπλό)"]})
         elif role == "ridge":
@@ -169,6 +183,29 @@ def framing(p):
             "slope_area_m2": round(slope_area, 2), "ridge": ridge, "rafter": rafter,
             "volume_m3": {k: round(v, 3) for k, v in sorted(volume.items())},
             "volume_total_m3": round(sum(volume.values()), 3), "provenance": PROVENANCE}
+
+
+def checks(p):
+    """Re-check of the roof with its current sections (automatic or chosen by hand): ``[(text, ok)]``."""
+    f = framing(p)
+    out = []
+    r = f["rafter"]["section"]
+    if r:
+        out.append((f"Ψαλίδια {section_label((r['b'], r['h']))}{' (επιλογή)' if r.get('chosen_by_hand') else ''}: "
+                    f"σ = {r['sigma_mpa']:.1f} / f = {r['f_md_mpa']:.1f} MPa · βέλος {r['deflection_mm']:.0f} / {r['deflection_limit_mm']:.0f} mm",
+                    bool(r.get("passes", True))))
+    d = f["ridge"]
+    if d:
+        out.append((f"Κορφιάς {section_label(d['section'])}{' (επιλογή)' if d.get('chosen_by_hand') else ''}, {d['posts']} ορθοστάτες, "
+                    f"άνοιγμα {d['span_m']:.2f} m · σ = {d.get('sigma_mpa', 0):.1f} MPa · βέλος {d.get('deflection_mm', 0):.0f} mm",
+                    bool(d["ok"])))
+    rh = r["h"] if r else 0.0
+    for q in f["pieces"]:
+        if q["role"] == "hip":
+            ok = q["section"][1] >= rh + 0.04 - 1e-9
+            out.append((f"Γωνίες {section_label(q['section'])}: ύψος ≥ ψαλίδι + 4 cm για τα κοψίματα", ok))
+            break
+    return out
 
 
 def cutting_list(p):

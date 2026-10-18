@@ -1457,6 +1457,22 @@ class MainWindow(QMainWindow):
         self.pbr_view.hidden_layers = hidden
         self._redraw_views(all_views=True)
 
+    def _set_roof_section(self, entity_id, key, value):
+        """Set (value) or release to automatic (None) a roof member's section / the ridge posts, then re-check (one undo)."""
+        from archforge.core.commands import UpdateEntity
+        from archforge.structure.roof_framing import checks
+        auto = -1 if key == 'ridge_posts' else []              # «Αυτόματα»: back to the calculation
+        value = auto if value is None else value
+        if self.doc.get(entity_id).params.get(key, auto) == value:
+            return None
+        self.stack.execute(UpdateEntity(entity_id, {key: value}))
+        self._redraw_views(all_views=True)
+        failing = [t for t, ok in checks(self.doc.get(entity_id).params) if not ok]
+        self.statusBar().showMessage(('⚠ ' + failing[0]) if failing else 'Στέγη: η νέα διατομή περνά τον επανέλεγχο', 9000)
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self.refresh_inspector)
+        return failing
+
     def _set_entity_choice(self, entity_id, key, value):
         if self.doc.get(entity_id).params.get(key) == value:
             return
@@ -2119,6 +2135,29 @@ class MainWindow(QMainWindow):
         if entity.kind == 'camera':
             from archforge.ui.camera_tool import add_rows as camera_rows
             camera_rows(self, eid)
+        if entity.kind == 'pitched_roof':
+            # Roof tool (owner 18/10): change a section if needed — market sizes only — and re-check with it.
+            from archforge.structure.roof_framing import MARKET, checks, section_label
+            for key, role, label in (('rafter_section', 'rafter', 'Ψαλίδια'), ('ridge_section', 'ridge', 'Κορφιάς'),
+                                     ('hip_section', 'hip', 'Γωνίες τετράρριχτης'), ('plate_section', 'plate', 'Τεγίδα')):
+                combo = QComboBox()
+                combo.addItem('Αυτόματα (υπολογισμός)', None)
+                for sec in MARKET[role]:
+                    combo.addItem(section_label(sec), [sec[0], sec[1]])
+                current = params.get(key)
+                combo.setCurrentIndex(max(0, combo.findData([float(v) for v in current]) if current else 0))
+                combo.currentIndexChanged.connect(lambda _i, w=combo, k=key: self._set_roof_section(eid, k, w.currentData()))
+                self.form.addRow(label, combo)
+            posts = QComboBox()
+            posts.addItem('Ορθοστάτες κορφιά: αυτόματα', None)
+            for n in range(0, 8):
+                posts.addItem(f'{n} ορθοστάτες', n)
+            posts.setCurrentIndex(max(0, posts.findData(int(params['ridge_posts'])) if int(params.get('ridge_posts', -1)) >= 0 else 0))
+            posts.currentIndexChanged.connect(lambda _i, w=posts: self._set_roof_section(eid, 'ridge_posts', w.currentData()))
+            self.form.addRow('Ορθοστάτες', posts)
+            for text, ok in checks(params):
+                row = QLabel(text); row.setWordWrap(True)
+                self.form.addRow('✅' if ok else '⚠', row)
         if entity.kind == 'pool':
             from archforge.site.pool import POOL_TYPES, analyse
             combo = QComboBox()

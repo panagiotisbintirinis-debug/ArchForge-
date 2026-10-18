@@ -124,7 +124,9 @@ def size_rafter(params):
     f_md = K_MOD * F_MK / GAMMA_M                          # MPa
     m_ed = q_uls * L ** 2 / 8.0                             # kNm
     chosen = None
-    for b, h in SECTIONS:
+    # A section chosen by hand (roof tool) is checked as it is: the report says whether it passes.
+    fixed = params.get("rafter_section")
+    for b, h in ([tuple(float(v) for v in fixed)] if fixed else SECTIONS):
         w_mod = b * h ** 2 / 6.0                            # m³
         i_mod = b * h ** 3 / 12.0                           # m⁴
         sigma = m_ed / w_mod / 1000.0                       # MPa
@@ -133,14 +135,15 @@ def size_rafter(params):
         q_n = q_sls * math.cos(alpha) ** 2                  # kN/m normal to the rafter, per slope length
         defl = 5 * q_n * l_slope ** 4 / (384 * E_MEAN * 1000 * i_mod)
         limit = l_slope / 300.0
-        if sigma <= f_md and defl <= limit:
+        if (sigma <= f_md and defl <= limit) or fixed:
             chosen = {"b": b, "h": h, "sigma_mpa": round(sigma, 2), "f_md_mpa": round(f_md, 2),
                       "utilisation": round(sigma / f_md, 2), "deflection_mm": round(defl * 1000, 1),
-                      "deflection_limit_mm": round(limit * 1000, 1)}
+                      "deflection_limit_mm": round(limit * 1000, 1), "passes": sigma <= f_md and defl <= limit,
+                      "chosen_by_hand": bool(fixed)}
             break
     return {"span_m": round(L, 2), "spacing_m": spacing, "g_kn_m2": round(g_slope, 2), "snow_kn_m2": round(s, 2),
             "sk_kn_m2": round(sk, 2), "mu1": round(mu, 2), "q_uls_kn_m": round(q_uls, 2), "m_ed_knm": round(m_ed, 2),
-            "section": chosen, "ok": chosen is not None, "provenance": PROVENANCE}
+            "section": chosen, "ok": chosen is not None and chosen["passes"], "provenance": PROVENANCE}
 
 
 def rafter_section(params):
@@ -242,7 +245,8 @@ def members(p):
         # wall of a shed roof and the sloping side walls follow the roof.
         return min(height_at(p, plane, x, y) for plane in roof_planes)
     for a, b in (((x0, y0), (x1, y0)), ((x1, y1), (x0, y1)), ((x0, y0), (x0, y1)), ((x1, y0), (x1, y1))):
-        out.append(("plate", (a[0], a[1], under_roof(*a)), (b[0], b[1], under_roof(*b)), PLATE))
+        out.append(("plate", (a[0], a[1], under_roof(*a)), (b[0], b[1], under_roof(*b)),
+                    tuple(float(v) for v in p["plate_section"]) if p.get("plate_section") else PLATE))
     for plane in planes(p):
         poly, ea, eb, up = plane
         ex, ey = eb[0] - ea[0], eb[1] - ea[1]
@@ -288,7 +292,7 @@ def members(p):
             corners = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
             for c in corners:
                 end = min((ra, rb_), key=lambda r: math.dist(r, c))
-                out.append(("hip", (c[0], c[1], ez), (end[0], end[1], rz), hip_section((rb, rh))))
+                out.append(("hip", (c[0], c[1], ez), (end[0], end[1], rz), hip_section((rb, rh), p)))
     # Battens at the tile gauge across each plane.
     gauge = TILES[p.get("tile", "roman")][1]
     for plane in planes(p):

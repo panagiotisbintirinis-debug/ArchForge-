@@ -81,3 +81,42 @@ def test_roof_menu_shows_only_timber_and_the_cutting_list_reaches_the_quote():
         assert any('Ψαλίδι' in r[0] for r in sheets['Ξυλεία στέγης'])
     finally:
         window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_a_section_changed_by_hand_is_rechecked_and_flagged_when_it_fails():
+    """Owner 18/10: «εργαλείο αλλαγής της διατομής αν κριθεί αναγκαίο και επανέλεγχος με τα νέα δεδομένα»."""
+    from archforge.structure.roof_framing import checks
+    p = _roof('gable', 12.0, 8.0)
+    assert all(ok for _t, ok in checks(p))                                  # automatic: everything passes
+    small = dict(p, rafter_section=[0.065, 0.13])                           # too small for a 4 m span
+    texts = {t.split(' ')[0]: ok for t, ok in checks(small)}
+    assert texts['Ψαλίδια'] is False and framing(small)['rafter']['section']['b'] == 0.065
+    bigger = dict(p, rafter_section=[0.10, 0.20])
+    assert dict((t.split(' ')[0], ok) for t, ok in checks(bigger))['Ψαλίδια'] is True
+    no_posts = dict(p, ridge_section=[0.14, 0.24], ridge_posts=0)           # 13 m ridge on its ends only
+    assert dict((t.split(' ')[0], ok) for t, ok in checks(no_posts))['Κορφιάς'] is False
+    back = dict(no_posts, ridge_section=[], ridge_posts=-1)                 # «Αυτόματα» again
+    assert dict((t.split(' ')[0], ok) for t, ok in checks(back))['Κορφιάς'] is True
+
+
+def test_properties_panel_changes_the_section_with_one_undo():
+    import os
+    os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+    from PySide6.QtWidgets import QApplication
+    from archforge.core.commands import AddEntity
+    from archforge.core.model import Entity
+    from archforge.ui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    try:
+        window._no_modal_dialogs = True
+        for x1, y1, x2, y2 in ((0, 0, 12, 0), (12, 0, 12, 8), (12, 8, 0, 8), (0, 8, 0, 0)):
+            window.stack.execute(AddEntity(Entity('wall', {'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2, 'z': 0.0, 'height': 2.7, 'thickness': 0.25})))
+        roof = window._create_pitched_roof('gable')
+        failing = window._set_roof_section(roof.id, 'rafter_section', [0.065, 0.13])
+        assert failing and 'Ψαλίδια' in failing[0]
+        window.doc.select([roof.id]); window.refresh_inspector()
+        window.stack.undo()
+        assert not window.doc.get(roof.id).params.get('rafter_section')
+    finally:
+        window._mark_clean(); window.close(); app.processEvents()
