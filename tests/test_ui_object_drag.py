@@ -137,6 +137,10 @@ def test_rotate_handle_body_drag_and_delete(window):
     plan.redraw()
     handle = next(h for h in plan._handle_items.values() if h.handle == 'rotate')
     assert (handle.x, handle.y) == pytest.approx((2.0, 2.0 - .3 - .35))
+    # The handle must be on screen for the click to reach it (a busy CI runner may not have settled the first fit).
+    plan.centerOn(2.0, 2.0)
+    QApplication.processEvents()
+    assert plan.viewport().rect().contains(_vp(plan, handle.x, handle.y))
     _mouse(plan, 'press', handle.x, handle.y)
     _mouse(plan, 'move', 2.66, 2.0)               # quarter turn about the centre (+90°)
     assert plan.controller.preview.kind == 'rotate'
