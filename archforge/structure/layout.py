@@ -273,9 +273,38 @@ def flush_with_facade(x, y, size, outer):
     return round(x + dx, 4), round(y + dy, 4)
 
 
-def grid_beams(doc, z, points, above=None):
+def slab_over(doc, z):
+    """Is there a concrete slab on top of the storey at ``z`` — a storey above, a terrace or an attic slab?
+    Under a timber roof alone there is none (the rafters sit on the ring beam over the walls)."""
+    from archforge.architecture.roof_need import room_face_of
+    if any(s > z + 0.5 for s in _storeys(doc)):
+        return True
+    for e in doc.entities.values():
+        if e.kind not in ("room_roof", "room_ceiling"):
+            continue
+        if e.params.get("scope") == "storey":
+            if abs(float(e.params.get("level_z", -99.0)) - z) < 0.05:
+                return True
+            continue
+        found = room_face_of(doc, e)
+        if found is not None and abs(float(found[1]) - z) < 0.05:
+            return True
+    return False
+
+
+def timber_roof_only(doc, z):
+    """The storey at ``z`` is covered by a timber (tiled) roof and no concrete slab — the beams follow the walls."""
+    walls = _walls(doc, z)
+    if not walls or slab_over(doc, z):
+        return False
+    top = z + max(float(w.params.get("height", 2.7)) for w in walls)
+    return any(e.kind == "pitched_roof" and abs(float(e.params["eave_z"]) - top) < 0.3 for e in doc.entities.values())
+
+
+def grid_beams(doc, z, points, above=None, walls_only=False):
     """Beams on the grid axes between consecutive columns (inside the building, or under the storey ``above``:
-    the slab of a pilotis / an overhang rests on them)."""
+    the slab of a pilotis / an overhang rests on them).  ``walls_only`` (no slab over the storey, owner 18/10):
+    only along the walls — ring beam and beams over inner walls; a beam across a room would carry nothing."""
     walls = _walls(doc, z)
     walls_above = _walls(doc, above) if above is not None else []
     pts = list(points)
@@ -290,7 +319,11 @@ def grid_beams(doc, z, points, above=None):
                 if math.dist(a, b) < 0.3:
                     continue
                 mid = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
-                if _inside_building(doc, z, walls, *mid) or (walls_above and _inside_building(doc, above, walls_above, *mid)):
+                where = _inside_building(doc, z, walls, *mid)
+                if walls_only:
+                    if where == "wall":
+                        out.append((a, b))
+                elif where or (walls_above and _inside_building(doc, above, walls_above, *mid)):
                     out.append((a, b))
     # Diagonal exterior walls: a beam along each, end to end.
     from archforge.mep.ventilation import exterior_walls
@@ -363,7 +396,8 @@ def propose_frame(doc, settings=None):
             if abs(float(c.params["z"]) - z) < 0.05:
                 all_pts.setdefault((float(c.params["x"]), float(c.params["y"])), "υπάρχουσα")
         new_beams = 0
-        for (x1, y1), (x2, y2) in grid_beams(doc, z, all_pts, above=above_of[z]):
+        # Under a timber roof alone (no slab over the storey) only the ring beam and beams over the inner walls.
+        for (x1, y1), (x2, y2) in grid_beams(doc, z, all_pts, above=above_of[z], walls_only=timber_roof_only(doc, z)):
             if any(abs(float(e.params["z"]) + float(e.params["height"]) - top) < 0.05 and
                    math.hypot((float(e.params["x1"]) + float(e.params["x2"])) / 2 - (x1 + x2) / 2,
                               (float(e.params["y1"]) + float(e.params["y2"])) / 2 - (y1 + y2) / 2) < 0.3

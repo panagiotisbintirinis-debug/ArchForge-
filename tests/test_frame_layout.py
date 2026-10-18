@@ -66,6 +66,21 @@ def test_yard_and_pergola_stay_out_of_the_frame_and_carry_no_slab():
     assert all(m.get('ok', True) for m in r['members'].values())
 
 
+def test_under_a_timber_roof_alone_beams_follow_the_walls_never_across_a_room():
+    """Owner 18/10 (S05): concrete beams crossed the rooms under a tiled roof with no slab — they carry nothing.
+    The rafters sit on the ring beam; beams go over the walls.  With a slab over the storey the grid stays."""
+    from archforge.structure.layout import timber_roof_only
+    from archforge.structure.timber_roof import default_params
+    doc = Document(); st = CommandStack(doc); _house(st)                 # 12 × 6, wall at x = 5, column line x = 8.5
+    def across(entities):
+        return [e for e in entities if e.kind == 'structural_beam' and abs(e.params['x1'] - 8.5) < .3 and abs(e.params['x2'] - 8.5) < .3]
+    assert across(propose_frame(doc)[0])                                 # no roof yet: the slab's grid
+    st.execute(AddEntity(Entity('pitched_roof', default_params(doc, z=0.0, form='gable'))))
+    assert timber_roof_only(doc, 0.0)
+    entities, report = propose_frame(doc)
+    assert not across(entities) and report['beams'] == 9
+
+
 def test_columns_at_corners_junctions_and_every_6m_never_in_an_opening():
     doc = Document(); st = CommandStack(doc); _house(st)
     pts = column_points(doc, 0.0)
