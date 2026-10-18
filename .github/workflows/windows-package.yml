@@ -32,7 +32,8 @@ jobs:
         run: python -m pip install -r requirements.txt pyinstaller
       - name: Stamp the build (Αρχείο ▸ Έλεγχος για ενημερώσεις compares it with the release)
         shell: bash
-        run: printf '{"sha": "%s", "date": "%s"}' "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%MZ)" > build_info.json
+        run: |
+          printf '{"sha": "%s", "date": "%s"}' "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%MZ)" > build_info.json
       - name: Build ArchForge.exe
         run: >
           pyinstaller --noconfirm --windowed --name ArchForge
