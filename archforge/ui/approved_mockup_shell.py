@@ -339,6 +339,9 @@ def install_approved_mockup_shell(window):
     window._mockup_ventilation_menu=ventilation
     schedule=QAction("Ηλεκτρολογικός πίνακας",window); schedule.triggered.connect(lambda: window._show_circuit_schedule())
     mep_menu.addAction(schedule)
+    cmap=QAction("Χάρτης σωληνώσεων (ηλεκτρολογικά)…",window)
+    cmap.triggered.connect(lambda: __import__("archforge.ui.conduit_map",fromlist=["show"]).show(window))
+    mep_menu.addAction(cmap)
     cove=QAction("Κρυφός φωτισμός στην εσοχή ψευδοροφής",window); cove.triggered.connect(lambda: window._cove_lighting())
     mep_menu.addAction(cove); window._cove_lighting_action=cove
     elec_layer=QAction("Ηλεκτρολογικά στο 3D",window); elec_layer.setCheckable(True); elec_layer.setChecked(True)

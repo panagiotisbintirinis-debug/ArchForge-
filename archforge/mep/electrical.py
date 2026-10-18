@@ -21,8 +21,11 @@ none of them is VERIFIED yet, so none is presented as a requirement:
   at 2.35 m (above the lintels) with a junction box above every switch and
   socket; points away from walls (kitchen islands) are fed through the floor
   with a box 15 cm above the floor; the choice is automatic per point or set
-  by the user ('routing' = wall/floor).  Pull boxes on runs over 10 m or after
-  two bends.  Same cheapest-path router as the plumbing.
+  by the user ('routing' = wall/floor).  Boxes only where needed (owner 18/10):
+  a junction box where a conduit turns vertical to a device or the ceiling,
+  a pull box at a corner after a long run (≥ 10 m) — none on a straight run —
+  and one box per place, shared by every circuit that passes it.  Same
+  cheapest-path router as the plumbing.
 * All circuits sit behind a 30 mA RCD (noted, not modelled).
 
 Status: pre-design layout for review by an electrical engineer; it is not
@@ -64,8 +67,9 @@ register(
          note="Χωρίς προεπιλογή: 0 W με ⚠ μέχρι να μπει η τιμή του φύλλου"),
     Rule("electrical.routing_heights", "Όδευση: οριζόντια σε τοίχο στα 2,35 m, κουτί δαπέδου 15 cm, «κοντά σε τοίχο» = 60 cm",
          DESIGN_DEFAULT, note="Πρακτική τοποθέτησης του προγράμματος, όχι κανονισμός"),
-    Rule("electrical.pull_boxes", "Κουτί διέλευσης κάθε 10 m ή μετά από 2 καμπύλες", UNVERIFIED,
-         note="Να διασταυρωθεί με το ισχύον πρότυπο/οδηγία"),
+    Rule("electrical.pull_boxes", "Κουτιά μόνο όπου χρειάζονται: διακλάδωσης σε κάθετη έξοδο (κατέβασμα σε σημείο, "
+         "ανέβασμα στην οροφή), διέλευσης σε γωνία μετά από μεγάλη διαδρομή (≥ 10 m)· όχι σε ευθεία, ένα ανά θέση",
+         DESIGN_DEFAULT, note="Ιδιοκτήτης 18/10: «αλλιώς είναι φθορά υλικού» — πρακτική εγκαταστάτη, προς έλεγχο ηλεκτρολόγου"),
 )
 
 PROVENANCE = ("Προμελέτη κυκλωμάτων με κανόνες του προγράμματος ΜΗ ΕΠΑΛΗΘΕΥΜΕΝΟΥΣ (φωτισμός 10A/1,5mm² ≤10 σημεία, "
@@ -273,8 +277,8 @@ def _ceiling_fed(e):
 WALL_RUN_Z = 2.35          # horizontal conduits above the lintels (Greek practice 2.30-2.40 m)
 FLOOR_BOX_Z = 0.15         # junction boxes 15 cm above the floor for floor routing
 WALL_NEAR = 0.60           # auto: a point within 60 cm of a wall face is fed from the wall
-PULL_EVERY = 10.0          # pull box on straight runs longer than 10 m (every 10 m)
-PULL_BENDS = 2             # ... and after 2 bends without a box
+PULL_EVERY = 10.0          # owner 18/10: a pull box only at a corner reached after this long a run (never on a straight)
+BOX_MERGE = 0.05           # boxes closer than this are one box (shared by the circuits through it)
 
 
 def _wall_distance(doc, x, y, floor):
@@ -301,24 +305,35 @@ def routing_of(doc, e):
 
 
 def _pull_boxes(points_chain, z, cid):
-    """Pull boxes along one path (list of xy from the target to the source)."""
-    boxes, run, bends, prev_dir = [], 0.0, 0, None
+    """Pull boxes along one path (list of xy from the target to the source): only at a corner reached after a
+    run of PULL_EVERY or more since the last box — a straight run, however long, needs none (owner 18/10)."""
+    boxes, run, prev_dir = [], 0.0, None
     for a, b in zip(points_chain, points_chain[1:]):
         d = (round(b[0] - a[0], 6), round(b[1] - a[1], 6))
         seg = math.hypot(*d)
-        direction = (d[0] / seg, d[1] / seg) if seg > 1e-9 else prev_dir
-        if prev_dir is not None and direction != prev_dir:
-            bends += 1
-            if bends > PULL_BENDS:
-                boxes.append((a[0], a[1], z, "pull", cid))
-                bends, run = 1, 0.0
+        if seg < 1e-9:
+            continue
+        direction = (d[0] / seg, d[1] / seg)
+        if prev_dir is not None and direction != prev_dir and run >= PULL_EVERY:
+            boxes.append((a[0], a[1], z, "pull", cid))
+            run = 0.0
         run += seg
-        while run > PULL_EVERY:
-            back = run - PULL_EVERY
-            boxes.append((b[0] - direction[0] * back, b[1] - direction[1] * back, z, "pull", cid))
-            run, bends = back, 0
         prev_dir = direction
     return boxes
+
+
+def _merge_boxes(boxes):
+    """One box per place: boxes of the same kind within BOX_MERGE are one, listing every circuit through it."""
+    out = []
+    for x, y, z, kind, cid in boxes:
+        hit = next((k for k, b in enumerate(out) if b[3] == kind and abs(b[2] - z) < 1e-6
+                    and math.hypot(b[0] - x, b[1] - y) <= BOX_MERGE), None)
+        if hit is None:
+            out.append((x, y, z, kind, cid))
+        elif cid and cid not in out[hit][4].split(","):
+            b = out[hit]
+            out[hit] = (b[0], b[1], b[2], b[3], ",".join(filter(None, (b[4], cid))))
+    return out
 
 
 def route_cables(doc):
@@ -409,9 +424,49 @@ def route_cables(doc):
             runs.append(((sx, sy, zc), (lx, sy, zc), "switch", ""))
             runs.append(((lx, sy, zc), (lx, ly, zc), "switch", ""))
     runs = [r for r in runs if math.dist(r[0], r[1]) > 1e-6]
+    boxes = _merge_boxes(boxes)
+    design["report"]["conduits"] = conduit_summary(runs, design["circuits"])
     design["report"]["cable_m"] = round(sum(math.dist(a, b) for a, b, _g, _c in runs), 1)
     design["report"]["boxes"] = {k: sum(1 for b in boxes if b[3] == k) for k in ("junction", "floor", "pull")}
     return {**design, "runs": runs, "boxes": boxes}
+
+
+def conduit_summary(runs, circuits):
+    """What runs through each conduit: the circuits sharing a stretch, their conductors (L, N, PE each) and
+    sections.  ``[{"a", "b", "circuits": [...], "conductors": n, "mm2": {mm²: n}}]`` merged along straight stretches
+    with the same circuits, busiest first (owner 18/10: «πόσα καλώδια περνάνε από μέσα;»)."""
+    by_id = {c["id"]: c for c in circuits}
+    edges = {}
+    for a, b, _g, cid in runs:
+        if not cid:
+            continue
+        key = tuple(sorted((tuple(round(v, 3) for v in a), tuple(round(v, 3) for v in b))))
+        edges.setdefault(key, set()).add(cid)
+    out = []
+    for (a, b), cids in edges.items():
+        mm2 = {}
+        for cid in cids:
+            s = float(by_id[cid]["cable_mm2"]) if cid in by_id else 1.5
+            mm2[s] = mm2.get(s, 0) + 3
+        out.append({"a": a, "b": b, "circuits": sorted(cids, key=lambda c: (len(c), c)), "conductors": 3 * len(cids), "mm2": mm2})
+    # Merge consecutive collinear pieces carrying the same circuits (a 20 cm grid makes many short ones).
+    merged = []
+    for seg in sorted(out, key=lambda s: (tuple(s["circuits"]), s["a"], s["b"])):
+        last = merged[-1] if merged else None
+        if last and last["circuits"] == seg["circuits"] and last["b"] == seg["a"] and \
+                _collinear(last["a"], last["b"], seg["b"]):
+            last["b"] = seg["b"]
+        else:
+            merged.append(dict(seg))
+    merged.sort(key=lambda s: (-s["conductors"], s["a"]))
+    return merged
+
+
+def _collinear(a, b, c):
+    u = [b[i] - a[i] for i in range(3)]
+    v = [c[i] - b[i] for i in range(3)]
+    cross = (u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0])
+    return max(abs(x) for x in cross) < 1e-9
 
 
 _CACHE = {"key": None, "value": None}

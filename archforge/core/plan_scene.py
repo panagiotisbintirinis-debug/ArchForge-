@@ -197,6 +197,21 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
         return z<=lowest+tolerance
     return True
 
+def _conduit_labels(doc,f):
+    from archforge.mep.conduits import conduit_map
+    from archforge.mep.electrical import _floor_of as elec_floor
+    level=float(doc.work_plane.origin[2])
+    specs=[]
+    for p in conduit_map(doc)['pieces']:
+        a,b=p['a'],p['b']
+        if abs(a[2]-b[2])>1e-6 or elec_floor(doc,a[2])!=level or len(p['lines'])<2 or p['length_m']<.5:
+            continue
+        text=(f"{p['count']}×" if p['count']>1 else '')+f"Φ{p['dn']} · "+",".join(p['lines'])
+        specs.append((text,_axis_candidates(a[:2],b[:2],.12)))
+    placed=place_labels(tuple(specs))
+    for (text,_c),(anchor,align,min_scale) in zip(specs,placed):
+        f.primitives.append(Primitive2D('label',(anchor,),role='electrical-label',meta=(('text',text),('align',align),('min_scale',min_scale))))
+
 def _pool_primitives(doc,f):
     from archforge.site.pool import POOL_TYPES,ZONE1,ZONE2,analyse,param as pp,plant_rect,pools,rim,to_world
     level=float(doc.work_plane.origin[2])
@@ -1156,6 +1171,9 @@ def build_plan_frame(doc,preview=None,layers=True):
                 where={'wall':'τοίχο','roof':'στέγη'}.get(info.get('outlet'),'')
                 text=f"{VENT[e.params['point_type']][4]} Ø{info.get('diameter','')} → {where}"
                 f.primitives.append(Primitive2D('label',((float(e.params['x'])+.15,float(e.params['y'])+.30),),entity_id=eid,role='ventilation-label',meta=(('text',text),)))
+    # Conduit map: size and lines on every shared piece of the active storey (owner 18/10: «πόσα καλώδια περνάνε;»).
+    if any(e.kind=='electrical_point' and e.params.get('point_type')=='panel' for e in doc.entities.values()):
+        _conduit_labels(doc,f)
     # Pools of the active storey: inside edge, depths, safety zones 0/1/2, pipes to the equipment room.
     if any(e.kind=='pool' for e in doc.entities.values()):
         _pool_primitives(doc,f)

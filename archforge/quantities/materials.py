@@ -209,13 +209,27 @@ def electrical_list(doc, result=None):
     rows = [(f"Καλώδιο αγωγός {p['mm2']:g} mm² (H07V-U ή ισοδύναμο, ανά αγωγό)".replace(".", ","), "m", p["with_waste"],
              meta(f"electrical.cable.{p['mm2']:g}mm2", "Μέτρα αγωγών από τις διαδρομές στο σχέδιο (φάση, ουδέτερος, γείωση, "
                   "επιστροφές), με τη φύρα που όρισες.", circuits_status)) for p in r["purchase"]]
-    conduit = round(sum(w["conduit_m"] for w in r["walls"]), 1)
-    if conduit:
-        rows.append(("Σωλήνας ηλεκτρολογικός (σπιράλ) και σωλήνωση — όλες οι διαδρομές", "m", conduit,
-                     meta("electrical.conduit", "Οι διαδρομές μέσα σε τοίχους, οροφή και δάπεδο, όπως τις χάραξε το πρόγραμμα.")))
+    # Conduits by size (owner 18/10: each size has its own price) from the conduit map: shared where the lines fit.
+    from archforge.mep.conduits import RULE as CONDUIT_RULE, conduit_map
+    cmap = conduit_map(doc)
+    for dn, metres in cmap["by_size"].items():
+        outdoor = sum(p["length_m"] * p["count"] for p in cmap["pieces"] if p["dn"] == dn and p["outdoor"])
+        inside = round(metres - outdoor, 1)
+        if inside > 0:
+            rows.append((f"Σωλήνας ηλεκτρολογικός σπιράλ Φ{dn} και σωλήνωση", "m", inside,
+                         meta(f"electrical.conduit.{dn}", "Κομμάτια του χάρτη σωληνώσεων με αυτή τη διατομή (γραμμές που χωρούν "
+                              "με τις καμπύλες τους): " + CONDUIT_RULE, "DESIGN_DEFAULT", "mep/conduits.py")))
+        if outdoor > 0:
+            rows.append((f"Σωλήνας διπλού δομήματος Φ{dn} (έδαφος / εξωτερικά) και τοποθέτηση", "m", round(outdoor, 1),
+                         meta(f"electrical.conduit.outdoor.{dn}", "Οδεύσεις έξω από το κτίριο, στο έδαφος (π.χ. προς αντλιοστάσιο).",
+                              "DESIGN_DEFAULT", "mep/conduits.py")))
+    if cmap["split_boxes"]:
+        rows.append(("Κουτί διακλάδωσης σωληνώσεων (χωρισμός γραμμών)", "τεμ.", len(cmap["split_boxes"]),
+                     meta("electrical.box.split", "Όπου μια κοινή σωλήνωση χωρίζεται: τα καλώδια βγαίνουν μόνο από κουτί.",
+                          "DESIGN_DEFAULT", "mep/conduits.py")))
     for kind, label, why in (("junction", "Κουτί διακλάδωσης", "Πάνω από κάθε πρίζα/διακόπτη στη γραμμή όδευσης."),
                              ("floor", "Κουτί δαπέδου", "Για σημεία μακριά από τοίχο (π.χ. νησίδα κουζίνας)."),
-                             ("pull", "Κουτί διέλευσης", "Σε μεγάλες ευθείες ή μετά από καμπύλες, για να τραβιούνται τα καλώδια.")):
+                             ("pull", "Κουτί διέλευσης", "Σε γωνία μετά από μεγάλη διαδρομή, για να τραβιούνται τα καλώδια.")):
         n = r["boxes"].get(kind, 0)
         if n:
             rows.append((label, "τεμ.", n, meta(f"electrical.box.{kind}", why, rule("electrical.pull_boxes").status
