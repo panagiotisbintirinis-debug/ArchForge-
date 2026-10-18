@@ -626,7 +626,10 @@ class MainWindow(QMainWindow):
         from archforge.site.survey import with_boundary, _area
         from archforge.site.terrain import default_terrain_params
         draft = self.plan_view.plot_draft = list(getattr(self.plan_view, 'plot_draft', None) or [])
-        if len(draft) >= 3 and ((x - draft[0][0]) ** 2 + (y - draft[0][1]) ** 2) ** .5 < .35:
+        # Closing tolerance in screen pixels (owner 18/10, laptop touchpad: 35 cm were 2–3 px on a whole plot).
+        px_per_m = abs(self.plan_view.transform().m11()) or 40.0
+        close_tol = max(.35, 14.0 / px_per_m)
+        if len(draft) >= 3 and ((x - draft[0][0]) ** 2 + (y - draft[0][1]) ** 2) ** .5 < close_tol:
             terrain = self._terrain_entity()
             try:
                 if terrain is None:
@@ -648,7 +651,8 @@ class MainWindow(QMainWindow):
         draft.append((float(x), float(y)))
         self.plan_view.redraw()
         self.statusBar().showMessage(
-            f'Κορυφή {len(draft)} — κλικ στην πρώτη / Enter / διπλό κλικ για κλείσιμο, Esc για ακύρωση', 8000)
+            f'Οικόπεδο: κορυφή {len(draft)}' + (' — Enter (ή κλικ στην πρώτη κορυφή) για κλείσιμο και δημιουργία εδάφους'
+                                                if len(draft) >= 3 else ' — συνέχισε με την επόμενη κορυφή') + ', Esc ακύρωση', 0)
 
     def _import_underlay(self):
         """Σχέδιο μηχανικού (PDF / DXF) ως υπόβαθρο του ενεργού ορόφου."""

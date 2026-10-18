@@ -195,3 +195,26 @@ def test_drawing_the_plot_boundary_by_clicking_corners():
     window._undo()
     assert window._terrain_entity() is None
     window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_plot_outline_closes_near_the_first_corner_at_any_zoom(monkeypatch, tmp_path):
+    """Owner 18/10 (laptop): «τα στοιχεία οικοπέδου δεν κλείνουν» — zoomed out on a whole plot, a click a few
+    pixels from the first corner closes the outline and creates the terrain (the old 35 cm were 2–3 px)."""
+    import os
+    os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+    from PySide6.QtWidgets import QApplication
+    from archforge.ui.main_window import MainWindow
+    monkeypatch.setenv('ARCHFORGE_DATA', str(tmp_path / 'data'))
+    app = QApplication.instance() or QApplication([])
+    w = MainWindow(); w.resize(1400, 900); w.show(); app.processEvents()
+    try:
+        plan = w.plan_view
+        plan.resetTransform(); plan.scale(8.0, 8.0)          # 8 px per metre: a 40 m plot fills the screen
+        w._start_site_tool('plot_point', '')
+        for x, y in ((0, 0), (40, 0), (40, 30), (0, 30)):
+            plan.sitePointRequested.emit('plot_point', float(x), float(y))
+        plan.sitePointRequested.emit('plot_point', 1.2, 0.8)  # ~11 px from the first corner
+        terrain = w._terrain_entity()
+        assert terrain is not None and len(terrain.params['boundary']) == 4
+    finally:
+        w.hide()

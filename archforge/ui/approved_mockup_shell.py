@@ -195,7 +195,7 @@ def install_approved_mockup_shell(window):
         ("Διαγραφή εδάφους",window._delete_terrain),
         (None,None),
         ("Οικόπεδο: σχεδίαση ορίων (κλικ στις κορυφές)",lambda: window._start_site_tool(
-            "plot_point","Κλικ σε κάθε κορυφή του οικοπέδου — κλικ στην πρώτη για κλείσιμο, Esc ακύρωση")),
+            "plot_point","Κλικ σε κάθε κορυφή του οικοπέδου — Enter ή κλικ στην πρώτη για κλείσιμο, Esc ακύρωση")),
         ("Εισαγωγή τοπογραφικού μηχανικού (DXF / σημεία X Y Z)…",window._import_survey),
         (None,None),
         ("Υψομετρικά σημεία",lambda: window._start_site_tool(
