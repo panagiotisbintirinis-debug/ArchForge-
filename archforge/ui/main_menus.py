@@ -16,7 +16,8 @@ from PySide6.QtWidgets import QMenu
 MAIN_MENUS = ("Αρχείο", "Επεξεργασία", "CAD", "Κατασκευή", "Βιβλιοθήκη", "Προβολή", "Εργαλεία", "Βοήθεια")
 
 # The «… στο 3D» switches: one place, Προβολή ▸ Εμφάνιση στο 3D (they were repeated in 4 menus).
-LAYER_TEXTS = ("Σκελετός στέγης στο 3D", "Κεραμίδια στο 3D", "Θεμελίωση στο 3D", "Ηλεκτρολογικά στο 3D",
+LAYER_TEXTS = ("Ξυλεία στέγης στο 3D", "Στρώσεις στέγης στο 3D (ταμπλάς, μόνωση, μεμβράνες)", "Κεραμίδια στο 3D",
+               "Θεμελίωση στο 3D", "Ηλεκτρολογικά στο 3D",
                "Αποχετεύσεις στο 3D", "Εξαερισμοί στο 3D", "Μηχανολογικά στο 3D", "Ανοιχτά κουφώματα στο 3D")
 
 
@@ -148,7 +149,8 @@ def organize_main_menus(window):
                   *exports, *imports]:     # prices live in Κατασκευή ▸ Επιμετρήσεις & τιμές
             if a is not None and a in file_menu.actions():
                 file_menu.removeAction(a)
-        _fill(file_menu, [window.new_action, window.open_action, window.save_action,
+        _fill(file_menu, [window.new_action, window.open_action, getattr(window, "open_sample_action", None),
+                          window.save_action,
                           getattr(window, "save_as_action", None) or None, None,
                           getattr(window, "_brief_action", None), None,
                           window._file_import_menu, window._file_export_menu, None,

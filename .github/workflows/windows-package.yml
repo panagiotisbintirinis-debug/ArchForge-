@@ -1,0 +1,64 @@
+name: windows-package
+
+# ArchForge for Windows without installing Python: a folder with ArchForge.exe and everything it needs
+# (Python, PySide6/QtWebEngine, OCP, numpy, three.js, the library of materials and furniture, the sample
+# projects S01–S10 under Αρχείο ▸ Άνοιγμα δείγματος…), zipped. Library catalogs of other vendors never go in.
+# Download: Releases ▸ «ArchForge (develop)» ▸ ArchForge-windows.zip, or the run's Artifacts.
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-package-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt pyinstaller
+      - name: Build ArchForge.exe
+        run: >
+          pyinstaller --noconfirm --windowed --name ArchForge
+          --collect-submodules archforge
+          --add-data "archforge/ui/vendor;archforge/ui/vendor"
+          --add-data "docs/scenarios/S*.archforge;samples"
+          --collect-all OCP
+          run_app.py
+      - name: Check that the packaged program opens
+        shell: pwsh
+        env:
+          ARCHFORGE_SMOKE_EXIT: '8000'
+          ARCHFORGE_DATA: ${{ runner.temp }}\archforge-data
+        run: |
+          $p = Start-Process dist\ArchForge\ArchForge.exe -PassThru -Wait
+          if ($p.ExitCode -ne 0) { throw "ArchForge.exe exited with $($p.ExitCode)" }
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path dist\ArchForge -DestinationPath ArchForge-windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ArchForge-windows
+          path: ArchForge-windows.zip
+          retention-days: 30
+      - name: Publish as the «ArchForge (develop)» release
+        if: github.ref == 'refs/heads/develop'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete develop-latest --yes --cleanup-tag || true
+          gh release create develop-latest ArchForge-windows.zip --prerelease \
+            --target "$GITHUB_SHA" --title "ArchForge (develop)" \
+            --notes "Αυτόματο πακέτο από το develop ($GITHUB_SHA). Κατέβασε το ArchForge-windows.zip, αποσυμπίεσε και άνοιξε το ArchForge\\ArchForge.exe — δεν χρειάζεται Python."

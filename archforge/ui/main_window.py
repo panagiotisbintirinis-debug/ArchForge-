@@ -491,6 +491,8 @@ class MainWindow(QMainWindow):
         open_action.triggered.connect(self.open)
         toolbar.addAction(open_action)
         self.open_action = open_action
+        self.open_sample_action = QAction('Άνοιγμα δείγματος…', self)
+        self.open_sample_action.triggered.connect(lambda: self.open_sample())
         stl_action = QAction('Export STL', self)
         stl_action.triggered.connect(self.export_stl)
         toolbar.addAction(stl_action)
@@ -4447,6 +4449,24 @@ class MainWindow(QMainWindow):
         if not self._confirm_destructive_action():
             return False
         return self._open_checked(path)
+
+    @staticmethod
+    def samples_dir():
+        """The sample projects: «samples» inside the packaged program, docs/scenarios in the repository."""
+        import sys
+        if getattr(sys, 'frozen', False):
+            return os.path.join(getattr(sys, '_MEIPASS', os.path.dirname(sys.executable)), 'samples')
+        return os.path.join(os.path.dirname(__file__), '..', '..', 'docs', 'scenarios')
+
+    def open_sample(self):
+        """Open one of the sample projects; saving it asks for a new place (the sample stays as it was)."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, 'Άνοιγμα δείγματος', os.path.normpath(self.samples_dir()), 'Έργο ArchForge (*.archforge)')
+        if not path or not self.open(path):
+            return False
+        self.current_path = None
+        self._update_window_title()
+        return True
 
     # ------------------------------------------------ project file check, autosave, recovery
     def _open_checked(self, path, project_path=None):
