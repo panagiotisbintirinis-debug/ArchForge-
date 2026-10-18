@@ -377,7 +377,7 @@ def install_approved_mockup_shell(window):
     for text,run in (("Τοποθέτηση αντικειμένου…",lambda: window._choose_library_asset()),
                      ("Επεξεργασία αντικειμένου (επιλεγμένο)…",lambda: window._open_object_modifier()),
                      ("Εισαγωγή μοντέλου glTF/GLB…",lambda: window._import_gltf_model()),
-                     ("Εισαγωγή από Home Designer (.calib/.calibz)…",lambda: window._import_hd_catalog())):
+                     ("Εισαγωγή αντικειμένων…",lambda: window._import_hd_catalog())):
         a=QAction(text,window); a.triggered.connect(lambda _=False,r=run: r()); library_menu.addAction(a)
     window._mockup_library_menu=library_menu
     ao=QAction("Σκιές επαφής (Ambient Occlusion)",window); ao.setCheckable(True); ao.setChecked(True)

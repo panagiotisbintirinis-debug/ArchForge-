@@ -957,8 +957,8 @@ class MainWindow(QMainWindow):
         from archforge.library import assets, hd_calib
         if path is None:
             path, _ = QFileDialog.getOpenFileName(
-                self, 'Κατάλογος Home Designer', r'C:\ProgramData',
-                'Κατάλογοι Home Designer (*.calib *.calibz)')
+                self, 'Εισαγωγή αντικειμένων', r'C:\ProgramData',
+                'Κατάλογοι αντικειμένων (*.calib *.calibz)')
             if not path:
                 return []
         try:
@@ -984,7 +984,7 @@ class MainWindow(QMainWindow):
                 })
                 imported.append(asset_id)
         self.statusBar().showMessage(
-            f'Βιβλιοθήκη: εισήχθησαν {len(imported)} αντικείμενα (Home Designer — μόνο τοπική χρήση)', 6000)
+            f'Βιβλιοθήκη: εισήχθησαν {len(imported)} αντικείμενα (μόνο τοπική χρήση)', 6000)
         self._refresh_library_panel()
         if imported and interactive:
             self._choose_library_asset()
@@ -1596,7 +1596,7 @@ class MainWindow(QMainWindow):
                 item = QListWidgetItem(f"  {r['name']}  {w:.0f}×{d:.0f}×{h:.0f} cm")
                 item.setData(Qt.ItemDataRole.UserRole, r['id'])
                 if r['provenance'].get('source') == 'home-designer-calib':
-                    item.setToolTip('Home Designer — μόνο τοπική χρήση, δεν διανέμεται')
+                    item.setToolTip('Εισαγόμενο — μόνο τοπική χρήση, δεν διανέμεται')
                 elif r['provenance'].get('attribution'):
                     item.setToolTip(f"{r['provenance'].get('license', '')}: {r['provenance']['attribution']}")
                 listing.addItem(item)

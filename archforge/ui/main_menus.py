@@ -123,7 +123,7 @@ def organize_main_menus(window):
     # --- Αρχείο: Εισαγωγή ▸ / Εξαγωγή ▸ ---
     if file_menu is not None:
         imports = [_find(terrain, "Εισαγωγή τοπογραφικού", True), _find(library, "Εισαγωγή μοντέλου glTF", True),
-                   _find(library, "Εισαγωγή από Home Designer", True)]
+                   _find(library, "Εισαγωγή αντικειμένων", True)]
         imports = [a for a in imports if a is not None]
         for a in imports[1:]:
             library.removeAction(a)              # the topographic import also stays in Έδαφος (its own workflow)
