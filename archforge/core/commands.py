@@ -909,6 +909,13 @@ class CommandStack:
         last=self.done.pop()
         self.done.append(CompositeCommand([last,c]))
         self.undone.clear();self._notify()
+    def squash(self,since,label=''):
+        """The steps done after ``len(done) == since`` become one undo step (e.g. the four walls of a room)."""
+        steps=self.done[since:]
+        if len(steps)>1:
+            del self.done[since:]
+            self.done.append(CompositeCommand(steps,label))
+            self._notify()
     def undo(self):
         if not self.done:return
         c=self.done.pop();c.undo(self.doc);self.undone.append(c);self._notify()

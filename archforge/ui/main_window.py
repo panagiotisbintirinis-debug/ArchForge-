@@ -897,6 +897,10 @@ class MainWindow(QMainWindow):
         if tool == 'plot_point':
             self._plot_vertex(x, y)
             return
+        if tool in ('room_box', 'room_place'):
+            from archforge.ui.room_box_tool import click
+            click(self, tool, x, y)
+            return
         if tool == 'terrain_point':
             terrain = self._terrain_entity()
             if terrain is None:
@@ -1888,6 +1892,7 @@ class MainWindow(QMainWindow):
         if getattr(self, '_cabinet_run', None) is not None:
             self._cabinet_run.cancel()
         self.plan_view.plot_draft = None
+        self.plan_view.room_draft = None
         self.plan_view.controller.cancel()
         self.plan_view.carry_leave()          # Library item in hand (library_drag.py)
         if getattr(self.plan_view, '_restore_select', False):
