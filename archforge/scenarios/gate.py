@@ -674,8 +674,10 @@ class Gate:
             for i in range(len(pts)):
                 for j in range(i + 1, len(pts)):
                     a, b = pts[i].params, pts[j].params
+                    # Same type and same role (name): a boiler's supply and a manifold's wiring centre are both
+                    # «heating_supply» but two devices, each with its own feed.
                     if a.get("point_type") == b.get("point_type") and a.get("point_type") not in ("socket", "light", "switch", "kitchen_socket") \
-                            and abs(float(a.get("z", 0)) - float(b.get("z", 0))) < 0.5:
+                            and pts[i].name == pts[j].name and abs(float(a.get("z", 0)) - float(b.get("z", 0))) < 0.5:
                         fa, _ = self.room_of(float(a["x"]), float(a["y"]), float(a.get("z", 0)))
                         fb, _ = self.room_of(float(b["x"]), float(b["y"]), float(b.get("z", 0)))
                         if fa is not None and fb is not None and fa.signature == fb.signature and \

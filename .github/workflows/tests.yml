@@ -24,7 +24,7 @@ jobs:
           # Keep synthetic mouse tests offscreen, with real Greek-capable fonts.
           QT_QPA_PLATFORM: offscreen
           QT_QPA_FONTDIR: C:/Windows/Fonts
-        run: python -m pytest -q -o faulthandler_timeout=90
+        run: python -m pytest -q -o faulthandler_timeout=300
       - name: Compile source
         run: python -m compileall -q archforge tests
 
