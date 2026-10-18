@@ -6,7 +6,7 @@ os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
-from archforge.ui.app import use_light_theme
+from archforge.ui.theme import use_light_theme
 
 
 def test_light_theme_even_when_the_system_is_dark():
