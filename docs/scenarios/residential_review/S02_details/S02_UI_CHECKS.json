@@ -1,0 +1,6 @@
+{
+  "floor_switch": "PASS: three actual floor selector changes; entities retained",
+  "select": "PASS: actual double click on library sofa",
+  "views": "PASS: real plans, 3D, interior, Structural, MEP",
+  "close_reopen": "PASS: save, actual close, new MainWindow checked-open, identical entity content by ID"
+}

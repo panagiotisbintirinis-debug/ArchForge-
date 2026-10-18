@@ -57,7 +57,7 @@ def _price_book():
             for code, entry in prices.items()}
 
 
-def build_project(spec):
+def build_project(spec, *, complete=True):
     n = int(spec["id"][1:])
     storeys = int(spec["storeys"])
     w = [10, 11, 9, 12, 8, 14, 7, 13, 10, 12][n - 1]
@@ -79,18 +79,18 @@ def build_project(spec):
         for j, (a, b) in enumerate(zip(corners, corners[1:] + corners[:1])):
             entities.append(_entity("wall", {
                 "x1": a[0], "y1": a[1], "x2": b[0], "y2": b[1],
-                "z": z, "height": h - 0.30, "thickness": 0.25,
+                "z": z, "height": (h - 0.30 if spec["id"] == "S01" else h - 0.18 if k < storeys - 1 else h), "thickness": 0.25,
             }, f"Exterior wall L{k}", f"s{n:02d}-wall-{k}-{j}"))
         entities.append(_entity("wall", {
             "x1": w / 2, "y1": 0, "x2": w / 2, "y2": d,
-            "z": z, "height": h - 0.30, "thickness": 0.15,
+            "z": z, "height": (h - 0.30 if spec["id"] == "S01" else h - 0.18 if k < storeys - 1 else h), "thickness": 0.15,
         }, f"Partition A L{k}", f"s{n:02d}-part-{k}-a"))
         entities.append(_entity("wall", {
             "x1": 0, "y1": d / 2, "x2": w, "y2": d / 2,
-            "z": z, "height": h - 0.30, "thickness": 0.15,
+            "z": z, "height": (h - 0.30 if spec["id"] == "S01" else h - 0.18 if k < storeys - 1 else h), "thickness": 0.15,
         }, f"Partition B L{k}", f"s{n:02d}-part-{k}-b"))
         entities.append(_entity("floor", {
-            "points": [[0, 0], [w, 0], [w, d], [0, d]],
+            "points": ([[0, 0], [w, 0], [w, d], [0, d]] if spec["id"] == "S01" else [[-0.125, -0.125], [w + 0.125, -0.125], [w + 0.125, d + 0.125], [-0.125, d + 0.125]]),
             "z": z - 0.18 if z else -0.18, "thickness": 0.18,
         }, f"Floor L{k}", f"s{n:02d}-floor-{k}"))
 
@@ -214,7 +214,22 @@ def build_project(spec):
         "materials": {}, "constructions": {}, "room_data": {}, "room_bindings": {},
         "surface_modifiers": [],
     }
-    return complete_s01(project) if spec['id'] == 'S01' else project
+    if not complete:
+        return project
+    if spec['id'] == 'S01':
+        return complete_s01(project)
+    if spec['id'] == 'S02':
+        from tests.residential_scenarios.enrich_s02 import enriched_s02
+        return enriched_s02(project)[0].to_dict()
+    if spec['id'] == 'S03':
+        from tests.residential_scenarios.enrich_s03 import enriched_s03
+        return enriched_s03(project)[0].to_dict()
+    from archforge.core.model import Document
+    from archforge.core.commands import CommandStack
+    from tests.residential_scenarios.facade_finish import finish_facade_joints
+    doc=Document.from_dict(project)
+    finish_facade_joints(doc,CommandStack(doc))
+    return doc.to_dict()
 
 
 def complete_s01(project):

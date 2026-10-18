@@ -22,13 +22,13 @@ def table(headers, rows):
             '| ' + ' | '.join('---' for _ in headers) + ' |'] + [
             '| ' + ' | '.join(map(cell, row)) + ' |' for row in rows]
 
-def export(spec, output=OUT):
+def export(spec, output=OUT, source=None):
     from archforge.project.persistence import load_project
     from archforge.structure.analysis import analyze_cached
     from archforge.quantities.materials import all_lists
     from archforge.quantities.quote import row_meta
     from archforge.quantities.takeoff import take_off
-    path = (ROOT/'docs/scenarios/foundation_review/S01_strip_comparison.archforge'
+    path = Path(source).resolve() if source is not None else (ROOT/'docs/scenarios/foundation_review/S01_strip_comparison.archforge'
             if spec['id'] == 'S01' else FIXTURES/spec['file'])
     loaded = load_project(path)
     if not loaded.ok:
@@ -67,21 +67,32 @@ def export(spec, output=OUT):
     for name, _title, rows, notes in sheets:
         lines += ['', '### ' + name, '']
         lines += table(['Υλικό / εργασία','Μονάδα','Ποσότητα','Κατάσταση'], [
-            (desc, unit, 'Από μελέτη / άγνωστο' if qty is None else f'{float(qty):g}',
-             meta.get('status','Υπάρχουσα επιμέτρηση — προς έλεγχο'))
+            (desc, 'αναθέσεις σε αντικείμενα' if name=='Υλικά' and unit=='τεμ.' else unit,
+             'Από μελέτη / άγνωστο' if qty is None else f'{float(qty):g}',
+             'Δεν είναι ποσότητα υλικού για παραγγελία' if name=='Υλικά' and unit=='τεμ.'
+             else meta.get('status','Υπάρχουσα επιμέτρηση — προς έλεγχο'))
             for desc, unit, qty, meta in (row_meta(row) for row in rows)])
         lines += ['', *[str(n) for n in notes if not any(w in str(n).lower() for w in ('τιμή','τιμές','price'))]]
     # Generic floor objects are not covered by the canonical slab material list.
     generic = [e for e in doc.entities.values() if e.kind == 'floor']
     if generic:
         lines += ['', '## Γενικά αντικείμενα δαπέδου — ξεχωριστή γεωμετρική καταγραφή', '',
-                  'Δεν έχουν αποδοθεί αυθαίρετα σε σκυρόδεμα. Οι παρακάτω επιφάνειες/όγκοι είναι μικτά γεωμετρικά μεγέθη του αντικειμένου, πριν από τυχόν πραγματικές οπές ή επικαλύψεις. Δεν προστίθενται στα καθαρά εμβαδά χώρων.']
+                  'Δεν έχουν αποδοθεί αυθαίρετα σε σκυρόδεμα. Μικτά μεγέθη από το περίγραμμα και καθαρά από τα πραγματικά επάνω τρίγωνα της γεωμετρίας, μετά τις οπές σκάλας. Δεν αφαιρούνται επικαλύψεις άλλων στερεών και δεν προστίθενται στα εμβαδά χώρων.']
         rows=[]
         for e in generic:
             pts=e.params['points']; a=abs(sum(pts[i][0]*pts[(i+1)%len(pts)][1]-pts[(i+1)%len(pts)][0]*pts[i][1] for i in range(len(pts)))/2)
             t=float(e.params['thickness'])
-            rows.append((e.name,e.params['z'],round(a,2),t,round(a*t,3),'Υλικό / οπές προς έλεγχο'))
-        lines += ['', *table(['Αντικείμενο','z m','Μικτό m²','Πάχος m','Μικτός όγκος m³','Κατάσταση'], rows)]
+            from types import SimpleNamespace
+            from archforge.geometry.mesh import _payload
+            mesh=_payload(doc,SimpleNamespace(semantic_kind=e.kind,params=e.params,entity_id=e.id,transform=None))
+            top=max(v[2] for v in mesh.vertices);net=0.
+            for tri in mesh.triangles:
+                u,v,w=(mesh.vertices[i] for i in tri)
+                if all(abs(p[2]-top)<1e-6 for p in (u,v,w)):
+                    net+=abs((v[0]-u[0])*(w[1]-u[1])-(v[1]-u[1])*(w[0]-u[0]))/2
+            assert 0 <= net <= a+1e-6,(e.id,net,a)
+            rows.append((e.name,e.params['z'],round(a,2),round(net,2),t,round(net*t,3),'Υλικό προς επιλογή'))
+        lines += ['', *table(['Αντικείμενο','z m','Μικτό m²','Καθαρό γεωμετρικό m²','Πάχος m','Καθαρός όγκος m³','Κατάσταση'], rows)]
     issues=[]
     if kinds['box']:
         issues.append(f"{kinds['box']} γενικά κουτιά με ονόματα επίπλων: δεν θεωρούνται πραγματικά έπιπλα ή είδη υγιεινής για παραγγελία.")
@@ -90,7 +101,7 @@ def export(spec, output=OUT):
     if not kinds['door'] or not kinds['window']:
         issues.append('Λείπουν πραγματικές πόρτες ή/και παράθυρα: τα καθαρά εμβαδά τοίχων και οι ποσότητες κουφωμάτων δεν είναι πλήρη.')
     if generic:
-        issues.append('Τα γενικά δάπεδα χρειάζονται έλεγχο πραγματικών οπών, υλικού και μετατροπής στο κοινό σύστημα πλακών.')
+        issues.append('Τα πολυγωνικά δάπεδα καταγράφονται χωριστά με πραγματικές οπές. Το υλικό τους και η αντιστοίχιση με το κοινό σύστημα πλακών παραμένουν προς έλεγχο.')
     issues += ['Θέρμανση/HVAC και άγνωστοι οπλισμοί/ξυλότυποι παραμένουν προς μελέτη.',
                'Δεν έχει ολοκληρωθεί χειροκίνητος έλεγχος κάθε κάτοψης/3D και όλων των ενεργειών UI για αυτό το σχέδιο.']
     lines += ['', '## Ανοιχτά ευρήματα', '', *['- '+x for x in issues], '', '### Προειδοποιήσεις στατικού υπολογισμού — διατηρούνται', '',
@@ -102,12 +113,12 @@ def export(spec, output=OUT):
             'open':issues,'warning_count':len(result.get('warnings',[]))}
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--scenario');args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--scenario');parser.add_argument('--s01-source');args=parser.parse_args()
     specs=json.loads((FIXTURES/'manifest.json').read_text())
     results=[]
     for spec in specs:
         if args.scenario and spec['id']!=args.scenario:continue
-        result=export(spec);results.append(result);print(json.dumps(result,ensure_ascii=False),flush=True)
+        result=export(spec,source=args.s01_source if spec['id']=='S01' else None);results.append(result);print(json.dumps(result,ensure_ascii=False),flush=True)
     lines=['# Σχέδια για έλεγχο — επιφάνειες και υλικά', '',
            '18/10/2026: χωρίς προσφορά/τιμές. Τα σχέδια παραδίδονται για διαδοχικό ανθρώπινο έλεγχο, όχι ως όλα εγκεκριμένα. Οι προειδοποιήσεις παραμένουν ορατές.', '']
     lines += table(['Σχέδιο','Χώροι','Δάπεδα χώρων m²','Ενότητες εργασιών','Γραμμές υλικών','Προειδοποιήσεις'],
