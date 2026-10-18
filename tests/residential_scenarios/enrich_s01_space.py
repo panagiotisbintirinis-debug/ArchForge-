@@ -62,6 +62,8 @@ def enrich():
         aid,size=store_asset(name,tri,{'source':'archforge-core','license':'project','redistributable':True},colors=col,category=spec['category'],part_names=names)
         p=library_instance_params({'id':aid,'size':size},x=x,y=y,z=z);p['rotation']=rotation
         stack.execute(AddEntity(Entity('library_object',p,name=name,id=f's01-space-library-{i}')))
+    from tests.residential_scenarios.facade_finish import finish_facade_joints
+    finish_facade_joints(doc,stack)
     return doc
 
 

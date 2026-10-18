@@ -148,6 +148,11 @@ def enriched_s02(project=None):
         meta=doc.room_metadata(binding['signature'])
         if meta.get('use') not in ('kitchen','living'):continue
         p=ceiling_params(room_id=rid,level_z=0,board='moisture' if meta['use']=='kitchen' else 'standard');p['cove']=1
+        if meta['use']=='living':
+            # The living room now includes the stair. Zone the drawn cove
+            # over the furnished east side; no uncut ceiling over the flights.
+            p.pop('room_id',None)
+            p['points']=[[5.7,.2],[10.8,.2],[10.8,4.55],[5.7,4.55]]
         eid=f's02-cove-{i}';add('drywall_ceiling',p,eid,'Κρυφός φωτισμός — '+meta['name'])
         for j,strip in enumerate(cove_strips(doc,doc.get(eid))):
             add('electrical_point',strip,f'{eid}-led-{j}','Ταινία LED εσοχής — στοιχεία προϊόντος εκκρεμούν')
@@ -198,8 +203,8 @@ def enriched_s02(project=None):
     # the locations of their segment endpoints on the room perimeter.
     for e in list(doc.entities.values()):
         if e.kind!='drywall_ceiling':continue
-        binding=doc.room_bindings[e.params['room_id']]
-        use=doc.room_metadata(binding['signature']).get('use')
+        binding=doc.room_bindings.get(e.params.get('room_id'))
+        use=doc.room_metadata(binding['signature']).get('use') if binding else 'living'
         group='s02-ground-room-'+('2' if use=='kitchen' else '1')
         for strip in list(doc.entities.values()):
             if strip.id.startswith(e.id+'-led-'):
@@ -227,6 +232,8 @@ def enriched_s02(project=None):
         elif e.name and all(ord(c)<128 for c in e.name):
             counts[e.kind]=counts.get(e.kind,0)+1;names[e.id]=f"{labels.get(e.kind,e.kind)} {counts[e.kind]}"
     stack.execute(RenameEntities(names))
+    from tests.residential_scenarios.facade_finish import finish_facade_joints
+    finish_facade_joints(doc,stack)
     return doc,stack,asset_ids
 
 

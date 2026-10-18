@@ -10,14 +10,18 @@
         "y2": 0.0,
         "z": 0.0,
         "height": 3.02,
-        "thickness": 0.25
+        "thickness": 0.25,
+        "surface_materials": {
+          "exterior": "plaster_white",
+          "interior": "plaster_white"
+        }
       },
       "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 1",
       "id": "s02-wall-0-0",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "wall",
@@ -28,14 +32,18 @@
         "y2": 7.0,
         "z": 0.0,
         "height": 3.02,
-        "thickness": 0.25
+        "thickness": 0.25,
+        "surface_materials": {
+          "exterior": "plaster_white",
+          "interior": "plaster_white"
+        }
       },
       "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 2",
       "id": "s02-wall-0-1",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "wall",
@@ -46,14 +54,18 @@
         "y2": 7.0,
         "z": 0.0,
         "height": 3.02,
-        "thickness": 0.25
+        "thickness": 0.25,
+        "surface_materials": {
+          "exterior": "plaster_white",
+          "interior": "plaster_white"
+        }
       },
       "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 3",
       "id": "s02-wall-0-2",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "wall",
@@ -64,14 +76,18 @@
         "y2": 0.0,
         "z": 0.0,
         "height": 3.02,
-        "thickness": 0.25
+        "thickness": 0.25,
+        "surface_materials": {
+          "exterior": "plaster_white",
+          "interior": "plaster_white"
+        }
       },
       "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 4",
       "id": "s02-wall-0-3",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "cabinet",
@@ -140,14 +156,18 @@
         "y2": 0.0,
         "z": 3.2,
         "height": 2.8,
-        "thickness": 0.25
+        "thickness": 0.25,
+        "surface_materials": {
+          "exterior": "plaster_white",
+          "interior": "plaster_white"
+        }
       },
       "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 5",
       "id": "s02-wall-1-0",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 1
+      "revision": 2
     },
     {
       "kind": "wall",
@@ -158,14 +178,18 @@
         "y2": 7.0,
         "z": 3.2,
         "height": 2.8,
-        "thickness": 0.25
+        "thickness": 0.25,
+        "surface_materials": {
+          "exterior": "plaster_white",
+          "interior": "plaster_white"
+        }
       },
       "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 6",
       "id": "s02-wall-1-1",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 1
+      "revision": 2
     },
     {
       "kind": "wall",
@@ -176,14 +200,18 @@
         "y2": 7.0,
         "z": 3.2,
         "height": 2.8,
-        "thickness": 0.25
+        "thickness": 0.25,
+        "surface_materials": {
+          "exterior": "plaster_white",
+          "interior": "plaster_white"
+        }
       },
       "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 7",
       "id": "s02-wall-1-2",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 1
+      "revision": 2
     },
     {
       "kind": "wall",
@@ -194,14 +222,18 @@
         "y2": 0.0,
         "z": 3.2,
         "height": 2.8,
-        "thickness": 0.25
+        "thickness": 0.25,
+        "surface_materials": {
+          "exterior": "plaster_white",
+          "interior": "plaster_white"
+        }
       },
       "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 8",
       "id": "s02-wall-1-3",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "floor",
@@ -225,14 +257,17 @@
           ]
         ],
         "z": 3.02,
-        "thickness": 0.18
+        "thickness": 0.18,
+        "surface_materials": {
+          "edge": "plaster_white"
+        }
       },
       "name": "floor 1",
       "id": "s02-balcony-1",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "railing",
@@ -282,14 +317,18 @@
         "y2": 1.0,
         "z": 1.4,
         "height": 2.7,
-        "thickness": 0.2
+        "thickness": 0.2,
+        "surface_materials": {
+          "exterior": "plaster_white",
+          "interior": "plaster_white"
+        }
       },
       "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 9",
       "id": "s02-split-wall-0",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "wall",
@@ -300,14 +339,18 @@
         "y2": 6.0,
         "z": 1.4,
         "height": 2.7,
-        "thickness": 0.2
+        "thickness": 0.2,
+        "surface_materials": {
+          "exterior": "plaster_white",
+          "interior": "plaster_white"
+        }
       },
       "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 10",
       "id": "s02-split-wall-1",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "wall",
@@ -318,14 +361,18 @@
         "y2": 6.0,
         "z": 1.4,
         "height": 2.7,
-        "thickness": 0.2
+        "thickness": 0.2,
+        "surface_materials": {
+          "exterior": "plaster_white",
+          "interior": "plaster_white"
+        }
       },
       "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 11",
       "id": "s02-split-wall-2",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "wall",
@@ -336,14 +383,18 @@
         "y2": 1.0,
         "z": 1.4,
         "height": 2.7,
-        "thickness": 0.2
+        "thickness": 0.2,
+        "surface_materials": {
+          "exterior": "plaster_white",
+          "interior": "plaster_white"
+        }
       },
       "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 12",
       "id": "s02-split-wall-3",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "pitched_roof",
@@ -2136,14 +2187,17 @@
           ]
         ],
         "z": 1.22,
-        "thickness": 0.18
+        "thickness": 0.18,
+        "surface_materials": {
+          "edge": "plaster_white"
+        }
       },
       "name": "\u03a0\u03bb\u03b1\u03c4\u03cd\u03c3\u03ba\u03b1\u03bb\u03bf \u03b5\u03b9\u03c3\u03cc\u03b4\u03bf\u03c5 \u03b7\u03bc\u03b9\u03bf\u03c1\u03cc\u03c6\u03bf\u03c5",
       "id": "s02-annex-landing",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "railing",
@@ -2661,14 +2715,17 @@
           ]
         ],
         "z": -0.18,
-        "thickness": 0.18
+        "thickness": 0.18,
+        "surface_materials": {
+          "edge": "plaster_white"
+        }
       },
       "name": "\u03a0\u03bb\u03ac\u03ba\u03b1 \u03b4\u03b1\u03c0\u03ad\u03b4\u03bf\u03c5",
       "id": "s02-floor-0",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "floor",
@@ -2692,14 +2749,17 @@
           ]
         ],
         "z": 3.02,
-        "thickness": 0.18
+        "thickness": 0.18,
+        "surface_materials": {
+          "edge": "plaster_white"
+        }
       },
       "name": "\u03a0\u03bb\u03ac\u03ba\u03b1 \u03b4\u03b1\u03c0\u03ad\u03b4\u03bf\u03c5",
       "id": "s02-floor-1",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "floor",
@@ -2723,14 +2783,17 @@
           ]
         ],
         "z": 1.22,
-        "thickness": 0.18
+        "thickness": 0.18,
+        "surface_materials": {
+          "edge": "plaster_white"
+        }
       },
       "name": "\u03a0\u03bb\u03ac\u03ba\u03b1 \u03b4\u03b1\u03c0\u03ad\u03b4\u03bf\u03c5",
       "id": "s02-split-floor",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "room_roof",
@@ -2740,14 +2803,17 @@
         "thickness": 0.18,
         "offset_z": 2.6999999999999997,
         "roof_type": "flat",
-        "overhang": 0.0
+        "overhang": 0.0,
+        "surface_materials": {
+          "edge": "plaster_white"
+        }
       },
       "name": "\u03a0\u03bb\u03ac\u03ba\u03b1 \u03b4\u03ce\u03bc\u03b1\u03c4\u03bf\u03c2 \u2014 \u039e\u03b5\u03bd\u03ce\u03bd\u03b1\u03c2",
       "id": "s02-annex-flat-roof",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "railing",
@@ -3185,7 +3251,24 @@
         "cove": 1,
         "cove_width": 0.3,
         "cove_depth": 0.1,
-        "room_id": "s02-0-room-31033d2ae99514d2"
+        "points": [
+          [
+            5.7,
+            0.2
+          ],
+          [
+            10.8,
+            0.2
+          ],
+          [
+            10.8,
+            4.55
+          ],
+          [
+            5.7,
+            4.55
+          ]
+        ]
       },
       "name": "\u039a\u03c1\u03c5\u03c6\u03cc\u03c2 \u03c6\u03c9\u03c4\u03b9\u03c3\u03bc\u03cc\u03c2 \u2014 \u0395\u03bd\u03b9\u03b1\u03af\u03bf\u03c2 \u03c7\u03ce\u03c1\u03bf\u03c2 \u03ba\u03b1\u03b8\u03b9\u03c3\u03c4\u03b9\u03ba\u03bf\u03cd \u2014 \u03c4\u03c1\u03b1\u03c0\u03b5\u03b6\u03b1\u03c1\u03af\u03b1\u03c2",
       "id": "s02-cove-2",
@@ -3197,10 +3280,10 @@
     {
       "kind": "electrical_point",
       "params": {
-        "x": 0.37499999999999994,
-        "y": 0.375,
-        "x2": 10.625,
-        "y2": 0.375,
+        "x": 5.95,
+        "y": 0.4500000000000002,
+        "x2": 10.55,
+        "y2": 0.45,
         "z": 0.0,
         "point_type": "led_strip",
         "power_w": 0.0,
@@ -3217,10 +3300,10 @@
     {
       "kind": "electrical_point",
       "params": {
-        "x": 10.625,
-        "y": 0.375,
-        "x2": 10.625,
-        "y2": 4.484999999999999,
+        "x": 10.55,
+        "y": 0.45,
+        "x2": 10.55,
+        "y2": 4.3,
         "z": 0.0,
         "point_type": "led_strip",
         "power_w": 0.0,
@@ -3237,10 +3320,10 @@
     {
       "kind": "electrical_point",
       "params": {
-        "x": 10.625,
-        "y": 4.484999999999999,
-        "x2": 5.5,
-        "y2": 4.484999999999999,
+        "x": 10.55,
+        "y": 4.3,
+        "x2": 5.95,
+        "y2": 4.3,
         "z": 0.0,
         "point_type": "led_strip",
         "power_w": 0.0,
@@ -3257,10 +3340,10 @@
     {
       "kind": "electrical_point",
       "params": {
-        "x": 5.5,
-        "y": 4.484999999999999,
-        "x2": 0.3749999999999991,
-        "y2": 4.484999999999999,
+        "x": 5.95,
+        "y": 4.3,
+        "x2": 5.95,
+        "y2": 0.4500000000000002,
         "z": 0.0,
         "point_type": "led_strip",
         "power_w": 0.0,
@@ -3269,26 +3352,6 @@
       },
       "name": "\u03a4\u03b1\u03b9\u03bd\u03af\u03b1 LED \u03b5\u03c3\u03bf\u03c7\u03ae\u03c2 \u2014 \u03c3\u03c4\u03bf\u03b9\u03c7\u03b5\u03af\u03b1 \u03c0\u03c1\u03bf\u03ca\u03cc\u03bd\u03c4\u03bf\u03c2 \u03b5\u03ba\u03ba\u03c1\u03b5\u03bc\u03bf\u03cd\u03bd",
       "id": "s02-cove-2-led-3",
-      "parent_id": null,
-      "locked": false,
-      "visible": true,
-      "revision": 1
-    },
-    {
-      "kind": "electrical_point",
-      "params": {
-        "x": 0.3749999999999991,
-        "y": 4.484999999999999,
-        "x2": 0.37499999999999994,
-        "y2": 0.375,
-        "z": 0.0,
-        "point_type": "led_strip",
-        "power_w": 0.0,
-        "dim_level": 1.0,
-        "automation_group": "s02-ground-room-1"
-      },
-      "name": "\u03a4\u03b1\u03b9\u03bd\u03af\u03b1 LED \u03b5\u03c3\u03bf\u03c7\u03ae\u03c2 \u2014 \u03c3\u03c4\u03bf\u03b9\u03c7\u03b5\u03af\u03b1 \u03c0\u03c1\u03bf\u03ca\u03cc\u03bd\u03c4\u03bf\u03c2 \u03b5\u03ba\u03ba\u03c1\u03b5\u03bc\u03bf\u03cd\u03bd",
-      "id": "s02-cove-2-led-4",
       "parent_id": null,
       "locked": false,
       "visible": true,

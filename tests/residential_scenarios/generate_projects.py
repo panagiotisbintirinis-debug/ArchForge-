@@ -221,7 +221,15 @@ def build_project(spec, *, complete=True):
     if spec['id'] == 'S02':
         from tests.residential_scenarios.enrich_s02 import enriched_s02
         return enriched_s02(project)[0].to_dict()
-    return project
+    if spec['id'] == 'S03':
+        from tests.residential_scenarios.enrich_s03 import enriched_s03
+        return enriched_s03(project)[0].to_dict()
+    from archforge.core.model import Document
+    from archforge.core.commands import CommandStack
+    from tests.residential_scenarios.facade_finish import finish_facade_joints
+    doc=Document.from_dict(project)
+    finish_facade_joints(doc,CommandStack(doc))
+    return doc.to_dict()
 
 
 def complete_s01(project):

@@ -28,7 +28,7 @@ def export(spec, output=OUT, source=None):
     from archforge.quantities.materials import all_lists
     from archforge.quantities.quote import row_meta
     from archforge.quantities.takeoff import take_off
-    path = Path(source) if source is not None else (ROOT/'docs/scenarios/foundation_review/S01_strip_comparison.archforge'
+    path = Path(source).resolve() if source is not None else (ROOT/'docs/scenarios/foundation_review/S01_strip_comparison.archforge'
             if spec['id'] == 'S01' else FIXTURES/spec['file'])
     loaded = load_project(path)
     if not loaded.ok:
@@ -67,8 +67,10 @@ def export(spec, output=OUT, source=None):
     for name, _title, rows, notes in sheets:
         lines += ['', '### ' + name, '']
         lines += table(['Υλικό / εργασία','Μονάδα','Ποσότητα','Κατάσταση'], [
-            (desc, unit, 'Από μελέτη / άγνωστο' if qty is None else f'{float(qty):g}',
-             meta.get('status','Υπάρχουσα επιμέτρηση — προς έλεγχο'))
+            (desc, 'αναθέσεις σε αντικείμενα' if name=='Υλικά' and unit=='τεμ.' else unit,
+             'Από μελέτη / άγνωστο' if qty is None else f'{float(qty):g}',
+             'Δεν είναι ποσότητα υλικού για παραγγελία' if name=='Υλικά' and unit=='τεμ.'
+             else meta.get('status','Υπάρχουσα επιμέτρηση — προς έλεγχο'))
             for desc, unit, qty, meta in (row_meta(row) for row in rows)])
         lines += ['', *[str(n) for n in notes if not any(w in str(n).lower() for w in ('τιμή','τιμές','price'))]]
     # Generic floor objects are not covered by the canonical slab material list.
@@ -111,12 +113,12 @@ def export(spec, output=OUT, source=None):
             'open':issues,'warning_count':len(result.get('warnings',[]))}
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--scenario');args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--scenario');parser.add_argument('--s01-source');args=parser.parse_args()
     specs=json.loads((FIXTURES/'manifest.json').read_text())
     results=[]
     for spec in specs:
         if args.scenario and spec['id']!=args.scenario:continue
-        result=export(spec);results.append(result);print(json.dumps(result,ensure_ascii=False),flush=True)
+        result=export(spec,source=args.s01_source if spec['id']=='S01' else None);results.append(result);print(json.dumps(result,ensure_ascii=False),flush=True)
     lines=['# Σχέδια για έλεγχο — επιφάνειες και υλικά', '',
            '18/10/2026: χωρίς προσφορά/τιμές. Τα σχέδια παραδίδονται για διαδοχικό ανθρώπινο έλεγχο, όχι ως όλα εγκεκριμένα. Οι προειδοποιήσεις παραμένουν ορατές.', '']
     lines += table(['Σχέδιο','Χώροι','Δάπεδα χώρων m²','Ενότητες εργασιών','Γραμμές υλικών','Προειδοποιήσεις'],

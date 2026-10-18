@@ -4,82 +4,98 @@
     {
       "kind": "wall",
       "params": {
-        "x1": 0,
-        "y1": 0,
-        "x2": 10,
-        "y2": 0,
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 10.0,
+        "y2": 0.0,
         "z": 0.0,
         "height": 2.82,
-        "thickness": 0.25
+        "thickness": 0.25,
+        "surface_materials": {
+          "exterior": "plaster_white",
+          "interior": "plaster_white"
+        }
       },
       "name": "Exterior wall L0",
       "id": "s09-wall-0-0",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "wall",
       "params": {
-        "x1": 10,
-        "y1": 0,
-        "x2": 10,
-        "y2": 10,
+        "x1": 10.0,
+        "y1": 0.0,
+        "x2": 10.0,
+        "y2": 10.0,
         "z": 0.0,
         "height": 2.82,
-        "thickness": 0.25
+        "thickness": 0.25,
+        "surface_materials": {
+          "exterior": "plaster_white",
+          "interior": "plaster_white"
+        }
       },
       "name": "Exterior wall L0",
       "id": "s09-wall-0-1",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "wall",
       "params": {
-        "x1": 10,
-        "y1": 10,
-        "x2": 0,
-        "y2": 10,
+        "x1": 10.0,
+        "y1": 10.0,
+        "x2": 0.0,
+        "y2": 10.0,
         "z": 0.0,
         "height": 2.82,
-        "thickness": 0.25
+        "thickness": 0.25,
+        "surface_materials": {
+          "exterior": "plaster_white",
+          "interior": "plaster_white"
+        }
       },
       "name": "Exterior wall L0",
       "id": "s09-wall-0-2",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "wall",
       "params": {
-        "x1": 0,
-        "y1": 10,
-        "x2": 0,
-        "y2": 0,
+        "x1": 0.0,
+        "y1": 10.0,
+        "x2": 0.0,
+        "y2": 0.0,
         "z": 0.0,
         "height": 2.82,
-        "thickness": 0.25
+        "thickness": 0.25,
+        "surface_materials": {
+          "exterior": "plaster_white",
+          "interior": "plaster_white"
+        }
       },
       "name": "Exterior wall L0",
       "id": "s09-wall-0-3",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "wall",
       "params": {
         "x1": 5.0,
-        "y1": 0,
+        "y1": 0.0,
         "x2": 5.0,
-        "y2": 10,
+        "y2": 10.0,
         "z": 0.0,
         "height": 2.82,
         "thickness": 0.15
@@ -94,9 +110,9 @@
     {
       "kind": "wall",
       "params": {
-        "x1": 0,
+        "x1": 0.0,
         "y1": 5.0,
-        "x2": 10,
+        "x2": 10.0,
         "y2": 5.0,
         "z": 0.0,
         "height": 2.82,
@@ -131,14 +147,17 @@
           ]
         ],
         "z": -0.18,
-        "thickness": 0.18
+        "thickness": 0.18,
+        "surface_materials": {
+          "edge": "plaster_white"
+        }
       },
       "name": "Floor L0",
       "id": "s09-floor-0",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "box",
@@ -151,7 +170,7 @@
         "height": 0.75,
         "rotation": 0.0
       },
-      "name": "Καναπές L0",
+      "name": "\u039a\u03b1\u03bd\u03b1\u03c0\u03ad\u03c2 L0",
       "id": "s09-furn-0-0",
       "parent_id": null,
       "locked": false,
@@ -169,7 +188,7 @@
         "height": 0.55,
         "rotation": 0.0
       },
-      "name": "Κρεβάτι L0",
+      "name": "\u039a\u03c1\u03b5\u03b2\u03ac\u03c4\u03b9 L0",
       "id": "s09-furn-0-1",
       "parent_id": null,
       "locked": false,
@@ -187,7 +206,7 @@
         "height": 0.75,
         "rotation": 0.0
       },
-      "name": "Τραπέζι L0",
+      "name": "\u03a4\u03c1\u03b1\u03c0\u03ad\u03b6\u03b9 L0",
       "id": "s09-furn-0-2",
       "parent_id": null,
       "locked": false,
@@ -255,82 +274,98 @@
     {
       "kind": "wall",
       "params": {
-        "x1": 0,
-        "y1": 0,
-        "x2": 10,
-        "y2": 0,
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 10.0,
+        "y2": 0.0,
         "z": 3.0,
         "height": 3.0,
-        "thickness": 0.25
+        "thickness": 0.25,
+        "surface_materials": {
+          "exterior": "plaster_white",
+          "interior": "plaster_white"
+        }
       },
       "name": "Exterior wall L1",
       "id": "s09-wall-1-0",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "wall",
       "params": {
-        "x1": 10,
-        "y1": 0,
-        "x2": 10,
-        "y2": 10,
+        "x1": 10.0,
+        "y1": 0.0,
+        "x2": 10.0,
+        "y2": 10.0,
         "z": 3.0,
         "height": 3.0,
-        "thickness": 0.25
+        "thickness": 0.25,
+        "surface_materials": {
+          "exterior": "plaster_white",
+          "interior": "plaster_white"
+        }
       },
       "name": "Exterior wall L1",
       "id": "s09-wall-1-1",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "wall",
       "params": {
-        "x1": 10,
-        "y1": 10,
-        "x2": 0,
-        "y2": 10,
+        "x1": 10.0,
+        "y1": 10.0,
+        "x2": 0.0,
+        "y2": 10.0,
         "z": 3.0,
         "height": 3.0,
-        "thickness": 0.25
+        "thickness": 0.25,
+        "surface_materials": {
+          "exterior": "plaster_white",
+          "interior": "plaster_white"
+        }
       },
       "name": "Exterior wall L1",
       "id": "s09-wall-1-2",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "wall",
       "params": {
-        "x1": 0,
-        "y1": 10,
-        "x2": 0,
-        "y2": 0,
+        "x1": 0.0,
+        "y1": 10.0,
+        "x2": 0.0,
+        "y2": 0.0,
         "z": 3.0,
         "height": 3.0,
-        "thickness": 0.25
+        "thickness": 0.25,
+        "surface_materials": {
+          "exterior": "plaster_white",
+          "interior": "plaster_white"
+        }
       },
       "name": "Exterior wall L1",
       "id": "s09-wall-1-3",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "wall",
       "params": {
         "x1": 5.0,
-        "y1": 0,
+        "y1": 0.0,
         "x2": 5.0,
-        "y2": 10,
+        "y2": 10.0,
         "z": 3.0,
         "height": 3.0,
         "thickness": 0.15
@@ -345,9 +380,9 @@
     {
       "kind": "wall",
       "params": {
-        "x1": 0,
+        "x1": 0.0,
         "y1": 5.0,
-        "x2": 10,
+        "x2": 10.0,
         "y2": 5.0,
         "z": 3.0,
         "height": 3.0,
@@ -382,14 +417,17 @@
           ]
         ],
         "z": 2.82,
-        "thickness": 0.18
+        "thickness": 0.18,
+        "surface_materials": {
+          "edge": "plaster_white"
+        }
       },
       "name": "Floor L1",
       "id": "s09-floor-1",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "box",
@@ -402,7 +440,7 @@
         "height": 0.75,
         "rotation": 0.0
       },
-      "name": "Καναπές L1",
+      "name": "\u039a\u03b1\u03bd\u03b1\u03c0\u03ad\u03c2 L1",
       "id": "s09-furn-1-0",
       "parent_id": null,
       "locked": false,
@@ -420,7 +458,7 @@
         "height": 0.55,
         "rotation": 0.0
       },
-      "name": "Κρεβάτι L1",
+      "name": "\u039a\u03c1\u03b5\u03b2\u03ac\u03c4\u03b9 L1",
       "id": "s09-furn-1-1",
       "parent_id": null,
       "locked": false,
@@ -438,7 +476,7 @@
         "height": 0.75,
         "rotation": 0.0
       },
-      "name": "Τραπέζι L1",
+      "name": "\u03a4\u03c1\u03b1\u03c0\u03ad\u03b6\u03b9 L1",
       "id": "s09-furn-1-2",
       "parent_id": null,
       "locked": false,
@@ -508,51 +546,54 @@
       "params": {
         "points": [
           [
-            2,
-            0
+            2.0,
+            0.0
           ],
           [
-            8,
-            0
+            8.0,
+            0.0
           ],
           [
-            8,
+            8.0,
             -1.6
           ],
           [
-            2,
+            2.0,
             -1.6
           ]
         ],
         "z": 2.82,
-        "thickness": 0.18
+        "thickness": 0.18,
+        "surface_materials": {
+          "edge": "plaster_white"
+        }
       },
       "name": "Balcony L1",
       "id": "s09-balcony-1",
       "parent_id": null,
       "locked": false,
       "visible": true,
-      "revision": 0
+      "revision": 1
     },
     {
       "kind": "railing",
       "params": {
         "points": [
           [
-            8,
-            0
+            8.0,
+            0.0
           ],
           [
-            8,
+            8.0,
             -1.6
           ],
           [
-            2,
+            2.0,
             -1.6
           ],
           [
-            2,
-            0
+            2.0,
+            0.0
           ]
         ],
         "z": 3.0,
@@ -578,10 +619,10 @@
       "params": {
         "x0": 0.0,
         "y0": 0.0,
-        "x1": 10,
-        "y1": 10,
+        "x1": 10.0,
+        "y1": 10.0,
         "eave_z": 6.0,
-        "pitch": 33,
+        "pitch": 33.0,
         "overhang": 0.45,
         "rafter_spacing": 0.6,
         "roof_form": "hip",
@@ -602,8 +643,8 @@
     {
       "kind": "structural_column",
       "params": {
-        "x": 0,
-        "y": 0,
+        "x": 0.0,
+        "y": 0.0,
         "z": 0.0,
         "width": 0.4,
         "depth": 0.4,
@@ -616,7 +657,7 @@
         "top_level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "\u039a1",
       "id": "s09-col-0-0-0",
       "parent_id": null,
       "locked": false,
@@ -626,7 +667,7 @@
     {
       "kind": "structural_column",
       "params": {
-        "x": 0,
+        "x": 0.0,
         "y": 5.0,
         "z": 0.0,
         "width": 0.4,
@@ -640,7 +681,7 @@
         "top_level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "\u039a2",
       "id": "s09-col-0-0-1",
       "parent_id": null,
       "locked": false,
@@ -650,8 +691,8 @@
     {
       "kind": "structural_column",
       "params": {
-        "x": 0,
-        "y": 10,
+        "x": 0.0,
+        "y": 10.0,
         "z": 0.0,
         "width": 0.4,
         "depth": 0.4,
@@ -664,7 +705,7 @@
         "top_level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "\u039a3",
       "id": "s09-col-0-0-2",
       "parent_id": null,
       "locked": false,
@@ -675,7 +716,7 @@
       "kind": "structural_column",
       "params": {
         "x": 5.0,
-        "y": 0,
+        "y": 0.0,
         "z": 0.0,
         "width": 0.4,
         "depth": 0.4,
@@ -688,7 +729,7 @@
         "top_level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "\u039a4",
       "id": "s09-col-0-1-0",
       "parent_id": null,
       "locked": false,
@@ -712,7 +753,7 @@
         "top_level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "\u039a5",
       "id": "s09-col-0-1-1",
       "parent_id": null,
       "locked": false,
@@ -723,7 +764,7 @@
       "kind": "structural_column",
       "params": {
         "x": 5.0,
-        "y": 10,
+        "y": 10.0,
         "z": 0.0,
         "width": 0.4,
         "depth": 0.4,
@@ -736,7 +777,7 @@
         "top_level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "\u039a6",
       "id": "s09-col-0-1-2",
       "parent_id": null,
       "locked": false,
@@ -746,8 +787,8 @@
     {
       "kind": "structural_column",
       "params": {
-        "x": 10,
-        "y": 0,
+        "x": 10.0,
+        "y": 0.0,
         "z": 0.0,
         "width": 0.4,
         "depth": 0.4,
@@ -760,7 +801,7 @@
         "top_level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "\u039a7",
       "id": "s09-col-0-2-0",
       "parent_id": null,
       "locked": false,
@@ -770,7 +811,7 @@
     {
       "kind": "structural_column",
       "params": {
-        "x": 10,
+        "x": 10.0,
         "y": 5.0,
         "z": 0.0,
         "width": 0.4,
@@ -784,7 +825,7 @@
         "top_level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "\u039a8",
       "id": "s09-col-0-2-1",
       "parent_id": null,
       "locked": false,
@@ -794,8 +835,8 @@
     {
       "kind": "structural_column",
       "params": {
-        "x": 10,
-        "y": 10,
+        "x": 10.0,
+        "y": 10.0,
         "z": 0.0,
         "width": 0.4,
         "depth": 0.4,
@@ -808,7 +849,7 @@
         "top_level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "\u039a9",
       "id": "s09-col-0-2-2",
       "parent_id": null,
       "locked": false,
@@ -818,10 +859,10 @@
     {
       "kind": "structural_beam",
       "params": {
-        "x1": 0,
-        "y1": 0,
-        "x2": 10,
-        "y2": 0,
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 10.0,
+        "y2": 0.0,
         "z": 2.5,
         "width": 0.25,
         "height": 0.5,
@@ -831,7 +872,7 @@
         "level": "Ground",
         "profile": ""
       },
-      "name": "",
+      "name": "\u03941",
       "id": "s09-beamx-0-0",
       "parent_id": null,
       "locked": false,
@@ -841,9 +882,9 @@
     {
       "kind": "structural_beam",
       "params": {
-        "x1": 0,
+        "x1": 0.0,
         "y1": 5.0,
-        "x2": 10,
+        "x2": 10.0,
         "y2": 5.0,
         "z": 2.5,
         "width": 0.25,
@@ -854,7 +895,7 @@
         "level": "Ground",
         "profile": ""
       },
-      "name": "",
+      "name": "\u03942",
       "id": "s09-beamx-0-1",
       "parent_id": null,
       "locked": false,
@@ -864,10 +905,10 @@
     {
       "kind": "structural_beam",
       "params": {
-        "x1": 0,
-        "y1": 10,
-        "x2": 10,
-        "y2": 10,
+        "x1": 0.0,
+        "y1": 10.0,
+        "x2": 10.0,
+        "y2": 10.0,
         "z": 2.5,
         "width": 0.25,
         "height": 0.5,
@@ -877,7 +918,7 @@
         "level": "Ground",
         "profile": ""
       },
-      "name": "",
+      "name": "\u03943",
       "id": "s09-beamx-0-2",
       "parent_id": null,
       "locked": false,
@@ -887,10 +928,10 @@
     {
       "kind": "structural_beam",
       "params": {
-        "x1": 0,
-        "y1": 0,
-        "x2": 0,
-        "y2": 10,
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 0.0,
+        "y2": 10.0,
         "z": 2.5,
         "width": 0.25,
         "height": 0.5,
@@ -900,7 +941,7 @@
         "level": "Ground",
         "profile": ""
       },
-      "name": "",
+      "name": "\u03944",
       "id": "s09-beamy-0-0",
       "parent_id": null,
       "locked": false,
@@ -911,9 +952,9 @@
       "kind": "structural_beam",
       "params": {
         "x1": 5.0,
-        "y1": 0,
+        "y1": 0.0,
         "x2": 5.0,
-        "y2": 10,
+        "y2": 10.0,
         "z": 2.5,
         "width": 0.25,
         "height": 0.5,
@@ -923,7 +964,7 @@
         "level": "Ground",
         "profile": ""
       },
-      "name": "",
+      "name": "\u03945",
       "id": "s09-beamy-0-1",
       "parent_id": null,
       "locked": false,
@@ -933,10 +974,10 @@
     {
       "kind": "structural_beam",
       "params": {
-        "x1": 10,
-        "y1": 0,
-        "x2": 10,
-        "y2": 10,
+        "x1": 10.0,
+        "y1": 0.0,
+        "x2": 10.0,
+        "y2": 10.0,
         "z": 2.5,
         "width": 0.25,
         "height": 0.5,
@@ -946,7 +987,7 @@
         "level": "Ground",
         "profile": ""
       },
-      "name": "",
+      "name": "\u03946",
       "id": "s09-beamy-0-2",
       "parent_id": null,
       "locked": false,
@@ -956,8 +997,8 @@
     {
       "kind": "structural_column",
       "params": {
-        "x": 0,
-        "y": 0,
+        "x": 0.0,
+        "y": 0.0,
         "z": 3.0,
         "width": 0.4,
         "depth": 0.4,
@@ -970,7 +1011,7 @@
         "top_level": "Unassigned",
         "profile": ""
       },
-      "name": "",
+      "name": "\u039a10",
       "id": "s09-col-1-0-0",
       "parent_id": null,
       "locked": false,
@@ -980,7 +1021,7 @@
     {
       "kind": "structural_column",
       "params": {
-        "x": 0,
+        "x": 0.0,
         "y": 5.0,
         "z": 3.0,
         "width": 0.4,
@@ -994,7 +1035,7 @@
         "top_level": "Unassigned",
         "profile": ""
       },
-      "name": "",
+      "name": "\u039a11",
       "id": "s09-col-1-0-1",
       "parent_id": null,
       "locked": false,
@@ -1004,8 +1045,8 @@
     {
       "kind": "structural_column",
       "params": {
-        "x": 0,
-        "y": 10,
+        "x": 0.0,
+        "y": 10.0,
         "z": 3.0,
         "width": 0.4,
         "depth": 0.4,
@@ -1018,7 +1059,7 @@
         "top_level": "Unassigned",
         "profile": ""
       },
-      "name": "",
+      "name": "\u039a12",
       "id": "s09-col-1-0-2",
       "parent_id": null,
       "locked": false,
@@ -1029,7 +1070,7 @@
       "kind": "structural_column",
       "params": {
         "x": 5.0,
-        "y": 0,
+        "y": 0.0,
         "z": 3.0,
         "width": 0.4,
         "depth": 0.4,
@@ -1042,7 +1083,7 @@
         "top_level": "Unassigned",
         "profile": ""
       },
-      "name": "",
+      "name": "\u039a13",
       "id": "s09-col-1-1-0",
       "parent_id": null,
       "locked": false,
@@ -1066,7 +1107,7 @@
         "top_level": "Unassigned",
         "profile": ""
       },
-      "name": "",
+      "name": "\u039a14",
       "id": "s09-col-1-1-1",
       "parent_id": null,
       "locked": false,
@@ -1077,7 +1118,7 @@
       "kind": "structural_column",
       "params": {
         "x": 5.0,
-        "y": 10,
+        "y": 10.0,
         "z": 3.0,
         "width": 0.4,
         "depth": 0.4,
@@ -1090,7 +1131,7 @@
         "top_level": "Unassigned",
         "profile": ""
       },
-      "name": "",
+      "name": "\u039a15",
       "id": "s09-col-1-1-2",
       "parent_id": null,
       "locked": false,
@@ -1100,8 +1141,8 @@
     {
       "kind": "structural_column",
       "params": {
-        "x": 10,
-        "y": 0,
+        "x": 10.0,
+        "y": 0.0,
         "z": 3.0,
         "width": 0.4,
         "depth": 0.4,
@@ -1114,7 +1155,7 @@
         "top_level": "Unassigned",
         "profile": ""
       },
-      "name": "",
+      "name": "\u039a16",
       "id": "s09-col-1-2-0",
       "parent_id": null,
       "locked": false,
@@ -1124,7 +1165,7 @@
     {
       "kind": "structural_column",
       "params": {
-        "x": 10,
+        "x": 10.0,
         "y": 5.0,
         "z": 3.0,
         "width": 0.4,
@@ -1138,7 +1179,7 @@
         "top_level": "Unassigned",
         "profile": ""
       },
-      "name": "",
+      "name": "\u039a17",
       "id": "s09-col-1-2-1",
       "parent_id": null,
       "locked": false,
@@ -1148,8 +1189,8 @@
     {
       "kind": "structural_column",
       "params": {
-        "x": 10,
-        "y": 10,
+        "x": 10.0,
+        "y": 10.0,
         "z": 3.0,
         "width": 0.4,
         "depth": 0.4,
@@ -1162,7 +1203,7 @@
         "top_level": "Unassigned",
         "profile": ""
       },
-      "name": "",
+      "name": "\u039a18",
       "id": "s09-col-1-2-2",
       "parent_id": null,
       "locked": false,
@@ -1172,10 +1213,10 @@
     {
       "kind": "structural_beam",
       "params": {
-        "x1": 0,
-        "y1": 0,
-        "x2": 10,
-        "y2": 0,
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 10.0,
+        "y2": 0.0,
         "z": 5.5,
         "width": 0.25,
         "height": 0.5,
@@ -1185,7 +1226,7 @@
         "level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "\u03947",
       "id": "s09-beamx-1-0",
       "parent_id": null,
       "locked": false,
@@ -1195,9 +1236,9 @@
     {
       "kind": "structural_beam",
       "params": {
-        "x1": 0,
+        "x1": 0.0,
         "y1": 5.0,
-        "x2": 10,
+        "x2": 10.0,
         "y2": 5.0,
         "z": 5.5,
         "width": 0.25,
@@ -1208,7 +1249,7 @@
         "level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "\u03948",
       "id": "s09-beamx-1-1",
       "parent_id": null,
       "locked": false,
@@ -1218,10 +1259,10 @@
     {
       "kind": "structural_beam",
       "params": {
-        "x1": 0,
-        "y1": 10,
-        "x2": 10,
-        "y2": 10,
+        "x1": 0.0,
+        "y1": 10.0,
+        "x2": 10.0,
+        "y2": 10.0,
         "z": 5.5,
         "width": 0.25,
         "height": 0.5,
@@ -1231,7 +1272,7 @@
         "level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "\u03949",
       "id": "s09-beamx-1-2",
       "parent_id": null,
       "locked": false,
@@ -1241,10 +1282,10 @@
     {
       "kind": "structural_beam",
       "params": {
-        "x1": 0,
-        "y1": 0,
-        "x2": 0,
-        "y2": 10,
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 0.0,
+        "y2": 10.0,
         "z": 5.5,
         "width": 0.25,
         "height": 0.5,
@@ -1254,7 +1295,7 @@
         "level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "\u039410",
       "id": "s09-beamy-1-0",
       "parent_id": null,
       "locked": false,
@@ -1265,9 +1306,9 @@
       "kind": "structural_beam",
       "params": {
         "x1": 5.0,
-        "y1": 0,
+        "y1": 0.0,
         "x2": 5.0,
-        "y2": 10,
+        "y2": 10.0,
         "z": 5.5,
         "width": 0.25,
         "height": 0.5,
@@ -1277,7 +1318,7 @@
         "level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "\u039411",
       "id": "s09-beamy-1-1",
       "parent_id": null,
       "locked": false,
@@ -1287,10 +1328,10 @@
     {
       "kind": "structural_beam",
       "params": {
-        "x1": 10,
-        "y1": 0,
-        "x2": 10,
-        "y2": 10,
+        "x1": 10.0,
+        "y1": 0.0,
+        "x2": 10.0,
+        "y2": 10.0,
         "z": 5.5,
         "width": 0.25,
         "height": 0.5,
@@ -1300,7 +1341,7 @@
         "level": "Level 1",
         "profile": ""
       },
-      "name": "",
+      "name": "\u039412",
       "id": "s09-beamy-1-2",
       "parent_id": null,
       "locked": false,
@@ -1316,7 +1357,7 @@
         "point_type": "water_supply",
         "pipe_system": "copper"
       },
-      "name": "Παροχή κρύου νερού",
+      "name": "\u03a0\u03b1\u03c1\u03bf\u03c7\u03ae \u03ba\u03c1\u03cd\u03bf\u03c5 \u03bd\u03b5\u03c1\u03bf\u03cd",
       "id": "s09-water",
       "parent_id": null,
       "locked": false,
@@ -1820,7 +1861,7 @@
           }
         }
       },
-      "name": "TEST_FIXTURE prices — not market data",
+      "name": "TEST_FIXTURE prices \u2014 not market data",
       "id": "s09-prices",
       "parent_id": null,
       "locked": false,
@@ -1855,5 +1896,6 @@
   "constructions": {},
   "room_data": {},
   "room_bindings": {},
-  "surface_modifiers": []
+  "surface_modifiers": [],
+  "view_layers": {}
 }

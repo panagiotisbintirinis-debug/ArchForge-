@@ -48,7 +48,7 @@ def test_real_furniture_and_cove_geometry_keep_missing_photometry_explicit():
     assert len([e for e in doc.entities.values() if e.kind=='library_object'])==26
     assert not any(e.kind=='box' for e in doc.entities.values())
     strips=[e for e in doc.entities.values() if e.kind=='electrical_point' and e.params['point_type']=='led_strip']
-    assert len(strips)==9
+    assert len(strips)==8
     assert all(not e.params.get('lumens') and not e.params.get('watts_per_m') for e in strips)
 
 
