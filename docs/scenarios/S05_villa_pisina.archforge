@@ -13,7 +13,7 @@
         "thickness": 0.25
       },
       "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 1",
-      "id": "9a908f74-654c-401f-a475-8855fd2d16a9",
+      "id": "4f1f240d-56c1-45cd-bac2-ef2062d226cc",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -31,7 +31,7 @@
         "thickness": 0.25
       },
       "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 2",
-      "id": "85e9ce2a-666d-4851-be89-d06a4fa6c7b6",
+      "id": "c2d502d6-ae1f-44a7-9377-914e12672f85",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -49,7 +49,7 @@
         "thickness": 0.25
       },
       "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 3",
-      "id": "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+      "id": "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -67,7 +67,7 @@
         "thickness": 0.25
       },
       "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 4",
-      "id": "08bd94fc-b4e9-4cb9-b08a-b0f95cf52a0e",
+      "id": "a2b1055f-7794-4183-8c85-2e2746e51baf",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -85,7 +85,7 @@
         "thickness": 0.25
       },
       "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 5",
-      "id": "c034455e-3150-48db-84c1-dfa224e2f80c",
+      "id": "578228ad-a2ac-4542-86da-ca9a08c98355",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -103,7 +103,7 @@
         "thickness": 0.25
       },
       "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 6",
-      "id": "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+      "id": "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -121,7 +121,7 @@
         "thickness": 0.12
       },
       "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 7",
-      "id": "38b50f1f-4cc1-4f6f-be30-eab824aa5874",
+      "id": "609aa24b-6a36-47fe-ba42-fdeb3501d0de",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -139,7 +139,7 @@
         "thickness": 0.12
       },
       "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 8",
-      "id": "1ed95a42-a37e-45f8-a536-f1d3045d1347",
+      "id": "0caa6c23-b048-4f0f-8650-6bc523348a18",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -157,7 +157,7 @@
         "thickness": 0.12
       },
       "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 9",
-      "id": "986303d3-a0e4-4603-bb1a-1bce26413f16",
+      "id": "a04f53cf-f477-41df-85e2-cc5c567abfe2",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -175,7 +175,7 @@
         "thickness": 0.12
       },
       "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 10",
-      "id": "ab810b77-a981-48c3-a0d2-5631cf0b1792",
+      "id": "6454e141-ca6a-4ba3-8a40-d38e7ddeda7d",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -193,7 +193,7 @@
         "thickness": 0.12
       },
       "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 11",
-      "id": "91360ebf-255c-4d86-b090-55934ecf4578",
+      "id": "26fb35a0-3591-4289-918a-3d3169c582aa",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -211,7 +211,7 @@
         "thickness": 0.12
       },
       "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 12",
-      "id": "c86ae2f1-e68a-45b5-b894-f6eef313672e",
+      "id": "017ec360-3196-4328-b96d-ce57f225bb27",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -229,7 +229,7 @@
         "thickness": 0.12
       },
       "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 13",
-      "id": "b9a06076-bdf8-471c-9f4a-52f14826ea7d",
+      "id": "6c87b8f0-a4ff-4521-bbd8-e9531b34c8a9",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -247,7 +247,7 @@
         "thickness": 0.12
       },
       "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 14",
-      "id": "f2cdd7dc-b8fb-4afd-9700-e52d055a49c1",
+      "id": "8a4763cf-2fb6-423d-b07f-755bdefadc1c",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -262,7 +262,7 @@
         "offset_z": 0.0
       },
       "name": "\u03a0\u03bb\u03ac\u03ba\u03b1 \u03b4\u03b1\u03c0\u03ad\u03b4\u03bf\u03c5 \u2014 \u0399\u03c3\u03cc\u03b3\u03b5\u03b9\u03bf",
-      "id": "6aa5f4fd-a85a-40dc-913d-f595c0f96d75",
+      "id": "c683d234-239f-4622-a676-4e415b5aedad",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -293,7 +293,7 @@
         ]
       },
       "name": "\u039a\u03b5\u03c1\u03b1\u03bc\u03bf\u03c3\u03ba\u03b5\u03c0\u03ae \u03c4\u03b5\u03c4\u03c1\u03ac\u03c1\u03c1\u03b9\u03c7\u03c4\u03b7",
-      "id": "d20fd816-d0ab-4aa6-aae9-d05dacf94f68",
+      "id": "16b6aba8-1efb-4109-bd9c-215b9378c176",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -324,7 +324,7 @@
         ]
       },
       "name": "\u039a\u03b5\u03c1\u03b1\u03bc\u03bf\u03c3\u03ba\u03b5\u03c0\u03ae \u03c4\u03b5\u03c4\u03c1\u03ac\u03c1\u03c1\u03b9\u03c7\u03c4\u03b7",
-      "id": "b82c8e15-c49b-45c8-8dbf-5b13f964d64c",
+      "id": "f786606e-24d6-4db1-b7fe-efd42ef27016",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -350,7 +350,7 @@
         "front_style": "flat",
         "mechanism": "carousel",
         "layout_role": "corner",
-        "layout_id": "8c79aaf22420",
+        "layout_id": "4b6028ae2e92",
         "layout_spec": {
           "kind": "kitchen",
           "options": {
@@ -366,24 +366,24 @@
           "shape": "L",
           "legs": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               0.6193,
               1.0
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               0.0,
               0.4111
             ]
           ],
           "walls": [
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
                 7.0,
@@ -393,7 +393,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -406,7 +406,7 @@
         }
       },
       "name": "\u0393\u03c9\u03bd\u03b9\u03b1\u03ba\u03cc \u03bd\u03c4\u03bf\u03c5\u03bb\u03ac\u03c0\u03b9 \u03b2\u03ac\u03c3\u03b7\u03c2 (\u0393)",
-      "id": "545ac739-7f61-4177-bf26-2c8f84125185",
+      "id": "d45a4910-5510-4a4e-8421-196ae3aaed0c",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -425,7 +425,7 @@
         "uniform": 1.0,
         "asset": "afa4186c51f475e30",
         "layout_role": "fridge",
-        "layout_id": "8c79aaf22420",
+        "layout_id": "4b6028ae2e92",
         "layout_spec": {
           "kind": "kitchen",
           "options": {
@@ -441,24 +441,24 @@
           "shape": "L",
           "legs": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               0.6193,
               1.0
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               0.0,
               0.4111
             ]
           ],
           "walls": [
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
                 7.0,
@@ -468,7 +468,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -481,7 +481,7 @@
         }
       },
       "name": "\u03a8\u03c5\u03b3\u03b5\u03b9\u03bf\u03ba\u03b1\u03c4\u03b1\u03c8\u03cd\u03ba\u03c4\u03b7\u03c2 60",
-      "id": "935e9eb1-10bc-4a9e-8453-11127a1daad3",
+      "id": "5878d8b2-f1ad-4753-9fc6-7a1d0e3d56a5",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -507,7 +507,7 @@
         "front_style": "flat",
         "mechanism": "none",
         "layout_role": "base",
-        "layout_id": "8c79aaf22420",
+        "layout_id": "4b6028ae2e92",
         "layout_spec": {
           "kind": "kitchen",
           "options": {
@@ -523,24 +523,24 @@
           "shape": "L",
           "legs": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               0.6193,
               1.0
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               0.0,
               0.4111
             ]
           ],
           "walls": [
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
                 7.0,
@@ -550,7 +550,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -563,7 +563,7 @@
         }
       },
       "name": "\u039d\u03c4\u03bf\u03c5\u03bb\u03ac\u03c0\u03b9 \u03b2\u03ac\u03c3\u03b7\u03c2",
-      "id": "5d479aea-cce9-4fb1-ae86-59848fc935dc",
+      "id": "a6286e98-fe06-4818-8138-8ad1376ff851",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -589,7 +589,7 @@
         "front_style": "flat",
         "mechanism": "none",
         "layout_role": "hob_base",
-        "layout_id": "8c79aaf22420",
+        "layout_id": "4b6028ae2e92",
         "layout_spec": {
           "kind": "kitchen",
           "options": {
@@ -605,24 +605,24 @@
           "shape": "L",
           "legs": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               0.6193,
               1.0
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               0.0,
               0.4111
             ]
           ],
           "walls": [
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
                 7.0,
@@ -632,7 +632,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -645,7 +645,7 @@
         }
       },
       "name": "\u039d\u03c4\u03bf\u03c5\u03bb\u03ac\u03c0\u03b9 \u03b5\u03c3\u03c4\u03af\u03b1\u03c2 (\u03c3\u03c5\u03c1\u03c4\u03ac\u03c1\u03b9\u03b1)",
-      "id": "bb5985c6-5b17-4e58-9d7a-4a5c9d1f4ed0",
+      "id": "77fbaa39-d22d-4640-abf3-97a84b5afeb1",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -664,8 +664,8 @@
         "uniform": 1.0,
         "asset": "a5c4ef91c9e849072",
         "layout_role": "hob",
-        "layout_host": "bb5985c6-5b17-4e58-9d7a-4a5c9d1f4ed0",
-        "layout_id": "8c79aaf22420",
+        "layout_host": "77fbaa39-d22d-4640-abf3-97a84b5afeb1",
+        "layout_id": "4b6028ae2e92",
         "layout_spec": {
           "kind": "kitchen",
           "options": {
@@ -681,24 +681,24 @@
           "shape": "L",
           "legs": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               0.6193,
               1.0
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               0.0,
               0.4111
             ]
           ],
           "walls": [
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
                 7.0,
@@ -708,7 +708,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -721,7 +721,7 @@
         }
       },
       "name": "\u0395\u03c3\u03c4\u03af\u03b1 \u03ba\u03b5\u03c1\u03b1\u03bc\u03b9\u03ba\u03ae 60",
-      "id": "f19ff154-ce40-4737-9e0f-21fa3bcb8530",
+      "id": "ebbd2ffe-fe08-4461-b60e-bced43a6647b",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -740,8 +740,8 @@
         "uniform": 1.0,
         "asset": "a3a2a64d7a0217957",
         "layout_role": "hood",
-        "layout_host": "bb5985c6-5b17-4e58-9d7a-4a5c9d1f4ed0",
-        "layout_id": "8c79aaf22420",
+        "layout_host": "77fbaa39-d22d-4640-abf3-97a84b5afeb1",
+        "layout_id": "4b6028ae2e92",
         "layout_spec": {
           "kind": "kitchen",
           "options": {
@@ -757,24 +757,24 @@
           "shape": "L",
           "legs": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               0.6193,
               1.0
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               0.0,
               0.4111
             ]
           ],
           "walls": [
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
                 7.0,
@@ -784,7 +784,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -797,7 +797,7 @@
         }
       },
       "name": "\u0391\u03c0\u03bf\u03c1\u03c1\u03bf\u03c6\u03b7\u03c4\u03ae\u03c1\u03b1\u03c2 60",
-      "id": "3bd529a6-58e9-4608-bb21-e96ef9c8f0d1",
+      "id": "d1ab454b-e67e-4ed7-aeae-8bbf2cf0be7d",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -812,8 +812,8 @@
         "point_type": "hood",
         "outlet": "auto",
         "airflow": 400.0,
-        "layout_host": "bb5985c6-5b17-4e58-9d7a-4a5c9d1f4ed0",
-        "layout_id": "8c79aaf22420",
+        "layout_host": "77fbaa39-d22d-4640-abf3-97a84b5afeb1",
+        "layout_id": "4b6028ae2e92",
         "layout_spec": {
           "kind": "kitchen",
           "options": {
@@ -829,24 +829,24 @@
           "shape": "L",
           "legs": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               0.6193,
               1.0
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               0.0,
               0.4111
             ]
           ],
           "walls": [
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
                 7.0,
@@ -856,7 +856,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -869,7 +869,7 @@
         }
       },
       "name": "\u0391\u03c0\u03bf\u03c1\u03c1\u03bf\u03c6\u03b7\u03c4\u03ae\u03c1\u03b1\u03c2 \u03ba\u03bf\u03c5\u03b6\u03af\u03bd\u03b1\u03c2",
-      "id": "55b85239-4067-4869-8bbe-14fba3a8e295",
+      "id": "5818aa17-66cf-4f08-925b-1670ec394ac2",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -895,7 +895,7 @@
         "front_style": "flat",
         "mechanism": "cargo",
         "layout_role": "base",
-        "layout_id": "8c79aaf22420",
+        "layout_id": "4b6028ae2e92",
         "layout_spec": {
           "kind": "kitchen",
           "options": {
@@ -911,24 +911,24 @@
           "shape": "L",
           "legs": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               0.6193,
               1.0
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               0.0,
               0.4111
             ]
           ],
           "walls": [
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
                 7.0,
@@ -938,7 +938,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -951,7 +951,7 @@
         }
       },
       "name": "\u03a3\u03c5\u03c1\u03cc\u03bc\u03b5\u03bd\u03bf \u03ba\u03b1\u03bb\u03ac\u03b8\u03b9 (cargo)",
-      "id": "2d37def4-2e88-4bef-9032-fc05d43e1dc6",
+      "id": "02348080-6056-4ece-9cb1-67e2fab75b0d",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -977,7 +977,7 @@
         "front_style": "flat",
         "mechanism": "cargo",
         "layout_role": "base",
-        "layout_id": "8c79aaf22420",
+        "layout_id": "4b6028ae2e92",
         "layout_spec": {
           "kind": "kitchen",
           "options": {
@@ -993,24 +993,24 @@
           "shape": "L",
           "legs": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               0.6193,
               1.0
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               0.0,
               0.4111
             ]
           ],
           "walls": [
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
                 7.0,
@@ -1020,7 +1020,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -1033,7 +1033,7 @@
         }
       },
       "name": "\u03a3\u03c5\u03c1\u03cc\u03bc\u03b5\u03bd\u03bf \u03ba\u03b1\u03bb\u03ac\u03b8\u03b9 (cargo)",
-      "id": "4bedb865-6ac5-42f4-802c-a75c14384725",
+      "id": "dfb7a855-1f2e-4d59-bd36-1dc14431eba7",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -1059,7 +1059,7 @@
         "front_style": "flat",
         "mechanism": "none",
         "layout_role": "sink",
-        "layout_id": "8c79aaf22420",
+        "layout_id": "4b6028ae2e92",
         "layout_spec": {
           "kind": "kitchen",
           "options": {
@@ -1075,24 +1075,24 @@
           "shape": "L",
           "legs": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               0.6193,
               1.0
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               0.0,
               0.4111
             ]
           ],
           "walls": [
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
                 7.0,
@@ -1102,7 +1102,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -1115,7 +1115,7 @@
         }
       },
       "name": "\u039d\u03c4\u03bf\u03c5\u03bb\u03ac\u03c0\u03b9 \u03bd\u03b5\u03c1\u03bf\u03c7\u03cd\u03c4\u03b7",
-      "id": "2f845327-78e3-4729-a495-dfeb480e1de6",
+      "id": "b3db59fe-50a1-48a1-a734-21d6b17b6839",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -1128,8 +1128,8 @@
         "y": 5.375,
         "z": 0.0,
         "point_type": "kitchen_sink",
-        "layout_host": "2f845327-78e3-4729-a495-dfeb480e1de6",
-        "layout_id": "8c79aaf22420",
+        "layout_host": "b3db59fe-50a1-48a1-a734-21d6b17b6839",
+        "layout_id": "4b6028ae2e92",
         "layout_spec": {
           "kind": "kitchen",
           "options": {
@@ -1145,24 +1145,24 @@
           "shape": "L",
           "legs": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               0.6193,
               1.0
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               0.0,
               0.4111
             ]
           ],
           "walls": [
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
                 7.0,
@@ -1172,7 +1172,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -1185,7 +1185,7 @@
         }
       },
       "name": "\u039d\u03b5\u03c1\u03bf\u03c7\u03cd\u03c4\u03b7\u03c2 \u03ba\u03bf\u03c5\u03b6\u03af\u03bd\u03b1\u03c2",
-      "id": "f5b759a9-06ef-40a0-abe3-35c62453c12f",
+      "id": "0dd03b9c-911b-432b-bc33-f0db9d14a478",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -1211,7 +1211,7 @@
         "front_style": "flat",
         "mechanism": "none",
         "layout_role": "dishwasher",
-        "layout_id": "8c79aaf22420",
+        "layout_id": "4b6028ae2e92",
         "layout_spec": {
           "kind": "kitchen",
           "options": {
@@ -1227,24 +1227,24 @@
           "shape": "L",
           "legs": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               0.6193,
               1.0
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               0.0,
               0.4111
             ]
           ],
           "walls": [
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
                 7.0,
@@ -1254,7 +1254,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -1267,7 +1267,7 @@
         }
       },
       "name": "\u03a0\u03bb\u03c5\u03bd\u03c4\u03ae\u03c1\u03b9\u03bf \u03c0\u03b9\u03ac\u03c4\u03c9\u03bd (\u03b5\u03bd\u03c4\u03bf\u03b9\u03c7\u03b9\u03b6\u03cc\u03bc\u03b5\u03bd\u03bf)",
-      "id": "b54e90c7-cc80-4669-8440-2a4cd7c8e378",
+      "id": "f5a09bf5-39ae-4089-b1c5-c0832194957d",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -1280,8 +1280,8 @@
         "y": 4.675,
         "z": 0.0,
         "point_type": "dishwasher",
-        "layout_host": "b54e90c7-cc80-4669-8440-2a4cd7c8e378",
-        "layout_id": "8c79aaf22420",
+        "layout_host": "f5a09bf5-39ae-4089-b1c5-c0832194957d",
+        "layout_id": "4b6028ae2e92",
         "layout_spec": {
           "kind": "kitchen",
           "options": {
@@ -1297,24 +1297,24 @@
           "shape": "L",
           "legs": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               0.6193,
               1.0
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               0.0,
               0.4111
             ]
           ],
           "walls": [
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
                 7.0,
@@ -1324,7 +1324,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -1337,7 +1337,7 @@
         }
       },
       "name": "\u03a0\u03bb\u03c5\u03bd\u03c4\u03ae\u03c1\u03b9\u03bf \u03c0\u03b9\u03ac\u03c4\u03c9\u03bd",
-      "id": "ca6f0710-9901-4f9b-8a45-480b759f0868",
+      "id": "23e973d1-360b-4113-9a78-01eb04f484a9",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -1363,7 +1363,7 @@
         "front_style": "flat",
         "mechanism": "cargo",
         "layout_role": "base",
-        "layout_id": "8c79aaf22420",
+        "layout_id": "4b6028ae2e92",
         "layout_spec": {
           "kind": "kitchen",
           "options": {
@@ -1379,24 +1379,24 @@
           "shape": "L",
           "legs": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               0.6193,
               1.0
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               0.0,
               0.4111
             ]
           ],
           "walls": [
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
                 7.0,
@@ -1406,7 +1406,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -1419,7 +1419,7 @@
         }
       },
       "name": "\u03a3\u03c5\u03c1\u03cc\u03bc\u03b5\u03bd\u03bf \u03ba\u03b1\u03bb\u03ac\u03b8\u03b9 (cargo)",
-      "id": "62b0ab93-0dcd-4c86-8296-3e90841a6b7c",
+      "id": "ea9c979c-1feb-40d8-85fa-e3281a7c261a",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -1445,7 +1445,7 @@
         "front_style": "flat",
         "mechanism": "none",
         "layout_role": "wall",
-        "layout_id": "8c79aaf22420",
+        "layout_id": "4b6028ae2e92",
         "layout_spec": {
           "kind": "kitchen",
           "options": {
@@ -1461,24 +1461,24 @@
           "shape": "L",
           "legs": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               0.6193,
               1.0
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               0.0,
               0.4111
             ]
           ],
           "walls": [
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
                 7.0,
@@ -1488,7 +1488,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -1501,7 +1501,7 @@
         }
       },
       "name": "\u039a\u03c1\u03b5\u03bc\u03b1\u03c3\u03c4\u03cc \u03bd\u03c4\u03bf\u03c5\u03bb\u03ac\u03c0\u03b9",
-      "id": "3a6bef82-d840-4dca-80e5-41ffb7409ec3",
+      "id": "f9646984-28d9-4d45-84c4-efdd39bdffe2",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -1527,7 +1527,7 @@
         "front_style": "flat",
         "mechanism": "none",
         "layout_role": "wall",
-        "layout_id": "8c79aaf22420",
+        "layout_id": "4b6028ae2e92",
         "layout_spec": {
           "kind": "kitchen",
           "options": {
@@ -1543,24 +1543,24 @@
           "shape": "L",
           "legs": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               0.6193,
               1.0
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               0.0,
               0.4111
             ]
           ],
           "walls": [
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
                 7.0,
@@ -1570,7 +1570,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -1583,7 +1583,7 @@
         }
       },
       "name": "\u039a\u03c1\u03b5\u03bc\u03b1\u03c3\u03c4\u03cc \u03bd\u03c4\u03bf\u03c5\u03bb\u03ac\u03c0\u03b9",
-      "id": "203896c7-4541-4840-8585-bfe94458c3bf",
+      "id": "4d8bbd51-6497-4643-8d57-fd60d2dbfafc",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -1609,7 +1609,7 @@
         "front_style": "flat",
         "mechanism": "none",
         "layout_role": "wall",
-        "layout_id": "8c79aaf22420",
+        "layout_id": "4b6028ae2e92",
         "layout_spec": {
           "kind": "kitchen",
           "options": {
@@ -1625,24 +1625,24 @@
           "shape": "L",
           "legs": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               0.6193,
               1.0
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               0.0,
               0.4111
             ]
           ],
           "walls": [
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
                 7.0,
@@ -1652,7 +1652,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -1665,7 +1665,7 @@
         }
       },
       "name": "\u039a\u03c1\u03b5\u03bc\u03b1\u03c3\u03c4\u03cc \u03bd\u03c4\u03bf\u03c5\u03bb\u03ac\u03c0\u03b9",
-      "id": "9da56f91-a785-4dbe-8c08-d581bef76de8",
+      "id": "010cf0a9-fd60-49f8-8f08-9b9446a31097",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -1691,7 +1691,7 @@
         "front_style": "flat",
         "mechanism": "none",
         "layout_role": "wall",
-        "layout_id": "8c79aaf22420",
+        "layout_id": "4b6028ae2e92",
         "layout_spec": {
           "kind": "kitchen",
           "options": {
@@ -1707,24 +1707,24 @@
           "shape": "L",
           "legs": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               0.6193,
               1.0
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               0.0,
               0.4111
             ]
           ],
           "walls": [
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
                 7.0,
@@ -1734,7 +1734,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -1747,7 +1747,7 @@
         }
       },
       "name": "\u039a\u03c1\u03b5\u03bc\u03b1\u03c3\u03c4\u03cc \u03bd\u03c4\u03bf\u03c5\u03bb\u03ac\u03c0\u03b9",
-      "id": "91baf12b-5c15-4a5a-aa4c-e95adc64254b",
+      "id": "2e114f30-305e-4725-af01-4c058b0ccb05",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -1773,7 +1773,7 @@
         "front_style": "flat",
         "mechanism": "none",
         "layout_role": "wall",
-        "layout_id": "8c79aaf22420",
+        "layout_id": "4b6028ae2e92",
         "layout_spec": {
           "kind": "kitchen",
           "options": {
@@ -1789,24 +1789,24 @@
           "shape": "L",
           "legs": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               0.6193,
               1.0
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               0.0,
               0.4111
             ]
           ],
           "walls": [
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
                 7.0,
@@ -1816,7 +1816,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -1829,7 +1829,7 @@
         }
       },
       "name": "\u039a\u03c1\u03b5\u03bc\u03b1\u03c3\u03c4\u03cc \u03bd\u03c4\u03bf\u03c5\u03bb\u03ac\u03c0\u03b9",
-      "id": "31f7d098-c8ae-4571-b8ea-651e47bdde8c",
+      "id": "1346a120-4b17-4031-9dad-254eb9206808",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -1855,7 +1855,7 @@
         "front_style": "flat",
         "mechanism": "none",
         "layout_role": "wall",
-        "layout_id": "8c79aaf22420",
+        "layout_id": "4b6028ae2e92",
         "layout_spec": {
           "kind": "kitchen",
           "options": {
@@ -1871,24 +1871,24 @@
           "shape": "L",
           "legs": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               0.6193,
               1.0
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               0.0,
               0.4111
             ]
           ],
           "walls": [
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
                 7.0,
@@ -1898,7 +1898,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -1911,7 +1911,7 @@
         }
       },
       "name": "\u039a\u03c1\u03b5\u03bc\u03b1\u03c3\u03c4\u03cc \u03bd\u03c4\u03bf\u03c5\u03bb\u03ac\u03c0\u03b9",
-      "id": "48bad078-6e70-4e64-b61e-d9aacd59dc2c",
+      "id": "39c46ca1-d2a2-4230-937b-2dc7a78adc04",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -1937,7 +1937,7 @@
         "front_style": "flat",
         "mechanism": "none",
         "layout_role": "wall",
-        "layout_id": "8c79aaf22420",
+        "layout_id": "4b6028ae2e92",
         "layout_spec": {
           "kind": "kitchen",
           "options": {
@@ -1953,24 +1953,24 @@
           "shape": "L",
           "legs": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               0.6193,
               1.0
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               0.0,
               0.4111
             ]
           ],
           "walls": [
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
                 7.0,
@@ -1980,7 +1980,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -1993,7 +1993,7 @@
         }
       },
       "name": "\u039a\u03c1\u03b5\u03bc\u03b1\u03c3\u03c4\u03cc \u03bd\u03c4\u03bf\u03c5\u03bb\u03ac\u03c0\u03b9",
-      "id": "71ce3ff3-2495-4fd8-8555-a2212850a855",
+      "id": "b223ba93-dacf-484a-9ef9-c6725457d116",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -2019,7 +2019,7 @@
         "front_style": "flat",
         "mechanism": "none",
         "layout_role": "wall",
-        "layout_id": "8c79aaf22420",
+        "layout_id": "4b6028ae2e92",
         "layout_spec": {
           "kind": "kitchen",
           "options": {
@@ -2035,24 +2035,24 @@
           "shape": "L",
           "legs": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               0.6193,
               1.0
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               0.0,
               0.4111
             ]
           ],
           "walls": [
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
                 7.0,
@@ -2062,7 +2062,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -2075,7 +2075,7 @@
         }
       },
       "name": "\u039a\u03c1\u03b5\u03bc\u03b1\u03c3\u03c4\u03cc \u03c0\u03ac\u03bd\u03c9 \u03b1\u03c0\u03cc \u03c8\u03c5\u03b3\u03b5\u03af\u03bf",
-      "id": "c8c935d5-7f5a-427c-912d-aedcd0ab243d",
+      "id": "0f45d9f9-323a-4183-8c8e-e43b4bdc779b",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -2094,7 +2094,7 @@
         "uniform": 1.0,
         "asset": "a22fb1f2ca18b9054",
         "layout_role": "bathtub",
-        "layout_id": "847e739d9d73",
+        "layout_id": "f9ec0c01f303",
         "layout_spec": {
           "kind": "bath",
           "options": {
@@ -2107,25 +2107,35 @@
           ],
           "legs": [],
           "walls": [
-            "85e9ce2a-666d-4851-be89-d06a4fa6c7b6",
-            "986303d3-a0e4-4603-bb1a-1bce26413f16",
-            "ab810b77-a981-48c3-a0d2-5631cf0b1792",
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf"
+            "6454e141-ca6a-4ba3-8a40-d38e7ddeda7d",
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "a04f53cf-f477-41df-85e2-cc5c567abfe2",
+            "c2d502d6-ae1f-44a7-9377-914e12672f85"
           ],
           "variant": 0,
           "signature": [
             [
-              "85e9ce2a-666d-4851-be89-d06a4fa6c7b6",
+              "6454e141-ca6a-4ba3-8a40-d38e7ddeda7d",
+              [
+                11.0,
+                4.5,
+                11.0,
+                7.0,
+                0.12
+              ]
+            ],
+            [
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
-                0.0,
-                14.0,
+                7.0,
+                7.0,
                 7.0,
                 0.25
               ]
             ],
             [
-              "986303d3-a0e4-4603-bb1a-1bce26413f16",
+              "a04f53cf-f477-41df-85e2-cc5c567abfe2",
               [
                 8.0,
                 4.5,
@@ -2135,21 +2145,11 @@
               ]
             ],
             [
-              "ab810b77-a981-48c3-a0d2-5631cf0b1792",
-              [
-                11.0,
-                4.5,
-                11.0,
-                7.0,
-                0.12
-              ]
-            ],
-            [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "c2d502d6-ae1f-44a7-9377-914e12672f85",
               [
                 14.0,
-                7.0,
-                7.0,
+                0.0,
+                14.0,
                 7.0,
                 0.25
               ]
@@ -2158,7 +2158,7 @@
         }
       },
       "name": "\u039c\u03c0\u03b1\u03bd\u03b9\u03ad\u03c1\u03b1 170\u00d775",
-      "id": "c8a0ba7c-c4f4-4e0f-a4c4-4e6d31651691",
+      "id": "8db4db4f-f19c-4aab-8b0f-58c2451492de",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -2171,8 +2171,8 @@
         "y": 6.775,
         "z": 0.0,
         "point_type": "bathtub",
-        "layout_host": "c8a0ba7c-c4f4-4e0f-a4c4-4e6d31651691",
-        "layout_id": "847e739d9d73",
+        "layout_host": "8db4db4f-f19c-4aab-8b0f-58c2451492de",
+        "layout_id": "f9ec0c01f303",
         "layout_spec": {
           "kind": "bath",
           "options": {
@@ -2185,25 +2185,35 @@
           ],
           "legs": [],
           "walls": [
-            "85e9ce2a-666d-4851-be89-d06a4fa6c7b6",
-            "986303d3-a0e4-4603-bb1a-1bce26413f16",
-            "ab810b77-a981-48c3-a0d2-5631cf0b1792",
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf"
+            "6454e141-ca6a-4ba3-8a40-d38e7ddeda7d",
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "a04f53cf-f477-41df-85e2-cc5c567abfe2",
+            "c2d502d6-ae1f-44a7-9377-914e12672f85"
           ],
           "variant": 0,
           "signature": [
             [
-              "85e9ce2a-666d-4851-be89-d06a4fa6c7b6",
+              "6454e141-ca6a-4ba3-8a40-d38e7ddeda7d",
+              [
+                11.0,
+                4.5,
+                11.0,
+                7.0,
+                0.12
+              ]
+            ],
+            [
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
-                0.0,
-                14.0,
+                7.0,
+                7.0,
                 7.0,
                 0.25
               ]
             ],
             [
-              "986303d3-a0e4-4603-bb1a-1bce26413f16",
+              "a04f53cf-f477-41df-85e2-cc5c567abfe2",
               [
                 8.0,
                 4.5,
@@ -2213,21 +2223,11 @@
               ]
             ],
             [
-              "ab810b77-a981-48c3-a0d2-5631cf0b1792",
-              [
-                11.0,
-                4.5,
-                11.0,
-                7.0,
-                0.12
-              ]
-            ],
-            [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "c2d502d6-ae1f-44a7-9377-914e12672f85",
               [
                 14.0,
-                7.0,
-                7.0,
+                0.0,
+                14.0,
                 7.0,
                 0.25
               ]
@@ -2236,7 +2236,7 @@
         }
       },
       "name": "\u039c\u03c0\u03b1\u03bd\u03b9\u03ad\u03c1\u03b1",
-      "id": "17e5adf6-f5a9-4ed2-8a4f-861ece19c01c",
+      "id": "7016bb87-614b-4b02-a1b3-327f96ce6db0",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -2255,7 +2255,7 @@
         "uniform": 1.0,
         "asset": "a1f86d26b0bf5378e",
         "layout_role": "wc",
-        "layout_id": "847e739d9d73",
+        "layout_id": "f9ec0c01f303",
         "layout_spec": {
           "kind": "bath",
           "options": {
@@ -2268,25 +2268,35 @@
           ],
           "legs": [],
           "walls": [
-            "85e9ce2a-666d-4851-be89-d06a4fa6c7b6",
-            "986303d3-a0e4-4603-bb1a-1bce26413f16",
-            "ab810b77-a981-48c3-a0d2-5631cf0b1792",
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf"
+            "6454e141-ca6a-4ba3-8a40-d38e7ddeda7d",
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "a04f53cf-f477-41df-85e2-cc5c567abfe2",
+            "c2d502d6-ae1f-44a7-9377-914e12672f85"
           ],
           "variant": 0,
           "signature": [
             [
-              "85e9ce2a-666d-4851-be89-d06a4fa6c7b6",
+              "6454e141-ca6a-4ba3-8a40-d38e7ddeda7d",
+              [
+                11.0,
+                4.5,
+                11.0,
+                7.0,
+                0.12
+              ]
+            ],
+            [
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
-                0.0,
-                14.0,
+                7.0,
+                7.0,
                 7.0,
                 0.25
               ]
             ],
             [
-              "986303d3-a0e4-4603-bb1a-1bce26413f16",
+              "a04f53cf-f477-41df-85e2-cc5c567abfe2",
               [
                 8.0,
                 4.5,
@@ -2296,21 +2306,11 @@
               ]
             ],
             [
-              "ab810b77-a981-48c3-a0d2-5631cf0b1792",
-              [
-                11.0,
-                4.5,
-                11.0,
-                7.0,
-                0.12
-              ]
-            ],
-            [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "c2d502d6-ae1f-44a7-9377-914e12672f85",
               [
                 14.0,
-                7.0,
-                7.0,
+                0.0,
+                14.0,
                 7.0,
                 0.25
               ]
@@ -2319,7 +2319,7 @@
         }
       },
       "name": "\u039b\u03b5\u03ba\u03ac\u03bd\u03b7 WC \u03bc\u03b5 \u03ba\u03b1\u03b6\u03b1\u03bd\u03ac\u03ba\u03b9",
-      "id": "89d56c52-445e-440f-b415-5d4a311967b5",
+      "id": "e969fa22-5c04-4975-9794-0358020dd5b2",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -2332,8 +2332,8 @@
         "y": 6.775,
         "z": 0.0,
         "point_type": "wc",
-        "layout_host": "89d56c52-445e-440f-b415-5d4a311967b5",
-        "layout_id": "847e739d9d73",
+        "layout_host": "e969fa22-5c04-4975-9794-0358020dd5b2",
+        "layout_id": "f9ec0c01f303",
         "layout_spec": {
           "kind": "bath",
           "options": {
@@ -2346,25 +2346,35 @@
           ],
           "legs": [],
           "walls": [
-            "85e9ce2a-666d-4851-be89-d06a4fa6c7b6",
-            "986303d3-a0e4-4603-bb1a-1bce26413f16",
-            "ab810b77-a981-48c3-a0d2-5631cf0b1792",
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf"
+            "6454e141-ca6a-4ba3-8a40-d38e7ddeda7d",
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "a04f53cf-f477-41df-85e2-cc5c567abfe2",
+            "c2d502d6-ae1f-44a7-9377-914e12672f85"
           ],
           "variant": 0,
           "signature": [
             [
-              "85e9ce2a-666d-4851-be89-d06a4fa6c7b6",
+              "6454e141-ca6a-4ba3-8a40-d38e7ddeda7d",
+              [
+                11.0,
+                4.5,
+                11.0,
+                7.0,
+                0.12
+              ]
+            ],
+            [
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
-                0.0,
-                14.0,
+                7.0,
+                7.0,
                 7.0,
                 0.25
               ]
             ],
             [
-              "986303d3-a0e4-4603-bb1a-1bce26413f16",
+              "a04f53cf-f477-41df-85e2-cc5c567abfe2",
               [
                 8.0,
                 4.5,
@@ -2374,21 +2384,11 @@
               ]
             ],
             [
-              "ab810b77-a981-48c3-a0d2-5631cf0b1792",
-              [
-                11.0,
-                4.5,
-                11.0,
-                7.0,
-                0.12
-              ]
-            ],
-            [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "c2d502d6-ae1f-44a7-9377-914e12672f85",
               [
                 14.0,
-                7.0,
-                7.0,
+                0.0,
+                14.0,
                 7.0,
                 0.25
               ]
@@ -2397,7 +2397,7 @@
         }
       },
       "name": "\u039b\u03b5\u03ba\u03ac\u03bd\u03b7 WC",
-      "id": "8d319d7b-3941-4301-bd71-8b0c6fae60e0",
+      "id": "80651919-14ea-4864-99bf-fe61ea3044a5",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -2416,7 +2416,7 @@
         "uniform": 1.0,
         "asset": "a0c1970dbea04dc56",
         "layout_role": "basin",
-        "layout_id": "847e739d9d73",
+        "layout_id": "f9ec0c01f303",
         "layout_spec": {
           "kind": "bath",
           "options": {
@@ -2429,25 +2429,35 @@
           ],
           "legs": [],
           "walls": [
-            "85e9ce2a-666d-4851-be89-d06a4fa6c7b6",
-            "986303d3-a0e4-4603-bb1a-1bce26413f16",
-            "ab810b77-a981-48c3-a0d2-5631cf0b1792",
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf"
+            "6454e141-ca6a-4ba3-8a40-d38e7ddeda7d",
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "a04f53cf-f477-41df-85e2-cc5c567abfe2",
+            "c2d502d6-ae1f-44a7-9377-914e12672f85"
           ],
           "variant": 0,
           "signature": [
             [
-              "85e9ce2a-666d-4851-be89-d06a4fa6c7b6",
+              "6454e141-ca6a-4ba3-8a40-d38e7ddeda7d",
+              [
+                11.0,
+                4.5,
+                11.0,
+                7.0,
+                0.12
+              ]
+            ],
+            [
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
-                0.0,
-                14.0,
+                7.0,
+                7.0,
                 7.0,
                 0.25
               ]
             ],
             [
-              "986303d3-a0e4-4603-bb1a-1bce26413f16",
+              "a04f53cf-f477-41df-85e2-cc5c567abfe2",
               [
                 8.0,
                 4.5,
@@ -2457,21 +2467,11 @@
               ]
             ],
             [
-              "ab810b77-a981-48c3-a0d2-5631cf0b1792",
-              [
-                11.0,
-                4.5,
-                11.0,
-                7.0,
-                0.12
-              ]
-            ],
-            [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "c2d502d6-ae1f-44a7-9377-914e12672f85",
               [
                 14.0,
-                7.0,
-                7.0,
+                0.0,
+                14.0,
                 7.0,
                 0.25
               ]
@@ -2480,7 +2480,7 @@
         }
       },
       "name": "\u039d\u03b9\u03c0\u03c4\u03ae\u03c1\u03b1\u03c2 \u03bc\u03b5 \u03ad\u03c0\u03b9\u03c0\u03bb\u03bf 80",
-      "id": "64bcd722-8c95-440c-a23c-dd840fef856b",
+      "id": "0363cb19-3417-498b-9a9f-c8cfa821d74c",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -2493,8 +2493,8 @@
         "y": 4.659999999999999,
         "z": 0.0,
         "point_type": "basin",
-        "layout_host": "64bcd722-8c95-440c-a23c-dd840fef856b",
-        "layout_id": "847e739d9d73",
+        "layout_host": "0363cb19-3417-498b-9a9f-c8cfa821d74c",
+        "layout_id": "f9ec0c01f303",
         "layout_spec": {
           "kind": "bath",
           "options": {
@@ -2507,25 +2507,35 @@
           ],
           "legs": [],
           "walls": [
-            "85e9ce2a-666d-4851-be89-d06a4fa6c7b6",
-            "986303d3-a0e4-4603-bb1a-1bce26413f16",
-            "ab810b77-a981-48c3-a0d2-5631cf0b1792",
-            "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf"
+            "6454e141-ca6a-4ba3-8a40-d38e7ddeda7d",
+            "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
+            "a04f53cf-f477-41df-85e2-cc5c567abfe2",
+            "c2d502d6-ae1f-44a7-9377-914e12672f85"
           ],
           "variant": 0,
           "signature": [
             [
-              "85e9ce2a-666d-4851-be89-d06a4fa6c7b6",
+              "6454e141-ca6a-4ba3-8a40-d38e7ddeda7d",
+              [
+                11.0,
+                4.5,
+                11.0,
+                7.0,
+                0.12
+              ]
+            ],
+            [
+              "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
               [
                 14.0,
-                0.0,
-                14.0,
+                7.0,
+                7.0,
                 7.0,
                 0.25
               ]
             ],
             [
-              "986303d3-a0e4-4603-bb1a-1bce26413f16",
+              "a04f53cf-f477-41df-85e2-cc5c567abfe2",
               [
                 8.0,
                 4.5,
@@ -2535,21 +2545,11 @@
               ]
             ],
             [
-              "ab810b77-a981-48c3-a0d2-5631cf0b1792",
-              [
-                11.0,
-                4.5,
-                11.0,
-                7.0,
-                0.12
-              ]
-            ],
-            [
-              "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+              "c2d502d6-ae1f-44a7-9377-914e12672f85",
               [
                 14.0,
-                7.0,
-                7.0,
+                0.0,
+                14.0,
                 7.0,
                 0.25
               ]
@@ -2558,7 +2558,7 @@
         }
       },
       "name": "\u039d\u03b9\u03c0\u03c4\u03ae\u03c1\u03b1\u03c2",
-      "id": "faaf91ca-0541-4081-905e-88f131ba1ee5",
+      "id": "2db7ee6d-4fdf-4c4d-8faa-7be67dde6480",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -2577,7 +2577,7 @@
         "uniform": 1.0,
         "asset": "a3decaa11db07056f",
         "layout_role": "shower",
-        "layout_id": "5d5d30485c53",
+        "layout_id": "87fe3f2fcb37",
         "layout_spec": {
           "kind": "bath",
           "options": {
@@ -2590,25 +2590,15 @@
           ],
           "legs": [],
           "walls": [
-            "38b50f1f-4cc1-4f6f-be30-eab824aa5874",
-            "91360ebf-255c-4d86-b090-55934ecf4578",
-            "b9a06076-bdf8-471c-9f4a-52f14826ea7d",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "26fb35a0-3591-4289-918a-3d3169c582aa",
+            "609aa24b-6a36-47fe-ba42-fdeb3501d0de",
+            "6c87b8f0-a4ff-4521-bbd8-e9531b34c8a9",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "38b50f1f-4cc1-4f6f-be30-eab824aa5874",
-              [
-                0.0,
-                7.0,
-                7.0,
-                7.0,
-                0.12
-              ]
-            ],
-            [
-              "91360ebf-255c-4d86-b090-55934ecf4578",
+              "26fb35a0-3591-4289-918a-3d3169c582aa",
               [
                 3.0,
                 7.0,
@@ -2618,7 +2608,17 @@
               ]
             ],
             [
-              "b9a06076-bdf8-471c-9f4a-52f14826ea7d",
+              "609aa24b-6a36-47fe-ba42-fdeb3501d0de",
+              [
+                0.0,
+                7.0,
+                7.0,
+                7.0,
+                0.12
+              ]
+            ],
+            [
+              "6c87b8f0-a4ff-4521-bbd8-e9531b34c8a9",
               [
                 0.0,
                 9.0,
@@ -2628,7 +2628,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -2641,7 +2641,7 @@
         }
       },
       "name": "\u039d\u03c4\u03bf\u03c5\u03b6\u03b9\u03ad\u03c1\u03b1 90\u00d790",
-      "id": "a4264526-1303-43d7-9c82-0a9ee8865d28",
+      "id": "18942398-579e-41ef-aea3-e7a0ab8b212a",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -2654,8 +2654,8 @@
         "y": 7.159999999999999,
         "z": 0.0,
         "point_type": "shower",
-        "layout_host": "a4264526-1303-43d7-9c82-0a9ee8865d28",
-        "layout_id": "5d5d30485c53",
+        "layout_host": "18942398-579e-41ef-aea3-e7a0ab8b212a",
+        "layout_id": "87fe3f2fcb37",
         "layout_spec": {
           "kind": "bath",
           "options": {
@@ -2668,25 +2668,15 @@
           ],
           "legs": [],
           "walls": [
-            "38b50f1f-4cc1-4f6f-be30-eab824aa5874",
-            "91360ebf-255c-4d86-b090-55934ecf4578",
-            "b9a06076-bdf8-471c-9f4a-52f14826ea7d",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "26fb35a0-3591-4289-918a-3d3169c582aa",
+            "609aa24b-6a36-47fe-ba42-fdeb3501d0de",
+            "6c87b8f0-a4ff-4521-bbd8-e9531b34c8a9",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "38b50f1f-4cc1-4f6f-be30-eab824aa5874",
-              [
-                0.0,
-                7.0,
-                7.0,
-                7.0,
-                0.12
-              ]
-            ],
-            [
-              "91360ebf-255c-4d86-b090-55934ecf4578",
+              "26fb35a0-3591-4289-918a-3d3169c582aa",
               [
                 3.0,
                 7.0,
@@ -2696,7 +2686,17 @@
               ]
             ],
             [
-              "b9a06076-bdf8-471c-9f4a-52f14826ea7d",
+              "609aa24b-6a36-47fe-ba42-fdeb3501d0de",
+              [
+                0.0,
+                7.0,
+                7.0,
+                7.0,
+                0.12
+              ]
+            ],
+            [
+              "6c87b8f0-a4ff-4521-bbd8-e9531b34c8a9",
               [
                 0.0,
                 9.0,
@@ -2706,7 +2706,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -2719,7 +2719,7 @@
         }
       },
       "name": "\u039d\u03c4\u03bf\u03c5\u03b6\u03b9\u03ad\u03c1\u03b1",
-      "id": "8b27a112-6583-4eba-9f62-e7632f950c96",
+      "id": "09d81ce2-dcdb-4be7-8a3e-3e54384316d7",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -2738,7 +2738,7 @@
         "uniform": 1.0,
         "asset": "a1f86d26b0bf5378e",
         "layout_role": "wc",
-        "layout_id": "5d5d30485c53",
+        "layout_id": "87fe3f2fcb37",
         "layout_spec": {
           "kind": "bath",
           "options": {
@@ -2751,25 +2751,15 @@
           ],
           "legs": [],
           "walls": [
-            "38b50f1f-4cc1-4f6f-be30-eab824aa5874",
-            "91360ebf-255c-4d86-b090-55934ecf4578",
-            "b9a06076-bdf8-471c-9f4a-52f14826ea7d",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "26fb35a0-3591-4289-918a-3d3169c582aa",
+            "609aa24b-6a36-47fe-ba42-fdeb3501d0de",
+            "6c87b8f0-a4ff-4521-bbd8-e9531b34c8a9",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "38b50f1f-4cc1-4f6f-be30-eab824aa5874",
-              [
-                0.0,
-                7.0,
-                7.0,
-                7.0,
-                0.12
-              ]
-            ],
-            [
-              "91360ebf-255c-4d86-b090-55934ecf4578",
+              "26fb35a0-3591-4289-918a-3d3169c582aa",
               [
                 3.0,
                 7.0,
@@ -2779,7 +2769,17 @@
               ]
             ],
             [
-              "b9a06076-bdf8-471c-9f4a-52f14826ea7d",
+              "609aa24b-6a36-47fe-ba42-fdeb3501d0de",
+              [
+                0.0,
+                7.0,
+                7.0,
+                7.0,
+                0.12
+              ]
+            ],
+            [
+              "6c87b8f0-a4ff-4521-bbd8-e9531b34c8a9",
               [
                 0.0,
                 9.0,
@@ -2789,7 +2789,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -2802,7 +2802,7 @@
         }
       },
       "name": "\u039b\u03b5\u03ba\u03ac\u03bd\u03b7 WC \u03bc\u03b5 \u03ba\u03b1\u03b6\u03b1\u03bd\u03ac\u03ba\u03b9",
-      "id": "d9cf06bd-45fe-4a6a-bae3-94a980bb9eef",
+      "id": "3ec5132f-1994-4519-8e62-f8f0cf6a7e90",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -2815,8 +2815,8 @@
         "y": 7.159999999999999,
         "z": 0.0,
         "point_type": "wc",
-        "layout_host": "d9cf06bd-45fe-4a6a-bae3-94a980bb9eef",
-        "layout_id": "5d5d30485c53",
+        "layout_host": "3ec5132f-1994-4519-8e62-f8f0cf6a7e90",
+        "layout_id": "87fe3f2fcb37",
         "layout_spec": {
           "kind": "bath",
           "options": {
@@ -2829,25 +2829,15 @@
           ],
           "legs": [],
           "walls": [
-            "38b50f1f-4cc1-4f6f-be30-eab824aa5874",
-            "91360ebf-255c-4d86-b090-55934ecf4578",
-            "b9a06076-bdf8-471c-9f4a-52f14826ea7d",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "26fb35a0-3591-4289-918a-3d3169c582aa",
+            "609aa24b-6a36-47fe-ba42-fdeb3501d0de",
+            "6c87b8f0-a4ff-4521-bbd8-e9531b34c8a9",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "38b50f1f-4cc1-4f6f-be30-eab824aa5874",
-              [
-                0.0,
-                7.0,
-                7.0,
-                7.0,
-                0.12
-              ]
-            ],
-            [
-              "91360ebf-255c-4d86-b090-55934ecf4578",
+              "26fb35a0-3591-4289-918a-3d3169c582aa",
               [
                 3.0,
                 7.0,
@@ -2857,7 +2847,17 @@
               ]
             ],
             [
-              "b9a06076-bdf8-471c-9f4a-52f14826ea7d",
+              "609aa24b-6a36-47fe-ba42-fdeb3501d0de",
+              [
+                0.0,
+                7.0,
+                7.0,
+                7.0,
+                0.12
+              ]
+            ],
+            [
+              "6c87b8f0-a4ff-4521-bbd8-e9531b34c8a9",
               [
                 0.0,
                 9.0,
@@ -2867,7 +2867,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -2880,7 +2880,7 @@
         }
       },
       "name": "\u039b\u03b5\u03ba\u03ac\u03bd\u03b7 WC",
-      "id": "fb3fe6f5-9a9c-4494-b755-b84d29106bfc",
+      "id": "8d35bb0a-84ae-40f5-b90d-7f77210aa7f8",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -2899,7 +2899,7 @@
         "uniform": 1.0,
         "asset": "a0c1970dbea04dc56",
         "layout_role": "basin",
-        "layout_id": "5d5d30485c53",
+        "layout_id": "87fe3f2fcb37",
         "layout_spec": {
           "kind": "bath",
           "options": {
@@ -2912,25 +2912,15 @@
           ],
           "legs": [],
           "walls": [
-            "38b50f1f-4cc1-4f6f-be30-eab824aa5874",
-            "91360ebf-255c-4d86-b090-55934ecf4578",
-            "b9a06076-bdf8-471c-9f4a-52f14826ea7d",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "26fb35a0-3591-4289-918a-3d3169c582aa",
+            "609aa24b-6a36-47fe-ba42-fdeb3501d0de",
+            "6c87b8f0-a4ff-4521-bbd8-e9531b34c8a9",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "38b50f1f-4cc1-4f6f-be30-eab824aa5874",
-              [
-                0.0,
-                7.0,
-                7.0,
-                7.0,
-                0.12
-              ]
-            ],
-            [
-              "91360ebf-255c-4d86-b090-55934ecf4578",
+              "26fb35a0-3591-4289-918a-3d3169c582aa",
               [
                 3.0,
                 7.0,
@@ -2940,7 +2930,17 @@
               ]
             ],
             [
-              "b9a06076-bdf8-471c-9f4a-52f14826ea7d",
+              "609aa24b-6a36-47fe-ba42-fdeb3501d0de",
+              [
+                0.0,
+                7.0,
+                7.0,
+                7.0,
+                0.12
+              ]
+            ],
+            [
+              "6c87b8f0-a4ff-4521-bbd8-e9531b34c8a9",
               [
                 0.0,
                 9.0,
@@ -2950,7 +2950,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -2963,7 +2963,7 @@
         }
       },
       "name": "\u039d\u03b9\u03c0\u03c4\u03ae\u03c1\u03b1\u03c2 \u03bc\u03b5 \u03ad\u03c0\u03b9\u03c0\u03bb\u03bf 80",
-      "id": "dbad75e4-b155-4ee9-9aab-e58815bc786c",
+      "id": "db6a1c01-fde0-4fda-a92d-f5c1d449929c",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -2976,8 +2976,8 @@
         "y": 8.84,
         "z": 0.0,
         "point_type": "basin",
-        "layout_host": "dbad75e4-b155-4ee9-9aab-e58815bc786c",
-        "layout_id": "5d5d30485c53",
+        "layout_host": "db6a1c01-fde0-4fda-a92d-f5c1d449929c",
+        "layout_id": "87fe3f2fcb37",
         "layout_spec": {
           "kind": "bath",
           "options": {
@@ -2990,25 +2990,15 @@
           ],
           "legs": [],
           "walls": [
-            "38b50f1f-4cc1-4f6f-be30-eab824aa5874",
-            "91360ebf-255c-4d86-b090-55934ecf4578",
-            "b9a06076-bdf8-471c-9f4a-52f14826ea7d",
-            "c3e0e226-f0b6-4d66-987b-7e490c10aab4"
+            "26fb35a0-3591-4289-918a-3d3169c582aa",
+            "609aa24b-6a36-47fe-ba42-fdeb3501d0de",
+            "6c87b8f0-a4ff-4521-bbd8-e9531b34c8a9",
+            "ef48d6b7-58e9-4c2d-93c6-7da0fb223061"
           ],
           "variant": 0,
           "signature": [
             [
-              "38b50f1f-4cc1-4f6f-be30-eab824aa5874",
-              [
-                0.0,
-                7.0,
-                7.0,
-                7.0,
-                0.12
-              ]
-            ],
-            [
-              "91360ebf-255c-4d86-b090-55934ecf4578",
+              "26fb35a0-3591-4289-918a-3d3169c582aa",
               [
                 3.0,
                 7.0,
@@ -3018,7 +3008,17 @@
               ]
             ],
             [
-              "b9a06076-bdf8-471c-9f4a-52f14826ea7d",
+              "609aa24b-6a36-47fe-ba42-fdeb3501d0de",
+              [
+                0.0,
+                7.0,
+                7.0,
+                7.0,
+                0.12
+              ]
+            ],
+            [
+              "6c87b8f0-a4ff-4521-bbd8-e9531b34c8a9",
               [
                 0.0,
                 9.0,
@@ -3028,7 +3028,7 @@
               ]
             ],
             [
-              "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+              "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
               [
                 0.0,
                 13.0,
@@ -3041,7 +3041,7 @@
         }
       },
       "name": "\u039d\u03b9\u03c0\u03c4\u03ae\u03c1\u03b1\u03c2",
-      "id": "58184c43-8044-4dfc-884c-d720c2ee9b87",
+      "id": "de36ffcb-e042-4d83-9f94-904baa3cb5bc",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3061,7 +3061,7 @@
         "asset": "a6c1d94f74bb2f74c"
       },
       "name": "\u0388\u03c0\u03b9\u03c0\u03bb\u03bf TV",
-      "id": "4f182766-e6e3-44b1-a4c5-cedac7f513f5",
+      "id": "72d86ee3-69c1-40c9-8dee-b280c3dfea76",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3081,7 +3081,7 @@
         "asset": "a17c95bd0b8cd45cb"
       },
       "name": "\u0393\u03c9\u03bd\u03b9\u03b1\u03ba\u03cc\u03c2 \u03ba\u03b1\u03bd\u03b1\u03c0\u03ad\u03c2 260\u00d7180",
-      "id": "49774093-48f7-476b-8e1e-56bd4db24191",
+      "id": "34903c31-efcc-463b-9980-ab7f8dae38d1",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3101,7 +3101,7 @@
         "asset": "aba050c44fd438613"
       },
       "name": "\u03a4\u03c1\u03b1\u03c0\u03ad\u03b6\u03b9 \u03c4\u03c1\u03b1\u03c0\u03b5\u03b6\u03b1\u03c1\u03af\u03b1\u03c2 8\u03b8\u03ad\u03c3\u03b9\u03bf",
-      "id": "13c9fcdf-f14e-4448-8388-878b631ac4dd",
+      "id": "3acf155e-336c-47d8-86d4-6f72e3966003",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3121,7 +3121,7 @@
         "asset": "abc85ac0b53225c83"
       },
       "name": "\u0394\u03b9\u03c0\u03bb\u03cc \u03ba\u03c1\u03b5\u03b2\u03ac\u03c4\u03b9 160\u00d7200",
-      "id": "2a79dc1b-1f72-4191-bc24-b0699364d15d",
+      "id": "6bafc30c-bf2d-4166-9041-f1bcf69c710f",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3141,7 +3141,7 @@
         "asset": "a3024ba5d34f5236e"
       },
       "name": "\u039a\u03bf\u03bc\u03bf\u03b4\u03af\u03bd\u03bf",
-      "id": "a1d83bbc-8424-4d7f-88e1-d3bbe6dd64ed",
+      "id": "f9a54561-f888-43c5-9265-3f9097777f91",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3161,7 +3161,7 @@
         "asset": "a3024ba5d34f5236e"
       },
       "name": "\u039a\u03bf\u03bc\u03bf\u03b4\u03af\u03bd\u03bf",
-      "id": "7f5a902a-4f46-4872-a5e8-bd41265abcc1",
+      "id": "57ede7c7-2ab6-4dbd-82d0-2df05fcbc410",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3181,7 +3181,7 @@
         "asset": "aaee7712b6b2bd166"
       },
       "name": "\u0393\u03c1\u03b1\u03c6\u03b5\u03af\u03bf \u03b5\u03c1\u03b3\u03b1\u03c3\u03af\u03b1\u03c2 140",
-      "id": "b4adc50b-506c-4c54-8424-ea6aa5297b46",
+      "id": "f0da6351-6960-4abf-9d68-527e34636df1",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3201,7 +3201,7 @@
         "asset": "a78ff4d66f256569a"
       },
       "name": "\u039c\u03bf\u03bd\u03cc \u03ba\u03c1\u03b5\u03b2\u03ac\u03c4\u03b9 90\u00d7200",
-      "id": "33afa0e4-c8b2-4961-813f-34b1177643ca",
+      "id": "7bc8644d-d5ab-42e1-abf7-b5e77db17926",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3221,7 +3221,7 @@
         "asset": "abc85ac0b53225c83"
       },
       "name": "\u0394\u03b9\u03c0\u03bb\u03cc \u03ba\u03c1\u03b5\u03b2\u03ac\u03c4\u03b9 160\u00d7200",
-      "id": "f6904518-233e-4f4f-8045-901b536b93de",
+      "id": "8d83e698-c344-4d44-9f48-05b32314ea2a",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3241,7 +3241,7 @@
         "asset": "a27b8b95de7664d10"
       },
       "name": "\u039e\u03b1\u03c0\u03bb\u03ce\u03c3\u03c4\u03c1\u03b1",
-      "id": "b2c09721-32c4-4e74-addc-3c11c9302cd9",
+      "id": "1461380c-e953-4df4-b3d2-96be2197e77a",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3261,7 +3261,7 @@
         "asset": "a27b8b95de7664d10"
       },
       "name": "\u039e\u03b1\u03c0\u03bb\u03ce\u03c3\u03c4\u03c1\u03b1",
-      "id": "56e8309f-379f-42ba-9316-615dd47faed1",
+      "id": "2885a43c-3f53-4ae3-b4da-7cbf9fc65d94",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3281,7 +3281,7 @@
         "asset": "ad66766bd40f9e77f"
       },
       "name": "\u039f\u03bc\u03c0\u03c1\u03ad\u03bb\u03b1 \u03ba\u03ae\u03c0\u03bf\u03c5 \u00d8250",
-      "id": "ffbc06d3-2648-4027-8484-b03e0506b83d",
+      "id": "40fde5a8-33d8-4c5f-b4f3-f2620b52af3f",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3301,7 +3301,7 @@
         "asset": "ae28e0c695bdc1f2f"
       },
       "name": "\u03a4\u03c1\u03b1\u03c0\u03ad\u03b6\u03b9 \u03ba\u03ae\u03c0\u03bf\u03c5 4\u03b8\u03ad\u03c3\u03b9\u03bf",
-      "id": "435aa73b-2677-491e-9fdf-2cb40e49c1fe",
+      "id": "d382ef13-bbf9-4d17-8aec-6ec024a63ee3",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3316,7 +3316,7 @@
         "point_type": "water_supply"
       },
       "name": "\u03a0\u03b1\u03c1\u03bf\u03c7\u03ae \u03ba\u03c1\u03cd\u03bf\u03c5 \u03bd\u03b5\u03c1\u03bf\u03cd",
-      "id": "8c02bd8e-a492-459f-aa72-c546b367e450",
+      "id": "7fba567b-5c0e-4578-acff-84cf109e7ef6",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3331,7 +3331,7 @@
         "point_type": "water_heater"
       },
       "name": "\u0397\u03bb\u03b5\u03ba\u03c4\u03c1\u03b9\u03ba\u03cc\u03c2 \u03b8\u03b5\u03c1\u03bc\u03bf\u03c3\u03af\u03c6\u03c9\u03bd\u03b1\u03c2",
-      "id": "c3dc69f9-3453-4d83-9bf1-8255e783a7f6",
+      "id": "665ec73f-b45e-4fd9-b801-d355be638b02",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3347,7 +3347,7 @@
         "power_w": 4000.0
       },
       "name": "\u0398\u03b5\u03c1\u03bc\u03bf\u03c3\u03af\u03c6\u03c9\u03bd\u03b1\u03c2",
-      "id": "8622b718-aae9-47ec-ab6a-2b06f632fde1",
+      "id": "6adba91c-8485-4f2c-82b4-2018c0fc057c",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3362,7 +3362,7 @@
         "point_type": "washing_machine"
       },
       "name": "\u03a0\u03bb\u03c5\u03bd\u03c4\u03ae\u03c1\u03b9\u03bf \u03c1\u03bf\u03cd\u03c7\u03c9\u03bd",
-      "id": "7e692246-3ea3-496d-ad57-1faa58756200",
+      "id": "5ac55525-a650-4c54-8319-8cd901747a9b",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3378,7 +3378,7 @@
         "power_w": 2300.0
       },
       "name": "\u03a0\u03bb\u03c5\u03bd\u03c4\u03ae\u03c1\u03b9\u03bf \u03c1\u03bf\u03cd\u03c7\u03c9\u03bd",
-      "id": "eca22949-eabe-4be6-a380-968d1d7dffa3",
+      "id": "b1c90858-9225-4561-88a8-958e6d69be2e",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3394,7 +3394,7 @@
         "power_w": 2500.0
       },
       "name": "\u039a\u03bb\u03b9\u03bc\u03b1\u03c4\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc",
-      "id": "3b4aaae3-85a0-410c-8ddf-9433578acc61",
+      "id": "6b2d6e4c-47fd-47b8-99c6-ab7b0669d28f",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3410,7 +3410,7 @@
         "power_w": 2500.0
       },
       "name": "\u039a\u03bb\u03b9\u03bc\u03b1\u03c4\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc",
-      "id": "b64f8a65-2d1b-460c-9ca0-2716574e205c",
+      "id": "0fd8b34b-d9c7-47bb-bb54-f37bc629d685",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3425,7 +3425,7 @@
         "point_type": "manhole"
       },
       "name": "\u03a6\u03c1\u03b5\u03ac\u03c4\u03b9\u03bf",
-      "id": "a166f5fa-11ca-4703-a1c6-b21692fbbe20",
+      "id": "233b82b0-2660-4a90-b84b-4c40f602420e",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3441,7 +3441,7 @@
         "power_w": 0.0
       },
       "name": "\u0397\u03bb\u03b5\u03ba\u03c4\u03c1\u03b9\u03ba\u03cc\u03c2 \u03c0\u03af\u03bd\u03b1\u03ba\u03b1\u03c2",
-      "id": "7f8be532-db22-4fcb-9441-ff6ff0ffbcfe",
+      "id": "884e7237-3913-4a24-b777-7182e20be28c",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3457,7 +3457,7 @@
         "power_w": 0.0
       },
       "name": "Rack \u03b4\u03b9\u03ba\u03c4\u03cd\u03bf\u03c5 / \u03ba\u03b1\u03c4\u03b1\u03bd\u03b5\u03bc\u03b7\u03c4\u03ae\u03c2 \u03b1\u03c3\u03b8\u03b5\u03bd\u03ce\u03bd",
-      "id": "13a5d72a-9f9e-43f5-80bd-a95498db7955",
+      "id": "416b9b79-d7ce-4708-b126-0af6ae5d34a9",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3473,7 +3473,7 @@
         "power_w": 60.0
       },
       "name": "\u03a6\u03c9\u03c4\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc \u03bf\u03c1\u03bf\u03c6\u03ae\u03c2",
-      "id": "b8a28459-a736-4149-aa20-56bf389d4623",
+      "id": "0fbf20fa-8d90-4403-a8fa-28951d66a51b",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3489,7 +3489,7 @@
         "power_w": 0.0
       },
       "name": "\u0394\u03b9\u03b1\u03ba\u03cc\u03c0\u03c4\u03b7\u03c2",
-      "id": "ec906d83-798c-443d-867b-2d283264fa5b",
+      "id": "ba1bbbf5-6df7-4d65-aec3-ac428db331c1",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3505,7 +3505,7 @@
         "power_w": 200.0
       },
       "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
-      "id": "6eb82016-c5e3-47ca-ad15-b130ff18fff5",
+      "id": "441e76a2-7d94-4e3b-b209-e3445d44e918",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3521,7 +3521,7 @@
         "power_w": 200.0
       },
       "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
-      "id": "391df622-46c1-47ab-9686-a89484c6087a",
+      "id": "5fbd2d7c-af88-43a8-9523-35e5df6ff549",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3537,7 +3537,7 @@
         "power_w": 60.0
       },
       "name": "\u03a6\u03c9\u03c4\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc \u03bf\u03c1\u03bf\u03c6\u03ae\u03c2",
-      "id": "ba484355-62f9-4994-ae1e-95e8ba7b34da",
+      "id": "00eef4cc-93e9-48ba-8b24-12796992c3ce",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3553,7 +3553,7 @@
         "power_w": 0.0
       },
       "name": "\u0394\u03b9\u03b1\u03ba\u03cc\u03c0\u03c4\u03b7\u03c2",
-      "id": "b8449d63-2606-4bf4-830f-6bf46664e5ca",
+      "id": "1b92000a-469b-434d-beba-6cb5bba5c932",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3569,7 +3569,7 @@
         "power_w": 200.0
       },
       "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
-      "id": "ff319065-4b13-4101-8439-392e1868568c",
+      "id": "ff9c09de-c489-4037-8687-3679c1ec1907",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3585,7 +3585,7 @@
         "power_w": 200.0
       },
       "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
-      "id": "5603c86e-f1c7-4acb-960d-6c397f948f47",
+      "id": "623b7ae0-194b-4de2-a4b3-765f6e8630a5",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3601,7 +3601,7 @@
         "power_w": 60.0
       },
       "name": "\u03a6\u03c9\u03c4\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc \u03bf\u03c1\u03bf\u03c6\u03ae\u03c2",
-      "id": "adaec0b2-8fa7-4788-8d48-855877891bc3",
+      "id": "276d142a-a1c3-4c65-8c00-915b0a399036",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3617,7 +3617,7 @@
         "power_w": 0.0
       },
       "name": "\u0394\u03b9\u03b1\u03ba\u03cc\u03c0\u03c4\u03b7\u03c2",
-      "id": "d97ed51d-0382-4d7d-b438-68f08ad04760",
+      "id": "3ba3f67b-97db-4401-b7a0-b9eee8677d6e",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3633,7 +3633,7 @@
         "power_w": 200.0
       },
       "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
-      "id": "a1c63d82-99f4-4f6f-b445-e83209776f67",
+      "id": "9a73da53-0687-453b-851f-f445dc524071",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3649,7 +3649,7 @@
         "power_w": 200.0
       },
       "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
-      "id": "64a495eb-5155-47ee-ab37-6c9a81fab4ec",
+      "id": "2e8d0305-bdb8-4412-a606-b021bb83751d",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3665,7 +3665,7 @@
         "power_w": 60.0
       },
       "name": "\u03a6\u03c9\u03c4\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc \u03bf\u03c1\u03bf\u03c6\u03ae\u03c2",
-      "id": "aff6dfc6-a31e-41c2-a766-01c7cee477a4",
+      "id": "6ba6ac3d-7b29-45e3-b18a-84006112f2cf",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3681,7 +3681,7 @@
         "power_w": 0.0
       },
       "name": "\u0394\u03b9\u03b1\u03ba\u03cc\u03c0\u03c4\u03b7\u03c2",
-      "id": "06d5e4f2-4daf-42b5-a2da-fc441029f1f3",
+      "id": "0cbee987-c860-4129-8e9d-021ba27cdd3d",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3697,7 +3697,7 @@
         "power_w": 200.0
       },
       "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
-      "id": "fc56d4aa-d407-468f-80f2-22c5a945fd37",
+      "id": "98bc9c8c-b980-420d-bf1e-b15bf8364fd5",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3713,7 +3713,7 @@
         "power_w": 200.0
       },
       "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
-      "id": "5e0cf766-6a56-428c-87b0-8c326d523a41",
+      "id": "4a2b4cbc-852b-4173-89b0-40cb26b4f039",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3729,7 +3729,7 @@
         "power_w": 60.0
       },
       "name": "\u03a6\u03c9\u03c4\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc \u03bf\u03c1\u03bf\u03c6\u03ae\u03c2",
-      "id": "33efaab4-8338-4115-ac99-8217e62c2a18",
+      "id": "e58d7097-641a-4dc9-852e-414b24004d2b",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3745,7 +3745,7 @@
         "power_w": 0.0
       },
       "name": "\u0394\u03b9\u03b1\u03ba\u03cc\u03c0\u03c4\u03b7\u03c2",
-      "id": "33f3e056-5d81-4f77-a8fb-988d37c52882",
+      "id": "30ab3735-0b57-4791-9540-1096de7abdc9",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3761,7 +3761,7 @@
         "power_w": 200.0
       },
       "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
-      "id": "b2111c97-1397-4b91-8339-00eb4d840161",
+      "id": "7c05a30d-d8c5-4c53-8eb7-e6742eb04336",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3777,7 +3777,7 @@
         "power_w": 200.0
       },
       "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
-      "id": "4a51e7a1-393d-4292-8df9-18cfa8208c9a",
+      "id": "4a0a0101-7928-45ff-b280-a14fbf2fd939",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3793,7 +3793,7 @@
         "power_w": 60.0
       },
       "name": "\u03a6\u03c9\u03c4\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc \u03bf\u03c1\u03bf\u03c6\u03ae\u03c2",
-      "id": "0b2d93be-90a7-491c-bcfd-298636c71cbf",
+      "id": "e22fe119-ae0c-4678-87ac-a5c67b9af1bb",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3809,7 +3809,7 @@
         "power_w": 0.0
       },
       "name": "\u0394\u03b9\u03b1\u03ba\u03cc\u03c0\u03c4\u03b7\u03c2",
-      "id": "cabea0df-08f9-46eb-ba86-507fd06a9fbd",
+      "id": "6a6e0363-232f-402a-a7bf-3f6f9b72dd53",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3825,7 +3825,7 @@
         "power_w": 200.0
       },
       "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
-      "id": "295ef2a3-ab42-40f9-8ce8-2aa577b80572",
+      "id": "bdee1050-6cbc-43c1-8fa8-e204926e34b7",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3841,7 +3841,7 @@
         "power_w": 200.0
       },
       "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
-      "id": "8ad79fdb-9bc6-46e5-bc00-d1397131dfe0",
+      "id": "06f721c3-d6a8-451d-8c23-a94d27ad3f47",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3857,7 +3857,7 @@
         "power_w": 60.0
       },
       "name": "\u03a6\u03c9\u03c4\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc \u03bf\u03c1\u03bf\u03c6\u03ae\u03c2",
-      "id": "4b9a93e1-dd13-4aa1-9579-b6f1c693dfc4",
+      "id": "ac13aaa0-e334-4135-8a04-8a33fa86e209",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3873,7 +3873,7 @@
         "power_w": 0.0
       },
       "name": "\u0394\u03b9\u03b1\u03ba\u03cc\u03c0\u03c4\u03b7\u03c2",
-      "id": "d1c600bc-b611-4962-a91c-03802d478875",
+      "id": "24c49a19-1872-4d45-8ffe-80852278ca7a",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3889,7 +3889,7 @@
         "power_w": 200.0
       },
       "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
-      "id": "0cec3df5-4f11-484b-9e61-b317f4e7bad7",
+      "id": "be1d80f1-0220-4e20-bc21-2673c3268791",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3905,7 +3905,7 @@
         "power_w": 200.0
       },
       "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
-      "id": "8f1bd60a-7bcd-43bd-8a47-ceb1c124e462",
+      "id": "59525ecf-eeab-4470-9d67-27c36499cec4",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3921,7 +3921,7 @@
         "power_w": 60.0
       },
       "name": "\u03a6\u03c9\u03c4\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc \u03bf\u03c1\u03bf\u03c6\u03ae\u03c2",
-      "id": "709f87bf-8fba-4a74-bb24-5a5d2fd3d543",
+      "id": "d3bdbacf-dad5-4f4e-8aef-6ac15b40c2da",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3937,7 +3937,7 @@
         "power_w": 0.0
       },
       "name": "\u0394\u03b9\u03b1\u03ba\u03cc\u03c0\u03c4\u03b7\u03c2",
-      "id": "eaaff1ea-bc27-484f-b01f-2573fb225393",
+      "id": "adf2aef5-574a-46b3-9657-05faa58c7217",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3953,7 +3953,7 @@
         "power_w": 200.0
       },
       "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
-      "id": "9dbdd431-5ab1-4298-94e6-26c77957c54c",
+      "id": "3cf7348d-f3a7-4876-8db1-605170be143e",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3969,7 +3969,7 @@
         "power_w": 200.0
       },
       "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
-      "id": "bd8d2ff5-0980-41e2-ae10-89751f1a2c2d",
+      "id": "bbb89858-a7b0-445b-a718-d1a725fff03c",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -3985,7 +3985,7 @@
         "power_w": 60.0
       },
       "name": "\u03a6\u03c9\u03c4\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc \u03bf\u03c1\u03bf\u03c6\u03ae\u03c2",
-      "id": "19ad60ae-8b63-484e-993e-647850a4bdff",
+      "id": "76b1d051-fc3e-4a84-863b-9828c87d7db4",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4001,7 +4001,7 @@
         "power_w": 0.0
       },
       "name": "\u0394\u03b9\u03b1\u03ba\u03cc\u03c0\u03c4\u03b7\u03c2",
-      "id": "5fd1c803-ee30-4487-aa86-5fcc62bfb506",
+      "id": "88709689-7fb1-4801-97e3-b9219c3edfd0",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4017,7 +4017,7 @@
         "power_w": 200.0
       },
       "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
-      "id": "c367f4e9-c88e-42c7-875b-a9958a9b01e6",
+      "id": "2871f765-049f-476d-8879-5bd3162656d3",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4033,7 +4033,7 @@
         "power_w": 200.0
       },
       "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
-      "id": "862e43dd-f3cb-4e3e-a265-23d1fc175f74",
+      "id": "e5367fb7-6b65-418d-adfa-b32a772c5ce0",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4049,7 +4049,7 @@
         "power_w": 6000.0
       },
       "name": "\u039a\u03bf\u03c5\u03b6\u03af\u03bd\u03b1/\u03c6\u03bf\u03cd\u03c1\u03bd\u03bf\u03c2",
-      "id": "520a3388-8e35-40a0-a3fe-124e807f7ddf",
+      "id": "6cff0737-62f8-4834-98e5-d66e3e2a8270",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4065,7 +4065,7 @@
         "power_w": 2000.0
       },
       "name": "\u03a0\u03bb\u03c5\u03bd\u03c4\u03ae\u03c1\u03b9\u03bf \u03c0\u03b9\u03ac\u03c4\u03c9\u03bd",
-      "id": "e8d23ecb-fad7-42c7-96f3-a9ff8cb541ed",
+      "id": "2e474d24-5cd7-4798-b7ad-09ed1bc9f3e7",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4081,7 +4081,7 @@
         "power_w": 200.0
       },
       "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
-      "id": "b34f015c-3242-4f94-988e-dea43991450d",
+      "id": "2728afdc-5559-4f03-844a-8bd325af3db1",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4097,7 +4097,7 @@
         "power_w": 200.0
       },
       "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
-      "id": "dd92d56f-53c2-4855-a0b7-7acc9a2b9464",
+      "id": "d83d551b-26f7-4300-babe-8cf3cef72282",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4114,11 +4114,43 @@
         "loop_spacing": 0.2
       },
       "name": "\u0391\u03bd\u03c4\u03bb\u03af\u03b1 \u03b8\u03b5\u03c1\u03bc\u03cc\u03c4\u03b7\u03c4\u03b1\u03c2",
-      "id": "82521def-5b86-4f69-a02e-883f3d7bd944",
+      "id": "d4aa806c-00e1-45d6-92fd-bb906efa5310",
       "parent_id": null,
       "locked": false,
       "visible": true,
       "revision": 2
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 6.75,
+        "y": 9.2,
+        "z": 0.0,
+        "point_type": "heat_pump_supply",
+        "power_w": 3500.0
+      },
+      "name": "\u03a0\u03b1\u03c1\u03bf\u03c7\u03ae \u03b1\u03bd\u03c4\u03bb\u03af\u03b1\u03c2 \u03b8\u03b5\u03c1\u03bc\u03cc\u03c4\u03b7\u03c4\u03b1\u03c2",
+      "id": "2faeeb13-4f7d-4439-8c0b-79bb1a087548",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 1
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 6.475000000000001,
+        "y": 7.21,
+        "z": 0.0,
+        "point_type": "heating_supply",
+        "power_w": 120.0
+      },
+      "name": "\u039a\u03ad\u03bd\u03c4\u03c1\u03bf \u03ba\u03b1\u03bb\u03c9\u03b4\u03af\u03c9\u03c3\u03b7\u03c2 \u03b8\u03b5\u03c1\u03bc\u03bf\u03c3\u03c4\u03b1\u03c4\u03ce\u03bd (\u03c3\u03c5\u03bb\u03bb\u03ad\u03ba\u03c4\u03b7\u03c2)",
+      "id": "5d4a8c64-0a98-4944-962c-9ae8271f4df5",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 1
     },
     {
       "kind": "pool",
@@ -4151,7 +4183,23 @@
         "plant_y": -6.75
       },
       "name": "\u03a0\u03b9\u03c3\u03af\u03bd\u03b1",
-      "id": "eac9ea6e-fb33-4661-b09b-0404407a369a",
+      "id": "04e9ba6b-f9e1-4f85-9693-fdeb6929d22d",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 20.75,
+        "y": -6.75,
+        "z": 0.0,
+        "point_type": "pool_supply",
+        "power_w": 1800.0
+      },
+      "name": "\u03a0\u03b1\u03c1\u03bf\u03c7\u03ae \u03bc\u03b7\u03c7\u03b1\u03bd\u03bf\u03c3\u03c4\u03b1\u03c3\u03af\u03bf\u03c5 \u03c0\u03b9\u03c3\u03af\u03bd\u03b1\u03c2",
+      "id": "45dc7df0-625e-43dd-a8a6-7bd17cc873f8",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4174,7 +4222,7 @@
         "top_level": "Unassigned"
       },
       "name": "\u039a\u03bf\u03bb\u03bf\u03bd\u03ac\u03ba\u03b9 \u03c0\u03ad\u03c1\u03b3\u03ba\u03bf\u03bb\u03b1\u03c2",
-      "id": "59516456-ade7-4902-887b-62b1d65e31b6",
+      "id": "834ea724-9f6e-49f8-8595-18b7aeba7307",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4197,7 +4245,7 @@
         "top_level": "Unassigned"
       },
       "name": "\u039a\u03bf\u03bb\u03bf\u03bd\u03ac\u03ba\u03b9 \u03c0\u03ad\u03c1\u03b3\u03ba\u03bf\u03bb\u03b1\u03c2",
-      "id": "3fa98a7f-9376-4778-91cc-5d1e20d07c30",
+      "id": "a19994a8-d630-4e23-9177-5d57f1fc8e0b",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4220,7 +4268,7 @@
         "top_level": "Unassigned"
       },
       "name": "\u039a\u03bf\u03bb\u03bf\u03bd\u03ac\u03ba\u03b9 \u03c0\u03ad\u03c1\u03b3\u03ba\u03bf\u03bb\u03b1\u03c2",
-      "id": "3cb88866-f82d-4359-9931-343d5ca5cd1d",
+      "id": "0d2b8e39-fa20-4a05-908b-5aa272ad632d",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4243,7 +4291,7 @@
         "top_level": "Unassigned"
       },
       "name": "\u039a\u03bf\u03bb\u03bf\u03bd\u03ac\u03ba\u03b9 \u03c0\u03ad\u03c1\u03b3\u03ba\u03bf\u03bb\u03b1\u03c2",
-      "id": "1a2d7b96-f409-4a0f-ad02-df41f7c31cd0",
+      "id": "9b62f677-c1b1-4016-8134-0e1eef6e29fd",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4266,7 +4314,7 @@
         "top_level": "Unassigned"
       },
       "name": "\u039a\u03bf\u03bb\u03bf\u03bd\u03ac\u03ba\u03b9 \u03c0\u03ad\u03c1\u03b3\u03ba\u03bf\u03bb\u03b1\u03c2",
-      "id": "4982bf27-adfc-4d59-a1b2-da5d1e1ab493",
+      "id": "0be3bdb5-9e8c-48cb-841d-14f2f93a5411",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4289,7 +4337,7 @@
         "top_level": "Unassigned"
       },
       "name": "\u039a\u03bf\u03bb\u03bf\u03bd\u03ac\u03ba\u03b9 \u03c0\u03ad\u03c1\u03b3\u03ba\u03bf\u03bb\u03b1\u03c2",
-      "id": "c7cfbf53-f0a3-43db-839e-7fc70396e09c",
+      "id": "fa8cddb4-6ce6-4cda-a492-acbf4ea677a6",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4311,7 +4359,7 @@
         "level": "Ground"
       },
       "name": "\u0394\u03bf\u03ba\u03cc\u03c2 \u03c0\u03ad\u03c1\u03b3\u03ba\u03bf\u03bb\u03b1\u03c2",
-      "id": "c0008026-eab1-47e2-9978-42ceb6a5e0c0",
+      "id": "313310b7-93cc-486f-904a-9ceaa2f5dd70",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4333,7 +4381,7 @@
         "level": "Ground"
       },
       "name": "\u0394\u03bf\u03ba\u03cc\u03c2 \u03c0\u03ad\u03c1\u03b3\u03ba\u03bf\u03bb\u03b1\u03c2 (\u03c3\u03c4\u03bf\u03bd \u03c4\u03bf\u03af\u03c7\u03bf)",
-      "id": "70450fe9-5dd7-49cc-a93e-e4b774fe9ac5",
+      "id": "77b8dfe7-cfd1-441d-8456-a8b0bc9d930a",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4355,7 +4403,7 @@
         "level": "Ground"
       },
       "name": "\u0394\u03bf\u03ba\u03cc\u03c2 \u03c0\u03ad\u03c1\u03b3\u03ba\u03bf\u03bb\u03b1\u03c2",
-      "id": "6d1e07bd-b3bd-49bb-9e99-5fdb4ee447c9",
+      "id": "fde4425e-727c-4d6e-8781-4c9f9eeebd3b",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4377,7 +4425,7 @@
         "level": "Ground"
       },
       "name": "\u0394\u03bf\u03ba\u03cc\u03c2 \u03c0\u03ad\u03c1\u03b3\u03ba\u03bf\u03bb\u03b1\u03c2",
-      "id": "c39d0099-2e88-49a4-abc9-e3aaa677c5c9",
+      "id": "d0058e26-419f-48c1-bdfc-0dfe7bda4353",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4399,7 +4447,7 @@
         "level": "Ground"
       },
       "name": "\u03a4\u03b5\u03b3\u03af\u03b4\u03b1 \u03c0\u03ad\u03c1\u03b3\u03ba\u03bf\u03bb\u03b1\u03c2",
-      "id": "2fa05722-d54e-4082-9494-b37ee2cf0c55",
+      "id": "47d911ef-0178-45e5-80fe-1fb2a9c7eb9f",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4421,7 +4469,7 @@
         "level": "Ground"
       },
       "name": "\u03a4\u03b5\u03b3\u03af\u03b4\u03b1 \u03c0\u03ad\u03c1\u03b3\u03ba\u03bf\u03bb\u03b1\u03c2",
-      "id": "1ff9b343-7060-4abe-84cb-78c5e473bd88",
+      "id": "23a61cdc-7d7d-4768-bda4-053716b183fc",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4443,7 +4491,7 @@
         "level": "Ground"
       },
       "name": "\u03a4\u03b5\u03b3\u03af\u03b4\u03b1 \u03c0\u03ad\u03c1\u03b3\u03ba\u03bf\u03bb\u03b1\u03c2",
-      "id": "44a1687d-7694-4672-8052-705747d187d1",
+      "id": "d838089f-41a7-4e55-8f0c-4349c77cb449",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4465,7 +4513,7 @@
         "level": "Ground"
       },
       "name": "\u03a4\u03b5\u03b3\u03af\u03b4\u03b1 \u03c0\u03ad\u03c1\u03b3\u03ba\u03bf\u03bb\u03b1\u03c2",
-      "id": "39ed5ac3-e5f1-4341-91ea-d0b87f178401",
+      "id": "e0b17a09-eb61-4192-adbb-f2d259126e7f",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4487,7 +4535,7 @@
         "level": "Ground"
       },
       "name": "\u03a4\u03b5\u03b3\u03af\u03b4\u03b1 \u03c0\u03ad\u03c1\u03b3\u03ba\u03bf\u03bb\u03b1\u03c2",
-      "id": "91a1cbf8-45f3-4543-86ec-df661bbc2bea",
+      "id": "fb8a7433-5278-4577-b22a-e976dfa38785",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4509,7 +4557,7 @@
         "level": "Ground"
       },
       "name": "\u03a4\u03b5\u03b3\u03af\u03b4\u03b1 \u03c0\u03ad\u03c1\u03b3\u03ba\u03bf\u03bb\u03b1\u03c2",
-      "id": "79dc6b64-f1bd-496a-945b-905a6559fba0",
+      "id": "626500e7-f4b1-4d7e-8634-5f6a6467cbad",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4531,7 +4579,7 @@
         "level": "Ground"
       },
       "name": "\u03a4\u03b5\u03b3\u03af\u03b4\u03b1 \u03c0\u03ad\u03c1\u03b3\u03ba\u03bf\u03bb\u03b1\u03c2",
-      "id": "577250e6-9295-49f3-a08e-67e75a74ec46",
+      "id": "e9c984e2-c547-4e5c-bc4b-d602d24ce3dc",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4553,7 +4601,7 @@
         "level": "Ground"
       },
       "name": "\u03a4\u03b5\u03b3\u03af\u03b4\u03b1 \u03c0\u03ad\u03c1\u03b3\u03ba\u03bf\u03bb\u03b1\u03c2",
-      "id": "e302bee7-ae94-41e4-9714-be3835a0f54e",
+      "id": "4872a5c9-8761-420f-89b6-c3ae14d8d4e7",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4575,7 +4623,7 @@
         "level": "Ground"
       },
       "name": "\u03a4\u03b5\u03b3\u03af\u03b4\u03b1 \u03c0\u03ad\u03c1\u03b3\u03ba\u03bf\u03bb\u03b1\u03c2",
-      "id": "21517adc-242a-4e5a-9651-4b7418d6bdcd",
+      "id": "5dec544b-ba29-4d51-a271-7c08289f58d3",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4597,7 +4645,7 @@
         "level": "Ground"
       },
       "name": "\u03a4\u03b5\u03b3\u03af\u03b4\u03b1 \u03c0\u03ad\u03c1\u03b3\u03ba\u03bf\u03bb\u03b1\u03c2",
-      "id": "2d718f75-e0fa-4d04-af4e-f33b2429e64a",
+      "id": "9b78c65c-d5c3-4263-b207-538fa5b1c1de",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4619,7 +4667,7 @@
         "level": "Ground"
       },
       "name": "\u03a4\u03b5\u03b3\u03af\u03b4\u03b1 \u03c0\u03ad\u03c1\u03b3\u03ba\u03bf\u03bb\u03b1\u03c2",
-      "id": "e3f83b26-4b6e-44b4-9a62-8a9386cef4e3",
+      "id": "9520e766-b6d3-46a5-b814-ffb677754c81",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4641,7 +4689,7 @@
         "level": "Ground"
       },
       "name": "\u03a4\u03b5\u03b3\u03af\u03b4\u03b1 \u03c0\u03ad\u03c1\u03b3\u03ba\u03bf\u03bb\u03b1\u03c2",
-      "id": "4ee3c082-e646-4506-9076-22d81bfba5bd",
+      "id": "97aacde4-e389-406d-ae7f-1a6c9b2dc74a",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4663,7 +4711,7 @@
         "level": "Ground"
       },
       "name": "\u03a4\u03b5\u03b3\u03af\u03b4\u03b1 \u03c0\u03ad\u03c1\u03b3\u03ba\u03bf\u03bb\u03b1\u03c2",
-      "id": "b2b5a20e-8429-41da-9f01-7e1e956f45cc",
+      "id": "3389a195-dc04-4094-9586-814d503c9872",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4691,7 +4739,7 @@
         "behaviour_factor": 0.0
       },
       "name": "\u03a3\u03c4\u03bf\u03b9\u03c7\u03b5\u03af\u03b1 \u03c3\u03c4\u03b1\u03c4\u03b9\u03ba\u03ae\u03c2",
-      "id": "85e1a17b-ad2c-4bac-b1aa-7613dcf7ee23",
+      "id": "3447ea25-e5f4-4d38-b281-a2c3608e8397",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4714,7 +4762,7 @@
         "top_level": "Unassigned"
       },
       "name": "\u039a12",
-      "id": "a4f8b390-382f-46ef-8533-8f02206cea4b",
+      "id": "4b993eb4-fe4a-455b-b79c-d98db5c849e0",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4737,7 +4785,7 @@
         "top_level": "Unassigned"
       },
       "name": "\u039a9",
-      "id": "fbb2d412-9319-4923-a729-e4981346af9a",
+      "id": "c8f23597-f342-4f23-9620-e5711a6428be",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4760,7 +4808,7 @@
         "top_level": "Unassigned"
       },
       "name": "\u039a4",
-      "id": "60cd7ea8-395e-439e-8b70-fe8143f6860f",
+      "id": "911abf61-e014-41e2-8d79-6655e30631b3",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4783,7 +4831,7 @@
         "top_level": "Unassigned"
       },
       "name": "\u039a1",
-      "id": "91410e89-f4b3-47b0-bc24-c08c4cd24a38",
+      "id": "d603c5c2-3117-46c4-ba77-59c50a1024fa",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4806,7 +4854,7 @@
         "top_level": "Unassigned"
       },
       "name": "\u039a13",
-      "id": "5f35f03d-6c8a-4581-bdc4-61295121d9b1",
+      "id": "25a3dc53-9383-4241-be9d-814bf03316b1",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4829,7 +4877,7 @@
         "top_level": "Unassigned"
       },
       "name": "\u039a5",
-      "id": "f96c763a-92b0-4995-b4c9-730a11f488d4",
+      "id": "86fef3fe-14fc-4422-9e30-872a9658f9d9",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4852,7 +4900,7 @@
         "top_level": "Unassigned"
       },
       "name": "\u039a2",
-      "id": "9149e29a-b4ac-40a6-8916-04cba08c1380",
+      "id": "4a636c4c-1ec9-4c86-8bb8-7855d92cac61",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4875,7 +4923,7 @@
         "top_level": "Unassigned"
       },
       "name": "\u039a14",
-      "id": "705527f1-2862-473c-9246-3465841c514d",
+      "id": "68d63883-15c7-4836-81a3-d7c06ed2eb92",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4898,7 +4946,7 @@
         "top_level": "Unassigned"
       },
       "name": "\u039a6",
-      "id": "c2e0006c-0b38-4d59-80c4-f8ff402a09cf",
+      "id": "159de0c3-f32b-4118-afb4-5623f3e44ab4",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4921,7 +4969,7 @@
         "top_level": "Unassigned"
       },
       "name": "\u039a3",
-      "id": "36a44aee-55fe-4f2d-ad16-964c5ac59278",
+      "id": "5e7360aa-1c23-495c-be73-31f4a8129bda",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4944,7 +4992,7 @@
         "top_level": "Unassigned"
       },
       "name": "\u039a15",
-      "id": "d2257329-4234-4dd6-a51f-8309f4cbc4d7",
+      "id": "fc532ffa-aae9-4509-b75a-f7ba5e7d00c0",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4967,7 +5015,7 @@
         "top_level": "Unassigned"
       },
       "name": "\u039a10",
-      "id": "f31e5ecb-2940-4f60-8f30-b36af59833f0",
+      "id": "bc2b6195-fd4b-4d26-a15c-c07087be67c8",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -4990,7 +5038,7 @@
         "top_level": "Unassigned"
       },
       "name": "\u039a7",
-      "id": "5a49ef80-3d4f-430a-bff8-8628f05fe30d",
+      "id": "8fbefdd1-4e3f-4bbb-88a7-f059a57ee5f8",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -5013,7 +5061,7 @@
         "top_level": "Unassigned"
       },
       "name": "\u039a16",
-      "id": "c8401cb6-1294-4f99-af2e-8c4cb504d1f6",
+      "id": "0a0ca6cc-6f3f-4676-ae44-077b78444da0",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -5036,7 +5084,7 @@
         "top_level": "Unassigned"
       },
       "name": "\u039a11",
-      "id": "7a6cc32a-f0be-4db6-9d1b-7006770ca35f",
+      "id": "ea07ef4a-f1bb-44a1-82de-3dd721be6355",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -5059,7 +5107,7 @@
         "top_level": "Unassigned"
       },
       "name": "\u039a8",
-      "id": "532200c0-495c-4d04-a7e9-33f643c5ab41",
+      "id": "28d127ff-b9da-410f-92ab-8cdf8aec86bd",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -5080,8 +5128,8 @@
         "section": "rectangular",
         "level": "Ground"
       },
-      "name": "\u039415",
-      "id": "7ea29ef7-595b-4e5b-9da2-f2f737fe2b14",
+      "name": "\u039413",
+      "id": "09432766-9f08-4fc5-a966-ad22362b3584",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -5103,7 +5151,7 @@
         "level": "Ground"
       },
       "name": "\u03946",
-      "id": "2122780f-6623-4aa8-8733-1b4283ca791c",
+      "id": "f9932cd7-73e7-4456-9d7b-0a4b62e08cda",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -5125,29 +5173,7 @@
         "level": "Ground"
       },
       "name": "\u03941",
-      "id": "877c13dd-ecab-4447-8f94-1209f5ff853c",
-      "parent_id": null,
-      "locked": false,
-      "visible": true,
-      "revision": 0
-    },
-    {
-      "kind": "structural_beam",
-      "params": {
-        "x1": 3.0,
-        "y1": 0.0,
-        "x2": 3.0,
-        "y2": 7.0,
-        "z": 2.2,
-        "width": 0.25,
-        "height": 0.5,
-        "role": "structural",
-        "construction": "reinforced_concrete",
-        "section": "rectangular",
-        "level": "Ground"
-      },
-      "name": "\u03948",
-      "id": "5abed19c-2477-40e9-8917-561fed7a354d",
+      "id": "2965863f-d9eb-44de-89d9-5b96a534ea4f",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -5169,29 +5195,7 @@
         "level": "Ground"
       },
       "name": "\u03943",
-      "id": "eefb355b-0828-4bd5-913b-5a6605a89098",
-      "parent_id": null,
-      "locked": false,
-      "visible": true,
-      "revision": 0
-    },
-    {
-      "kind": "structural_beam",
-      "params": {
-        "x1": 7.0,
-        "y1": 0.0,
-        "x2": 7.0,
-        "y2": 7.0,
-        "z": 2.2,
-        "width": 0.25,
-        "height": 0.5,
-        "role": "structural",
-        "construction": "reinforced_concrete",
-        "section": "rectangular",
-        "level": "Ground"
-      },
-      "name": "\u039410",
-      "id": "32230e94-8903-4edb-8835-4be201b73555",
+      "id": "1e02645f-ddeb-4056-adcd-bfc761f05af5",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -5213,7 +5217,7 @@
         "level": "Ground"
       },
       "name": "\u03945",
-      "id": "58fa4aaa-2fec-4688-b75d-93b422084f96",
+      "id": "dba96357-73c6-4366-998c-6cca4edbbf37",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -5234,8 +5238,8 @@
         "section": "rectangular",
         "level": "Ground"
       },
-      "name": "\u039418",
-      "id": "25dacdb3-266d-4792-8339-c020c3e8498b",
+      "name": "\u039415",
+      "id": "1d432720-b7e3-4af5-ace7-8dfecf8fb961",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -5256,8 +5260,8 @@
         "section": "rectangular",
         "level": "Ground"
       },
-      "name": "\u039414",
-      "id": "8c5d481a-ea7e-4d51-80a6-b7422c5d425a",
+      "name": "\u039412",
+      "id": "cb8e0972-9eb6-4d08-9495-5e2dd1f7afa8",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -5278,8 +5282,8 @@
         "section": "rectangular",
         "level": "Ground"
       },
-      "name": "\u039412",
-      "id": "ddcb110f-f19a-43c5-acbb-56b5406d53d0",
+      "name": "\u039410",
+      "id": "2efb2d4c-11c8-434c-a396-88413083bf96",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -5300,8 +5304,8 @@
         "section": "rectangular",
         "level": "Ground"
       },
-      "name": "\u039419",
-      "id": "2d7d30ea-b3d8-4168-a1f4-43904a515097",
+      "name": "\u039416",
+      "id": "10520c06-120e-44a7-9f98-cb55586cad12",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -5322,8 +5326,8 @@
         "section": "rectangular",
         "level": "Ground"
       },
-      "name": "\u039420",
-      "id": "91d166a3-7e6e-414d-9635-6d19ac475433",
+      "name": "\u039417",
+      "id": "835f9497-6615-474e-87ad-ea398214a7d1",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -5344,8 +5348,8 @@
         "section": "rectangular",
         "level": "Ground"
       },
-      "name": "\u039421",
-      "id": "d8bb211e-3b1a-4cdf-863b-9404de4094ff",
+      "name": "\u039418",
+      "id": "800b2f73-91ca-4884-a2ee-de5801884cbc",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -5366,30 +5370,8 @@
         "section": "rectangular",
         "level": "Ground"
       },
-      "name": "\u039422",
-      "id": "07d2d34f-c42f-4a98-bfce-e78de280004b",
-      "parent_id": null,
-      "locked": false,
-      "visible": true,
-      "revision": 0
-    },
-    {
-      "kind": "structural_beam",
-      "params": {
-        "x1": 0.0,
-        "y1": 4.5,
-        "x2": 11.0,
-        "y2": 4.5,
-        "z": 2.2,
-        "width": 0.25,
-        "height": 0.5,
-        "role": "structural",
-        "construction": "reinforced_concrete",
-        "section": "rectangular",
-        "level": "Ground"
-      },
-      "name": "\u039416",
-      "id": "b3164334-d69c-44c8-a07b-423d13244697",
+      "name": "\u039419",
+      "id": "26bed50b-b012-4693-a0e4-3382735bc444",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -5410,8 +5392,8 @@
         "section": "rectangular",
         "level": "Ground"
       },
-      "name": "\u039417",
-      "id": "29dd10ef-b1cb-4d10-b488-6fdd7ea9c739",
+      "name": "\u039414",
+      "id": "d3b766e7-4570-4490-87e9-a80b413e7e21",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -5433,7 +5415,7 @@
         "level": "Ground"
       },
       "name": "\u03947",
-      "id": "d892f23d-4e6a-41f5-a96b-2ce9aef0eb53",
+      "id": "dcb84566-91a1-44ca-8705-92f4fece2f71",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -5454,8 +5436,8 @@
         "section": "rectangular",
         "level": "Ground"
       },
-      "name": "\u03949",
-      "id": "f29db569-9ce4-4e3d-b1a3-07ddc7371f3c",
+      "name": "\u03948",
+      "id": "d7c1b8d1-0c13-4de6-81f3-e19a58424aa3",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -5476,8 +5458,8 @@
         "section": "rectangular",
         "level": "Ground"
       },
-      "name": "\u039411",
-      "id": "4061c480-4f40-418a-a86e-522fd0cf53ce",
+      "name": "\u03949",
+      "id": "52ff35fb-8ec5-487f-b46d-3e24ce16df9d",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -5498,8 +5480,8 @@
         "section": "rectangular",
         "level": "Ground"
       },
-      "name": "\u039413",
-      "id": "0ac19472-11ef-4f1f-ac33-117e84547be1",
+      "name": "\u039411",
+      "id": "850ffe1b-e734-4cc3-8014-cba5c3ff4892",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -5521,7 +5503,7 @@
         "level": "Ground"
       },
       "name": "\u03942",
-      "id": "38d13c25-fb18-4dd9-a528-cf00a934a127",
+      "id": "8a1f6445-3262-41fb-b11e-b0f914f9b0e4",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -5543,7 +5525,7 @@
         "level": "Ground"
       },
       "name": "\u03944",
-      "id": "b8de80f9-7e31-4642-9f7f-a0e1a4cb8b74",
+      "id": "277167ce-7136-46de-9834-49d92f2bdca0",
       "parent_id": null,
       "locked": false,
       "visible": true,
@@ -5558,8 +5540,8 @@
         "sill": 0.0
       },
       "name": "\u03a0\u03cc\u03c1\u03c4\u03b1 1",
-      "id": "9cd9d07c-36c7-49f4-916c-3dfeda562856",
-      "parent_id": "9a908f74-654c-401f-a475-8855fd2d16a9",
+      "id": "1a98bb20-e5c3-4a05-83cd-95b774d79139",
+      "parent_id": "4f1f240d-56c1-45cd-bac2-ef2062d226cc",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -5573,8 +5555,8 @@
         "sill": 0.9
       },
       "name": "\u03a0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf 1",
-      "id": "61706ace-1d3b-4a97-89f9-acff3df50eac",
-      "parent_id": "9a908f74-654c-401f-a475-8855fd2d16a9",
+      "id": "0b89ba0a-e149-4293-87ea-819fd3b5dc16",
+      "parent_id": "4f1f240d-56c1-45cd-bac2-ef2062d226cc",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -5588,8 +5570,8 @@
         "sill": 0.0
       },
       "name": "\u03a0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf 2",
-      "id": "3a7ac8d9-8bfc-4ad4-9da5-1fbb54c19e7b",
-      "parent_id": "9a908f74-654c-401f-a475-8855fd2d16a9",
+      "id": "42c4b5a6-e510-49d1-b84d-43fc1408710e",
+      "parent_id": "4f1f240d-56c1-45cd-bac2-ef2062d226cc",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -5603,8 +5585,8 @@
         "sill": 0.9
       },
       "name": "\u03a0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf 3",
-      "id": "50f8c564-1a80-4edf-8f70-1a8b683ecd0d",
-      "parent_id": "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+      "id": "111eb976-e3e3-40c7-b3be-e2f0e10b8774",
+      "parent_id": "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -5618,8 +5600,8 @@
         "sill": 0.9
       },
       "name": "\u03a0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf 4",
-      "id": "7a0f7cc9-1768-4392-8518-bb527aab85e7",
-      "parent_id": "9a908f74-654c-401f-a475-8855fd2d16a9",
+      "id": "56286d06-0507-49db-8296-2f7374903e08",
+      "parent_id": "4f1f240d-56c1-45cd-bac2-ef2062d226cc",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -5633,8 +5615,8 @@
         "sill": 0.9
       },
       "name": "\u03a0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf 5",
-      "id": "d8f0fa13-2e39-4805-bb76-32a1f87740f4",
-      "parent_id": "85e9ce2a-666d-4851-be89-d06a4fa6c7b6",
+      "id": "6dc788da-c899-4317-9d19-bc7d4356fb9d",
+      "parent_id": "c2d502d6-ae1f-44a7-9377-914e12672f85",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -5648,8 +5630,8 @@
         "sill": 0.9
       },
       "name": "\u03a0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf 6",
-      "id": "053bc963-6bef-4dfc-b78e-46e2a7470033",
-      "parent_id": "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+      "id": "b5a59909-0b77-42f1-bde5-e42b7c316ba4",
+      "parent_id": "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -5663,8 +5645,8 @@
         "sill": 1.5
       },
       "name": "\u03a0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf 7",
-      "id": "eb319cb2-e2e8-4eb5-aab8-6ec06dcf0dfb",
-      "parent_id": "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf",
+      "id": "fd4f7835-9b58-478d-96dc-c6342a1c45fa",
+      "parent_id": "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -5678,8 +5660,8 @@
         "sill": 1.5
       },
       "name": "\u03a0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf 8",
-      "id": "47b6ce10-8ad7-4936-9ca0-c5d652d13ff0",
-      "parent_id": "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+      "id": "b5db7172-c967-46b9-8477-d0dc2b6e2aff",
+      "parent_id": "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -5693,8 +5675,8 @@
         "sill": 0.9
       },
       "name": "\u03a0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf 9",
-      "id": "e7c6c070-35b4-4cde-8328-da7e97524f0b",
-      "parent_id": "c3e0e226-f0b6-4d66-987b-7e490c10aab4",
+      "id": "2a6030d4-73cb-434d-ad25-0db82434ae37",
+      "parent_id": "ef48d6b7-58e9-4c2d-93c6-7da0fb223061",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -5708,8 +5690,8 @@
         "sill": 0.9
       },
       "name": "\u03a0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf 10",
-      "id": "2deb5dc9-0d59-40fd-b27c-16b9a9f0d820",
-      "parent_id": "c034455e-3150-48db-84c1-dfa224e2f80c",
+      "id": "949078c2-75c4-4b31-b7ef-0984e3b78616",
+      "parent_id": "578228ad-a2ac-4542-86da-ca9a08c98355",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -5723,8 +5705,8 @@
         "sill": 0.9
       },
       "name": "\u03a0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf 11",
-      "id": "81f9e246-d9da-432e-8ede-ee8580fbef1e",
-      "parent_id": "c034455e-3150-48db-84c1-dfa224e2f80c",
+      "id": "06e30efc-bcb3-409a-8bd7-bd93bfc8f408",
+      "parent_id": "578228ad-a2ac-4542-86da-ca9a08c98355",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -5738,8 +5720,8 @@
         "sill": 0.9
       },
       "name": "\u03a0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf 12",
-      "id": "62bef57c-8a2b-43b7-9a48-9eccec7a30d1",
-      "parent_id": "08bd94fc-b4e9-4cb9-b08a-b0f95cf52a0e",
+      "id": "1ac65ad9-e7e3-446b-bbe0-c9839d1917d0",
+      "parent_id": "a2b1055f-7794-4183-8c85-2e2746e51baf",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -5753,8 +5735,8 @@
         "sill": 0.9
       },
       "name": "\u03a0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf 13",
-      "id": "7397babe-3a12-4538-b46f-2716f492aecc",
-      "parent_id": "08bd94fc-b4e9-4cb9-b08a-b0f95cf52a0e",
+      "id": "a8de6bcc-9d21-4abb-a224-909aa5c28fb0",
+      "parent_id": "a2b1055f-7794-4183-8c85-2e2746e51baf",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -5768,8 +5750,8 @@
         "sill": 0.9
       },
       "name": "\u03a0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf 14",
-      "id": "4822a0de-a47e-4e89-a0c0-40537cf50eca",
-      "parent_id": "c034455e-3150-48db-84c1-dfa224e2f80c",
+      "id": "60758e70-00f8-4386-ac18-544616e1d656",
+      "parent_id": "578228ad-a2ac-4542-86da-ca9a08c98355",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -5783,8 +5765,8 @@
         "sill": 0.0
       },
       "name": "\u03a0\u03cc\u03c1\u03c4\u03b1 2",
-      "id": "0f948fd5-c81c-4ceb-8ed6-422ad26abacc",
-      "parent_id": "38b50f1f-4cc1-4f6f-be30-eab824aa5874",
+      "id": "e17c447e-fcb4-4f5e-b757-4fb3cfde3d78",
+      "parent_id": "609aa24b-6a36-47fe-ba42-fdeb3501d0de",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -5798,8 +5780,8 @@
         "sill": 0.0
       },
       "name": "\u03a0\u03cc\u03c1\u03c4\u03b1 3",
-      "id": "31f1311d-c239-49ec-b26b-5a5d64304c46",
-      "parent_id": "91360ebf-255c-4d86-b090-55934ecf4578",
+      "id": "eacb0186-1d9c-489c-b33e-ce5097c2f2e0",
+      "parent_id": "26fb35a0-3591-4289-918a-3d3169c582aa",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -5813,8 +5795,8 @@
         "sill": 0.0
       },
       "name": "\u03a0\u03cc\u03c1\u03c4\u03b1 4",
-      "id": "55c4afe2-ff44-44ec-831e-aa03de2d447a",
-      "parent_id": "91360ebf-255c-4d86-b090-55934ecf4578",
+      "id": "1d3d7da4-c925-49cc-974c-840921d9bfdc",
+      "parent_id": "26fb35a0-3591-4289-918a-3d3169c582aa",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -5828,8 +5810,8 @@
         "sill": 0.0
       },
       "name": "\u03a0\u03cc\u03c1\u03c4\u03b1 5",
-      "id": "84da33d4-24f7-4da1-a171-38e3edcbed1c",
-      "parent_id": "c86ae2f1-e68a-45b5-b894-f6eef313672e",
+      "id": "59902fed-136e-4453-925b-450367621109",
+      "parent_id": "017ec360-3196-4328-b96d-ce57f225bb27",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -5843,8 +5825,8 @@
         "sill": 0.0
       },
       "name": "\u03a0\u03cc\u03c1\u03c4\u03b1 6",
-      "id": "f2e2a221-2cd3-4d56-ba88-76d55e90ffce",
-      "parent_id": "c86ae2f1-e68a-45b5-b894-f6eef313672e",
+      "id": "ea65624f-dfd3-4ae5-a333-c8325c3ff3d0",
+      "parent_id": "017ec360-3196-4328-b96d-ce57f225bb27",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -5858,8 +5840,8 @@
         "sill": 0.0
       },
       "name": "\u03a0\u03cc\u03c1\u03c4\u03b1 7",
-      "id": "4b36182b-fd00-46a4-9a15-fa7abbe2bb88",
-      "parent_id": "1ed95a42-a37e-45f8-a536-f1d3045d1347",
+      "id": "be51e107-e9fe-413c-a7a2-39535b8bcadc",
+      "parent_id": "0caa6c23-b048-4f0f-8650-6bc523348a18",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -5873,8 +5855,8 @@
         "sill": 0.0
       },
       "name": "\u03a0\u03cc\u03c1\u03c4\u03b1 8",
-      "id": "5948a361-4203-40df-a910-8f60435e20ba",
-      "parent_id": "1ed95a42-a37e-45f8-a536-f1d3045d1347",
+      "id": "49879435-22e8-4992-bf1b-3b0ea7ae1b0f",
+      "parent_id": "0caa6c23-b048-4f0f-8650-6bc523348a18",
       "locked": false,
       "visible": true,
       "revision": 0
@@ -5888,58 +5870,58 @@
         "sill": 0.0
       },
       "name": "\u03a0\u03cc\u03c1\u03c4\u03b1 9",
-      "id": "e5d0b67d-0ead-4190-86b5-d06bbe51b994",
-      "parent_id": "986303d3-a0e4-4603-bb1a-1bce26413f16",
+      "id": "d106f0c0-949a-4ee0-a562-e069d3c6dcfd",
+      "parent_id": "a04f53cf-f477-41df-85e2-cc5c567abfe2",
       "locked": false,
       "visible": true,
       "revision": 0
     }
   ],
   "dependencies": {
-    "9a908f74-654c-401f-a475-8855fd2d16a9": [
-      "3a7ac8d9-8bfc-4ad4-9da5-1fbb54c19e7b",
-      "61706ace-1d3b-4a97-89f9-acff3df50eac",
-      "7a0f7cc9-1768-4392-8518-bb527aab85e7",
-      "9cd9d07c-36c7-49f4-916c-3dfeda562856"
+    "4f1f240d-56c1-45cd-bac2-ef2062d226cc": [
+      "0b89ba0a-e149-4293-87ea-819fd3b5dc16",
+      "1a98bb20-e5c3-4a05-83cd-95b774d79139",
+      "42c4b5a6-e510-49d1-b84d-43fc1408710e",
+      "56286d06-0507-49db-8296-2f7374903e08"
     ],
-    "c3e0e226-f0b6-4d66-987b-7e490c10aab4": [
-      "47b6ce10-8ad7-4936-9ca0-c5d652d13ff0",
-      "50f8c564-1a80-4edf-8f70-1a8b683ecd0d",
-      "e7c6c070-35b4-4cde-8328-da7e97524f0b"
+    "ef48d6b7-58e9-4c2d-93c6-7da0fb223061": [
+      "111eb976-e3e3-40c7-b3be-e2f0e10b8774",
+      "2a6030d4-73cb-434d-ad25-0db82434ae37",
+      "b5db7172-c967-46b9-8477-d0dc2b6e2aff"
     ],
-    "85e9ce2a-666d-4851-be89-d06a4fa6c7b6": [
-      "d8f0fa13-2e39-4805-bb76-32a1f87740f4"
+    "c2d502d6-ae1f-44a7-9377-914e12672f85": [
+      "6dc788da-c899-4317-9d19-bc7d4356fb9d"
     ],
-    "fc6c8c10-8f15-4a4f-a8e3-64a780ba73cf": [
-      "053bc963-6bef-4dfc-b78e-46e2a7470033",
-      "eb319cb2-e2e8-4eb5-aab8-6ec06dcf0dfb"
+    "7c7e201c-0fa1-4c0d-96ae-fc3c2042a760": [
+      "b5a59909-0b77-42f1-bde5-e42b7c316ba4",
+      "fd4f7835-9b58-478d-96dc-c6342a1c45fa"
     ],
-    "c034455e-3150-48db-84c1-dfa224e2f80c": [
-      "2deb5dc9-0d59-40fd-b27c-16b9a9f0d820",
-      "4822a0de-a47e-4e89-a0c0-40537cf50eca",
-      "81f9e246-d9da-432e-8ede-ee8580fbef1e"
+    "578228ad-a2ac-4542-86da-ca9a08c98355": [
+      "06e30efc-bcb3-409a-8bd7-bd93bfc8f408",
+      "60758e70-00f8-4386-ac18-544616e1d656",
+      "949078c2-75c4-4b31-b7ef-0984e3b78616"
     ],
-    "08bd94fc-b4e9-4cb9-b08a-b0f95cf52a0e": [
-      "62bef57c-8a2b-43b7-9a48-9eccec7a30d1",
-      "7397babe-3a12-4538-b46f-2716f492aecc"
+    "a2b1055f-7794-4183-8c85-2e2746e51baf": [
+      "1ac65ad9-e7e3-446b-bbe0-c9839d1917d0",
+      "a8de6bcc-9d21-4abb-a224-909aa5c28fb0"
     ],
-    "38b50f1f-4cc1-4f6f-be30-eab824aa5874": [
-      "0f948fd5-c81c-4ceb-8ed6-422ad26abacc"
+    "609aa24b-6a36-47fe-ba42-fdeb3501d0de": [
+      "e17c447e-fcb4-4f5e-b757-4fb3cfde3d78"
     ],
-    "91360ebf-255c-4d86-b090-55934ecf4578": [
-      "31f1311d-c239-49ec-b26b-5a5d64304c46",
-      "55c4afe2-ff44-44ec-831e-aa03de2d447a"
+    "26fb35a0-3591-4289-918a-3d3169c582aa": [
+      "1d3d7da4-c925-49cc-974c-840921d9bfdc",
+      "eacb0186-1d9c-489c-b33e-ce5097c2f2e0"
     ],
-    "c86ae2f1-e68a-45b5-b894-f6eef313672e": [
-      "84da33d4-24f7-4da1-a171-38e3edcbed1c",
-      "f2e2a221-2cd3-4d56-ba88-76d55e90ffce"
+    "017ec360-3196-4328-b96d-ce57f225bb27": [
+      "59902fed-136e-4453-925b-450367621109",
+      "ea65624f-dfd3-4ae5-a333-c8325c3ff3d0"
     ],
-    "1ed95a42-a37e-45f8-a536-f1d3045d1347": [
-      "4b36182b-fd00-46a4-9a15-fa7abbe2bb88",
-      "5948a361-4203-40df-a910-8f60435e20ba"
+    "0caa6c23-b048-4f0f-8650-6bc523348a18": [
+      "49879435-22e8-4992-bf1b-3b0ea7ae1b0f",
+      "be51e107-e9fe-413c-a7a2-39535b8bcadc"
     ],
-    "986303d3-a0e4-4603-bb1a-1bce26413f16": [
-      "e5d0b67d-0ead-4190-86b5-d06bbe51b994"
+    "a04f53cf-f477-41df-85e2-cc5c567abfe2": [
+      "d106f0c0-949a-4ee0-a562-e069d3c6dcfd"
     ]
   },
   "levels": {
@@ -5966,46 +5948,46 @@
   "materials": {},
   "constructions": {},
   "room_data": {
-    "f0bab706-95b9-44e6-9787-8c0cba9aaa27": {
+    "0b713403-5b0f-4e74-b0ad-80e754780e1e": {
       "name": "\u03a3\u03b1\u03bb\u03cc\u03bd\u03b9 \u2013 \u03ba\u03bf\u03c5\u03b6\u03af\u03bd\u03b1",
       "use": "\u03a3\u03b1\u03bb\u03cc\u03bd\u03b9 \u2013 \u03ba\u03bf\u03c5\u03b6\u03af\u03bd\u03b1"
     },
-    "5a04658a-dab3-4691-9d18-f85c6679978c": {
+    "9b89b625-ed54-4191-b4b8-bf5241fa2f2f": {
       "name": "\u03a5\u03c0\u03bd\u03bf\u03b4\u03c9\u03bc\u03ac\u03c4\u03b9\u03bf 1",
       "use": "\u03a5\u03c0\u03bd\u03bf\u03b4\u03c9\u03bc\u03ac\u03c4\u03b9\u03bf 1"
     },
-    "504801a8-91f6-4465-887f-f1e7cbeb32f6": {
+    "31067301-f692-4933-b2b2-28ea22fc8962": {
       "name": "\u0393\u03c1\u03b1\u03c6\u03b5\u03af\u03bf",
       "use": "\u0393\u03c1\u03b1\u03c6\u03b5\u03af\u03bf"
     },
-    "2a39f6a1-c42f-4cec-86f8-5371ff1cfe01": {
+    "6b3e8663-8fc8-4a7e-8bd5-49150fbc1052": {
       "name": "\u039c\u03c0\u03ac\u03bd\u03b9\u03bf 1",
       "use": "\u039c\u03c0\u03ac\u03bd\u03b9\u03bf 1"
     },
-    "25129b97-2d2b-4166-a21d-145d133ffd23": {
+    "7d570bc5-0b33-4849-9b69-5e34e08f4e5a": {
       "name": "\u0394\u03b9\u03ac\u03b4\u03c1\u03bf\u03bc\u03bf\u03c2",
       "use": "\u0394\u03b9\u03ac\u03b4\u03c1\u03bf\u03bc\u03bf\u03c2"
     },
-    "98c3601c-ae88-427d-a698-692140dceba5": {
+    "1089df26-020d-4a12-a2e3-16e0125acbae": {
       "name": "\u039c\u03c0\u03ac\u03bd\u03b9\u03bf 2",
       "use": "\u039c\u03c0\u03ac\u03bd\u03b9\u03bf 2"
     },
-    "861b769c-8e69-49a6-bef7-c74bab5cbe20": {
+    "bdfdc1a1-45b2-4d20-b65f-3a1d532c0ca6": {
       "name": "\u03a5\u03c0\u03bd\u03bf\u03b4\u03c9\u03bc\u03ac\u03c4\u03b9\u03bf 2",
       "use": "\u03a5\u03c0\u03bd\u03bf\u03b4\u03c9\u03bc\u03ac\u03c4\u03b9\u03bf 2"
     },
-    "be0e510b-a199-4792-b07b-2c81a434c248": {
+    "069169d3-e8fd-4fbd-a760-e768d47ad146": {
       "name": "\u03a0\u03bb\u03c5\u03c3\u03c4\u03b1\u03c1\u03b9\u03cc",
       "use": "\u03a0\u03bb\u03c5\u03c3\u03c4\u03b1\u03c1\u03b9\u03cc"
     },
-    "2073cdba-2077-4d5c-974f-f8e288199910": {
+    "de525f12-1baa-4826-9498-a8d9445b480b": {
       "name": "\u03a5\u03c0\u03bd\u03bf\u03b4\u03c9\u03bc\u03ac\u03c4\u03b9\u03bf 3",
       "use": "\u03a5\u03c0\u03bd\u03bf\u03b4\u03c9\u03bc\u03ac\u03c4\u03b9\u03bf 3"
     }
   },
   "room_bindings": {
-    "db3fdf31-aebe-4c1b-b8cf-a3a07a65adbb": {
-      "signature": "room-f3d1fe066c01078f",
+    "ed750629-a205-4620-ad8d-93e378eebc2c": {
+      "signature": "room-df5e59f22f13de99",
       "polygon": [
         [
           0.0,
@@ -6035,8 +6017,8 @@
       "z": 0.0,
       "status": "unclosed"
     },
-    "2fa2df23-6e46-4699-a0f2-e1e016ca036c": {
-      "signature": "room-ea2801a5c4890b20",
+    "6e5f7e1f-a5b6-4325-9de7-b777349e1d9c": {
+      "signature": "room-261de19f434374d2",
       "polygon": [
         [
           7.0,
@@ -6058,8 +6040,8 @@
       "z": 0.0,
       "status": "unclosed"
     },
-    "1c69ce5e-8ac0-40df-ab5e-9be0b44f027c": {
-      "signature": "room-b979e2145ed0a0bc",
+    "858f55de-898b-48a1-9028-abfd917abf2d": {
+      "signature": "room-1b008442077b8b68",
       "polygon": [
         [
           0.0,
@@ -6085,8 +6067,8 @@
       "z": 0.0,
       "status": "unclosed"
     },
-    "4e80e496-a404-4398-8b5b-c6bd66e58a8e": {
-      "signature": "room-22bc7a393635b539",
+    "3fa4e6d2-4df8-48d9-a31d-9c9169c109d5": {
+      "signature": "room-60ab62f98a5d9c82",
       "polygon": [
         [
           8.0,
@@ -6108,8 +6090,8 @@
       "z": 0.0,
       "status": "unclosed"
     },
-    "f0bab706-95b9-44e6-9787-8c0cba9aaa27": {
-      "signature": "room-b9b347a7b29c8d74",
+    "0b713403-5b0f-4e74-b0ad-80e754780e1e": {
+      "signature": "room-f264a8d253ecf462",
       "polygon": [
         [
           0.0,
@@ -6147,8 +6129,8 @@
       "z": 0.0,
       "status": "enclosed"
     },
-    "f2126d16-4bbd-42f2-aa89-f8c53ec608d9": {
-      "signature": "room-752960243f06e168",
+    "0863300c-0bdd-458d-8748-8e8640948867": {
+      "signature": "room-4bf130e854f9247e",
       "polygon": [
         [
           14.0,
@@ -6170,8 +6152,8 @@
       "z": 0.0,
       "status": "unclosed"
     },
-    "5a04658a-dab3-4691-9d18-f85c6679978c": {
-      "signature": "room-1af7a32bb5482153",
+    "9b89b625-ed54-4191-b4b8-bf5241fa2f2f": {
+      "signature": "room-a70bf4e51f47abdf",
       "polygon": [
         [
           8.0,
@@ -6197,8 +6179,8 @@
       "z": 0.0,
       "status": "enclosed"
     },
-    "2a39f6a1-c42f-4cec-86f8-5371ff1cfe01": {
-      "signature": "room-6a27e7ba2bd70633",
+    "6b3e8663-8fc8-4a7e-8bd5-49150fbc1052": {
+      "signature": "room-13137a461ae2921b",
       "polygon": [
         [
           14.0,
@@ -6220,8 +6202,8 @@
       "z": 0.0,
       "status": "enclosed"
     },
-    "504801a8-91f6-4465-887f-f1e7cbeb32f6": {
-      "signature": "room-bb0823f3e4b1f224",
+    "31067301-f692-4933-b2b2-28ea22fc8962": {
+      "signature": "room-4cf909d0a21051ff",
       "polygon": [
         [
           11.0,
@@ -6243,8 +6225,8 @@
       "z": 0.0,
       "status": "enclosed"
     },
-    "a27466ec-b31e-4225-9397-c95c838337d0": {
-      "signature": "room-73665c6b2871b56b",
+    "805eeb21-3c49-42db-be73-266bbe22f1a3": {
+      "signature": "room-fdc7afb322db2f62",
       "polygon": [
         [
           3.000000000000001,
@@ -6266,8 +6248,8 @@
       "z": 0.0,
       "status": "unclosed"
     },
-    "5d3b825d-12c2-4c97-9633-858dc8e7f3e3": {
-      "signature": "room-ca711efe3b174357",
+    "41ba7b23-2948-4e2a-bb96-2bab73f483c9": {
+      "signature": "room-3dac61b9ff666528",
       "polygon": [
         [
           7.0,
@@ -6289,8 +6271,8 @@
       "z": 0.0,
       "status": "unclosed"
     },
-    "25129b97-2d2b-4166-a21d-145d133ffd23": {
-      "signature": "room-f4df57ff832fc271",
+    "7d570bc5-0b33-4849-9b69-5e34e08f4e5a": {
+      "signature": "room-a3426d13a8ca6840",
       "polygon": [
         [
           4.200000000000001,
@@ -6320,8 +6302,8 @@
       "z": 0.0,
       "status": "enclosed"
     },
-    "5da7a29e-a784-4d44-803e-d38e2b114718": {
-      "signature": "room-f11bba518534370a",
+    "fbbc4142-528c-49e5-baae-fda7e1b677e6": {
+      "signature": "room-c066cd9bcce438b7",
       "polygon": [
         [
           7.0,
@@ -6343,8 +6325,8 @@
       "z": 0.0,
       "status": "unclosed"
     },
-    "98c3601c-ae88-427d-a698-692140dceba5": {
-      "signature": "room-73083d944df54666",
+    "1089df26-020d-4a12-a2e3-16e0125acbae": {
+      "signature": "room-a8193d1553af2441",
       "polygon": [
         [
           0.0,
@@ -6366,8 +6348,8 @@
       "z": 0.0,
       "status": "enclosed"
     },
-    "861b769c-8e69-49a6-bef7-c74bab5cbe20": {
-      "signature": "room-5025510eadf3af6b",
+    "bdfdc1a1-45b2-4d20-b65f-3a1d532c0ca6": {
+      "signature": "room-87ef0572f3d8af81",
       "polygon": [
         [
           3.000000000000001,
@@ -6389,8 +6371,8 @@
       "z": 0.0,
       "status": "enclosed"
     },
-    "be0e510b-a199-4792-b07b-2c81a434c248": {
-      "signature": "room-aa0553324f1dd7fd",
+    "069169d3-e8fd-4fbd-a760-e768d47ad146": {
+      "signature": "room-1041176e15e6509b",
       "polygon": [
         [
           7.0,
@@ -6412,8 +6394,8 @@
       "z": 0.0,
       "status": "enclosed"
     },
-    "2073cdba-2077-4d5c-974f-f8e288199910": {
-      "signature": "room-082d6e2a0b9157f0",
+    "de525f12-1baa-4826-9498-a8d9445b480b": {
+      "signature": "room-79ee8d2d926e844d",
       "polygon": [
         [
           7.000000000000001,
