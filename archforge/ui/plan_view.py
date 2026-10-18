@@ -308,7 +308,8 @@ class PlanView(QGraphicsView):
             self.begin_view_line(ev.a,ev.b);event.accept();return
         self._mouse_down=True;self._press_pos=event.position();hit=self.itemAt(event.position().toPoint())
         if hit in self._handle_items:
-            h=self._handle_items[hit];self._active_handle=h
+            # A press on a handle is a drag of that handle: holding still first is not the long-press pan.
+            h=self._handle_items[hit];self._active_handle=h;self._long_press=None
             self.doc.select([h.entity_id]);self.selectionChangedByView.emit()
             if h.handle=='flip_swing':
                 # Click on the swing arc: opens the other way; Shift/Ctrl = other hinge side (one undo).
