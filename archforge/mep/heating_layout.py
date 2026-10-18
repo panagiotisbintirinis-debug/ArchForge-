@@ -38,6 +38,7 @@ RETURN_OFFSET = 0.06        # plan offset of the return so both pipes stay visib
 HOME_RUN_GAP = 0.05         # side by side home runs from a manifold
 OUTLET_PITCH = 0.05         # manifold outlet spacing (m), drawing/3D only
 LOOP_INSET = 0.15           # loops stay this far from the walls (edge strip + wall)
+MAX_CIRCUIT = 100.0         # m — owner 17/10: an underfloor circuit (loop + its supply and return leads) is at most 100 m
 # Rooms that get no emitter / loop of their own.
 UNHEATED_USES = ("Κλιμακοστάσιο", "Λεβητοστάσιο", "Γκαράζ", "Αποθήκη", "Πισίνα", "Αυλή", "Αίθριο")
 PROVENANCE = ("Χάραξη προσαγωγής/επιστροφής από τις θέσεις των σημείων (συλλέκτες ή δισωλήνιο), βρόχοι ενδοδαπέδιας "
@@ -261,6 +262,10 @@ def route_heating(doc):
                 q = c[1] or _centroid(c[4])
                 m = min(mans, key=lambda m: math.dist((m[1], m[2]), q))
                 groups[m[0]].append(c)
+            if system == "underfloor" and spacing:
+                # A room whose circuit would pass MAX_CIRCUIT gets more loops, in strips side by side.
+                for mid, mx, my, _a in mans:
+                    groups[mid] = [part for c in groups[mid] for part in _split_circuit(grid, c, (mx, my), spacing, report)]
             feeds = {}
             for mid, mx, my, auto in mans:
                 group = groups[mid]
@@ -385,6 +390,48 @@ def _manifold_spot(doc, floor, x, y, rooms, into=0.15):
                 if best is None or d < best[0]:
                     best = (d, q)
     return best[1] if best else (x, y)
+
+
+def _strip(poly, axis, lo, hi):
+    """The part of ``poly`` between ``lo`` and ``hi`` on ``axis`` (0 = x, 1 = y) — Sutherland–Hodgman, two cuts."""
+    def clip(pts, keep, cut):
+        out = []
+        for i in range(len(pts)):
+            a, b = pts[i], pts[(i + 1) % len(pts)]
+            ina, inb = keep(a), keep(b)
+            if ina:
+                out.append(a)
+            if ina != inb:
+                t = (cut - a[axis]) / (b[axis] - a[axis])
+                out.append((a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t))
+        return out
+    pts = clip(list(poly), lambda q: q[axis] >= lo - 1e-9, lo)
+    return clip(pts, lambda q: q[axis] <= hi + 1e-9, hi) if pts else []
+
+
+def _split_circuit(grid, circuit, manifold, spacing, report):
+    """One underfloor circuit per strip of the room, as few as keep each (loop + 2 leads) ≤ MAX_CIRCUIT."""
+    cid, xy, kind, label, poly = circuit
+    xs = [p[0] for p in poly]; ys = [p[1] for p in poly]
+    axis = 0 if max(xs) - min(xs) >= max(ys) - min(ys) else 1
+    lo, hi = (min(xs), max(xs)) if axis == 0 else (min(ys), max(ys))
+    mcell = grid.cell(*manifold)
+    for n in range(1, 21):
+        parts, worst = [], 0.0
+        for k in range(n):
+            strip = _strip(poly, axis, lo + (hi - lo) * k / n, lo + (hi - lo) * (k + 1) / n)
+            if len(strip) < 3:
+                continue
+            entry = _entry_point(strip, manifold)
+            loop = loop_path(strip, entry, spacing)
+            lead = len(grid.route(grid.cell(*entry), {mcell})) * 0.20
+            total = sum(math.dist(a, b) for a, b in zip(loop, loop[1:])) + 2 * lead
+            worst = max(worst, total)
+            parts.append((f"{cid}#{k}" if n > 1 else cid, None, kind, label, strip))
+        if worst <= MAX_CIRCUIT:
+            return parts
+    report["warnings"].append(f"Ενδοδαπέδια {label}: κύκλωμα {worst:.0f} m > {MAX_CIRCUIT:.0f} m και με 20 βρόχους")
+    return parts
 
 
 def _centroid(poly):

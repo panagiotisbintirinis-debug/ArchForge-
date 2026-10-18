@@ -84,12 +84,12 @@ def test_underfloor_needs_a_declared_spacing_then_lays_a_loop_per_room_from_the_
     assert not r['loops'] and any('βήμα' in w for w in r['report']['warnings'])    # nothing assumed
     st.execute(UpdateEntity(src.id, {'loop_spacing': 0.15}))
     r = route_heating(doc)
-    assert len(r['loops']) == 2 and r['report']['loop_m'] > 2 * 20 / 0.15 * 0.8
+    assert len(r['loops']) == 4 and r['report']['loop_m'] > 2 * 20 / 0.15 * 0.8   # 24 m² → 2 loops each (≤ 100 m)
     assert set(r['report']['length_by_dn']) == {16, 20}
     (m,) = r['manifolds']
-    assert m['underfloor'] and m['mixing'] and len(m['outlets']) == 2
+    assert m['underfloor'] and m['mixing'] and len(m['outlets']) == 4
     parts = fittings(r)
-    assert parts['heating.fitting.flow_meter'][1] == 2 and parts['heating.fitting.mixing_group'][1] == 1
+    assert parts['heating.fitting.flow_meter'][1] == 4 and parts['heating.fitting.mixing_group'][1] == 1
     assert parts['heating.underfloor.board'][1] == pytest.approx(48.0)
     # A heat pump already gives low-temperature water: no mixing group.
     st.execute(UpdateEntity(src.id, {'point_type': 'heat_pump'}))
@@ -144,3 +144,20 @@ def test_menu_tools_place_points_and_the_plan_and_3d_show_the_network():
         assert route_heating(again)['report']['supply_m'] == route_heating(window.doc)['report']['supply_m']
     finally:
         window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_underfloor_circuits_stay_within_100_m_with_their_leads():
+    """Owner 17/10: «100 m μέγιστο μήκος» — a big room gets more loops, side by side, each ≤ 100 m with its leads."""
+    from archforge.mep.heating_layout import MAX_CIRCUIT
+    doc = Document(); st = CommandStack(doc)
+    for x1, y1, x2, y2 in ((0, 0, 12, 0), (12, 0, 12, 8), (12, 8, 0, 8), (0, 8, 0, 0)):     # one 96 m² room
+        st.execute(AddEntity(Entity('wall', {'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2, 'z': 0.0, 'height': 2.7, 'thickness': 0.2})))
+    _point(st, 'boiler', 11.5, 7.5, heating_system='underfloor', loop_spacing=0.15)
+    r = route_heating(doc)
+    assert len(r['loops']) >= 6 and not r['report']['warnings']
+    (m,) = r['manifolds']
+    assert len(m['outlets']) == len(r['loops'])                              # one outlet (υδρονομέας) per loop
+    for loop in r['loops']:
+        lead = abs(loop['entry'][0] - m['x']) + abs(loop['entry'][1] - m['y'])
+        assert loop['length_m'] + 2 * lead <= MAX_CIRCUIT + 1.0
+    assert sum(l['area_m2'] for l in r['loops']) == pytest.approx(96.0, abs=0.1)
