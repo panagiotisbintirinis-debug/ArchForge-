@@ -103,7 +103,7 @@ def conduit_map(doc, route=None):
         key = cid or f"switch:{_key(a)[:2]}"          # a switch leg is a line of its own (switch → its lights)
         edges_of.setdefault(key, set()).add(tuple(sorted((_key(a), _key(b)))))
     if not edges_of:
-        return {"pieces": [], "by_size": {}, "conduits": 0, "warnings": [], "rule": RULE}
+        return {"pieces": [], "by_size": {}, "conduits": 0, "warnings": [], "rule": RULE, "split_boxes": [], "outdoor_m": 0.0}
     # Switch legs: join the pieces of one switch into one line (they start at the same switch box).
     def cond(cid):
         return {float(circuits[cid]["cable_mm2"]): 3} if cid in circuits else {1.5: 2}     # L N PE · switch: L + return
@@ -185,6 +185,10 @@ def conduit_map(doc, route=None):
                 outdoor = _outdoor(doc, mid)
                 dn = size_for(mm2, bends, outdoor)
                 count = 1
+                if dn is None and size_for(mm2, 0, outdoor) is not None:
+                    # Too many bends for the size: a pull box halfway cuts the bends instead of a bigger conduit.
+                    dn = size_for(mm2, 0, outdoor)
+                    split.add(chain[len(chain) // 2])
                 if dn is None:
                     # More than Φ32 carries with these bends: a second conduit (or a pull box to cut the bends).
                     count = 2 if fill(SIZES[-1], mm2) <= 2 else math.ceil(fill(SIZES[-1], mm2))
