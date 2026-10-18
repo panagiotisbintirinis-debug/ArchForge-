@@ -176,7 +176,7 @@ class PlanView(QGraphicsView):
         if self.controller.cycle_option(-1 if event.angleDelta().y()>0 else 1):
             self.redraw();event.accept();return
         from archforge.ui.view_zoom import zoom_about
-        zoom_about(self,event)   # the drawing point under the cursor stays under it
+        zoom_about(self,event)   # the drawing point under the cursor stays under it (touchpad: two fingers pan)
         self._update_label_visibility()
     def _overlay(self,kind,event):
         # Overlay tool (the assistant's kitchen/bath guide lines, fixture drag): gets the mouse first.

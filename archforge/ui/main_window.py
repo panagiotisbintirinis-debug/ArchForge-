@@ -4114,6 +4114,10 @@ class MainWindow(QMainWindow):
         self._refresh_floor_selector()
         self._redraw_views(all_views=True)
         self.refresh_inspector()
+        # An opened project starts framed in the plan (owner 18/10: «το σχέδιο δεν είναι κεντραρισμένο»).
+        from PySide6.QtCore import QTimer
+        from .shortcuts import _zoom_all
+        QTimer.singleShot(0, lambda: _zoom_all(self, quiet=True))
 
     def new_project(self):
         if not self._confirm_destructive_action():

@@ -182,14 +182,15 @@ def _duplicate(w):
         run_object_op(w, eid, 'duplicate')
 
 
-def _zoom_all(w):
+def _zoom_all(w, quiet=False):
     plan = w.plan_view
     rect = None
     for item in plan._entity_items:
         r = item.sceneBoundingRect()
         rect = r if rect is None else rect.united(r)
     if rect is None or rect.isEmpty():
-        w.statusBar().showMessage('Ζουμ σε όλα: η κάτοψη είναι άδεια', 3000)
+        if not quiet:
+            w.statusBar().showMessage('Ζουμ σε όλα: η κάτοψη είναι άδεια', 3000)
         return
     plan.fitInView(rect.adjusted(-1.0, -1.0, 1.0, 1.0), Qt.AspectRatioMode.KeepAspectRatio)
     plan.redraw()
