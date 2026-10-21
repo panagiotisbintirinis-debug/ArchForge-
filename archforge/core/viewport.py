@@ -452,6 +452,33 @@ class PointerController:
             command=auto_floor_command(self.doc,float(self.active.z))
             if command is not None:self.stack.amend(command)
         return committed_id
+    def draw_room_box(self,clear_corners):
+        """Δωμάτιο (ορθογώνιο): the walls around clear (inside) corners, each drawn by the wall tool's own commit
+        (brief thickness, partitions, splits, the storey floor); sides lying on existing walls merge with them.
+        The whole room is one undo step."""
+        from archforge.architecture.room_box import inside_space, plan_room
+        from archforge.project.brief import interior_wall_defaults, wall_defaults
+        z=float(self.doc.work_plane.origin[2])
+        thickness=float(wall_defaults(self.doc)[1])
+        interior=interior_wall_defaults(self.doc)
+        if interior and inside_space(self.doc,clear_corners,z):thickness=float(interior[1])   # a partition
+        sides=plan_room(self.doc,list(clear_corners),z,thickness)
+        if sides is None:raise ValueError('Το δωμάτιο χρειάζεται πλάτος και βάθος')
+        if not sides:raise ValueError('οι τοίχοι υπάρχουν ήδη')
+        since=len(self.stack.done);made=[]
+        try:
+            for a,b in sides:
+                self._begin_wall(None,a[0],a[1],shift=True)        # exact corners: no magnet, no snapping
+                self.active.thickness=thickness
+                self.active.update(*b);made.append(self._commit_wall());self.active=None
+        except Exception:
+            self.active=None
+            while len(self.stack.done)>since:self.stack.undo()
+            self.stack.undone.clear()
+            raise
+        self.stack.squash(since,'Δωμάτιο')
+        self.preview=PreviewState()
+        return made
     def finish_wall_chain(self):
         """End click-click walls: drop the rubber segment, keep the walls already made."""
         if isinstance(self.active,WallDrawTransaction):self.active.cancel()

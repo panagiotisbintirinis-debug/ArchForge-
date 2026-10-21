@@ -138,6 +138,22 @@ def organize_build_menu(window):
 
     # Things with no entry of their own in «Κατασκευή» yet: the drawing tools behind them.
     wall = _tool(window, 'Τοίχος (κλικ στις γωνίες)', 'wall'); wall.setIcon(_icon('wall'))
+    from PySide6.QtGui import QAction
+    from archforge.ui import room_box_tool
+    room_box = QAction('Δωμάτιο (ορθογώνιο)', window); room_box.setIcon(_icon('wall'))
+    room_box.triggered.connect(lambda _=False: room_box_tool.start(window))
+    room_sized = QAction('Δωμάτιο με διαστάσεις…', window)
+    room_sized.triggered.connect(lambda _=False: room_box_tool.start(window, sized=True))
+    window._room_box_action, window._room_sized_action = room_box, room_sized
+    room_resize = QAction('Διαστάσεις δωματίου… (κλικ μέσα του)', window)
+    room_resize.triggered.connect(lambda _=False: room_box_tool.start_resize(window))
+    wall_angle = QAction('Γωνία επιλεγμένου τοίχου…', window)
+    wall_angle.triggered.connect(lambda _=False: room_box_tool.wall_angle(window))
+    walls = _submenu(window, 'Τοίχοι && δωμάτια', 'wall', [wall, room_box, room_sized, None, room_resize, wall_angle])
+    complete = QAction('Ολοκλήρωση κτιρίου…', window); complete.setIcon(_icon('storey'))
+    complete.setToolTip('Δάπεδα, στέγη, κουζίνα/μπάνια, φως-πρίζες, πίνακας, θέρμανση, φέρων — ό,τι λείπει, μία αναίρεση')
+    complete.triggered.connect(lambda _=False: __import__('archforge.ui.complete_building', fromlist=['open_dialog']).open_dialog(window))
+    window._complete_building_action = complete
     joinery = _submenu(window, 'Κουφώματα', 'joinery', [
         _tool(window, 'Πόρτα', 'door'), _tool(window, 'Παράθυρο', 'window'), None,
         _tool(window, 'Άνοιγμα (χωρίς κούφωμα)', 'opening_rect'), _tool(window, 'Τοξωτό άνοιγμα', 'opening_arch')])
@@ -192,7 +208,7 @@ def organize_build_menu(window):
         menu.removeAction(a)
     for a in [x for x in menu.actions()]:
         menu.removeAction(a)                          # old separators
-    order = [wall, joinery, railing, pergola, slabs, roof, ceiling, frame, stairs, cabinets, storeys, site,
+    order = [walls, complete, None, joinery, railing, pergola, slabs, roof, ceiling, frame, stairs, cabinets, storeys, site,
              None, renovation, reports]
     for item in order:
         if item is None:

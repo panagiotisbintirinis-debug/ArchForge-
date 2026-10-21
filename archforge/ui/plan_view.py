@@ -51,7 +51,7 @@ class PlanView(QGraphicsView):
     VIEW_LINE_TOOLS={'view_section':'section','view_camera':'camera'}
     # Single-click site tools: (tool, x, y) handled by the main window.
     sitePointRequested=Signal(str,float,float)
-    SITE_POINT_TOOLS=('terrain_point','plot_point','plant_tree','plant_shrub','library_place','underlay_calibrate','pool_place')
+    SITE_POINT_TOOLS=('terrain_point','plot_point','room_box','room_place','room_resize','plant_tree','plant_shrub','library_place','underlay_calibrate','pool_place')
     # Drag tools for site strips: (tool, x1, y1, x2, y2).
     siteLineRequested=Signal(str,float,float,float,float)
     SITE_LINE_TOOLS=('path_path','path_sidewalk','path_road','pergola_timber','pergola_aluminium','elec_led_strip')
@@ -123,6 +123,9 @@ class PlanView(QGraphicsView):
         # Rulers, scale bar, cursor X/Y, live measures and the empty-project hint, in screen pixels.
         from archforge.ui.plan_overlay import paint_overlay
         painter.save();painter.resetTransform();paint_overlay(self,painter);painter.restore()
+        if self.controller.tool in ('room_box','room_place'):
+            from archforge.ui.room_box_tool import paint_preview
+            paint_preview(self,painter)
     def leaveEvent(self,event):self._cursor_xy=None;self.viewport().update();super().leaveEvent(event)
     # Things that carry other things (slabs, roofs, joists, ground): picked only
     # when nothing more specific (a stair, a cabinet, an MEP point…) is under the cursor.
@@ -305,7 +308,8 @@ class PlanView(QGraphicsView):
             self.begin_view_line(ev.a,ev.b);event.accept();return
         self._mouse_down=True;self._press_pos=event.position();hit=self.itemAt(event.position().toPoint())
         if hit in self._handle_items:
-            h=self._handle_items[hit];self._active_handle=h
+            # A press on a handle is a drag of that handle: holding still first is not the long-press pan.
+            h=self._handle_items[hit];self._active_handle=h;self._long_press=None
             self.doc.select([h.entity_id]);self.selectionChangedByView.emit()
             if h.handle=='flip_swing':
                 # Click on the swing arc: opens the other way; Shift/Ctrl = other hinge side (one undo).
@@ -479,6 +483,9 @@ class PlanView(QGraphicsView):
             from archforge.ui.marking_menu import run as _mm_run
             if self._wall_chain_active():self.controller.finish_wall_chain()   # the rubber segment hung on that wall
             _mm_run(self.marking_menu_window,'plan',None,'mm:wall:delete_last');self.redraw();event.accept();return
+        if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self.controller.tool=='room_box':
+            from archforge.ui.room_box_tool import ask_size
+            ask_size(self);event.accept();return
         if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self.controller.tool=='plot_point':
             self.finish_plot();event.accept();return
         if event.key()==Qt.Key.Key_Escape and getattr(self,'_restore_select',False):

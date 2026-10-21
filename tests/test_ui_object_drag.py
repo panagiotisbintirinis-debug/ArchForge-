@@ -267,3 +267,22 @@ def test_library_carry_for_mep_point_and_railing(window):
     (railing,) = _new(window, before, 'railing')
     (x0, y0), (x1, y1) = [q[:2] for q in railing.params['points']]
     assert abs(x1 - x0) < 1e-6 and abs(y1 - y0) == pytest.approx(2.0)
+
+
+def test_holding_a_handle_still_does_not_turn_into_the_pan(window):
+    """A hesitating press on the rotation handle (longer than the long-press pan delay) still rotates."""
+    plan = window.plan_view
+    obj = Entity('library_object', {'x': 2.0, 'y': 2.0, 'z': 0.0, 'rotation': 0.0, 'width': 1.0, 'depth': .6,
+                                    'height': .8, 'uniform': 1.0, 'asset': _asset('Νιπτήρας με κολόνα')}, name='Νιπτήρας')
+    window.stack.execute(AddEntity(obj))
+    window.doc.select([obj.id])
+    plan.set_tool('select')
+    plan.redraw()
+    plan.centerOn(2.0, 2.0)
+    QApplication.processEvents()
+    handle = next(h for h in plan._handle_items.values() if h.handle == 'rotate')
+    _mouse(plan, 'press', handle.x, handle.y)
+    assert plan._long_press is None                       # no pan pending under a handle
+    _mouse(plan, 'move', 2.66, 2.0)
+    assert plan.controller.preview.kind == 'rotate'
+    _mouse(plan, 'release', 2.66, 2.0)
