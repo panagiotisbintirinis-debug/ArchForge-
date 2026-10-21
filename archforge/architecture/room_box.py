@@ -134,3 +134,96 @@ def inside_space(doc, clear, z):
     cx = sum(x for x, _ in clear) / 4.0
     cy = sum(y for _, y in clear) / 4.0
     return any(inside(f.polygon, cx, cy) for f in doc.active_room_faces(z=z))
+
+
+# ------------------------------------------------------------------ snapping on faces (owner 21/10)
+def face_targets(doc, z):
+    """(corners, lines) of the walls' FACES on this storey — what a room drawn by its clear size lines up with.
+    Corners are where the faces of two joined walls meet (inside and outside corners of every junction); the raw
+    ends of a face are not corners (with thick walls they sit half a wall off the real corner)."""
+    walls = []
+    for e in doc.entities.values():
+        if e.kind != 'wall' or abs(float(e.params.get('z', 0.0)) - z) > 1e-3:
+            continue
+        p = e.params
+        a, b = (float(p['x1']), float(p['y1'])), (float(p['x2']), float(p['y2']))
+        L = math.dist(a, b)
+        if L < 1e-9:
+            continue
+        h = float(p.get('thickness', 0.2)) / 2.0
+        n = (-(b[1] - a[1]) / L * h, (b[0] - a[0]) / L * h)
+        faces = [((a[0] + s_ * n[0], a[1] + s_ * n[1]), (b[0] + s_ * n[0], b[1] + s_ * n[1])) for s_ in (1, -1)]
+        walls.append((a, b, h, faces))
+    lines = [f for *_x, faces in walls for f in faces]
+    corners = []
+    for i, (a1, b1, h1, f1) in enumerate(walls):
+        for a2, b2, h2, f2 in walls[i + 1:]:
+            ends = [q for q in (a1, b1) if any(math.dist(q, r) <= 1e-3 for r in (a2, b2))] or \
+                   [q for q in (a1, b1, a2, b2) if _on_axis(q, a1, b1) and _on_axis(q, a2, b2)]
+            if not ends:
+                continue
+            for p1, q1 in f1:
+                for p2, q2 in f2:
+                    c = _intersect(p1, (q1[0] - p1[0], q1[1] - p1[1]), p2, (q2[0] - p2[0], q2[1] - p2[1]))
+                    if c is not None and min(math.dist(c, e) for e in ends) <= 1.5 * (h1 + h2):
+                        corners.append(c)
+    return corners, lines
+
+
+def _on_axis(q, a, b, tol=1e-3):
+    L = math.dist(a, b)
+    if L < 1e-9:
+        return False
+    t = ((q[0] - a[0]) * (b[0] - a[0]) + (q[1] - a[1]) * (b[1] - a[1])) / (L * L)
+    return -1e-6 <= t <= 1 + 1e-6 and abs((q[0] - a[0]) * (b[1] - a[1]) - (q[1] - a[1]) * (b[0] - a[0])) / L <= tol
+
+
+def snap_point(doc, x, y, z, tol, targets=None):
+    """(x, y, guides, kind): the click on a face corner, else on a face, else lined up (X / Y) with a corner.
+    ``guides`` are the alignment lines to draw [(from, to)]; ``kind`` says what it caught (None: nothing)."""
+    corners, lines = targets or face_targets(doc, z)
+    best = min(corners, key=lambda c: math.dist(c, (x, y)), default=None)
+    # Corners only close by (a third of the reach): with thick walls the inner and outer corners sit near each
+    # other, and a click on a face lined up with one of them is what is meant more often.
+    if best is not None and math.dist(best, (x, y)) <= tol / 3.0:
+        return best[0], best[1], [], 'corner'
+    hit, hd = None, tol
+    for a, b in lines:
+        L2 = (b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2
+        if L2 < 1e-12:
+            continue
+        t = max(0.0, min(1.0, ((x - a[0]) * (b[0] - a[0]) + (y - a[1]) * (b[1] - a[1])) / L2))
+        q = (a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]))
+        d = math.dist(q, (x, y))
+        if d <= hd:
+            hit, hd = q, d
+    gx = min(corners, key=lambda c: abs(c[0] - x), default=None)
+    gy = min(corners, key=lambda c: abs(c[1] - y), default=None)
+    ax = gx is not None and abs(gx[0] - x) <= tol
+    ay = gy is not None and abs(gy[1] - y) <= tol
+    if hit is not None:
+        # On a face, and lined up with a corner along it when one is near.
+        if ax and abs(hit[0] - gx[0]) <= tol:
+            hit = (gx[0], hit[1]) if abs(hit[1] - y) <= tol else hit
+        if ay and abs(hit[1] - gy[1]) <= tol:
+            hit = (hit[0], gy[1]) if abs(hit[0] - x) <= tol else hit
+        return hit[0], hit[1], [], 'face'
+    guides = []
+    if ax:
+        x = gx[0]
+        guides.append((gx, (x, y)))
+    if ay:
+        y = gy[1]
+        guides.append((gy, (x, y)))
+    return x, y, guides, ('guide' if guides else None)
+
+
+def straighten(a, b, step_deg=45.0):
+    """b moved so a→b runs at the nearest multiple of ``step_deg`` (length kept)."""
+    L = math.dist(a, b)
+    if L < 1e-9:
+        return b
+    ang = math.atan2(b[1] - a[1], b[0] - a[0])
+    s = math.radians(step_deg)
+    ang = round(ang / s) * s
+    return (a[0] + math.cos(ang) * L, a[1] + math.sin(ang) * L)

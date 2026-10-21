@@ -174,7 +174,7 @@ def test_plan_scene_preview_keeps_model_and_preview_separate():
     from archforge.core.viewport import PointerController,PointerEvent
     from archforge.core.plan_scene import build_plan_frame
     d=Document();s=CommandStack(d);c=PointerController(d,s);c.grid=None;c.set_tool('wall');c.pointer_down(PointerEvent(0,0));prev=c.pointer_move(PointerEvent(3,0));f=build_plan_frame(d,prev)
-    assert len(d.entities)==0 and len(f.primitives)==1 and f.primitives[0].role=='preview' and abs(f.hud['length']-3)<1e-9
+    assert len(d.entities)==0 and f.primitives and all(p.role=='preview' for p in f.primitives) and f.primitives[0].kind=='line' and abs(f.hud['length']-3)<1e-9
 
 
 def test_locked_selection_has_no_stretch_handles():

@@ -536,6 +536,11 @@ def preview_primitives(preview):
     g=preview.geometry
     if preview.kind=='wall' and g:
         out=[Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),entity_id=preview.entity_id or '',role='preview')]
+        if g.get('thickness'):
+            # The wall's body: on the drawn line's side when drawn by a face, else around it (wall_face.py).
+            from archforge.architecture.wall_face import body_polygon
+            body=body_polygon((g['x1'],g['y1']),(g['x2'],g['y2']),int(g.get('face_side',0) or 0),float(g['thickness']))
+            if body:out.append(Primitive2D('polygon',body,entity_id=preview.entity_id or '',role='preview',meta=(('semantic','wall-body-preview'),)))
         hud=dict(preview.hud or {})
         if 'corner_deg' in hud:
             # Corner mark: an arc from the previous wall to the new one, with the degrees.

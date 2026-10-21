@@ -149,7 +149,22 @@ def organize_build_menu(window):
     room_resize.triggered.connect(lambda _=False: room_box_tool.start_resize(window))
     wall_angle = QAction('Γωνία επιλεγμένου τοίχου…', window)
     wall_angle.triggered.connect(lambda _=False: room_box_tool.wall_angle(window))
-    walls = _submenu(window, 'Τοίχοι && δωμάτια', 'wall', [wall, room_box, room_sized, None, room_resize, wall_angle])
+    from PySide6.QtGui import QActionGroup
+    from archforge.architecture.wall_face import LABELS
+    face_menu = QMenu('Σχεδίαση τοίχου από', window)
+    face_group = QActionGroup(face_menu)
+    current = getattr(window.plan_view.controller, 'wall_face', 'auto')
+    for key in ('auto', 'axis', 'left', 'right'):
+        act = QAction(LABELS[key] + (' (F στη σχεδίαση)' if key == 'left' else ''), face_menu)
+        act.setCheckable(True); act.setChecked(key == current); face_group.addAction(act); face_menu.addAction(act)
+        act.triggered.connect(lambda _=False, k=key: (setattr(window.plan_view.controller, 'wall_face', k),
+                                                      window.statusBar().showMessage(f'Τοίχος από: {LABELS[k]}', 5000)))
+    window._wall_face_menu = face_menu
+    from_underlay = QAction('Τοίχοι από το υπόβαθρο (PDF / DXF)…', window)
+    from_underlay.triggered.connect(lambda _=False: __import__('archforge.ui.walls_from_underlay',
+                                                               fromlist=['run']).run(window))
+    walls = _submenu(window, 'Τοίχοι && δωμάτια', 'wall', [wall, face_menu, None, room_box, room_sized, None,
+                                                            room_resize, wall_angle, None, from_underlay])
     complete = QAction('Ολοκλήρωση κτιρίου…', window); complete.setIcon(_icon('storey'))
     complete.setToolTip('Δάπεδα, στέγη, κουζίνα/μπάνια, φως-πρίζες, πίνακας, θέρμανση, φέρων — ό,τι λείπει, μία αναίρεση')
     complete.triggered.connect(lambda _=False: __import__('archforge.ui.complete_building', fromlist=['open_dialog']).open_dialog(window))

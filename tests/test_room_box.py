@@ -153,3 +153,33 @@ def test_esc_drops_the_draft_and_the_menu_has_the_tools(window):
         if a.menu() is not None:
             walk(a.menu())
     assert 'Δωμάτιο (ορθογώνιο)' in texts and 'Δωμάτιο με διαστάσεις…' in texts and 'Τοίχοι & δωμάτια' in texts
+
+
+def test_a_room_next_door_follows_the_faces_and_lines_up(window):
+    """Owner 21/10: «συνδέοντας το ένα δωμάτιο με το άλλο δεν ακολουθούσε κάποιο οδηγό, έπιανε από όπου ήθελε» —
+    clicks a few cm off land on the neighbour's face corner, and the far side lines up with its corners."""
+    window.plan_view.resetTransform(); window.plan_view.scale(40.0, -40.0)  # 40 px per metre: 14 px ≈ 35 cm
+    window.plan_view.room_size = (4.0, 3.0)
+    room_box_tool.click(window, 'room_place', 0, 0)
+    t = _t(window.doc)
+    # Next door on the east: start a little off the outer face corner, end a little off, depth near the top.
+    window._start_site_tool('room_box', '')
+    for x, y in ((4.0 + t + 0.03, 0.04), (7.03, 0.06), (6.0, 3.06)):
+        room_box_tool.click(window, 'room_box', x, y)
+    assert len(_axis_areas(window.doc)) == 2
+    xs = sorted({round(float(e.params[k]), 3) for e in _walls(window.doc) for k in ('x1', 'x2')})
+    ys = sorted({round(float(e.params[k]), 3) for e in _walls(window.doc) for k in ('y1', 'y2')})
+    assert len(ys) == 2                                                       # top and bottom lined up: one Y each
+    assert len(_walls(window.doc)) == 7                                       # the shared wall once
+
+
+def test_snap_point_corner_face_guide():
+    from archforge.architecture.room_box import snap_point, straighten
+    corners = [(0.0, 0.0), (4.0, 0.0), (4.0, 3.0)]
+    lines = [((0.0, 0.0), (4.0, 0.0))]
+    assert snap_point(None, 4.03, 0.02, 0, .2, (corners, lines))[:2] == (4.0, 0.0)          # corner
+    x, y, _g, kind = snap_point(None, 2.0, 0.1, 0, .2, (corners, lines))
+    assert (x, y, kind) == (2.0, 0.0, 'face')
+    x, y, guides, kind = snap_point(None, 6.0, 2.9, 0, .2, (corners, lines))
+    assert (y, kind) == (3.0, 'guide') and guides                                         # lined up with (4, 3)
+    assert straighten((0, 0), (3, 0.2)) == pytest.approx((math.hypot(3, .2), 0.0))
