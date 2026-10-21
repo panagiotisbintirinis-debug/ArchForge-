@@ -873,6 +873,10 @@ class MainWindow(QMainWindow):
         if tool == 'pool_place':
             self._place_pool(x, y)
             return
+        if tool == 'mech_part_place':
+            from archforge.ui.mechanical_tool import place_part
+            place_part(self, x, y)
+            return
         if tool == 'dome_place':
             from archforge.ui.dome_tool import place as place_dome
             place_dome(self, x, y)
@@ -2127,7 +2131,7 @@ class MainWindow(QMainWindow):
             params.setdefault('overhang', 0.0)
         from archforge.architecture.joinery import KEYS as joinery_keys
         from archforge.ui.light_properties import LIGHT_KEYS as light_keys
-        for key, value in (() if entity.kind in ('railing', 'drywall_ceiling', 'section_line', 'camera', 'stair') or slab_tools.is_slab_panel(entity) else params.items()):
+        for key, value in (() if entity.kind in ('railing', 'drywall_ceiling', 'section_line', 'camera', 'stair', 'mechanical_joint') or slab_tools.is_slab_panel(entity) else params.items()):
             if entity.kind in ('door', 'window') and key in joinery_keys:
                 continue  # Κουφώματα: δικές τους γραμμές (ui/opening_properties.py).
             if entity.kind == 'stair' and key == 'plan_numbers':
@@ -2149,6 +2153,9 @@ class MainWindow(QMainWindow):
             from archforge.ui.project_outline import slab_rows
             for label, text in slab_rows(self.doc, entity):
                 self.form.addRow(label, QLabel(text))
+        if entity.kind == 'mechanical_joint':
+            from archforge.ui.mechanical_tool import add_rows as joint_rows
+            joint_rows(self, eid)
         if entity.kind == 'underlay':
             from archforge.ui.underlay_tools import add_rows as underlay_rows
             underlay_rows(self, eid)

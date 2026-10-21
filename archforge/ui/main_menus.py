@@ -182,6 +182,10 @@ def organize_main_menus(window):
     _fill(cad, [_submenu(window, "Βοηθήματα σχεδίασης", aids), None, soon])
     window._cad_menu = cad
 
+    if mep is not None:                                  # mechanisms: parts, hinges, slides (kinematics/)
+        from archforge.ui.mechanical_tool import menu as mechanism_menu
+        mep.addSeparator(); mep.addMenu(mechanism_menu(window))
+
     # --- Κατασκευή: Δομικά ▸, Η/Μ ▸, Έδαφος ▸ as submenus ---
     if build is not None:
         frame = getattr(window, "_mockup_structural_submenu", None)

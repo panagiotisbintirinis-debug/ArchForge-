@@ -398,6 +398,11 @@ def entity_primitive(doc,eid):
             meta=(('semantic','structural_support'),('support_type',p.get('support_type','fixed')),('member_end',p.get('member_end','start'))),
         )
     if e.kind=='box':return Primitive2D('polygon',tuple(_box_corners(p)),entity_id=eid)
+    if e.kind=='mechanical_part':
+        # Drawn where its joints put it (kinematics/authoring.py): a hinge slider moves it in the plan too.
+        from archforge.kinematics.authoring import corners,posed_corners
+        pts=posed_corners(doc).get(eid) or corners(p)
+        return Primitive2D('polygon',tuple(pts),entity_id=eid,meta=(('semantic','mechanical_part'),))
     if e.kind=='stair':
         from archforge.architecture.stairs import candidate_from_params,stair_footprint
         candidate=candidate_from_params(p)
