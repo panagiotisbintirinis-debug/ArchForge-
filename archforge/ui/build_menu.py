@@ -72,6 +72,10 @@ def _icon(kind):
         p.drawRect(QRectF(4, 12, 16, 14)); p.setPen(QPen(QColor(200, 60, 50), 2.4))
         p.drawLine(QPointF(4, 12), QPointF(20, 26)); p.drawLine(QPointF(20, 12), QPointF(4, 26))
         p.setPen(QPen(ACCENT, 2.4)); p.drawLine(QPointF(25, 9), QPointF(25, 19)); p.drawLine(QPointF(20, 14), QPointF(30, 14))
+    elif kind == 'dome':
+        p.setBrush(QColor(214, 222, 205))
+        p.drawChord(QRectF(2, 10, 18, 30), 0, 180 * 16); p.drawChord(QRectF(12, 6, 18, 38), 0, 180 * 16)
+        p.drawLine(QPointF(2, 25), QPointF(30, 25))
     elif kind == 'report':
         p.drawRect(QRectF(7, 4, 18, 24))
         for y in (10, 15, 20):
@@ -163,8 +167,11 @@ def organize_build_menu(window):
     from_underlay = QAction('Τοίχοι από το υπόβαθρο (PDF / DXF)…', window)
     from_underlay.triggered.connect(lambda _=False: __import__('archforge.ui.walls_from_underlay',
                                                                fromlist=['run']).run(window))
+    from archforge.ui import dome_tool
+    domes = _submenu(window, 'Θόλοι Bio-Spectre', 'dome', dome_tool.actions(window))   # organic rooms: shell = wall + roof
+    window._dome_menu = domes
     walls = _submenu(window, 'Τοίχοι && δωμάτια', 'wall', [wall, face_menu, None, room_box, room_sized, None,
-                                                            room_resize, wall_angle, None, from_underlay])
+                                                            room_resize, wall_angle, None, from_underlay, None, domes])
     complete = QAction('Ολοκλήρωση κτιρίου…', window); complete.setIcon(_icon('storey'))
     complete.setToolTip('Δάπεδα, στέγη, κουζίνα/μπάνια, φως-πρίζες, πίνακας, θέρμανση, φέρων — ό,τι λείπει, μία αναίρεση')
     complete.triggered.connect(lambda _=False: __import__('archforge.ui.complete_building', fromlist=['open_dialog']).open_dialog(window))

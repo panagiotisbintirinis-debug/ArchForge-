@@ -36,6 +36,8 @@ class MainWindow(QMainWindow):
         self.doc = Document()
         self.stack = CommandStack(self.doc)
         self.stack.listeners.append(self._on_document_changed)
+        from archforge.ui.dome_tool import install as _follow_domes
+        _follow_domes(self)                  # flat shared partitions follow the Bio-Spectre domes
         self.current_path = None
         self._clean_state = copy.deepcopy(self.doc.to_dict())
         self.tabs = QTabWidget()
@@ -870,6 +872,10 @@ class MainWindow(QMainWindow):
             return
         if tool == 'pool_place':
             self._place_pool(x, y)
+            return
+        if tool == 'dome_place':
+            from archforge.ui.dome_tool import place as place_dome
+            place_dome(self, x, y)
             return
         if str(tool).startswith('heat_'):
             self._place_heating_point(tool[len('heat_'):], x, y)
@@ -4109,6 +4115,8 @@ class MainWindow(QMainWindow):
         self.doc = doc
         self.stack = CommandStack(self.doc)
         self.stack.listeners.append(self._on_document_changed)
+        from archforge.ui.dome_tool import install as _follow_domes
+        _follow_domes(self)
         for view in (self.plan_view, self.pbr_view, self.structural_view):
             view.rebind(self.doc, self.stack)
         if hasattr(self, '_layers_dock'):
