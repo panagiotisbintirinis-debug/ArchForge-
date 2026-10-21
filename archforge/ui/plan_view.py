@@ -483,6 +483,12 @@ class PlanView(QGraphicsView):
             from archforge.ui.marking_menu import run as _mm_run
             if self._wall_chain_active():self.controller.finish_wall_chain()   # the rubber segment hung on that wall
             _mm_run(self.marking_menu_window,'plan',None,'mm:wall:delete_last');self.redraw();event.accept();return
+        if event.key()==Qt.Key.Key_F and self.controller.tool=='wall' and not event.modifiers():
+            # F: the wall's body to the other side of the drawn line (wall_face.py).
+            from archforge.architecture.wall_face import LABELS
+            mode=self.controller.flip_wall_face()
+            if self.controller.active is not None and self._cursor_xy is not None:self.viewport().update()
+            self.statusChanged.emit(f'Τοίχος από: {LABELS[mode]} · F = άλλη πλευρά');self.redraw();event.accept();return
         if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self.controller.tool=='room_box':
             from archforge.ui.room_box_tool import ask_size
             ask_size(self);event.accept();return

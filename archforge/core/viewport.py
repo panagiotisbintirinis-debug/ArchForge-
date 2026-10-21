@@ -113,6 +113,9 @@ class PointerController:
         from archforge.project.brief import get_brief
         brief=get_brief(self.doc)
         self.active.reference=brief['measure'] if brief else None
+        # Drawn by a face (wall_face.py): the body on one side of the line, from the first point on.
+        self.active.face_side=self._face_side()
+        if self.active.face_side:self.active.reference=None
         self.preview=PreviewState(
             'wall',
             {'x1':sx,'y1':sy,'x2':sx,'y2':sy,'z':self.doc.work_plane.origin[2]},
@@ -125,6 +128,30 @@ class PointerController:
             self._snap_dict(sp),
         )
         return self.preview
+    def _face_side(self,live_dir=None):
+        """+1 / -1 / 0: which side of the drawn line the wall's body takes (wall_face.py)."""
+        from archforge.architecture.wall_face import SIDES,auto_side,turn
+        mode=getattr(self,'wall_face','auto')
+        if mode!='auto':return SIDES[mode]
+        from archforge.project.brief import get_brief
+        brief=get_brief(self.doc)
+        measure=brief['measure'] if brief else None
+        if not measure:return 0
+        chain=self.wall_chain or {}
+        turning=chain.get('turn',0)
+        segs=chain.get('segs') or []
+        if not turning and segs and live_dir is not None:
+            a,b=segs[-1]['a'],segs[-1]['b'];L=((b[0]-a[0])**2+(b[1]-a[1])**2)**.5
+            if L>1e-9:turning=turn(((b[0]-a[0])/L,(b[1]-a[1])/L),live_dir)
+        return auto_side(measure,turning)
+    def flip_wall_face(self):
+        """F while drawing walls: the body goes to the other side of the line (axis → left → right)."""
+        side=self.active.face_side if isinstance(self.active,WallDrawTransaction) else self._face_side()
+        self.wall_face={0:'left',1:'right',-1:'left'}[side] if side else 'left'
+        if isinstance(self.active,WallDrawTransaction):
+            self.active.face_side=self._face_side()
+            if self.active.face_side:self.active.reference=None
+        return self.wall_face
     def pointer_down(self,ev):
         x,y=self._plan_xy(ev)
         if self.tool=='wall' and self.wall_chain is not None and isinstance(self.active,WallDrawTransaction):
@@ -302,9 +329,14 @@ class PointerController:
                     'x':ex,'y':ey,'z':self.active.z,
                     'kind':'angle','entity_id':'',
                 }
+            L=((ex-sx)**2+(ey-sy)**2)**.5
+            if getattr(self,'wall_face','auto')=='auto' and L>1e-9:
+                self.active.face_side=self._face_side(((ex-sx)/L,(ey-sy)/L))
+                if self.active.face_side:self.active.reference=None
             self.preview=PreviewState(
                 'wall',
-                {'x1':sx,'y1':sy,'x2':ex,'y2':ey,'z':self.active.z},
+                {'x1':sx,'y1':sy,'x2':ex,'y2':ey,'z':self.active.z,
+                 'thickness':float(self.active.thickness),'face_side':int(getattr(self.active,'face_side',0) or 0)},
                 hud.values,
                 snap_info,
             )
@@ -424,13 +456,69 @@ class PointerController:
         elif isinstance(self.active,MoveTransaction):
             if abs(self.active.dx)>1e-12 or abs(self.active.dy)>1e-12 or abs(self.active.dz)>1e-12:self.active.commit()
         result=self.preview;result.entity_id=committed_id;self.active=None;return result
+    def _commit_face_wall(self,exact,interior,faces_before):
+        """The wall drawn by a face: its axis half a wall to the body side; in a chain, the axes of consecutive walls
+        meet (the previous wall's end moves to the crossing), and closing the outline joins the first wall too."""
+        import math
+        from archforge.architecture.wall_face import intersect,offset_segment
+        from archforge.core.commands import UpdateEntity
+        from archforge.project.brief import wall_is_interior
+        tx=self.active
+        a=tuple(tx.start);b=tuple(tx.end)
+        length=(exact or {}).get('length')
+        if length:
+            L=math.dist(a,b)
+            if L>0:b=(a[0]+(b[0]-a[0])/L*float(length),a[1]+(b[1]-a[1])/L*float(length))
+        drawn={'x1':a[0],'y1':a[1],'x2':b[0],'y2':b[1]}
+        self._face_partition=bool(interior and wall_is_interior(faces_before,drawn))
+        if self._face_partition:tx.thickness=float(interior[1])
+        side=tx.face_side;t=float(tx.thickness)
+        chain=self.wall_chain if self.wall_chain is not None else {}
+        segs=chain.setdefault('segs',[])
+        prev=segs[-1] if segs and math.dist(segs[-1]['b'],a)<1e-6 and segs[-1]['id'] in self.doc.entities else None
+        na,nb=offset_segment(a,b,side,t)
+        if prev is not None:
+            if getattr(self,'wall_face','auto')=='auto' and len(segs)==1 and prev['side']!=side:
+                prev['side']=side                                  # the first corner told which side is inside
+            pa,pb=offset_segment(prev['a'],prev['b'],prev['side'],prev['t'])
+            if len(segs)>1:pa=(float(self.doc.get(prev['id']).params['x1']),float(self.doc.get(prev['id']).params['y1']))
+            c=intersect(pa,pb,na,nb) or na
+            self.stack.execute(UpdateEntity(prev['id'],{'x1':pa[0],'y1':pa[1],'x2':c[0],'y2':c[1]}))
+            na=c
+            chain['turn']=chain.get('turn') or 0
+            if not chain['turn']:
+                from archforge.architecture.wall_face import turn
+                L1=math.dist(prev['a'],prev['b']);L2=math.dist(a,b)
+                if L1>0 and L2>0:
+                    chain['turn']=turn(((prev['b'][0]-prev['a'][0])/L1,(prev['b'][1]-prev['a'][1])/L1),((b[0]-a[0])/L2,(b[1]-a[1])/L2))
+        first=chain.get('first')
+        closing=bool(segs) and first is not None and math.dist(b,first)<1e-6 and segs[0]['id'] in self.doc.entities
+        tx.start,tx.end=na,nb
+        try:
+            committed=tx.commit(None)
+        finally:
+            tx.start,tx.end=a,b
+        if closing and committed in self.doc.entities:
+            f=segs[0];fa,fb=offset_segment(f['a'],f['b'],f['side'],f['t'])
+            fe=self.doc.get(f['id']).params
+            c=intersect(na,nb,fa,fb) or nb
+            self.stack.execute(UpdateEntity(committed,{'x2':c[0],'y2':c[1]}))
+            self.stack.execute(UpdateEntity(f['id'],{'x1':c[0],'y1':c[1],'x2':float(fe['x2']),'y2':float(fe['y2'])}))
+        segs.append({'a':a,'b':b,'side':side,'t':t,'id':committed})
+        return committed
     def _commit_wall(self,exact=None):
         committed_id=None
         from archforge.project.brief import interior_wall_defaults,wall_is_interior
         interior=interior_wall_defaults(self.doc)
         faces_before=self.doc.active_room_faces(z=self.active.z) if interior else []
-        committed_id=self.active.commit((exact or {}).get('length'))
-        if committed_id and interior and committed_id in self.doc.entities and wall_is_interior(faces_before,self.doc.get(committed_id).params):
+        since=len(self.stack.done)
+        if getattr(self.active,'face_side',0):
+            committed_id=self._commit_face_wall(exact,interior,faces_before)
+        else:
+            committed_id=self.active.commit((exact or {}).get('length'))
+        face=bool(getattr(self.active,'face_side',0))
+        if committed_id and interior and committed_id in self.doc.entities and (
+                getattr(self,'_face_partition',False) if face else wall_is_interior(faces_before,self.doc.get(committed_id).params)):
             # A wall inside a closed space is a partition: the brief's interior wall type — same undo step.
             from archforge.core.commands import UpdateEntity
             itype,ithick,bearing=interior
@@ -451,6 +539,7 @@ class PointerController:
             from archforge.architecture.storey_slabs import auto_floor_command
             command=auto_floor_command(self.doc,float(self.active.z))
             if command is not None:self.stack.amend(command)
+        self.stack.squash(since,'Τοίχος')       # the wall and its corner with the previous one: one undo step
         return committed_id
     def draw_room_box(self,clear_corners):
         """Δωμάτιο (ορθογώνιο): the walls around clear (inside) corners, each drawn by the wall tool's own commit
@@ -469,7 +558,7 @@ class PointerController:
         try:
             for a,b in sides:
                 self._begin_wall(None,a[0],a[1],shift=True)        # exact corners: no magnet, no snapping
-                self.active.thickness=thickness
+                self.active.thickness=thickness;self.active.face_side=0   # plan_room gives the axes already
                 self.active.update(*b);made.append(self._commit_wall());self.active=None
         except Exception:
             self.active=None
