@@ -98,6 +98,8 @@ class MainWindow(QMainWindow):
         organize_build_menu(self)        # «Κατασκευή» in submenus by kind of element (last: moves, never drops)
         from archforge.ui.main_menus import organize_main_menus
         organize_main_menus(self)        # the 8 menus of the approved mockup (after the above: moves, never drops)
+        from archforge.ui import quality_panel
+        quality_panel.install(self)      # Προβολή ▸ Έλεγχος ποιότητας (live quality gate)
         from archforge.ui.layout2 import install_layout2
         install_layout2(self)            # Διάταξη 2: thin first row, tool groups, «Κοινά», panels on the right
         from archforge.ui import electrical_board_tab
@@ -4124,6 +4126,8 @@ class MainWindow(QMainWindow):
         self.stack.listeners.append(self._on_document_changed)
         from archforge.ui.dome_tool import install as _follow_domes
         _follow_domes(self)
+        from archforge.ui.quality_panel import listen as _quality_listen
+        _quality_listen(self)
         for view in (self.plan_view, self.pbr_view, self.structural_view):
             view.rebind(self.doc, self.stack)
         if hasattr(self, '_layers_dock'):
