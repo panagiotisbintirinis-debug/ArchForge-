@@ -54,9 +54,10 @@ def test_exterior_measured_10x10_stone_is_10x10_outside_and_9x9_inside():
     assert (x0, y0, x1, y1) == pytest.approx((0.0, 0.0, 10.0, 10.0), abs=1e-6)     # the drawn lines are the outside
     inside = take_off(doc)['rooms'][0]
     assert inside['floor_m2'] == pytest.approx((10 - 2 * t) ** 2, abs=0.01)
-    # One undo removes the closing wall and its reference together; the others stay as drawn.
+    # One undo removes the closing wall and its corner; the others stay on their faces (owner 21/10: the outline
+    # is on its faces while it is drawn, not only once it closes).
     st.undo()
-    assert len(_walls(doc)) == 3 and not any(w.params.get('reference_applied') for w in _walls(doc))
+    assert len(_walls(doc)) == 3 and all(w.params.get('reference_applied') for w in _walls(doc))
 
 
 def test_interior_measured_room_keeps_its_inside_size():
@@ -72,22 +73,21 @@ def test_interior_measured_room_keeps_its_inside_size():
 def test_partition_and_window_follow_the_moved_walls():
     doc = Document(); st = CommandStack(doc); _brief(st, wall_system='brick_double_insulated')
     ctrl = PointerController(doc, st)
-    _draw(ctrl, [(0, 0), (8, 0), (8, 6)])
-    south = next(w for w in _walls(doc) if w.params['y1'] == 0 and w.params['y2'] == 0)
+    _draw(ctrl, [(0, 0), (8, 0)])
+    south = _walls(doc)[0]
+    assert south.params['y1'] == 0 and south.params['y2'] == 0                       # alone: on its axis, as drawn
     win = Entity('window', {'offset': 4.0, 'width': 1.2, 'height': 1.4, 'sill': 0.9}, parent_id=south.id)
     st.execute(AddEntity(win))
-    # Partition from the south wall to the north (drawn on its axis) before closing.
-    part = Entity('wall', {'x1': 4.0, 'y1': 0.0, 'x2': 4.0, 'y2': 6.0, 'z': 0, 'height': 2.7, 'thickness': 0.1})
-    st.execute(AddEntity(part))
-    _draw(ctrl, [(8, 6), (0, 6), (0, 0)])
+    # Owner 21/10: the outline goes to its faces while it is drawn (not only when it closes).
+    _draw(ctrl, [(8, 0), (8, 6), (0, 6), (0, 0)])
     t = south.params['thickness']
     s = doc.get(south.id).params
     assert s['y1'] == pytest.approx(t / 2) and s['y2'] == pytest.approx(t / 2)       # moved inwards
-    p = doc.get(part.id).params
-    assert p['y1'] == pytest.approx(t / 2) and p['y2'] == pytest.approx(6 - t / 2)   # T junctions followed
-    # The window stays where it was in the world (centre at x = 4).
+    assert len(_walls(doc)) == 4 and all(w.params.get('reference_applied') for w in _walls(doc))
+    # The window keeps its place along its wall; the drawn line stays the outer face.
     w = doc.get(win.id).params
-    assert s['x1'] + w['offset'] == pytest.approx(4.0)
+    assert s['x1'] + w['offset'] == pytest.approx(4.0 + t / 2)
+    assert _bbox_outer(doc) == pytest.approx((0.0, 0.0, 8.0, 6.0), abs=1e-6)
 
 
 def test_without_brief_walls_stay_on_their_axis():

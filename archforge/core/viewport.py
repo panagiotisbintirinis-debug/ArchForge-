@@ -137,13 +137,22 @@ class PointerController:
         brief=get_brief(self.doc)
         measure=brief['measure'] if brief else None
         if not measure:return 0
-        chain=self.wall_chain or {}
-        turning=chain.get('turn',0)
-        segs=chain.get('segs') or []
+        run=self._face_run_for(self.active.start if isinstance(self.active,WallDrawTransaction) else None)
+        turning=run.get('turn',0)
+        segs=run.get('segs') or []
         if not turning and segs and live_dir is not None:
             a,b=segs[-1]['a'],segs[-1]['b'];L=((b[0]-a[0])**2+(b[1]-a[1])**2)**.5
             if L>1e-9:turning=turn(((b[0]-a[0])/L,(b[1]-a[1])/L),live_dir)
         return auto_side(measure,turning)
+    def _face_run_for(self,start):
+        """The outline being drawn by faces when a wall starts at ``start`` (its last wall ends there), else empty —
+        click-click chains and walls dragged one after the other alike."""
+        import math
+        run=getattr(self,'_face_run',None)
+        if run and run['segs'] and start is not None and math.dist(run['segs'][-1]['b'],tuple(start))<1e-6 \
+                and run['segs'][-1]['id'] in self.doc.entities:
+            return run
+        return {}
     def flip_wall_face(self):
         """F while drawing walls: the body goes to the other side of the line (axis → left → right)."""
         side=self.active.face_side if isinstance(self.active,WallDrawTransaction) else self._face_side()
@@ -473,17 +482,31 @@ class PointerController:
         self._face_partition=bool(interior and wall_is_interior(faces_before,drawn))
         if self._face_partition:tx.thickness=float(interior[1])
         side=tx.face_side;t=float(tx.thickness)
-        chain=self.wall_chain if self.wall_chain is not None else {}
-        segs=chain.setdefault('segs',[])
-        prev=segs[-1] if segs and math.dist(segs[-1]['b'],a)<1e-6 and segs[-1]['id'] in self.doc.entities else None
+        chain=self._face_run_for(a)
+        if not chain:
+            chain=self._face_run={'segs':[],'turn':0,'first':a}       # a new outline starts here
+        segs=chain['segs']
+        prev=segs[-1] if segs else None
+        auto=getattr(self,'wall_face','auto')=='auto'
+        if prev is None and auto:
+            # Alone so far: on its axis, like any single wall (a partition, a fence); it goes to its face when the
+            # next wall continues it — then the outline's turn also says which side is inside.
+            tx.start,tx.end=a,b
+            committed=tx.commit(None)
+            segs.append({'a':a,'b':b,'side':side,'t':t,'id':committed,'applied':False})
+            return committed
         na,nb=offset_segment(a,b,side,t)
         if prev is not None:
-            if getattr(self,'wall_face','auto')=='auto' and len(segs)==1 and prev['side']!=side:
+            if auto and len(segs)==1 and prev['side']!=side:
                 prev['side']=side                                  # the first corner told which side is inside
             pa,pb=offset_segment(prev['a'],prev['b'],prev['side'],prev['t'])
-            if len(segs)>1:pa=(float(self.doc.get(prev['id']).params['x1']),float(self.doc.get(prev['id']).params['y1']))
+            if prev.get('applied',True) and len(segs)>1:
+                pa=(float(self.doc.get(prev['id']).params['x1']),float(self.doc.get(prev['id']).params['y1']))
             c=intersect(pa,pb,na,nb) or na
-            self.stack.execute(UpdateEntity(prev['id'],{'x1':pa[0],'y1':pa[1],'x2':c[0],'y2':c[1]}))
+            changes={'x1':pa[0],'y1':pa[1],'x2':c[0],'y2':c[1]}
+            if auto:changes['reference_applied']=True              # the brief's measure is done (no move at closing)
+            self.stack.execute(UpdateEntity(prev['id'],changes))
+            prev['applied']=True
             na=c
             chain['turn']=chain.get('turn') or 0
             if not chain['turn']:
@@ -492,12 +515,14 @@ class PointerController:
                 if L1>0 and L2>0:
                     chain['turn']=turn(((prev['b'][0]-prev['a'][0])/L1,(prev['b'][1]-prev['a'][1])/L1),((b[0]-a[0])/L2,(b[1]-a[1])/L2))
         first=chain.get('first')
-        closing=bool(segs) and first is not None and math.dist(b,first)<1e-6 and segs[0]['id'] in self.doc.entities
+        closing=len(segs)>=2 and first is not None and math.dist(b,first)<1e-6 and segs[0]['id'] in self.doc.entities
         tx.start,tx.end=na,nb
         try:
             committed=tx.commit(None)
         finally:
             tx.start,tx.end=a,b
+        if auto and committed in self.doc.entities:
+            self.stack.execute(UpdateEntity(committed,{'reference_applied':True}))
         if closing and committed in self.doc.entities:
             f=segs[0];fa,fb=offset_segment(f['a'],f['b'],f['side'],f['t'])
             fe=self.doc.get(f['id']).params
@@ -512,6 +537,9 @@ class PointerController:
         interior=interior_wall_defaults(self.doc)
         faces_before=self.doc.active_room_faces(z=self.active.z) if interior else []
         since=len(self.stack.done)
+        if getattr(self.active,'face_side',0) and getattr(self,'wall_face','auto')=='auto' and interior and wall_is_interior(
+                faces_before,{'x1':self.active.start[0],'y1':self.active.start[1],'x2':self.active.end[0],'y2':self.active.end[1]}):
+            self.active.face_side=0                                # a partition inside a space: on its axis
         if getattr(self.active,'face_side',0):
             committed_id=self._commit_face_wall(exact,interior,faces_before)
         else:
