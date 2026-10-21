@@ -186,3 +186,38 @@ def underlays(doc, z=None):
     if z is not None:
         out = [e for e in out if abs(float(e.params.get("z", 0.0)) - float(z)) < 1e-3]
     return out
+
+
+# ------------------------------------------------------------------------------------------- lines of a PDF page
+
+def pdf_vector_segments(path, page=0):
+    """The straight lines drawn on a PDF page, in PDF points with y up (the underlay's drawing units).
+
+    A PDF exported from CAD keeps its lines (paths); a scanned one has only a picture → empty list.
+    Lines, rectangle edges and the straight pieces of paths are read (pdfplumber); curves become chords."""
+    import pdfplumber
+    out = []
+    with pdfplumber.open(str(path)) as pdf:
+        p = pdf.pages[int(page)]
+        h = float(p.height)
+
+        def add(pts):
+            for (x1, t1), (x2, t2) in zip(pts, pts[1:]):
+                if abs(x2 - x1) + abs(t2 - t1) > 1e-6:
+                    out.append((float(x1), h - float(t1), float(x2), h - float(t2)))
+        for ln in p.lines:
+            add(ln.get("pts") or [(ln["x0"], ln["top"]), (ln["x1"], ln["bottom"])])
+        for r in p.rects:
+            x0, x1, t0, t1 = r["x0"], r["x1"], r["top"], r["bottom"]
+            add([(x0, t0), (x1, t0), (x1, t1), (x0, t1), (x0, t0)])
+        for c in p.curves:
+            add(c.get("pts") or [])
+    return out
+
+
+def underlay_model_segments(params):
+    """Lines of any underlay in model coordinates (DXF: kept in the project; PDF: read from its file)."""
+    if params.get("source") == "pdf":
+        return [(*to_model(params, x1, y1), *to_model(params, x2, y2))
+                for x1, y1, x2, y2 in pdf_vector_segments(params["path"], params.get("page", 0))]
+    return model_segments(params)

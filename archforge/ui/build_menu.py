@@ -160,8 +160,11 @@ def organize_build_menu(window):
         act.triggered.connect(lambda _=False, k=key: (setattr(window.plan_view.controller, 'wall_face', k),
                                                       window.statusBar().showMessage(f'Τοίχος από: {LABELS[k]}', 5000)))
     window._wall_face_menu = face_menu
+    from_underlay = QAction('Τοίχοι από το υπόβαθρο (PDF / DXF)…', window)
+    from_underlay.triggered.connect(lambda _=False: __import__('archforge.ui.walls_from_underlay',
+                                                               fromlist=['run']).run(window))
     walls = _submenu(window, 'Τοίχοι && δωμάτια', 'wall', [wall, face_menu, None, room_box, room_sized, None,
-                                                            room_resize, wall_angle])
+                                                            room_resize, wall_angle, None, from_underlay])
     complete = QAction('Ολοκλήρωση κτιρίου…', window); complete.setIcon(_icon('storey'))
     complete.setToolTip('Δάπεδα, στέγη, κουζίνα/μπάνια, φως-πρίζες, πίνακας, θέρμανση, φέρων — ό,τι λείπει, μία αναίρεση')
     complete.triggered.connect(lambda _=False: __import__('archforge.ui.complete_building', fromlist=['open_dialog']).open_dialog(window))
