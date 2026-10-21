@@ -6,6 +6,7 @@ then one click places its corner.  The walls are made by ``ViewportController.dr
 """
 from __future__ import annotations
 
+import math
 import re
 
 from PySide6.QtCore import QPointF, Qt
@@ -16,6 +17,38 @@ from archforge.architecture.room_box import corners_from_edge, corners_from_size
 
 HINT = ('Δωμάτιο: κλικ στην αρχή και στο τέλος μιας πλευράς, μετά τράβα το ορθογώνιο και κλικ · '
         'Enter = πληκτρολόγηση διαστάσεων · Esc = ακύρωση')
+
+
+SNAP_PX = 14.0
+
+
+def _targets(view):
+    """Face corners / face lines of this storey, cached until the drawing changes."""
+    from archforge.architecture.room_box import face_targets
+    doc = view.doc
+    key = (id(doc), len(view.stack.done), len(view.stack.undone), len(doc.entities), float(doc.work_plane.origin[2]))
+    cache = getattr(view, '_room_targets', None)
+    if cache is None or cache[0] != key:
+        cache = (key, face_targets(doc, float(doc.work_plane.origin[2])))
+        view._room_targets = cache
+    return cache[1]
+
+
+def snapped(view, x, y, after=None):
+    """The point as the room tool takes it: on a face corner, a face, or lined up with a corner (guides); else,
+    after a first point, at 0° / 45° / 90° from it.  Shift = free.  → (x, y, guides, kind)."""
+    from PySide6.QtWidgets import QApplication
+    from archforge.architecture.room_box import snap_point, straighten
+    if QApplication.keyboardModifiers() & Qt.KeyboardModifier.ShiftModifier:
+        return x, y, [], None
+    tol = SNAP_PX / (abs(view.transform().m11()) or 40.0)
+    sx, sy, guides, kind = snap_point(view.doc, x, y, float(view.doc.work_plane.origin[2]), tol, _targets(view))
+    if after is not None and kind in (None, 'guide'):
+        bx, by = straighten(after, (sx, sy), 45.0)
+        if math.dist((bx, by), (sx, sy)) <= 4 * tol:
+            sx, sy = bx, by
+            kind = kind or 'angle'
+    return sx, sy, guides, kind
 
 
 def start(window, sized=False):
@@ -56,10 +89,11 @@ def _ask(window):
 
 def click(window, tool, x, y):
     view = window.plan_view
+    draft = list(getattr(view, 'room_draft', None) or [])
+    x, y, _g, _k = snapped(view, float(x), float(y), draft[0] if len(draft) == 1 else None)
     if tool == 'room_place':
         w, d = getattr(view, 'room_size', None) or (4.0, 3.0)
         return _make(window, corners_from_size((x, y), w, d))
-    draft = list(getattr(view, 'room_draft', None) or [])
     draft.append((float(x), float(y)))
     if len(draft) < 3:
         view.room_draft = draft
@@ -116,6 +150,9 @@ def preview_corners(view):
     cur = getattr(view, '_cursor_xy', None)
     if cur is None:
         return None
+    draft0 = getattr(view, 'room_draft', None) or []
+    cx, cy, view._room_guides, view._room_snap_kind = snapped(view, cur[0], cur[1], draft0[0] if len(draft0) == 1 else None)
+    cur = (cx, cy)
     if view.controller.tool == 'room_place':
         w, d = getattr(view, 'room_size', None) or (4.0, 3.0)
         return corners_from_size(cur, w, d)
@@ -131,6 +168,14 @@ def paint_preview(view, painter):
     pts = preview_corners(view)
     if not pts:
         return
+    guide = QPen(QColor(200, 120, 20))
+    guide.setCosmetic(True)
+    guide.setStyle(Qt.PenStyle.DotLine)
+    painter.save()
+    painter.setPen(guide)
+    for a, b in getattr(view, '_room_guides', None) or []:      # lined up with a corner of another room
+        painter.drawLine(QPointF(*a), QPointF(*b))
+    painter.restore()
     pen = QPen(QColor(40, 120, 200))
     pen.setCosmetic(True)
     pen.setWidthF(2.0)
@@ -148,6 +193,13 @@ def paint_preview(view, painter):
     else:
         text = label(pts)
     at = view.mapFromScene(QPointF(*pts[-1]))
+    kind = getattr(view, '_room_snap_kind', None)
+    if kind:
+        marks = {'corner': 'γωνία', 'face': 'παρειά', 'guide': 'ευθυγράμμιση', 'angle': '90°/45°'}
+        text += f'  · {marks.get(kind, kind)}'
+        cur = view.mapFromScene(QPointF(*(pts[-1] if view.controller.tool != 'room_place' else pts[0])))
+        painter.setPen(QPen(QColor(200, 120, 20), 2))
+        painter.drawRect(int(cur.x()) - 5, int(cur.y()) - 5, 10, 10)
     painter.setPen(QColor(20, 70, 140))
     painter.drawText(at.x() + 12, at.y() - 8, text)
     painter.restore()
