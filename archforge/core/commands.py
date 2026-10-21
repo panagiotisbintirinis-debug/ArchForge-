@@ -107,7 +107,7 @@ class MoveEntities(Command):
                 if e.kind=='pool' and 'plant_x' in p:changes.update(plant_x=p['plant_x']+self.dx,plant_y=p['plant_y']+self.dy)   # its equipment room goes along
                 if e.kind=='electrical_point' and 'x2' in p:changes.update(x2=p['x2']+self.dx,y2=p['y2']+self.dy)   # LED strip: both ends
                 doc.update(i,changes)
-            elif e.kind=='underlay':doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy})
+            elif e.kind=='underlay' and not p.get('section_id'):doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy})   # a section's one is placed in the section
             elif e.kind=='pitched_roof':doc.update(i,{'x0':p['x0']+self.dx,'x1':p['x1']+self.dx,'y0':p['y0']+self.dy,'y1':p['y1']+self.dy,'eave_z':p['eave_z']+self.dz})
             elif e.kind=='plant':doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy,'z':p['z']+self.dz})
             elif e.kind=='railing':doc.update(i,{'points':[[q[0]+self.dx,q[1]+self.dy,*q[2:]] for q in p['points']],'z':p['z']+self.dz})

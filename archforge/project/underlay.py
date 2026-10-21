@@ -17,6 +17,12 @@ Placement: a drawing point (u, v) in drawing units maps to the model as
 
 Either way **calibration** (two clicks on a known dimension + the real
 distance) sets the scale exactly; it is the recommended check.
+
+**Section underlay** (owner 21/10, «NEW VILLA SECTION» 1:50): the same entity with
+``section_id`` = a ``section_line``.  Then (x, y) are the section's (u, z) — distance
+along the cut line and height — and it is drawn only in that section's tab, never in the
+plan.  Placed with two clicks (a point of the drawing → where it belongs, e.g. its ±0,00
+on ArchForge's ±0,00), calibrated like the plan one.
 """
 from __future__ import annotations
 
@@ -146,6 +152,18 @@ def dxf_size_m(text, unit):
     return (x1 - x0) * k, (y1 - y0) * k
 
 
+def for_section(params, section_id):
+    """``params`` (from dxf_params / pdf_params) as the underlay of section ``section_id``: lower-left at u = 0, z = 0."""
+    out = dict(params)
+    out.update(section_id=str(section_id), x=0.0, y=0.0, z=0.0)
+    return out
+
+
+def moved(params, a, b):
+    """Params after placing: the drawing point clicked at ``a`` goes to ``b`` (translation only)."""
+    return {"x": float(params["x"]) + b[0] - a[0], "y": float(params["y"]) + b[1] - a[1]}
+
+
 def pdf_params(path, page, scale_denominator, page_size_pt, z=0.0):
     """Underlay params for one PDF page drawn at 1:``scale_denominator``; page lower-left at the model origin."""
     w, h = page_size_pt
@@ -182,10 +200,15 @@ def model_segments(params):
 
 
 def underlays(doc, z=None):
-    out = [e for e in doc.entities.values() if e.kind == "underlay"]
+    """Plan underlays (of the storey at ``z``); section underlays are left out."""
+    out = [e for e in doc.entities.values() if e.kind == "underlay" and not e.params.get("section_id")]
     if z is not None:
         out = [e for e in out if abs(float(e.params.get("z", 0.0)) - float(z)) < 1e-3]
     return out
+
+
+def section_underlays(doc, section_id):
+    return [e for e in doc.entities.values() if e.kind == "underlay" and e.params.get("section_id") == section_id]
 
 
 # ------------------------------------------------------------------------------------------- lines of a PDF page

@@ -6,6 +6,9 @@
   hatched with a heavy outline, the building behind in elevation, the storey levels.
 * Clicking the line in the plan selects it (Delete removes it); the Properties offer «Άνοιγμα
   τομής», «Αντιστροφή» (look the other way) and «Στο 3D» (clipping plane on the line).
+* «Υπόβαθρο τομής…»: the engineer's section (PDF / DXF) under this section, placed with two
+  clicks (its ±0,00 on ours), calibrated on a known height; the level under the mouse is shown
+  in the status bar to read storey heights, slabs, ground and pool off it.
 
 The drawing itself is ``output/section_cut.py`` (plain data); this module only paints it.
 """
@@ -102,13 +105,57 @@ class SectionView(QGraphicsView):
         evaluation = cache.sync(doc) if cache is not None else None
         self.data = cut_section(doc, doc.get(eid).params, evaluation)
         self._scene.clear()
+        backdrop = self._draw_underlays()
         self._scene.addItem(_Drawing(self.data))
         self._draw_levels()
         self._draw_terrain_marks()
         if fit:
             u0, z0, u1, z1 = self.data["bounds"]
-            self.fitInView(QRectF(u0 - 4.5, z0 - 1.0, (u1 - u0) + 9.5, (z1 - z0) + 2.0), Qt.AspectRatioMode.KeepAspectRatio)
+            rect = QRectF(u0 - 4.5, z0 - 1.0, (u1 - u0) + 9.5, (z1 - z0) + 2.0)
+            for item in backdrop:
+                rect = rect.united(item.sceneBoundingRect())
+            self.fitInView(rect, Qt.AspectRatioMode.KeepAspectRatio)
         return self.data
+
+    def _draw_underlays(self):
+        """The engineer's section under ours (faint, behind, never selectable)."""
+        from archforge.project.underlay import section_underlays
+        from archforge.ui.plan_view import add_underlay_item
+        return [add_underlay_item(self._scene, e.params)
+                for e in section_underlays(self.window.doc, self.entity_id) if e.visible]
+
+    # --- clicks for placing / calibrating the section underlay (ui/underlay_tools.py) -----------------
+
+    def _picking(self):
+        state = getattr(self.window, "_underlay_calibration", None)
+        if not state or state["id"] not in self.window.doc.entities:
+            return None
+        return state if self.window.doc.get(state["id"]).params.get("section_id") == self.entity_id else None
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton and self._picking():
+            from archforge.ui.underlay_tools import calibration_click
+            q = self.mapToScene(event.position().toPoint())
+            calibration_click(self.window, q.x(), q.y())
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        super().mouseMoveEvent(event)
+        if self.data is None or event.buttons() != Qt.MouseButton.NoButton:
+            return
+        q = self.mapToScene(event.position().toPoint())
+        self.setCursor(Qt.CursorShape.CrossCursor if self._picking() else Qt.CursorShape.OpenHandCursor)
+        if not self._picking():
+            self.window.statusBar().showMessage(level_readout(q.x(), q.y()), 4000)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape and self._picking():
+            self.window._underlay_calibration = None
+            self.window.statusBar().showMessage("Ακυρώθηκε", 3000)
+            return
+        super().keyPressEvent(event)
 
     def _text(self, text, u, z, color=INK, bold=False, align=(0.0, 0.5)):
         t = self._scene.addText(text)
@@ -149,6 +196,12 @@ class SectionView(QGraphicsView):
             self._text(mark(z), u+.15, z+.3, color, True, (0.,1.))
 
 
+def level_readout(u, z):
+    """Status-bar text for the point under the mouse in a section: «Υψόμετρο +3,20 · 4,15 m κατά μήκος της τομής»."""
+    mark = "±0,00" if abs(z) < 5e-3 else f"{z:+.2f}".replace(".", ",")
+    return f"Υψόμετρο {mark} · " + f"{u:.2f}".replace(".", ",") + " m κατά μήκος της τομής"
+
+
 class SectionPanel(QWidget):
     """Central tab: title, the drawing and its few buttons."""
 
@@ -162,6 +215,8 @@ class SectionPanel(QWidget):
         bar.addWidget(self.title, 1)
         for text, tip, run in (("Αντιστροφή", "Κοίτα από την άλλη πλευρά της γραμμής", lambda: flip_section(window, self.view.entity_id)),
                                ("Στο 3D", "Η ίδια τομή στο 3D, με επίπεδο αποκοπής στη γραμμή", lambda: section_in_3d(window, self.view.entity_id)),
+                               ("Υπόβαθρο τομής…", "Η τομή του μηχανικού (PDF / DXF) κάτω από αυτή — "
+                                "τοποθέτηση με 2 κλικ, μετά διαβάζεις υψόμετρα με το ποντίκι", lambda: import_section_underlay(window, self.view.entity_id)),
                                ("Όλη η τομή", "Προσαρμογή στην οθόνη", lambda: self.refresh(fit=True))):
             b = QPushButton(text); b.setToolTip(tip); b.clicked.connect(lambda _=False, r=run: r()); bar.addWidget(b)
         lay.addLayout(bar)
@@ -203,6 +258,14 @@ def create_section(window, x1, y1, x2, y2):
     window.statusBar().showMessage(f"{entity.name}: κοιτάς προς τα βέλη · «Αντιστροφή» για την άλλη πλευρά · "
                                    "«Στο 3D» για το επίπεδο αποκοπής · Ctrl+Z αναιρεί", 10000)
     return entity
+
+
+def import_section_underlay(window, eid, **kwargs):
+    """The engineer's section (PDF / DXF) under section ``eid`` — then two clicks place it."""
+    if eid not in window.doc.entities:
+        return None
+    from archforge.ui.underlay_tools import import_drawing
+    return import_drawing(window, section_id=eid, **kwargs)
 
 
 def open_section(window, eid):

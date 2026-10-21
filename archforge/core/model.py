@@ -877,7 +877,8 @@ SCHEMAS = {
     # Engineer's drawing under the plan (project/underlay.py): a picture to draw on, not design geometry.
     'underlay': {'source': _choice(('pdf', 'dxf'), 'underlay source'), 'path': str, 'page': _page_index, 'x': _finite, 'y': _finite,
                  'z': _finite, 'u0': _finite, 'v0': _finite, 'm_per_unit': _positive, 'rotation': _finite,
-                 'opacity': _unit_interval, 'page_w': _positive, 'page_h': _positive, 'scale_denominator': _positive},
+                 'opacity': _unit_interval, 'page_w': _positive, 'page_h': _positive, 'scale_denominator': _positive,
+                 'section_id': str},
     'insulation_spec': {'categories': _insulation_categories},
     # Data-sheet figures the user enters (construction/shell.py): pieces per m² of a brick / roof tile.
     'construction_spec': {'pieces_per_m2': _pieces_per_m2},
