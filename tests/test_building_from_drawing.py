@@ -81,3 +81,14 @@ def test_ground_from_written_altitudes_in_place():
     assert params["altitude_ref"] == 114.0
     assert terrain_height(params, 0, 0) == pytest.approx(0.0, abs=0.3)    # ±0,00 = +114,00 where it is written
     assert terrain_height(params, 0, 60) == pytest.approx(12.0, abs=0.5)  # the slope stays where the drawing puts it
+
+
+def test_patterned_core_beats_the_nearest_lining_line():
+    from archforge.architecture.walls_from_lines import find_walls
+    # Concrete 0,30 (faces y = 0 and 0,30, aggregate dots between) with a lining line 0,10 inside (y = −0,10).
+    segs = [(0, 0.0, 5, 0.0), (0, 0.30, 5, 0.30), (0, -0.10, 5, -0.10)]
+    segs += [(0.1 + 0.015 * i, 0.05 + 0.04 * (i % 6), 0.1 + 0.015 * i + 0.01, 0.05 + 0.04 * (i % 6)) for i in range(300)]
+    (wall,) = [w for w in find_walls(segs) if w[2] > 0.2]
+    assert wall[2] == pytest.approx(0.30) and wall[0][1] == pytest.approx(0.15)          # the core's axis
+    without = find_walls(segs[:3])                                                         # no pattern: nearest pair
+    assert min(w[2] for w in without) == pytest.approx(0.10)
