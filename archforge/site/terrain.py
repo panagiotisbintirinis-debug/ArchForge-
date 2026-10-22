@@ -69,29 +69,67 @@ BARRIER_POWER = 4        # Shepard power: flat around each level, the change hal
 
 
 def barriers(doc):
-    """Plan segments the ground does not pass through: the axes of the visible walls."""
+    """What holds the ground: the visible walls' axes in plan ``(x1, y1, x2, y2)``."""
     return [(float(e.params['x1']), float(e.params['y1']), float(e.params['x2']), float(e.params['y2']))
             for e in doc.entities.values() if e.kind == 'wall' and e.visible]
 
 
-def _walled_heights(params, xs, ys, walls):
+GREEN_SOIL = 0.10        # m — least soil on a green roof (the NEW VILLA's layers 3,60 → 3,70)
+
+
+def green_roofs(doc):
+    """Roofs under the ground (φυτεμένο δώμα / υπόσκαφο): ``[(outline, lowest ground)]`` — the ground is not cut
+    there and never comes lower than the slab's top plus its soil."""
+    from archforge.architecture.storey_slabs import storey_slab_geometry
+    out = []
+    for e in doc.entities.values():
+        if e.kind != 'room_roof' or not e.visible or not int(e.params.get('green', 0)):
+            continue
+        try:
+            if e.params.get('scope') == 'storey':
+                g = storey_slab_geometry(doc, e)
+            else:
+                from archforge.architecture.rooms import room_slab_geometry
+                g = room_slab_geometry(doc, e)
+        except Exception:
+            g = None
+        if not g:
+            continue
+        top = float(g['z']) + float(g['thickness'])
+        soil = float(e.params.get('soil', GREEN_SOIL))
+        for outer, _holes in g.get('islands') or [(g['points'], [])]:
+            out.append(([tuple(map(float, q)) for q in outer], top + soil))
+    return out
+
+
+def _zone(x, y, zones):
+    from archforge.geometry.regions import point_in_polygon
+    return next((k for k, z in enumerate(zones) if point_in_polygon(x, y, z)), -1)
+
+
+def _walled_heights(params, xs, ys, walls, zones=()):
     """Heights at (xs, ys) (numpy arrays) where the terrace levels (``levels``) are seen past the walls ``walls``.
     ``(heights, weight)``: weight 1 near a seen level, 0 where none is within reach (the open field rules)."""
     import numpy as np
     pts = [(float(a), float(b), float(c)) for a, b, c in (params.get('levels') or ())]
     n = len(xs)
     num = np.zeros(n); den = np.zeros(n); nearest = np.full(n, np.inf); exact = np.full(n, np.nan)
-    W = np.asarray(walls, float).reshape(-1, 4)
+    W = np.asarray([tuple(w)[:4] for w in walls], float).reshape(-1, 4)
+    # A green roof is its own ground: the soil the drawing writes on it is seen only on it (over the building's
+    # walls), and the ground around it never takes it (the terrace in front of a buried house stays down).
+    from archforge.geometry.regions import point_in_polygon
+    zq = np.array([_zone(x, y, zones) for x, y in zip(xs, ys)]) if zones else np.full(n, -1)
     for px, py, pz in pts:
+        zp = _zone(px, py, zones) if zones else -1
         dx, dy = xs - px, ys - py
         d = np.hypot(dx, dy)
-        near = d < BARRIER_REACH
+        near = (d < BARRIER_REACH) & (zq == zp)
         if not near.any():
             continue
         idx = np.nonzero(near)[0]
         qx, qy = xs[idx], ys[idx]
         seen = np.ones(len(idx), bool)
-        if len(W):
+        if len(W) and zp < 0:
             box = ((np.minimum(W[:, 0], W[:, 2]) <= px + BARRIER_REACH) & (np.maximum(W[:, 0], W[:, 2]) >= px - BARRIER_REACH) &
                    (np.minimum(W[:, 1], W[:, 3]) <= py + BARRIER_REACH) & (np.maximum(W[:, 1], W[:, 3]) >= py - BARRIER_REACH))
             for ax, ay, bx, by in W[box]:
@@ -114,23 +152,31 @@ def _walled_heights(params, xs, ys, walls):
     return h, weight
 
 
-def terrain_heights(params: Dict, xy, walls=None):
-    """``terrain_height`` at many points at once (the 3D grid); ``walls``: plan segments that hold the ground."""
+def terrain_heights(params: Dict, xy, walls=None, floors=None):
+    """``terrain_height`` at many points at once (the 3D grid); ``walls``: what holds the ground (``barriers``);
+    ``floors``: green roofs ``[(outline, lowest)]`` the ground covers (``green_roofs``)."""
     from .elevation_regions import blended_height
     base = [_point_height(params, x, y) for x, y in xy]
     if params.get('levels') and xy:
         import numpy as np
         xs = np.array([p[0] for p in xy], float); ys = np.array([p[1] for p in xy], float)
-        h, w = _walled_heights(params, xs, ys, walls)
+        h, w = _walled_heights(params, xs, ys, walls or [], [outline for outline, _lowest in floors or ()])
         base = [float(wi * hi + (1.0 - wi) * b) for b, hi, wi in zip(base, h, w)]
-    return [blended_height(params, float(x), float(y), b) for (x, y), b in zip(xy, base)]
+    out = [blended_height(params, float(x), float(y), b) for (x, y), b in zip(xy, base)]
+    if floors:
+        from archforge.geometry.regions import point_in_polygon
+        for k, (x, y) in enumerate(xy):
+            for outline, lowest in floors:
+                if out[k] < lowest and point_in_polygon(x, y, outline):
+                    out[k] = lowest
+    return out
 
 
-def terrain_height(params: Dict, x: float, y: float, walls=None) -> float:
+def terrain_height(params: Dict, x: float, y: float, walls=None, floors=None) -> float:
     """Same height field for 3D, plan annotations, site elements and sections."""
     from .elevation_regions import blended_height
-    if params.get('levels'):
-        return terrain_heights(params, [(float(x), float(y))], walls or [])[0]
+    if params.get('levels') or floors:
+        return terrain_heights(params, [(float(x), float(y))], walls or [], floors)[0]
     return blended_height(params, float(x), float(y), _point_height(params,x,y))
 
 
@@ -145,7 +191,7 @@ def terrain_height_at(doc, x: float, y: float):
     """Ground height under (x, y) from the site terrain, or None."""
     for entity in doc.entities.values():
         if entity.kind == 'terrain' and entity.visible and terrain_contains(entity.params, x, y):
-            return terrain_height(entity.params, x, y, barriers(doc))
+            return terrain_height(entity.params, x, y, barriers(doc), green_roofs(doc))
     return None
 
 
@@ -167,10 +213,11 @@ def default_terrain_params(doc, margin: float = DEFAULT_MARGIN) -> Dict:
     }
 
 
-def terrain_mesh(params: Dict, cell: float | None = None, exclusions=(), walls=None):
-    """Closed ground solid: graded top grid, flat bottom, four sides (``walls``: plan segments holding the ground)."""
-    if exclusions or params.get('regions') or walls:
-        return _region_mesh(params,cell,exclusions,walls)
+def terrain_mesh(params: Dict, cell: float | None = None, exclusions=(), walls=None, floors=None):
+    """Closed ground solid: graded top grid, flat bottom, four sides (``walls`` holding the ground, ``floors`` the
+    green roofs it covers)."""
+    if exclusions or params.get('regions') or walls or floors:
+        return _region_mesh(params,cell,exclusions,walls,floors)
     x0, y0, x1, y1 = (float(params[k]) for k in ('x0', 'y0', 'x1', 'y1'))
     if x1 - x0 <= 1e-6 or y1 - y0 <= 1e-6:
         raise ValueError('terrain extent must be positive')
@@ -241,6 +288,11 @@ def building_exclusions(doc):
             # Square caps meet cleanly at corners; the room union above fills the interior.
             out.append([(ax-dx*h-dy*h,ay-dy*h+dx*h),(ax-dx*h+dy*h,ay-dy*h-dx*h),
                         (bx+dx*h+dy*h,by+dy*h-dx*h),(bx+dx*h-dy*h,by+dy*h+dx*h)])
+    # A green roof (υπόσκαφο) is under the ground: no cut there (site/terrain.green_roofs).
+    green=[outline for outline,_lowest in green_roofs(doc)]
+    if green:
+        from archforge.geometry.regions import region as _region
+        out=[outer for outer,_holes in _region(out,green)]
     # A pool is dug into the ground: its basin (with its walls) is a hole in the terrain, not water under a lid
     # of soil (open since 17/10: «η λεκάνη χωρίς τρύπα στο έδαφος του 3D»).
     from archforge.site.pool import param as pool_param, rim
@@ -250,7 +302,7 @@ def building_exclusions(doc):
     return out
 
 
-def _region_mesh(params, cell, exclusions, walls=None):
+def _region_mesh(params, cell, exclusions, walls=None, floors=None):
     """Clip grid cells exactly at footprints and plateau edges; weld into one solid.
 
     Never discard whole intersecting triangles: that would leave a jagged gap
@@ -295,7 +347,7 @@ def _region_mesh(params, cell, exclusions, walls=None):
                     ids=vid(pts[a]),vid(pts[b]),vid(pts[c])
                     if len(set(ids))==3: top.append(ids)
     if not xy: return (),(),()
-    heights=terrain_heights(params,xy,walls)
+    heights=terrain_heights(params,xy,walls,floors)
     bottom=min(heights)-max(.05,float(params.get('thickness',DEFAULT_THICKNESS)))
     verts=[(x,y,z) for (x,y),z in zip(xy,heights)]+[(x,y,bottom) for x,y in xy]
     n=len(xy); tris=list(top)+[(c+n,b+n,a+n) for a,b,c in top]; roles=['top']*len(top)+['bottom']*len(top)

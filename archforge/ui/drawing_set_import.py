@@ -211,14 +211,35 @@ def _inside(polygon, x, y):
 
 
 def section_ground(terrain, sections):
-    """The ground each section draws, as spot levels of the terrain — where no building platform overrides it
-    (inside one the platform is what the model has; the check says how far it is from the drawing)."""
-    regions = [r["points"] for r in terrain.get("regions", ()) if r.get("shape") == "polygon"]
-    extra = [[x, y, z] for v in sections.values() for x, y, z in v["ground"]
-             if not any(_inside([tuple(q) for q in poly], x, y) for poly in regions)]
+    """The ground each section draws, as terrace levels of the terrain (site/terrain.py ``levels``): the drawn
+    ground is finished ground — the slope below the house, the bank above it, the soil on its roof."""
+    extra = [[x, y, z] for v in sections.values() for x, y, z in v["ground"]]
     if extra:
-        terrain["points"] = list(terrain.get("points", [])) + extra
+        terrain["levels"] = list(terrain.get("levels", [])) + extra
     return len(extra)
+
+
+def green_roofs_from_sections(window, sections, roofs):
+    """Υπόσκαφο: a roof slab the section draws soil on (ground over its top) becomes a green roof — the ground
+    covers it (site/terrain.green_roofs).  ``[roof slab ids]``."""
+    from archforge.architecture.storey_slabs import storey_slab_geometry
+    from archforge.core.commands import UpdateEntity
+    from archforge.geometry.regions import point_in_polygon
+    doc = window.doc
+    made = []
+    for _name, rid, _how in roofs:
+        if not rid or rid not in doc.entities:
+            continue
+        g = storey_slab_geometry(doc, doc.get(rid))
+        if not g:
+            continue
+        top = float(g["z"]) + float(g["thickness"])
+        over = [z for v in sections.values() for x, y, z in v.get("ground", ())
+                if any(point_in_polygon(x, y, outer) for outer, _h in g["islands"]) and z > top + 0.05]
+        if over:
+            window.stack.execute(UpdateEntity(rid, {"green": 1, "soil": 0.10}))
+            made.append(rid)
+    return made
 
 
 def pool_depth(sheets, placed, idx, centre, reach):
@@ -525,6 +546,7 @@ def import_set(window, paths=None, reference=None, ask=True):
                 terrain["regions"] = regions
             section_ground(terrain, sections)
             stack.execute(AddEntity(Entity("terrain", terrain, name="Έδαφος")))
+            green_roofs_from_sections(window, sections, roofs)
             # Each retaining wall from the lower ground on its one side to the higher on the other.
             from archforge.site.retaining import fit_command
             command, _n = fit_command(doc, site_walls)

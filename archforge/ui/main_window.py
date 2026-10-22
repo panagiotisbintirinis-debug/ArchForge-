@@ -2138,6 +2138,8 @@ class MainWindow(QMainWindow):
                 continue  # Κουφώματα: δικές τους γραμμές (ui/opening_properties.py).
             if entity.kind == 'stair' and key == 'plan_numbers':
                 continue  # checkbox below
+            if entity.kind == 'room_roof' and key == 'green':
+                continue  # checkbox below (υπόσκαφο)
             if entity.kind == 'electrical_point' and key in light_keys and params.get('point_type') not in ('panel',):
                 continue  # Φωτιστικά: δικές τους γραμμές (ui/light_properties.py).
             if isinstance(value, (int, float)):
@@ -2150,6 +2152,18 @@ class MainWindow(QMainWindow):
                     lambda property_key=key, widget=spin: self._queue_property_commit(eid, property_key, widget.value())
                 )
                 self.form.addRow(param_label(key), spin)
+        if entity.kind == 'room_roof':
+            # Υπόσκαφο: the ground covers this roof (site/terrain.green_roofs) — soil at least «soil» deep on it.
+            from PySide6.QtWidgets import QCheckBox
+            green = QCheckBox('Φυτεμένο δώμα — το έδαφος σκεπάζει την πλάκα (υπόσκαφο)')
+            green.setChecked(bool(int(params.get('green', 0))))
+            green.toggled.connect(lambda on, entity_id=eid: self._set_entity_choice(entity_id, 'green', 1 if on else 0))
+            self.form.addRow('Δώμα', green)
+            if int(params.get('green', 0)):
+                soil = QDoubleSpinBox(); soil.setDecimals(2); soil.setRange(0.0, 3.0); soil.setSingleStep(0.05)
+                soil.setValue(float(params.get('soil', 0.10)))
+                soil.editingFinished.connect(lambda entity_id=eid, widget=soil: self._set_entity_choice(entity_id, 'soil', round(widget.value(), 3)))
+                self.form.addRow('Ελάχιστο χώμα (m)', soil)
         if entity.kind in ('room_floor', 'room_roof', 'room_ceiling', 'room_foundation') and not slab_tools.is_slab_panel(entity):
             # What the slab is and where: room by name, live sizes (never the room id).
             from archforge.ui.project_outline import slab_rows

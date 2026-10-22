@@ -737,7 +737,7 @@ SCHEMAS = {
     'room_floor': _ROOM_SLAB,
     'room_ceiling': _ROOM_SLAB,
     'room_foundation': _ROOM_SLAB,
-    'room_roof': {**_ROOM_SLAB, 'roof_type': _nonempty, 'overhang': _nonnegative},
+    'room_roof': {**_ROOM_SLAB, 'roof_type': _nonempty, 'overhang': _nonnegative, 'green': _flag, 'soil': _nonnegative},
     'door': _JOINERY_OPENING,
     'window': _JOINERY_OPENING,
     'opening': _ARCH_OPENING,
@@ -1129,8 +1129,8 @@ class Document:
             # Storey slabs derive from every wall of their storey (and the roofs / slabs
             # around them); slab openings cut any slab of their storey.
             for related in self.entities.values():
-                if related.kind == 'terrain' and entity.kind == 'wall':
-                    self.mark_dirty(related.id)       # excavation follows added/moved/deleted walls
+                if related.kind == 'terrain' and entity.kind in ('wall', 'room_roof'):
+                    self.mark_dirty(related.id)       # excavation follows the walls; a green roof is under the ground
                 if related.kind in ('room_floor', 'room_roof', 'room_ceiling') and related.id != entity.id \
                         and (entity.kind == 'slab_opening' or related.params.get('scope') == 'storey'):
                     self.mark_dirty(related.id)

@@ -667,8 +667,8 @@ def _payload(doc,node):
   from archforge.construction.drywall import ceiling_mesh
   v,t,r=ceiling_mesh(doc,p);return MeshPayload(v,t,r)
  if k=='terrain':
-  from archforge.site.terrain import terrain_mesh,building_exclusions,barriers
-  v,t,r=terrain_mesh(p,exclusions=building_exclusions(doc),walls=barriers(doc));return MeshPayload(v,t,r)
+  from archforge.site.terrain import terrain_mesh,building_exclusions,barriers,green_roofs
+  v,t,r=terrain_mesh(p,exclusions=building_exclusions(doc),walls=barriers(doc),floors=green_roofs(doc));return MeshPayload(v,t,r)
  raise ValueError(f'tessellation not implemented for {k}')
 class TessellatedPreviewBackend(GeometryBackend):
  name='tessellated-preview'

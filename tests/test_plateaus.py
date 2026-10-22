@@ -121,3 +121,32 @@ def test_level_tool_and_retaining_fit_in_the_window():
         assert w._terrain_entity().params['levels'] == [[5.0, 2.0, 1.0]]
     finally:
         w._mark_clean(); w.close(); app.processEvents()
+
+
+def test_a_green_roof_is_under_the_ground():
+    """Υπόσκαφο: over a green roof the ground is not cut and lies at least on its soil; the soil the section draws
+    over the roof runs over the building's walls, while the terrace below its front stays held by them."""
+    from archforge.architecture.storey_slabs import storey_slab_command
+    from archforge.core.commands import UpdateEntity
+    from archforge.site.terrain import barriers, building_exclusions, green_roofs, terrain_height_at, terrain_mesh
+    doc = Document(); stack = CommandStack(doc)
+    for s in [(0, 0, 10, 0), (10, 0, 10, 8), (10, 8, 0, 8), (0, 8, 0, 0), (5, 0, 5, 8)]:          # two rooms, 3,40 high
+        stack.execute(AddEntity(Entity('wall', {'x1': s[0], 'y1': s[1], 'x2': s[2], 'y2': s[3], 'z': 0.0,
+                                                'height': 3.4, 'thickness': 0.3})))
+    command, roof = storey_slab_command(doc, 'room_roof', 0.0, 'Ground', thickness=0.2)
+    stack.execute(command)
+    t = Entity('terrain', {"x0": -10.0, "y0": -10.0, "x1": 20.0, "y1": 20.0, "elevation": 0.0, "slope_x": 0.0,
+                           "slope_y": 0.0, "thickness": 0.5,
+                           "levels": [[5.0, -3.0, 0.0], [5.0, 12.0, 4.6], [2.5, 4.0, 3.9]]})   # front terrace, bank, soil
+    stack.execute(AddEntity(t))
+    assert not green_roofs(doc) and terrain_height_at(doc, 7.5, 4.0) == pytest.approx(0.0)   # walled in: the plane
+    stack.execute(UpdateEntity(roof.id, {'green': 1, 'soil': 0.1}))
+    (outline, lowest), = green_roofs(doc)
+    assert lowest == pytest.approx(3.7)
+    assert terrain_height_at(doc, 2.5, 4.0) == pytest.approx(3.9, abs=0.01)                     # the soil, as drawn
+    assert terrain_height_at(doc, 7.5, 4.0) > 3.7                                               # … over the middle wall
+    assert terrain_height_at(doc, 5.0, -1.0) == pytest.approx(0.0, abs=0.05)                    # the terrace in front
+    v, tr, r = terrain_mesh(t.params, exclusions=building_exclusions(doc), walls=barriers(doc), floors=green_roofs(doc))
+    tops = [v[i] for tri, role in zip(tr, r) if role == 'top' for i in tri]
+    assert any(1 < x < 9 and 1 < y < 7 for x, y, _z in tops)                                    # the roof is covered
+    assert all(z >= 3.7 - 1e-6 for x, y, z in tops if 0.5 < x < 9.5 and 0.5 < y < 7.5)
