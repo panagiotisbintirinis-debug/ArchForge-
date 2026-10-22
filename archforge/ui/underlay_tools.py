@@ -54,7 +54,12 @@ def import_drawing(window, path=None, unit=None, scale=None, page=None, section_
                         return None
                     page -= 1
             if scale is None:
-                scale, ok = QInputDialog.getDouble(window, "Κλίμακα σχεδίου", "Κλίμακα από την πινακίδα, 1 : ", 50.0, 1.0, 10000.0, 0)
+                found, how = detect_scale(path, page)
+                scale, ok = QInputDialog.getDouble(
+                    window, "Κλίμακα σχεδίου",
+                    (f"Βρέθηκε 1:{found} ({how}) — έλεγξέ την.\n" if found else
+                     "Η κλίμακα δεν γράφεται στο σχέδιο ούτε βγαίνει από διαστάσεις:\nδώσε μία και μετά «Ταίριασμα με 2 σημεία».\n")
+                    + "Κλίμακα, 1 : ", float(found or 50), 1.0, 10000.0, 0)
                 if not ok:
                     return None
             pt = pdf.pagePointSize(page)
@@ -74,6 +79,26 @@ def import_drawing(window, path=None, unit=None, scale=None, page=None, section_
         return entity
     window.statusBar().showMessage("Υπόβαθρο: έλεγξε την κλίμακα — Ιδιότητες ▸ «Βαθμονόμηση (2 κλικ)» σε γνωστή διάσταση", 10000)
     return entity
+
+
+def detect_scale(path, page=0):
+    """(1:N, how) from the drawing: «SCALE 1:50» written on it, else its dimensions (drawing_text); (None, '')."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+    from archforge.project import drawing_text as T
+    from archforge.project.underlay import pdf_vector_segments
+    QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+    try:
+        texts = T.pdf_texts(path, page)
+        written = T.scale(texts)
+        if written:
+            return written, "γράφεται στο σχέδιο"
+        n, votes = T.scale_from_dimensions(texts, pdf_vector_segments(path, page))
+        return (n, f"από {votes} διαστάσεις") if n else (None, "")
+    except Exception:                                   # noqa: BLE001 — a drawing without text: ask
+        return None, ""
+    finally:
+        QApplication.restoreOverrideCursor()
 
 
 def _refresh_section(window, fit=False):
@@ -110,13 +135,49 @@ def start_placing(window, eid):
                                    "μετά κλικ εκεί που ανήκει στην τομή του ArchForge — Esc ακύρωση", 0)
 
 
+ALIGN_STEPS = ("Ταίριασμα: κλικ σε ένα σημείο του σχεδίου (π.χ. γωνία κτιρίου)",
+               "Ταίριασμα: κλικ εκεί που ανήκει αυτό το σημείο (η ίδια γωνία στο μοντέλο)",
+               "Ταίριασμα: κλικ σε δεύτερο σημείο του σχεδίου, μακριά από το πρώτο",
+               "Ταίριασμα: κλικ εκεί που ανήκει το δεύτερο σημείο")
+
+
+def start_aligning(window, eid):
+    """Four clicks: two drawing points and where each belongs — scale, turn and place (a masterplan)."""
+    window._underlay_calibration = {"id": eid, "points": [], "mode": "align"}
+    if not _section_tab(window, eid):
+        window._start_site_tool("underlay_calibrate", ALIGN_STEPS[0])
+    window.statusBar().showMessage(ALIGN_STEPS[0] + " — Esc ακύρωση", 0)
+
+
 def calibration_click(window, x, y, real=None):
-    """Two clicks, then the real distance (or, placing, the move): one UpdateEntity (undo)."""
-    from archforge.project.underlay import calibrated, moved
+    """Two clicks, then the real distance (or, placing, the move; aligning, four clicks): one UpdateEntity (undo)."""
+    from archforge.project.underlay import aligned, calibrated, moved
     state = getattr(window, "_underlay_calibration", None)
     if not state:
         return None
     state["points"].append((float(x), float(y)))
+    if state.get("mode") == "align":
+        if len(state["points"]) < 4:
+            window.statusBar().showMessage(ALIGN_STEPS[len(state["points"])] + " — Esc ακύρωση", 0)
+            return None
+        window._underlay_calibration = None
+        a, a2, b, b2 = state["points"]
+        e = window.doc.get(state["id"])
+        try:
+            changes = aligned(e.params, a, a2, b, b2)
+        except ValueError as exc:
+            window.statusBar().showMessage(str(exc), 6000)
+            return None
+        window.stack.execute(UpdateEntity(e.id, changes))
+        if e.params.get("section_id"):
+            _refresh_section(window)
+        else:
+            window.plan_view.controller.set_tool("select")
+            window._redraw_views(all_views=True)
+        scale_n = changes["m_per_unit"] / (25.4 / 72.0 / 1000.0) if e.params.get("source") == "pdf" else None
+        window.statusBar().showMessage("Ταιριάστηκε" + (f" — κλίμακα 1:{scale_n:.0f}" if scale_n else "")
+                                       + f", στροφή {changes['rotation']:.1f}° · Ctrl+Z αναιρεί".replace(".", ","), 10000)
+        return changes
     placing = state.get("mode") == "place"
     if len(state["points"]) < 2:
         window.statusBar().showMessage("Τοποθέτηση: τώρα κλικ εκεί που ανήκει αυτό το σημείο" if placing else
@@ -163,7 +224,19 @@ def add_rows(window, eid):
     window.form.addRow("Διαφάνεια", slider)
     cal = QPushButton("Βαθμονόμηση (2 κλικ σε γνωστή διάσταση)"); cal.clicked.connect(lambda: start_calibration(window, eid))
     window.form.addRow(cal)
+    align = QPushButton("Ταίριασμα με 2 σημεία (κλίμακα, στροφή, θέση)"); align.clicked.connect(lambda: start_aligning(window, eid))
+    align.setToolTip("Δύο σημεία του σχεδίου και πού ανήκει το καθένα — π.χ. το masterplan πάνω στα κτίρια")
+    window.form.addRow(align)
     sid = p.get("section_id")
+    if not sid and p.get("source") == "pdf":
+        from archforge.ui import building_from_underlay as B
+        build = QPushButton("Κτίριο από το υπόβαθρο (τοίχοι, κουφώματα, χώροι)")
+        build.setToolTip("Στον ενεργό όροφο: τοίχοι, πόρτες/παράθυρα από τις ετικέτες «w: … | h: …», ονόματα χώρων, δάπεδο — μία αναίρεση")
+        build.clicked.connect(lambda: B.build(window, eid))
+        ground = QPushButton("Έδαφος από τα υψόμετρα του σχεδίου")
+        ground.setToolTip("Κάθε υψόμετρο που γράφει το σχέδιο (+111.80m, 126.00m …) γίνεται σημείο εδάφους")
+        ground.clicked.connect(lambda: B.terrain(window, eid))
+        window.form.addRow(build); window.form.addRow(ground)
     if sid:
         place = QPushButton("Τοποθέτηση στην τομή (2 κλικ)"); place.clicked.connect(lambda: start_placing(window, eid))
         window.form.addRow(place)

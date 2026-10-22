@@ -180,6 +180,22 @@ def to_model(params, u, v):
     return (float(params["x"]) + du * math.cos(r) - dv * math.sin(r), float(params["y"]) + du * math.sin(r) + dv * math.cos(r))
 
 
+def aligned(params, a, a2, b, b2):
+    """Params after matching two points: the drawing points now at ``a`` and ``b`` (model, as clicked) go to
+    ``a2`` and ``b2`` — scale, turn and place at once (a masterplan over the buildings drawn from the plans)."""
+    d1, d2 = (b[0] - a[0], b[1] - a[1]), (b2[0] - a2[0], b2[1] - a2[1])
+    l1, l2 = math.hypot(*d1), math.hypot(*d2)
+    if l1 < 1e-9 or l2 < 1e-9:
+        raise ValueError("Δύο διαφορετικά σημεία στο σχέδιο και δύο διαφορετικοί στόχοι")
+    k = l2 / l1
+    turn = math.atan2(d2[1], d2[0]) - math.atan2(d1[1], d1[0])
+    c, s_ = math.cos(turn), math.sin(turn)
+    rx, ry = a[0] - float(params["x"]), a[1] - float(params["y"])          # X' = a2 − k·R(turn)·(a − X)
+    return {"m_per_unit": float(params["m_per_unit"]) * k,
+            "rotation": (float(params.get("rotation", 0.0)) + math.degrees(turn) + 180.0) % 360.0 - 180.0,
+            "x": a2[0] - k * (c * rx - s_ * ry), "y": a2[1] - k * (s_ * rx + c * ry)}
+
+
 def calibrated(params, a, b, real_m):
     """Params after calibration: the distance a–b (model, as clicked) becomes ``real_m``; point a stays put."""
     measured = math.dist(a, b)
