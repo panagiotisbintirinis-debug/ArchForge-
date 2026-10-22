@@ -13,6 +13,7 @@ Pure geometry: lists in, lists out; ui/building_from_underlay.py turns them into
 from __future__ import annotations
 
 import math
+from collections import Counter
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
@@ -120,6 +121,148 @@ def analyse_sheet(sheet, sim):
             item.angle = item.angle + sim.turn
         return item
     segs = [(*to((a, b)), *to((c, d))) for a, b, c, d in sheet.segments]
-    walls, openings, missing = place_openings(find_walls(segs), [placed(o) for o in T.openings(sheet.texts)])
+    walls, openings, missing = tidy(find_walls(segs), [placed(o) for o in T.openings(sheet.texts)])
     return {"walls": walls, "openings": openings, "missing": missing, "rooms": [placed(r) for r in T.rooms(sheet.texts)],
             "levels": [placed(l) for l in T.levels(sheet.texts)]}
+
+
+# ---------------------------------------------------------------------------------------- tidying the found walls
+# Owner 22/10: «αν δεν κλείνουν χώροι, κάτι είναι λάθος».  On the NEW VILLA PLAN not even the engine room closed:
+# 157 walls for ~30 (a lining «wall» inside each concrete wall), a wall 0,8° off square, corners 2 cm apart, and
+# facades in pieces with glazing between.  Rooms need the axes to meet exactly; these steps make them meet.
+
+SQUARE_TOL = math.radians(2.0)     # walls this close to the building's square are squared
+GAP_MAX = 3.20                     # pieces of one wall with a gap up to this become one wall with an opening (m)
+WELD = 0.30                        # ends this close to another wall's axis meet it (m, beyond half thicknesses)
+
+
+def _inside(w, v):
+    """Wall w lies within wall v's band (parallel, along it, axis inside v's thickness)."""
+    (a, b, _t), (p, q, t) = v, w
+    L = math.dist(a, b)
+    if L < 1e-9 or math.dist(p, q) < 1e-9:
+        return False
+    u = ((b[0] - a[0]) / L, (b[1] - a[1]) / L)
+    if abs(u[0] * (q[1] - p[1]) - u[1] * (q[0] - p[0])) / math.dist(p, q) > 0.035:
+        return False
+    off = lambda r: (r[0] - a[0]) * -u[1] + (r[1] - a[1]) * u[0]
+    al = lambda r: (r[0] - a[0]) * u[0] + (r[1] - a[1]) * u[1]
+    lo, hi = sorted((al(p), al(q)))
+    return abs((off(p) + off(q)) / 2) <= v[2] / 2 + t / 2 - 0.005 and lo >= -0.05 and hi <= L + 0.05
+
+
+def dedupe(walls):
+    """Drop walls lying inside a thicker one (a lining or cavity line read as a wall of its own)."""
+    walls = [tuple(w) for w in walls]
+    return [w for i, w in enumerate(walls)
+            if not any(j != i and _inside(w, v) and (v[2] > w[2] + 1e-9 or (abs(v[2] - w[2]) <= 1e-9 and j < i))
+                       for j, v in enumerate(walls))]
+
+
+def square(walls):
+    """Turn walls within 2° of the building's square onto it (about their middle)."""
+    hist = Counter()
+    for a, b, _t in walls:
+        L = math.dist(a, b)
+        hist[round(math.degrees(math.atan2(b[1] - a[1], b[0] - a[0])) % 90.0 * 2) / 2 % 90.0] += L
+    if not hist:
+        return list(walls)
+    base = math.radians(max(hist.items(), key=lambda kv: kv[1])[0])
+    out = []
+    for a, b, t in walls:
+        ang = math.atan2(b[1] - a[1], b[0] - a[0])
+        k = round((ang - base) / (math.pi / 2))
+        target = base + k * math.pi / 2
+        if abs(ang - target) <= SQUARE_TOL:
+            mx, my, h = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, math.dist(a, b) / 2
+            a, b = (mx - h * math.cos(target), my - h * math.sin(target)), (mx + h * math.cos(target), my + h * math.sin(target))
+        out.append((a, b, t))
+    return out
+
+
+def close_gaps(walls, gap_max=GAP_MAX):
+    """Collinear pieces with a gap up to ``gap_max`` between them become one wall (the thicker); each gap is an
+    opening (no joinery: glazing / a passage the drawing gives no «w: | h:» label for)."""
+    walls = [tuple(w) for w in walls]
+    openings = []
+    changed = True
+    while changed:
+        changed = False
+        best = None
+        for i in range(len(walls)):
+            for j in range(i + 1, len(walls)):
+                a, b = walls[i], walls[j]
+                g = _gap((a[0], a[1], b[2]), b) if abs(a[2] - b[2]) > THICK_TOL else _gap(a, b)
+                if g is None:
+                    continue
+                g0, g1, merged = g
+                w = math.dist(g0, g1)
+                if w <= gap_max and (best is None or w < best[0]):
+                    best = (w, i, j, g0, g1, (merged[0], merged[1], max(a[2], b[2])))
+        if best is not None:
+            w, i, j, g0, g1, merged = best
+            walls = [x for k, x in enumerate(walls) if k not in (i, j)] + [merged]
+            if w >= 0.40:
+                openings.append(Opening("opening", ((g0[0] + g1[0]) / 2, (g0[1] + g1[1]) / 2), w, 2.20, 0.0))
+            changed = True
+    return walls, openings
+
+
+def _cross(a1, a2, b1, b2):
+    d = (a1[0] - a2[0]) * (b1[1] - b2[1]) - (a1[1] - a2[1]) * (b1[0] - b2[0])
+    if abs(d) < 1e-12:
+        return None
+    t = ((a1[0] - b1[0]) * (b1[1] - b2[1]) - (a1[1] - b1[1]) * (b1[0] - b2[0])) / d
+    return (a1[0] + t * (a2[0] - a1[0]), a1[1] + t * (a2[1] - a1[1]))
+
+
+def weld(walls):
+    """Each end goes onto the axis of the wall it stops at (L corner or T junction), then ends that are the
+    same corner become one point — the walls meet exactly, as rooms need."""
+    ws = [[list(a), list(b), t] for a, b, t in walls]
+    for i, w in enumerate(ws):
+        for e in (0, 1):
+            p, other = w[e], w[1 - e]
+            best = None
+            for j, v in enumerate(ws):
+                if i == j:
+                    continue
+                c = _cross(w[0], w[1], v[0], v[1])
+                if c is None:
+                    continue
+                reach = v[2] / 2 + w[2] / 2 + WELD
+                d = math.dist(c, p)
+                L = math.dist(v[0], v[1])
+                if L < 1e-9 or d > reach:
+                    continue
+                s = ((c[0] - v[0][0]) * (v[1][0] - v[0][0]) + (c[1] - v[0][1]) * (v[1][1] - v[0][1])) / (L * L)
+                if not -(reach / L) <= s <= 1 + reach / L:
+                    continue
+                # Moving the end must not flip the wall or eat most of it.
+                if math.dist(c, other) < 0.5 * math.dist(p, other):
+                    continue
+                if best is None or d < best[0]:
+                    best = (d, c, j, s)
+            if best is not None:
+                _d, c, j, s = best
+                w[e] = list(c)
+                v = ws[j]                                   # an L corner: the other wall reaches the crossing too
+                if s < 0:
+                    v[0] = list(c)
+                elif s > 1:
+                    v[1] = list(c)
+    # Same corner, one point.
+    pts = [p for w in ws for p in (w[0], w[1])]
+    for p in pts:
+        for q in pts:
+            if p is not q and 0 < math.dist(p, q) <= 0.03:
+                q[0], q[1] = p[0], p[1]
+    return [(tuple(a), tuple(b), t) for a, b, t in ws if math.dist(a, b) >= 0.10]
+
+
+def tidy(walls, labels):
+    """dedupe → square → labelled openings into their gaps → the other gaps closed as openings → corners welded."""
+    walls = square(dedupe(walls))
+    walls, placed, missing = place_openings(walls, labels)
+    walls, gaps = close_gaps(walls)
+    return weld(walls), placed + gaps, missing

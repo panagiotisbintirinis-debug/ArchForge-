@@ -153,6 +153,15 @@ class PlanView(QGraphicsView):
     def set_tool(self,tool):self.controller.set_tool(tool);self._active_handle=None;self._railing_draft=None;self._slab_draft=None;self.statusChanged.emit(f'Εργαλείο: {self.TOOL_LABELS.get(tool,tool)}');self.redraw()
     # Grid lines on/off and the grid/snap step (Κάνναβος & έλξη bar): view state, not Document.
     def set_grid_visible(self,on):self._show_grid=bool(on);self.redraw()
+    # Owner 22/10: «υποτίθεται ότι είχαμε αυτόματο σναπ … και εργαλείο να ρυθμίσουμε την απόσταση».  The snap
+    # tolerance was a fixed 0,10 m: 5–7 pixels at a whole-house zoom, so an end clicked a little off stayed 2–5 cm
+    # short and the room did not close.  It is a reach on the screen now (pixels, «Ακτίνα έλξης»), at any zoom.
+    SNAP_PIXELS=14
+    def set_snap_pixels(self,pixels):
+        self.snap_pixels=max(2,int(pixels));self._sync_snap_tolerance()
+    def _sync_snap_tolerance(self):
+        px_per_m=abs(self.transform().m11()) or 1.0
+        self.controller.snap_tolerance=max(0.01,float(getattr(self,'snap_pixels',self.SNAP_PIXELS))/px_per_m)
     def set_grid_step(self,step):
         self._grid_step=float(step);self.controller.grid=self.controller.construction_grid=self._grid_step;self.redraw()
     def drawForeground(self,painter,rect):
@@ -229,6 +238,7 @@ class PlanView(QGraphicsView):
         self.controller.finish_wall_chain();self._mouse_down=False;self.redraw()
         self.statusChanged.emit(f'Τοίχοι: έγιναν {count} · Ctrl+Z = αναίρεση του τελευταίου' if count else 'Τοίχος: ακυρώθηκε')
     def mouseDoubleClickEvent(self,event):
+        self._sync_snap_tolerance()
         if self._overlay('dclick',event):event.accept();return
         if event.button()==Qt.MouseButton.LeftButton and self.controller.tool=='plot_point':
             self.finish_plot();event.accept();return
@@ -322,6 +332,7 @@ class PlanView(QGraphicsView):
         self._railing_draft=None if lp[3] else getattr(self,'_railing_draft',None)
         self._pan_begin(lp[1]);self.redraw()
     def mousePressEvent(self,event):
+        self._sync_snap_tolerance()
         if event.button()==Qt.MouseButton.MiddleButton:
             self._pan_begin(event.position());event.accept();return
         if event.button()==Qt.MouseButton.LeftButton:
@@ -390,6 +401,7 @@ class PlanView(QGraphicsView):
             return
         self.redraw()
     def mouseMoveEvent(self,event):
+        self._sync_snap_tolerance()
         pan=getattr(self,'_panning',None)
         if pan is not None:
             d=event.position()-pan;self._panning=event.position()
@@ -438,6 +450,7 @@ class PlanView(QGraphicsView):
             p=self.mapToScene(event.position().toPoint());self.statusChanged.emit(f'X {p.x():.3f}   Y {p.y():.3f}')
         super().mouseMoveEvent(event)
     def mouseReleaseEvent(self,event):
+        self._sync_snap_tolerance()
         self._long_press=None
         if getattr(self,'_panning',None) is not None:
             self._pan_end();self.redraw();event.accept();return

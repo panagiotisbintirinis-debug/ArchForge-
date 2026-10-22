@@ -528,6 +528,10 @@ def install_approved_mockup_shell(window):
     snap_size=QComboBox(); snap_size.addItems(("0.10 m","0.05 m","0.25 m","0.50 m")); snap_size.setToolTip("Βήμα κανάβου και έλξης")
     snap_size.currentTextChanged.connect(lambda t: window.plan_view.set_grid_step(float(t.split()[0])))
     snap_bar.addWidget(QLabel("  Βήμα: ")); snap_bar.addWidget(snap_size)
+    reach=QComboBox(); reach.addItems(("8 px","14 px","20 px","30 px")); reach.setCurrentText("14 px")
+    reach.setToolTip("Ακτίνα έλξης στην οθόνη: πόσο κοντά σε γωνία, άκρο ή τοίχο κουμπώνει το ποντίκι, σε κάθε ζουμ")
+    reach.currentTextChanged.connect(lambda t: window.plan_view.set_snap_pixels(int(t.split()[0])))
+    snap_bar.addWidget(QLabel("  Ακτίνα έλξης: ")); snap_bar.addWidget(reach); window._mockup_snap_reach=reach
     window._mockup_grid_check=grid; window._mockup_snap_check=snap; window._mockup_snap_size=snap_size
     # Own row: sharing the ribbon row squeezed Grid/Snap into the overflow.
     window.addToolBarBreak(Qt.TopToolBarArea)

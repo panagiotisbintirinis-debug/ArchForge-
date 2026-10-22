@@ -32,14 +32,14 @@ def _busy(fn):
 @_busy
 def analyse(window, eid):
     """Walls (with openings' pieces joined), openings, room labels and levels of underlay ``eid``."""
-    from archforge.architecture.building_from_drawing import place_openings
+    from archforge.architecture.building_from_drawing import tidy
     from archforge.architecture.walls_from_lines import find_walls
     from archforge.project.drawing_text import model_labels
     from archforge.project.underlay import underlay_model_segments
     p = window.doc.get(eid).params
     segs = underlay_model_segments(p, dark_only=True) or underlay_model_segments(p)
     labels = model_labels(p)
-    walls, openings, missing = place_openings(find_walls(segs), labels["openings"])
+    walls, openings, missing = tidy(find_walls(segs), labels["openings"])
     return {"walls": walls, "openings": openings, "missing": missing, "rooms": labels["rooms"], "levels": labels["levels"]}
 
 
@@ -71,13 +71,13 @@ def build(window, eid, found=None, ask=True):
     for o in found["openings"]:
         host = host_of(found["walls"], o.centre)
         if host is None:
-            unplaced.append(o.label); continue
+            unplaced.append(o.label or o); continue
         k, offset = host
         wall = walls[k]
         length = ((wall.params["x2"] - wall.params["x1"]) ** 2 + (wall.params["y2"] - wall.params["y1"]) ** 2) ** 0.5
         if o.sill + o.height > height or offset - o.width / 2 < -1e-6 or offset + o.width / 2 > length + 1e-6:
-            unplaced.append(o.label); continue
-        name = ("Πόρτα" if o.kind == "door" else "Παράθυρο") + f" {len(openings) + 1}"
+            unplaced.append(o.label or o); continue
+        name = {"door": "Πόρτα", "window": "Παράθυρο"}.get(o.kind, "Άνοιγμα") + f" {len(openings) + 1}"
         openings.append(Entity(o.kind, {"offset": offset, "width": o.width, "height": o.height, "sill": o.sill},
                                parent_id=wall.id, name=name))
     window.stack.execute(AddEntities(walls + openings))
