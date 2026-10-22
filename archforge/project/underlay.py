@@ -213,34 +213,64 @@ def section_underlays(doc, section_id):
 
 # ------------------------------------------------------------------------------------------- lines of a PDF page
 
-def pdf_vector_segments(path, page=0):
+DARK = 0.15                          # «black pen»: every colour channel at most this (0 = black)
+
+
+def _dark(colour):
+    """Near-black in the PDF colour spaces pdfplumber reports: gray (1), RGB (3), CMYK (4)."""
+    if colour is None:
+        return False
+    c = [float(v) for v in (colour if isinstance(colour, (list, tuple)) else (colour,))]
+    if len(c) == 4:
+        return c[3] >= 1.0 - DARK or all(v >= 1.0 - DARK for v in c[:3])
+    return bool(c) and max(c) <= DARK
+
+
+def pdf_vector_segments(path, page=0, dark_only=False):
     """The straight lines drawn on a PDF page, in PDF points with y up (the underlay's drawing units).
 
     A PDF exported from CAD keeps its lines (paths); a scanned one has only a picture → empty list.
-    Lines, rectangle edges and the straight pieces of paths are read (pdfplumber); curves become chords."""
+    Lines, rectangle edges and the straight pieces of paths are read (pdfplumber); curves become chords.
+
+    The frame is the page *as shown* — the one QtPdf renders for the picture: origin at the lower-left of
+    the visible area (CropBox, ISO 32000-1 §14.11.2), page rotation applied.  CAD exports often crop a
+    large sheet (the owner's villa drawings: 1200 × 600 mm sheets, 1872 × 1656 pt visible); measured from
+    the MediaBox the lines came out shifted from the picture.  Lines wholly outside the visible area are
+    not drawn on screen and are left out.  pdfplumber already reports the rotated page with ``top``
+    measured down from its top edge, and its ``cropbox`` as (x0, top, x1, bottom) in that frame.
+
+    ``dark_only``: only lines drawn — or areas filled — in near-black.  Architectural CAD draws walls with
+    the dark pens; hatching, terrain, trees, furniture fills and red mark-ups are coloured or grey (the
+    owner's NEW VILLA PLAN: 57 240 lines → 27 085 dark, the false «walls» on the road, trees and pool gone)."""
     import pdfplumber
     out = []
     with pdfplumber.open(str(path)) as pdf:
         p = pdf.pages[int(page)]
-        h = float(p.height)
+        cx0, ct, cx1, cb = (float(v) for v in p.cropbox)
 
-        def add(pts):
+        def add(pts, obj):
+            if dark_only and not ((obj.get("stroke") and _dark(obj.get("stroking_color"))) or
+                                  (obj.get("fill") and _dark(obj.get("non_stroking_color")))):
+                return
             for (x1, t1), (x2, t2) in zip(pts, pts[1:]):
-                if abs(x2 - x1) + abs(t2 - t1) > 1e-6:
-                    out.append((float(x1), h - float(t1), float(x2), h - float(t2)))
+                if abs(x2 - x1) + abs(t2 - t1) <= 1e-6:
+                    continue
+                if max(x1, x2) < cx0 or min(x1, x2) > cx1 or max(t1, t2) < ct or min(t1, t2) > cb:
+                    continue                                          # outside the visible area
+                out.append((float(x1) - cx0, cb - float(t1), float(x2) - cx0, cb - float(t2)))
         for ln in p.lines:
-            add(ln.get("pts") or [(ln["x0"], ln["top"]), (ln["x1"], ln["bottom"])])
+            add(ln.get("pts") or [(ln["x0"], ln["top"]), (ln["x1"], ln["bottom"])], ln)
         for r in p.rects:
             x0, x1, t0, t1 = r["x0"], r["x1"], r["top"], r["bottom"]
-            add([(x0, t0), (x1, t0), (x1, t1), (x0, t1), (x0, t0)])
+            add([(x0, t0), (x1, t0), (x1, t1), (x0, t1), (x0, t0)], r)
         for c in p.curves:
-            add(c.get("pts") or [])
+            add(c.get("pts") or [], c)
     return out
 
 
-def underlay_model_segments(params):
+def underlay_model_segments(params, dark_only=False):
     """Lines of any underlay in model coordinates (DXF: kept in the project; PDF: read from its file)."""
     if params.get("source") == "pdf":
         return [(*to_model(params, x1, y1), *to_model(params, x2, y2))
-                for x1, y1, x2, y2 in pdf_vector_segments(params["path"], params.get("page", 0))]
+                for x1, y1, x2, y2 in pdf_vector_segments(params["path"], params.get("page", 0), dark_only)]
     return model_segments(params)
