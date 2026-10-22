@@ -235,6 +235,108 @@ def pool_depth(sheets, placed, idx, centre, reach):
     return None
 
 
+def site_levels(doc, sheets, placed, reference, zeros=None):
+    """The terrace levels the set writes outdoors, as terrain ``levels`` [[x, y, z]] (site/terrain.py): the
+    absolute «F.L.» of every placed sheet, and the ones written relative to a building's ±0,00 (OLD VILLA
+    «−1.20m», on its plans or — near it — on the masterplan) where that ±0,00 is known.  Levels inside a named
+    indoor room are left out (there the ground is cut away); the same level written on two sheets counts once."""
+    import math
+    zeros = zeros or {}
+    # Where each building is in the site frame: its plans' placed anchors.
+    where = {}
+    for i, (sim, _how) in placed.items():
+        s = sheets[i]
+        if s.kind == "plan" and s.building and zeros.get(s.building) is not None:
+            where.setdefault(s.building, []).extend(sim.apply((x, y)) for _k, x, y in s.anchors)
+    out = []
+    for i, (sim, _how) in sorted(placed.items(), key=lambda kv: sheets[kv[0]].kind != "site"):
+        s = sheets[i]
+        for v, ceiling, x, y in s.levels():
+            if ceiling:
+                continue
+            px, py = sim.apply((x, y))
+            if v >= 10.0:
+                alt = v
+            else:
+                b = s.building if s.kind == "plan" else min(
+                    where, key=lambda k: min(math.dist((px, py), q) for q in where[k]), default=None)
+                if b is None or zeros.get(b) is None or (s.kind != "plan" and min(math.dist((px, py), q) for q in where[b]) > 15.0):
+                    continue
+                alt = zeros[b] + v
+            if _indoors(doc, px, py) or any(abs(q[2] - (alt - reference)) < 1e-3 and math.dist(q[:2], (px, py)) < 1.0 for q in out):
+                continue
+            out.append([round(px, 3), round(py, 3), round(alt - reference, 3)])
+    return out
+
+
+def _indoors(doc, x, y):
+    """(x, y) inside a named indoor room of any storey."""
+    from archforge.architecture.roof_need import OPEN_AIR_USES
+    from archforge.geometry.regions import point_in_polygon
+    zs = {round(float(e.params.get("z", 0.0)), 4) for e in doc.entities.values() if e.kind == "wall"}
+    for z in zs:
+        for f in doc.active_room_faces(z=z):
+            if point_in_polygon(x, y, f.polygon):
+                meta = doc.room_metadata(f.signature)
+                if meta.get("name") and meta.get("use") not in OPEN_AIR_USES:
+                    return True
+    return False
+
+
+def add_site_walls(window, sheets, placed):
+    """The retaining walls of the site plan (its patterned bands — walls_from_lines) that no plan already drew,
+    as walls of the ground storey; their height comes later from the ground on their two sides
+    (site/retaining.py).  Rows of thin parallel pieces (a pergola's slats, a parking's lines) are not walls."""
+    import math
+    from archforge.architecture.building_from_drawing import tidy
+    from archforge.architecture.walls_from_lines import find_walls
+    from archforge.core.commands import AddEntities
+    from archforge.core.model import Entity
+    doc = window.doc
+    sites = [i for i in placed if sheets[i].kind == "site"]
+    if not sites:
+        return []
+    i = sites[0]
+    sim = placed[i][0]
+    segs = [(*sim.apply((a, b)), *sim.apply((c, d))) for a, b, c, d in sheets[i].segments]
+    walls, _openings, _missing = tidy(find_walls(segs), [])
+    existing = [(float(e.params["x1"]), float(e.params["y1"]), float(e.params["x2"]), float(e.params["y2"]))
+                for e in doc.entities.values() if e.kind == "wall"]
+
+    def drawn(a, b):
+        mx, my = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+        for x1, y1, x2, y2 in existing:
+            dx, dy = x2 - x1, y2 - y1
+            L2 = dx * dx + dy * dy or 1e-12
+            t = max(0.0, min(1.0, ((mx - x1) * dx + (my - y1) * dy) / L2))
+            if math.hypot(mx - x1 - t * dx, my - y1 - t * dy) < 0.6:
+                return True
+        return False
+
+    def slat(k):
+        a, b, _t = walls[k]
+        if math.dist(a, b) > 6.0:
+            return False
+        ang = math.atan2(b[1] - a[1], b[0] - a[0]) % math.pi
+        mid = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+        n = 0
+        for j, (c, d, _u) in enumerate(walls):
+            if j == k:
+                continue
+            ang2 = math.atan2(d[1] - c[1], d[0] - c[0]) % math.pi
+            if min(abs(ang - ang2), math.pi - abs(ang - ang2)) < 0.05 and math.dist(mid, ((c[0] + d[0]) / 2, (c[1] + d[1]) / 2)) < 1.2:
+                n += 1
+        return n >= 2
+
+    keep = [w for k, w in enumerate(walls) if not drawn(w[0], w[1]) and not slat(k)]
+    z = float(doc.levels.get("Ground", 0.0))
+    made = [Entity("wall", {"x1": a[0], "y1": a[1], "x2": b[0], "y2": b[1], "z": z, "height": 1.0, "thickness": float(t)},
+                   name=f"Τοιχίο {n}") for n, (a, b, t) in enumerate(keep, 1)]
+    if made:
+        window.stack.execute(AddEntities(made))
+    return made
+
+
 def site_plateaus(doc, sheets, placed, reference, zeros=None):
     """Every finished-floor level the set writes outdoors («+137.10m [F.L.]»), on the area the walls close around
     it, as a plateau — the same as a person's click with Έδαφος ▸ Πλάτωμα (site/plateaus.py).  Levels written
@@ -405,19 +507,29 @@ def import_set(window, paths=None, reference=None, ask=True):
                 # «elevation» is the graded plane's height at (x0, y0): moving the corner keeps the same plane.
                 terrain["elevation"] += (terrain["slope_x"] * (nx0 - terrain["x0"]) + terrain["slope_y"] * (ny0 - terrain["y0"])) / 100.0
                 terrain.update(x0=nx0, y0=ny0, x1=max(terrain["x1"], max(xs) + 5.0), y1=max(terrain["y1"], max(ys) + 5.0))
-            # Terraces first (each written level on the area its walls close); a building's dug platform and a
-            # pool's rim only where they do not cross a terrace.
+            # The written levels are terraces held by the walls (site/terrain.py levels): the plane fitted through
+            # them stays as the slope of the open ground; a pool's rim is level with it.  No dug platforms: the
+            # ground steps at the walls the drawings draw.
             from archforge.site.elevation_regions import validate_regions
-            regions, plateau_notes = site_plateaus(doc, sheets, placed, float(reference), building_zeros(sheets, placed))
+            site_walls = add_site_walls(window, sheets, placed)
+            terrain["levels"] = site_levels(doc, sheets, placed, float(reference), building_zeros(sheets, placed))
+            terrain["points"] = []
+            regions = []
             for r in platforms(doc, sheets, storeys, made_pools):
-                try:
-                    regions = validate_regions(regions + [dict(r, id=f"{r['id']}-dug")])
-                except ValueError:
-                    pass
+                if r["id"].startswith("pool"):
+                    try:
+                        regions = validate_regions(regions + [r])
+                    except ValueError:
+                        pass
             if regions:
                 terrain["regions"] = regions
             section_ground(terrain, sections)
             stack.execute(AddEntity(Entity("terrain", terrain, name="Έδαφος")))
+            # Each retaining wall from the lower ground on its one side to the higher on the other.
+            from archforge.site.retaining import fit_command
+            command, _n = fit_command(doc, site_walls)
+            if command is not None:
+                stack.execute(command)
         if sections:
             from archforge.project import section_fit as F
             from archforge.site.terrain import terrain_height_at
