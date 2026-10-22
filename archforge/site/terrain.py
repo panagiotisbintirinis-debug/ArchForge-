@@ -170,6 +170,12 @@ def building_exclusions(doc):
             # Square caps meet cleanly at corners; the room union above fills the interior.
             out.append([(ax-dx*h-dy*h,ay-dy*h+dx*h),(ax-dx*h+dy*h,ay-dy*h-dx*h),
                         (bx+dx*h+dy*h,by+dy*h-dx*h),(bx+dx*h-dy*h,by+dy*h+dx*h)])
+    # A pool is dug into the ground: its basin (with its walls) is a hole in the terrain, not water under a lid
+    # of soil (open since 17/10: «η λεκάνη χωρίς τρύπα στο έδαφος του 3D»).
+    from archforge.site.pool import param as pool_param, rim
+    for e in doc.entities.values():
+        if e.kind=='pool' and e.visible:
+            out.append([tuple(q) for q in rim(e.params,pool_param(e.params,'wall'))])
     return out
 
 

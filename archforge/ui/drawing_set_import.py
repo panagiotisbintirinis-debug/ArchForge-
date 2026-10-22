@@ -40,16 +40,13 @@ def read(window, paths):
 
 def plan_storeys(sheets, placed, reference):
     """``{sheet index: (storey name, z)}`` for the placed plans; z = floor altitude − ``reference``."""
-    from archforge.project.drawing_set import building_zero, floor_altitude, zero_from_site
+    from archforge.project.drawing_set import floor_altitude
     out = {}
-    sites = [j for j in placed if sheets[j].kind == "site"]
+    zeros = building_zeros(sheets, placed)
     for i, s in enumerate(sheets):
         if i not in placed or s.kind != "plan":
             continue
-        zero = building_zero([t for t in sheets if t.building == s.building])
-        if zero is None:
-            zero = next((z for j in sites for z in [zero_from_site(sheets[j], placed[j][0], s, placed[i][0])]
-                         if z is not None), None)
+        zero = zeros.get(s.building)
         alt = floor_altitude(s, zero)
         if alt is None:
             continue
@@ -61,6 +58,22 @@ def plan_storeys(sheets, placed, reference):
         key = (sheets[i].building, alt)
         first.setdefault(key, name)
         out[i] = (first[key], z, alt)
+    return out
+
+
+def building_zeros(sheets, placed):
+    """``{building: altitude of its ±0,00}`` — written on its sheets, else read off the site plan."""
+    from archforge.project.drawing_set import building_zero, zero_from_site
+    sites = [j for j in placed if sheets[j].kind == "site"]
+    out = {}
+    for i, s in enumerate(sheets):
+        if i not in placed or s.kind != "plan" or out.get(s.building) is not None:
+            continue
+        zero = building_zero([t for t in sheets if t.building == s.building])
+        if zero is None:
+            zero = next((z for j in sites for z in [zero_from_site(sheets[j], placed[j][0], s, placed[i][0])]
+                         if z is not None), None)
+        out[s.building] = zero
     return out
 
 
@@ -126,8 +139,81 @@ def add_sections(window, sheets, placed):
             params.update(x=found["x"], y=found["y"])
         u = Entity("underlay", params, name=f"Υπόβαθρο {s.path.split('/')[-1]}")
         window.stack.execute(AddEntity(u))
-        out[i] = {"section": sec.id, "underlay": u.id, "fit": found, "report": F.report(found, sec.name)}
+        line, flip = (a, b), (found["flip"] if found else 0)
+        ground = [(*F.plan_point(line, flip, gu), gz) for gu, gz in F.ground_profile(s, found)]
+        slab = F.roof_slab(s, found, F.model_on_line(window.doc, line, flip)["walls"]) if found else None
+        out[i] = {"section": sec.id, "underlay": u.id, "fit": found, "report": F.report(found, sec.name),
+                  "line": line, "flip": flip, "profile": F.ground_profile(s, found), "ground": ground,
+                  "building": s.building, "slab": slab}
+        if slab:
+            out[i]["report"] += (f" · πλάκα οροφής από την τομή {slab['bottom']:.2f}–{slab['top']:.2f} "
+                                 f"({slab['thickness'] * 100:.0f} cm)" +
+                                 (f", ψευδοροφή {slab['ceiling']:.2f}" if slab["ceiling"] else "")).replace(".", ",")
     return out
+
+
+def add_roof_slabs(window, sheets, storeys, sections, zeros=None, reference=0.0):
+    """A roof slab (δώμα) over every storey built from a plan.  Where a section of the building says how high
+    and how thick it is (NEW VILLA: underside 3,40, 20 cm), the storey's walls go up to its underside first;
+    a storey under its building's ±0,00 (OLD VILLA lower floor +129,00, ±0,00 = +131,80) is closed by the floor
+    of the ±0,00 storey: 20 cm whose top is at ±0,00; otherwise the slab sits on the walls as drawn (20 cm).
+    ``[(storey name, slab id, where its height came from)]``."""
+    from archforge.architecture.storey_slabs import storey_slab_command
+    from archforge.core.commands import UpdateEntities
+    doc = window.doc
+    told = {v["building"]: v["slab"] for v in sections.values() if v.get("slab")}
+    out, seen = [], set()
+    for i, (name, z, _alt) in sorted(storeys.items(), key=lambda kv: kv[1][1]):
+        if (name, z) in seen:
+            continue
+        seen.add((name, z))
+        slab = told.get(sheets[i].building)
+        how = "τομή" if slab else "τοίχοι"
+        zero = (zeros or {}).get(sheets[i].building)
+        if slab is None and zero is not None and zero - reference - z >= 2.2:
+            how = "±0,00 του κτιρίου"
+            top = round(zero - reference - z, 3)
+            slab = {"bottom": round(top - 0.20, 3), "top": top, "thickness": 0.20, "ceiling": None}
+        walls = [e for e in doc.entities.values() if e.kind == "wall" and abs(float(e.params.get("z", 0.0)) - z) < 1e-3]
+        if not walls:
+            continue
+        if slab:
+            # Only the walls built at the default height are raised: a parapet or a retaining wall keeps its own.
+            common = Counter(round(float(e.params["height"]), 3) for e in walls).most_common(1)[0][0]
+            # A wall never goes lower than the head of a door / window in it.
+            heads = {}
+            for o in doc.entities.values():
+                if o.parent_id and o.kind in ("door", "window", "opening"):
+                    head = float(o.params.get("sill", 0.0)) + float(o.params.get("height", 0.0))
+                    heads[o.parent_id] = max(heads.get(o.parent_id, 0.0), head)
+            changes = {e.id: {"height": max(slab["bottom"], round(heads.get(e.id, 0.0), 3))} for e in walls
+                       if abs(float(e.params["height"]) - common) < 1e-3}
+            if changes:
+                window.stack.execute(UpdateEntities(changes))
+        command, entity = storey_slab_command(doc, "room_roof", z, name, thickness=slab["thickness"] if slab else None)
+        if command is not None:
+            window.stack.execute(command)
+            out.append((name, entity.id if entity else None, how))
+    return out
+
+
+def _inside(polygon, x, y):
+    inside = False
+    for (x1, y1), (x2, y2) in zip(polygon, polygon[1:] + polygon[:1]):
+        if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
+            inside = not inside
+    return inside
+
+
+def section_ground(terrain, sections):
+    """The ground each section draws, as spot levels of the terrain — where no building platform overrides it
+    (inside one the platform is what the model has; the check says how far it is from the drawing)."""
+    regions = [r["points"] for r in terrain.get("regions", ()) if r.get("shape") == "polygon"]
+    extra = [[x, y, z] for v in sections.values() for x, y, z in v["ground"]
+             if not any(_inside([tuple(q) for q in poly], x, y) for poly in regions)]
+    if extra:
+        terrain["points"] = list(terrain.get("points", [])) + extra
+    return len(extra)
 
 
 def platforms(doc, sheets, storeys, pools, transition=3.0):
@@ -234,6 +320,7 @@ def import_set(window, paths=None, reference=None, ask=True):
                     terrain = terrain_from_survey(doc, pts, in_place=True, altitude_ref=float(reference))
         made_pools = add_pools(window, sheets, placed, float(reference))
         sections = add_sections(window, sheets, placed)
+        roofs = add_roof_slabs(window, sheets, storeys, sections, building_zeros(sheets, placed), float(reference))
         if terrain is not None:
             # The ground under everything that was drawn (retaining walls at the plot's edge, the pools), 5 m round.
             xs = [float(e.params[k]) for e in doc.entities.values() if e.kind == "wall" for k in ("x1", "x2")]
@@ -247,7 +334,15 @@ def import_set(window, paths=None, reference=None, ask=True):
             regions = platforms(doc, sheets, storeys, made_pools)
             if regions:
                 terrain["regions"] = regions
+            section_ground(terrain, sections)
             stack.execute(AddEntity(Entity("terrain", terrain, name="Έδαφος")))
+        if sections:
+            from archforge.project import section_fit as F
+            from archforge.site.terrain import terrain_height_at
+            for v in sections.values():
+                if v["fit"] and v["profile"]:
+                    off = F.ground_check(v["profile"], v["line"], v["flip"], lambda x, y: terrain_height_at(doc, x, y))
+                    v["report"] += " · " + F.ground_text(off)
     finally:
         QApplication.restoreOverrideCursor()
     stack.squash(since, "Σύνολο σχεδίων")
@@ -255,11 +350,11 @@ def import_set(window, paths=None, reference=None, ask=True):
     window._redraw_views(all_views=True)
     window._refresh_project_tree()
     done = {"sheets": sheets, "placed": placed, "storeys": storeys, "built": built, "terrain": terrain, "pools": made_pools,
-            "sections": sections}
+            "sections": sections, "roofs": roofs}
     text = (f"{len(placed)} από {len(sheets)} σχέδια στη θέση τους · {len(set(n for n, _z, _a in storeys.values()))} όροφοι · "
             f"τοίχοι {sum(b['walls'] for b in built.values() if b)} · πισίνες {len(made_pools)} · "
             f"έδαφος από {len(terrain['points']) if terrain else 0} υψόμετρα"
-            f" · τομές στη θέση τους {sum(1 for v in sections.values() if v['fit'])}"
+            f" · πλάκες οροφής {len(roofs)} · τομές στη θέση τους {sum(1 for v in sections.values() if v['fit'])}"
             " — Ctrl+Z αναιρεί όλο το σύνολο")
     window.statusBar().showMessage(text, 20000)
     if ask:

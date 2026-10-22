@@ -221,3 +221,105 @@ def report(found, name="Τομή"):
         text += " · ύψη που διαφέρουν: " + ", ".join(
             f"στα {u:.1f} m τοίχος {a:.2f} m στο μοντέλο, {b:.2f} m στην τομή".replace(".", ",") for u, a, b in off[:4])
     return text
+
+
+# ---------------------------------------------------------------------------------------------------- the ground
+
+def ground_profile(sheet, found, step=1.0, min_length=0.8):
+    """The ground the section draws, ``[(u, z)]`` every ``step`` m: its sloping dark lines (the slope below the
+    building, the soil over a buried roof, the bank above it) — level lines are floors / slabs, steep ones walls."""
+    if not found:
+        return []
+    pieces = []
+    for x1, y1, x2, y2 in sheet.segments:
+        if x2 < x1:
+            x1, y1, x2, y2 = x2, y2, x1, y1
+        run = x2 - x1
+        if run < 0.3 or math.hypot(run, y2 - y1) < min_length or not 0.05 < abs((y2 - y1) / run) < 1.5:
+            continue
+        pieces.append((x1 + found["x"], y1 + found["y"], x2 + found["x"], y2 + found["y"]))
+    if not pieces:
+        return []
+    u0, u1 = min(p[0] for p in pieces), max(p[2] for p in pieces)
+    out = []
+    n = max(1, int((u1 - u0) / step))
+    for k in range(n + 1):
+        u = u0 + (u1 - u0) * k / n
+        zs = [y1 + (y2 - y1) * (u - x1) / (x2 - x1) for x1, y1, x2, y2 in pieces if x1 - 1e-6 <= u <= x2 + 1e-6]
+        if zs:
+            out.append((round(u, 3), round(max(zs), 3)))      # the top one: the surface, not a buried line
+    return out
+
+
+def plan_point(line, flip, u):
+    origin, along = frame(line, flip)
+    return (origin[0] + along[0] * u, origin[1] + along[1] * u)
+
+
+def ground_check(profile, line, flip, height, tolerance=0.5):
+    """Where the model's ground (``height(x, y)``) is off the section's by more than ``tolerance``:
+    ``[(u0, u1, drawn z, model z)]`` — neighbouring samples off the same way are one stretch."""
+    out = []
+    for u, z in profile:
+        h = height(*plan_point(line, flip, u))
+        if h is None or abs(h - z) <= tolerance:
+            continue
+        if out and u - out[-1][1] <= 2.5 and (h > z) == (out[-1][3] > out[-1][2]):
+            u0, _u1, z0, h0 = out[-1]
+            out[-1] = (u0, u, max(z0, z) if h < z else min(z0, z), h0)
+        else:
+            out.append((u, u, z, h))
+    return out
+
+
+def ground_text(stretches):
+    if not stretches:
+        return "έδαφος: συμφωνεί με την τομή (±0,50 m)"
+    parts = []
+    for u0, u1, z, h in stretches[:4]:
+        where = f"στα {u0:.0f}–{u1:.0f} m" if u1 - u0 >= 1.0 else f"στα {u0:.0f} m"
+        parts.append(f"{where} η τομή {'έως ' if u1 - u0 >= 1.0 else ''}{z:+.2f}, το μοντέλο {h:+.2f}".replace(".", ","))
+    return "έδαφος διαφέρει: " + " · ".join(parts)
+
+
+# ---------------------------------------------------------------------------------------------------- the slab
+
+LAYER = 0.15             # m — lines closer than this on top of a slab are its layers (waterproofing, green roof)
+
+
+def roof_slab(sheet, found, walls, min_span=2.0, cover=0.6):
+    """The slab over the rooms the line crosses, as the section draws it: ``{"bottom", "top", "thickness",
+    "ceiling"}`` (heights over the floor) or None.
+
+    Between two walls of the model (a room on the line), the level lines of the drawing that span most of it:
+    the highest one that is not a thin layer on another (3,70 green-roof layers on 3,60) is the slab's top, the
+    highest 15–40 cm below it its bottom (3,40 → 20 cm, as the dimensions 2,90 / 0,50 / 0,20 say), and a line
+    lower down the suspended ceiling (2,90)."""
+    if not found or len(walls) < 2:
+        return None
+    du, dz = found["x"], found["y"]
+    z0 = min(w[2] for w in walls)
+    level = [((min(x1, x2) + du, max(x1, x2) + du), (y1 + y2) / 2 + dz - z0)
+             for x1, y1, x2, y2 in sheet.segments if abs(y2 - y1) <= 0.01 and abs(x2 - x1) >= 1.0]
+    found_ = []
+    edges = sorted(walls)
+    for a, b in zip(edges, edges[1:]):
+        lo, hi = a[1], b[0]
+        if hi - lo < min_span:
+            continue
+        ys = sorted({round(y, 2) for (u0, u1), y in level
+                     if y > 2.0 and min(u1, hi) - max(u0, lo) >= cover * (hi - lo)}, reverse=True)
+        top = next((y for y in ys if not any(0 < y - q < LAYER for q in ys)), None)
+        if top is None:
+            continue
+        bottom = next((q for q in ys if 0.15 - 1e-6 <= top - q <= 0.40 + 1e-6), None)
+        if bottom is None:
+            continue
+        ceiling = next((q for q in ys if bottom - q >= 0.10 and q >= 2.2), None)
+        found_.append((hi - lo, {"bottom": bottom, "top": top, "thickness": round(top - bottom, 2), "ceiling": ceiling}))
+    if not found_:
+        return None
+    # The rooms agree (the NEW VILLA: 3,40 / 3,60 in both); else the widest room tells.
+    votes = Counter((s["bottom"], s["top"]) for _w, s in found_)
+    (b, t), _n = votes.most_common(1)[0]
+    return max((s for _w, s in found_ if (s["bottom"], s["top"]) == (b, t)), key=lambda s: s["ceiling"] is not None)

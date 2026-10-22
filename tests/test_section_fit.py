@@ -65,3 +65,26 @@ def test_without_a_pool_the_walls_place_it():
 def test_nothing_on_the_line_nothing_guessed():
     assert F.fit(_section(), Document(), ((0.0, 15.0), (0.0, -1.0))) is None
     assert "2 κλικ" in F.report(None)
+
+
+def test_the_roof_slab_is_read_between_the_walls():
+    """NEW VILLA: ceiling 2,90, slab 3,40–3,60 (the dimensions 2,90 / 0,50 / 0,20), green-roof layers to 3,70."""
+    walls = [(3.85, 4.15, 0.0, 3.0), (8.85, 9.15, 0.0, 3.0), (12.85, 13.15, 0.0, 3.0)]
+    segs = [(4.2, y, 8.8, y) for y in (0.0, 2.9, 3.4, 3.6, 3.7)] + [(9.2, y, 12.8, y) for y in (0.0, 2.9, 3.4, 3.6, 3.7)]
+    segs += [(4.2, 3.2, 5.0, 3.2)]                                     # a short line (a beam's end) is not the slab
+    sheet = D.Sheet("s.pdf", kind="section", scale=50, segments=segs)
+    slab = F.roof_slab(sheet, {"x": 0.0, "y": 0.0}, walls)
+    assert slab == {"bottom": 3.4, "top": 3.6, "thickness": 0.2, "ceiling": 2.9}
+    assert F.roof_slab(sheet, None, walls) is None
+
+
+def test_the_ground_line_of_the_section():
+    """Sloping lines are the ground (and the soil over a buried roof); level lines are floors, steep ones walls."""
+    segs = [(0.0, 0.0, 4.0, 1.0), (4.0, 1.0, 8.0, 3.0), (0.0, -1.0, 8.0, -1.0), (5.0, 0.0, 5.0, 3.0)]
+    sheet = D.Sheet("s.pdf", kind="section", scale=50, segments=segs)
+    prof = F.ground_profile(sheet, {"x": 1.0, "y": -0.5}, step=2.0)
+    assert prof == [(1.0, -0.5), (3.0, 0.0), (5.0, 0.5), (7.0, 1.5), (9.0, 2.5)]
+    flat = lambda x, y: 0.0                                             # the model's ground: level at ±0,00
+    off = F.ground_check(prof, ((0.0, 0.0), (10.0, 0.0)), 0, flat)
+    assert off == [(7.0, 9.0, 2.5, 0.0)]          # one stretch, the farthest the drawing is off
+    assert "στα 7–9 m η τομή έως +2,50, το μοντέλο +0,00" in F.ground_text(off)

@@ -94,3 +94,41 @@ def test_a_floor_with_only_relative_levels_lands_by_its_walls_on_the_site_plan()
     # Without a level to confirm it, the strongest shift is not taken on trust.
     lower.anchors = [("L-3.45", 9, 3)]
     assert 1 not in D.relate([site, lower])
+
+
+def _rooms(doc, stack, z, height=3.0):
+    from archforge.core.commands import AddEntity
+    from archforge.core.model import Entity
+    ids = []
+    for s in [(0, 0, 10, 0), (10, 0, 10, 8), (10, 8, 0, 8), (0, 8, 0, 0), (5, 0, 5, 8)]:
+        e = Entity('wall', {'x1': s[0], 'y1': s[1], 'x2': s[2], 'y2': s[3], 'z': z, 'height': height, 'thickness': 0.25})
+        stack.execute(AddEntity(e)); ids.append(e.id)
+    return ids
+
+
+def test_roof_slabs_from_the_section_and_from_the_buildings_zero():
+    """NEW VILLA: the section says underside 3,40 and 20 cm — walls go up to it, the slab sits there.  OLD VILLA
+    lower floor (+129,00) under its ±0,00 (+131,80): closed by 20 cm whose top is ±0,00 — but a wall never
+    goes lower than the door in it."""
+    from types import SimpleNamespace
+    from archforge.core.commands import AddEntity, CommandStack
+    from archforge.core.model import Document, Entity
+    from archforge.ui.drawing_set_import import add_roof_slabs
+    doc = Document(); stack = CommandStack(doc)
+    doc.levels.update({"New": 0.0, "Old": 15.0})
+    new = _rooms(doc, stack, 0.0)
+    old = _rooms(doc, stack, 15.0)
+    stack.execute(AddEntity(Entity('door', {'offset': 2.0, 'width': 0.9, 'height': 2.7, 'sill': 0.0}, parent_id=old[0])))
+    sheets = [D.Sheet("new.pdf", building="NEW VILLA"), D.Sheet("old.pdf", building="OLD VILLA")]
+    storeys = {0: ("New", 0.0, 114.0), 1: ("Old", 15.0, 129.0)}
+    sections = {9: {"building": "NEW VILLA", "slab": {"bottom": 3.4, "top": 3.6, "thickness": 0.2, "ceiling": 2.9}}}
+    made = add_roof_slabs(SimpleNamespace(doc=doc, stack=stack), sheets, storeys, sections,
+                          {"NEW VILLA": None, "OLD VILLA": 131.8}, 114.0)
+    assert [(n, how) for n, _id, how in made] == [("New", "τομή"), ("Old", "±0,00 του κτιρίου")]
+    roofs = {e.params["level_z"]: e.params for e in doc.entities.values() if e.kind == "room_roof"}
+    assert roofs[0.0]["offset_z"] == pytest.approx(3.4) and roofs[0.0]["thickness"] == 0.2
+    assert roofs[15.0]["offset_z"] + roofs[15.0]["thickness"] == pytest.approx(2.8)
+    assert {doc.get(i).params["height"] for i in new} == {3.4}
+    assert doc.get(old[0]).params["height"] == pytest.approx(2.7)                  # the door's head
+    assert [doc.get(i).params["height"] for i in old[1:]] == pytest.approx([2.6] * 4)
+    assert len(stack.done) >= 1

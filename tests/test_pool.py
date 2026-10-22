@@ -122,3 +122,24 @@ def test_pool_supply_has_its_own_circuit_and_its_own_rcd_on_the_board():
         assert not [e for e in window.doc.entities.values() if e.params.get('point_type') == 'pool_supply']
     finally:
         window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_the_pool_is_a_hole_in_the_ground():
+    """Open since 17/10 («η λεκάνη χωρίς τρύπα στο έδαφος του 3D»): the terrain stops at the basin's outer face."""
+    from archforge.geometry.mesh_validation import validate_mesh
+    from archforge.geometry.mesh import MeshPayload
+    from archforge.site.terrain import building_exclusions, terrain_mesh
+    doc = Document(); stack = CommandStack(doc)
+    _pool(stack, length=8.0, width=4.0)                                  # inside 8 × 4, walls 25 cm
+    p = {"x0": -10.0, "y0": -10.0, "x1": 10.0, "y1": 10.0, "elevation": 0.0, "slope_x": 0.0, "slope_y": 0.0, "thickness": 0.5}
+    v, t, r = terrain_mesh(p, exclusions=building_exclusions(doc))
+    assert validate_mesh(MeshPayload(v, t, r)).watertight
+    area = 0.0
+    for tri, role in zip(t, r):
+        if role != "top":
+            continue
+        a, b, c = [v[i] for i in tri]
+        x, y = sum(q[0] for q in (a, b, c)) / 3, sum(q[1] for q in (a, b, c)) / 3
+        assert not (abs(x) < 4.25 - 1e-7 and abs(y) < 2.25 - 1e-7)
+        area += abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) / 2
+    assert area == pytest.approx(400 - 8.5 * 4.5)
