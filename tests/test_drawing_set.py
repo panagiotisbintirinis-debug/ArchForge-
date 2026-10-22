@@ -71,3 +71,26 @@ def test_storeys_from_the_levels_each_building_writes():
     st = plan_storeys(sheets, placed, 114.0)
     assert st[2][1] == 0.0 and st[0][1] == pytest.approx(17.8) and st[1][1] == pytest.approx(15.0)
     assert st[3][0] == st[2][0]                                     # the pool sheet shares the ground storey
+
+
+def test_a_floor_with_only_relative_levels_lands_by_its_walls_on_the_site_plan():
+    """OLD VILLA lower floor without its upper floor sheet: only «−2.80 / −3.45» (relative) — one shared value
+    with the masterplan, too few for anchors; its walls are on the masterplan and the shared level confirms
+    the shift.  The ±0,00 comes from the masterplan's «−2.80» written beside «+129.00»."""
+    from archforge.ui.drawing_set_import import plan_storeys
+    outline = [(0, 0, 12, 0), (12, 0, 12, 8), (12, 8, 0, 8), (0, 8, 0, 0), (5, 0, 5, 8), (0, 4, 5, 4), (5, 6, 12, 6),
+               (8.3, 0, 8.3, 6), (1.7, 4, 1.7, 8), (5, 2.2, 8.3, 2.2), (9.4, 6, 9.4, 8)]
+    shift = (20.0, 60.0)
+    clutter = [(x, 0, x, 50) for x in range(0, 60, 7)] + [(0, y, 60, y) for y in range(0, 90, 9)]
+    on_site = [(a + shift[0], b + shift[1], c + shift[0], d + shift[1]) for a, b, c, d in outline]
+    lower = D.Sheet("old_lower.pdf", kind="plan", building="OLD VILLA", floor="lower", scale=50, segments=outline,
+                    anchors=[("L-2.80", 2, 2), ("L-3.45", 9, 3)])
+    site = D.Sheet("site.pdf", kind="site", scale=100, segments=clutter + on_site * 3,
+                   anchors=[("L-2.80", 22.4, 62.3), ("L+129.00", 22.3, 62.0), ("L+114.00", 50, 20),
+                            ("L+113.30", 52, 15), ("L+112.80", 49, 12)])
+    placed = D.relate([site, lower])
+    assert placed[1][0].shift == pytest.approx(shift) and "γενική" in placed[1][1]
+    assert plan_storeys([site, lower], placed, 114.0)[1][1:] == (15.0, 129.0)
+    # Without a level to confirm it, the strongest shift is not taken on trust.
+    lower.anchors = [("L-3.45", 9, 3)]
+    assert 1 not in D.relate([site, lower])

@@ -336,6 +336,55 @@ def relate_by_walls(a_segments, b_segments, cell=0.05, min_votes=12):
     return Similarity(1.0, 0.0, (dx * cell, dy * cell), n, cell)
 
 
+def relate_by_walls_confirmed(plan, site, reach=1.5, peaks=6, min_votes=12):
+    """A plan onto the site plan by its walls (both in metres, no turn), when a level written on both confirms the
+    place: the OLD VILLA's lower floor writes only levels relative to its ±0,00 (−2.80, −3.45) — one shared value,
+    too few for anchors — but its walls are on the masterplan (81 corners) and «−2.80» lands 0,5 m from the
+    masterplan's «−2.80».  Of the strongest shifts the first a shared level confirms; None if none does."""
+    A, B = _corners(plan.segments), _corners(site.segments)
+    if not A or not B:
+        return None
+    cell = 0.05
+    votes = Counter()
+    for x1, y1 in A:
+        for x2, y2 in B:
+            votes[(round((x2 - x1) / cell), round((y2 - y1) / cell))] += 1
+    mine = [(k, x, y) for k, x, y in plan.anchors if k.startswith("L")]
+    theirs = [(k, x, y) for k, x, y in site.anchors if k.startswith("L")]
+    seen = []
+    for (dx, dy), _n in votes.most_common(peaks * 9):
+        if any(abs(dx - a) <= 1 and abs(dy - b) <= 1 for a, b in seen):
+            continue
+        seen.append((dx, dy))
+        if len(seen) > peaks:
+            break
+        n = sum(votes.get((dx + i, dy + j), 0) for i in (-1, 0, 1) for j in (-1, 0, 1))
+        if n < min_votes:
+            break
+        sx, sy = dx * cell, dy * cell
+        if any(k == q and math.dist((x + sx, y + sy), (u, v)) <= reach for k, x, y in mine for q, u, v in theirs):
+            return Similarity(1.0, 0.0, (sx, sy), n, cell)
+    return None
+
+
+def zero_from_site(site, site_sim, plan, plan_sim, reach=3.0, near=1.0):
+    """A building's ±0,00 from the site plan, where its sheets write no «±0.00»: the plan's relative level placed
+    on the site plan meets the same relative level there, written next to an altitude (masterplan: «−2.80m» with
+    «+129.00m» 33 cm away → ±0,00 = +131,80)."""
+    lv = [(v, x, y) for v, c, x, y in site.levels() if not c]
+    for v, c, x, y in plan.levels():
+        if c or abs(v) >= ABSOLUTE:
+            continue
+        p = plan_sim.apply((x, y))
+        for w, u, t in lv:
+            if abs(w - v) > 1e-6 or math.dist(site_sim.apply((u, t)), p) > reach:
+                continue
+            alts = sorted((math.dist((u, t), (a, b)), z) for z, a, b in lv if z >= ABSOLUTE)
+            if alts and alts[0][0] <= near:
+                return round(alts[0][1] - v, 2)
+    return None
+
+
 # ------------------------------------------------------------------------------------------------ the whole set
 
 def relate(sheets: List[Sheet]):
@@ -366,6 +415,9 @@ def relate(sheets: List[Sheet]):
                 if sim is None and same and s.kind == t.kind == "plan" and s.building == t.building and s.scale == t.scale:
                     sim = relate_by_walls(s.segments, t.segments)
                     how = f"τοίχοι ({sim.inliers} γωνίες)" if sim else ""
+                if sim is None and same and s.kind == "plan" and t.kind == "site":
+                    sim = relate_by_walls_confirmed(s, t)
+                    how = f"τοίχοι στη γενική διάταξη ({sim.inliers} γωνίες, ίδιο υψόμετρο)" if sim else ""
                 if sim is not None:
                     placed[i] = (_chain(sim, sim_j), how)
                     changed = True

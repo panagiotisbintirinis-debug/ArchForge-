@@ -40,12 +40,16 @@ def read(window, paths):
 
 def plan_storeys(sheets, placed, reference):
     """``{sheet index: (storey name, z)}`` for the placed plans; z = floor altitude − ``reference``."""
-    from archforge.project.drawing_set import building_zero, floor_altitude
+    from archforge.project.drawing_set import building_zero, floor_altitude, zero_from_site
     out = {}
+    sites = [j for j in placed if sheets[j].kind == "site"]
     for i, s in enumerate(sheets):
         if i not in placed or s.kind != "plan":
             continue
         zero = building_zero([t for t in sheets if t.building == s.building])
+        if zero is None:
+            zero = next((z for j in sites for z in [zero_from_site(sheets[j], placed[j][0], s, placed[i][0])]
+                         if z is not None), None)
         alt = floor_altitude(s, zero)
         if alt is None:
             continue
@@ -97,6 +101,35 @@ def add_pools(window, sheets, placed, reference):
     return made
 
 
+def add_sections(window, sheets, placed):
+    """Every section sheet on its cut line (the mark written at both ends on its building's plan), as a section
+    with the drawing under it, placed and turned to look the way the drawing does (project/section_fit.py).
+    ``{sheet index: {"section": id, "underlay": id or None, "fit": dict or None, "report": text}}``."""
+    from archforge.core.commands import AddEntity
+    from archforge.core.model import Entity
+    from archforge.project import section_fit as F
+    from archforge.project.underlay import for_section, pdf_params
+    out = {}
+    for i, s in enumerate(sheets):
+        if s.kind != "section":
+            continue
+        lines = F.cut_lines(sheets, placed, building=s.building or None)
+        if not lines:
+            continue
+        mark, a, b, _j = lines[0]
+        found = F.fit(s, window.doc, (a, b))
+        sec = Entity("section_line", {"x1": a[0], "y1": a[1], "x2": b[0], "y2": b[1],
+                                      "flip": found["flip"] if found else 0}, name=f"Τομή {mark}")
+        window.stack.execute(AddEntity(sec))
+        params = for_section(pdf_params(s.path, s.page, s.scale or 100, s.page_size), sec.id)
+        if found:
+            params.update(x=found["x"], y=found["y"])
+        u = Entity("underlay", params, name=f"Υπόβαθρο {s.path.split('/')[-1]}")
+        window.stack.execute(AddEntity(u))
+        out[i] = {"section": sec.id, "underlay": u.id, "fit": found, "report": F.report(found, sec.name)}
+    return out
+
+
 def platforms(doc, sheets, storeys, pools, transition=3.0):
     """Terrain regions: each building dug down to its lowest floor (the slope runs up to it — the NEW VILLA is
     partly underground), each pool level with its rim where no building platform is in the way."""
@@ -138,7 +171,8 @@ def summary_text(sheets, placed, storeys):
         what = f"{s.building or 'οικόπεδο'} · {KIND_NAMES.get(s.kind, s.kind)}" + (f" · {FLOOR_NAMES.get(s.floor, '')}" if s.floor else "")
         scale = f"1:{s.scale}" if s.scale else "κλίμακα ;"
         if where is None:
-            how = "χωρίς θέση" + (" (τομή: στην καρτέλα τομής)" if s.kind == "section" else " — «Ταίριασμα με 2 σημεία» μετά")
+            how = "χωρίς θέση" + (" — τομή: στη γραμμή του σημαδιού της στην κάτοψη" if s.kind == "section"
+                                  else " — «Ταίριασμα με 2 σημεία» μετά")
         else:
             how = where[1]
         storey = f" → {storeys[i][0]}" if i in storeys else ""
@@ -199,6 +233,7 @@ def import_set(window, paths=None, reference=None, ask=True):
                     from archforge.site.survey import terrain_from_survey
                     terrain = terrain_from_survey(doc, pts, in_place=True, altitude_ref=float(reference))
         made_pools = add_pools(window, sheets, placed, float(reference))
+        sections = add_sections(window, sheets, placed)
         if terrain is not None:
             # The ground under everything that was drawn (retaining walls at the plot's edge, the pools), 5 m round.
             xs = [float(e.params[k]) for e in doc.entities.values() if e.kind == "wall" for k in ("x1", "x2")]
@@ -219,12 +254,16 @@ def import_set(window, paths=None, reference=None, ask=True):
     window._refresh_floor_selector()
     window._redraw_views(all_views=True)
     window._refresh_project_tree()
-    done = {"sheets": sheets, "placed": placed, "storeys": storeys, "built": built, "terrain": terrain, "pools": made_pools}
+    done = {"sheets": sheets, "placed": placed, "storeys": storeys, "built": built, "terrain": terrain, "pools": made_pools,
+            "sections": sections}
     text = (f"{len(placed)} από {len(sheets)} σχέδια στη θέση τους · {len(set(n for n, _z, _a in storeys.values()))} όροφοι · "
             f"τοίχοι {sum(b['walls'] for b in built.values() if b)} · πισίνες {len(made_pools)} · "
             f"έδαφος από {len(terrain['points']) if terrain else 0} υψόμετρα"
+            f" · τομές στη θέση τους {sum(1 for v in sections.values() if v['fit'])}"
             " — Ctrl+Z αναιρεί όλο το σύνολο")
     window.statusBar().showMessage(text, 20000)
     if ask:
-        QMessageBox.information(window, "Σύνολο σχεδίων", summary_text(sheets, placed, storeys) + "\n\n" + text)
+        checks = "\n".join(v["report"] for v in sections.values())
+        QMessageBox.information(window, "Σύνολο σχεδίων", summary_text(sheets, placed, storeys) + "\n\n" + text +
+                                ("\n\n" + checks if checks else ""))
     return done

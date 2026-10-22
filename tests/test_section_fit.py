@@ -1,0 +1,67 @@
+"""HANDOFF 22/10: «τομή αυτόματα στη θέση της (σημάδι T.01/A2.2) και επαλήθευση στάθμεων/εδάφους με την τομή».
+
+The cut line is the section mark written at both ends on the plan; the section sheet (no levels written, only
+dimensions — the owner's «NEW VILLA SECTION») is fitted on the pool's water and the walls of the model on that
+line, looking the way the drawing looks; the heights the drawing gives the walls are checked against the model."""
+import pytest
+
+from archforge.core.model import Document, Entity
+from archforge.project import drawing_set as D
+from archforge.project import section_fit as F
+
+
+def _villa():
+    """Walls across a north–south line at y = 4, 9, 13 (rooms), a pool 3 m across between y = 0 and 3."""
+    doc = Document()
+    for y, h in ((4.0, 3.0), (9.0, 3.0), (13.0, 3.0)):
+        doc.add(Entity("wall", {"x1": -3.0, "y1": y, "x2": 3.0, "y2": y, "z": 0.0, "height": h, "thickness": 0.3}))
+    doc.add(Entity("pool", {"x": 0.0, "y": 1.5, "z": 0.0, "length": 6.0, "width": 3.0, "rotation": 0.0,
+                            "pool_type": "skimmer"}))
+    return doc
+
+
+def _section(offset=(5.0, 2.0)):
+    """The drawing (metres at its scale): looking so that the uphill (larger y) is on the right; u = y + 1 here
+    (the line starts at y = −1); its floor at 2.0 on the page, the walls 3.70 high to the slab top."""
+    ox, oy = offset
+    segs = []
+    for y in (4.0, 9.0, 13.0):
+        for face in (y - 0.15, y + 0.15):
+            u = face + 1.0
+            segs.append((u + ox, oy, u + ox, oy + 3.7))
+    segs += [(0.3 + ox, oy + 1.0, 0.3 + ox, oy + 1.4)]          # a short stroke (stone hatch) is not a wall
+    water = [[(1.0 + ox, oy - 1.5), (4.0 + ox, oy - 1.5), (4.0 + ox, oy - 0.1), (1.0 + ox, oy - 0.1)],
+             [(7.0 + ox, oy + 3.0), (9.0 + ox, oy + 3.0), (9.0 + ox, oy + 3.05), (7.0 + ox, oy + 3.05)]]   # glazing
+    return D.Sheet("s.pdf", kind="section", building="NEW VILLA", scale=50, segments=segs, water=water)
+
+
+def test_the_cut_line_is_the_mark_written_at_both_ends():
+    plan = D.Sheet("p.pdf", kind="plan", building="NEW VILLA", scale=50,
+                   anchors=[("MT.01", 0, 15), ("MT.01", 0, -1), ("MA2.2", 0.25, 15), ("MA2.2", 0.25, -1), ("L+114.00", 3, 3)])
+    other = D.Sheet("o.pdf", kind="plan", building="OLD VILLA", scale=50, anchors=[("MB.01", 0, 0), ("MB.01", 9, 0)])
+    placed = {0: (D.Similarity(1.0, 0.0, (10.0, 0.0), 0, 0.0), ""), 1: (D.Similarity(1.0, 0.0, (0.0, 0.0), 0, 0.0), "")}
+    lines = F.cut_lines([plan, other], placed, building="NEW VILLA")
+    assert [(k, a, b) for k, a, b, _i in lines] == [("T.01", (10.0, 15.0), (10.0, -1.0))]   # not A2.2 beside it
+
+
+def test_the_section_lands_on_the_pool_and_looks_the_way_the_drawing_does():
+    doc = _villa()
+    found = F.fit(_section(), doc, ((0.0, 15.0), (0.0, -1.0)))
+    assert found["how"] == "νερό πισίνας" and found["flip"] == 1          # A at the south end: uphill on the right
+    assert (found["x"], found["y"]) == pytest.approx((-5.0, -2.0))        # the drawing's floor on ±0,00
+    assert found["matched"] == found["faces"] == 6
+    assert [h[1:] for h in found["heights"]] == [(3.0, 3.7)] * 3
+    assert "3,00 m στο μοντέλο, 3,70 m στην τομή" in F.report(found, "Τομή T.01")
+
+
+def test_without_a_pool_the_walls_place_it():
+    doc = _villa()
+    doc.remove(next(e.id for e in doc.entities.values() if e.kind == "pool"))
+    found = F.fit(_section((2.0, 7.0)), doc, ((0.0, 15.0), (0.0, -1.0)))
+    assert found["how"] == "τοίχοι" and found["flip"] == 1
+    assert (found["x"], found["y"]) == pytest.approx((-2.0, -7.0))
+
+
+def test_nothing_on_the_line_nothing_guessed():
+    assert F.fit(_section(), Document(), ((0.0, 15.0), (0.0, -1.0))) is None
+    assert "2 κλικ" in F.report(None)
