@@ -795,7 +795,7 @@ SCHEMAS = {
         'x0': _finite, 'y0': _finite, 'x1': _finite, 'y1': _finite,
         'elevation': _finite, 'slope_x': _finite, 'slope_y': _finite, 'thickness': _positive,
         'points': _terrain_points, 'blend_radius': _positive, 'boundary': _plot_boundary,
-        'regions': _terrain_regions,
+        'regions': _terrain_regions, 'levels': _terrain_points,
         'altitude_ref': _finite,
     },
     'site_path': {

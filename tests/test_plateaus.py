@@ -59,3 +59,65 @@ def test_the_plateau_tool_in_the_window():
         assert [r['elevation'] for r in w._terrain_entity().params['regions']] == [1.2]
     finally:
         w._mark_clean(); w.close(); app.processEvents()
+
+
+def test_terrace_levels_are_held_by_the_walls():
+    """Terrace levels (a drawing's F.L.) need no closed outline: each is flat as far as it «sees»; the ground
+    steps at the wall between two terraces and slopes through a gap in it.  Survey points keep their blend."""
+    from archforge.site.terrain import barriers, terrain_height_at, terrain_mesh, building_exclusions
+    from archforge.geometry.mesh_validation import validate_mesh
+    from archforge.geometry.mesh import MeshPayload
+    doc = Document(); stack = CommandStack(doc)
+    # A retaining wall along x = 10, open between y = 6 and 8 (a stair).
+    for s in [(10, -2, 10, 6)]:
+        stack.execute(AddEntity(Entity('wall', {'x1': s[0], 'y1': s[1], 'x2': s[2], 'y2': s[3], 'z': 0.0,
+                                                'height': 2.0, 'thickness': 0.3})))
+    t = Entity('terrain', {"x0": 0.0, "y0": -2.0, "x1": 20.0, "y1": 10.0, "elevation": 0.0, "slope_x": 0.0,
+                           "slope_y": 0.0, "thickness": 0.5, "levels": [[5.0, 2.0, 1.0], [15.0, 2.0, 3.0]]})
+    stack.execute(AddEntity(t))
+    assert terrain_height_at(doc, 3.0, 0.0) == pytest.approx(1.0)                  # flat on its terrace
+    assert terrain_height_at(doc, 9.7, 2.0) == pytest.approx(1.0, abs=0.01)         # up to the wall …
+    assert terrain_height_at(doc, 10.3, 2.0) == pytest.approx(3.0, abs=0.01)        # … and the next level behind it
+    gap = terrain_height_at(doc, 10.0, 7.0)
+    assert 1.2 < gap < 2.8                                                          # through the stair: a slope
+    v, tr, r = terrain_mesh(t.params, exclusions=building_exclusions(doc), walls=barriers(doc))
+    assert validate_mesh(MeshPayload(v, tr, r)).watertight
+
+
+def test_a_retaining_wall_stands_from_the_lower_ground_to_the_higher():
+    from archforge.site.retaining import fit, fit_command
+    doc = Document(); stack = CommandStack(doc)
+    wall = Entity('wall', {'x1': 10, 'y1': -2, 'x2': 10, 'y2': 6, 'z': 0.0, 'height': 1.0, 'thickness': 0.3})
+    stack.execute(AddEntity(wall))
+    stack.execute(AddEntity(Entity('terrain', {"x0": 0.0, "y0": -2.0, "x1": 20.0, "y1": 10.0, "elevation": 0.0,
+                                               "slope_x": 0.0, "slope_y": 0.0, "thickness": 0.5,
+                                               "levels": [[5.0, 2.0, 1.0], [15.0, 2.0, 3.0]]})))
+    assert fit(doc, wall) == {"z": pytest.approx(1.0, abs=0.01), "height": pytest.approx(2.0, abs=0.02)}
+    command, n = fit_command(doc, [wall])
+    stack.execute(command)
+    assert n == 1 and doc.get(wall.id).params['z'] == pytest.approx(1.0, abs=0.01)
+    stack.undo()
+    assert doc.get(wall.id).params['z'] == 0.0
+
+
+def test_level_tool_and_retaining_fit_in_the_window():
+    from PySide6.QtWidgets import QApplication
+    from archforge.ui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    w = MainWindow()
+    try:
+        wall = Entity('wall', {'x1': 10, 'y1': -2, 'x2': 10, 'y2': 6, 'z': 0.0, 'height': 1.0, 'thickness': 0.3})
+        w.stack.execute(AddEntity(wall))
+        tool = w._terrain_tools
+        texts = [a.text() for a in w._terrain_regions_menu.actions()]
+        assert any(t.startswith('Στάθμη πλατώματος') for t in texts) and any(t.startswith('Τοιχία: ύψος') for t in texts)
+        tool.start('level')
+        assert tool.place_level(5.0, 2.0, z=1.0) and tool.place_level(15.0, 2.0, z=3.0)
+        assert w._terrain_entity().params['levels'] == [[5.0, 2.0, 1.0], [15.0, 2.0, 3.0]]
+        w.doc.select([wall.id])
+        assert tool.fit_retaining() == 1
+        assert w.doc.get(wall.id).params['height'] == pytest.approx(2.0, abs=0.02)
+        w.stack.undo(); w.stack.undo()
+        assert w._terrain_entity().params['levels'] == [[5.0, 2.0, 1.0]]
+    finally:
+        w._mark_clean(); w.close(); app.processEvents()
