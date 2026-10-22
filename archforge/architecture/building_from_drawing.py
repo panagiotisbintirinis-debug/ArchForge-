@@ -104,3 +104,22 @@ def host_of(walls, point):
         if -1e-6 <= s <= L + 1e-6 and d <= t / 2 + 0.02 and (best is None or d < best[2]):
             best = (k, s, d)
     return None if best is None else best[:2]
+
+
+def analyse_sheet(sheet, sim):
+    """What ``building_from_underlay.build`` needs, for a sheet of a drawing set placed by ``sim`` (project/drawing_set):
+    walls, openings in their gaps, room labels — in model metres, from the texts and lines read once."""
+    from archforge.architecture.walls_from_lines import find_walls
+    from archforge.project import drawing_text as T
+    k = sheet.metres_per_pt
+    to = sim.apply
+
+    def placed(item):
+        item.x, item.y = to((item.x * k, item.y * k))
+        if hasattr(item, "angle"):
+            item.angle = item.angle + sim.turn
+        return item
+    segs = [(*to((a, b)), *to((c, d))) for a, b, c, d in sheet.segments]
+    walls, openings, missing = place_openings(find_walls(segs), [placed(o) for o in T.openings(sheet.texts)])
+    return {"walls": walls, "openings": openings, "missing": missing, "rooms": [placed(r) for r in T.rooms(sheet.texts)],
+            "levels": [placed(l) for l in T.levels(sheet.texts)]}

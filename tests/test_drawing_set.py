@@ -51,3 +51,23 @@ def test_the_whole_set_lands_in_the_site_frame():
     placed = D.relate([new, site, old, section])
     assert placed[1][1] == "αναφορά" and 3 not in placed
     assert placed[0][0].apply((5, 5)) == pytest.approx((50, 20)) and placed[2][0].apply((2, 0)) == pytest.approx((12, 70))
+
+
+def test_storeys_from_the_levels_each_building_writes():
+    from archforge.ui.drawing_set_import import default_reference, plan_storeys
+    upper = D.Sheet("old_upper.pdf", kind="plan", building="OLD VILLA", floor="upper", scale=50,
+                    anchors=[("L+0.00", 10, 10), ("L+131.80", 10.4, 10.2), ("L+0.00", 12, 9), ("L+137.10", 30, 30), ("L+137.10", 31, 30)])
+    lower = D.Sheet("old_lower.pdf", kind="plan", building="OLD VILLA", floor="lower", scale=50,
+                    anchors=[("L-2.80", 1, 1), ("L-2.80", 3, 1), ("L-3.45", 5, 5)])
+    ground = D.Sheet("new.pdf", kind="plan", building="NEW VILLA", floor="ground", scale=50,
+                     anchors=[("L+114.00", 1, 1), ("L+114.00", 2, 2), ("L+113.30", 9, 9)])
+    pool = D.Sheet("pool.pdf", kind="plan", building="NEW VILLA", scale=50, anchors=[("L+114.00", 1, 1)])
+    sheets = [upper, lower, ground, pool]
+    assert D.building_zero(sheets[:2]) == 131.8                     # «+131.80» written 45 cm from «±0.00»
+    assert D.floor_altitude(lower, 131.8) == 129.0 and D.floor_altitude(ground) == 114.0
+    placed = {i: None for i in range(4)}
+    probe = plan_storeys(sheets, placed, 0.0)
+    assert default_reference(sheets, probe) == 114.0                # ±0,00 = the ground floor
+    st = plan_storeys(sheets, placed, 114.0)
+    assert st[2][1] == 0.0 and st[0][1] == pytest.approx(17.8) and st[1][1] == pytest.approx(15.0)
+    assert st[3][0] == st[2][0]                                     # the pool sheet shares the ground storey

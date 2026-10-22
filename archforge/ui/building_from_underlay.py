@@ -55,7 +55,8 @@ def build(window, eid, found=None, ask=True):
     doc = window.doc
     found = found or analyse(window, eid)
     if not found["walls"]:
-        QMessageBox.information(window, "Κτίριο από το υπόβαθρο", "Δεν βρέθηκαν τοίχοι (ζεύγη σκούρων γραμμών) στο σχέδιο.")
+        if ask:
+            QMessageBox.information(window, "Κτίριο από το υπόβαθρο", "Δεν βρέθηκαν τοίχοι (ζεύγη σκούρων γραμμών) στο σχέδιο.")
         return None
     z = float(doc.work_plane.origin[2])
     above = sorted(float(v) for v in doc.levels.values() if float(v) > z + 1e-6)

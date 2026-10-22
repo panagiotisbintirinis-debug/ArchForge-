@@ -44,6 +44,15 @@ class Sheet:
     texts: list = field(default_factory=list)
     anchors: List[Tuple[str, float, float]] = field(default_factory=list)     # (key, x, y) in metres at its scale
     segments: list = field(default_factory=list)                                # dark lines, metres at its scale
+    page_size: Tuple[float, float] = (0.0, 0.0)                                 # visible page, PDF points
+
+    @property
+    def metres_per_pt(self):
+        return PT_M * (self.scale or 1)
+
+    def levels(self):
+        """(value, ceiling, x, y) of the written levels, metres at the sheet's scale."""
+        return [(float(k[1:].rstrip("C")), k.endswith("C"), x, y) for k, x, y in self.anchors if k.startswith("L")]
 
 
 def _match(table, text):
@@ -79,13 +88,49 @@ def read_sheet(path, page=0, scale=None):
     """Everything the set needs of one PDF page (its texts and dark lines are read once)."""
     from archforge.project import drawing_text as T
     from archforge.project.underlay import pdf_vector_segments
+    import pdfplumber
     texts = T.pdf_texts(path, page)
+    with pdfplumber.open(str(path)) as pdf:
+        x0, top, x1, bottom = (float(v) for v in pdf.pages[int(page)].cropbox)
     title, kind, building, floor = classify(path, texts)
     segs = pdf_vector_segments(path, page, dark_only=True)
     n = scale or T.scale(texts) or T.scale_from_dimensions(texts, segs)[0]
     k = PT_M * (n or 1)
     return Sheet(path, page, title, kind, building, floor, n, texts, anchors(texts, k),
-                 [(a * k, b * k, c * k, d * k) for a, b, c, d in segs])
+                 [(a * k, b * k, c * k, d * k) for a, b, c, d in segs], (x1 - x0, bottom - top))
+
+
+# ------------------------------------------------------------------------------------------------------- levels
+
+ABSOLUTE = 10.0          # written altitudes (+114.00) vs levels relative to a building's ±0,00 (-2.80)
+
+
+def building_zero(sheets):
+    """Altitude of a building's ±0,00: the altitude written next to its «±0.00» on any of its sheets (within 1 m)
+    — OLD VILLA: «±00.00m» with «+131.80m» 47 cm away."""
+    for s in sheets:
+        lv = [l for l in s.levels() if not l[1]]
+        for v, _c, x, y in lv:
+            if abs(v) > 1e-6:
+                continue
+            near = sorted((math.dist((x, y), (u, w)), a) for a, _c2, u, w in lv if a >= ABSOLUTE)
+            if near and near[0][0] <= 1.0:
+                return near[0][1]
+    return None
+
+
+def floor_altitude(sheet, zero=None):
+    """Altitude of the floor a plan shows: its most written relative level from the building's ±0,00 when known
+    (OLD VILLA lower: −2.80 → +129.00), else its most written altitude (NEW VILLA: +114.00 ×4)."""
+    lv = [l for l in sheet.levels() if not l[1]]
+    rel = Counter(round(v, 2) for v, _c, _x, _y in lv if abs(v) < ABSOLUTE)
+    ab = Counter(round(v, 2) for v, _c, _x, _y in lv if v >= ABSOLUTE)
+    if rel and zero is not None:
+        v, _n = max(rel.items(), key=lambda kv: (kv[1], -abs(kv[0])))
+        return round(zero + v, 2)
+    if ab:
+        return max(ab.items(), key=lambda kv: (kv[1], kv[0]))[0]
+    return None
 
 
 # --------------------------------------------------------------------------------------------- relating sheets

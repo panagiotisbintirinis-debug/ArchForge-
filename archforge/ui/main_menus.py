@@ -134,6 +134,13 @@ def organize_main_menus(window):
             underlay.triggered.connect(lambda _=False: window._import_underlay())
             imports.insert(0, underlay)
             window._import_underlay_action = underlay
+            drawing_set = QAction("Σύνολο σχεδίων (πολλά PDF: κατόψεις, τομή, γενική διάταξη)…", window)
+            drawing_set.setToolTip("Τα σχέδια συσχετίζονται μόνα τους (υψόμετρα, σημάδια τομής, τοίχοι) και γίνονται "
+                                   "όροφοι, τοίχοι, κουφώματα, χώροι και έδαφος — μία αναίρεση")
+            drawing_set.triggered.connect(lambda _=False: __import__("archforge.ui.drawing_set_import",
+                                                                     fromlist=["import_set"]).import_set(window))
+            imports.insert(1, drawing_set)
+            window._import_drawing_set_action = drawing_set
         camera_menu = _find(view_menu, "Κάμερες")
         image = _find(camera_menu.menu(), "Εξαγωγή εικόνας", True) if camera_menu is not None else None
         exports = [getattr(window, "_pdf_action", None), getattr(window, "export_stl_action", None), image]
