@@ -235,6 +235,61 @@ def pool_depth(sheets, placed, idx, centre, reach):
     return None
 
 
+def site_plateaus(doc, sheets, placed, reference, zeros=None):
+    """Every finished-floor level the set writes outdoors («+137.10m [F.L.]»), on the area the walls close around
+    it, as a plateau — the same as a person's click with Έδαφος ▸ Πλάτωμα (site/plateaus.py).  Levels written
+    relative to a building's ±0,00 (OLD VILLA «−1.20m») count where that ±0,00 is known.  Rooms are left out
+    (inside a building the ground is cut away).  ``(regions, notes)``."""
+    from collections import Counter, defaultdict
+    from archforge.geometry.regions import signed_area
+    from archforge.site import plateaus as P
+    from archforge.site.elevation_regions import validate_regions
+    zeros = zeros or {}
+    votes = defaultdict(Counter)
+    polys = {}
+    for i, (sim, _how) in placed.items():
+        s = sheets[i]
+        zero = zeros.get(s.building)
+        for v, ceiling, x, y in s.levels():
+            if ceiling:
+                continue
+            alt = v if v >= 10.0 else (zero + v if zero is not None and s.kind == "plan" else None)
+            if alt is None:
+                continue
+            found = P.area_at(doc, *sim.apply((x, y)))
+            if found is None:
+                continue
+            poly, z = found
+            key = tuple(map(tuple, (tuple(round(c, 3) for c in q) for q in poly)))
+            if _is_room(doc, poly, z):
+                continue
+            polys[key] = poly
+            votes[key][round(alt, 2)] += 1
+    regions, notes = [], []
+    # Largest first: a small terrace inside a large leaked area is the better word about its own ground.
+    for key in sorted(votes, key=lambda k: abs(signed_area(polys[k]))):
+        alt, _n = votes[key].most_common(1)[0]
+        r = P.region(polys[key], round(alt - reference, 3), f"plateau-{len(regions) + 1}")
+        try:
+            validate_regions(regions + [r])
+            regions.append(r)
+        except ValueError as exc:
+            notes.append(f"{alt:+.2f}: {exc}".replace(".", ","))
+    return regions, notes
+
+
+def _is_room(doc, polygon, z):
+    """A named indoor room (bedroom, kitchen …) of storey z under ``polygon``: not a terrace."""
+    from archforge.architecture.roof_need import OPEN_AIR_USES
+    from archforge.geometry.regions import point_in_polygon
+    cx = sum(p[0] for p in polygon) / len(polygon); cy = sum(p[1] for p in polygon) / len(polygon)
+    for f in doc.active_room_faces(z=z):
+        if point_in_polygon(cx, cy, f.polygon):
+            meta = doc.room_metadata(f.signature)
+            return bool(meta.get("name")) and meta.get("use") not in OPEN_AIR_USES
+    return False
+
+
 def platforms(doc, sheets, storeys, pools, transition=3.0):
     """Terrain regions: each building dug down to its lowest floor (the slope runs up to it — the NEW VILLA is
     partly underground), each pool level with its rim where no building platform is in the way."""
@@ -350,7 +405,15 @@ def import_set(window, paths=None, reference=None, ask=True):
                 # «elevation» is the graded plane's height at (x0, y0): moving the corner keeps the same plane.
                 terrain["elevation"] += (terrain["slope_x"] * (nx0 - terrain["x0"]) + terrain["slope_y"] * (ny0 - terrain["y0"])) / 100.0
                 terrain.update(x0=nx0, y0=ny0, x1=max(terrain["x1"], max(xs) + 5.0), y1=max(terrain["y1"], max(ys) + 5.0))
-            regions = platforms(doc, sheets, storeys, made_pools)
+            # Terraces first (each written level on the area its walls close); a building's dug platform and a
+            # pool's rim only where they do not cross a terrace.
+            from archforge.site.elevation_regions import validate_regions
+            regions, plateau_notes = site_plateaus(doc, sheets, placed, float(reference), building_zeros(sheets, placed))
+            for r in platforms(doc, sheets, storeys, made_pools):
+                try:
+                    regions = validate_regions(regions + [dict(r, id=f"{r['id']}-dug")])
+                except ValueError:
+                    pass
             if regions:
                 terrain["regions"] = regions
             section_ground(terrain, sections)

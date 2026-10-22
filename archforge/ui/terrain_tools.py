@@ -49,7 +49,8 @@ class TerrainTools:
         self.window._start_site_tool(tool, 'Υψομετρική περιοχή: '+
             ('κλικ στο περίγραμμα ή σε σημείο · σύρε σώμα/κορυφή · δεξί κλικ για επεξεργασία · Esc τέλος' if shape=='edit'
              else ('κλικ στις κορυφές · κλικ στην πρώτη / διπλό κλικ / Enter κλείσιμο · Esc ακύρωση' if shape=='polygon'
-                   else 'σύρε το σχήμα και δώσε υψόμετρο · Esc ακύρωση')))
+                   else ('κλικ μέσα στον χώρο που κλείνουν τοίχοι / τοιχία · το υψόμετρο από το υπόβαθρο ή όπως το δώσεις · Esc τέλος'
+                         if shape=='pick' else 'σύρε το σχήμα και δώσε υψόμετρο · Esc ακύρωση'))))
         self.window.plan_view.redraw()
 
     def _active(self, view):
@@ -116,6 +117,34 @@ class TerrainTools:
         self.window.plan_view.controller.set_tool('select')
         self.window.doc.select([e.id]); self.window._redraw_views(all_views=True); self.window.refresh_inspector()
         self.window.statusBar().showMessage(f'{SHAPES[shape]}: {mark(z)} · σύρε κορυφή/σώμα · Ιδιότητες για υψόμετρο/μετάβαση · Ctrl+Z αναίρεση',8000)
+        return True
+
+    def place_plateau(self, x, y, z=None):
+        """Πλάτωμα: the closed area around (x, y) as a level region (site/plateaus.py) — one undo."""
+        from archforge.site import plateaus as P
+        found=P.area_at(self.window.doc,x,y)
+        if found is None:
+            self.window.statusBar().showMessage('Πλάτωμα: εδώ δεν κλείνουν τοίχοι / τοιχία έναν χώρο — σχεδίασε πρώτα τα τοιχία ή χρησιμοποίησε «Ελεύθερο πολύγωνο»',8000)
+            return False
+        polygon,_storey=found
+        e=self.window._terrain_entity(); p=e.params if e else default_terrain_params(self.window.doc)
+        if z is None:
+            written=P.written_level(self.window.doc,polygon,float(p.get('altitude_ref',0.0)))
+            z0=written if written is not None else terrain_height(p,x,y)
+            z,ok=QInputDialog.getDouble(self.window,'Πλάτωμα',('Το υπόβαθρο γράφει εδώ '+mark(written)+'.\n' if written is not None else '')+
+                                        'Υψόμετρο πλατώματος ως προς ±0,00 (m):',z0,-1000.,1000.,3)
+            if not ok: return False
+        r=P.region(polygon,z,uuid.uuid4().hex)
+        try:
+            changes=P.with_plateau(p,r)
+            if e is None:
+                e=Entity('terrain',changes,name='Έδαφος'); self.window.stack.execute(AddEntity(e))
+            else: self.window.stack.execute(UpdateEntity(e.id,changes))
+        except (ValueError,RuntimeError,PermissionError) as exc:
+            self.window.statusBar().showMessage(f'Πλάτωμα: {exc}',8000); return False
+        self.window._redraw_views(all_views=True); self.window.refresh_inspector()
+        self.window.statusBar().showMessage(f'Πλάτωμα {mark(z)} · {abs(signed_area(polygon)):.1f} m² ως τις παρειές των τοίχων · '
+                                            'κλικ σε επόμενο χώρο · Esc τέλος · Ctrl+Z αναίρεση',8000)
         return True
 
     def _hit(self, view, x, y):
@@ -193,6 +222,10 @@ class TerrainTools:
         if kind not in ('press','move','release'): return False
         if kind in ('press','release') and event.button()!=Qt.MouseButton.LeftButton: return False
         x,y=self._xy(view,event); self.cursor=(x,y)
+        if self.mode=='pick':
+            if kind=='press':
+                view._long_press=None; self.place_plateau(x,y)
+            return True
         if self.mode in SHAPES:
             if self.mode=='polygon':
                 if kind=='press':
@@ -303,7 +336,8 @@ def install(window):
     tool=TerrainTools(window); window._terrain_tools=tool; window.plan_view.terrain_tool=tool
     menu=window._mockup_terrain_menu
     sub=QMenu('Υψομετρικές περιοχές / σχήματα',menu)
-    for shape,text in [*SHAPES.items(),('edit','Επιλογή / επεξεργασία περιοχών και σημείων')]:
+    for shape,text in [('pick','Πλάτωμα: κλικ μέσα σε χώρο που κλείνουν τοιχία'),*SHAPES.items(),
+                       ('edit','Επιλογή / επεξεργασία περιοχών και σημείων')]:
         a=QAction(text,window); a.triggered.connect(lambda _=False,s=shape:tool.start(s)); sub.addAction(a)
     menu.insertMenu(menu.actions()[menu.actions().index(next(a for a in menu.actions() if a.text()=='Υψομετρικά σημεία'))+1],sub)
     section=QAction('Τομή εδάφους / υπογείου',window)
