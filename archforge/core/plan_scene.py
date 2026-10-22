@@ -213,7 +213,7 @@ def _conduit_labels(doc,f):
         f.primitives.append(Primitive2D('label',(anchor,),role='electrical-label',meta=(('text',text),('align',align),('min_scale',min_scale))))
 
 def _pool_primitives(doc,f):
-    from archforge.site.pool import POOL_TYPES,ZONE1,ZONE2,analyse,param as pp,plant_rect,pools,rim,to_world
+    from archforge.site.pool import POOL_TYPES,ZONE1,ZONE2,analyse,area as pool_area,param as pp,plant_rect,pools,rim,to_world
     level=float(doc.work_plane.origin[2])
     specs=[]
     for e in pools(doc):
@@ -239,7 +239,8 @@ def _pool_primitives(doc,f):
             x,y=to_world(p,u,0.0)
             specs.append((1,f"βάθος {pp(p,key):.2f}",_corner_candidates(x,y,.05,.05)))
         cx,cy=float(p['x']),float(p['y'])
-        specs.append((0,f"Πισίνα {pp(p,'length'):.2f}×{pp(p,'width'):.2f} · {POOL_TYPES[pp(p,'pool_type')]} · {a['volume_m3']:.0f} m³",
+        size=(f"σχήματος {pool_area(p):.1f} m²" if p.get('outline') else f"{pp(p,'length'):.2f}×{pp(p,'width'):.2f}")
+        specs.append((0,f"Πισίνα {size} · {POOL_TYPES[pp(p,'pool_type')]} · {a['volume_m3']:.0f} m³",
                       _corner_candidates(cx,cy,.1,.1)))
         px,py=(pr[0][0]+pr[2][0])/2,(pr[0][1]+pr[2][1])/2
         specs.append((1,f"Μηχανοστάσιο πισίνας · Φ{pp(p,'suction_dn')}/Φ{pp(p,'delivery_dn')}",_corner_candidates(px,py,.1,.1)))

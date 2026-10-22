@@ -2199,6 +2199,10 @@ class MainWindow(QMainWindow):
             combo.currentIndexChanged.connect(lambda _i, w=combo: self._set_entity_choice(eid, 'pool_type', w.currentData()))
             self.form.addRow('Τύπος πισίνας', combo)
             a = analyse(self.doc, entity)
+            if params.get('outline'):
+                from archforge.site.pool import area as pool_area
+                self.form.addRow('Σχήμα', QLabel(f"από το σχέδιο ({len(params['outline'])} σημεία, καμπύλες ως τεθλασμένη) · "
+                                                 f"{pool_area(params):.1f} m² · μήκος/πλάτος το τεντώνουν".replace('.', ',')))
             self.form.addRow('Νερό / σκυρόδεμα', QLabel(f"{a['volume_m3']:.1f} m³ / {a['concrete_m3']:.1f} m³"))
             for text, ok, note in a['checks']:
                 self.form.addRow('✅' if ok else '⚠', QLabel(text + (f" — {note}" if note else '')))

@@ -143,3 +143,59 @@ def test_the_pool_is_a_hole_in_the_ground():
         assert not (abs(x) < 4.25 - 1e-7 and abs(y) < 2.25 - 1e-7)
         area += abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) / 2
     assert area == pytest.approx(400 - 8.5 * 4.5)
+
+
+# OLD VILLA (owner 22/10: «η πισίνα είναι Γ με spa» · «μπορεί να είναι και καμπύλο»): a rectangle 7,30 × 3,90 and a
+# spa 1,87 wide with a round end, as one outline.
+def _l_with_spa():
+    import math
+    arc = [(2.70 + 0.935 * math.cos(math.radians(a)), 2.05 + 0.935 * math.sin(math.radians(a))) for a in range(0, 181, 15)]
+    return [(-3.65, -1.95), (3.635, -1.95), (3.635, 1.95)] + arc + [(1.765, 1.95), (-3.65, 1.95)]
+
+
+def test_a_pool_of_any_shape_is_measured_as_drawn():
+    import math
+    from archforge.site.pool import area, outline, perimeter
+    doc = Document(); st = CommandStack(doc)
+    shape = _l_with_spa()
+    pool = _pool(st, length=7.285, width=4.935, outline=[list(q) for q in shape])
+    p = pool.params
+    drawn = abs(sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(shape, shape[1:] + shape[:1]))) / 2
+    assert area(p) == pytest.approx(drawn, rel=1e-6) and drawn < 7.285 * 4.935 * 0.9
+    edges = sum(math.dist(a, b) for a, b in zip(shape, shape[1:] + shape[:1]))
+    assert perimeter(p) == pytest.approx(edges, rel=1e-6)
+    a = analyse(doc, pool)
+    assert a['volume_m3'] == pytest.approx(drawn * 1.45, rel=1e-3)
+    # The notch beside the spa is not water: a socket there is in zone 1, not zone 0.
+    assert zone_of(p, -1.0, 2.0) == 1 and zone_of(p, 2.7, 2.0) == 0         # shape recentred: notch top v = 1,43
+    # Length / width stretch the drawn shape.
+    st.execute(UpdateEntity(pool.id, {'length': 14.57}))
+    assert area(doc.get(pool.id).params) == pytest.approx(2 * drawn, rel=1e-6)
+    assert len(outline(doc.get(pool.id).params, 0.3)) >= len(shape)
+
+
+def test_a_shaped_pool_is_drawn_in_3d_and_cut_into_the_ground():
+    from archforge.site.pool import area, basin_meshes, coping_mesh
+    from archforge.site.terrain import building_exclusions, terrain_mesh
+    from archforge.geometry.mesh_validation import validate_mesh
+    from archforge.geometry.mesh import MeshPayload
+    doc = Document(); st = CommandStack(doc)
+    pool = _pool(st, length=7.285, width=4.935, outline=[list(q) for q in _l_with_spa()])
+    m = basin_meshes(pool.params)
+    wv, wt = m['water']
+    water = sum(abs((wv[b][0] - wv[a][0]) * (wv[c][1] - wv[a][1]) - (wv[b][1] - wv[a][1]) * (wv[c][0] - wv[a][0])) / 2
+                for a, b, c in wt)
+    assert water == pytest.approx(area(pool.params), rel=1e-6)                 # the water is the shape, notch left out
+    assert wv[0][2] == pytest.approx(-0.10)                                     # skimmer: 10 cm under the coping
+    cv, ct = coping_mesh(pool.params)
+    assert ct
+    p = {"x0": -10.0, "y0": -10.0, "x1": 10.0, "y1": 10.0, "elevation": 0.0, "slope_x": 0.0, "slope_y": 0.0, "thickness": 0.5}
+    v, t, r = terrain_mesh(p, exclusions=building_exclusions(doc))
+    assert validate_mesh(MeshPayload(v, t, r)).watertight
+    top = 0.0
+    for tri, role in zip(t, r):
+        if role == "top":
+            a, b, c = [v[i] for i in tri]
+            top += abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) / 2
+    # The ground keeps the notch beside the spa: only the basin and its walls are dug out.
+    assert top == pytest.approx(400 - area(pool.params, 0.25), abs=0.05)

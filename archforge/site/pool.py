@@ -7,6 +7,10 @@ A ``pool`` entity is the basin: centre ``x, y`` at the rim level ``z``, ``length
 * ``overflow`` (υπερχειλιστική): water at the rim, spilling into a perimeter channel with a grating, collected in a
   balance tank whose volume is declared (``balance_tank_m3``) — never assumed.
 
+Any other shape — an L with a round spa, as the owner's OLD VILLA pool — is the ``outline``: the inside edge as
+local (u, v) points, drawn and measured as it is (area, perimeter, walls, coping, the hole in the ground); length and
+width are then its extents, and changing them stretches the shape.  Without an outline the basin is the rectangle.
+
 Its equipment room (μηχανοστάσιο / αντλιοστάσιο) is at ``plant_x, plant_y`` (``plant_w`` × ``plant_d``).  Suction and
 delivery run there in PVC-U PN10 (SDR 21, EN ISO 1452-2: wall = Ø/21).
 
@@ -66,10 +70,58 @@ def to_local(p, x, y):
     return (dx * c + dy * s, -dx * s + dy * c)
 
 
+def _signed(poly):
+    return sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(poly, poly[1:] + poly[:1])) / 2
+
+
+def outline(p, grow=0.0):
+    """Local (u, v) inside edge of the basin, counter-clockwise, grown by ``grow`` (m) on every side: the drawn
+    shape (``outline``, stretched to ``length`` × ``width``) or the rectangle."""
+    raw = p.get("outline") or ()
+    L, W = param(p, "length"), param(p, "width")
+    if len(raw) >= 3:
+        pts = [(float(u), float(v)) for u, v in raw]
+        u0, u1 = min(q[0] for q in pts), max(q[0] for q in pts)
+        v0, v1 = min(q[1] for q in pts), max(q[1] for q in pts)
+        ku = L / (u1 - u0) if u1 - u0 > 1e-9 else 1.0
+        kv = W / (v1 - v0) if v1 - v0 > 1e-9 else 1.0
+        cu, cv = (u0 + u1) / 2, (v0 + v1) / 2
+        pts = [((u - cu) * ku, (v - cv) * kv) for u, v in pts]
+        if _signed(pts) < 0:
+            pts.reverse()
+    else:
+        pts = [(-L / 2, -W / 2), (L / 2, -W / 2), (L / 2, W / 2), (-L / 2, W / 2)]
+    if grow:
+        from archforge.geometry.regions import offset_loop
+        pts = offset_loop(pts, [grow] * len(pts))             # counter-clockwise: the outside is to the right
+    return pts
+
+
 def rim(p, grow=0.0):
-    """Plan rectangle of the basin's inside edge, grown by ``grow`` (m) on every side."""
-    L, W = param(p, "length") / 2 + grow, param(p, "width") / 2 + grow
-    return [to_world(p, u, v) for u, v in ((-L, -W), (L, -W), (L, W), (-L, W))]
+    """Plan outline of the basin's inside edge, grown by ``grow`` (m) on every side."""
+    return [to_world(p, u, v) for u, v in outline(p, grow)]
+
+
+def area(p, grow=0.0):
+    return abs(_signed(outline(p, grow)))
+
+
+def perimeter(p, grow=0.0):
+    pts = outline(p, grow)
+    return sum(math.dist(a, b) for a, b in zip(pts, pts[1:] + pts[:1]))
+
+
+def _nearest_on(pts, u, v):
+    best = None
+    for (ax, ay), (bx, by) in zip(pts, pts[1:] + pts[:1]):
+        dx, dy = bx - ax, by - ay
+        L2 = dx * dx + dy * dy
+        t = 0.0 if L2 < 1e-18 else max(0.0, min(1.0, ((u - ax) * dx + (v - ay) * dy) / L2))
+        q = (ax + dx * t, ay + dy * t)
+        d = math.dist(q, (u, v))
+        if best is None or d < best[0]:
+            best = (d, q)
+    return best
 
 
 def depth_at(p, u):
@@ -81,10 +133,10 @@ def depth_at(p, u):
 
 def distance_to_rim(p, x, y):
     """Plan distance from (x, y) to the basin (0 inside)."""
+    from archforge.geometry.regions import point_in_polygon
     u, v = to_local(p, x, y)
-    du = max(abs(u) - param(p, "length") / 2, 0.0)
-    dv = max(abs(v) - param(p, "width") / 2, 0.0)
-    return math.hypot(du, dv)
+    pts = outline(p)
+    return 0.0 if point_in_polygon(u, v, pts) else _nearest_on(pts, u, v)[0]
 
 
 def zone_of(p, x, y):
@@ -115,8 +167,7 @@ def pipe_route(p):
     """Plan route of the suction / delivery pair: from the rim point nearest the equipment room, at right angles."""
     px, py = float(p.get("plant_x", p["x"])), float(p.get("plant_y", p["y"]))
     u, v = to_local(p, px, py)
-    L, W = param(p, "length") / 2, param(p, "width") / 2
-    start = to_world(p, max(-L, min(L, u)), max(-W, min(W, v)))
+    start = to_world(p, *_nearest_on(outline(p), u, v)[1])
     return [start, (px, start[1]), (px, py)]
 
 
@@ -128,18 +179,22 @@ def analyse(doc, pool):
     t, tf = param(p, "wall"), param(p, "floor")
     kind = param(p, "pool_type")
     avg = (ds + dd) / 2
-    floor_area = L * W * math.sqrt(1 + ((dd - ds) / L) ** 2)
-    walls_area = 2 * L * avg + W * (ds + dd)
+    # Any shape: the floor slopes along the length; walls are the perimeter at the mean depth (exact for the
+    # rectangle and for a shape whose length is symmetric about the middle).
+    A, P = area(p), perimeter(p)
+    outer = area(p, t)
+    floor_area = A * math.sqrt(1 + ((dd - ds) / L) ** 2)
+    walls_area = P * avg
     wet = floor_area + walls_area
-    volume = L * W * avg
-    concrete_floor = (L + 2 * t) * (W + 2 * t) * tf
-    concrete_walls = 2 * L * avg * t + (W + 2 * t) * (ds + dd) * t
-    excavation = (L + 2 * t) * (W + 2 * t) * (avg + tf + BLINDING)
-    perimeter = 2 * (L + W)
+    volume = A * avg
+    concrete_floor = outer * tf
+    concrete_walls = perimeter(p, t / 2) * avg * t
+    excavation = outer * (avg + tf + BLINDING)
+    perimeter_m = P
     route = pipe_route(p)
     run = sum(math.dist(a, b) for a, b in zip(route, route[1:]))
     # Each pipe: from the equipment room to the basin, down to its fittings, around half the rim to reach them.
-    pipe_len = run + avg + perimeter / 2
+    pipe_len = run + avg + perimeter_m / 2
     flow = param(p, "pump_flow_m3h")
     checks, warnings = [], []
     hydraulics = {}
@@ -172,19 +227,19 @@ def analyse(doc, pool):
         checks.append((f"Τροφοδοτικό SELV φωτιστικών (στο μηχανοστάσιο) έξω από τη ζώνη 1: {plant_d:.2f} m > {ZONE1}",
                        plant_d > ZONE1, "" if plant_d > ZONE1 else "μετακίνησε το μηχανοστάσιο πιο μακριά από το χείλος"))
     rows = [("Εκσκαφή λεκάνης πισίνας (χωρίς χώρο εργασίας/πρανή)", "m³", round(excavation, 2)),
-            ("Σκυρόδεμα καθαριότητας", "m³", round((L + 2 * t) * (W + 2 * t) * BLINDING, 2)),
+            ("Σκυρόδεμα καθαριότητας", "m³", round(outer * BLINDING, 2)),
             ("Σκυρόδεμα πισίνας C25/30 με στεγανωτικό μάζας — πυθμένας", "m³", round(concrete_floor, 2)),
             ("Σκυρόδεμα πισίνας C25/30 με στεγανωτικό μάζας — τοιχώματα", "m³", round(concrete_walls, 2)),
             ("Στεγάνωση λεκάνης (εποξειδική / επαλειφόμενη)", "m²", round(wet, 2)),
             ("Ψηφίδα / πλακίδιο πισίνας", "m²", round(wet, 2)),
             ("Νερό πλήρωσης", "m³", round(volume, 2))]
     if kind == "overflow":
-        rows += [("Κανάλι υπερχείλισης", "m", round(perimeter + 8 * CHANNEL_W / 2, 2)),
-                 ("Σχάρα καναλιού υπερχείλισης", "m", round(perimeter + 8 * CHANNEL_W / 2, 2))]
+        rows += [("Κανάλι υπερχείλισης", "m", round(perimeter(p, CHANNEL_W / 2), 2)),
+                 ("Σχάρα καναλιού υπερχείλισης", "m", round(perimeter(p, CHANNEL_W / 2), 2))]
         if param(p, "balance_tank_m3") > 0:
             rows.append((f"Δεξαμενή εξισορρόπησης {param(p, 'balance_tank_m3'):.0f} m³", "τεμ.", 1))
     else:
-        rows.append(("Στέψη (κοπίνγκ) περιμετρικά", "m", round(perimeter + 4 * param(p, "coping"), 2)))
+        rows.append(("Στέψη (κοπίνγκ) περιμετρικά", "m", round(perimeter(p, param(p, "coping") / 2), 2)))
     rows += [(f"Σωλήνας PVC-U PN10 κολυμβητηρίου Φ{param(p, 'suction_dn')} (αναρρόφηση)", "m", round(pipe_len, 2)),
              (f"Σωλήνας PVC-U PN10 κολυμβητηρίου Φ{param(p, 'delivery_dn')} (κατάθλιψη)", "m", round(pipe_len, 2))]
     for key, label in (("skimmers", "Skimmer"), ("inlets", "Στόμιο επιστροφής (inlet)"), ("main_drains", "Σιφώνι πυθμένα"),
@@ -202,7 +257,7 @@ def analyse(doc, pool):
     if param(p, "electrolysis"):
         rows.append(("Σύστημα ηλεκτρόλυσης άλατος", "τεμ.", 1))
     return {"volume_m3": round(volume, 2), "wet_area_m2": round(wet, 2), "concrete_m3": round(concrete_floor + concrete_walls, 2),
-            "excavation_m3": round(excavation, 2), "perimeter_m": perimeter, "pipe_m": round(pipe_len, 2), "route": route,
+            "excavation_m3": round(excavation, 2), "perimeter_m": round(perimeter_m, 3), "pipe_m": round(pipe_len, 2), "route": route,
             "hydraulics": hydraulics, "checks": checks, "warnings": warnings, "rows": rows, "plant_distance_m": round(plant_d, 2),
             "provenance": PROVENANCE}
 
@@ -218,16 +273,25 @@ def _quad(verts, tris, a, b, c, d):
     tris += [(base, base + 1, base + 2), (base, base + 2, base + 3)]
 
 
+def _flat(verts, tris, poly, z, holes=()):
+    """A horizontal face over ``poly`` (minus ``holes``) at height ``z`` (or ``z(x, y)``), facing up."""
+    from archforge.geometry.regions import triangulate_with_holes
+    pts, tt = triangulate_with_holes(poly, holes)
+    base = len(verts)
+    verts += [(x, y, z(x, y) if callable(z) else z) for x, y in pts]
+    tris += [tuple(base + i for i in t) for t in tt]
+
+
 def coping_mesh(p):
     """The ring around the basin (coping stone or overflow grating), selectable: ``(verts, tris)``."""
     z = float(p.get("z", 0.0))
     inner = rim(p)
     outer = rim(p, CHANNEL_W if param(p, "pool_type") == "overflow" else param(p, "coping"))
     verts, tris = [], []
-    for i in range(4):
-        j = (i + 1) % 4
-        a, b, c, d = inner[i], inner[j], outer[j], outer[i]
-        _quad(verts, tris, (a[0], a[1], z + 0.03), (d[0], d[1], z + 0.03), (c[0], c[1], z + 0.03), (b[0], b[1], z + 0.03))
+    _flat(verts, tris, outer, z + 0.03, [inner])
+    n = len(inner)
+    for i in range(n):
+        a, b = inner[i], inner[(i + 1) % n]
         _quad(verts, tris, (a[0], a[1], z), (a[0], a[1], z + 0.03), (b[0], b[1], z + 0.03), (b[0], b[1], z))
     return verts, tris
 
@@ -235,22 +299,22 @@ def coping_mesh(p):
 def basin_meshes(p):
     """``{"tile": mesh, "water": mesh, "plant": mesh}`` — the lined inside, the water, the equipment room box."""
     z = float(p.get("z", 0.0))
-    L, W = param(p, "length") / 2, param(p, "width") / 2
+    local = outline(p)
     bottom = lambda u: z - depth_at(p, u)
-    corners = [(-L, -W), (L, -W), (L, W), (-L, W)]
+    pts = [to_world(p, u, v) for u, v in local]
     tv, tt = [], []
-    pts = [to_world(p, u, v) for u, v in corners]
-    _quad(tv, tt, (*pts[0], bottom(-L)), (*pts[1], bottom(L)), (*pts[2], bottom(L)), (*pts[3], bottom(-L)))
-    for i in range(4):
-        j = (i + 1) % 4
-        (ua, _va), (ub, _vb) = corners[i], corners[j]
+    by_xy = {pt: bottom(uv[0]) for pt, uv in zip(pts, local)}
+    _flat(tv, tt, pts, lambda x, y: by_xy.get((x, y), bottom(to_local(p, x, y)[0])))
+    n = len(pts)
+    for i in range(n):
+        j = (i + 1) % n
         a, b = pts[i], pts[j]
-        _quad(tv, tt, (a[0], a[1], z), (b[0], b[1], z), (b[0], b[1], bottom(ub)), (a[0], a[1], bottom(ua)))
-    # Water: drawn just over the ground plane — the 3D view has no hole in the ground yet, so the real level
-    # (10 cm under the coping for a skimmer pool) would vanish under it.  Quantities use the real geometry.
-    zw = z + 0.01
+        _quad(tv, tt, (a[0], a[1], z), (b[0], b[1], z), (b[0], b[1], bottom(local[j][0])), (a[0], a[1], bottom(local[i][0])))
+    # Water at its real level (10 cm under the coping for a skimmer pool): the ground has a hole for the basin
+    # (site/terrain.building_exclusions), so it is no longer lifted over the ground plane to be seen.
+    zw = z - WATER_DROP.get(param(p, "pool_type"), 0.0)
     wv, wt = [], []
-    _quad(wv, wt, (*pts[0], zw), (*pts[1], zw), (*pts[2], zw), (*pts[3], zw))
+    _flat(wv, wt, pts, zw)
     pr = plant_rect(p)
     pv, pt = [], []
     h = 2.40

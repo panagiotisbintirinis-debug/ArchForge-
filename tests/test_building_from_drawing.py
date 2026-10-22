@@ -124,7 +124,8 @@ def test_pools_from_water_fills_finest_sheet_and_no_glass():
     site = D.Sheet("site.pdf", kind="site", scale=100, water=[rect(10.05, 5.0, 8.1, 3.1)])
     same = D.Similarity(1.0, 0.0, (0.0, 0.0), 0, 0.0)
     found = D.pools([pool_sheet, plan, site], {0: (same, ""), 1: (same, ""), 2: (same, "")})
-    (cx, cy, length, width, _rot, idx), = found
+    (cx, cy, length, width, _rot, idx, shape), = found
+    assert shape is None                                                   # a rectangle stays a rectangle
     assert (length, width) == pytest.approx((8.0, 3.0)) and (cx, cy) == pytest.approx((10, 5)) and idx == [0, 1, 2]
     assert D.platform([(0, 0), (4, 0), (4, 2), (0, 2)], grow=0.5) is not None
 
@@ -139,3 +140,21 @@ def test_bands_made_by_reaching_are_merged_too(monkeypatch):
     assert len(walls) == 1
     (a, b, t), = walls
     assert min(a[0], b[0]) == pytest.approx(8.27) and max(a[0], b[0]) == pytest.approx(24.11) and t == pytest.approx(0.59)
+
+
+def test_a_pool_drawn_as_a_rectangle_and_a_fan_keeps_its_shape():
+    """OLD VILLA upper floor: the pool's water is a rectangle and a spa with a round end drawn as a fan of thin
+    triangles — each thinner than a glazing line, so it must be taken whole for the shape."""
+    import math
+    from archforge.project import drawing_set as D
+    rect = [(0, 0), (7.3, 0), (7.3, 3.9), (0, 3.9)]
+    tab = [(5.4, 3.9), (7.3, 3.9), (7.3, 5.0), (5.4, 5.0)]
+    fan = [[(6.35, 5.0), (6.35 + 0.95 * math.cos(math.radians(a)), 5.0 + 0.95 * math.sin(math.radians(a))),
+            (6.35 + 0.95 * math.cos(math.radians(a + 6)), 5.0 + 0.95 * math.sin(math.radians(a + 6)))] for a in range(0, 180, 6)]
+    sheet = D.Sheet("upper.pdf", kind="plan", building="OLD VILLA", scale=50, water=[rect, tab] + fan)
+    same = D.Similarity(1.0, 0.0, (0.0, 0.0), 0, 0.0)
+    (cx, cy, length, width, _rot, _idx, shape), = D.pools([sheet], {0: (same, "")})
+    assert {round(length, 2), round(width, 2)} == {7.3, 5.95}                  # rectangle + spa with its round end
+    assert shape and 8 <= len(shape) <= 30                                     # the arc kept within 2 cm, not 30 slivers
+    area = abs(sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(shape, shape[1:] + shape[:1]))) / 2
+    assert area == pytest.approx(7.3 * 3.9 + 1.9 * 1.1 + math.pi * 0.95 ** 2 / 2, rel=0.01)

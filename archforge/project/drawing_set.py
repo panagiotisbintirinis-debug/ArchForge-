@@ -206,11 +206,63 @@ def pools(sheets, placed, min_side=1.5, min_area=4.0, join=1.0):
         for i in idx:
             r = min_rectangle([p for k, p in tagged if k == i])
             if r and r[3] >= min_side and r[2] * r[3] >= min_area:
-                each.append((sheets[i].scale or 10 ** 6, r[2] * r[3], r))
+                each.append((sheets[i].scale or 10 ** 6, r[2] * r[3], r, i))
         if each:
-            r = min(each)[2]
-            out.append((*r, sorted(idx)))
+            _n, _a, r, best = min(each)
+            r, shape = water_outline(sheets[best], placed[best][0], r)
+            out.append((*r, sorted(idx), shape))
     return out
+
+
+def water_outline(sheet, sim, rect, keep=0.97, tolerance=0.02, reach=1.5):
+    """``(rect, shape)``: the pool's own shape on ``sheet`` as local (u, v) points about its smallest rectangle
+    (cx, cy, length, width, rotation) — the OLD VILLA's L with its round-ended spa, drawn as a rectangle and a fan
+    of thin triangles (each thinner than the 30 cm a glazing line is told by, so the fan is taken whole here) —
+    or ``(rect, None)`` when the water fills its rectangle (a plain rectangular pool)."""
+    from archforge.geometry.regions import region
+    cx, cy, L, W, _rot = rect
+    R = max(L, W) / 2 + reach
+    polys = [pts for pts in ([sim.apply(p) for p in poly] for poly in sheet.water)
+             if len(pts) >= 3 and all(math.dist(q, (cx, cy)) <= R for q in pts)]
+    if not polys:
+        return rect, None
+    islands = region(polys, tolerance=1e-4)
+    if not islands:
+        return rect, None
+    outer = max((o for o, _h in islands), key=lambda o: abs(_area(o)))
+    whole = min_rectangle(outer)
+    if whole is None:
+        return rect, None
+    cx, cy, L, W, rot = whole
+    if abs(_area(outer)) >= keep * L * W:
+        return rect, None
+    a = math.radians(rot)
+    c, s = math.cos(a), math.sin(a)
+    local = [((x - cx) * c + (y - cy) * s, -(x - cx) * s + (y - cy) * c) for x, y in _douglas(outer + outer[:1], tolerance)[:-1]]
+    if len(local) < 3:
+        return rect, None
+    return whole, [[round(u, 3), round(v, 3)] for u, v in local]
+
+
+def _area(poly):
+    return sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(poly, poly[1:] + poly[:1])) / 2
+
+
+def _douglas(points, tolerance):
+    """Douglas–Peucker: the points that keep the line within ``tolerance`` (the spa's arc: 70 slivers → ~12)."""
+    if len(points) < 3:
+        return list(points)
+    (ax, ay), (bx, by) = points[0], points[-1]
+    L = math.hypot(bx - ax, by - ay)
+    far, k = -1.0, 0
+    for i in range(1, len(points) - 1):
+        x, y = points[i]
+        d = abs((bx - ax) * (ay - y) - (ax - x) * (by - ay)) / L if L > 1e-12 else math.hypot(x - ax, y - ay)
+        if d > far:
+            far, k = d, i
+    if far <= tolerance:
+        return [points[0], points[-1]]
+    return _douglas(points[:k + 1], tolerance)[:-1] + _douglas(points[k:], tolerance)
 
 
 # ------------------------------------------------------------------------------------------------------- levels

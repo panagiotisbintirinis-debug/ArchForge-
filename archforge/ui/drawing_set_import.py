@@ -92,10 +92,15 @@ def add_pools(window, sheets, placed, reference):
     from archforge.site.pool import DEFAULTS, ZONE1
     import math
     made = []
-    for k, (cx, cy, length, width, rot, idx) in enumerate(pools(sheets, placed), 1):
+    for k, (cx, cy, length, width, rot, idx, shape) in enumerate(pools(sheets, placed), 1):
         alt = pool_level(sheets, placed, (cx, cy))
         z = (alt - reference) if alt is not None else 0.0
         p = {**DEFAULTS, "x": cx, "y": cy, "z": z, "length": round(length, 3), "width": round(width, 3), "rotation": rot}
+        if shape:
+            p["outline"] = shape                     # the L with its spa, as drawn (site/pool.py)
+        depth = pool_depth(sheets, placed, idx, (cx, cy), max(length, width))
+        if depth:
+            p.update(depth_shallow=depth, depth_deep=depth)
         a = math.radians(rot)
         u = length / 2 + ZONE1 + float(p["plant_w"]) / 2 + 0.5            # equipment room beside it, out of zone 1
         p.update(plant_x=cx + u * math.cos(a), plant_y=cy + u * math.sin(a))
@@ -214,6 +219,20 @@ def section_ground(terrain, sections):
     if extra:
         terrain["points"] = list(terrain.get("points", [])) + extra
     return len(extra)
+
+
+def pool_depth(sheets, placed, idx, centre, reach):
+    """The depth the drawing writes on the pool («pool's depth 1.50m»), or None."""
+    import math
+    import re
+    for i in idx:
+        sim = placed[i][0]
+        k = sheets[i].metres_per_pt
+        for t in sheets[i].texts:
+            m = re.search(r"(?:DEPTH|ΒΑΘΟΣ)\D{0,6}(\d+[.,]\d+)", t.text, re.I)
+            if m and math.dist(sim.apply((t.x * k, t.y * k)), centre) <= reach:
+                return float(m.group(1).replace(",", "."))
+    return None
 
 
 def platforms(doc, sheets, storeys, pools, transition=3.0):
