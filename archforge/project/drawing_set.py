@@ -45,6 +45,7 @@ class Sheet:
     anchors: List[Tuple[str, float, float]] = field(default_factory=list)     # (key, x, y) in metres at its scale
     segments: list = field(default_factory=list)                                # dark lines, metres at its scale
     page_size: Tuple[float, float] = (0.0, 0.0)                                 # visible page, PDF points
+    water: list = field(default_factory=list)                                   # blue fills: [[(x, y)…]] metres
 
     @property
     def metres_per_pt(self):
@@ -97,7 +98,116 @@ def read_sheet(path, page=0, scale=None):
     n = scale or T.scale(texts) or T.scale_from_dimensions(texts, segs)[0]
     k = PT_M * (n or 1)
     return Sheet(path, page, title, kind, building, floor, n, texts, anchors(texts, k),
-                 [(a * k, b * k, c * k, d * k) for a, b, c, d in segs], (x1 - x0, bottom - top))
+                 [(a * k, b * k, c * k, d * k) for a, b, c, d in segs], (x1 - x0, bottom - top),
+                 [[(x * k, y * k) for x, y in poly] for poly in water_fills(path, page)])
+
+
+def _water(colour):
+    """A pool's water: a light blue fill (the owner's drawings: 0,60 / 0,76 / 0,80) — blue and green over red."""
+    if not isinstance(colour, (list, tuple)) or len(colour) != 3:
+        return False
+    r, g, b = (float(v) for v in colour)
+    return b > r + 0.05 and g > r + 0.03 and min(g, b) > 0.5
+
+
+def water_fills(path, page=0):
+    """Water-coloured filled areas of the page as shown (PDF points, y up — the underlay's drawing units)."""
+    import pdfplumber
+    out = []
+    with pdfplumber.open(str(path)) as pdf:
+        p = pdf.pages[int(page)]
+        cx0, ct, cx1, cb = (float(v) for v in p.cropbox)
+        for o in list(p.curves) + list(p.rects):
+            if not o.get("fill") or not _water(o.get("non_stroking_color")):
+                continue
+            pts = o.get("pts") or [(o["x0"], o["top"]), (o["x1"], o["top"]), (o["x1"], o["bottom"]), (o["x0"], o["bottom"])]
+            if len(pts) >= 3:
+                out.append([(float(x) - cx0, cb - float(t)) for x, t in pts])
+    return out
+
+
+# ------------------------------------------------------------------------------------------------------- pools
+
+def _hull(points):
+    pts = sorted(set(points))
+    if len(pts) < 3:
+        return pts
+    def cross(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    lower, upper = [], []
+    for p in pts:
+        while len(lower) >= 2 and cross(lower[-2], lower[-1], p) <= 0:
+            lower.pop()
+        lower.append(p)
+    for p in reversed(pts):
+        while len(upper) >= 2 and cross(upper[-2], upper[-1], p) <= 0:
+            upper.pop()
+        upper.append(p)
+    return lower[:-1] + upper[:-1]
+
+
+def min_rectangle(points):
+    """(cx, cy, length, width, rotation°) of the smallest rectangle around the points (rotating calipers)."""
+    hull = _hull([(round(x, 4), round(y, 4)) for x, y in points])
+    best = None
+    for i in range(len(hull)):
+        (x1, y1), (x2, y2) = hull[i], hull[(i + 1) % len(hull)]
+        L = math.hypot(x2 - x1, y2 - y1)
+        if L < 1e-9:
+            continue
+        ux, uy = (x2 - x1) / L, (y2 - y1) / L
+        us = [x * ux + y * uy for x, y in hull]
+        vs = [-x * uy + y * ux for x, y in hull]
+        area = (max(us) - min(us)) * (max(vs) - min(vs))
+        if best is None or area < best[0]:
+            cu, cv = (max(us) + min(us)) / 2, (max(vs) + min(vs)) / 2
+            a, b = max(us) - min(us), max(vs) - min(vs)
+            ang = math.degrees(math.atan2(uy, ux))
+            if b > a:
+                a, b, ang = b, a, ang + 90.0
+            best = (area, (cu * ux - cv * uy, cu * uy + cv * ux, a, b, (ang + 90.0) % 180.0 - 90.0))
+    return best[1] if best else None
+
+
+def pools(sheets, placed, min_side=1.5, min_area=4.0, join=1.0):
+    """Pools of the set in the site frame: water fills of every placed sheet, grouped where they touch (the same
+    pool on the plan, its own sheet and the masterplan is one), each the smallest rectangle around it.
+    ``[(cx, cy, length, width, rotation, sheet indices)]``."""
+    blobs = []
+    for i, (sim, _how) in placed.items():
+        for poly in sheets[i].water:
+            pts = [sim.apply(p) for p in poly]
+            r = min_rectangle(pts)
+            if r is None or r[3] < 0.30:
+                continue                     # a glazing line drawn in water blue, not water
+            xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+            blobs.append([[(i, p) for p in pts], (min(xs), min(ys), max(xs), max(ys)), {i}])
+    merged = True
+    while merged:
+        merged = False
+        for a in range(len(blobs)):
+            for b in range(a + 1, len(blobs)):
+                (pa, ba, ia), (pb, bb, ib) = blobs[a], blobs[b]
+                if ba[0] - join <= bb[2] and bb[0] - join <= ba[2] and ba[1] - join <= bb[3] and bb[1] - join <= ba[3]:
+                    blobs[a] = [pa + pb, (min(ba[0], bb[0]), min(ba[1], bb[1]), max(ba[2], bb[2]), max(ba[3], bb[3])), ia | ib]
+                    del blobs[b]
+                    merged = True
+                    break
+            if merged:
+                break
+    out = []
+    for tagged, _box, idx in blobs:
+        # One pool drawn on several sheets: the finest scale tells it best, and of those the smallest rectangle
+        # is the water alone (the plan draws the overflow channel too: 7,94 × 3,59 against the pool sheet's 2,98).
+        each = []
+        for i in idx:
+            r = min_rectangle([p for k, p in tagged if k == i])
+            if r and r[3] >= min_side and r[2] * r[3] >= min_area:
+                each.append((sheets[i].scale or 10 ** 6, r[2] * r[3], r))
+        if each:
+            r = min(each)[2]
+            out.append((*r, sorted(idx)))
+    return out
 
 
 # ------------------------------------------------------------------------------------------------------- levels
@@ -270,3 +380,28 @@ def _chain(first, then):
     scale = math.dist(q0, q1)
     turn = math.degrees(math.atan2(q1[1] - q0[1], q1[0] - q0[0]))
     return Similarity(scale, turn, q0, first.inliers, first.error)
+
+
+def pool_level(sheets, placed, centre, reach=8.0):
+    """Altitude of a pool: the written altitude nearest its centre on any placed sheet (within ``reach`` m)."""
+    best = None
+    for i, (sim, _how) in placed.items():
+        for v, ceiling, x, y in sheets[i].levels():
+            if ceiling or v < ABSOLUTE:
+                continue
+            d = math.dist(sim.apply((x, y)), centre)
+            if d <= reach and (best is None or d < best[0]):
+                best = (d, v)
+    return None if best is None else best[1]
+
+
+def platform(points, grow=0.30):
+    """The smallest rectangle around ``points`` grown by ``grow`` on every side, as 4 corners."""
+    r = min_rectangle(points)
+    if r is None:
+        return None
+    cx, cy, L, W, rot = r
+    a = math.radians(rot)
+    c, s = math.cos(a), math.sin(a)
+    hl, hw = L / 2 + grow, W / 2 + grow
+    return [[cx + c * u - s * v, cy + s * u + c * v] for u, v in ((-hl, -hw), (hl, -hw), (hl, hw), (-hl, hw))]

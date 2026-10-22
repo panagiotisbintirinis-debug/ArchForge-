@@ -92,3 +92,38 @@ def test_patterned_core_beats_the_nearest_lining_line():
     assert wall[2] == pytest.approx(0.30) and wall[0][1] == pytest.approx(0.15)          # the core's axis
     without = find_walls(segs[:3])                                                         # no pattern: nearest pair
     assert min(w[2] for w in without) == pytest.approx(0.10)
+
+
+def test_tidy_closes_rooms_drawn_in_pieces():
+    """Owner 22/10 «συνέχισε μέχρι να κλείνουν και οι 8 χώροι»: a concrete wall read as overlapping pieces, a door
+    between a wall's end and the wall across, a furniture outline on its own — tidied, the two rooms close."""
+    from archforge.architecture.building_from_drawing import tidy
+    from archforge.architecture.topology import room_faces
+    from archforge.core.commands import AddEntities, CommandStack
+    from archforge.core.model import Document, Entity
+    walls = [((0, 0), (8, 0), 0.30), ((8, 0), (8, 5), 0.30), ((0, 5), (8, 5), 0.30), ((0, 0), (0, 5), 0.30),
+             ((0, 5.06), (5, 5.06), 0.36),                      # the same wall again, 6 cm off: one body
+             ((4, 0), (4, 4.0), 0.10),                          # partition stopping 0,85 short of the top wall: a door
+             ((1.5, 1.5), (2.5, 1.5), 0.20), ((2.5, 1.5), (2.5, 2.2), 0.20), ((2.5, 2.2), (1.5, 2.2), 0.20)]   # a sofa
+    door = T.OpeningLabel(0.80, 2.10, 4.3, 4.4, 90.0)
+    out, openings, missing = tidy(walls, [door])
+    assert not missing and [o.kind for o in openings].count("door") == 1
+    assert not any(abs(a[0] - 1.5) < 1e-6 or abs(b[0] - 1.5) < 1e-6 for a, b, _t in out)        # the sofa is gone
+    doc = Document(); st = CommandStack(doc)
+    st.execute(AddEntities([Entity("wall", {"x1": a[0], "y1": a[1], "x2": b[0], "y2": b[1], "z": 0.0, "height": 3.0,
+                                            "thickness": t}) for a, b, t in out]))
+    assert len(room_faces(doc, z=0.0)) == 2
+
+
+def test_pools_from_water_fills_finest_sheet_and_no_glass():
+    from archforge.project import drawing_set as D
+    rect = lambda cx, cy, L, W: [(cx - L / 2, cy - W / 2), (cx + L / 2, cy - W / 2), (cx + L / 2, cy + W / 2), (cx - L / 2, cy + W / 2)]
+    pool_sheet = D.Sheet("pool.pdf", kind="plan", building="NEW VILLA", scale=50, water=[rect(10, 5, 8.0, 3.0)])
+    plan = D.Sheet("plan.pdf", kind="plan", building="NEW VILLA", scale=50,
+                   water=[rect(10, 5.3, 8.0, 3.6), rect(10, 15, 9.0, 0.05)])           # pool with its channel; glazing
+    site = D.Sheet("site.pdf", kind="site", scale=100, water=[rect(10.05, 5.0, 8.1, 3.1)])
+    same = D.Similarity(1.0, 0.0, (0.0, 0.0), 0, 0.0)
+    found = D.pools([pool_sheet, plan, site], {0: (same, ""), 1: (same, ""), 2: (same, "")})
+    (cx, cy, length, width, _rot, idx), = found
+    assert (length, width) == pytest.approx((8.0, 3.0)) and (cx, cy) == pytest.approx((10, 5)) and idx == [0, 1, 2]
+    assert D.platform([(0, 0), (4, 0), (4, 2), (0, 2)], grow=0.5) is not None

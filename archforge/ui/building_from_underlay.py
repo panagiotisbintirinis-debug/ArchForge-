@@ -68,6 +68,7 @@ def build(window, eid, found=None, ask=True):
     for k, w in enumerate(walls, 1):
         w.name = f"Τοίχος {base + k}"
     openings, unplaced = [], list(found["missing"])
+    taken = {}                                   # wall index → [(from, to)] along it: openings never overlap
     for o in found["openings"]:
         host = host_of(found["walls"], o.centre)
         if host is None:
@@ -77,6 +78,12 @@ def build(window, eid, found=None, ask=True):
         length = ((wall.params["x2"] - wall.params["x1"]) ** 2 + (wall.params["y2"] - wall.params["y1"]) ** 2) ** 0.5
         if o.sill + o.height > height or offset - o.width / 2 < -1e-6 or offset + o.width / 2 > length + 1e-6:
             unplaced.append(o.label or o); continue
+        span = (offset - o.width / 2, offset + o.width / 2)
+        if any(span[0] < b - 0.02 and a < span[1] - 0.02 for a, b in taken.get(k, ())):
+            if o.label is not None:
+                unplaced.append(o.label)
+            continue                             # labelled ones come first: an unlabelled gap there is the same opening
+        taken.setdefault(k, []).append(span)
         name = {"door": "Πόρτα", "window": "Παράθυρο"}.get(o.kind, "Άνοιγμα") + f" {len(openings) + 1}"
         openings.append(Entity(o.kind, {"offset": offset, "width": o.width, "height": o.height, "sill": o.sill},
                                parent_id=wall.id, name=name))

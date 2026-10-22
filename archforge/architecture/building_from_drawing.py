@@ -40,7 +40,7 @@ def _dir(a, b):
     return ((b[0] - a[0]) / L, (b[1] - a[1]) / L), L
 
 
-def _gap(wa, wb):
+def _gap(wa, wb, axis_tol=AXIS_TOL):
     """(gap start, gap end, merged wall) when wa and wb lie on one axis with a gap between them, else None."""
     (a1, a2, ta), (b1, b2, tb) = wa, wb
     if abs(ta - tb) > THICK_TOL or math.dist(a1, a2) < 1e-6 or math.dist(b1, b2) < 1e-6:
@@ -50,7 +50,7 @@ def _gap(wa, wb):
     if abs(ux * vy - uy * vx) > math.sin(ANGLE_TOL):
         return None
     nx, ny = -uy, ux
-    if abs((b1[0] - a1[0]) * nx + (b1[1] - a1[1]) * ny) > AXIS_TOL or abs((b2[0] - a1[0]) * nx + (b2[1] - a1[1]) * ny) > AXIS_TOL:
+    if abs((b1[0] - a1[0]) * nx + (b1[1] - a1[1]) * ny) > axis_tol or abs((b2[0] - a1[0]) * nx + (b2[1] - a1[1]) * ny) > axis_tol:
         return None
     s = lambda p: (p[0] - a1[0]) * ux + (p[1] - a1[1]) * uy
     ia, ib = sorted((s(a1), s(a2))), sorted((s(b1), s(b2)))
@@ -159,6 +159,46 @@ def dedupe(walls):
                        for j, v in enumerate(walls))]
 
 
+def merge_bands(walls, max_thickness=0.80):
+    """Parallel walls whose bodies overlap (one concrete wall read as three pieces at 22,11 / 22,17 / 22,33, 36–45 cm)
+    become one wall: along, the union; across, from the outermost face to the other.  Parallel walls never cross,
+    so left apart they hang in the room graph and the room leaks between them."""
+    walls = [tuple(w) for w in walls]
+    changed = True
+    while changed:
+        changed = False
+        for i in range(len(walls)):
+            for j in range(i + 1, len(walls)):
+                (a, b, t), (c, d, tv) = walls[i], walls[j]
+                L = math.dist(a, b)
+                if L < 1e-9 or math.dist(c, d) < 1e-9:
+                    continue
+                ux, uy = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+                if abs(ux * (d[1] - c[1]) - uy * (d[0] - c[0])) / math.dist(c, d) > 0.02:
+                    continue
+                off = lambda p: (p[0] - a[0]) * -uy + (p[1] - a[1]) * ux
+                al = lambda p: (p[0] - a[0]) * ux + (p[1] - a[1]) * uy
+                o = (off(c) + off(d)) / 2
+                if abs(o) >= (t + tv) / 2 - 0.01:
+                    continue                                          # side by side, not one body
+                lo1, hi1 = 0.0, L
+                lo2, hi2 = sorted((al(c), al(d)))
+                if min(hi1, hi2) - max(lo1, lo2) < -0.05:
+                    continue                                          # one after the other with a gap
+                lo, hi = min(lo1, lo2), max(hi1, hi2)
+                f0, f1 = min(-t / 2, o - tv / 2), max(t / 2, o + tv / 2)
+                if f1 - f0 > max_thickness:
+                    continue
+                mid = (f0 + f1) / 2
+                at = lambda s_: (a[0] + ux * s_ - uy * mid, a[1] + uy * s_ + ux * mid)
+                walls = [w for k, w in enumerate(walls) if k not in (i, j)] + [(at(lo), at(hi), round(f1 - f0, 3))]
+                changed = True
+                break
+            if changed:
+                break
+    return walls
+
+
 def square(walls):
     """Turn walls within 2° of the building's square onto it (about their middle)."""
     hist = Counter()
@@ -192,7 +232,9 @@ def close_gaps(walls, gap_max=GAP_MAX):
         for i in range(len(walls)):
             for j in range(i + 1, len(walls)):
                 a, b = walls[i], walls[j]
-                g = _gap((a[0], a[1], b[2]), b) if abs(a[2] - b[2]) > THICK_TOL else _gap(a, b)
+                # Pieces of different thickness flush on one face (a jamb beside a concrete wall): axes apart by
+                # up to half the thicker.
+                g = _gap((a[0], a[1], b[2]), b, max(AXIS_TOL, max(a[2], b[2]) / 2 + 0.02))
                 if g is None:
                     continue
                 g0, g1, merged = g
@@ -260,9 +302,176 @@ def weld(walls):
     return [(tuple(a), tuple(b), t) for a, b, t in ws if math.dist(a, b) >= 0.10]
 
 
+END_REACH = 1.30                  # a free end facing a wall this close is carried to it (m, beyond its face)
+CORNER_REACH = 1.10               # a free end with nothing ahead is joined to the nearest wall beside within this
+
+
+def reach_from_free_ends(walls, reach=END_REACH):
+    """A wall end touching nothing, facing a wall body within ``reach``: the wall goes on to that wall's axis —
+    a piece the drawing fills without lines (the NEW VILLA's concrete corner between bathroom and cours anglais);
+    a long reach is an opening, so a passage stays a passage."""
+    walls = [list(w) for w in walls]
+    openings = []
+
+    def touches(p, t, k):
+        return any(j != k and _seg_dist(p, v[0], v[1]) <= (t + v[2]) / 2 + 0.10 for j, v in enumerate(walls))
+    for i in range(len(walls)):
+        a, b, t = walls[i]
+        L = math.dist(a, b)
+        if L < 0.5 or t < 0.07:
+            continue
+        for e in (0, 1):
+            p, q = walls[i][e], walls[i][1 - e]
+            if touches(p, t, i):
+                continue
+            ux, uy = (p[0] - q[0]) / L, (p[1] - q[1]) / L
+            best = None
+            for j, (c, d, tv) in enumerate(walls):
+                if j == i:
+                    continue
+                hit = _cross(p, (p[0] + ux, p[1] + uy), c, d)
+                M = math.dist(c, d)
+                if hit is None or M < 1e-9:
+                    continue
+                along = (hit[0] - p[0]) * ux + (hit[1] - p[1]) * uy
+                s = ((hit[0] - c[0]) * (d[0] - c[0]) + (hit[1] - c[1]) * (d[1] - c[1])) / (M * M)
+                if 0 < along - tv / 2 <= reach and 0 <= s <= 1 and (best is None or along < best[0]):
+                    best = (along, hit, tv)
+            if best is not None:
+                along, hit, tv = best
+                gap = along - tv / 2
+                walls[i][e] = hit
+                if gap >= 0.60:
+                    openings.append(Opening("opening", (p[0] + ux * gap / 2, p[1] + uy * gap / 2), gap, 2.20, 0.0))
+                continue
+            # Nothing ahead: the nearest wall beside, within the corner's reach, gets a piece of wall to it.
+            near = None
+            for j, (c, d, tv) in enumerate(walls):
+                if j == i or math.dist(c, d) < 1e-9:
+                    continue
+                M2 = (d[0] - c[0]) ** 2 + (d[1] - c[1]) ** 2
+                sj = max(0.0, min(1.0, ((p[0] - c[0]) * (d[0] - c[0]) + (p[1] - c[1]) * (d[1] - c[1])) / M2))
+                foot = (c[0] + sj * (d[0] - c[0]), c[1] + sj * (d[1] - c[1]))
+                dist = math.dist(p, foot)
+                if (t + tv) / 2 < dist <= CORNER_REACH and (near is None or dist < near[0]):
+                    near = (dist, foot, tv)
+            if near is not None:
+                walls.append([list(p), list(near[1]), max(t, near[2])])
+    return [tuple(w) for w in walls], openings
+
+
+def drop_stubs(walls, max_length=1.5):
+    """Short pieces with an end touching nothing — a counter's edge, a wardrobe's side, a shower tray — go;
+    repeated, as dropping one can free another."""
+    walls = [tuple(w) for w in walls]
+    while True:
+        def free(k, p):
+            return not any(j != k and _seg_dist(p, v[0], v[1]) <= (walls[k][2] + v[2]) / 2 + 0.05 for j, v in enumerate(walls))
+        keep = [w for k, w in enumerate(walls) if math.dist(w[0], w[1]) > max_length or not (free(k, w[0]) or free(k, w[1]))]
+        if len(keep) == len(walls):
+            return keep
+        walls = keep
+
+
 def tidy(walls, labels):
-    """dedupe → square → labelled openings into their gaps → the other gaps closed as openings → corners welded."""
+    """dedupe → square → labelled openings into their gaps (between pieces, then between an end and a wall across)
+    → overlapping parallel pieces merged → the other gaps closed as openings → loose furniture outlines out →
+    free ends carried to the wall ahead / beside → corners welded."""
     walls = square(dedupe(walls))
     walls, placed, missing = place_openings(walls, labels)
+    walls, at_ends, missing = place_at_ends(walls, missing)
+    # Merged after the doors are in: a band of pieces would otherwise cover the door gaps.
+    walls = merge_bands(walls)
     walls, gaps = close_gaps(walls)
-    return weld(walls), placed + gaps, missing
+    walls = drop_loose(walls)
+    walls, reached = reach_from_free_ends(walls)
+    return weld(drop_stubs(walls)), placed + at_ends + gaps + reached, missing
+
+
+def place_at_ends(walls, labels):
+    """A door between a wall's *end* and the body of a wall across (the leaf hinges at the frame against it: the
+    NEW VILLA bedrooms): the end is carried to the other wall's axis and the opening goes in what was the gap.
+    Only where a «w: … | h: …» label is next to that gap (an unlabelled one may be an open plan)."""
+    walls = [list(w) for w in walls]
+    placed, missing = [], []
+    for lab in labels:
+        best = None
+        for i, (a, b, t) in enumerate(walls):
+            L = math.dist(a, b)
+            if L < 0.2:
+                continue
+            for e, p, q in ((1, b, a), (0, a, b)):
+                ux, uy = (p[0] - q[0]) / L, (p[1] - q[1]) / L             # outwards from this end
+                for j, (c, d, tv) in enumerate(walls):
+                    if j == i:
+                        continue
+                    hit = _cross(p, (p[0] + ux, p[1] + uy), c, d)
+                    if hit is None:
+                        continue
+                    along = (hit[0] - p[0]) * ux + (hit[1] - p[1]) * uy
+                    gap = along - tv / 2
+                    M = math.dist(c, d)
+                    s = ((hit[0] - c[0]) * (d[0] - c[0]) + (hit[1] - c[1]) * (d[1] - c[1])) / (M * M) if M > 1e-9 else -1
+                    if along <= 0 or not 0 <= s <= 1 or not (lab.width - GAP_SHORT <= gap <= lab.width + GAP_LONG):
+                        continue
+                    mid = (p[0] + ux * gap / 2, p[1] + uy * gap / 2)
+                    dist = math.dist(mid, (lab.x, lab.y))
+                    if dist > REACH:
+                        continue
+                    score = abs(gap - lab.width) + 0.3 * dist
+                    if best is None or score < best[0]:
+                        best = (score, i, e, hit, mid, gap)
+        if best is None:
+            missing.append(lab)
+            continue
+        _s, i, e, hit, mid, gap = best
+        walls[i][e] = hit
+        placed.append(Opening(lab.kind, mid, float(lab.width), float(lab.height),
+                              float(lab.sill) if lab.sill is not None else 0.0, lab))
+    return [tuple(w) for w in walls], placed, missing
+
+
+def drop_loose(walls, keep_ratio=0.25):
+    """Wall groups that touch nothing of the building — furniture outlines read as walls (the sofa) — are dropped:
+    a group is kept when it is a good part (``keep_ratio``) of the longest group or has a thick wall in it."""
+    n = len(walls)
+    parent = list(range(n))
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]; x = parent[x]
+        return x
+
+    def touch(w, v):
+        reach = (w[2] + v[2]) / 2 + 0.10
+        return any(_seg_dist(p, v[0], v[1]) <= reach for p in (w[0], w[1])) or \
+            any(_seg_dist(p, w[0], w[1]) <= reach for p in (v[0], v[1]))
+    for i in range(n):
+        for j in range(i + 1, n):
+            if touch(walls[i], walls[j]):
+                parent[find(i)] = find(j)
+    length = Counter()
+    for i, w in enumerate(walls):
+        length[find(i)] += math.dist(w[0], w[1])
+    thick = Counter()
+    for i, w in enumerate(walls):
+        thick[find(i)] = max(thick[find(i)], w[2])
+    top = max(length.values(), default=0.0)
+    main = max(length, key=length.get) if length else None
+    xs = [p[0] for i, w in enumerate(walls) if find(i) == main for p in w[:2]]
+    ys = [p[1] for i, w in enumerate(walls) if find(i) == main for p in w[:2]]
+    box = (min(xs), min(ys), max(xs), max(ys)) if xs else None
+
+    def within_building(g):
+        pts = [p for i, w in enumerate(walls) if find(i) == g for p in w[:2]]
+        return box is not None and all(box[0] < p[0] < box[2] and box[1] < p[1] < box[3] for p in pts)
+    # A small group on its own inside the building is furniture (the sofa: 9 m of outline, a 25 cm back);
+    # outside it, a thick group is a retaining wall and stays.
+    return [w for i, w in enumerate(walls) if length[find(i)] >= keep_ratio * top
+            or (thick[find(i)] >= 0.25 and not within_building(find(i)))]
+
+
+def _seg_dist(p, a, b):
+    L2 = (b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2
+    t = 0.0 if L2 < 1e-12 else max(0.0, min(1.0, ((p[0] - a[0]) * (b[0] - a[0]) + (p[1] - a[1]) * (b[1] - a[1])) / L2))
+    return math.dist(p, (a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])))

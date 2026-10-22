@@ -67,6 +67,70 @@ def default_reference(sheets, storeys):
     return ground[0] if ground else (min(alts) if alts else 0.0)
 
 
+def add_pools(window, sheets, placed, reference):
+    """Every pool of the set (water drawn on the sheets, project/drawing_set.pools) at its written altitude."""
+    from archforge.core.commands import AddEntity
+    from archforge.core.model import Entity
+    from archforge.project.drawing_set import pool_level, pools
+    from archforge.site.pool import DEFAULTS, ZONE1
+    import math
+    made = []
+    for k, (cx, cy, length, width, rot, idx) in enumerate(pools(sheets, placed), 1):
+        alt = pool_level(sheets, placed, (cx, cy))
+        z = (alt - reference) if alt is not None else 0.0
+        p = {**DEFAULTS, "x": cx, "y": cy, "z": z, "length": round(length, 3), "width": round(width, 3), "rotation": rot}
+        a = math.radians(rot)
+        u = length / 2 + ZONE1 + float(p["plant_w"]) / 2 + 0.5            # equipment room beside it, out of zone 1
+        p.update(plant_x=cx + u * math.cos(a), plant_y=cy + u * math.sin(a))
+        # Where the drawing writes «ENGINE ROOM» next to the pool (the NEW VILLA's pool sheet), the equipment is there.
+        from archforge.project import drawing_text as T
+        rooms = [(sim.apply((r.x * sheets[i].metres_per_pt, r.y * sheets[i].metres_per_pt)), r.name)
+                 for i in idx for sim, _h in (placed[i],) for r in T.rooms(sheets[i].texts)]
+        engine = [xy for xy, name in rooms if T.greek_room(name)[0] == "Μηχανοστάσιο" and math.dist(xy, (cx, cy)) <= 12.0]
+        if engine:
+            ex, ey = min(engine, key=lambda xy: math.dist(xy, (cx, cy)))
+            p.update(plant_x=ex, plant_y=ey)
+        building = next((sheets[i].building for i in idx if sheets[i].building), "")
+        e = Entity("pool", p, name=f"Πισίνα {building.title()}".strip() if building else f"Πισίνα {k}")
+        window.stack.execute(AddEntity(e))
+        made.append(e)
+    return made
+
+
+def platforms(doc, sheets, storeys, pools, transition=3.0):
+    """Terrain regions: each building dug down to its lowest floor (the slope runs up to it — the NEW VILLA is
+    partly underground), each pool level with its rim where no building platform is in the way."""
+    from archforge.project.drawing_set import platform
+    from archforge.site.elevation_regions import validate_regions
+    regions = []
+    lowest = {}
+    for i, (_name, z, _alt) in storeys.items():
+        b = sheets[i].building
+        lowest[b] = min(lowest.get(b, z), z)
+    for b, z in lowest.items():
+        pts = [(float(e.params[k1]), float(e.params[k2])) for e in doc.entities.values()
+               if e.kind == "wall" and abs(float(e.params["z"]) - z) < 1e-3 for k1, k2 in (("x1", "y1"), ("x2", "y2"))]
+        corners = platform(pts) if len(pts) >= 3 else None
+        if corners:
+            regions.append({"id": f"building-{len(regions) + 1}", "shape": "polygon", "points": corners,
+                            "elevation": round(z - 0.15, 3), "transition": transition})
+    for e in pools:
+        p = e.params
+        from archforge.site.pool import rim
+        corners = platform([tuple(q) for q in rim(p, 0.5)], grow=0.0)
+        candidate = {"id": f"pool-{len(regions) + 1}", "shape": "polygon", "points": corners,
+                     "elevation": round(float(p["z"]) - 0.05, 3), "transition": 2.0}
+        try:
+            validate_regions(regions + [candidate])
+            regions.append(candidate)
+        except ValueError:
+            pass                                    # inside / against a building platform at another level
+    try:
+        return validate_regions(regions)
+    except ValueError:
+        return [r for r in regions if r["id"].startswith("building")][:1]
+
+
 def summary_text(sheets, placed, storeys):
     lines = []
     for i, s in enumerate(sheets):
@@ -134,16 +198,31 @@ def import_set(window, paths=None, reference=None, ask=True):
                 if len(pts) >= 3:
                     from archforge.site.survey import terrain_from_survey
                     terrain = terrain_from_survey(doc, pts, in_place=True, altitude_ref=float(reference))
-                    stack.execute(AddEntity(Entity("terrain", terrain, name="Έδαφος")))
+        made_pools = add_pools(window, sheets, placed, float(reference))
+        if terrain is not None:
+            # The ground under everything that was drawn (retaining walls at the plot's edge, the pools), 5 m round.
+            xs = [float(e.params[k]) for e in doc.entities.values() if e.kind == "wall" for k in ("x1", "x2")]
+            ys = [float(e.params[k]) for e in doc.entities.values() if e.kind == "wall" for k in ("y1", "y2")]
+            xs += [float(e.params["x"]) for e in made_pools]; ys += [float(e.params["y"]) for e in made_pools]
+            if xs:
+                nx0, ny0 = min(terrain["x0"], min(xs) - 5.0), min(terrain["y0"], min(ys) - 5.0)
+                # «elevation» is the graded plane's height at (x0, y0): moving the corner keeps the same plane.
+                terrain["elevation"] += (terrain["slope_x"] * (nx0 - terrain["x0"]) + terrain["slope_y"] * (ny0 - terrain["y0"])) / 100.0
+                terrain.update(x0=nx0, y0=ny0, x1=max(terrain["x1"], max(xs) + 5.0), y1=max(terrain["y1"], max(ys) + 5.0))
+            regions = platforms(doc, sheets, storeys, made_pools)
+            if regions:
+                terrain["regions"] = regions
+            stack.execute(AddEntity(Entity("terrain", terrain, name="Έδαφος")))
     finally:
         QApplication.restoreOverrideCursor()
     stack.squash(since, "Σύνολο σχεδίων")
     window._refresh_floor_selector()
     window._redraw_views(all_views=True)
     window._refresh_project_tree()
-    done = {"sheets": sheets, "placed": placed, "storeys": storeys, "built": built, "terrain": terrain}
+    done = {"sheets": sheets, "placed": placed, "storeys": storeys, "built": built, "terrain": terrain, "pools": made_pools}
     text = (f"{len(placed)} από {len(sheets)} σχέδια στη θέση τους · {len(set(n for n, _z, _a in storeys.values()))} όροφοι · "
-            f"τοίχοι {sum(b['walls'] for b in built.values() if b)} · έδαφος από {len(terrain['points']) if terrain else 0} υψόμετρα"
+            f"τοίχοι {sum(b['walls'] for b in built.values() if b)} · πισίνες {len(made_pools)} · "
+            f"έδαφος από {len(terrain['points']) if terrain else 0} υψόμετρα"
             " — Ctrl+Z αναιρεί όλο το σύνολο")
     window.statusBar().showMessage(text, 20000)
     if ask:

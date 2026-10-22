@@ -71,8 +71,14 @@ def _segment_intersection(a: Point, b: Point, c: Point, d: Point, tolerance: flo
 # «το πρόβλημα είναι βαθύτερο και το software απλά το αναπαράγει».  Rooms used to need the wall *axes* to meet
 # within a micrometre: a wall drawn 2 cm short of another, its body already inside the other's, left the room
 # open.  A wall is a body of its thickness: an end whose body reaches the other wall's body (plus BODY_GAP) meets
-# it — in the graph only, the walls themselves are not changed.
-BODY_GAP = 0.10
+# it — in the graph only, the walls themselves are not changed.  A real passage (60 cm and up) stays open.
+BODY_GAP = 0.25                   # NEW VILLA master bedroom: its wall stopped 19 cm short, at the wardrobe
+
+
+def _point_segment_distance(p, a, b):
+    L2 = (b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2
+    t = 0.0 if L2 <= 1e-18 else max(0.0, min(1.0, ((p[0] - a[0]) * (b[0] - a[0]) + (p[1] - a[1]) * (b[1] - a[1])) / L2))
+    return _dist(p, (a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])))
 
 
 def _join_touching_bodies(segments, gap=BODY_GAP):
@@ -91,6 +97,10 @@ def _join_touching_bodies(segments, gap=BODY_GAP):
         for end in ('a', 'b'):
             p, other = si[end], si['b' if end == 'a' else 'a']
             L = _dist(si['a'], si['b'])
+            ox, oy = (p[0] - other[0]) / L, (p[1] - other[1]) / L          # outwards from this end
+            # Already on another wall: it meets it — never pulled back to something nearer.
+            if any(k != i and _point_segment_distance(p, sk['a'], sk['b']) <= 1e-6 for k, sk in enumerate(segments)):
+                continue
             best = None
             for j, sj in enumerate(segments):
                 if i == j or abs(si['z'] - sj['z']) > 1e-6:
@@ -103,8 +113,8 @@ def _join_touching_bodies(segments, gap=BODY_GAP):
                     d = _dist(c, p)
                     # The crossing is beyond (or within) this end by at most the bodies + gap, and on the other wall
                     # or just past its end (an L where both stop short); the end must stay this wall's end.
-                    if d < 1e-9 or d > reach:
-                        continue
+                    if d < 1e-9 or d > reach or (c[0] - p[0]) * ox + (c[1] - p[1]) * oy <= 0:
+                        continue                                       # only carried on, never pulled back
                     if not (-reach / M <= u <= 1 + reach / M):
                         continue
                     if _dist(c, other) < 0.5 * L:

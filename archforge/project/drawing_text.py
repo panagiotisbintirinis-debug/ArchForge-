@@ -146,7 +146,8 @@ class Room:
 def rooms(texts) -> List[Room]:
     """A «xx sq.m.» text and the name written just above it (same column, within two lines)."""
     out = []
-    names = [t for t in texts if re.search(r"[A-Za-zΑ-Ωα-ωά-ώ]{2}", t.text) and not AREA.match(t.text.strip())
+    # Two letters at least, not necessarily together («w.c.»).
+    names = [t for t in texts if len(re.findall(r"[A-Za-zΑ-Ωα-ωά-ώ]", t.text)) >= 2 and not AREA.match(t.text.strip())
              and not LEVEL.search(t.text) and not OPENING.search(t.text) and abs(t.angle) < 1]
     for t in texts:
         m = AREA.match(t.text.strip())
