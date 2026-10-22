@@ -1,0 +1,53 @@
+"""Owner 22/10: «να βρεις τις συσχετίσεις ανά τα PDF … πάνω από δύο PDF σε σειρά … να συγχωνευτούν παραμετρικά».
+
+Sheets are classified from title / file name and related by what they write in the same place (levels, section
+marks) — scale, turn and place at once — or, same building and scale, by their walls."""
+import math
+
+import pytest
+
+from archforge.project import drawing_set as D
+from archforge.project.drawing_text import Text
+
+
+def test_sheets_are_told_apart_by_title_and_file_name():
+    t = lambda s, size=16.0: Text(s, 0, 0, size, 0)
+    assert D.classify("x/GROUND.pdf", [t("GROUND FLOOR PLAN NEW VILLA/"), t("6.00", 8)])[1:] == ("plan", "NEW VILLA", "ground")
+    assert D.classify("x/df09_NEW_VILLA_SECTION_-comments.pdf", [t("SECTION NEW VILLA")])[1:3] == ("section", "NEW VILLA")
+    assert D.classify("x/c9d6904f-OLD_VILLA_PLAN_LOWER_-comments.pdf", [t("LOWER FLOOR PLAN")])[1:] == ("plan", "OLD VILLA", "lower")
+    assert D.classify("x/MASTERPLAN_-comments.pdf", [t("MASTERPLAN")])[1] == "site"
+
+
+def _turned(points, scale, turn, shift):
+    c, s = math.cos(math.radians(turn)), math.sin(math.radians(turn))
+    return [(k, scale * (c * x - s * y) + shift[0], scale * (s * x + c * y) + shift[1]) for k, x, y in points]
+
+
+def test_shared_levels_give_scale_turn_and_place():
+    plan = [("L+114.00", 2, 3), ("L+114.00", 9, 3), ("L+113.30", 4, -6), ("L+112.80", 1, -9), ("MT.01", 6, 12), ("L+120.00", 30, 30)]
+    site = _turned(plan[:5], 0.5, 90.0, (100.0, 40.0)) + [("L+114.00", 0.0, 0.0), ("L+137.10", 5, 5)]   # decoys
+    sim = D.relate_by_anchors(plan, site)
+    assert sim.scale == pytest.approx(0.5) and sim.turn == pytest.approx(90.0) and sim.inliers == 5
+    assert sim.apply((2, 3)) == pytest.approx((98.5, 41.0))
+    assert D.relate_by_anchors(plan, site, same_scale=True) is None          # a known scale is not overruled
+    assert D.relate_by_anchors(plan[:2], site) is None                      # fewer than three: no guess
+
+
+def test_same_building_floors_by_their_walls():
+    outline = [(0, 0, 12, 0), (12, 0, 12, 8), (12, 8, 0, 8), (0, 8, 0, 0), (5, 0, 5, 8), (0, 4, 5, 4)]
+    lower = [(a + 3.25, b - 1.5, c + 3.25, d - 1.5) for a, b, c, d in outline] + [(40, 40, 41, 40)]
+    sim = D.relate_by_walls(outline, lower, min_votes=6)
+    assert sim.shift == pytest.approx((3.25, -1.5))
+
+
+def test_the_whole_set_lands_in_the_site_frame():
+    site = D.Sheet("site.pdf", kind="site", scale=100, anchors=[("L+114.00", 50, 20), ("L+113.30", 52, 15), ("L+112.80", 49, 12),
+                                                                 ("L+137.10", 10, 80), ("L+137.60", 18, 82), ("L+132.00", 12, 70)])
+    new = D.Sheet("new.pdf", kind="plan", building="NEW VILLA", scale=50,
+                  anchors=[("L+114.00", 5, 5), ("L+113.30", 7, 0), ("L+112.80", 4, -3)])
+    old = D.Sheet("old.pdf", kind="plan", building="OLD VILLA", scale=50,
+                  anchors=[("L+137.10", 0, 10), ("L+137.60", 8, 12), ("L+132.00", 2, 0)])
+    section = D.Sheet("s.pdf", kind="section", building="NEW VILLA", scale=50)
+    placed = D.relate([new, site, old, section])
+    assert placed[1][1] == "αναφορά" and 3 not in placed
+    assert placed[0][0].apply((5, 5)) == pytest.approx((50, 20)) and placed[2][0].apply((2, 0)) == pytest.approx((12, 70))
