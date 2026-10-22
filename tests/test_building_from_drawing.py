@@ -127,3 +127,15 @@ def test_pools_from_water_fills_finest_sheet_and_no_glass():
     (cx, cy, length, width, _rot, idx), = found
     assert (length, width) == pytest.approx((8.0, 3.0)) and (cx, cy) == pytest.approx((10, 5)) and idx == [0, 1, 2]
     assert D.platform([(0, 0), (4, 0), (4, 2), (0, 2)], grow=0.5) is not None
+
+
+def test_bands_made_by_reaching_are_merged_too(monkeypatch):
+    """OLD VILLA upper floor: the kitchen's wall came out of «reach from free ends» as two bands 18 cm apart
+    (72,08 / 72,26) — side by side they never meet in the room graph and the kitchen stayed open."""
+    from archforge.architecture import building_from_drawing as B
+    band = [((8.27, 72.08), (15.66, 72.08), 0.319), ((14.64, 72.26), (24.11, 72.26), 0.501)]
+    monkeypatch.setattr(B, "reach_from_free_ends", lambda walls: (band, []))
+    walls, _openings, _missing = B.tidy([((0, 0), (1, 0), 0.3)], [])
+    assert len(walls) == 1
+    (a, b, t), = walls
+    assert min(a[0], b[0]) == pytest.approx(8.27) and max(a[0], b[0]) == pytest.approx(24.11) and t == pytest.approx(0.59)

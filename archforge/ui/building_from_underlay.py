@@ -98,6 +98,16 @@ def build(window, eid, found=None, ask=True):
             name, use = greek_room(r.name)
             window.stack.amend(SetRoomMetadata(face.signature, {"name": name, "use": use}))
             named += 1
+    if found.get("items"):
+        # A plan that writes no room names (OLD VILLA upper floor): the rooms by what is drawn in them.
+        from archforge.project.drawing_contents import name_rooms
+        faces = doc.active_room_faces(z=z)
+        for k, label in name_rooms([f.polygon for f in faces], found["items"]).items():
+            if doc.room_metadata(faces[k].signature).get("name"):
+                continue
+            name, use = greek_room(label)
+            window.stack.amend(SetRoomMetadata(faces[k].signature, {"name": name, "use": use}))
+            named += 1
     doc.select([w.id for w in walls])
     window._redraw_views(all_views=True)
     window._refresh_project_tree()

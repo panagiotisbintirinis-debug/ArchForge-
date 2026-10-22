@@ -46,6 +46,7 @@ class Sheet:
     segments: list = field(default_factory=list)                                # dark lines, metres at its scale
     page_size: Tuple[float, float] = (0.0, 0.0)                                 # visible page, PDF points
     water: list = field(default_factory=list)                                   # blue fills: [[(x, y)…]] metres
+    items: list = field(default_factory=list)                                   # blocks / words: [(kind, x, y)] metres
 
     @property
     def metres_per_pt(self):
@@ -97,9 +98,11 @@ def read_sheet(path, page=0, scale=None):
     segs = pdf_vector_segments(path, page, dark_only=True)
     n = scale or T.scale(texts) or T.scale_from_dimensions(texts, segs)[0]
     k = PT_M * (n or 1)
+    from archforge.project import drawing_contents as C
     return Sheet(path, page, title, kind, building, floor, n, texts, anchors(texts, k),
                  [(a * k, b * k, c * k, d * k) for a, b, c, d in segs], (x1 - x0, bottom - top),
-                 [[(x * k, y * k) for x, y in poly] for poly in water_fills(path, page)])
+                 [[(x * k, y * k) for x, y in poly] for poly in water_fills(path, page)],
+                 C.read_items(path, page, k) + [(w, x * k, y * k) for w, x, y in C.words(texts)])
 
 
 def _water(colour):
@@ -399,8 +402,13 @@ def relate(sheets: List[Sheet]):
     sites = [i for i in plans if sheets[i].kind == "site"]
     ref = max(sites or plans, key=lambda i: len(sheets[i].anchors))
     placed = {ref: (Similarity(1.0, 0.0, (0.0, 0.0), 0, 0.0), "αναφορά")}
+    # The site plan's walls are the last resort: a floor of the same building, once placed, tells the place
+    # better (OLD VILLA lower floor: 0,4 m off on the masterplan, exact on its upper floor's walls).
+    site_walls = False
     changed = True
-    while changed:
+    while changed or not site_walls:
+        if not changed:
+            site_walls = True
         changed = False
         for i, s in enumerate(sheets):
             if i in placed or s.kind == "section":
@@ -415,12 +423,13 @@ def relate(sheets: List[Sheet]):
                 if sim is None and same and s.kind == t.kind == "plan" and s.building == t.building and s.scale == t.scale:
                     sim = relate_by_walls(s.segments, t.segments)
                     how = f"τοίχοι ({sim.inliers} γωνίες)" if sim else ""
-                if sim is None and same and s.kind == "plan" and t.kind == "site":
+                if sim is None and site_walls and same and s.kind == "plan" and t.kind == "site":
                     sim = relate_by_walls_confirmed(s, t)
                     how = f"τοίχοι στη γενική διάταξη ({sim.inliers} γωνίες, ίδιο υψόμετρο)" if sim else ""
                 if sim is not None:
                     placed[i] = (_chain(sim, sim_j), how)
                     changed = True
+                    site_walls = False
                     break
     return placed
 

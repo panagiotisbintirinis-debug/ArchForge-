@@ -132,3 +132,22 @@ def test_roof_slabs_from_the_section_and_from_the_buildings_zero():
     assert doc.get(old[0]).params["height"] == pytest.approx(2.7)                  # the door's head
     assert [doc.get(i).params["height"] for i in old[1:]] == pytest.approx([2.6] * 4)
     assert len(stack.done) >= 1
+
+
+def test_a_floor_of_the_same_building_places_it_before_the_site_plans_walls():
+    """With the OLD VILLA upper floor in the set, the lower floor lands on the upper floor's walls (exact), not
+    on the masterplan's (0,4 m off at 1:100)."""
+    outline = [(0, 0, 12, 0), (12, 0, 12, 8), (12, 8, 0, 8), (0, 8, 0, 0), (5, 0, 5, 8), (0, 4, 5, 4), (5, 6, 12, 6),
+               (8.3, 0, 8.3, 6), (1.7, 4, 1.7, 8), (5, 2.2, 8.3, 2.2), (9.4, 6, 9.4, 8)]
+    move = lambda segs, dx, dy: [(a + dx, b + dy, c + dx, d + dy) for a, b, c, d in segs]
+    site = D.Sheet("site.pdf", kind="site", scale=100, segments=move(outline, 20.4, 60.0) * 3,
+                   anchors=[("L-2.80", 22.4, 62.3), ("L+129.00", 22.3, 62.0), ("L+137.10", 10, 80),
+                            ("L+137.60", 18, 82), ("L+132.00", 12, 70)])
+    upper = D.Sheet("old_upper.pdf", kind="plan", building="OLD VILLA", floor="upper", scale=50,
+                    segments=move(outline, 3.0, 1.0),
+                    anchors=[("L+137.10", 0, 10), ("L+137.60", 8, 12), ("L+132.00", 2, 0)])
+    lower = D.Sheet("old_lower.pdf", kind="plan", building="OLD VILLA", floor="lower", scale=50, segments=outline,
+                    anchors=[("L-2.80", 2, 2)])
+    placed = D.relate([site, lower, upper])
+    assert placed[1][1].startswith("τοίχοι (")                              # on the upper floor's walls
+    assert placed[1][0].apply((0, 0)) == pytest.approx((13.0, 71.0))       # upper (3, 1) → site (13, 71)

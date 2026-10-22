@@ -123,7 +123,8 @@ def analyse_sheet(sheet, sim):
     segs = [(*to((a, b)), *to((c, d))) for a, b, c, d in sheet.segments]
     walls, openings, missing = tidy(find_walls(segs), [placed(o) for o in T.openings(sheet.texts)])
     return {"walls": walls, "openings": openings, "missing": missing, "rooms": [placed(r) for r in T.rooms(sheet.texts)],
-            "levels": [placed(l) for l in T.levels(sheet.texts)]}
+            "levels": [placed(l) for l in T.levels(sheet.texts)],
+            "items": [(kind, *to((x, y))) for kind, x, y in getattr(sheet, "items", ())]}
 
 
 # ---------------------------------------------------------------------------------------- tidying the found walls
@@ -385,6 +386,9 @@ def tidy(walls, labels):
     walls, gaps = close_gaps(walls)
     walls = drop_loose(walls)
     walls, reached = reach_from_free_ends(walls)
+    # Once more: a free end carried along a wall's line can lie in another piece's body (OLD VILLA upper floor:
+    # the kitchen's wall read at 72,08 and 72,26 — two bands side by side, the kitchen open between them).
+    walls = merge_bands(walls)
     return weld(drop_stubs(walls)), placed + at_ends + gaps + reached, missing
 
 
