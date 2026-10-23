@@ -1,7 +1,11 @@
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 import fs from 'fs';
 const [page_html, scene, out, elev, azi, preset] = process.argv.slice(2);
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+// The pre-installed Chromium (its folder name follows the Playwright version).
+const pw = '/opt/pw-browsers';
+const exe = fs.readdirSync(pw).filter(d => /^chromium-\d+$/.test(d)).sort().reverse()
+  .map(d => [`${pw}/${d}/chrome-linux64/chrome`, `${pw}/${d}/chrome-linux/chrome`]).flat().find(f => fs.existsSync(f));
+const browser = await chromium.launch({ executablePath: exe,
   args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 760 } });
 page.on('console', m => { if (m.type() === 'error' || m.type()==='warning') console.log('console:', m.text().slice(0, 300)); });

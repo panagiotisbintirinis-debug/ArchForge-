@@ -180,3 +180,14 @@ def test_pdf_prints_the_same_chains(tmp_path):
         pdf._dimension = real
     assert out.exists() and out.stat().st_size > 1000
     assert sorted(calls) == sorted([1.2, 1.525, 7.525, 10.25, 10.25, 8.25, 8.25, 3.75, 5.75, 7.75, 7.75])
+
+
+def test_a_room_face_split_where_walls_meet_it_from_behind_is_one_dimension():
+    """Driving the house as a user: the living room's east face, split where two partitions meet it from the other
+    side, got three interior dimensions (2,92 / 2,50 / 2,42) instead of its 7,75."""
+    doc = Document(); st = CommandStack(doc)
+    _house(doc, st, {'s': (0, 0, 10, 0), 'e': (10, 0, 10, 8), 'n': (10, 8, 0, 8), 'w': (0, 8, 0, 0), 'mid': (6, 0, 6, 8),
+                     'p1': (6, 3, 10, 3), 'p2': (6, 5.5, 10, 5.5)})
+    st.execute(D.set_auto(doc, 0.0, interior=True))
+    inner = _values(D.storey_dimensions(doc, 0.0), 'interior')
+    assert inner.count(7.75) >= 1 and 2.875 not in inner and 2.375 not in inner
