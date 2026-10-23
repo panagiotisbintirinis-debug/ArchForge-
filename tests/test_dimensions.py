@@ -113,7 +113,7 @@ def test_plan_draws_them_on_the_dimensions_layer_of_the_active_storey_only():
     st.execute(AddEntity(D.tape_entity((0, 0), (0, 3), 3.0)))           # another storey
     frame = build_plan_frame(doc)
     labels = [p for p in frame.primitives if p.role == 'dimension-label']
-    assert sorted(dict(p.meta)['text'] for p in labels) == sorted(['1,20', '1,53', '7,53', '10,25', '10,25', '8,25', '8,25'])
+    assert sorted(dict(p.meta)['text'] for p in labels) == sorted(D.fmt(v) for v in (1.2, 1.525, 7.525, 10.25, 10.25, 8.25, 8.25))
     assert all(L.primitive_layer(doc, p) == 'dimensions' for p in frame.primitives if p.role.startswith('dimension'))
     # The set is one entity: hidden → nothing drawn.
     s = D.settings(doc, 0.0)
