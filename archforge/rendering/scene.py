@@ -549,7 +549,7 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
         grain = surface_grain(str(obj.get("kind", "")), obj.get("material") or {}, role)
         if grain:
             obj["material"] = {**obj["material"], "grain": grain}
-    payload = {"objects": objects}
+    payload = {"objects": objects, "selected": sorted(selected)}
     patterns = _scene_patterns(objects)
     if patterns:
         payload["patterns"] = patterns

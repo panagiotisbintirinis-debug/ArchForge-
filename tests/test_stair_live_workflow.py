@@ -582,13 +582,16 @@ def test_stair_on_a_slab_is_selectable_by_click_in_the_plan_on_both_storeys():
             w._activate_level_by_name(level); w._redraw_views(all_views=True); app.processEvents()
             doc.select([])
             pos = w.plan_view.mapFromScene(QPointF(cx, cy))
+            # Owner 23/10: one click = indication, double click = selection.
             QTest.mouseClick(w.plan_view.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, pos)
+            assert doc.selection == [] and w.plan_view._indicated == sid, level
+            QTest.mouseDClick(w.plan_view.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, pos)
             assert doc.selection == [sid], level
         # The slab itself stays selectable where nothing else is on it.
         w._activate_level_by_name('Ground'); w._redraw_views(all_views=True); app.processEvents()
         doc.select([])
-        QTest.mouseClick(w.plan_view.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
-                         w.plan_view.mapFromScene(QPointF(5.0, 4.2)))
+        QTest.mouseDClick(w.plan_view.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+                          w.plan_view.mapFromScene(QPointF(5.0, 4.2)))
         assert [doc.get(i).kind for i in doc.selection] == ['room_floor']
     finally:
         w._mark_clean(); w.close(); app.processEvents()

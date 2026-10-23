@@ -250,6 +250,13 @@ class PlanView(QGraphicsView):
         eid=self._entity_items.get(hit)
         if eid and eid in self.doc.entities and self.doc.get(eid).kind not in self.CONTAINER_KINDS:return eid
         return None
+    _indicated=None
+    def indicate(self,eid):
+        """One click: the object under the mouse is shown (outlined, its name and size below) — not selected."""
+        self._indicated=eid if eid and eid in self.doc.entities else None
+        if self._indicated:
+            from archforge.ui.indication import describe
+            self.statusChanged.emit(describe(self.doc,self._indicated)+' · διπλό κλικ = επιλογή')
     def to_select(self,message='Επιλογή'):
         """Back to Επιλογή (owner 23/10: «τα εργαλεία συνεχίζουν να δουλεύουν, πρέπει να πατήσω επιλογή»)."""
         window=getattr(self,'marking_menu_window',None)
@@ -275,14 +282,14 @@ class PlanView(QGraphicsView):
         if event.button()==Qt.MouseButton.LeftButton and str(self.controller.tool)!='select' and self._tool_idle():
             self.to_select();event.accept();return
         if event.button()==Qt.MouseButton.LeftButton:
+            # Double click = selection (owner 23/10): the object, its handles and its Ιδιότητες.
             hit=self.itemAt(event.position().toPoint());eid=self._entity_items.get(hit)
-            if eid and eid in self.doc.entities and self.doc.get(eid).kind=='stair' and getattr(self,'marking_menu_window',None) is not None:
-                # Double click on a stair: its window (sizes, structure, railing, materials).
-                from archforge.ui.stair_dialog import open_stair_dialog
-                self.doc.select([eid]);self.selectionChangedByView.emit();open_stair_dialog(self.marking_menu_window,eid);event.accept();return
             if eid and eid in self.doc.entities:
-                self.doc.select([eid]);self.controller.set_target(eid,None)
-                self.selectionChangedByView.emit();self.redraw();event.accept();return
+                self.doc.select([eid],add=bool(event.modifiers()&Qt.KeyboardModifier.ControlModifier));self.controller.set_target(eid,None)
+                self._indicated=None;self.selectionChangedByView.emit();self.redraw()
+                self.statusChanged.emit('Επιλογή: '+__import__('archforge.ui.indication',fromlist=['describe']).describe(self.doc,eid)
+                                        +' · πάτημα και σύρσιμο = μεταφορά · Delete = διαγραφή')
+                event.accept();return
         super().mouseDoubleClickEvent(event)
 
     def contextMenuEvent(self,event):
@@ -403,16 +410,26 @@ class PlanView(QGraphicsView):
             else:
                 self.controller.set_tool('stretch');self.controller.set_target(h.entity_id,h.handle)
         elif self.controller.tool=='select':
+            # Owner 23/10: one click = indication, double click = selection, pressed = use. A click shows what is
+            # under the mouse without picking it (Ctrl+click adds / removes, as before); a click on empty space clears
+            # the selection; only what is selected moves when pressed and dragged («διπλό κλικ και πάτημα για μεταφορά»).
             eid=self._entity_items.get(hit)
-            if eid:self.doc.select([eid],add=bool(event.modifiers()&Qt.KeyboardModifier.ControlModifier))
-            elif not(event.modifiers()&Qt.KeyboardModifier.ControlModifier):self.doc.select([])
-            # Pressing on a wall's body: a drag moves it perpendicular to its axis (wall_edit.py).
+            ctrl=bool(event.modifiers()&Qt.KeyboardModifier.ControlModifier)
+            from archforge.core.layers import workspace
+            if workspace(self.doc)=='mep' and eid:
+                # Η/Μ (owner 23/10: «σε μηχανολογικά λογικά είναι κλικ επιλογή»): a click picks.
+                self.doc.select([eid],add=ctrl);self.selectionChangedByView.emit()
+            elif eid and ctrl:self.doc.select([eid],add=True);self.selectionChangedByView.emit()
+            elif not eid and not ctrl and self.doc.selection:self.doc.select([]);self.selectionChangedByView.emit()
+            self.indicate(eid)
+            selected=bool(eid) and eid in (self.doc.selection or ())
+            # Pressing on a selected wall's body: a drag moves it perpendicular to its axis (wall_edit.py).
             ev=self._scene_to_plane(event.position().toPoint())
-            self._wall_press=(eid,ev.a,ev.b,event.position()) if eid and self.doc.get(eid).kind=='wall' and not(event.modifiers()&Qt.KeyboardModifier.ControlModifier) else None
-            # Pressing on a placed object's body: a drag moves it (with snapping), like a handle.
+            self._wall_press=(eid,ev.a,ev.b,event.position()) if selected and self.doc.get(eid).kind=='wall' and not ctrl else None
+            # Pressing on a selected object's body: a drag moves it (with snapping), like a handle.
             from archforge.core.object_ops import USER_PLACED_KINDS
-            self._body_press=(eid,event.position()) if eid and self.doc.get(eid).kind in USER_PLACED_KINDS and not self.doc.get(eid).locked and not(event.modifiers()&Qt.KeyboardModifier.ControlModifier) else None
-            self.selectionChangedByView.emit();self.redraw();return
+            self._body_press=(eid,event.position()) if selected and self.doc.get(eid).kind in USER_PLACED_KINDS and not self.doc.get(eid).locked and not ctrl else None
+            self.redraw();return
         elif self.controller.tool=='move':
             if not self._acquire_move_target(hit):self._mouse_down=False;self.redraw();return
         elif self.controller.tool=='rotate':
@@ -1134,7 +1151,8 @@ class PlanView(QGraphicsView):
         if wall_line:
             # The wall itself is drawn by the cut region (wall-poche); its axis line only picks, as wide as the wall.
             sel=p.entity_id in (self.doc.selection or ())
-            pen=QPen(QColor(20,110,220,110) if sel else QColor(0,0,0,0));pen.setWidthF(float(dict(p.meta).get('thickness',.2)))
+            shown=p.entity_id==getattr(self,'_indicated',None)       # one click: indicated, not selected
+            pen=QPen(QColor(20,110,220,110) if sel else (QColor(240,140,30,90) if shown else QColor(0,0,0,0)));pen.setWidthF(float(dict(p.meta).get('thickness',.2)))
             pen.setCapStyle(Qt.PenCapStyle.FlatCap)
         if p.role=='wall-poche':pen=QPen(QColor(40,45,55));pen.setWidthF(.02);pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
         if p.kind=='polygon' and dict(p.meta).get('islands'):
@@ -1196,6 +1214,8 @@ class PlanView(QGraphicsView):
             container=bool(p.entity_id) and p.entity_id in self.doc.entities and self.doc.get(p.entity_id).kind in self.CONTAINER_KINDS
             item.setZValue(-30 if p.role=='contour' else -20 if context else (-10 if room else (10 if opening else (20 if preview else (-5 if container else (-1 if p.role=='wall-poche' else (1 if wall_line else 0)))))))
             if p.entity_id and not preview:self._entity_items[item]=p.entity_id
+            if p.entity_id and p.entity_id==getattr(self,'_indicated',None) and not wall_line and hasattr(item,'setPen'):
+                ind=QPen(QColor(240,140,30));ind.setWidthF(.03);ind.setCosmetic(False);item.setPen(ind)
             if preview and p.kind=='polygon' and dict(p.meta).get('fits') is False:item.setBrush(QBrush(QColor(210,40,40,45)))
             if preview and p.kind=='polygon' and dict(p.meta).get('semantic')=='wall-body-preview':
                 # The wall being drawn looks like a wall: its cut fill, a green edge (not yet placed).

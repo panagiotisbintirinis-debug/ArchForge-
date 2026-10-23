@@ -39,7 +39,7 @@ def test_pbr_scene_payload_ignores_non_mesh_bodies():
     body = SimpleNamespace(entity_id="x", semantic_kind="unsupported", payload={"preview": True})
     evaluation = SimpleNamespace(bodies=(body,))
 
-    assert build_pbr_scene_payload(evaluation) == {"objects": []}
+    assert build_pbr_scene_payload(evaluation) == {"objects": [], "selected": []}
 
 
 def test_pbr_scene_payload_accepts_transient_mesh_override():
