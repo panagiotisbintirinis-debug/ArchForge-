@@ -611,3 +611,68 @@ def sync_stair_railings(doc, stair_id):
         child.visible = bool(visible)
         child.revision += 1
         doc.mark_dirty(cid)
+
+
+# --------------------------------------------------------------------------------------------- a stair arriving
+# Driving the house as a user (23/10): the outside stair reached the balcony through its closed railing. Where a
+# stair arrives at a railing (the railing crosses its top end, across the walking direction), the railing opens
+# the stair's width there: the railing is cut in two (or a closed one opened), in the same undo as the stair.
+def stair_arrival_cuts(doc, stair_params, reach=0.60):
+    """Commands that open every railing of the storey a stair reaches where the stair arrives (``[]`` if none)."""
+    import copy
+    import math
+    from archforge.architecture.stairs import candidate_from_params, stair_centerline
+    from archforge.core.commands import AddEntity, DeleteEntities
+    from archforge.core.model import Entity
+    c = candidate_from_params(stair_params)
+    line = stair_centerline(c)
+    (ax, ay), (ex, ey) = line[-2], line[-1]
+    L = math.hypot(ex - ax, ey - ay) or 1.0
+    dx, dy = (ex - ax) / L, (ey - ay) / L
+    half = c.width / 2.0 + 0.05
+    level = float(c.upper_floor_z)
+    out = []
+    for e in list(doc.entities.values()):
+        p = e.params
+        if e.kind != 'railing' or any(len(q) > 2 and abs(float(q[2])) > 1e-6 for q in p['points']):
+            continue                                       # a stair's own railing follows its flight: not this
+        if abs(float(p.get('z', 0.0)) - level) > 0.35:
+            continue
+        pts = [(float(q[0]), float(q[1])) for q in p['points']]
+        closed = bool(int(p.get('closed', 0)))
+        segs = _segments(pts, closed)
+        cut = None
+        for i, (a, b) in enumerate(segs):
+            sl = math.hypot(b[0] - a[0], b[1] - a[1])
+            if sl < 1e-9:
+                continue
+            ux, uy = (b[0] - a[0]) / sl, (b[1] - a[1]) / sl
+            if abs(ux * dx + uy * dy) > 0.5:
+                continue                                   # runs along the stair, not across its arrival
+            s = (ex - a[0]) * ux + (ey - a[1]) * uy
+            off = abs((ex - a[0]) * -uy + (ey - a[1]) * ux)
+            if off > reach or s < -half or s > sl + half:
+                continue
+            cut = (i, max(0.0, s - half), min(sl, s + half), ux, uy, a)
+            break
+        if cut is None:
+            continue
+        i, s0, s1, ux, uy, a = cut
+        p0, p1 = (a[0] + ux * s0, a[1] + uy * s0), (a[0] + ux * s1, a[1] + uy * s1)
+        if closed:
+            # Opened at the cut: one railing from the far side of the gap round to its near side.
+            n = len(pts)
+            run = [p1] + [pts[(i + 1 + k) % n] for k in range(n)][:n] + [p0]
+            runs = [run]
+        else:
+            runs = [pts[:i + 1] + [p0], [p1] + pts[i + 1:]]
+        news = []
+        for run in runs:
+            clean = [q for k, q in enumerate(run) if k == 0 or math.hypot(q[0] - run[k - 1][0], q[1] - run[k - 1][1]) > 1e-6]
+            if len(clean) >= 2 and sum(math.hypot(clean[k + 1][0] - clean[k][0], clean[k + 1][1] - clean[k][1])
+                                       for k in range(len(clean) - 1)) >= 0.10:
+                params = copy.deepcopy(p); params['points'] = [[q[0], q[1]] for q in clean]; params['closed'] = 0
+                news.append(Entity('railing', params, name=e.name, parent_id=e.parent_id))
+        out.append(DeleteEntities([e.id]))
+        out += [AddEntity(n_) for n_ in news]
+    return out

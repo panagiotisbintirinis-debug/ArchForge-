@@ -120,3 +120,26 @@ def test_an_outside_stair_must_arrive_on_the_balcony_not_in_mid_air():
     ax, ay = arrival_point(onto)
     assert 1 < ax < 9 and -1.5 < ay < 0
     assert 'arrival' not in stair_obstacle_conflicts(onto, obstacles)
+
+
+def test_a_stair_arriving_at_the_balcony_opens_its_railing_in_one_undo():
+    """Driving the house: the outside stair reached the balcony through its closed railing."""
+    from archforge.architecture.balcony import balcony_entities
+    from archforge.core.commands import AddEntities
+    doc, stack, ids = _house(door=False)
+    stack.execute(AddEntities(balcony_entities(doc, [(1, -1.5), (9, -1.5), (9, 0), (1, 0)], 2.7)))
+    before = [e.params['points'] for e in doc.entities.values() if e.kind == 'railing']
+    tx = StairPlaceTransaction(doc, stack, (13.8, -0.75)); tx.update(9.4, -0.75)
+    assert tx.preview['fits'] and tx.active_candidate.layout == 'straight'
+    sid = tx.commit()
+    rails = [e.params['points'] for e in doc.entities.values() if e.kind == 'railing']
+    assert rails != before                                                 # opened (a closed one) or cut in two
+    # Nothing of the railing left across the stair's top (x = 9, its width round y = -0,75).
+    w = doc.get(sid).params['width']
+    for pts in rails:
+        for (ax, ay), (bx, by) in zip(pts, pts[1:]):
+            if abs(ax - 9) < 0.05 and abs(bx - 9) < 0.05:
+                lo, hi = sorted((ay, by))
+                assert hi <= -0.75 - w / 2 + 1e-6 or lo >= -0.75 + w / 2 - 1e-6
+    stack.undo()
+    assert sid not in doc.entities and [e.params['points'] for e in doc.entities.values() if e.kind == 'railing'] == before
