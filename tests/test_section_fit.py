@@ -121,3 +121,42 @@ def test_auto_place_button_in_the_section_tab():
         assert w.doc.get(under.id).params["x"] == 0.0 and w.doc.get(line.id).params["flip"] == 0
     finally:
         w._mark_clean(); w.close(); app.processEvents()
+
+
+def test_the_pool_in_a_section_with_its_levels():
+    """Owner 23/10: «το εργαλείο πισίνας πρέπει να έχει και τομές για τα υψομετρικά της» — the line across a pool:
+    rim, water (10 cm under a skimmer's coping), the bottom sloping from the shallow to the deep end; an L is
+    met piece by piece."""
+    from archforge.output.section_cut import pool_cuts
+    doc = Document()
+    doc.add(Entity("pool", {"x": 0.0, "y": 0.0, "z": 17.65, "length": 8.0, "width": 4.0, "rotation": 0.0,
+                            "depth_shallow": 1.1, "depth_deep": 1.8, "pool_type": "skimmer"}))
+    doc.add(Entity("terrain", {"x0": -10.0, "y0": -10.0, "x1": 10.0, "y1": 10.0, "elevation": 0.0, "slope_x": 0.0,
+                               "slope_y": 0.0, "thickness": 0.5, "altitude_ref": 114.0}))
+    (c,) = pool_cuts(doc, {"x1": -7.0, "y1": 0.0, "x2": 7.0, "y2": 0.0, "flip": 0})
+    assert (c["u0"], c["u1"]) == pytest.approx((3.0, 11.0), abs=0.06)
+    assert c["rim"] == pytest.approx(17.65) and c["water"] == pytest.approx(17.55) and c["altitude_ref"] == 114.0
+    assert c["bottom"][0][1] == pytest.approx(17.65 - 1.1, abs=0.02) and c["bottom"][-1][1] == pytest.approx(17.65 - 1.8, abs=0.02)
+    assert pool_cuts(doc, {"x1": -7.0, "y1": 5.0, "x2": 7.0, "y2": 5.0, "flip": 0}) == []      # the line misses it
+
+
+def test_pool_section_button():
+    import os
+    os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+    from PySide6.QtWidgets import QApplication, QPushButton
+    from archforge.ui.main_window import MainWindow
+    from archforge.ui import section_view as SV
+    app = QApplication.instance() or QApplication([])
+    w = MainWindow()
+    try:
+        w._no_modal_dialogs = True
+        w._place_site_point('pool_place', 0.0, 0.0)
+        (pool,) = [e for e in w.doc.entities.values() if e.kind == 'pool']
+        w.doc.select([pool.id]); w.refresh_inspector()
+        assert any(b.text().startswith('Τομή πισίνας') for b in w.findChildren(QPushButton))
+        line = SV.pool_section(w, pool.id)
+        assert line is not None and w._section_panel.view.data["pools"]
+        w.stack.undo()
+        assert line.id not in w.doc.entities
+    finally:
+        w._mark_clean(); w.close(); app.processEvents()

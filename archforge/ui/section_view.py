@@ -109,6 +109,7 @@ class SectionView(QGraphicsView):
         self._scene.addItem(_Drawing(self.data))
         self._draw_levels()
         self._draw_terrain_marks()
+        self._draw_pools()
         if fit:
             u0, z0, u1, z1 = self.data["bounds"]
             rect = QRectF(u0 - 4.5, z0 - 1.0, (u1 - u0) + 9.5, (z1 - z0) + 2.0)
@@ -185,6 +186,38 @@ class SectionView(QGraphicsView):
         top = max((max(q[1] for q in loop) for c in self.data["cuts"] if c['kind'] != 'terrain' for loop in c["loops"]), default=None)
         if top is not None and all(abs(top - z) > 0.3 for z, _m, _n in self.data["levels"]):
             self._text(f"{top:+.2f}".replace(".", ",") + "  ανώτατο σημείο", u1 + 0.4, top, QColor(30, 90, 170), False, (0.0, 0.5))
+
+    def _draw_pools(self):
+        """A pool the line crosses: its concrete cut (walls, sloping floor), the water, and its levels — rim, water,
+        bottom at each end — relative to ±0,00 and absolute (section_cut.pool_cuts)."""
+        blue = QColor(30, 110, 200)
+        concrete = QPen(QColor(40, 40, 40)); concrete.setCosmetic(True); concrete.setWidthF(1.6)
+        for c in self.data.get("pools", ()):
+            u0, u1, rim, water, t, f = c["u0"], c["u1"], c["rim"], c["water"], c["wall"], c["floor"]
+            bottom = c["bottom"]
+            shell = ([QPointF(u0 - t, rim), QPointF(u0, rim)] + [QPointF(u, z) for u, z in bottom] +
+                     [QPointF(u1, rim), QPointF(u1 + t, rim), QPointF(u1 + t, bottom[-1][1] - f)] +
+                     [QPointF(u, z - f) for u, z in reversed(bottom)] + [QPointF(u0 - t, bottom[0][1] - f)])
+            # The ground goes on under the basin (the 3D cuts the terrain through for the hole; a section must not).
+            low = min(self.data["bounds"][1], min(z for _u, z in bottom) - f - 0.5)
+            soil = [QPointF(u0 - t, bottom[0][1] - f)] + [QPointF(u, z - f) for u, z in bottom] + \
+                   [QPointF(u1 + t, bottom[-1][1] - f), QPointF(u1 + t, low), QPointF(u0 - t, low)]
+            hatch = QBrush(QColor(125, 75, 25), Qt.BrushStyle.BDiagPattern)
+            self._scene.addPolygon(QPolygonF(soil), QPen(Qt.PenStyle.NoPen), hatch).setZValue(7)
+            self._scene.addPolygon(QPolygonF(shell), concrete, QBrush(QColor(190, 190, 190))).setZValue(8)
+            wet = [QPointF(u0, water), QPointF(u1, water)] + [QPointF(u, z) for u, z in reversed(bottom)]
+            self._scene.addPolygon(QPolygonF(wet), QPen(Qt.PenStyle.NoPen), QBrush(QColor(110, 180, 230, 170))).setZValue(9)
+            ref = c.get("altitude_ref", 0.0)
+
+            def both(z):
+                rel = "±0,00" if abs(z) < 5e-3 else f"{z:+.2f}".replace(".", ",")
+                return rel + (f" (+{z + ref:.2f})".replace(".", ",") if ref else "")
+            self._text(f"χείλος {both(rim)}", u1 + t + 0.15, rim + 0.15, blue, True, (0.0, 1.0))
+            self._text(f"νερό {both(water)}", u1 + t + 0.15, water - 0.05, blue, False, (0.0, 0.0))
+            self._text(f"πυθμένας {both(bottom[0][1])}", u0 + 0.15, bottom[0][1] + 0.1, blue, False, (0.0, 1.0))
+            if abs(bottom[-1][1] - bottom[0][1]) > 0.01:
+                self._text(f"πυθμένας {both(bottom[-1][1])}", u1 - 0.15, bottom[-1][1] + 0.1, blue, False, (1.0, 1.0))
+            self._text(c["name"], (u0 + u1) / 2, water + 0.6, blue, True, (0.5, 1.0))
 
     def _draw_terrain_marks(self):
         from archforge.ui.terrain_tools import mark
@@ -303,6 +336,20 @@ def auto_place_section(window, eid):
         panel.refresh(fit=True)
     window.statusBar().showMessage(F.report(found, name) + " · Ctrl+Z αναίρεση", 15000)
     return found
+
+
+def pool_section(window, pool_id, margin=3.0):
+    """Πισίνα ▸ «Τομή πισίνας»: a section line along the pool through its middle, 3 m beyond each end — its levels
+    in the section tab (rim, water, bottom)."""
+    import math
+    from archforge.site.pool import param
+    if pool_id not in window.doc.entities:
+        return None
+    p = window.doc.get(pool_id).params
+    a = math.radians(param(p, "rotation"))
+    h = param(p, "length") / 2 + margin
+    cx, cy = float(p["x"]), float(p["y"])
+    return create_section(window, cx - math.cos(a) * h, cy - math.sin(a) * h, cx + math.cos(a) * h, cy + math.sin(a) * h)
 
 
 def import_section_underlay(window, eid, **kwargs):

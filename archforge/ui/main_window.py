@@ -2219,6 +2219,9 @@ class MainWindow(QMainWindow):
                 from archforge.site.pool import area as pool_area
                 self.form.addRow('Σχήμα', QLabel(f"σχεδιασμένο ({len(params['outline'])} σημεία, καμπύλες ως τεθλασμένη) · "
                                                  f"{pool_area(params):.1f} m² · μήκος/πλάτος το τεντώνουν".replace('.', ',')))
+            cut = QPushButton('Τομή πισίνας (υψόμετρα χείλους, νερού, πυθμένα)')
+            cut.clicked.connect(lambda _=False, entity_id=eid: __import__('archforge.ui.section_view', fromlist=['x']).pool_section(self, entity_id))
+            self.form.addRow(cut)
             draw = QPushButton('Σχεδίασε το σχήμα (γωνίες + στρογγύλεμα)…')
             draw.clicked.connect(lambda _=False, entity_id=eid: self._pool_shape_tool.start(entity_id))
             self.form.addRow(draw)

@@ -302,9 +302,11 @@ def site_levels(doc, sheets, placed, reference, zeros=None):
     for i, (sim, _how) in sorted(placed.items(), key=lambda kv: sheets[kv[0]].kind != "site"):
         s = sheets[i]
         for v, ceiling, x, y in s.levels():
-            if ceiling:
-                continue
+            # «[C.L.]» outdoors is the deck / construction level (the OLD VILLA pool terrace −0.15 / −0.95), not a
+            # ceiling: indoors (and inside a pool: its bottom) it is left out below.
             px, py = sim.apply((x, y))
+            if _in_pool(doc, px, py):
+                continue
             if v >= 10.0:
                 alt = v
             else:
@@ -317,6 +319,12 @@ def site_levels(doc, sheets, placed, reference, zeros=None):
                 continue
             out.append([round(px, 3), round(py, 3), round(alt - reference, 3)])
     return out
+
+
+def _in_pool(doc, x, y):
+    from archforge.geometry.regions import point_in_polygon
+    from archforge.site.pool import rim
+    return any(point_in_polygon(x, y, rim(e.params, 0.3)) for e in doc.entities.values() if e.kind == "pool")
 
 
 def _indoors(doc, x, y):

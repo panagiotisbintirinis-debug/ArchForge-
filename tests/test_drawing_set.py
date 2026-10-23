@@ -155,7 +155,8 @@ def test_a_floor_of_the_same_building_places_it_before_the_site_plans_walls():
 
 def test_terrace_levels_of_the_set_relative_ones_by_the_buildings_zero():
     """The F.L. the set writes outdoors become terrain levels; «−1.20m» near the OLD VILLA counts as +130,60 (its
-    ±0,00 +131,80); a ceiling level does not count; the same level on two sheets counts once."""
+    ±0,00 +131,80); a «[C.L.]» outdoors is the deck's level and counts (owner 23/10: the pool terrace −0.95); the
+    same level on two sheets counts once."""
     from archforge.core.model import Document
     from archforge.ui.drawing_set_import import site_levels
     same = D.Similarity(1.0, 0.0, (0.0, 0.0), 0, 0.0)
@@ -164,7 +165,7 @@ def test_terrace_levels_of_the_set_relative_ones_by_the_buildings_zero():
     upper = D.Sheet("old_upper.pdf", kind="plan", building="OLD VILLA", scale=50,
                     anchors=[("L+137.10", 10.2, 80.1), ("L+132.00", 12, 72)])
     levels = site_levels(Document(), [site, upper], {0: (same, ""), 1: (same, "")}, 114.0, {"OLD VILLA": 131.8})
-    assert sorted(z for _x, _y, z in levels) == pytest.approx([0.0, 16.6, 18.0, 23.1])
+    assert sorted(z for _x, _y, z in levels) == pytest.approx([0.0, 16.6, 16.85, 18.0, 23.1])
 
 
 def test_a_pool_rim_from_the_levels_written_inside_it():
