@@ -4102,6 +4102,9 @@ class MainWindow(QMainWindow):
                 view.redraw(force_full=bool(fit_camera))
             else:
                 view.redraw()
+        board=getattr(self,'_board_tab',None)
+        if board is not None and board.isVisible():
+            board.technical_plan.redraw()
 
     def _undo(self):
         self.stack.undo()
@@ -4167,6 +4170,9 @@ class MainWindow(QMainWindow):
         if hasattr(self, '_layers_dock'):
             from .layers_panel import on_project_replaced
             on_project_replaced(self)   # old project without layers: the defaults
+        if getattr(self,'_board_tab',None) is not None:
+            self.stack.listeners.append(self._board_tab.mark_stale)
+            self._board_tab.mark_stale()
         self.current_path = path
         if path:
             from archforge.ui.start_page import remember

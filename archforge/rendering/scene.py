@@ -373,13 +373,18 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                     "surfaces": ["pipe"] * len(tris),
                     "material": dict(_MATERIALS[f"mep_{system}"]),
                 })
-        # Derived cable runs (layer "elec"), one mesh per circuit kind.
+        # Derived conduit pieces (layer "elec"), matching the conduit map and take-off.
         if any(e.kind == "electrical_point" for e in doc.entities.values()):
             from archforge.mep.electrical import CABLE_COLORS, route_cables_cached
-            groups = {}
             wiring = route_cables_cached(doc)
+            from archforge.mep.conduits import conduit_map
+            cmap = conduit_map(doc,wiring)
             boxes = ([], [])
-            for x, y, z, _kind, _cid in wiring["boxes"]:
+            box_rows = list(wiring['boxes'])
+            occupied = {tuple(round(float(v),6) for v in row[:3]) for row in box_rows}
+            box_rows += [(x,y,z,'junction','') for x,y,z in cmap['split_boxes']
+                         if tuple(round(float(v),6) for v in (x,y,z)) not in occupied]
+            for x, y, z, _kind, _cid in box_rows:
                 s = 0.05
                 base = len(boxes[0])
                 boxes[0].extend([float(x + dx), float(y + dy), float(z + dz)] for dx in (-s, s) for dy in (-s, s) for dz in (-s, s))
@@ -389,27 +394,34 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                 objects.append({"id": "", "render_part": "elec:boxes", "kind": "elec_box", "layer": "elec",
                                 "vertices": boxes[0], "triangles": boxes[1], "surfaces": ["box"] * len(boxes[1]),
                                 "material": {"color": "#3a3f48", "roughness": 0.6, "metalness": 0.0}})
-            for a, b, group, _cid in wiring["runs"]:
-                v, t = pipe_mesh(a, b, 25, sides=6)
-                g = groups.setdefault(group, ([], []))
-                base = len(g[0])
-                g[0].extend(list(map(float, q)) for q in v)
-                g[1].extend([base + i for i in tri] for tri in t)
-            for group, (verts, tris) in groups.items():
-                objects.append({"id": "", "render_part": f"elec:{group}", "kind": "elec_cable", "layer": "elec",
-                                "vertices": verts, "triangles": tris, "surfaces": ["cable"] * len(tris),
-                                "material": {"color": CABLE_COLORS.get(group, "#e07a00"), "roughness": 0.5, "metalness": 0.0}})
+            from archforge.mep.conduits import conduit_map
+            from archforge.mep.conduit_display import display_pieces,display_segments,circuit_group
+            for piece in display_pieces(cmap):
+                verts, tris = [], []
+                for a, b, _source, _connector in display_segments(piece):
+                    v, t = pipe_mesh(a, b, piece['dn'], sides=8)
+                    base = len(verts)
+                    verts.extend(list(map(float,q)) for q in v)
+                    tris.extend([base+i for i in tri] for tri in t)
+                group = circuit_group(piece,wiring)
+                objects.append({"id": "", "render_part": f"elec:conduit:{piece['id']}:{piece['pipe_index']}",
+                                "kind": "elec_cable", "layer": "elec", "conduit": piece['conduit'],
+                                "conduit_piece":piece['id'], "pipe_index":piece['pipe_index'],
+                                "circuits":piece['lines'], "diameter_mm":piece['dn'], "schematic":piece['schematic'],
+                                "vertices":verts, "triangles":tris, "surfaces":["cable"]*len(tris),
+                                "material":{"color":CABLE_COLORS.get(group,"#e07a00"),"roughness":0.5,"metalness":0.0}})
             # Ασθενή (layer "lv"): data / TV home runs and the KNX bus, thinner, one mesh per system.
             from archforge.mep.low_voltage import route_low_voltage_cached
             lv_groups = {}
-            for a, b, system, _tid in route_low_voltage_cached(doc)["runs"]:
+            from archforge.mep.conduit_display import low_voltage_segments
+            for a,b,system,_tid,_source,_connector in low_voltage_segments(route_low_voltage_cached(doc),display_pieces(cmap)):
                 v, t = pipe_mesh(a, b, 16, sides=6)
                 g = lv_groups.setdefault(system, ([], []))
                 base = len(g[0])
                 g[0].extend(list(map(float, q)) for q in v)
                 g[1].extend([base + i for i in tri] for tri in t)
             for system, (verts, tris) in lv_groups.items():
-                objects.append({"id": "", "render_part": f"lv:{system}", "kind": "lv_cable", "layer": "lv",
+                objects.append({"id": "", "render_part": f"lv:{system}", "kind": "lv_cable", "layer": "lv", "schematic": True,
                                 "vertices": verts, "triangles": tris, "surfaces": ["cable"] * len(tris),
                                 "material": {"color": CABLE_COLORS.get(system, "#0e9aa7"), "roughness": 0.5, "metalness": 0.0}})
         # Foundation (layer "foundation"): footings and tie beams from the up-to-date analysis (never computed here).

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QFileDialog, QFrame, QGridLayout, QHBoxLayout, QHeaderView,
-                               QLabel, QPushButton, QScrollArea, QTabWidget, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
+                               QLabel, QPushButton, QScrollArea, QSplitter, QTabWidget, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
                                QWidget)
 
 TAB_TITLE = "Ηλεκτρ. πίνακας"
@@ -56,8 +56,9 @@ class BoardTab(QWidget):
         for value, label in CONTROL_SYSTEMS.items():
             self.control.addItem(label, value)
         self.control.activated.connect(lambda _i: self._set("control_system", self.control.currentData()))
-        for w in (self.control, self.kva, self.phases, self.fuse, self.factor, self.waste, self.method):
-            head.addWidget(w)
+        settings_grid = QGridLayout()
+        for index,w in enumerate((self.control,self.kva,self.phases,self.fuse,self.factor,self.waste,self.method)):
+            settings_grid.addWidget(w,index//4,index%4)
         self.kva.editingFinished.connect(lambda: self._set("supply_kva", float(self.kva.value())))
         self.phases.activated.connect(lambda _i: self._set("supply_phases", int(self.phases.currentData())))
         self.fuse.editingFinished.connect(lambda: self._set("supply_fuse_a", float(self.fuse.value())))
@@ -70,6 +71,7 @@ class BoardTab(QWidget):
         self.offer.clicked.connect(self.export_offer)
         head.addWidget(self.excel); head.addWidget(self.pdf); head.addWidget(self.offer)
         root.addLayout(head)
+        root.addLayout(settings_grid)
 
         self.cards = QGridLayout(); self.cards.setHorizontalSpacing(8)
         self.card_labels = {}
@@ -77,10 +79,11 @@ class BoardTab(QWidget):
             box = QFrame(); box.setFrameShape(QFrame.Shape.StyledPanel)
             v = QVBoxLayout(box); v.setContentsMargins(8, 4, 8, 4); v.setSpacing(0)
             cap, val = QLabel(), QLabel()
+            cap.setWordWrap(True)
             cap.setStyleSheet("color:palette(mid);font-size:11px"); val.setStyleSheet("font-weight:600")
             val.setWordWrap(True)
             v.addWidget(cap); v.addWidget(val)
-            self.cards.addWidget(box, 0, col)
+            self.cards.addWidget(box,col//3,col%3)
             self.card_labels[key] = (box, cap, val)
         root.addLayout(self.cards)
 
@@ -89,6 +92,9 @@ class BoardTab(QWidget):
         self.empty.setWordWrap(True); self.empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
         root.addWidget(self.empty)
 
+        from archforge.ui.electrical_technical_plan import ElectricalTechnicalPlan
+        self.technical_plan = ElectricalTechnicalPlan(window.doc,window.stack,self)
+        self.technical_plan.setMinimumHeight(220)
         self.pages = QTabWidget()
         # The board as seen from the front, first: what the electrician recognises.
         from archforge.ui.board_front_view import BoardFrontView
@@ -104,7 +110,7 @@ class BoardTab(QWidget):
                                     "Φορτίο", "Μήκος", "Ως πιο μακρινό", "Iz*", "ΔU*", "Έλεγχος", "Διαφορικός"])
         self.circuits.itemClicked.connect(self._select_item)
         self.circuits.itemDoubleClicked.connect(lambda item, _c: self._select_item(item, show=True))
-        self.walls = self._tree(["Θέση", "Κυκλώματα", "Σωλήνας"])
+        self.walls = self._tree(["Θέση", "Κυκλώματα", "Όδευση γραμμών"])
         self.walls.itemClicked.connect(self._select_item)
         self.walls.itemDoubleClicked.connect(lambda item, _c: self._select_item(item, show=True))
         self.purchase = self._tree(["Διατομή", "Μέτρα", "Με φύρα"])
@@ -132,7 +138,18 @@ class BoardTab(QWidget):
         self.provenance.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         rules_scroll = QScrollArea(); rules_scroll.setWidget(self.provenance); rules_scroll.setWidgetResizable(True)
         self.rules_index = self.pages.addTab(rules_scroll, "Κατάσταση κανόνων")
-        root.addWidget(self.pages, 1)
+        self.conduits = self._tree(['Σωλήνωση / κομμάτι','Πλήθος','Φ','Γραμμές','Αγωγοί','Μήκος','Από','Προς'])
+        self.conduits.itemClicked.connect(self._select_item)
+        self.pages.addTab(self.conduits,'Σωληνώσεις και καλωδιώσεις')
+        self.splitter = QSplitter(Qt.Orientation.Vertical)
+        self.splitter.addWidget(self.technical_plan); self.splitter.addWidget(self.pages)
+        self.splitter.setCollapsible(0,False); self.splitter.setCollapsible(1,False)
+        self.splitter.setSizes([280,420])
+        root.addWidget(self.splitter,1)
+        self.drawing_note = QLabel('Τεχνική κάτοψη: κάθε σωλήνωση χωριστά · ασθενή σε επάνω σειρά · '
+                                  'wheel: zoom, σύρσιμο: μετακίνηση. Οι αποστάσεις μεταξύ σειρών είναι σχηματικές.')
+        self.drawing_note.setWordWrap(True)
+        root.addWidget(self.drawing_note)
 
         self.warnings = QLabel(); self.warnings.setWordWrap(True); self.warnings.setStyleSheet("color:#b45309")
         self.rules_line = QLabel(); self.rules_line.setStyleSheet("color:palette(mid);font-size:11px")
@@ -234,7 +251,22 @@ class BoardTab(QWidget):
         self.rules_line.setVisible(has)
         self._fill_front(r)
         self._fill_low_voltage()
+        self._fill_conduits(r)
+        self.technical_plan.rebind(self.window.doc,self.window.stack)
         return r
+
+    def _fill_conduits(self,r):
+        from archforge.mep.conduits import conduit_map
+        cmap = r['conduit_map'] = conduit_map(self.window.doc)
+        by_cid = {c['id']: c for c in r['circuits']}
+        self.conduits.clear()
+        for p in cmap['pieces']:
+            item = QTreeWidgetItem([p['id'],str(p['count']),f"Φ{p['dn']}",','.join(p['lines']),
+                                    p['conductors'],f"{p['length_m']:.2f} m",p['from'],p['to']])
+            ids = [pid for cid in p['lines'] for pid in by_cid.get(cid,{}).get('point_ids',())]
+            item.setData(0,Qt.ItemDataRole.UserRole,ids)
+            item.setToolTip(0,'Οι ίδιες σωληνώσεις εμφανίζονται στην κάτοψη, στο 3D και στην επιμέτρηση.')
+            self.conduits.addTopLevelItem(item)
 
     # ------------------------------------------------------------------------------------------------ ασθενή
     def _set_rack(self, key, value):
@@ -301,7 +333,9 @@ class BoardTab(QWidget):
                 item.widget().deleteLater()
         if not f:
             return
-        self.rcd_bar.addWidget(QLabel("Διαφορικοί (ονομαστικό ρεύμα από τη μελέτη):"))
+        caption=QLabel('Διαφορικοί (ονομαστικό ρεύμα από τη μελέτη):')
+        caption.setWordWrap(True)
+        self.rcd_bar.addWidget(caption)
         ratings = list(r["settings"]["rcd_ratings"])
         for nb in f["neutral_bars"]:
             g = nb["group"]
@@ -310,8 +344,9 @@ class BoardTab(QWidget):
             spin.setValue(float(ratings[g - 1]) if g - 1 < len(ratings) and ratings[g - 1] else 0.0)
             spin.editingFinished.connect(lambda g=g, spin=spin: self._rate_rcd(g, spin.value()))
             self.rcd_bar.addWidget(spin)
-        self.rcd_bar.addWidget(QLabel("· κυκλώματα σε διαφορικό: στήλη «Διαφορικός» στα «Κυκλώματα και αγωγοί»"))
-        self.rcd_bar.addStretch(1)
+        note=QLabel('· κυκλώματα σε διαφορικό: στήλη «Διαφορικός» στα «Κυκλώματα και αγωγοί»')
+        note.setWordWrap(True)
+        self.rcd_bar.addWidget(note,1)
 
     def _rate_rcd(self, group, value):
         ratings = list(self.result["settings"]["rcd_ratings"])
@@ -332,6 +367,8 @@ class BoardTab(QWidget):
             self.window.doc.select(ids)
             if hasattr(self.window, "_redraw_views"):
                 self.window._redraw_views(all_views=True)
+        self.front_view.set_circuit(circuit_id)
+        self.technical_plan.redraw()
         return ids
 
     def _fill_circuits(self, r):
@@ -385,6 +422,9 @@ class BoardTab(QWidget):
         self.window.doc.select(ids)
         self.window.refresh_inspector()
         self.window._redraw_views(all_views=True)
+        self.technical_plan.redraw()
+        chosen=next((c for c in self.result['circuits'] if set(c['point_ids']).intersection(ids)),None) if self.result else None
+        if chosen:self.front_view.set_circuit(chosen['id'])
         if show:
             tabs = getattr(self.window, "_central_tabs", None)
             if tabs is not None:

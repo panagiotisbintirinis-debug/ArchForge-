@@ -78,7 +78,14 @@ def test_plan_labels_and_elec_layer_in_3d():
     labels = [dict(p.meta)['text'] for p in prims if p.role == 'electrical-label']
     assert any(t.startswith('Ρ Κ') for t in labels) and any(t.startswith('Φ Κ') for t in labels)
     objs = build_pbr_scene_payload(IncrementalEvaluationCache(SculptedPreviewBackend()).sync(doc), [], doc=doc)['objects']
-    assert {o['render_part'] for o in objs if o.get('layer') == 'elec'} == {'elec:lighting', 'elec:sockets', 'elec:boxes'}
+    # Owner 23/10: draw physical conduit pieces from the map, rather than one
+    # anonymous mesh per circuit kind. This replaces the old grouping contract.
+    from archforge.mep.conduits import conduit_map
+    pieces = conduit_map(doc)['pieces']
+    tubes = [o for o in objs if o.get('kind') == 'elec_cable']
+    assert {o['conduit_piece'] for o in tubes} == {p['id'] for p in pieces}
+    assert len(tubes) == sum(p['count'] for p in pieces)
+    assert any(o.get('render_part') == 'elec:boxes' for o in objs)
 
 
 def test_menu_places_points_and_schedule_lists_circuits():
