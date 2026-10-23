@@ -352,6 +352,7 @@ class PointerController:
         elif self.active.__class__.__name__=='WallMoveTransaction':
             self.preview=PreviewState('wall-move',self.active.update(x,y),{},None,self.active.eid)
         elif isinstance(self.active,ConnectedWallEndpointStretchTransaction):
+            self.active.angle_enabled=not ev.shift
             hud=self.active.update(x,y);geom=copy.deepcopy(self.active.preview);geom['entities']=copy.deepcopy(self.active.previews);self.preview=PreviewState('stretch',geom,hud.values,None,self.active.eid)
         elif isinstance(self.active,WallEndpointStretchTransaction):hud=self.active.update(x,y);self.preview=PreviewState('stretch',copy.deepcopy(self.active.preview),hud.values,None,self.active.eid)
         elif isinstance(self.active,StructuralBeamEndpointStretchTransaction):

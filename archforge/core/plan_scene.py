@@ -646,8 +646,13 @@ def preview_primitives(preview):
         return out
     if preview.kind=='stretch' and 'entities' in g:
         out=[]
+        from archforge.architecture.wall_face import body_polygon
         for eid,p in g['entities'].items():
-            if {'x1','y1','x2','y2'}<=set(p):out.append(Primitive2D('line',((p['x1'],p['y1']),(p['x2'],p['y2'])),entity_id=eid,role='preview'))
+            if not {'x1','y1','x2','y2'}<=set(p):continue
+            # Walls being stretched show their body, as when drawn (not a thin line).
+            body=body_polygon((p['x1'],p['y1']),(p['x2'],p['y2']),0,float(p['thickness'])) if p.get('thickness') else None
+            if body:out.append(Primitive2D('polygon',body,entity_id=eid,role='preview',meta=(('semantic','wall-body-preview'),)))
+            else:out.append(Primitive2D('line',((p['x1'],p['y1']),(p['x2'],p['y2'])),entity_id=eid,role='preview'))
         if out:return out
     if preview.kind in ('stretch','rotate') and g:
         eid=preview.entity_id or ''

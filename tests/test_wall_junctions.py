@@ -58,3 +58,35 @@ def test_plan_preview_draws_all_connected_walls():
     c.pointer_down(PointerEvent(4,0));preview=c.pointer_move(PointerEvent(5,1));frame=build_plan_frame(d,preview)
     moved=[p for p in frame.primitives if p.role=='preview']
     assert len(moved)==2
+
+
+def test_free_end_is_lengthened_along_its_own_line():
+    # Owner 24/10: a short wall left at a corner, its free end dragged to make it longer, swung to −111°.
+    d=Document();a=wall(0,0,4,0);stub=wall(4,0,4,-0.7);d.add(a);d.add(stub);s=CommandStack(d)
+    tx=ConnectedWallEndpointStretchTransaction(d,s,stub.id,2,grid=0.1)
+    hud=tx.update(4.25,-2.1)                         # the hand drifts 7° off the line
+    assert tx.angle_snapped and abs(tx.preview['x2']-4)<1e-9 and abs(tx.preview['y2']+2.1)<1e-9
+    assert abs(hud.values['angle_deg']+90)<1e-9
+    tx.commit()
+    assert (d.get(stub.id).params['x1'],d.get(stub.id).params['y1'])==(4,0)
+    assert (d.get(a.id).params['x2'],d.get(a.id).params['y2'])==(4,0)
+
+
+def test_free_end_turns_freely_with_shift_or_far_from_any_held_angle():
+    d=Document();stub=wall(4,0,4,-0.7);d.add(stub);s=CommandStack(d)
+    tx=ConnectedWallEndpointStretchTransaction(d,s,stub.id,2,grid=None)
+    tx.angle_enabled=False;tx.update(4.25,-2.1)
+    assert (tx.preview['x2'],tx.preview['y2'])==(4.25,-2.1)
+    tx.angle_enabled=True;tx.update(3.2,-2.0)        # −111°: neither its own line nor 90°/45°
+    assert not tx.angle_snapped and (tx.preview['x2'],tx.preview['y2'])==(3.2,-2.0)
+
+
+def test_stretch_preview_shows_the_wall_body():
+    from archforge.core.plan_scene import preview_primitives
+    d=Document();stub=wall(4,0,4,-0.7);d.add(stub);d.select([stub.id]);s=CommandStack(d);c=PointerController(d,s);c.grid=None
+    c.set_tool('stretch');c.set_target(stub.id,'endpoint2')
+    c.pointer_down(PointerEvent(4,-0.7));pv=c.pointer_move(PointerEvent(4.1,-2))
+    prims=preview_primitives(pv)
+    assert [p.kind for p in prims]==['polygon'] and dict(prims[0].meta)['semantic']=='wall-body-preview'
+    xs=[q[0] for q in prims[0].points];ys=[q[1] for q in prims[0].points]
+    assert abs(max(xs)-min(xs)-0.15)<1e-9 and abs(min(ys)+2)<1e-9

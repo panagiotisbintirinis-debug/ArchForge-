@@ -405,10 +405,13 @@ class PlanView(QGraphicsView):
             if h.handle=='rotate':
                 # Round handle: drag turns the object about its centre (15° steps, Shift free).
                 self.controller.set_tool('rotate');self.controller.set_target(h.entity_id,None);self._restore_select=True
-            elif h.handle=='move' or h.cursor=='move':
-                self.controller.set_tool('move');self.controller.set_target(h.entity_id,h.handle)
             else:
-                self.controller.set_tool('stretch');self.controller.set_target(h.entity_id,h.handle)
+                # A handle dragged from Επιλογή gives the tool back afterwards (as the round rotate handle does).
+                self._restore_select=getattr(self,'_restore_select',False) or self.controller.tool=='select'
+                if h.handle=='move' or h.cursor=='move':
+                    self.controller.set_tool('move');self.controller.set_target(h.entity_id,h.handle)
+                else:
+                    self.controller.set_tool('stretch');self.controller.set_target(h.entity_id,h.handle)
         elif self.controller.tool=='select':
             # Owner 23/10: one click = indication, double click = selection, pressed = use. A click shows what is
             # under the mouse without picking it (Ctrl+click adds / removes, as before); a click on empty space clears
@@ -530,6 +533,7 @@ class PlanView(QGraphicsView):
                 ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
                 ev.ctrl=bool(event.modifiers()&Qt.KeyboardModifier.ControlModifier)
                 moved_wall=getattr(self.controller.active,'distance',None) if self.controller.preview.kind=='wall-move' else None
+                stretched=self.controller.active.eid if type(self.controller.active).__name__=='ConnectedWallEndpointStretchTransaction' else None
                 chain=self._wall_chain_active()
                 try:
                     self.controller.pointer_up(ev)
@@ -544,6 +548,9 @@ class PlanView(QGraphicsView):
                 if getattr(self,'_restore_select',False):
                     self._restore_select=False;self.controller.set_tool('select');self.selectionChangedByView.emit()
                 self.redraw()
+                if stretched and stretched in self.doc.entities and not getattr(self.controller,'last_warning',None):
+                    q=self.doc.get(stretched).params
+                    self.statusChanged.emit(f"Τοίχος: μήκος {math.hypot(q['x2']-q['x1'],q['y2']-q['y1']):.2f} m · Shift = ελεύθερη γωνία · Ctrl+Z = αναίρεση".replace('.',','))
                 if moved_wall is not None:
                     self.selectionChangedByView.emit()
                     if self.controller.preview.kind!='wall-move' and abs(moved_wall)>1e-9:
