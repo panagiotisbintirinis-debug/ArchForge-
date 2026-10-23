@@ -4199,7 +4199,7 @@ class MainWindow(QMainWindow):
 
     def _edit_project_brief(self):
         """The project questions (new / renovation, walls, dimensions, floors) as one undoable answer."""
-        from archforge.project.brief import DEFAULTS, EDITABLE, QUESTIONS, get_brief
+        from archforge.project.brief import ASKED, DEFAULTS, EDITABLE, QUESTIONS, get_brief
         current = get_brief(self.doc) or dict(DEFAULTS)
         dialog = QDialog(self)
         dialog.setWindowTitle('Στοιχεία έργου')
@@ -4218,6 +4218,8 @@ class MainWindow(QMainWindow):
         form.addRow(QLabel('<b>Οι απαντήσεις καθορίζουν τι θα προτείνει και τι θα κάνει το πρόγραμμα.</b>'))
         combos = {}
         for key, question, options in QUESTIONS:
+            if key not in ASKED:
+                continue
             combo = QComboBox(dialog)
             for value, label in options.items():
                 combo.addItem(label[0] if isinstance(label, tuple) else label, value)

@@ -80,6 +80,9 @@ QUESTIONS = (
     ("measure", "Μετράμε εξωτερικές ή εσωτερικές διαστάσεις;", MEASURES),
     ("floor_system", "Τι πατώματα / ταβάνια;", FLOOR_SYSTEMS),
 )
+# Asked in the dialog.  The floor system is not (owner 23/10: «ένα έργο μπορεί να έχει και τα δύο»): a timber floor is
+# chosen per room (its joists, Βοηθός ▸ Διανομή δοκίδων); an answer saved before stays honoured.
+ASKED = ("project_type", "wall_system", "interior_walls", "measure")
 # The project's details (owner 23/10: «και εάν είναι νέο έργο, λεπτομέρειες έργου»): written, not chosen.
 DETAILS = (("title", "Τίτλος έργου"), ("client", "Ιδιοκτήτης / πελάτης"), ("address", "Θέση / διεύθυνση"),
            ("plot", "Αρ. οικοπέδου / ΚΑΕΚ"), ("engineer", "Μηχανικός / μελετητής"),

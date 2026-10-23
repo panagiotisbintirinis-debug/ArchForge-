@@ -57,34 +57,38 @@ def remember(path):
 
 # --------------------------------------------------------------------------------------------- the mark
 def mark_path(size):
-    """The ArchForge mark in a ``size`` square: a gable roof over an «A» standing on an anvil (forge), the
-    crossbar a plan line — architecture and making in one sign.  Pure vector, no image file."""
+    """The ArchForge mark in a ``size`` square: a stone arch — its voussoirs round a semicircle, the keystone
+    standing proud at the top, on two piers of laid stones (owner 23/10: «το σχέδιο είναι η καμάρα με τις πέτρες»).
+    Pure vector, no image file."""
     s = size
+    cx, spring = 0.5 * s, 0.56 * s                 # centre of the arch and the springing line
+    r_in, r_out = 0.25 * s, 0.40 * s
+    gap = math.radians(2.2)
     path = QPainterPath()
-    # Roof / the A's two legs.
-    path.moveTo(0.50 * s, 0.06 * s)
-    path.lineTo(0.92 * s, 0.62 * s)
-    path.lineTo(0.78 * s, 0.62 * s)
-    path.lineTo(0.50 * s, 0.24 * s)
-    path.lineTo(0.22 * s, 0.62 * s)
-    path.lineTo(0.08 * s, 0.62 * s)
-    path.closeSubpath()
-    # Crossbar (a plan line with a door gap).
-    path.addRect(QRectF(0.33 * s, 0.44 * s, 0.13 * s, 0.06 * s))
-    path.addRect(QRectF(0.54 * s, 0.44 * s, 0.13 * s, 0.06 * s))
-    # Anvil.
-    anvil = QPainterPath()
-    anvil.moveTo(0.10 * s, 0.68 * s)
-    anvil.lineTo(0.90 * s, 0.68 * s)
-    anvil.quadTo(0.80 * s, 0.76 * s, 0.66 * s, 0.77 * s)
-    anvil.lineTo(0.62 * s, 0.86 * s)
-    anvil.lineTo(0.74 * s, 0.94 * s)
-    anvil.lineTo(0.26 * s, 0.94 * s)
-    anvil.lineTo(0.38 * s, 0.86 * s)
-    anvil.lineTo(0.34 * s, 0.77 * s)
-    anvil.quadTo(0.18 * s, 0.76 * s, 0.10 * s, 0.68 * s)
-    anvil.closeSubpath()
-    return path.united(anvil)
+    n = 9                                          # voussoirs, the middle one the keystone
+
+    def at(r, a):
+        return QPointF(cx + r * math.cos(a), spring - r * math.sin(a))
+    for k in range(n):
+        a0 = math.pi * (n - k) / n - (0 if k == 0 else gap / 2)
+        a1 = math.pi * (n - k - 1) / n + (0 if k == n - 1 else gap / 2)
+        outer = r_out + (0.06 * s if k == n // 2 else 0.0)      # the keystone stands proud
+        stone = QPainterPath(at(r_in, a0))
+        stone.lineTo(at(outer, a0))
+        stone.lineTo(at(outer, a1))
+        stone.lineTo(at(r_in, a1))
+        stone.closeSubpath()
+        path.addPath(stone)
+    # Piers: stones laid in courses under each springing.
+    course, gap_y = 0.085 * s, 0.012 * s
+    for side in (-1, 1):
+        x0 = cx + side * r_in if side > 0 else cx - r_out
+        width = r_out - r_in
+        y = spring + gap_y
+        for row in range(4):
+            path.addRect(QRectF(x0, y, width, course))
+            y += course + gap_y
+    return path.simplified()
 
 
 class Mark(QWidget):
