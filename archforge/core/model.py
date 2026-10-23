@@ -301,8 +301,8 @@ def _joist_direction(v):
 
 def _cable_routing(v):
     v = str(v)
-    if v not in ('auto', 'wall', 'floor'):
-        raise ValueError('routing must be auto, wall or floor')
+    if v not in ('auto', 'wall', 'floor', 'ceiling'):
+        raise ValueError('routing must be auto, wall, floor or ceiling')
     return v
 
 

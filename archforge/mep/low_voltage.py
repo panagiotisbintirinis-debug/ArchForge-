@@ -45,6 +45,7 @@ def lv_points(doc):
 
 def route_low_voltage(doc):
     """{"rack", "outlets": [...], "runs": [(a, b, system, outlet id)], "boxes", "totals", "knx", "warnings"}."""
+    from archforge.mep.electrical_routes import mode_of, run_z, target_cell, device_legs
     pts = lv_points(doc)
     rack = next((e for e in pts if e.params["point_type"] == "network_rack"), None)
     outlets = [e for e in pts if e.params["point_type"] in SYSTEM_OF]
@@ -57,25 +58,18 @@ def route_low_voltage(doc):
         rack_floor = _floor_of(doc, float(rack.params["z"]))
         by_floor = {}
         for e in outlets:
-            by_floor.setdefault(_floor_of(doc, float(e.params["z"])), []).append(e)
-        for floor, members in sorted(by_floor.items()):
-            z = floor + WALL_RUN_Z + LV_RUN_RISE
+            by_floor.setdefault((_floor_of(doc, float(e.params["z"])), mode_of(doc, e)), []).append(e)
+        for (floor, mode), members in sorted(by_floor.items()):
+            z = run_z(doc, floor, mode) + LV_RUN_RISE
             grid = _Grid(doc, floor, [(float(e.params["x"]), float(e.params["y"])) for e in members] + [(rx, ry)])
-            grid.mode = "wall"
+            grid.mode = "wall" if mode == "wall" else "floor"
             source = grid.cell(rx, ry)
-            targets = {}
-            for e in members:
-                ex, ey = float(e.params["x"]), float(e.params["y"])
-                cell = grid.cell(ex, ey)
-                if _ceiling_fed(e) and (grid.wall or grid.near):
-                    cell = min(grid.wall | grid.near,
-                               key=lambda c: (c not in grid.wall, math.hypot(*(q - r for q, r in zip(grid.point(c), (ex, ey))))))
-                targets[e.id] = cell
+            targets = {e.id: target_cell(grid, e, mode) for e in members}
             paths, _loads, parent = _grow(grid, source, targets)
             seen = set()
             sp = grid.point(source)
             # Riser: from the rack to this floor's run (own floor: rack box up/down to the run).
-            rack_z = mount_z(doc, rack.params) if floor == rack_floor else rack_floor + WALL_RUN_Z + LV_RUN_RISE
+            rack_z = mount_z(doc, rack.params) if floor == rack_floor else run_z(doc, rack_floor, mode) + LV_RUN_RISE
             riser = abs(z - rack_z)
             systems = {SYSTEM_OF[e.params["point_type"]] for e in members}
             for system in sorted(systems):
@@ -95,18 +89,12 @@ def route_low_voltage(doc):
                         out["runs"].append(((a[0], a[1], z), (b[0], b[1], z), system, tid))
                     c = p_
                 bx, by = grid.point(targets[tid])
-                device_z = mount_z(doc, e.params)
-                out["boxes"].append((bx, by, z, "lv", tid))
-                if _ceiling_fed(e):
-                    ex, ey = float(e.params["x"]), float(e.params["y"])
-                    legs = [((bx, by, z), (bx, by, device_z)), ((bx, by, device_z), (ex, by, device_z)),
-                            ((ex, by, device_z), (ex, ey, device_z))]
-                else:
-                    legs = [((bx, by, z), (bx, by, device_z))]
+                legs, box = device_legs(doc, e, mode, (bx, by), z)
+                out["boxes"].append((*box[:3], "lv", tid))
                 out["runs"] += [(a, b, system, tid) for a, b in legs]
                 drop = sum(math.dist(a, b) for a, b in legs)
                 out["outlets"].append({"id": tid, "type": e.params["point_type"], "label": POINT_TYPES[e.params["point_type"]][0],
-                                       "system": system, "floor": floor, "x": float(e.params["x"]), "y": float(e.params["y"]),
+                                       "system": system, "floor": floor, "routing": mode, "x": float(e.params["x"]), "y": float(e.params["y"]),
                                        "cable_m": round(horizontal + drop + riser, 2)})
     out["runs"] = [r for r in out["runs"] if math.dist(r[0], r[1]) > 1e-6]
     for system in ("network", "tv"):

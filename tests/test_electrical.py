@@ -136,7 +136,7 @@ def test_greek_practice_wall_runs_boxes_and_island_from_the_floor():
     stack.undo()
     assert routing_of(doc, doc.get(island.id)) == 'floor'
     with pytest.raises(ValueError):
-        stack.execute(UpdateEntity(island.id, {'routing': 'ceiling'}))
+        stack.execute(UpdateEntity(island.id, {'routing': 'invalid-route'}))
     prims = build_plan_frame(doc).primitives
     kinds = {dict(p.meta)['box'] for p in prims if p.role == 'elec-box'}
     assert {'junction', 'floor'} <= kinds

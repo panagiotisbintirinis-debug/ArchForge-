@@ -77,6 +77,10 @@ def bus_chain(doc, panel, devices):
         z0, z1 = run_z(current), run_z(p)
         legs = [(current, (current[0], current[1], z0)), ((current[0], current[1], z0), (p[0], current[1], z0)),
                 ((p[0], current[1], z0), (p[0], p[1], z1)), ((p[0], p[1], z1), p)]
+        if nxt.params.get("routing", "auto") != "auto":
+            from archforge.mep.electrical_routes import bus_legs, mode_of
+            from archforge.mep.low_voltage import LV_RUN_RISE
+            legs = bus_legs(doc, current, nxt, mode_of(doc, nxt), LV_RUN_RISE)
         legs = [(a, b) for a, b in legs if math.dist(a, b) > 1e-6]
         segments += legs
         total += sum(math.dist(a, b) for a, b in legs)

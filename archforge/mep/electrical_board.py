@@ -420,21 +420,9 @@ def _rooms(doc, pts):
 
 
 def _switch_runs(doc, wiring, points):
-    """Switch-leg runs keyed by switch id (route_cables leaves them without a circuit id)."""
-    out = []
-    for link in wiring["switch_links"]:
-        sw = points.get(link["switch"])
-        if sw is None:
-            continue
-        floor = _floor_of(doc, float(sw.params["z"]))
-        zr, zc = floor + WALL_RUN_Z, _ceiling(doc, floor)
-        sx, sy = float(sw.params["x"]), float(sw.params["y"])
-        legs = [((sx, sy, mount_z(doc, sw.params)), (sx, sy, zr)), ((sx, sy, zr), (sx, sy, zc))]
-        for lid in link["lights"]:
-            lx, ly = float(points[lid].params["x"]), float(points[lid].params["y"])
-            legs += [((sx, sy, zc), (lx, sy, zc)), ((lx, sy, zc), (lx, ly, zc))]
-        out += [(a, b, sw.id) for a, b in legs if math.dist(a, b) > 1e-6]
-    return out
+    """The router's switch-leg geometry, keyed by switch id."""
+    from archforge.mep.electrical_routes import switch_runs
+    return wiring["switch_runs"] if "switch_runs" in wiring else switch_runs(doc, wiring, points)[0]
 
 
 def _natural(text):
