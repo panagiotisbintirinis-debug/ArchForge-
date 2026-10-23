@@ -94,6 +94,8 @@ class MainWindow(QMainWindow):
         terrain_tools.install(self)
         from archforge.ui import pool_shape
         pool_shape.install(self)
+        from archforge.ui import start_page
+        start_page.install(self)        # Αρχείο ▸ Αρχική σελίδα (the page itself opens with the program: app.py)
         # Floors come by themselves when walls close a space (owner 14/10), fences excepted.
         self.plan_view.controller.auto_floors = True
         from archforge.ui.build_menu import organize_build_menu
@@ -4164,6 +4166,9 @@ class MainWindow(QMainWindow):
             from .layers_panel import on_project_replaced
             on_project_replaced(self)   # old project without layers: the defaults
         self.current_path = path
+        if path:
+            from archforge.ui.start_page import remember
+            remember(path)               # Αρχική σελίδα ▸ Πρόσφατα έργα
         from archforge.rendering.user_materials import adopt_project
         adopt_project(self.doc)          # the project's own materials are pickable here too
         self._mark_clean()
@@ -4199,6 +4204,17 @@ class MainWindow(QMainWindow):
         dialog = QDialog(self)
         dialog.setWindowTitle('Στοιχεία έργου')
         form = QFormLayout(dialog)
+        from archforge.project.brief import DETAILS
+        form.addRow(QLabel('<b>Λεπτομέρειες έργου</b>'))
+        details = {}
+        for key, label in DETAILS:
+            edit = QLineEdit(dialog)
+            value = current.get(key, '')
+            edit.setText('' if value in (None, '') else (f'{float(value):.2f}' if key == 'altitude' else str(value)))
+            if key == 'altitude':
+                edit.setPlaceholderText('π.χ. 114,00 (από τοπογραφικό)')
+            form.addRow(label, edit)
+            details[key] = edit
         form.addRow(QLabel('<b>Οι απαντήσεις καθορίζουν τι θα προτείνει και τι θα κάνει το πρόγραμμα.</b>'))
         combos = {}
         for key, question, options in QUESTIONS:
@@ -4223,9 +4239,24 @@ class MainWindow(QMainWindow):
         buttons.rejected.connect(dialog.reject)
         form.addRow(buttons)
         self._project_brief_dialog = dialog
+        self._project_details_edits = details
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
-        return self._apply_project_brief(self._brief_answers(combos))
+        return self._apply_project_brief({**self._brief_answers(combos), **self._detail_answers(details)})
+
+    def _detail_answers(self, edits):
+        """The written details; the altitude a number (comma or point), left out when not one."""
+        out = {}
+        for key, edit in edits.items():
+            text = edit.text().strip()
+            if key == 'altitude':
+                try:
+                    out[key] = float(text.replace(',', '.')) if text else ''
+                except ValueError:
+                    self.statusBar().showMessage(f'Υψόμετρο ±0,00: «{text}» δεν είναι αριθμός — δεν κρατήθηκε', 8000)
+                continue
+            out[key] = text
+        return out
 
     def _brief_answers(self, combos):
         """Answers of the brief dialog; a typed (edited) answer becomes 'custom' with its text and thickness."""
@@ -4249,6 +4280,8 @@ class MainWindow(QMainWindow):
         return answers
 
     def _apply_project_brief(self, answers):
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self._update_window_title)      # the title the details give
         from archforge.project.brief import brief_entity
         entity = brief_entity(self.doc)
         if entity is None:
@@ -4500,6 +4533,8 @@ class MainWindow(QMainWindow):
                                  'Το προηγούμενο αρχείο έμεινε όπως ήταν.')
             return False
         self.current_path = path
+        from archforge.ui.start_page import remember
+        remember(path)
         self._mark_clean()
         if getattr(self, 'autosave', None) is not None:
             self.autosave.discard()
@@ -4609,7 +4644,9 @@ class MainWindow(QMainWindow):
     def _update_window_title(self):
         """«ArchForge — έργο.archforge*»: which file, and whether it has unsaved work."""
         name = os.path.basename(self.current_path) if self.current_path else 'Νέο έργο'
-        self.setWindowTitle(f'ArchForge — {name}[*]')
+        from archforge.project.brief import get_brief
+        title = str((get_brief(self.doc) or {}).get('title', '')).strip()
+        self.setWindowTitle(f'ArchForge — {title} ({name})[*]' if title else f'ArchForge — {name}[*]')
         self.setWindowModified(self._clean_state is None or self._is_dirty())
 
     def _update_autosave_action(self):
