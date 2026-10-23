@@ -1,5 +1,7 @@
 # ArchForge Product Roadmap
 
+> **Product authority:** `ARCHFORGE_MASTER_CONTEXT.md` defines the consolidated ArchForge product direction. This roadmap translates that direction into milestone order. If historical roadmap wording conflicts with the Master Context, the Master Context wins.
+
 ## Product definition
 ArchForge is a human-first visual design environment. Its target is to combine the approachable semantic/parametric workflow of a home-design application with progressively richer free-form modeling, while preserving one deterministic, persistent, inspectable design model.
 
@@ -61,13 +63,16 @@ The milestone succeeds only when a human can perform the core workflow directly 
 Before claiming unified manual/AI control, add a regression test that starts from identical documents and applies the same supported edit through (a) the manual interaction transaction/commit path and (b) the public AI command path. The test must require equivalent command semantics and identical authoritative serialized state. If the paths diverge, fix the execution architecture rather than weakening the assertion.
 
 ## Priority order
-P0: one authoritative model, transactional correctness, and truth/provenance
-P1: human direct manipulation: selection, handles/gizmos, move/rotate/stretch, Inspector edits
-P2: coherent 2D/3D derived representations and persistence/history
-P3: manual/AI command-pipeline equivalence with AI strictly optional
-P4: semantic/free-form geometry bridge and progressively richer modeling tools
-P5: materials, rendering, site tools, broader architectural families
-P6: engineering/fabrication integrations only with validated provenance
+The detailed priority stack is defined in `ARCHFORGE_MASTER_CONTEXT.md`. At roadmap level:
+
+P0: stable application shell, one authoritative model, transactional correctness, truth/provenance  
+P1: human direct manipulation: selection, handles/gizmos, move/rotate/stretch, Inspector edits, editable dimensions/snapping  
+P2: complete conventional house workflow: walls/openings/floors/ceilings/roofs/levels/multi-floor and coherent 2D/3D  
+P3: local point-and-drag sculpting plus the semantic/parametric <-> authoritative free-form geometry bridge  
+P4: domes/pods/organic + rectangular hybrid workflows  
+P5: mechanical/MEP integration using the same coherent model/geometry principles  
+P6: materials, rendering, fabrication/export with validated provenance  
+P7: optional AI assistance using the same command semantics as the mature human workflow
 
 ## Agent rule
 New work should normally originate from a `[READY]` GitHub Issue and follow `AGENTS.md`. Prefer the smallest work that advances the first human-usable loop. Do not create AI-only evidence work, pod-specific special cases, or broad feature expansion merely to keep agents busy.
