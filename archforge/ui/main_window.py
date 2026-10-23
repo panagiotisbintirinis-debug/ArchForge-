@@ -4178,6 +4178,8 @@ class MainWindow(QMainWindow):
             self.autosave.discard()
             self._update_window_title()
         self._refresh_project_tree()     # opened / recovered project: its own tree and name
+        from archforge.ui.start_page import close_start
+        close_start(self)                # a project is open: the start page gives way to the drawing
         if getattr(self, '_cameras', None) is not None:
             self._cameras.on_document_changed()
         self._refresh_floor_selector()

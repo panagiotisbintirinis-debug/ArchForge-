@@ -117,6 +117,11 @@ class U:
         """Right click at (x, y) in the plan, then click the item: 2 steps (3 if it is under «Περισσότερα»)."""
         self.steps += 1
         menu = self.right(x, y)
+        # Inside a submenu (e.g. «Ανοίγματα ▸ Πόρτα»): open each level as a person would, one click each.
+        for sub in self._submenu_path(menu.menu.get('entries', ()), action_id) or ():
+            if action_id in menu.buttons:
+                break
+            self.steps += 1; menu.open_submenu(sub); self.pump()
         if action_id in menu.buttons:
             self.steps += 1; menu.buttons[action_id].click()
         else:
@@ -126,6 +131,18 @@ class U:
                 raise LookupError(f'{action_id} not in menu: radial={list(menu.buttons)} more={list(acts)}')
             self.steps += 2; acts[action_id].trigger()
         self.pump()
+
+    @staticmethod
+    def _submenu_path(entries, action_id):
+        """The submenu entries to open, outermost first, to reach ``action_id`` (None if it is not in one)."""
+        for e in entries:
+            kids = e.get('children') or ()
+            if any(k.get('id') == action_id for k in kids):
+                return [e]
+            deeper = U._submenu_path(kids, action_id)
+            if deeper:
+                return [e] + deeper
+        return None
 
     def mm_content(self, x, y):
         menu = self.right(x, y)

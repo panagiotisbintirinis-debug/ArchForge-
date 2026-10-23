@@ -179,6 +179,12 @@ class PlanView(QGraphicsView):
     CONTAINER_KINDS=('room_floor','room_ceiling','room_foundation','room_roof','floor','room',
                      'pitched_roof','ceiling_joists','terrain')
 
+    def _room_at(self,pos):
+        """True when the view point lies inside a room of the active storey."""
+        from archforge.geometry.regions import point_in_polygon
+        q=self._scene_to_plane(pos)
+        try:return any(point_in_polygon(float(q.a),float(q.b),f.polygon) for f in self.doc.active_room_faces())
+        except (ValueError,KeyError):return False
     def itemAt(self,*args):
         """Most specific pickable item under the cursor (handles first, then objects, then containers)."""
         items=self.items(*args)
@@ -270,6 +276,8 @@ class PlanView(QGraphicsView):
             hit=self.itemAt(event.pos());handle=self._handle_items.get(hit)
             eid=handle.entity_id if handle is not None else self._entity_items.get(hit)
             busy=self.controller.tool=='wall' or window.sculpt_action.isChecked()
+            if eid in self.doc.entities and self.doc.get(eid).kind in self.CONTAINER_KINDS and self._room_at(event.pos()):
+                eid=None          # inside a room the room's menu (Κουζίνα / Μπάνιο εδώ…), not the storey's floor slab
             if busy or not eid or eid not in self.doc.entities:
                 eid=None
             elif eid not in self.doc.selection:      # right click inside a multiple selection keeps it (Διαγραφή = all)
