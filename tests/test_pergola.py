@@ -40,6 +40,19 @@ def test_side_along_a_wall_is_fixed_to_it_without_posts():
     assert not any(doc.get(i).params['role'] == 'pergola' for i in members)   # not part of the frame analysis
 
 
+def test_a_wall_split_by_partitions_still_holds_the_pergola():
+    """Driving the house as a user (23/10): the east wall was cut into three pieces where the partitions meet it;
+    no piece alone covered 60 % of the pergola's side, so it got posts against the wall."""
+    doc = Document(); st = CommandStack(doc)
+    for s in [(0, 0, 10, 0), (10, 0, 10, 3), (10, 3, 10, 5.5), (10, 5.5, 10, 8), (10, 8, 0, 8), (0, 8, 0, 0),
+              (6, 3, 10, 3), (6, 5.5, 10, 5.5)]:
+        st.execute(AddEntity(Entity('wall', {'x1': s[0], 'y1': s[1], 'x2': s[2], 'y2': s[3], 'z': 0.0,
+                                             'height': 2.7, 'thickness': 0.25})))
+    assert attached_sides(doc, 10, 1, 14, 5, 0.0) == {'W'}
+    ents, rep = pergola_entities(doc, 10, 1, 14, 5)
+    assert rep['fixed'] == ['W'] and all(e.params['x'] > 10.3 for e in ents if e.kind == 'structural_column')
+
+
 def test_menu_tool_drags_a_pergola_in_one_undo_and_roofs_are_in_the_ribbon_menus():
     from PySide6.QtWidgets import QApplication
     from archforge.ui.main_window import MainWindow

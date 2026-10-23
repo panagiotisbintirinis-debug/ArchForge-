@@ -102,3 +102,21 @@ def test_the_stair_from_the_basement_is_drawn_on_the_floor_it_arrives_on():
     stack.execute(SetWorkPlane(plane))
     roles = [p.role for p in build_plan_frame(doc).primitives if p.entity_id == e.id]
     assert 'stair' in roles and any(r.startswith('stair-') for r in roles)
+
+
+def test_an_outside_stair_must_arrive_on_the_balcony_not_in_mid_air():
+    """Driving the house: dragged towards the balcony, the automatic L turned away and ended in mid-air at +2,85."""
+    from archforge.architecture.stairs import arrival_point
+    doc, stack, ids = _house(door=False)
+    up = 2.7
+    stack.execute(AddEntity(Entity('floor', {'points': [[1, -1.5], [9, -1.5], [9, 0], [1, 0]], 'z': up - 0.18,
+                                             'thickness': 0.18, 'role': 'balcony'})))
+    tx = StairPlaceTransaction(doc, stack, (13.8, -0.8)); tx.update(9.4, -0.8)
+    base = tx.active_candidate.to_params()
+    obstacles = stair_obstacles(doc, 0.0, up)
+    away = candidate_from_params(dict(base, layout='l', x=13.8, y=-0.8, angle_deg=180.0, turn_direction=-1))
+    assert 'arrival' in stair_obstacle_conflicts(away, obstacles)
+    onto = candidate_from_params(dict(base, layout='straight', x=13.6, y=-0.75, angle_deg=180.0))
+    ax, ay = arrival_point(onto)
+    assert 1 < ax < 9 and -1.5 < ay < 0
+    assert 'arrival' not in stair_obstacle_conflicts(onto, obstacles)

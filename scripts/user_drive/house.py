@@ -181,4 +181,38 @@ fps = [(e.params['layout'], [tuple(round(c, 2) for c in q) for q in stair_footpr
        for e in u.w.doc.entities.values() if e.kind == 'stair']
 print('  αποτυπώματα', fps)
 stage('outside')
+u.begin('Ισόγειο: ξύλινη πέργκολα ανατολικά, κολλητά στον τοίχο (κύριο μενού Κατασκευή ▸ Πέργκολα ▸ Ξύλινη)')
+u.floor('Ground'); u.see(7, 2)
+try:
+    u.mm(12, 4, 'mm:pergola:timber')
+except LookupError:
+    u.note('πέργκολα: όχι στο μενού του ποντικιού — μόνο Κατασκευή ▸ Πέργκολα')
+    u.menu('Κατασκευή', 'Πέργκολα', 'Ξύλινη')
+print('  εργαλείο', u.plan.controller.tool)
+u.drag(10, 1.0, 14, 5.0)
+pg = [e for e in u.w.doc.entities.values() if 'pergola' in e.kind or 'pergola' in str(e.params.get('role', '')) or 'pergola' in e.name.lower()]
+print('  πέργκολα:', len(pg), sorted({e.kind for e in pg}), '|', u.status()[:120])
+if not pg: u.note('η πέργκολα δεν μπήκε')
+u.key(Qt.Key.Key_Escape)
+u.end()
+u.shot('pergola')
+u.begin('Εξωτερική σκάλα από τον κήπο στο μπαλκόνι (ανατολικά του μπαλκονιού, σύρσιμο προς τα δυτικά)')
+import time as _t
+from archforge.core.interaction import StairPlaceTransaction as _SPT
+_a = _t.perf_counter(); _tx = _SPT(u.w.doc, u.w.stack, (13.8, -0.8)); _b = _t.perf_counter(); _tx.update(9.4, -0.8)
+print('  χρόνος σκάλας: έναρξη %.0f ms, κίνηση %.0f ms' % ((_b - _a) * 1000, (_t.perf_counter() - _b) * 1000), _tx.preview['fits'], _tx.active_candidate.layout)
+u.mm(12, -3, 'mm:tool:stair')
+vp = u.plan.viewport()
+QTest.mousePress(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, u._pos(13.8, -0.8)); u.pump()
+for x in (12.5, 11.0, 9.4):
+    QTest.mouseMove(vp, u._pos(x, -0.8)); u.pump()
+pv = u.plan.controller.preview; ch = pv.geometry.get('chosen', {})
+print('  προεπισκόπηση:', ch.get('layout'), 'fits', pv.geometry.get('fits'), 'αρχή', round(ch.get('x', 0), 2), round(ch.get('y', 0), 2), 'έως', ch.get('upper_z'), '|', u.status()[:90])
+QTest.mouseRelease(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, u._pos(9.4, -0.8)); u.pump(); u.steps += 1
+st = [e.params for e in u.w.doc.entities.values() if e.kind == 'stair']
+print('  σκάλες', len(st), [(p['layout'], p['lower_z'], p['upper_z']) for p in st][-1], '|', u.status()[:100])
+u.mm(12,-3,'mm:tool:select')
+u.end()
+u.shot('outside_stair')
+stage('upper_rooms')
 report()

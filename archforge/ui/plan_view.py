@@ -350,7 +350,9 @@ class PlanView(QGraphicsView):
             from PySide6.QtCore import QTimer
             token=object()
             self._long_press=(token,event.position(),self.controller.active,getattr(self,'_railing_draft',None) is None)
-            QTimer.singleShot(self.LONG_PRESS_MS,lambda t=token:self._long_press_fire(t))
+            # Counted from when this press has been handled (a stair being solved can take 0,2–0,3 s): a 0 ms timer
+            # runs once the handler returns, then the hold time starts — slow work never turns a drag into a pan.
+            QTimer.singleShot(0,lambda t=token:QTimer.singleShot(self.LONG_PRESS_MS,lambda:self._long_press_fire(t)))
         if event.button()!=Qt.MouseButton.LeftButton:super().mousePressEvent(event);return
         if self._overlay('press',event):event.accept();return
         if self._railing_tool():self._railing_press(event);event.accept();return

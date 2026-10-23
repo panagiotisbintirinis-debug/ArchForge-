@@ -760,7 +760,9 @@ class MainWindow(QMainWindow):
         self.stack.execute(AddEntities(entities))
         self._redraw_views(all_views=True)
         self._refresh_project_tree()
-        fixed = f" · στον τοίχο: {', '.join(report['fixed'])}" if report['fixed'] else ''
+        sides = {'S': 'νότια', 'N': 'βόρεια', 'W': 'δυτική', 'E': 'ανατολική'}
+        fixed = (f" · στον τοίχο η {', '.join(sides.get(f, f) for f in report['fixed'])} πλευρά"
+                 if report['fixed'] else '')
         self.statusBar().showMessage(f"Πέργκολα {report['label']} {report['area']:.1f} m²: {report['posts']} κολονάκια, "
                                      f"{report['rafters']} τεγίδες{fixed} — Ctrl+Z για αναίρεση", 8000)
         return entities

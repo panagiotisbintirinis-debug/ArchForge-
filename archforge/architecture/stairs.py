@@ -440,7 +440,39 @@ def stair_obstacles(doc, lower_z: float, upper_floor_z: float):
             vx, vy = -uy, ux
             out.append((e.id, [(cx + sx * ux * hw + sy * vx * hd, cy + sx * uy * hw + sy * vy * hd)
                                for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))]) + where)
+    # Driving the house (23/10): an outside stair turned away from the balcony and ended in mid-air at +2,85.
+    # Where the storey it reaches has floors, it must arrive on one of them.
+    floors = upper_floors(doc, upper_floor_z)
+    if floors:
+        out.append(('arrival', floors, 'arrive'))
     return out
+
+
+def upper_floors(doc, z: float):
+    """Plan polygons of what you can stand on at storey ``z``: its rooms, its free slabs (balconies, terraces) and
+    its storey slabs.  Empty when nothing is drawn there yet."""
+    from archforge.architecture.balcony import slab_level
+    out = []
+    try:
+        out += [list(f.polygon) for f in doc.active_room_faces(z=float(z))]
+    except (ValueError, KeyError):
+        pass
+    for e in doc.entities.values():
+        p = e.params
+        if e.kind == 'floor' and p.get('points') and abs(slab_level(p) - float(z)) < 0.3:
+            out.append([tuple(q[:2]) for q in p['points']])
+        elif e.kind in ('room_floor', 'room_roof') and p.get('scope') == 'storey' and p.get('polygon') \
+                and abs(float(p.get('level_z', 1e9)) - float(z)) < 0.3:
+            out.append([tuple(q[:2]) for q in p['polygon']])
+    return out
+
+
+def arrival_point(candidate: StairCandidate) -> Point2:
+    """Where you step off the stair: 30 cm past the end of its walking line."""
+    path = stair_centerline(candidate)
+    (ax, ay), (bx, by) = path[-2], path[-1]
+    L = hypot(bx - ax, by - ay) or 1.0
+    return bx + (bx - ax) / L * 0.30, by + (by - ay) / L * 0.30
 
 
 def _bbox(poly, grow=0.0):
@@ -471,6 +503,12 @@ def stair_obstacle_conflicts(candidate: StairCandidate, obstacles) -> List[str]:
     hits = []
     # Far away obstacles first fall out on their boxes (this runs for every trial position of every mouse move).
     reach = _bbox(stair_footprint(candidate), candidate.width)
+    for o in obstacles:
+        if len(o) > 2 and o[2] == 'arrive':
+            ax, ay = arrival_point(candidate)
+            if not any(point_in_polygon(ax, ay, poly) for poly in o[1]):
+                hits.append(o[0])
+    obstacles = [o for o in obstacles if not (len(o) > 2 and o[2] == 'arrive')]
     near = [o for o in obstacles if not _apart(reach, _bbox(o[1]))]
     upper = [o for o in near if len(o) > 2]
     obstacles = [o[:2] for o in near if len(o) == 2]
