@@ -595,12 +595,14 @@ class StairPlaceTransaction:
         if not self.candidates:
             raise ValueError('stair has no valid preview')
         chosen=self.active_candidate
-        entity=Entity('stair',chosen.to_params(),name=next_name(self.doc,'stair'))
-        # A railing where it arrives (a balcony's) opens the stair's width there — same undo as the stair.
-        from archforge.architecture.railings import stair_arrival_cuts
-        from archforge.core.commands import CompositeCommand
+        entity=Entity('stair',dict(chosen.to_params(),railing='auto'),name=next_name(self.doc,'stair'))
+        # Its railings on the open sides from the start (safety first; Ιδιότητες ▸ Κάγκελο changes it), and a railing
+        # where it arrives (a balcony's) opens the stair's width there — all in the same undo as the stair.
+        from archforge.architecture.railings import stair_arrival_cuts,stair_railing_entities
+        from archforge.core.commands import AddEntities,CompositeCommand
+        own=stair_railing_entities(self.doc,entity,'auto')
         cuts=stair_arrival_cuts(self.doc,entity.params)
-        self.stack.execute(CompositeCommand([AddEntity(entity)]+cuts,label='Σκάλα') if cuts else AddEntity(entity))
+        self.stack.execute(CompositeCommand([AddEntity(entity)]+([AddEntities(own)] if own else [])+cuts,label='Σκάλα'))
         self.doc.select([entity.id])
         return entity.id
 

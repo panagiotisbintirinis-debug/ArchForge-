@@ -132,7 +132,10 @@ def test_a_stair_arriving_at_the_balcony_opens_its_railing_in_one_undo():
     tx = StairPlaceTransaction(doc, stack, (13.8, -0.75)); tx.update(9.4, -0.75)
     assert tx.preview['fits'] and tx.active_candidate.layout == 'straight'
     sid = tx.commit()
-    rails = [e.params['points'] for e in doc.entities.values() if e.kind == 'railing']
+    rails = [e.params['points'] for e in doc.entities.values() if e.kind == 'railing' and 'stair_side' not in e.params]
+    # The stair itself has its railings on its open sides from the start (same undo).
+    own = [e for e in doc.entities.values() if e.kind == 'railing' and e.parent_id == sid and e.visible]
+    assert doc.get(sid).params['railing'] == 'auto' and own
     assert rails != before                                                 # opened (a closed one) or cut in two
     # Nothing of the railing left across the stair's top (x = 9, its width round y = -0,75).
     w = doc.get(sid).params['width']
@@ -143,3 +146,4 @@ def test_a_stair_arriving_at_the_balcony_opens_its_railing_in_one_undo():
                 assert hi <= -0.75 - w / 2 + 1e-6 or lo >= -0.75 + w / 2 - 1e-6
     stack.undo()
     assert sid not in doc.entities and [e.params['points'] for e in doc.entities.values() if e.kind == 'railing'] == before
+    assert not [e for e in doc.entities.values() if e.kind == 'railing' and 'stair_side' in e.params]
