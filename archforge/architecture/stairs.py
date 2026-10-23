@@ -369,6 +369,73 @@ def stair_wall_conflicts(doc, candidate: StairCandidate, walls=None) -> List[str
     return hits
 
 
+# What else a stair must keep clear of on the storey it starts from (driving the house as a user, 23/10: an L
+# stair "fitted" in the living room with its landing in the swing of a bedroom door and its flight against the
+# kitchen run — only walls were looked at).
+DOOR_CLEAR_MAX = 1.0          # m in front of a door, both sides: you walk through it
+
+
+def stair_obstacles(doc, lower_z: float, upper_floor_z: float):
+    """``[(id, polygon)]`` on the storey a stair starts from: the free space each side of every door, and the
+    footprint of every cabinet / object standing there."""
+    from archforge.architecture.openings import plan_segment
+    from archforge.architecture.wall_dims import footprint
+    out = []
+    lo, hi = float(lower_z) - 0.05, float(upper_floor_z) - 0.05
+    for e in doc.entities.values():
+        if not e.visible:
+            continue
+        if e.kind == 'door' and e.parent_id in doc.entities:
+            w = doc.get(e.parent_id)
+            if w.kind != 'wall' or abs(float(w.params.get('z', 0.0)) - float(lower_z)) > 1e-3:
+                continue
+            try:
+                (ax, ay), (bx, by) = plan_segment(w.params, e.params)
+            except (KeyError, TypeError, ValueError):
+                continue
+            L = hypot(bx - ax, by - ay)
+            if L < 1e-6:
+                continue
+            nx, ny = -(by - ay) / L, (bx - ax) / L
+            t = float(w.params.get('thickness', 0.2)) / 2.0
+            d = t + min(L, DOOR_CLEAR_MAX)
+            out.append((e.id, [(ax + nx * d, ay + ny * d), (bx + nx * d, by + ny * d),
+                               (bx - nx * d, by - ny * d), (ax - nx * d, ay - ny * d)]))
+        elif e.kind in ('cabinet', 'library_object'):
+            f = footprint(e.params)
+            z = float(e.params.get('z', lower_z) or 0.0)
+            if f is None or not lo <= z < hi:
+                continue
+            cx, cy, ux, uy, hw, hd = f
+            vx, vy = -uy, ux
+            out.append((e.id, [(cx + sx * ux * hw + sy * vx * hd, cy + sx * uy * hw + sy * vy * hd)
+                               for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))]))
+    return out
+
+
+def stair_obstacle_conflicts(candidate: StairCandidate, obstacles) -> List[str]:
+    """Ids of the obstacles (``stair_obstacles``) the stair's flights or landings run into."""
+    from archforge.geometry.regions import point_in_polygon
+    hits = []
+    if candidate.layout == 'spiral':
+        centre, radius = _spiral_disc(candidate)
+        for oid, poly in obstacles:
+            n = len(poly)
+            if point_in_polygon(centre[0], centre[1], poly) or \
+                    any(_point_seg_distance(centre, poly[i], poly[(i + 1) % n]) < radius - WALL_CLEARANCE for i in range(n)):
+                hits.append(oid)
+        return hits
+    path = stair_centerline(candidate)
+    half = candidate.width / 2.0 - WALL_CLEARANCE
+    for oid, poly in obstacles:
+        n = len(poly)
+        if any(point_in_polygon(q[0], q[1], poly) for q in path) or any(
+                _seg_seg_distance(path[i], path[i + 1], poly[j], poly[(j + 1) % n]) < half
+                for i in range(len(path) - 1) for j in range(n)):
+            hits.append(oid)
+    return hits
+
+
 def _room_of(doc, point: Point2, z: float):
     from archforge.geometry.regions import point_in_polygon
     for face in doc.active_room_faces(z=z):
@@ -381,8 +448,9 @@ FIT_STEP = 0.10
 FIT_REACH = 1.5
 
 
-def fit_in_walls(doc, candidate: StairCandidate, walls=None, room=None):
-    """The candidate moved as little as possible so that it crosses no wall, staying in the room it starts in.
+def fit_in_walls(doc, candidate: StairCandidate, walls=None, room=None, obstacles=()):
+    """The candidate moved as little as possible so that it crosses no wall (nor a door's free space, a cabinet:
+    ``stair_obstacles``), staying in the room it starts in.
 
     Returns ``(candidate, fits)``: the original when it already fits or no position within
     ``FIT_REACH`` does (then ``fits`` is False).
@@ -390,7 +458,7 @@ def fit_in_walls(doc, candidate: StairCandidate, walls=None, room=None):
     from dataclasses import replace
     from archforge.geometry.regions import point_in_polygon
     walls = stair_walls(doc, candidate.lower_z, candidate.upper_floor_z) if walls is None else walls
-    if not stair_wall_conflicts(doc, candidate, walls):
+    if not stair_wall_conflicts(doc, candidate, walls) and not stair_obstacle_conflicts(candidate, obstacles):
         return candidate, True
     fp = stair_footprint(candidate)
     # Only walls near the stair can matter while it moves.
@@ -410,7 +478,7 @@ def fit_in_walls(doc, candidate: StairCandidate, walls=None, room=None):
             # Stay in the room the human started in: the stair's own outline inside it.
             if not all(point_in_polygon(x, y, room) for x, y in stair_footprint(moved)):
                 continue
-        if not stair_wall_conflicts(doc, moved, near):
+        if not stair_wall_conflicts(doc, moved, near) and not stair_obstacle_conflicts(moved, obstacles):
             return moved, True
     return candidate, False
 
@@ -423,7 +491,8 @@ def place_among_walls(doc, candidates, click: Point2):
     if not walls:
         return [(c, True) for c in candidates]
     room = _room_of(doc, click, candidates[0].lower_z)
-    fitted = [fit_in_walls(doc, c, walls, room) for c in candidates]
+    obstacles = stair_obstacles(doc, candidates[0].lower_z, candidates[0].upper_floor_z)
+    fitted = [fit_in_walls(doc, c, walls, room, obstacles) for c in candidates]
     return [f for f in fitted if f[1]] + [f for f in fitted if not f[1]]
 
 

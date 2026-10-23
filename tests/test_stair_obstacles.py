@@ -1,0 +1,66 @@
+"""Found driving the two-storey house as a user (owner 14/10, «πάρε τη θέση του χρήστη»; again 23/10): an L stair
+«fitted» in the living room with its landing in the swing of the bedroom door and its upper flight along the
+kitchen run — only walls were looked at.  Now the free space each side of a door and the cabinets / objects of
+the storey count as well: the stair moves clear of them, or is shown red."""
+import copy
+import os
+
+os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+
+from archforge.architecture.stairs import (candidate_from_params, stair_obstacle_conflicts, stair_obstacles,
+                                           stair_wall_conflicts)
+from archforge.core.commands import AddEntity, CommandStack, CreateFloorLevel, SetWorkPlane
+from archforge.core.interaction import StairPlaceTransaction
+from archforge.core.model import Document, Entity
+
+
+def _house(door=True, cabinet=False):
+    """Living room 6 × 8 (x 0–6), bedroom door in the wall x = 6 at y 6,8; storey above at +2,70."""
+    doc = Document(); stack = CommandStack(doc); ids = {}
+    for name, (a, b) in {'s': ((0, 0), (10, 0)), 'e': ((10, 0), (10, 8)), 'n': ((10, 8), (0, 8)),
+                         'w': ((0, 8), (0, 0)), 'mid': ((6, 0), (6, 8))}.items():
+        e = Entity('wall', {'x1': a[0], 'y1': a[1], 'x2': b[0], 'y2': b[1], 'z': 0.0, 'height': 2.7, 'thickness': 0.25})
+        stack.execute(AddEntity(e)); ids[name] = e.id
+    if door:
+        d = Entity('door', {'offset': 6.8, 'width': 0.9, 'height': 2.1, 'sill': 0.0}, parent_id=ids['mid'])
+        stack.execute(AddEntity(d)); ids['door'] = d.id
+    if cabinet:
+        c = Entity('cabinet', {'x': 3.0, 'y': 7.55, 'z': 0.0, 'rotation': 0.0, 'width': 1.2, 'depth': 0.6,
+                               'height': 0.9, 'cabinet_type': 'base'})
+        stack.execute(AddEntity(c)); ids['cab'] = c.id
+    plane = copy.deepcopy(doc.work_plane)
+    stack.execute(CreateFloorLevel('Floor 2', 2.7))
+    stack.execute(SetWorkPlane(plane))
+    return doc, stack, ids
+
+
+def test_a_stair_in_front_of_a_door_or_on_a_cabinet_is_a_conflict():
+    doc, stack, ids = _house(cabinet=True)
+    tx = StairPlaceTransaction(doc, stack, (1.0, 4.0)); tx.update(5.0, 4.0)
+    base = tx.active_candidate.to_params()
+    obstacles = stair_obstacles(doc, 0.0, 2.7)
+    assert {oid for oid, _ in obstacles} == {ids['door'], ids['cab']}
+    # A straight flight along the wall x = 6, through the door's free space (no wall is crossed).
+    at_door = candidate_from_params(dict(base, layout='straight', x=5.3, y=2.5, angle_deg=90.0))
+    assert not stair_wall_conflicts(doc, at_door)
+    assert stair_obstacle_conflicts(at_door, obstacles) == [ids['door']]
+    # Running west along the north wall, over the cabinet.
+    on_cab = candidate_from_params(dict(base, layout='straight', x=5.0, y=7.4, angle_deg=180.0))
+    assert ids['cab'] in stair_obstacle_conflicts(on_cab, obstacles)
+    # In the middle of the room: clear.
+    free = candidate_from_params(dict(base, layout='straight', x=1.0, y=2.0, angle_deg=0.0))
+    assert stair_obstacle_conflicts(free, obstacles) == []
+
+
+def test_dragging_the_stair_next_to_the_door_moves_it_clear_or_shows_red():
+    doc, stack, ids = _house()
+    tx = StairPlaceTransaction(doc, stack, (5.9, 7.0))
+    for x in (4.5, 3.0, 1.5):
+        tx.update(x, 7.0)
+    obstacles = stair_obstacles(doc, 0.0, 2.7)
+    c = tx.active_candidate
+    if tx.preview['fits']:
+        assert stair_obstacle_conflicts(c, obstacles) == []
+    else:
+        assert stair_obstacle_conflicts(c, obstacles) or stair_wall_conflicts(doc, c)
+        assert 'πόρτα' in tx.preview['suggestions'][0]

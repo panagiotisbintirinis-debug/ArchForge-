@@ -3469,8 +3469,8 @@ class MainWindow(QMainWindow):
         default_elevation = (max(existing) if existing else 0.0) + 2.70
         elevation, accepted = QInputDialog.getDouble(
             self,
-            'Add Floor',
-            'Floor elevation (m):',
+            'Νέος όροφος',
+            'Στάθμη του ορόφου (m):',
             default_elevation,
             -1000.0,
             1000.0,
@@ -3486,13 +3486,14 @@ class MainWindow(QMainWindow):
         try:
             self.stack.execute(CreateFloorLevel(name, elevation))
         except Exception as exc:
-            QMessageBox.warning(self, 'Add Floor', str(exc))
+            QMessageBox.warning(self, 'Νέος όροφος', str(exc))
             return
         self._refresh_floor_selector()
         self._redraw_views(all_views=True)
         self.refresh_inspector()
+        from archforge.output.pdf import level_name
         self.statusBar().showMessage(
-            f'Created and activated {name} at {float(elevation):.2f} m',
+            f'Νέος όροφος: {level_name(name)} στα {float(elevation):.2f} m — σχεδιάζεις εκεί'.replace('.', ','),
             3500,
         )
 
