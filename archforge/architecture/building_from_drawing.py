@@ -107,6 +107,72 @@ def host_of(walls, point):
     return None if best is None else best[:2]
 
 
+# ------------------------------------------------------------------------------------------------- glass railings
+# Owner 23/10: «τα γυάλινα κάγκελα στη βεράντα είναι τοίχοι, και μπροστά και στην πλαϊνή».  The architect draws a
+# glass balustrade as a thin strip filled in glass blue (the water colour) between two dark lines — a pair of lines
+# like a wall.  A «wall» lying on such a strip is a glass railing.
+GLASS_MAX = 0.08        # m — thickest strip that is a pane, not water
+GLASS_MIN_LENGTH = 0.4
+
+
+def glass_strips(polys):
+    """Centre lines ``[(a, b)]`` of the thin glass-blue strips (polygons in the walls' frame, metres)."""
+    from archforge.project.drawing_set import min_rectangle
+    out = []
+    for poly in polys:
+        r = min_rectangle(poly) if len(poly) >= 3 else None
+        if r is None:
+            continue
+        cx, cy, L, W, rot = r
+        if W > GLASS_MAX or L < GLASS_MIN_LENGTH:
+            continue
+        c, s_ = math.cos(math.radians(rot)), math.sin(math.radians(rot))
+        out.append(((cx - c * L / 2, cy - s_ * L / 2), (cx + c * L / 2, cy + s_ * L / 2)))
+    return out
+
+
+def glass_spans(a, b, t, strips, min_len=0.4):
+    """Where along a wall (axis a–b, thickness t) a glass strip runs on it: merged ``[(s0, s1)]`` in metres from
+    a — a wall the drawing joined with the glass beside it (the OLD VILLA veranda: 17 m of wall, 6,6 m of glass)."""
+    (ux, uy), L = _dir(a, b)
+    if L < 1e-9:
+        return []
+    tol = max(0.12, t / 2 + 0.05)
+    spans = []
+    for u, v in strips:
+        (sx, sy), SL = _dir(u, v)
+        if SL < 1e-9 or abs(ux * sy - uy * sx) > 0.09:            # not parallel (5°)
+            continue
+        if _seg_dist(((u[0] + v[0]) / 2, (u[1] + v[1]) / 2), a, b) > tol and min(_seg_dist(u, a, b), _seg_dist(v, a, b)) > tol:
+            continue
+        s0 = (u[0] - a[0]) * ux + (u[1] - a[1]) * uy
+        s1 = (v[0] - a[0]) * ux + (v[1] - a[1]) * uy
+        s0, s1 = max(0.0, min(s0, s1)), min(L, max(s0, s1))
+        if s1 - s0 > 0.05:
+            spans.append([s0, s1])
+    spans.sort()
+    merged = []
+    for s0, s1 in spans:
+        if merged and s0 <= merged[-1][1] + 0.35:                 # a post or a frame between two panes
+            merged[-1][1] = max(merged[-1][1], s1)
+        else:
+            merged.append([s0, s1])
+    return [(s0, s1) for s0, s1 in merged if s1 - s0 >= min_len]
+
+
+def on_glass(a, b, t, strips, share=0.6):
+    """A wall (axis a–b, thickness t) that lies on a glass strip for ``share`` of its length: glass, not masonry —
+    glazing where it bounds a room, a glass railing where it stands between two outdoor grounds."""
+    if not strips:
+        return False
+    on = 0
+    for k in range(9):
+        q = (a[0] + (b[0] - a[0]) * (k + 0.5) / 9, a[1] + (b[1] - a[1]) * (k + 0.5) / 9)
+        if any(_seg_dist(q, u, v) <= max(0.12, t / 2 + 0.05) for u, v in strips):
+            on += 1
+    return on >= share * 9
+
+
 def analyse_sheet(sheet, sim):
     """What ``building_from_underlay.build`` needs, for a sheet of a drawing set placed by ``sim`` (project/drawing_set):
     walls, openings in their gaps, room labels — in model metres, from the texts and lines read once."""
@@ -122,8 +188,9 @@ def analyse_sheet(sheet, sim):
         return item
     segs = [(*to((a, b)), *to((c, d))) for a, b, c, d in sheet.segments]
     walls, openings, missing = tidy(find_walls(segs), [placed(o) for o in T.openings(sheet.texts)])
+    glass = glass_strips([[to(p) for p in poly] for poly in sheet.water])
     return {"walls": walls, "openings": openings, "missing": missing, "rooms": [placed(r) for r in T.rooms(sheet.texts)],
-            "levels": [placed(l) for l in T.levels(sheet.texts)],
+            "levels": [placed(l) for l in T.levels(sheet.texts)], "glass": glass,
             "items": [(kind, *to((x, y))) for kind, x, y in getattr(sheet, "items", ())]}
 
 

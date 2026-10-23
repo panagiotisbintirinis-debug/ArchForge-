@@ -165,3 +165,15 @@ def test_terrace_levels_of_the_set_relative_ones_by_the_buildings_zero():
                     anchors=[("L+137.10", 10.2, 80.1), ("L+132.00", 12, 72)])
     levels = site_levels(Document(), [site, upper], {0: (same, ""), 1: (same, "")}, 114.0, {"OLD VILLA": 131.8})
     assert sorted(z for _x, _y, z in levels) == pytest.approx([0.0, 16.6, 18.0, 23.1])
+
+
+def test_a_pool_rim_from_the_levels_written_inside_it():
+    """Owner 23/10: the OLD VILLA pool hung 2,55 m low (at the terrace's +129,10 beside it).  Inside it the drawing
+    writes its bottom «−1.65m [C.L.]» and «pool's depth 1.50m»: the rim is −0,15 = +131,65."""
+    from archforge.ui.drawing_set_import import rim_level
+    same = D.Similarity(1.0, 0.0, (0.0, 0.0), 0, 0.0)
+    upper = D.Sheet("old_upper.pdf", kind="plan", building="OLD VILLA", scale=50,
+                    anchors=[("L-1.65C", 2.0, 1.0), ("L-1.05", 4.0, 2.5), ("L+129.10", 3.0, -2.0)])   # last: outside
+    outline = [(0, 0), (5, 0), (5, 3), (0, 3)]
+    assert rim_level([upper], {0: (same, "")}, [0], outline, {"OLD VILLA": 131.8}, 1.5) == pytest.approx(131.65)
+    assert rim_level([upper], {0: (same, "")}, [0], outline, {}, 1.5) is None              # ±0,00 unknown: no guess

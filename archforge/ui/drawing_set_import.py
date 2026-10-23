@@ -92,10 +92,9 @@ def add_pools(window, sheets, placed, reference):
     from archforge.site.pool import DEFAULTS, ZONE1
     import math
     made = []
+    zeros = building_zeros(sheets, placed)
     for k, (cx, cy, length, width, rot, idx, shape) in enumerate(pools(sheets, placed), 1):
-        alt = pool_level(sheets, placed, (cx, cy))
-        z = (alt - reference) if alt is not None else 0.0
-        p = {**DEFAULTS, "x": cx, "y": cy, "z": z, "length": round(length, 3), "width": round(width, 3), "rotation": rot}
+        p = {**DEFAULTS, "x": cx, "y": cy, "z": 0.0, "length": round(length, 3), "width": round(width, 3), "rotation": rot}
         if shape:
             # The L with its spa, as drawn — through the same function as Πισίνα ▸ «Σχεδίασε το σχήμα».
             from archforge.site.pool import to_world, with_outline
@@ -103,6 +102,13 @@ def add_pools(window, sheets, placed, reference):
         depth = pool_depth(sheets, placed, idx, (cx, cy), max(length, width))
         if depth:
             p.update(depth_shallow=depth, depth_deep=depth)
+        # Its rim: from the levels written inside it (OLD VILLA: bottom «−1.65 [C.L.]» + «pool's depth 1.50» →
+        # −0,15 = +131,65), else the nearest written altitude (NEW VILLA +114,00).
+        from archforge.site.pool import rim as pool_rim
+        alt = rim_level(sheets, placed, idx, pool_rim(p), zeros, depth)
+        if alt is None:
+            alt = pool_level(sheets, placed, (cx, cy))
+        p["z"] = (alt - reference) if alt is not None else 0.0
         a = math.radians(rot)
         u = length / 2 + ZONE1 + float(p["plant_w"]) / 2 + 0.5            # equipment room beside it, out of zone 1
         p.update(plant_x=cx + u * math.cos(a), plant_y=cy + u * math.sin(a))
@@ -242,6 +248,27 @@ def green_roofs_from_sections(window, sections, roofs):
             window.stack.execute(UpdateEntity(rid, {"green": 1, "soil": 0.10}))
             made.append(rid)
     return made
+
+
+def rim_level(sheets, placed, idx, outline, zeros, depth=None):
+    """Altitude of a pool's rim from the levels its sheets write inside it: the lowest is its bottom — plus the
+    written depth it is the rim; without a depth, the highest of two or more is the water.  Relative levels count
+    through the building's ±0,00.  None when nothing is written inside."""
+    from archforge.geometry.regions import point_in_polygon
+    inside = []
+    for i in idx:
+        s = sheets[i]
+        sim = placed[i][0]
+        zero = zeros.get(s.building) if s.kind == "plan" else None
+        for v, _ceiling, x, y in s.levels():
+            alt = v if v >= 10.0 else (zero + v if zero is not None else None)
+            if alt is not None and point_in_polygon(*sim.apply((x, y)), outline):
+                inside.append(alt)
+    if not inside:
+        return None
+    if depth:
+        return round(min(inside) + depth, 3)
+    return round(max(inside), 3) if len(set(inside)) > 1 else None
 
 
 def pool_depth(sheets, placed, idx, centre, reach):

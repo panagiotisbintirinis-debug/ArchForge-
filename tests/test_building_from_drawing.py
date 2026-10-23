@@ -158,3 +158,43 @@ def test_a_pool_drawn_as_a_rectangle_and_a_fan_keeps_its_shape():
     assert shape and 8 <= len(shape) <= 30                                     # the arc kept within 2 cm, not 30 slivers
     area = abs(sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(shape, shape[1:] + shape[:1]))) / 2
     assert area == pytest.approx(7.3 * 3.9 + 1.9 * 1.1 + math.pi * 0.95 ** 2 / 2, rel=0.01)
+
+
+def test_glass_on_a_wall_is_cut_out_and_told_by_what_is_beside_it():
+    """Owner 23/10: «τα γυάλινα κάγκελα στη βεράντα είναι τοίχοι, και μπροστά και στην πλαϊνή».  A wall the drawing
+    joined with the glass beside it is cut where the glass is; glass by a room is glazing, glass between two
+    outdoor grounds is a railing; the rest stays wall."""
+    import os
+    os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+    from archforge.architecture.building_from_drawing import glass_spans
+    strips = [((2.0, 0.0), (8.0, 0.0)), ((8.2, 0.0), (9.0, 0.0)), ((0.0, 5.0), (3.0, 5.0)), ((5, 5.5), (5, 9))]  # last: across
+    assert glass_spans((0.0, 0.0), (12.0, 0.0), 0.3, strips) == [(2.0, 9.0)]              # a post between panes is glass
+    assert glass_spans((0.0, 2.0), (12.0, 2.0), 0.3, strips) == []                          # 2 m away: not on it
+
+    from PySide6.QtWidgets import QApplication
+    from archforge.core.commands import AddEntities
+    from archforge.core.model import Entity
+    from archforge.ui.main_window import MainWindow
+    from archforge.ui.building_from_underlay import glass_walls
+    app = QApplication.instance() or QApplication([])
+    w = MainWindow()
+    try:
+        # A room 0–6 × 0–4 (bedroom); a veranda wall in front of it along y = −3 from x = −2 to 10, glass from 0 to 6.
+        walls = [Entity('wall', {'x1': a, 'y1': b, 'x2': c, 'y2': d, 'z': 0.0, 'height': 3.0, 'thickness': 0.2})
+                 for a, b, c, d in [(0, 0, 6, 0), (6, 0, 6, 4), (6, 4, 0, 4), (0, 4, 0, 0), (-2, -3, 10, -3)]]
+        w.stack.execute(AddEntities(walls))
+        face = next(f for f in w.doc.active_room_faces(z=0.0))
+        w.doc.set_room_metadata(face.signature, name='Υπνοδωμάτιο', use='Υπνοδωμάτιο')
+        glass = [((0.0, -3.0), (6.0, -3.0)), ((1.0, 4.0), (5.0, 4.0))]                     # railing; glazing of the room
+        glazed, rails = glass_walls(w, walls, glass, 0.0)
+        assert len(rails) == 1 and len(glazed) == 1
+        rail = w.doc.get(rails[0])
+        assert rail.params['railing_type'] == 'glass_channel' and rail.params['points'] == [[0.0, -3.0], [6.0, -3.0]]
+        front = sorted(round(min(e.params['x1'], e.params['x2']), 2) for e in w.doc.entities.values()
+                       if e.kind == 'wall' and abs(e.params['y1'] + 3) < 1e-6)
+        assert front == [-2.0, 6.0]                                                        # the masonry either side stays
+        pane = next(e for e in w.doc.entities.values() if e.kind == 'window')
+        assert w.doc.get(pane.parent_id).params['y1'] == 4.0 and pane.params['width'] == pytest.approx(3.9)
+        assert len(w.doc.active_room_faces(z=0.0)) == 1                                    # the room still closes
+    finally:
+        w._mark_clean(); w.close(); app.processEvents()

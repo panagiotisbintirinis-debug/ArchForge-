@@ -39,9 +39,100 @@ def analyse(window, eid):
     p = window.doc.get(eid).params
     segs = underlay_model_segments(p, dark_only=True) or underlay_model_segments(p)
     labels = model_labels(p)
+    from archforge.architecture.building_from_drawing import glass_strips
     walls, openings, missing = tidy(find_walls(segs), labels["openings"])
     return {"walls": walls, "openings": openings, "missing": missing, "rooms": labels["rooms"], "levels": labels["levels"],
-            "items": underlay_items(p)}
+            "items": underlay_items(p), "glass": glass_strips(underlay_glass(p))}
+
+
+def glass_walls(window, walls, strips, z):
+    """Walls drawn on a glass strip (the drawing's glass blue between two lines), cut where the glass begins and
+    ends, each glass piece told by what is beside it along its whole length: next to a named indoor room it is
+    glazing — a wall whose length is one fixed pane from the floor; with outdoor ground on both sides (veranda,
+    terrace) it is a glass railing (owner 23/10).  The rest of the wall stays a wall with its openings.  Folded
+    into the build's undo.  ``(glazed wall ids, railing ids)``."""
+    from archforge.architecture.building_from_drawing import glass_spans
+    from archforge.architecture.railings import default_params as railing_params
+    from archforge.architecture.roof_need import OPEN_AIR_USES
+    from archforge.core.commands import AddEntities, DeleteEntities
+    from archforge.core.model import Entity
+    from archforge.geometry.regions import point_in_polygon
+    import math
+    doc = window.doc
+    if not strips:
+        return [], []
+    faces = doc.active_room_faces(z=z)
+
+    def indoor(x, y):
+        for f in faces:
+            if point_in_polygon(x, y, f.polygon):
+                meta = doc.room_metadata(f.signature)
+                return bool(meta.get("name")) and meta.get("use") not in OPEN_AIR_USES
+        return False
+    glazed, rails, gone, new = [], [], [], []
+    for w in walls:
+        if w.id not in doc.entities:
+            continue
+        p = w.params
+        a, b, t = (float(p["x1"]), float(p["y1"])), (float(p["x2"]), float(p["y2"])), float(p["thickness"])
+        L = math.dist(a, b)
+        spans = glass_spans(a, b, t, strips) if L >= 0.3 else []
+        if not spans:
+            continue
+        ux, uy = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+        at = lambda s_: (a[0] + ux * s_, a[1] + uy * s_)
+        hosted = [o for o in doc.entities.values() if o.parent_id == w.id]
+        # The pieces along the wall: masonry between the glass spans, the glass spans themselves.
+        cuts, pos = [], 0.0
+        for s0, s1 in spans:
+            if s0 - pos >= 0.05:
+                cuts.append((pos, s0, False))
+            cuts.append((s0, s1, True))
+            pos = s1
+        if L - pos >= 0.05:
+            cuts.append((pos, L, False))
+        gone.append(w.id)
+        for s0, s1, glass in cuts:
+            piece = dict(p, x1=at(s0)[0], y1=at(s0)[1], x2=at(s1)[0], y2=at(s1)[1])
+            if glass:
+                side = t / 2 + 0.3
+                inside = any(indoor(at(s0 + (s1 - s0) * k / 4)[0] + sgn * -uy * side, at(s0 + (s1 - s0) * k / 4)[1] + sgn * ux * side)
+                             for k in range(5) for sgn in (1, -1))
+                if not inside:
+                    rails.append(Entity("railing", railing_params("glass_channel", [list(at(s0)), list(at(s1))], z=z),
+                                        name=f"Γυάλινο κάγκελο {len(rails) + 1}"))
+                    continue
+                wall = Entity("wall", piece, name=f"{w.name} (τζάμι)")
+                new.append(wall)
+                new.append(Entity("window", {"offset": (s1 - s0) / 2, "width": round(s1 - s0 - 0.10, 3),
+                                             "height": round(float(p["height"]) - 0.05, 3), "sill": 0.0},
+                                  parent_id=wall.id, name=f"Υαλοπέτασμα {len(glazed) + 1}"))
+                glazed.append(wall.id)
+            else:
+                wall = Entity("wall", piece, name=w.name)
+                new.append(wall)
+                for o in hosted:               # its doors / windows stay where the drawing put them
+                    off, half = float(o.params.get("offset", 0.0)), float(o.params.get("width", 0.0)) / 2
+                    if s0 <= off - half and off + half <= s1:      # whole in this piece (not across the glass)
+                        new.append(Entity(o.kind, dict(o.params, offset=off - s0), parent_id=wall.id, name=o.name))
+    if gone:
+        gone += [o.id for o in doc.entities.values() if o.parent_id in gone]
+        window.stack.amend(DeleteEntities(gone))
+    if new or rails:
+        window.stack.amend(AddEntities(new + rails))
+    return glazed, [r.id for r in rails]
+
+
+def underlay_glass(p):
+    """The glass-blue fills of a PDF underlay as model polygons (glass railings, pools)."""
+    if p.get("source") != "pdf":
+        return []
+    from archforge.project.drawing_set import water_fills
+    from archforge.project.underlay import to_model
+    try:
+        return [[to_model(p, x, y) for x, y in poly] for poly in water_fills(p["path"], p.get("page", 0))]
+    except Exception:
+        return []
 
 
 def underlay_items(p):
@@ -126,14 +217,16 @@ def build(window, eid, found=None, ask=True):
             name, use = greek_room(label)
             window.stack.amend(SetRoomMetadata(faces[k].signature, {"name": name, "use": use}))
             named += 1
-    doc.select([w.id for w in walls])
+    glazed, rails = glass_walls(window, walls, found.get("glass", ()), z)
+    doc.select([w.id for w in walls if w.id in doc.entities])
     window._redraw_views(all_views=True)
     window._refresh_project_tree()
     window.refresh_inspector()
     fl = Counter(round(l.value, 2) for l in found["levels"] if not l.ceiling and l.value >= ALTITUDE_MIN).most_common(1)
     summary = {"walls": len(walls), "doors": sum(o.kind == "door" for o in openings),
                "windows": sum(o.kind == "window" for o in openings), "unplaced": len(unplaced),
-               "rooms": named, "room_labels": len(found["rooms"]), "floor_level": fl[0][0] if fl else None}
+               "rooms": named, "room_labels": len(found["rooms"]), "floor_level": fl[0][0] if fl else None,
+               "railings": len(rails), "glazed": len(glazed)}
     text = (f"Τοίχοι: {summary['walls']} · πόρτες: {summary['doors']} · παράθυρα: {summary['windows']}"
             f" · χώροι με όνομα: {named} από {len(found['rooms'])}")
     if unplaced:
