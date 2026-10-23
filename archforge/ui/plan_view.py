@@ -156,12 +156,14 @@ class PlanView(QGraphicsView):
     # Owner 22/10: «υποτίθεται ότι είχαμε αυτόματο σναπ … και εργαλείο να ρυθμίσουμε την απόσταση».  The snap
     # tolerance was a fixed 0,10 m: 5–7 pixels at a whole-house zoom, so an end clicked a little off stayed 2–5 cm
     # short and the room did not close.  It is a reach on the screen now (pixels, «Ακτίνα έλξης»), at any zoom.
-    SNAP_PIXELS=14
+    # Capped at 25 cm (what the room graph joins anyway): zoomed far out, 14 px would be metres and a moved
+    # object would stick to where it was (CI, Windows runner: a body drag stayed at its start).
+    SNAP_PIXELS=14;SNAP_MAX=0.25
     def set_snap_pixels(self,pixels):
         self.snap_pixels=max(2,int(pixels));self._sync_snap_tolerance()
     def _sync_snap_tolerance(self):
         px_per_m=abs(self.transform().m11()) or 1.0
-        self.controller.snap_tolerance=max(0.01,float(getattr(self,'snap_pixels',self.SNAP_PIXELS))/px_per_m)
+        self.controller.snap_tolerance=min(self.SNAP_MAX,max(0.01,float(getattr(self,'snap_pixels',self.SNAP_PIXELS))/px_per_m))
     def set_grid_step(self,step):
         self._grid_step=float(step);self.controller.grid=self.controller.construction_grid=self._grid_step;self.redraw()
     def drawForeground(self,painter,rect):

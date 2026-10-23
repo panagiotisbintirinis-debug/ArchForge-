@@ -49,14 +49,16 @@ def test_plan_snap_reach_is_in_screen_pixels():
     w = MainWindow()
     try:
         pv = w.plan_view
-        pv.resetTransform(); pv.scale(50.0, -50.0)                            # 50 px per metre
+        pv.resetTransform(); pv.scale(100.0, -100.0)                          # 100 px per metre
         pv.set_snap_pixels(14)
-        assert pv.controller.snap_tolerance == pytest.approx(14 / 50)
+        assert pv.controller.snap_tolerance == pytest.approx(14 / 100)
         pv.scale(4.0, 4.0)                                                     # zoomed in: the same 14 px is less model
         pv._sync_snap_tolerance()
-        assert pv.controller.snap_tolerance == pytest.approx(14 / 200)
+        assert pv.controller.snap_tolerance == pytest.approx(14 / 400)
         assert w._mockup_snap_reach.currentText() == '14 px'
         w._mockup_snap_reach.setCurrentText('30 px')
-        assert pv.controller.snap_tolerance == pytest.approx(30 / 200)
+        assert pv.controller.snap_tolerance == pytest.approx(30 / 400)
+        pv.resetTransform(); pv.scale(10.0, -10.0); pv._sync_snap_tolerance()   # far out: never more than 25 cm
+        assert pv.controller.snap_tolerance == pytest.approx(0.25)
     finally:
         w._mark_clean(); w.close(); app.processEvents()
