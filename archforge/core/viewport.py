@@ -460,7 +460,7 @@ class PointerController:
             fits=bool(self.active.preview.get('fits',True));committed_id=self.active.commit()
             self.last_warning=('Σκάλα: μπήκε μέσα στους τοίχους · η πλάκα του ορόφου ανοίγει μόνο όπου δεν μένουν 2,00 m '
                                'ύψος διέλευσης — ο υπόλοιπος χώρος από πάνω μένει · Ctrl+Z = αναίρεση' if fits else
-                               '⚠ Η σκάλα μπήκε αλλά περνά από τοίχο — μετακίνησέ τη ή άλλαξε τύπο · Ctrl+Z = αναίρεση')
+                               '⚠ Η σκάλα μπήκε αλλά συγκρούεται (τοίχος, πόρτα, ντουλάπια ή άλλη σκάλα) — μετακίνησέ τη ή άλλαξε τύπο · Ctrl+Z = αναίρεση')
         elif isinstance(self.active,RampPlaceTransaction):committed_id=self.active.commit()
         elif isinstance(self.active,MoveTransaction):
             if abs(self.active.dx)>1e-12 or abs(self.active.dy)>1e-12 or abs(self.active.dz)>1e-12:self.active.commit()

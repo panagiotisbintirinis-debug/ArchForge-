@@ -322,7 +322,10 @@ def _point_in_convex(p, poly) -> bool:
 
 def _wall_in_opening(a, b, openings, reach) -> bool:
     """The wall axis ab within ``reach`` of one of the slab opening pieces (or inside it)."""
+    seg = (min(a[0], b[0]), min(a[1], b[1]), max(a[0], b[0]), max(a[1], b[1]))
     for poly in openings:
+        if _apart(seg, _bbox(poly, reach)):
+            continue
         if _point_in_convex(a, poly) or _point_in_convex(b, poly):
             return True
         n = len(poly)
@@ -339,6 +342,12 @@ def stair_wall_conflicts(doc, candidate: StairCandidate, walls=None) -> List[str
     there is headroom, stands on the slab — the upper space is used; owner 14/10).
     """
     walls = stair_walls(doc, candidate.lower_z, candidate.upper_floor_z) if walls is None else walls
+    # Walls far from the stair cannot meet it: their boxes fall out first (this runs for every trial position).
+    reach = _bbox(stair_footprint(candidate), candidate.width + 0.5)
+    walls = [w for w in walls if not _apart(reach, (min(float(w.params['x1']), float(w.params['x2'])),
+                                                    min(float(w.params['y1']), float(w.params['y2'])),
+                                                    max(float(w.params['x1']), float(w.params['x2'])),
+                                                    max(float(w.params['y1']), float(w.params['y2']))))]
     upper = [w for w in walls if abs(float(w.params.get('z', 0.0)) - float(candidate.upper_floor_z)) < 1e-3]
     if upper:
         openings = stair_opening_polygons(candidate)
@@ -376,8 +385,10 @@ DOOR_CLEAR_MAX = 1.0          # m in front of a door, both sides: you walk throu
 
 
 def stair_obstacles(doc, lower_z: float, upper_floor_z: float):
-    """``[(id, polygon)]`` on the storey a stair starts from: the free space each side of every door, and the
-    footprint of every cabinet / object standing there."""
+    """``[(id, polygon)]`` on the storey a stair starts from: the free space each side of every door, the
+    footprint of every cabinet / object standing there and of every other stair that starts or arrives there.
+    On the storey it reaches (doors, cabinets, stairs starting there) they come as ``(id, polygon, "upper")``:
+    the slab opening it comes up through must not land on them."""
     from archforge.architecture.openings import plan_segment
     from archforge.architecture.wall_dims import footprint
     out = []
@@ -385,9 +396,22 @@ def stair_obstacles(doc, lower_z: float, upper_floor_z: float):
     for e in doc.entities.values():
         if not e.visible:
             continue
+        if e.kind == 'stair':
+            try:
+                fp = [tuple(q) for q in stair_footprint(candidate_from_params(e.params))]
+            except (KeyError, TypeError, ValueError):
+                continue
+            sl, su = float(e.params.get('lower_z', 0.0)), float(e.params.get('upper_floor_z', e.params.get('upper_z', 0.0)))
+            if abs(sl - float(lower_z)) < 0.2 or abs(su - float(lower_z)) < 0.2:
+                out.append((e.id, fp))
+            elif abs(sl - float(upper_floor_z)) < 0.2:
+                out.append((e.id, fp, 'upper'))
+            continue
         if e.kind == 'door' and e.parent_id in doc.entities:
             w = doc.get(e.parent_id)
-            if w.kind != 'wall' or abs(float(w.params.get('z', 0.0)) - float(lower_z)) > 1e-3:
+            wz = float(w.params.get('z', 0.0))
+            where = () if abs(wz - float(lower_z)) <= 1e-3 else (('upper',) if abs(wz - float(upper_floor_z)) <= 1e-3 else None)
+            if w.kind != 'wall' or where is None:
                 continue
             try:
                 (ax, ay), (bx, by) = plan_segment(w.params, e.params)
@@ -400,23 +424,61 @@ def stair_obstacles(doc, lower_z: float, upper_floor_z: float):
             t = float(w.params.get('thickness', 0.2)) / 2.0
             d = t + min(L, DOOR_CLEAR_MAX)
             out.append((e.id, [(ax + nx * d, ay + ny * d), (bx + nx * d, by + ny * d),
-                               (bx - nx * d, by - ny * d), (ax - nx * d, ay - ny * d)]))
+                               (bx - nx * d, by - ny * d), (ax - nx * d, ay - ny * d)]) + where)
         elif e.kind in ('cabinet', 'library_object'):
             f = footprint(e.params)
             z = float(e.params.get('z', lower_z) or 0.0)
-            if f is None or not lo <= z < hi:
+            if f is None:
+                continue
+            if lo <= z < hi:
+                where = ()
+            elif float(upper_floor_z) - 0.05 <= z < float(upper_floor_z) + 2.0:
+                where = ('upper',)                  # standing where the stair arrives
+            else:
                 continue
             cx, cy, ux, uy, hw, hd = f
             vx, vy = -uy, ux
             out.append((e.id, [(cx + sx * ux * hw + sy * vx * hd, cy + sx * uy * hw + sy * vy * hd)
-                               for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))]))
+                               for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))]) + where)
     return out
+
+
+def _bbox(poly, grow=0.0):
+    xs = [q[0] for q in poly]; ys = [q[1] for q in poly]
+    return min(xs) - grow, min(ys) - grow, max(xs) + grow, max(ys) + grow
+
+
+def _apart(a, b) -> bool:
+    """Two boxes (``_bbox``) that do not touch: nothing inside them can meet."""
+    return a[2] < b[0] or b[2] < a[0] or a[3] < b[1] or b[3] < a[1]
+
+
+def _polygons_overlap(a, b) -> bool:
+    """Two plan polygons share area (a corner inside the other, or crossing edges)."""
+    from archforge.geometry.regions import point_in_polygon
+    if _apart(_bbox(a), _bbox(b)):
+        return False
+    if any(point_in_polygon(q[0], q[1], b) for q in a) or any(point_in_polygon(q[0], q[1], a) for q in b):
+        return True
+    na, nb = len(a), len(b)
+    return any(_seg_seg_distance(a[i], a[(i + 1) % na], b[j], b[(j + 1) % nb]) < 1e-6
+               for i in range(na) for j in range(nb))
 
 
 def stair_obstacle_conflicts(candidate: StairCandidate, obstacles) -> List[str]:
     """Ids of the obstacles (``stair_obstacles``) the stair's flights or landings run into."""
     from archforge.geometry.regions import point_in_polygon
     hits = []
+    # Far away obstacles first fall out on their boxes (this runs for every trial position of every mouse move).
+    reach = _bbox(stair_footprint(candidate), candidate.width)
+    near = [o for o in obstacles if not _apart(reach, _bbox(o[1]))]
+    upper = [o for o in near if len(o) > 2]
+    obstacles = [o[:2] for o in near if len(o) == 2]
+    if upper:
+        openings = stair_opening_polygons(candidate)
+        for oid, poly, _where in upper:
+            if any(_polygons_overlap(op, poly) for op in openings):
+                hits.append(oid)
     if candidate.layout == 'spiral':
         centre, radius = _spiral_disc(candidate)
         for oid, poly in obstacles:

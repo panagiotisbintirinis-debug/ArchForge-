@@ -555,7 +555,7 @@ class StairPlaceTransaction:
         fits=bool(self.fits[self.active_index])
         suggestions=list(active.suggestions)
         if not fits:
-            suggestions.insert(0,'⚠ Η σκάλα περνά από τοίχο, μπροστά από πόρτα ή πάνω σε ντουλάπια — δεν χωράει εδώ: σύρε αλλού ή άλλαξε τύπο (Tab / ροδέλα)')
+            suggestions.insert(0,'⚠ Η σκάλα περνά από τοίχο, μπροστά από πόρτα, πάνω σε ντουλάπια ή άλλη σκάλα — δεν χωράει εδώ: σύρε αλλού ή άλλαξε τύπο (Tab / ροδέλα)')
         self.preview={
             'chosen':active.to_params(),
             'fits':fits,

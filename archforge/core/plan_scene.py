@@ -139,7 +139,9 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
         if not e.parent_id or e.parent_id not in doc.entities:return False
         return _entity_on_active_level(doc,doc.get(e.parent_id),tolerance)
     if e.kind in ('stair','ramp'):
-        return abs(float(p.get('lower_z',0.0))-z)<=tolerance or abs(float(p.get('upper_z',0.0))-z)<=tolerance
+        # The storey it arrives on is upper_floor_z: upper_z is the finished floor (slab + finishes above it).
+        return (abs(float(p.get('lower_z',0.0))-z)<=tolerance or abs(float(p.get('upper_z',0.0))-z)<=tolerance
+                or abs(float(p.get('upper_floor_z',p.get('upper_z',0.0)))-z)<=tolerance)
     if e.kind in ('door','window','opening'):
         if not e.parent_id or e.parent_id not in doc.entities:return False
         host=doc.get(e.parent_id);hp=host.params

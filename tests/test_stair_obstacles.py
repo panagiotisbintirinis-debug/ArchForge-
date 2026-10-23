@@ -64,3 +64,41 @@ def test_dragging_the_stair_next_to_the_door_moves_it_clear_or_shows_red():
     else:
         assert stair_obstacle_conflicts(c, obstacles) or stair_wall_conflicts(doc, c)
         assert 'πόρτα' in tx.preview['suggestions'][0]
+
+
+def test_a_stair_from_the_basement_does_not_come_up_inside_the_stair_of_the_ground_floor():
+    """Driving the house: the basement L arrived on the ground floor exactly where the U up to the first floor starts."""
+    from archforge.architecture.stairs import stair_opening_polygons, _polygons_overlap, stair_footprint
+    doc, stack, ids = _house(door=False)
+    tx = StairPlaceTransaction(doc, stack, (5.5, 6.8))
+    for x in (4.5, 3.0, 1.5):
+        tx.update(x, 6.8)
+    stack.execute(AddEntity(Entity('stair', tx.active_candidate.to_params())))
+    up = next(e for e in doc.entities.values() if e.kind == 'stair')
+    stack.execute(CreateFloorLevel('Basement', -3.0))
+    tx = StairPlaceTransaction(doc, stack, (5.5, 6.8))
+    for x in (4.5, 3.0, 1.5):
+        tx.update(x, 6.8)
+    c = tx.active_candidate
+    landed_on = any(_polygons_overlap(op, list(stair_footprint(candidate_from_params(up.params))))
+                    for op in stair_opening_polygons(c))
+    if tx.preview['fits']:
+        assert not landed_on
+    else:
+        assert up.id in stair_obstacle_conflicts(c, stair_obstacles(doc, c.lower_z, c.upper_floor_z))
+
+
+def test_the_stair_from_the_basement_is_drawn_on_the_floor_it_arrives_on():
+    """Driving the house: the basement stair arrives at +0,15 (finished floor over the slab) and the ground floor
+    plan, at 0,00, did not draw it — no ΚΑΤ, no opening."""
+    from archforge.core.plan_scene import build_plan_frame
+    doc, stack, ids = _house(door=False)
+    plane = copy.deepcopy(doc.work_plane)
+    stack.execute(CreateFloorLevel('Basement', -3.0))
+    tx = StairPlaceTransaction(doc, stack, (1.0, 1.5)); tx.update(1.0, 4.5)
+    params = tx.active_candidate.to_params()
+    params.update(upper_z=0.15, riser_height=(0.15 - params['lower_z']) / params['riser_count'])   # finished floor
+    e = Entity('stair', params); stack.execute(AddEntity(e))
+    stack.execute(SetWorkPlane(plane))
+    roles = [p.role for p in build_plan_frame(doc).primitives if p.entity_id == e.id]
+    assert 'stair' in roles and any(r.startswith('stair-') for r in roles)

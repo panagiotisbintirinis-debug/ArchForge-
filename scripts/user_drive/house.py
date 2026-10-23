@@ -129,4 +129,56 @@ print('  σκάλες', len(st), st[-1].params.get('layout') if st else None, '|
 u.end()
 u.shot('stair_placed')
 stage('basement')
+u.begin('Υπόγειο (κουμπί «Υπόγειο»)')
+u.toolbar('Υπόγειο')
+z = u.w.doc.work_plane.origin[2]
+print('  levels', u.w.doc.levels, '| wp z', z, '|', u.status()[:120])
+u.end()
+u.shot('basement_empty')
+u.begin('Υπόγειο: περίγραμμα 10×8 πάνω στο αχνό ισόγειο')
+u.toolbar('Τοίχος')
+for p in [(0,0),(10,0),(10,8),(0,8),(0,0)]: u.click(*p)
+u.mm(3,-3,'mm:tool:select')
+bw = [e.params for e in u.w.doc.entities.values() if e.kind=='wall' and abs(e.params['z']-z)<1e-6]
+print('  τοίχοι υπογείου', len(bw), sorted((round(w['x1'],3),round(w['y1'],3),round(w['x2'],3),round(w['y2'],3)) for w in bw))
+if len(bw) != 4: u.note(f'το ορθογώνιο υπογείου έβγαλε {len(bw)} τοίχους')
+print('  χώροι', len(u.w.doc.active_room_faces(z=z)))
+u.end()
+u.begin('Υπόγειο: ένα χώρισμα (αποθήκη / λεβητοστάσιο)')
+u.toolbar('Τοίχος'); u.click(6,0); u.dbl(6,8); u.mm(3,-3,'mm:tool:select')
+print('  χώροι', len(u.w.doc.active_room_faces(z=z)))
+u.end()
+u.shot('basement')
+stage('stair_down')
+u.begin('Υπόγειο: σκάλα προς το ισόγειο, κάτω από την πρώτη (Κατασκευή ▸ Σκάλα ▸ Σκάλα, σύρσιμο)')
+u.mm(3, -3, 'mm:tool:stair'); print('  εργαλείο', u.plan.controller.tool, '|', u.status()[:80])
+vp = u.plan.viewport()
+QTest.mousePress(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, u._pos(5.5, 6.8)); u.pump()
+for x in (4.5, 3.0, 1.5):
+    QTest.mouseMove(vp, u._pos(x, 6.8)); u.pump()
+pv = u.plan.controller.preview; ch = pv.geometry.get('chosen', {})
+print('  προεπισκόπηση:', ch.get('layout'), 'fits', pv.geometry.get('fits'), 'αρχή', round(ch.get('x', 0), 2), round(ch.get('y', 0), 2), '|', u.status()[:100])
+QTest.mouseRelease(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, u._pos(1.5, 6.8)); u.pump(); u.steps += 1
+st = [e.params for e in u.w.doc.entities.values() if e.kind == 'stair']
+if pv.geometry.get('fits') is False:
+    u.note('η σκάλα υπογείου κάτω από την πρώτη: κόκκινη (θα έβγαινε μέσα στη σκάλα του ισογείου) → Ctrl+Z, αλλού')
+    u.w.stack.undo(); u.steps += 1; u.pump()           # the stair tool stays on: drag again
+    QTest.mousePress(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, u._pos(1.0, 1.5)); u.pump()
+    for y in (2.5, 3.5, 4.5):
+        QTest.mouseMove(vp, u._pos(1.0, y)); u.pump()
+    pv = u.plan.controller.preview; ch = pv.geometry.get('chosen', {})
+    print('  2η προσπάθεια:', ch.get('layout'), 'fits', pv.geometry.get('fits'), 'αρχή', round(ch.get('x', 0), 2), round(ch.get('y', 0), 2))
+    QTest.mouseRelease(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, u._pos(1.0, 4.5)); u.pump(); u.steps += 1
+st = [e.params for e in u.w.doc.entities.values() if e.kind == 'stair']
+print('  σκάλες', len(st), [(p['layout'], p['lower_z'], p['upper_z']) for p in st], '|', u.status()[:110])
+if len(st) < 2: u.note('η σκάλα υπογείου δεν μπήκε')
+u.mm(3,-3,'mm:tool:select')
+u.end()
+u.shot('basement_stair')
+u.floor('Ground'); u.see(5, 4); u.shot('ground_two_stairs')
+from archforge.architecture.stairs import candidate_from_params, stair_footprint
+fps = [(e.params['layout'], [tuple(round(c, 2) for c in q) for q in stair_footprint(candidate_from_params(e.params))])
+       for e in u.w.doc.entities.values() if e.kind == 'stair']
+print('  αποτυπώματα', fps)
+stage('outside')
 report()

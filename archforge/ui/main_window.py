@@ -3460,7 +3460,8 @@ class MainWindow(QMainWindow):
         self.doc.select([])
         self._redraw_views(all_views=True)
         self.refresh_inspector()
-        self.statusBar().showMessage(f'Ενεργός όροφος: {name} — {elevation:.2f} m', 3000)
+        from archforge.output.pdf import level_name
+        self.statusBar().showMessage(f'Ενεργός όροφος: {level_name(name)} — {elevation:.2f} m'.replace('.', ','), 3000)
 
     def _add_floor_level(self):
         from archforge.architecture.stairs import discover_building_levels
