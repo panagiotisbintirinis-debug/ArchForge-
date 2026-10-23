@@ -402,10 +402,14 @@ def stair_obstacles(doc, lower_z: float, upper_floor_z: float):
             except (KeyError, TypeError, ValueError):
                 continue
             sl, su = float(e.params.get('lower_z', 0.0)), float(e.params.get('upper_floor_z', e.params.get('upper_z', 0.0)))
-            if abs(sl - float(lower_z)) < 0.2 or abs(su - float(lower_z)) < 0.2:
-                out.append((e.id, fp))
-            elif abs(sl - float(upper_floor_z)) < 0.2:
-                out.append((e.id, fp, 'upper'))
+            if su < float(lower_z) - 0.2 or sl > float(upper_floor_z) + 0.2:
+                continue                                     # wholly below / above: cannot meet
+            # In 3D: where the two walking surfaces are closer than the headroom (two stairs of one floor crossing,
+            # a flight over another's low steps or where you step off it) — a stacked stairwell passes.
+            cells = _stair_cells(candidate_from_params(e.params))
+            pts = [q for v in cells.values() for q in v]
+            out.append((e.id, cells, 'stair3d', (min(q[0] for q in pts), min(q[1] for q in pts),
+                                                 max(q[0] for q in pts), max(q[1] for q in pts))))
             continue
         if e.kind == 'door' and e.parent_id in doc.entities:
             w = doc.get(e.parent_id)
@@ -475,6 +479,74 @@ def arrival_point(candidate: StairCandidate) -> Point2:
     return bx + (bx - ax) / L * 0.30, by + (by - ay) / L * 0.30
 
 
+HEADROOM = 2.10            # m of clear height under a flight passing over another stair's opening (practice, προς έλεγχο)
+
+
+def _arrival_zone(c: StairCandidate):
+    """The floor where you step off a stair: its width, 1 m past the end of its walking line."""
+    path = stair_centerline(c)
+    (ax, ay), (ex, ey) = path[-2], path[-1]
+    L = hypot(ex - ax, ey - ay) or 1.0
+    dx, dy = (ex - ax) / L, (ey - ay) / L
+    nx, ny, h = -dy, dx, c.width / 2.0
+    return [(ex + nx * h, ey + ny * h), (ex + dx + nx * h, ey + dy + ny * h),
+            (ex + dx - nx * h, ey + dy - ny * h), (ex - nx * h, ey - ny * h)]
+
+
+CELL = 0.25                # m: the grid the stairs' walking surfaces are compared on
+NEAR = 0.12                # m in plan: two samples this close are over each other
+
+
+def _stair_points(c: StairCandidate, step: float = 0.2):
+    """``(x, y, z)`` of a stair's walking surface (flights and landings, edge to edge) and of the floor where you step
+    off it (its arrival zone, at its top level)."""
+    path = stair_centerline(c)
+    lengths = [hypot(path[i + 1][0] - path[i][0], path[i + 1][1] - path[i][1]) for i in range(len(path) - 1)]
+    total = sum(lengths) or 1.0
+    rise = float(c.upper_z) - float(c.lower_z)
+    half = c.width / 2.0 - WALL_CLEARANCE
+    lat = max(1, int(round(2 * half / step)))
+    out, walked = [], 0.0
+    for (a, b), L in zip(zip(path, path[1:]), lengths):
+        if L < 1e-9:
+            continue
+        ux, uy = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+        n = max(1, int(L / step))
+        for k in range(n + 1):
+            t = L * k / n
+            x, y, z = a[0] + ux * t, a[1] + uy * t, float(c.lower_z) + rise * (walked + t) / total
+            for j in range(lat + 1):
+                o = -half + 2 * half * j / lat
+                out.append((x - uy * o, y + ux * o, z))
+        walked += L
+    zone = _arrival_zone(c)
+    (x0, y0), (x1, y1), _x2, (x3, y3) = zone
+    for i in range(6):
+        for j in range(lat + 1):
+            fu, fv = i / 5, j / lat
+            out.append((x0 + (x1 - x0) * fu + (x3 - x0) * fv, y0 + (y1 - y0) * fu + (y3 - y0) * fv, float(c.upper_z)))
+    return out
+
+
+def _stair_cells(c: StairCandidate):
+    cells = {}
+    for x, y, z in _stair_points(c):
+        cells.setdefault((int(x // CELL), int(y // CELL)), []).append((x, y, z))
+    return cells
+
+
+def _stairs_clash(c: StairCandidate, cells) -> bool:
+    """The stair's walking surface comes within the headroom of the other's (``_stair_cells``) somewhere."""
+    for x, y, z in _stair_points(c):
+        i, j = int(x // CELL), int(y // CELL)
+        for di in (-1, 0, 1):
+            for dj in (-1, 0, 1):
+                for qx, qy, qz in cells.get((i + di, j + dj), ()):
+                    if abs(qz - z) < HEADROOM and abs(qx - x) < NEAR and abs(qy - y) < NEAR:
+                        return True
+    return False
+
+
 def _bbox(poly, grow=0.0):
     xs = [q[0] for q in poly]; ys = [q[1] for q in poly]
     return min(xs) - grow, min(ys) - grow, max(xs) + grow, max(ys) + grow
@@ -509,6 +581,10 @@ def stair_obstacle_conflicts(candidate: StairCandidate, obstacles) -> List[str]:
             if not any(point_in_polygon(ax, ay, poly) for poly in o[1]):
                 hits.append(o[0])
     obstacles = [o for o in obstacles if not (len(o) > 2 and o[2] == 'arrive')]
+    for o in [o for o in obstacles if len(o) > 2 and o[2] == 'stair3d']:
+        if not _apart(reach, o[3]) and _stairs_clash(candidate, o[1]):
+            hits.append(o[0])
+    obstacles = [o for o in obstacles if not (len(o) > 2 and o[2] == 'stair3d')]
     near = [o for o in obstacles if not _apart(reach, _bbox(o[1]))]
     upper = [o for o in near if len(o) > 2]
     obstacles = [o[:2] for o in near if len(o) == 2]

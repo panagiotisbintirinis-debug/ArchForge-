@@ -66,26 +66,27 @@ def test_dragging_the_stair_next_to_the_door_moves_it_clear_or_shows_red():
         assert 'πόρτα' in tx.preview['suggestions'][0]
 
 
-def test_a_stair_from_the_basement_does_not_come_up_inside_the_stair_of_the_ground_floor():
-    """Driving the house: the basement L arrived on the ground floor exactly where the U up to the first floor starts."""
-    from archforge.architecture.stairs import stair_opening_polygons, _polygons_overlap, stair_footprint
+def test_stairs_meet_in_3d_only_where_the_headroom_is_missing():
+    """Driving the house: the basement stair came up where the ground floor's stair starts (its low steps over the
+    opening) — a clash. A stacked stairwell (S02: the same U a storey higher) is not: the flights are 3 m apart."""
+    from archforge.architecture.stairs import _stair_cells, _stairs_clash
     doc, stack, ids = _house(door=False)
-    tx = StairPlaceTransaction(doc, stack, (5.5, 6.8))
-    for x in (4.5, 3.0, 1.5):
-        tx.update(x, 6.8)
-    stack.execute(AddEntity(Entity('stair', tx.active_candidate.to_params())))
-    up = next(e for e in doc.entities.values() if e.kind == 'stair')
-    stack.execute(CreateFloorLevel('Basement', -3.0))
-    tx = StairPlaceTransaction(doc, stack, (5.5, 6.8))
-    for x in (4.5, 3.0, 1.5):
-        tx.update(x, 6.8)
-    c = tx.active_candidate
-    landed_on = any(_polygons_overlap(op, list(stair_footprint(candidate_from_params(up.params))))
-                    for op in stair_opening_polygons(c))
-    if tx.preview['fits']:
-        assert not landed_on
-    else:
-        assert up.id in stair_obstacle_conflicts(c, stair_obstacles(doc, c.lower_z, c.upper_floor_z))
+    tx = StairPlaceTransaction(doc, stack, (1.0, 1.5)); tx.update(1.0, 6.0)
+    base = tx.active_candidate.to_params()
+    ground = candidate_from_params(dict(base, layout='straight', x=1.0, y=1.5, angle_deg=90.0))
+    cells = _stair_cells(ground)
+    # Same floor, crossing it: clash.
+    across = candidate_from_params(dict(base, layout='straight', x=-0.5 + 0.6, y=3.0, angle_deg=0.0))
+    assert _stairs_clash(across, cells)
+    # The same flight a storey lower (stacked): no clash.
+    rise = ground.upper_z - ground.lower_z
+    below = candidate_from_params(dict(base, layout='straight', x=1.0, y=1.5, angle_deg=90.0,
+                                       lower_z=-3.0, upper_z=0.0, upper_floor_z=0.0, riser_height=3.0 / base['riser_count']))
+    assert not _stairs_clash(below, cells) and rise > 2.1
+    # A basement flight arriving where the ground flight starts (its top under the ground flight's low steps): clash.
+    under = candidate_from_params(dict(base, layout='straight', x=1.0, y=-2.0, angle_deg=90.0,
+                                       lower_z=-3.0, upper_z=0.0, upper_floor_z=0.0, riser_height=3.0 / base['riser_count']))
+    assert _stairs_clash(under, cells)
 
 
 def test_the_stair_from_the_basement_is_drawn_on_the_floor_it_arrives_on():
