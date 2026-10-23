@@ -3032,8 +3032,15 @@ class MainWindow(QMainWindow):
         target = None
         if entity.kind == 'wall':
             target = QComboBox(dialog)
-            target.addItem('Πλευρά Α', 'exterior')
-            target.addItem('Πλευρά Β', 'interior')
+            # The face that really looks out is «Εξωτερική», whichever way the wall was drawn (wall_face.side_roles).
+            from archforge.architecture.wall_face import side_roles
+            roles = side_roles(self.doc, entity.id)
+            if roles:
+                target.addItem('Εξωτερική πλευρά (προς τα έξω)', roles[0])
+                target.addItem('Εσωτερική πλευρά', roles[1])
+            else:
+                target.addItem('Πλευρά Α', 'exterior')
+                target.addItem('Πλευρά Β', 'interior')
             target.addItem('Και οι δύο πλευρές', 'both')
             target.setToolTip(
                 'Το τελείωμα είναι ανά πλευρά του τοίχου: Α και Β είναι οι δύο '

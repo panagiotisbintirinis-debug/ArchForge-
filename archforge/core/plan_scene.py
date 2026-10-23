@@ -956,7 +956,8 @@ def build_plan_frame(doc,preview=None,layers=True):
         if p and doc.get(eid).kind=='wall' and doc.get(eid).params.get('wall_type','generic')!='generic':
             # Layer boundaries of the wall assembly; insulation drawn dashed.
             from archforge.architecture.wall_types import layer_lines
-            for pts,insulation in layer_lines(doc.get(eid).params,doc.get(eid).params['wall_type']):
+            from archforge.architecture.wall_face import outside_sign
+            for pts,insulation in layer_lines(doc.get(eid).params,doc.get(eid).params['wall_type'],outside_sign(doc,eid)):
                 f.primitives.append(Primitive2D('polyline',tuple(pts),entity_id=eid,role='wall-insulation' if insulation else 'wall-layer'))
         if p and doc.get(eid).kind=='pitched_roof':
             from archforge.structure.timber_roof import members
