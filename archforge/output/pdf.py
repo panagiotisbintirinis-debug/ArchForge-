@@ -9,8 +9,9 @@ prints sharp at any size.  Plans:
 * walls filled (poché), cut by their doors (leaf + swing), windows (glass
   lines) and openings; columns black; stairs and fitted furniture as thin
   lines; every room with its name, area and inner size;
-* dimensions: every exterior wall on its outer face (its length with the
-  corners) and the overall width / depth of the storey.
+* dimensions: architecture/dimensions.py, as the plan view — on every façade
+  a chain through its openings, the whole façade and the overall width /
+  depth; the interior (clear room sizes) and tape ones when the storey has them.
 
 Everything comes from the same Document the program draws from; nothing is
 typed twice.
@@ -294,27 +295,17 @@ def _plan_page(sh, doc, storey, sheet_no, project, date):
         sh.text(mx, my + 1.2, f"{a:.2f} m²", size=7.5, align="center", w=50)
         sh.text(mx, my + 4.6, f"{rw:.2f} × {rd:.2f}", size=6.5, align="center", w=50,
                 color=QColor(110, 110, 110))
-    # Dimensions: exterior walls on their outer face, then the overall size.
-    for w, (nx, ny) in exterior_walls(doc, z):
-        p = w.params
-        ax, ay, bx, by = (float(p[k_]) for k_ in ("x1", "y1", "x2", "y2"))
-        L = math.hypot(bx - ax, by - ay)
-        if L < .3:
-            continue
-        ux, uy = (bx - ax) / L, (by - ay) / L
-        t = float(p.get("thickness", .2))
-        e0 = t / 2 if any(_on_segment_dist(ax, ay, *(float(o.params[k_]) for k_ in ("x1", "y1", "x2", "y2"))) < .01 for o in walls if o.id != w.id) else 0
-        e1 = t / 2 if any(_on_segment_dist(bx, by, *(float(o.params[k_]) for k_ in ("x1", "y1", "x2", "y2"))) < .01 for o in walls if o.id != w.id) else 0
-        face = lambda u: (ax + ux * u + nx * t / 2, ay + uy * u + ny * t / 2)
-        # Chain: corner, every opening's jambs, corner — then the whole wall further out.
-        stops = [-e0] + sorted(v for u0, u1, e, _f in holes if e.parent_id == w.id for v in (u0, u1)) + [L + e1]
-        if len(stops) > 2:
-            for a_, b_ in zip(stops, stops[1:]):
-                if b_ - a_ > .05:
-                    _dimension(sh, face(a_), face(b_), (nx, ny), 6.0, b_ - a_, to_mm)
-            _dimension(sh, face(-e0), face(L + e1), (nx, ny), 12.0, L + e0 + e1, to_mm)
-        else:
-            _dimension(sh, face(-e0), face(L + e1), (nx, ny), 6.0, L + e0 + e1, to_mm)
+    # Dimensions (architecture/dimensions.py, the same chains as the plan view): the exterior ones always —
+    # through the openings, each façade, the overall size — plus the interior / tape ones the storey asks for.
+    from archforge.architecture import dimensions as D
+    dims = D.exterior(doc, z)
+    s_ = D.settings(doc, z)
+    if s_ is not None and int(s_.params.get("interior", 0)):
+        dims += D.interior(doc, z)
+    dims += [d for d in (D.manual(e) for e in doc.entities.values() if e.kind == "dimension" and e.visible
+                         and abs(float(e.params.get("level_z", 0.0)) - z) <= D.LEVEL_TOL) if d is not None]
+    for d in dims:
+        _dimension(sh, d["a"], d["b"], d["n"], float(d["offset"]) * k, d["value"], to_mm)
     _north(sh, 275, 30)
     _scale_bar(sh, 14, 190, scale)
     _title_block(sh, f"Κάτοψη {level_name(storey['name'])}", scale, sheet_no, project, date)

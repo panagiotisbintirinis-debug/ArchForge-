@@ -31,7 +31,8 @@ def test_start_page_tab_actions_and_menu(data):
     w = MainWindow()
     try:
         page = SP.show_start(w)
-        assert w._central_tabs.currentWidget() is page and w._central_tabs.tabText(0) == "Αρχική"
+        assert SP.is_shown(w) and page.parent() is w                # over the window, not a tab of the drawing
+        assert all(w._central_tabs.widget(i) is not page for i in range(w._central_tabs.count()))
         texts = {b.text() for b in page.findChildren(QPushButton)}
         assert {"Νέο έργο", "Άνοιγμα έργου…", "Άνοιγμα δείγματος…", "Από τα σχέδια του μηχανικού (PDF)…"} <= texts
         assert not SP.mark_path(100).isEmpty()
@@ -43,9 +44,39 @@ def test_start_page_tab_actions_and_menu(data):
         assert "villa.archforge" in {b.text() for b in page.findChildren(QPushButton)}
         w._no_modal_dialogs = True
         page._go(w.new_project)
-        assert w._central_tabs.indexOf(page) < 0                     # it steps aside for the project
+        assert not SP.is_shown(w)                                   # it steps aside for the project
         w._start_action.trigger()
-        assert w._central_tabs.currentWidget() is page
+        assert SP.is_shown(w)
+        page.close_button.click()                                   # ✕ = back to the drawing
+        assert not SP.is_shown(w)
+    finally:
+        w._mark_clean(); w.close(); app.processEvents()
+
+
+def test_start_page_is_its_own_environment_not_a_tab(data):
+    """Owner 23/10: «παλιό αρχείο, κάνω επιλογή και με πετάει στην Αρχική» · «η Αρχική άλλο περιβάλλον, όχι στο
+    σχεδιαστικό» — it covers the window under the menu bar; the plan stays tab 0; opening a project from the File
+    menu takes it away, and a plan tool never brings it back."""
+    from PySide6.QtWidgets import QApplication
+    from archforge.ui.main_window import MainWindow
+    from archforge.ui import start_page as SP
+    app = QApplication.instance() or QApplication([])
+    w = MainWindow(); w.resize(1200, 800); w.show(); app.processEvents()
+    try:
+        tabs = w._central_tabs
+        plan_tab = tabs.widget(0)
+        page = SP.show_start(w); app.processEvents()
+        assert tabs.widget(0) is plan_tab and SP.is_shown(w)
+        assert page.geometry().top() >= w.menuBar().geometry().bottom()           # the menus stay usable
+        assert page.geometry().bottom() >= w.rect().bottom() - 1                  # the drawing is hidden under it
+        path = str(data / "old.archforge")
+        w.current_path = path
+        assert w.save()
+        w._no_modal_dialogs = True
+        assert w.open(path) is not False                           # Αρχείο ▸ Άνοιγμα, not the page's link
+        assert not SP.is_shown(w) and tabs.currentWidget() is plan_tab
+        w._start_view_line_tool('section')                         # a plan tool: the plan, never the start page
+        assert tabs.currentWidget() is plan_tab and not SP.is_shown(w)
     finally:
         w._mark_clean(); w.close(); app.processEvents()
 

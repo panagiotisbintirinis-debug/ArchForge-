@@ -179,6 +179,12 @@ class PlanView(QGraphicsView):
     CONTAINER_KINDS=('room_floor','room_ceiling','room_foundation','room_roof','floor','room',
                      'pitched_roof','ceiling_joists','terrain')
 
+    def _room_at(self,pos):
+        """True when the view point lies inside a room of the active storey."""
+        from archforge.geometry.regions import point_in_polygon
+        q=self._scene_to_plane(pos)
+        try:return any(point_in_polygon(float(q.a),float(q.b),f.polygon) for f in self.doc.active_room_faces())
+        except (ValueError,KeyError):return False
     def itemAt(self,*args):
         """Most specific pickable item under the cursor (handles first, then objects, then containers)."""
         items=self.items(*args)
@@ -231,7 +237,7 @@ class PlanView(QGraphicsView):
     def _overlay(self,kind,event):
         # Overlay tool (the assistant's kitchen/bath guide lines, fixture drag): gets the mouse first.
         # The camera tool (ui/camera_tool.py: place / move / turn a camera) comes first.
-        return any(tool is not None and bool(tool.handle(self,kind,event)) for tool in (getattr(self,'pool_tool',None),getattr(self,'terrain_tool',None),getattr(self,'camera_tool',None),getattr(self,'overlay_tool',None),getattr(self,'dims_tool',None)))
+        return any(tool is not None and bool(tool.handle(self,kind,event)) for tool in (getattr(self,'tape_tool',None),getattr(self,'pool_tool',None),getattr(self,'terrain_tool',None),getattr(self,'camera_tool',None),getattr(self,'overlay_tool',None),getattr(self,'dims_tool',None)))
     CLICK_PX=8   # press → release within this many screen pixels is a click, not a drag
     def _wall_chain_active(self):
         return getattr(self.controller,'wall_chain',None) is not None and self.controller.active is not None
@@ -270,6 +276,8 @@ class PlanView(QGraphicsView):
             hit=self.itemAt(event.pos());handle=self._handle_items.get(hit)
             eid=handle.entity_id if handle is not None else self._entity_items.get(hit)
             busy=self.controller.tool=='wall' or window.sculpt_action.isChecked()
+            if eid in self.doc.entities and self.doc.get(eid).kind in self.CONTAINER_KINDS and self._room_at(event.pos()):
+                eid=None          # inside a room the room's menu (Κουζίνα / Μπάνιο εδώ…), not the storey's floor slab
             if busy or not eid or eid not in self.doc.entities:
                 eid=None
             elif eid not in self.doc.selection:      # right click inside a multiple selection keeps it (Διαγραφή = all)
@@ -922,6 +930,7 @@ class PlanView(QGraphicsView):
         if getattr(self,'terrain_tool',None) is not None:self.terrain_tool.paint(self)
         if getattr(self,'pool_tool',None) is not None:self.pool_tool.paint(self)
         if getattr(self,'camera_tool',None) is not None:self.camera_tool.paint(self)
+        if getattr(self,'tape_tool',None) is not None:self.tape_tool.paint(self)   # Μεζούρα (dimension_tool.py)
         if getattr(self,'dims_tool',None) is not None:self.dims_tool.paint(self)   # dimensions of a selected wall (wall_dims_tool.py)
         if self.carry is not None:self.carry.paint(self)
         if self.controller.preview.kind=='rotate' and self.controller.active is not None:self._draw_rotate_dial(self.controller.preview)
@@ -996,6 +1005,10 @@ class PlanView(QGraphicsView):
         if p.role in ('pipe-cold','pipe-hot'):
             pen=QPen(QColor(31,111,209) if p.role=='pipe-cold' else QColor(209,48,31))
             pen.setWidthF(.035 if dict(p.meta).get('diameter',16)>=20 else .02)
+        if p.role=='dimension':
+            # Dimensions (architecture/dimensions.py): blue, the ticks and extension lines thinner.
+            sel=p.entity_id in (self.doc.selection or ());pen=QPen(QColor(20,110,220) if sel else QColor(30,90,170))
+            pen.setWidthF((.008 if dict(p.meta).get('thin') else .012)*(2 if sel else 1))
         if p.role in ('roof-outline','roof-ridge'):
             pen=QPen(QColor(150,70,40));pen.setWidthF(.02 if p.role=='roof-outline' else .015)
             pen.setStyle(Qt.PenStyle.DashLine if p.role=='roof-outline' else Qt.PenStyle.DashDotLine)
@@ -1129,6 +1142,13 @@ class PlanView(QGraphicsView):
                 f=item.font();f.setBold(True);f.setPointSizeF(f.pointSizeF()*1.25);item.setFont(f)
                 item.setDefaultTextColor(QColor(210,40,40) if text.startswith('⚠') else QColor(20,110,220))
             item.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations,True);item.setPos(cx,cy);item.setTransformOriginPoint(item.boundingRect().center());item.setScale(1.0);item.setZValue(8);
+            if p.role=='dimension-label':
+                # Along its dimension line, just above it (screen y is the plan's −y, so the angle turns over).
+                from PySide6.QtGui import QTransform
+                f=item.font();f.setPointSizeF(f.pointSizeF()*.9);item.setFont(f);item.setDefaultTextColor(QColor(30,90,170))
+                r=item.boundingRect();item.setTransform(QTransform().rotate(-float(meta.get('angle',0.))).translate(-r.width()/2,-r.height()+4))
+                if p.entity_id:self._entity_items[item]=p.entity_id
+                meta.pop('align',None)
             if meta.get('align'):
                 # Placed label (plan_scene.place_labels): this point of the text box sits on the anchor.
                 from PySide6.QtGui import QTransform

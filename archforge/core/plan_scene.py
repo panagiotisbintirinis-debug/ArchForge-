@@ -121,7 +121,7 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
     """Keep FLOOR PLAN focused on the active storey while 3D remains whole-building."""
     z=float(doc.work_plane.origin[2]);p=e.params
     if e.kind=='section_line':return True          # a section cuts every storey
-    if e.kind=='camera':return abs(float(p.get('level_z',0.0))-z)<=tolerance
+    if e.kind in ('camera','dimension','auto_dimensions'):return abs(float(p.get('level_z',0.0))-z)<=tolerance
     if e.kind=='wall':return abs(float(p.get('z',0.0))-z)<=tolerance
     if e.kind=='pod':return abs(float(p.get('floor_level',0.0))-z)<=tolerance
     if e.kind=='floor':
@@ -295,6 +295,19 @@ def _heating_primitives(doc,f):
     placed=place_labels(tuple((text,c) for _r,text,c in specs))
     for (_r,text,_c),(anchor,align,min_scale) in zip(specs,placed):
         f.primitives.append(Primitive2D('label',(anchor,),role='heat-label',meta=(('text',text),('align',align),('min_scale',min_scale))))
+
+def _dimension_primitives(doc,f):
+    """Tape-measured and automatic dimensions of the active storey (architecture/dimensions.py)."""
+    if not any(e.kind in ('dimension','auto_dimensions') for e in doc.entities.values()):return
+    from archforge.architecture.dimensions import drawing,fmt,storey_dimensions
+    for d in storey_dimensions(doc,float(doc.work_plane.origin[2])):
+        g=drawing(d);eid=d['entity_id'];meta=(('kind',d['kind']),)
+        f.primitives.append(Primitive2D('polyline',g['line'],entity_id=eid,role='dimension',meta=meta))
+        for seg in g['extensions']+g['ticks']:
+            f.primitives.append(Primitive2D('polyline',seg,entity_id=eid,role='dimension',meta=meta+(('thin',True),)))
+        # Hidden when zoomed out so far that the number would not fit between the ticks (≈ 44 px).
+        f.primitives.append(Primitive2D('label',(g['text_at'],),entity_id=eid,role='dimension-label',
+                                        meta=(('text',fmt(d['value'])),('align',(.5,.5)),('min_scale',44./max(d['value'],.05)),('angle',g['angle']))))
 
 def entity_primitive(doc,eid):
     e=doc.get(eid);p=e.params
@@ -1061,6 +1074,7 @@ def build_plan_frame(doc,preview=None,layers=True):
         text=(f"Δοκίδες {sec['b']*100:.0f}/{sec['h']*100:.0f} @{rep['spacing_m']*100:.0f} ×{rep['count']}" if sec else 'Δοκίδες: ανεπαρκής διατομή ⚠')
         xs=[float(q[0]) for q in e.params['points']];ys=[float(q[1]) for q in e.params['points']]
         f.primitives.append(Primitive2D('label',((min(xs)+.2,min(ys)+.2),),entity_id=eid,role='joists-label',meta=(('text',text),)))
+    _dimension_primitives(doc,f)
     # Structural analysis results of the active storey (only when up to date; never computed here).
     if any(e.kind in ('structural_column','structural_beam') for e in doc.entities.values()):
         from archforge.structure.analysis import fresh_result

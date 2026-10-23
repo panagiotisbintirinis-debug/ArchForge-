@@ -11,7 +11,7 @@ import json
 import math
 import os
 
-from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QEvent, QObject, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
@@ -145,6 +145,17 @@ class StartPage(QWidget):
         super().__init__(parent)
         self.window = window
         outer = QVBoxLayout(self); outer.setContentsMargins(0, 0, 0, 0); outer.setSpacing(0)
+        # Its own strip: «Αρχική» and ✕ (back to the drawing).
+        strip = QWidget(); strip.setStyleSheet("background:#E4E7EB")
+        sl = QHBoxLayout(strip); sl.setContentsMargins(8, 2, 4, 2)
+        title = QLabel(TITLE); title.setStyleSheet("color:#2B3440")
+        sl.addWidget(title); sl.addStretch(1)
+        close = QPushButton("✕"); close.setFlat(True); close.setToolTip("Κλείσιμο της Αρχικής — στο σχέδιο")
+        close.setStyleSheet("QPushButton{border:none;color:#2B3440;padding:0 6px}QPushButton:hover{color:#C0392B}")
+        close.clicked.connect(lambda: close_start(window))
+        self.close_button = close
+        sl.addWidget(close)
+        outer.addWidget(strip)
         # Header: the mark and the name on white.
         head = QWidget(); head.setStyleSheet("background:#FFFFFF")
         hl = QHBoxLayout(head); hl.setContentsMargins(60, 18, 60, 18)
@@ -238,29 +249,57 @@ def build_text():
     return "Από τον κώδικα (git)"
 
 
-# --------------------------------------------------------------------------------------------- the tab
+# --------------------------------------------------------------------------------------- its own environment
+# Owner 23/10: «η Αρχική πρέπει να είναι άλλο περιβάλλον και όχι στο σχεδιαστικό» — it covers the whole window
+# (menus, toolbars, panels), it is not a tab next to the plan; opening / starting a project takes it away.
+def _fit(window, page):
+    """Everything under the menu bar (the menus stay, as in Home Designer's Dashboard)."""
+    bar = window.menuBar()
+    top = bar.geometry().bottom() + 1 if bar is not None and bar.isVisible() else 0
+    r = window.rect(); r.setTop(top)
+    page.setGeometry(r)
+    page.raise_()
+
+
+class _Follow(QObject):
+    """Keeps the page over the whole window when the window is resized."""
+    def __init__(self, window, page):
+        super().__init__(page)
+        self.window, self.page = window, page
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.Resize and self.page.isVisible():
+            _fit(self.window, self.page)
+        return False
+
+
+def is_shown(window):
+    page = getattr(window, "_start_page", None)
+    return page is not None and not page.isHidden()
+
+
 def show_start(window):
-    """The start page as the first tab (made current); returns it."""
-    tabs = getattr(window, "_central_tabs", None)
+    """The start page over the whole window; returns it."""
     page = getattr(window, "_start_page", None)
     if page is None:
-        page = window._start_page = StartPage(window)
+        page = window._start_page = StartPage(window, parent=window)
+        page.setAutoFillBackground(True)
+        window.installEventFilter(_Follow(window, page))
     else:
         page.refresh()
-    if tabs is not None:
-        if tabs.indexOf(page) < 0:
-            tabs.insertTab(0, page, TITLE)
-        tabs.setCurrentWidget(page)
+    _fit(window, page)
+    page.show()
+    page.setFocus()
     return page
 
 
 def close_start(window):
-    tabs = getattr(window, "_central_tabs", None)
     page = getattr(window, "_start_page", None)
-    if tabs is not None and page is not None and tabs.indexOf(page) >= 0:
-        tabs.removeTab(tabs.indexOf(page))
-        if tabs.count():
-            tabs.setCurrentIndex(0)
+    if page is not None and not page.isHidden():
+        page.hide()
+        plan = getattr(window, "plan_view", None)
+        if plan is not None:
+            plan.setFocus()
 
 
 def install(window):
