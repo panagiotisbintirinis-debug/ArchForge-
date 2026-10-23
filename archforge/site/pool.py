@@ -97,6 +97,56 @@ def outline(p, grow=0.0):
     return pts
 
 
+def fillet(points, radius, tolerance=0.02):
+    """Plan corners rounded with ``radius`` (each limited to what its two edges allow), arcs as short chords within
+    ``tolerance`` — a spa's round end is two 90° corners rounded by half its width."""
+    pts = [tuple(map(float, q)) for q in points]
+    n = len(pts)
+    if radius <= 0 or n < 3:
+        return pts
+    out = []
+    for i in range(n):
+        a, b, c = pts[i - 1], pts[i], pts[(i + 1) % n]
+        u = (a[0] - b[0], a[1] - b[1]); v = (c[0] - b[0], c[1] - b[1])
+        lu, lv = math.hypot(*u), math.hypot(*v)
+        if lu < 1e-9 or lv < 1e-9:
+            continue
+        u = (u[0] / lu, u[1] / lu); v = (v[0] / lv, v[1] / lv)
+        cos = max(-1.0, min(1.0, u[0] * v[0] + u[1] * v[1]))
+        half = math.acos(cos) / 2
+        if half < 1e-3 or abs(half - math.pi / 2) < 1e-3:
+            out.append(b); continue                       # straight on: nothing to round
+        r = min(radius, lu / 2 * math.tan(half), lv / 2 * math.tan(half))
+        t = r / math.tan(half)                            # from the corner to where the arc touches each edge
+        p1 = (b[0] + u[0] * t, b[1] + u[1] * t); p2 = (b[0] + v[0] * t, b[1] + v[1] * t)
+        bis = (u[0] + v[0], u[1] + v[1]); lb = math.hypot(*bis)
+        centre = (b[0] + bis[0] / lb * r / math.sin(half), b[1] + bis[1] / lb * r / math.sin(half))
+        a1 = math.atan2(p1[1] - centre[1], p1[0] - centre[0]); a2 = math.atan2(p2[1] - centre[1], p2[0] - centre[0])
+        sweep = (a2 - a1 + math.pi) % (2 * math.pi) - math.pi
+        step = 2 * math.acos(max(-1.0, min(1.0, 1 - tolerance / r))) if r > tolerance else abs(sweep)
+        k = max(1, int(math.ceil(abs(sweep) / max(step, 1e-3))))
+        out += [(centre[0] + r * math.cos(a1 + sweep * j / k), centre[1] + r * math.sin(a1 + sweep * j / k)) for j in range(k + 1)]
+    return out
+
+
+def with_outline(p, plan_points, radius=0.0):
+    """The pool's params changed to the shape drawn at ``plan_points`` (plan, any order of turn), corners rounded
+    by ``radius``: centre and length/width become the shape's extents in the pool's own direction; the equipment
+    room keeps its place.  The same for a person drawing the outline and for a drawing set's water (one path)."""
+    pts = fillet(plan_points, radius)
+    if len(pts) < 3 or abs(_signed(pts)) < 0.5:
+        raise ValueError("Η πισίνα θέλει περίγραμμα τουλάχιστον 3 κορυφών και 0,5 m²")
+    local = [to_local(p, x, y) for x, y in pts]
+    u0, u1 = min(q[0] for q in local), max(q[0] for q in local)
+    v0, v1 = min(q[1] for q in local), max(q[1] for q in local)
+    cu, cv = (u0 + u1) / 2, (v0 + v1) / 2
+    cx, cy = to_world(p, cu, cv)
+    shape = [[round(u - cu, 4), round(v - cv, 4)] for u, v in local]
+    if _signed(shape) < 0:
+        shape.reverse()
+    return {"x": cx, "y": cy, "length": round(u1 - u0, 4), "width": round(v1 - v0, 4), "outline": shape}
+
+
 def rim(p, grow=0.0):
     """Plan outline of the basin's inside edge, grown by ``grow`` (m) on every side."""
     return [to_world(p, u, v) for u, v in outline(p, grow)]

@@ -92,6 +92,8 @@ class MainWindow(QMainWindow):
         camera_tool.install(self)        # Κάμερες: tool, list, «Επιστροφή στην κάμερα» (CAM1)
         from archforge.ui import terrain_tools
         terrain_tools.install(self)
+        from archforge.ui import pool_shape
+        pool_shape.install(self)
         # Floors come by themselves when walls close a space (owner 14/10), fences excepted.
         self.plan_view.controller.auto_floors = True
         from archforge.ui.build_menu import organize_build_menu
@@ -2215,8 +2217,15 @@ class MainWindow(QMainWindow):
             a = analyse(self.doc, entity)
             if params.get('outline'):
                 from archforge.site.pool import area as pool_area
-                self.form.addRow('Σχήμα', QLabel(f"από το σχέδιο ({len(params['outline'])} σημεία, καμπύλες ως τεθλασμένη) · "
+                self.form.addRow('Σχήμα', QLabel(f"σχεδιασμένο ({len(params['outline'])} σημεία, καμπύλες ως τεθλασμένη) · "
                                                  f"{pool_area(params):.1f} m² · μήκος/πλάτος το τεντώνουν".replace('.', ',')))
+            draw = QPushButton('Σχεδίασε το σχήμα (γωνίες + στρογγύλεμα)…')
+            draw.clicked.connect(lambda _=False, entity_id=eid: self._pool_shape_tool.start(entity_id))
+            self.form.addRow(draw)
+            if params.get('outline'):
+                rect = QPushButton('Ξανά ορθογώνια')
+                rect.clicked.connect(lambda _=False, entity_id=eid: self._set_entity_choice(entity_id, 'outline', []))
+                self.form.addRow(rect)
             self.form.addRow('Νερό / σκυρόδεμα', QLabel(f"{a['volume_m3']:.1f} m³ / {a['concrete_m3']:.1f} m³"))
             for text, ok, note in a['checks']:
                 self.form.addRow('✅' if ok else '⚠', QLabel(text + (f" — {note}" if note else '')))

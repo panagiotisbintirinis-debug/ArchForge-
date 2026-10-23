@@ -199,3 +199,41 @@ def test_a_shaped_pool_is_drawn_in_3d_and_cut_into_the_ground():
             top += abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) / 2
     # The ground keeps the notch beside the spa: only the basin and its walls are dug out.
     assert top == pytest.approx(400 - area(pool.params, 0.25), abs=0.05)
+
+
+def test_corners_rounded_make_a_round_ended_spa():
+    import math
+    from archforge.site.pool import fillet
+    tab = [(0, 0), (1.9, 0), (1.9, 2.0), (0, 2.0)]
+    round_end = fillet(tab, 0.95)                                    # both far corners by half the width
+    area = abs(sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(round_end, round_end[1:] + round_end[:1]))) / 2
+    expected = 1.9 * 2.0 - (4 - math.pi) * 0.95 ** 2                 # four corners rounded, r = 0,95 … all four here
+    assert area == pytest.approx(expected, rel=0.03)                 # arcs as chords within 2 cm
+    assert fillet(tab, 0.0) == [tuple(map(float, q)) for q in tab]
+
+
+def test_the_pool_shape_drawn_by_hand_in_the_plan():
+    """Πισίνα ▸ «Σχεδίασε το σχήμα»: corners clicked in the plan, rounded — the same function the import uses."""
+    from PySide6.QtWidgets import QApplication, QPushButton
+    from archforge.site.pool import area
+    from archforge.ui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    w = MainWindow()
+    try:
+        w._no_modal_dialogs = True
+        w._place_site_point('pool_place', 0.0, 0.0)
+        (pool,) = [e for e in w.doc.entities.values() if e.kind == 'pool']
+        w.doc.select([pool.id]); w.refresh_inspector()
+        assert any(b.text().startswith('Σχεδίασε το σχήμα') for b in w.findChildren(QPushButton))
+        tool = w._pool_shape_tool
+        tool.start(pool.id)
+        L = [(-3.65, -1.95), (3.65, -1.95), (3.65, 4.0), (1.75, 4.0), (1.75, 1.95), (-3.65, 1.95)]   # L, spa 1,90 wide
+        assert tool.apply(L, 0.0)
+        p = w.doc.get(pool.id).params
+        assert area(p) == pytest.approx(7.3 * 3.9 + 1.9 * 2.05, rel=1e-3)
+        assert (p['length'], p['width']) == pytest.approx((7.3, 5.95))
+        w.stack.undo()
+        assert not w.doc.get(pool.id).params.get('outline')
+        assert not tool.apply([(0, 0), (1, 0)], 0.0)                     # two corners: told, nothing changed
+    finally:
+        w._mark_clean(); w.close(); app.processEvents()

@@ -97,7 +97,9 @@ def add_pools(window, sheets, placed, reference):
         z = (alt - reference) if alt is not None else 0.0
         p = {**DEFAULTS, "x": cx, "y": cy, "z": z, "length": round(length, 3), "width": round(width, 3), "rotation": rot}
         if shape:
-            p["outline"] = shape                     # the L with its spa, as drawn (site/pool.py)
+            # The L with its spa, as drawn — through the same function as Πισίνα ▸ «Σχεδίασε το σχήμα».
+            from archforge.site.pool import to_world, with_outline
+            p.update(with_outline(p, [to_world(p, u, v) for u, v in shape]))
         depth = pool_depth(sheets, placed, idx, (cx, cy), max(length, width))
         if depth:
             p.update(depth_shallow=depth, depth_deep=depth)
