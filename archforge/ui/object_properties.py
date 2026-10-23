@@ -76,6 +76,7 @@ PARAM_LABELS = {
     'pump_flow_m3h': 'Παροχή αντλίας (m³/h)', 'skimmers': 'Skimmer (τεμ.)', 'inlets': 'Στόμια επιστροφής (τεμ.)',
     'main_drains': 'Σιφώνια πυθμένα (τεμ.)', 'lights': 'Φωτιστικά SELV (τεμ.)', 'balance_tank_m3': 'Δεξαμενή εξισορρόπησης (m³)',
     'heat_pump_kw': 'Αντλία θερμότητας πισίνας (kW)', 'electrolysis': 'Ηλεκτρόλυση άλατος (1 = ναι)',
+    'green': 'Φυτεμένο δώμα (1 = ναι)', 'soil': 'Ελάχιστο χώμα (m)',
     # Heating (mep/heating_layout.py)
     'loop_spacing': 'Βήμα βρόχων ενδοδαπέδιας (m)', 'power_w': 'Ισχύς (W)',
 }

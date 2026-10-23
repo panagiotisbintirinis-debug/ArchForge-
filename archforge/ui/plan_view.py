@@ -40,8 +40,44 @@ def _pdf_page_image(path,page,dpi=150):
         if doc.load(str(path))!=QPdfDocument.Error.None_ or not 0<=page<doc.pageCount():
             return None
         pt=doc.pagePointSize(page)
-        _PDF_CACHE.clear();_PDF_CACHE[key]=doc.render(page,QSize(int(pt.width()*dpi/72),int(pt.height()*dpi/72)))
+        len(_PDF_CACHE)>=4 and _PDF_CACHE.clear();_PDF_CACHE[key]=doc.render(page,QSize(int(pt.width()*dpi/72),int(pt.height()*dpi/72)))
     return _PDF_CACHE[key]
+
+
+def add_underlay_item(scene,p):
+    """One underlay (PDF page / DXF lines) in ``scene``: faint, behind everything, never selectable.
+
+    Scene axes are the underlay's (x, y) with y up — plan x, y or a section's u, z."""
+    if p['source']=='dxf':
+        from PySide6.QtGui import QPainterPath
+        from archforge.project.underlay import model_segments
+        path=QPainterPath()
+        for x1,y1,x2,y2 in model_segments(p):path.moveTo(x1,y1);path.lineTo(x2,y2)
+        pen=QPen(QColor(70,90,120));pen.setCosmetic(True);pen.setWidthF(1.0)
+        item=scene.addPath(path,pen)
+    else:
+        image=_pdf_page_image(p['path'],int(p['page']))
+        if image is None:
+            from archforge.project.underlay import to_model
+            (ax,ay),(bx,by)=to_model(p,0,0),to_model(p,float(p.get('page_w',595)),float(p.get('page_h',842)))
+            pen=QPen(QColor(200,60,60));pen.setCosmetic(True);pen.setStyle(Qt.PenStyle.DashLine)
+            item=scene.addRect(min(ax,bx),min(ay,by),abs(bx-ax),abs(by-ay),pen)
+            item.setToolTip(f"Λείπει το αρχείο PDF: {p['path']}")
+        else:
+            from PySide6.QtGui import QPixmap
+            item=scene.addPixmap(QPixmap.fromImage(image))
+            # Image pixels -> PDF points (y down) -> model (y up), scale and rotation of the underlay.
+            k=float(p.get('page_w',image.width()))/max(1,image.width())
+            s_=float(p['m_per_unit']);r=math.radians(float(p.get('rotation',0.0)));c,sn=math.cos(r),math.sin(r)
+            ph=float(p.get('page_h',image.height()*k))
+            a,b=s_*k*c,s_*k*sn;cc,d=s_*k*sn,-s_*k*c
+            ox,oy=float(p['x'])-(float(p.get('u0',0.0)))*s_,float(p['y'])
+            # v = ph - py*k  ->  model = base + R*s*(u, ph - py*k)
+            tx=ox+(-sn)*s_*ph;ty=oy+c*s_*ph
+            item.setTransform(QTransform(a,b,0,cc,d,0,tx,ty,1))
+            item.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
+    item.setOpacity(float(p.get('opacity',0.6)));item.setZValue(-60)
+    return item
 
 
 class PlanView(QGraphicsView):
@@ -51,7 +87,7 @@ class PlanView(QGraphicsView):
     VIEW_LINE_TOOLS={'view_section':'section','view_camera':'camera'}
     # Single-click site tools: (tool, x, y) handled by the main window.
     sitePointRequested=Signal(str,float,float)
-    SITE_POINT_TOOLS=('terrain_point','plot_point','room_box','room_place','room_resize','plant_tree','plant_shrub','library_place','underlay_calibrate','pool_place')
+    SITE_POINT_TOOLS=('terrain_point','plot_point','room_box','room_place','room_resize','plant_tree','plant_shrub','library_place','underlay_calibrate','pool_place','dome_place','mech_part_place')
     # Drag tools for site strips: (tool, x1, y1, x2, y2).
     siteLineRequested=Signal(str,float,float,float,float)
     SITE_LINE_TOOLS=('path_path','path_sidewalk','path_road','pergola_timber','pergola_aluminium','elec_led_strip')
@@ -117,6 +153,17 @@ class PlanView(QGraphicsView):
     def set_tool(self,tool):self.controller.set_tool(tool);self._active_handle=None;self._railing_draft=None;self._slab_draft=None;self.statusChanged.emit(f'Εργαλείο: {self.TOOL_LABELS.get(tool,tool)}');self.redraw()
     # Grid lines on/off and the grid/snap step (Κάνναβος & έλξη bar): view state, not Document.
     def set_grid_visible(self,on):self._show_grid=bool(on);self.redraw()
+    # Owner 22/10: «υποτίθεται ότι είχαμε αυτόματο σναπ … και εργαλείο να ρυθμίσουμε την απόσταση».  The snap
+    # tolerance was a fixed 0,10 m: 5–7 pixels at a whole-house zoom, so an end clicked a little off stayed 2–5 cm
+    # short and the room did not close.  It is a reach on the screen now (pixels, «Ακτίνα έλξης»), at any zoom.
+    # Capped at 25 cm (what the room graph joins anyway): zoomed far out, 14 px would be metres and a moved
+    # object would stick to where it was (CI, Windows runner: a body drag stayed at its start).
+    SNAP_PIXELS=14;SNAP_MAX=0.25
+    def set_snap_pixels(self,pixels):
+        self.snap_pixels=max(2,int(pixels));self._sync_snap_tolerance()
+    def _sync_snap_tolerance(self):
+        px_per_m=abs(self.transform().m11()) or 1.0
+        self.controller.snap_tolerance=min(self.SNAP_MAX,max(0.01,float(getattr(self,'snap_pixels',self.SNAP_PIXELS))/px_per_m))
     def set_grid_step(self,step):
         self._grid_step=float(step);self.controller.grid=self.controller.construction_grid=self._grid_step;self.redraw()
     def drawForeground(self,painter,rect):
@@ -184,7 +231,7 @@ class PlanView(QGraphicsView):
     def _overlay(self,kind,event):
         # Overlay tool (the assistant's kitchen/bath guide lines, fixture drag): gets the mouse first.
         # The camera tool (ui/camera_tool.py: place / move / turn a camera) comes first.
-        return any(tool is not None and bool(tool.handle(self,kind,event)) for tool in (getattr(self,'terrain_tool',None),getattr(self,'camera_tool',None),getattr(self,'overlay_tool',None),getattr(self,'dims_tool',None)))
+        return any(tool is not None and bool(tool.handle(self,kind,event)) for tool in (getattr(self,'pool_tool',None),getattr(self,'terrain_tool',None),getattr(self,'camera_tool',None),getattr(self,'overlay_tool',None),getattr(self,'dims_tool',None)))
     CLICK_PX=8   # press → release within this many screen pixels is a click, not a drag
     def _wall_chain_active(self):
         return getattr(self.controller,'wall_chain',None) is not None and self.controller.active is not None
@@ -193,6 +240,7 @@ class PlanView(QGraphicsView):
         self.controller.finish_wall_chain();self._mouse_down=False;self.redraw()
         self.statusChanged.emit(f'Τοίχοι: έγιναν {count} · Ctrl+Z = αναίρεση του τελευταίου' if count else 'Τοίχος: ακυρώθηκε')
     def mouseDoubleClickEvent(self,event):
+        self._sync_snap_tolerance()
         if self._overlay('dclick',event):event.accept();return
         if event.button()==Qt.MouseButton.LeftButton and self.controller.tool=='plot_point':
             self.finish_plot();event.accept();return
@@ -286,6 +334,7 @@ class PlanView(QGraphicsView):
         self._railing_draft=None if lp[3] else getattr(self,'_railing_draft',None)
         self._pan_begin(lp[1]);self.redraw()
     def mousePressEvent(self,event):
+        self._sync_snap_tolerance()
         if event.button()==Qt.MouseButton.MiddleButton:
             self._pan_begin(event.position());event.accept();return
         if event.button()==Qt.MouseButton.LeftButton:
@@ -354,6 +403,7 @@ class PlanView(QGraphicsView):
             return
         self.redraw()
     def mouseMoveEvent(self,event):
+        self._sync_snap_tolerance()
         pan=getattr(self,'_panning',None)
         if pan is not None:
             d=event.position()-pan;self._panning=event.position()
@@ -402,6 +452,7 @@ class PlanView(QGraphicsView):
             p=self.mapToScene(event.position().toPoint());self.statusChanged.emit(f'X {p.x():.3f}   Y {p.y():.3f}')
         super().mouseMoveEvent(event)
     def mouseReleaseEvent(self,event):
+        self._sync_snap_tolerance()
         self._long_press=None
         if getattr(self,'_panning',None) is not None:
             self._pan_end();self.redraw();event.accept();return
@@ -869,6 +920,7 @@ class PlanView(QGraphicsView):
         overlay=getattr(self,'overlay_tool',None)
         if overlay is not None:overlay.paint(self)
         if getattr(self,'terrain_tool',None) is not None:self.terrain_tool.paint(self)
+        if getattr(self,'pool_tool',None) is not None:self.pool_tool.paint(self)
         if getattr(self,'camera_tool',None) is not None:self.camera_tool.paint(self)
         if getattr(self,'dims_tool',None) is not None:self.dims_tool.paint(self)   # dimensions of a selected wall (wall_dims_tool.py)
         if self.carry is not None:self.carry.paint(self)
@@ -900,37 +952,7 @@ class PlanView(QGraphicsView):
         from archforge.project.underlay import underlays
         if self.structural_only:return
         for e in underlays(self.doc,z=float(self.doc.work_plane.origin[2])):
-            if not e.visible:continue
-            p=e.params
-            if p['source']=='dxf':
-                from PySide6.QtGui import QPainterPath
-                from archforge.project.underlay import model_segments
-                path=QPainterPath()
-                for x1,y1,x2,y2 in model_segments(p):path.moveTo(x1,y1);path.lineTo(x2,y2)
-                pen=QPen(QColor(70,90,120));pen.setCosmetic(True);pen.setWidthF(1.0)
-                item=self._scene.addPath(path,pen)
-            else:
-                image=_pdf_page_image(p['path'],int(p['page']))
-                if image is None:
-                    from archforge.project.underlay import to_model
-                    (ax,ay),(bx,by)=to_model(p,0,0),to_model(p,float(p.get('page_w',595)),float(p.get('page_h',842)))
-                    pen=QPen(QColor(200,60,60));pen.setCosmetic(True);pen.setStyle(Qt.PenStyle.DashLine)
-                    item=self._scene.addRect(min(ax,bx),min(ay,by),abs(bx-ax),abs(by-ay),pen)
-                    item.setToolTip(f"Λείπει το αρχείο PDF: {p['path']}")
-                else:
-                    from PySide6.QtGui import QPixmap
-                    item=self._scene.addPixmap(QPixmap.fromImage(image))
-                    # Image pixels -> PDF points (y down) -> model (y up), scale and rotation of the underlay.
-                    k=float(p.get('page_w',image.width()))/max(1,image.width())
-                    s_=float(p['m_per_unit']);r=math.radians(float(p.get('rotation',0.0)));c,sn=math.cos(r),math.sin(r)
-                    ph=float(p.get('page_h',image.height()*k))
-                    a,b=s_*k*c,s_*k*sn;cc,d=s_*k*sn,-s_*k*c
-                    ox,oy=float(p['x'])-(float(p.get('u0',0.0)))*s_,float(p['y'])
-                    # v = ph - py*k  ->  model = base + R*s*(u, ph - py*k)
-                    tx=ox+(-sn)*s_*ph;ty=oy+c*s_*ph
-                    item.setTransform(QTransform(a,b,0,cc,d,0,tx,ty,1))
-                    item.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
-            item.setOpacity(float(p.get('opacity',0.6)));item.setZValue(-60)
+            if e.visible:add_underlay_item(self._scene,e.params)
     def _has_symbol(self,entity_id):
         frame=getattr(self,'_frame',None)
         prims=frame.primitives if frame is not None else ()

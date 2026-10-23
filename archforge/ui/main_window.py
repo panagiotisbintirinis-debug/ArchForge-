@@ -36,6 +36,8 @@ class MainWindow(QMainWindow):
         self.doc = Document()
         self.stack = CommandStack(self.doc)
         self.stack.listeners.append(self._on_document_changed)
+        from archforge.ui.dome_tool import install as _follow_domes
+        _follow_domes(self)                  # flat shared partitions follow the Bio-Spectre domes
         self.current_path = None
         self._clean_state = copy.deepcopy(self.doc.to_dict())
         self.tabs = QTabWidget()
@@ -90,12 +92,18 @@ class MainWindow(QMainWindow):
         camera_tool.install(self)        # Κάμερες: tool, list, «Επιστροφή στην κάμερα» (CAM1)
         from archforge.ui import terrain_tools
         terrain_tools.install(self)
+        from archforge.ui import pool_shape
+        pool_shape.install(self)
+        from archforge.ui import start_page
+        start_page.install(self)        # Αρχείο ▸ Αρχική σελίδα (the page itself opens with the program: app.py)
         # Floors come by themselves when walls close a space (owner 14/10), fences excepted.
         self.plan_view.controller.auto_floors = True
         from archforge.ui.build_menu import organize_build_menu
         organize_build_menu(self)        # «Κατασκευή» in submenus by kind of element (last: moves, never drops)
         from archforge.ui.main_menus import organize_main_menus
         organize_main_menus(self)        # the 8 menus of the approved mockup (after the above: moves, never drops)
+        from archforge.ui import quality_panel
+        quality_panel.install(self)      # Προβολή ▸ Έλεγχος ποιότητας (live quality gate)
         from archforge.ui.layout2 import install_layout2
         install_layout2(self)            # Διάταξη 2: thin first row, tool groups, «Κοινά», panels on the right
         from archforge.ui import electrical_board_tab
@@ -870,6 +878,14 @@ class MainWindow(QMainWindow):
             return
         if tool == 'pool_place':
             self._place_pool(x, y)
+            return
+        if tool == 'mech_part_place':
+            from archforge.ui.mechanical_tool import place_part
+            place_part(self, x, y)
+            return
+        if tool == 'dome_place':
+            from archforge.ui.dome_tool import place as place_dome
+            place_dome(self, x, y)
             return
         if str(tool).startswith('heat_'):
             self._place_heating_point(tool[len('heat_'):], x, y)
@@ -2121,11 +2137,13 @@ class MainWindow(QMainWindow):
             params.setdefault('overhang', 0.0)
         from archforge.architecture.joinery import KEYS as joinery_keys
         from archforge.ui.light_properties import LIGHT_KEYS as light_keys
-        for key, value in (() if entity.kind in ('railing', 'drywall_ceiling', 'section_line', 'camera', 'stair') or slab_tools.is_slab_panel(entity) else params.items()):
+        for key, value in (() if entity.kind in ('railing', 'drywall_ceiling', 'section_line', 'camera', 'stair', 'mechanical_joint') or slab_tools.is_slab_panel(entity) else params.items()):
             if entity.kind in ('door', 'window') and key in joinery_keys:
                 continue  # Κουφώματα: δικές τους γραμμές (ui/opening_properties.py).
             if entity.kind == 'stair' and key == 'plan_numbers':
                 continue  # checkbox below
+            if entity.kind == 'room_roof' and key == 'green':
+                continue  # checkbox below (υπόσκαφο)
             if entity.kind == 'electrical_point' and key in light_keys and params.get('point_type') not in ('panel',):
                 continue  # Φωτιστικά: δικές τους γραμμές (ui/light_properties.py).
             if isinstance(value, (int, float)):
@@ -2138,11 +2156,26 @@ class MainWindow(QMainWindow):
                     lambda property_key=key, widget=spin: self._queue_property_commit(eid, property_key, widget.value())
                 )
                 self.form.addRow(param_label(key), spin)
+        if entity.kind == 'room_roof':
+            # Υπόσκαφο: the ground covers this roof (site/terrain.green_roofs) — soil at least «soil» deep on it.
+            from PySide6.QtWidgets import QCheckBox
+            green = QCheckBox('Φυτεμένο δώμα — το έδαφος σκεπάζει την πλάκα (υπόσκαφο)')
+            green.setChecked(bool(int(params.get('green', 0))))
+            green.toggled.connect(lambda on, entity_id=eid: self._set_entity_choice(entity_id, 'green', 1 if on else 0))
+            self.form.addRow('Δώμα', green)
+            if int(params.get('green', 0)):
+                soil = QDoubleSpinBox(); soil.setDecimals(2); soil.setRange(0.0, 3.0); soil.setSingleStep(0.05)
+                soil.setValue(float(params.get('soil', 0.10)))
+                soil.editingFinished.connect(lambda entity_id=eid, widget=soil: self._set_entity_choice(entity_id, 'soil', round(widget.value(), 3)))
+                self.form.addRow('Ελάχιστο χώμα (m)', soil)
         if entity.kind in ('room_floor', 'room_roof', 'room_ceiling', 'room_foundation') and not slab_tools.is_slab_panel(entity):
             # What the slab is and where: room by name, live sizes (never the room id).
             from archforge.ui.project_outline import slab_rows
             for label, text in slab_rows(self.doc, entity):
                 self.form.addRow(label, QLabel(text))
+        if entity.kind == 'mechanical_joint':
+            from archforge.ui.mechanical_tool import add_rows as joint_rows
+            joint_rows(self, eid)
         if entity.kind == 'underlay':
             from archforge.ui.underlay_tools import add_rows as underlay_rows
             underlay_rows(self, eid)
@@ -2184,6 +2217,20 @@ class MainWindow(QMainWindow):
             combo.currentIndexChanged.connect(lambda _i, w=combo: self._set_entity_choice(eid, 'pool_type', w.currentData()))
             self.form.addRow('Τύπος πισίνας', combo)
             a = analyse(self.doc, entity)
+            if params.get('outline'):
+                from archforge.site.pool import area as pool_area
+                self.form.addRow('Σχήμα', QLabel(f"σχεδιασμένο ({len(params['outline'])} σημεία, καμπύλες ως τεθλασμένη) · "
+                                                 f"{pool_area(params):.1f} m² · μήκος/πλάτος το τεντώνουν".replace('.', ',')))
+            cut = QPushButton('Τομή πισίνας (υψόμετρα χείλους, νερού, πυθμένα)')
+            cut.clicked.connect(lambda _=False, entity_id=eid: __import__('archforge.ui.section_view', fromlist=['x']).pool_section(self, entity_id))
+            self.form.addRow(cut)
+            draw = QPushButton('Σχεδίασε το σχήμα (γωνίες + στρογγύλεμα)…')
+            draw.clicked.connect(lambda _=False, entity_id=eid: self._pool_shape_tool.start(entity_id))
+            self.form.addRow(draw)
+            if params.get('outline'):
+                rect = QPushButton('Ξανά ορθογώνια')
+                rect.clicked.connect(lambda _=False, entity_id=eid: self._set_entity_choice(entity_id, 'outline', []))
+                self.form.addRow(rect)
             self.form.addRow('Νερό / σκυρόδεμα', QLabel(f"{a['volume_m3']:.1f} m³ / {a['concrete_m3']:.1f} m³"))
             for text, ok, note in a['checks']:
                 self.form.addRow('✅' if ok else '⚠', QLabel(text + (f" — {note}" if note else '')))
@@ -4109,12 +4156,19 @@ class MainWindow(QMainWindow):
         self.doc = doc
         self.stack = CommandStack(self.doc)
         self.stack.listeners.append(self._on_document_changed)
+        from archforge.ui.dome_tool import install as _follow_domes
+        _follow_domes(self)
+        from archforge.ui.quality_panel import listen as _quality_listen
+        _quality_listen(self)
         for view in (self.plan_view, self.pbr_view, self.structural_view):
             view.rebind(self.doc, self.stack)
         if hasattr(self, '_layers_dock'):
             from .layers_panel import on_project_replaced
             on_project_replaced(self)   # old project without layers: the defaults
         self.current_path = path
+        if path:
+            from archforge.ui.start_page import remember
+            remember(path)               # Αρχική σελίδα ▸ Πρόσφατα έργα
         from archforge.rendering.user_materials import adopt_project
         adopt_project(self.doc)          # the project's own materials are pickable here too
         self._mark_clean()
@@ -4145,14 +4199,27 @@ class MainWindow(QMainWindow):
 
     def _edit_project_brief(self):
         """The project questions (new / renovation, walls, dimensions, floors) as one undoable answer."""
-        from archforge.project.brief import DEFAULTS, EDITABLE, QUESTIONS, get_brief
+        from archforge.project.brief import ASKED, DEFAULTS, EDITABLE, QUESTIONS, get_brief
         current = get_brief(self.doc) or dict(DEFAULTS)
         dialog = QDialog(self)
         dialog.setWindowTitle('Στοιχεία έργου')
         form = QFormLayout(dialog)
+        from archforge.project.brief import DETAILS
+        form.addRow(QLabel('<b>Λεπτομέρειες έργου</b>'))
+        details = {}
+        for key, label in DETAILS:
+            edit = QLineEdit(dialog)
+            value = current.get(key, '')
+            edit.setText('' if value in (None, '') else (f'{float(value):.2f}' if key == 'altitude' else str(value)))
+            if key == 'altitude':
+                edit.setPlaceholderText('π.χ. 114,00 (από τοπογραφικό)')
+            form.addRow(label, edit)
+            details[key] = edit
         form.addRow(QLabel('<b>Οι απαντήσεις καθορίζουν τι θα προτείνει και τι θα κάνει το πρόγραμμα.</b>'))
         combos = {}
         for key, question, options in QUESTIONS:
+            if key not in ASKED:
+                continue
             combo = QComboBox(dialog)
             for value, label in options.items():
                 combo.addItem(label[0] if isinstance(label, tuple) else label, value)
@@ -4174,9 +4241,24 @@ class MainWindow(QMainWindow):
         buttons.rejected.connect(dialog.reject)
         form.addRow(buttons)
         self._project_brief_dialog = dialog
+        self._project_details_edits = details
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
-        return self._apply_project_brief(self._brief_answers(combos))
+        return self._apply_project_brief({**self._brief_answers(combos), **self._detail_answers(details)})
+
+    def _detail_answers(self, edits):
+        """The written details; the altitude a number (comma or point), left out when not one."""
+        out = {}
+        for key, edit in edits.items():
+            text = edit.text().strip()
+            if key == 'altitude':
+                try:
+                    out[key] = float(text.replace(',', '.')) if text else ''
+                except ValueError:
+                    self.statusBar().showMessage(f'Υψόμετρο ±0,00: «{text}» δεν είναι αριθμός — δεν κρατήθηκε', 8000)
+                continue
+            out[key] = text
+        return out
 
     def _brief_answers(self, combos):
         """Answers of the brief dialog; a typed (edited) answer becomes 'custom' with its text and thickness."""
@@ -4200,6 +4282,8 @@ class MainWindow(QMainWindow):
         return answers
 
     def _apply_project_brief(self, answers):
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self._update_window_title)      # the title the details give
         from archforge.project.brief import brief_entity
         entity = brief_entity(self.doc)
         if entity is None:
@@ -4451,6 +4535,8 @@ class MainWindow(QMainWindow):
                                  'Το προηγούμενο αρχείο έμεινε όπως ήταν.')
             return False
         self.current_path = path
+        from archforge.ui.start_page import remember
+        remember(path)
         self._mark_clean()
         if getattr(self, 'autosave', None) is not None:
             self.autosave.discard()
@@ -4560,7 +4646,9 @@ class MainWindow(QMainWindow):
     def _update_window_title(self):
         """«ArchForge — έργο.archforge*»: which file, and whether it has unsaved work."""
         name = os.path.basename(self.current_path) if self.current_path else 'Νέο έργο'
-        self.setWindowTitle(f'ArchForge — {name}[*]')
+        from archforge.project.brief import get_brief
+        title = str((get_brief(self.doc) or {}).get('title', '')).strip()
+        self.setWindowTitle(f'ArchForge — {title} ({name})[*]' if title else f'ArchForge — {name}[*]')
         self.setWindowModified(self._clean_state is None or self._is_dirty())
 
     def _update_autosave_action(self):

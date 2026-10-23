@@ -212,8 +212,12 @@ def _building_centre(doc):
     return ((min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2) if xs else None
 
 
-def terrain_from_survey(doc, points, boundary=None, margin=2.0):
-    """Terrain params for the survey, placed at the building (local metres, ±0.00 = ground floor)."""
+def terrain_from_survey(doc, points, boundary=None, margin=2.0, in_place=False, altitude_ref=None):
+    """Terrain params for the survey, placed at the building (local metres, ±0.00 = ground floor).
+
+    ``in_place``: the points are already where they belong in the model (spot levels read off a drawing
+    underlay, project/drawing_text.py) — not moved to the building; ``altitude_ref`` is then the absolute
+    altitude of ±0.00 (e.g. the ground floor's +114.00), else ±0.00 sits as for a survey."""
     from archforge.site.terrain import DEFAULT_THICKNESS, terrain_height
     pts = [tuple(map(float, p)) for p in points]
     if len(pts) < 3 and not boundary:
@@ -222,7 +226,7 @@ def terrain_from_survey(doc, points, boundary=None, margin=2.0):
     gx = (min(q[0] for q in ref_xy) + max(q[0] for q in ref_xy)) / 2
     gy = (min(q[1] for q in ref_xy) + max(q[1] for q in ref_xy)) / 2
     centre = _building_centre(doc) or (0.0, 0.0)
-    dx, dy = centre[0] - gx, centre[1] - gy
+    dx, dy = (0.0, 0.0) if in_place else (centre[0] - gx, centre[1] - gy)
     local = _thin([(x + dx, y + dy, z) for x, y, z in pts])
     bnd = [(x + dx, y + dy) for x, y in boundary] if boundary else None
     xy = (bnd or []) + [(p[0], p[1]) for p in local]
@@ -239,7 +243,7 @@ def terrain_from_survey(doc, points, boundary=None, margin=2.0):
         params["blend_radius"] = max(3.0, 2.5 * nn[len(nn) // 2])
     # ±0.00: the ground floor sits 15 cm over the ground under the building.
     ground = terrain_height(params, *centre) if local else 0.0
-    shift = ground + FLOOR_ABOVE_GROUND
+    shift = float(altitude_ref) if altitude_ref is not None else ground + FLOOR_ABOVE_GROUND
     params["elevation"] -= shift
     params["points"] = [[x, y, z - shift] for x, y, z in params["points"]]
     params["altitude_ref"] = shift

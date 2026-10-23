@@ -54,8 +54,46 @@ def _subtract(intervals, a, b):
     return out
 
 
+INFILL_LEN = 0.05                  # strokes this short are a pattern (aggregate, hatch dots), not lines (m)
+INFILL_DENSITY = 100.0             # pattern strokes per m² that make the space between two lines «material»
+
+
+def _infill_grid(segments, cell=0.25):
+    grid = {}
+    for x1, y1, x2, y2 in segments:
+        if math.hypot(x2 - x1, y2 - y1) < INFILL_LEN:
+            x, y = (x1 + x2) / 2, (y1 + y2) / 2
+            grid.setdefault((int(x // cell), int(y // cell)), []).append((x, y))
+    return grid, cell
+
+
+def _filled(infill, u, n, o1, o2, lo, hi):
+    """Pattern strokes per m² in the strip between offsets o1 < o2 and along lo … hi (frame u, n)."""
+    grid, cell = infill
+    if not grid or hi - lo <= 0 or o2 - o1 <= 0:
+        return 0.0
+    corners = [(a * u[0] + o * n[0], a * u[1] + o * n[1]) for a in (lo, hi) for o in (o1, o2)]
+    gx0, gx1 = int(min(c[0] for c in corners) // cell), int(max(c[0] for c in corners) // cell)
+    gy0, gy1 = int(min(c[1] for c in corners) // cell), int(max(c[1] for c in corners) // cell)
+    if (gx1 - gx0 + 1) * (gy1 - gy0 + 1) > 20000:
+        return 0.0
+    count = 0
+    for gx in range(gx0, gx1 + 1):
+        for gy in range(gy0, gy1 + 1):
+            for x, y in grid.get((gx, gy), ()):
+                a, o = x * u[0] + y * u[1], x * n[0] + y * n[1]
+                if lo <= a <= hi and o1 < o < o2:
+                    count += 1
+    return count / ((hi - lo) * (o2 - o1))
+
+
 def find_walls(segments):
-    """[(a, b, thickness)] in model metres from drawing segments [(x1, y1, x2, y2)] in model metres."""
+    """[(a, b, thickness)] in model metres from drawing segments [(x1, y1, x2, y2)] in model metres.
+
+    Where the drawing fills its walls with a pattern (the owner's villa plans: concrete as aggregate dots,
+    1 300 strokes in 1,5 m² of wall), a pair of lines with the pattern between them is taken first: a wall
+    with a lining line beside it (insulation, plaster board) is the patterned core, not the nearest pair."""
+    infill = _infill_grid(segments)
     segs = [s for s in segments if math.hypot(s[2] - s[0], s[3] - s[1]) >= MIN_LEN]
     # Group by direction (within ANGLE_TOL), each group in its own frame.
     groups = []
@@ -82,9 +120,10 @@ def find_walls(segments):
                 lo, hi = max(li, lj), min(hi_, hj)
                 if hi - lo < MIN_OVERLAP:
                     continue
-                pairs.append((d, i, j, lo, hi))
+                filled = _filled(infill, u, n, min(oi, oj), max(oi, oj), lo, hi) >= INFILL_DENSITY
+                pairs.append((not filled, d, i, j, lo, hi))
         pairs.sort()
-        for d, i, j, lo, hi in pairs:
+        for _empty, d, i, j, lo, hi in pairs:
             # Patterns (hatching, tiles, treads): the same spacing goes on beside the pair — a wall's faces do not
             # repeat at the wall's own thickness.
             oi, oj = lines[i][0], lines[j][0]

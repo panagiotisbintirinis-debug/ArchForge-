@@ -17,7 +17,9 @@ def propose(window):
     z = float(window.doc.work_plane.origin[2])
     segs = []
     for e in underlays(window.doc, z):
-        segs += underlay_model_segments(e.params)
+        # Walls are drawn with the dark pens; a drawing with no dark lines at all (a coloured export) keeps them all.
+        lines = underlay_model_segments(e.params, dark_only=True)
+        segs += lines or underlay_model_segments(e.params)
     return find_walls(segs), len(segs)
 
 

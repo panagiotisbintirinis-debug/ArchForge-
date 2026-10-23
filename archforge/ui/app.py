@@ -37,6 +37,8 @@ def main():
     from .theme import use_light_theme
     use_light_theme(app)
     w=MainWindow();w.show()
+    from .start_page import show_start
+    show_start(w)    # Αρχική σελίδα first (owner 23/10)
     smoke=os.environ.get('ARCHFORGE_SMOKE_EXIT')
     if smoke:  # packaged-build check: open the window, then quit by itself
         QTimer.singleShot(int(smoke),app.quit)

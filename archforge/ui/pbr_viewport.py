@@ -929,6 +929,18 @@ function groundLevel(objects) {
   return level === null ? -0.025 : level - 0.003;
 }
 
+// Plan extent of the site terrain [x0, y0, x1, y1], or null.
+function terrainExtent(objects) {
+  let e = null;
+  for (const item of objects) {
+    if (item.kind !== "terrain") continue;
+    for (const v of item.vertices) {
+      e = e ? [Math.min(e[0], v[0]), Math.min(e[1], v[1]), Math.max(e[2], v[0]), Math.max(e[3], v[1])] : [v[0], v[1], v[0], v[1]];
+    }
+  }
+  return e;
+}
+
 function sceneBounds() {
   const box = new THREE.Box3().setFromObject(modelRoot);
   if (box.isEmpty()) return null;
@@ -1241,6 +1253,8 @@ window.archforgeSetScene = function(payload, fit = true) {
   }
   // The ground to the horizon meets a site terrain at its lowest top edge.
   ground.position.z = groundLevel(objects);
+  ground.geometry.dispose();
+  ground.geometry = lookGroundGeometry(terrainExtent(objects));
   fitSunShadow();
   applyTechnique();
   // Once the human has moved the camera, a scene update never refits it

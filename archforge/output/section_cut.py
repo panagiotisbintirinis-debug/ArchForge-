@@ -189,6 +189,46 @@ def levels(doc):
     return out
 
 
+def pool_cuts(doc, params, step=0.05):
+    """Where the section line crosses a pool (owner 23/10: «το εργαλείο πισίνας πρέπει να έχει και τομές για τα
+    υψομετρικά της»): ``[{"name", "u0", "u1", "rim", "water", "bottom": [(u, z)], "wall", "floor", "altitude_ref"}]``
+    — the basin as the line meets it (an L or a spa: each stretch inside on its own), its bottom following the
+    slope from the shallow to the deep end."""
+    from archforge.geometry.regions import point_in_polygon
+    from archforge.site.pool import WATER_DROP, depth_at, param, rim, to_local
+    (ox, oy), (ux, uy), _n, length = frame(params)
+    ref = next((float(e.params.get("altitude_ref", 0.0)) for e in doc.entities.values() if e.kind == "terrain"), 0.0)
+    out = []
+    for e in doc.entities.values():
+        if e.kind != "pool" or not e.visible:
+            continue
+        p = e.params
+        outline = rim(p)
+        n = int(length / step) + 1
+        inside = [point_in_polygon(ox + ux * k * step, oy + uy * k * step, outline) for k in range(n)]
+        k = 0
+        while k < n:
+            if not inside[k]:
+                k += 1
+                continue
+            j = k
+            while j + 1 < n and inside[j + 1]:
+                j += 1
+            u0, u1 = k * step, j * step
+            z = float(p.get("z", 0.0))
+            bottom = []
+            m = max(2, int((u1 - u0) / 0.25) + 1)
+            for i in range(m):
+                u = u0 + (u1 - u0) * i / (m - 1)
+                lu, _lv = to_local(p, ox + ux * u, oy + uy * u)
+                bottom.append((u, z - depth_at(p, lu)))
+            out.append({"name": e.name or "Πισίνα", "u0": u0, "u1": u1, "rim": z,
+                        "water": z - WATER_DROP.get(param(p, "pool_type"), 0.0), "bottom": bottom,
+                        "wall": param(p, "wall"), "floor": param(p, "floor"), "altitude_ref": ref})
+            k = j + 1
+    return out
+
+
 def cut_section(doc, params, evaluation=None, depth=None):
     """The section drawing on ``params`` (a section_line's x1, y1, x2, y2, flip).
 
@@ -288,4 +328,5 @@ def cut_section(doc, params, evaluation=None, depth=None):
     if u0 == math.inf:
         u0, z0, u1, z1 = 0.0, 0.0, length, 3.0
     return {"cuts": cuts, "faces": faces, "levels": levels(doc), "terrain_marks": sorted(terrain_marks),
+            "pools": pool_cuts(doc, params),
             "bounds": (u0, z0, u1, z1), "length": length}

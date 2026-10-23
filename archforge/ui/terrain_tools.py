@@ -49,7 +49,10 @@ class TerrainTools:
         self.window._start_site_tool(tool, 'Υψομετρική περιοχή: '+
             ('κλικ στο περίγραμμα ή σε σημείο · σύρε σώμα/κορυφή · δεξί κλικ για επεξεργασία · Esc τέλος' if shape=='edit'
              else ('κλικ στις κορυφές · κλικ στην πρώτη / διπλό κλικ / Enter κλείσιμο · Esc ακύρωση' if shape=='polygon'
-                   else 'σύρε το σχήμα και δώσε υψόμετρο · Esc ακύρωση')))
+                   else ('κλικ μέσα στον χώρο που κλείνουν τοίχοι / τοιχία · το υψόμετρο από το υπόβαθρο ή όπως το δώσεις · Esc τέλος'
+                         if shape=='pick' else
+                         ('κλικ στο σημείο της στάθμης (π.χ. στο «+137.10 F.L.» του υποβάθρου) · το πλάτωμα φτάνει ως τα τοιχία · Esc τέλος'
+                          if shape=='level' else 'σύρε το σχήμα και δώσε υψόμετρο · Esc ακύρωση')))))
         self.window.plan_view.redraw()
 
     def _active(self, view):
@@ -117,6 +120,69 @@ class TerrainTools:
         self.window.doc.select([e.id]); self.window._redraw_views(all_views=True); self.window.refresh_inspector()
         self.window.statusBar().showMessage(f'{SHAPES[shape]}: {mark(z)} · σύρε κορυφή/σώμα · Ιδιότητες για υψόμετρο/μετάβαση · Ctrl+Z αναίρεση',8000)
         return True
+
+    def place_plateau(self, x, y, z=None):
+        """Πλάτωμα: the closed area around (x, y) as a level region (site/plateaus.py) — one undo."""
+        from archforge.site import plateaus as P
+        found=P.area_at(self.window.doc,x,y)
+        if found is None:
+            self.window.statusBar().showMessage('Πλάτωμα: εδώ δεν κλείνουν τοίχοι / τοιχία έναν χώρο — σχεδίασε πρώτα τα τοιχία ή χρησιμοποίησε «Ελεύθερο πολύγωνο»',8000)
+            return False
+        polygon,_storey=found
+        e=self.window._terrain_entity(); p=e.params if e else default_terrain_params(self.window.doc)
+        if z is None:
+            written=P.written_level(self.window.doc,polygon,float(p.get('altitude_ref',0.0)))
+            z0=written if written is not None else terrain_height(p,x,y)
+            z,ok=QInputDialog.getDouble(self.window,'Πλάτωμα',('Το υπόβαθρο γράφει εδώ '+mark(written)+'.\n' if written is not None else '')+
+                                        'Υψόμετρο πλατώματος ως προς ±0,00 (m):',z0,-1000.,1000.,3)
+            if not ok: return False
+        r=P.region(polygon,z,uuid.uuid4().hex)
+        try:
+            changes=P.with_plateau(p,r)
+            if e is None:
+                e=Entity('terrain',changes,name='Έδαφος'); self.window.stack.execute(AddEntity(e))
+            else: self.window.stack.execute(UpdateEntity(e.id,changes))
+        except (ValueError,RuntimeError,PermissionError) as exc:
+            self.window.statusBar().showMessage(f'Πλάτωμα: {exc}',8000); return False
+        self.window._redraw_views(all_views=True); self.window.refresh_inspector()
+        self.window.statusBar().showMessage(f'Πλάτωμα {mark(z)} · {abs(signed_area(polygon)):.1f} m² ως τις παρειές των τοίχων · '
+                                            'κλικ σε επόμενο χώρο · Esc τέλος · Ctrl+Z αναίρεση',8000)
+        return True
+
+    def place_level(self, x, y, z=None):
+        """Στάθμη πλατώματος at (x, y): flat around it up to the walls that hold it (site/terrain.py) — one undo."""
+        from archforge.site import plateaus as P
+        e=self.window._terrain_entity(); p=e.params if e else default_terrain_params(self.window.doc)
+        if z is None:
+            written=P.written_level_near(self.window.doc,x,y,float(p.get('altitude_ref',0.0)))
+            z0=written if written is not None else terrain_height(p,x,y)
+            z,ok=QInputDialog.getDouble(self.window,'Στάθμη πλατώματος',('Το υπόβαθρο γράφει εδώ '+mark(written)+'.\n' if written is not None else '')+
+                                        'Στάθμη ως προς ±0,00 (m) — επίπεδο ως τα τοιχία γύρω:',z0,-1000.,1000.,3)
+            if not ok: return False
+        changes=copy.deepcopy(p); changes['levels']=list(p.get('levels') or [])+[[float(x),float(y),float(z)]]
+        changes.update(x0=min(float(p['x0']),x),y0=min(float(p['y0']),y),x1=max(float(p['x1']),x),y1=max(float(p['y1']),y))
+        try:
+            if e is None:
+                e=Entity('terrain',changes,name='Έδαφος'); self.window.stack.execute(AddEntity(e))
+            else: self.window.stack.execute(UpdateEntity(e.id,changes))
+        except (ValueError,RuntimeError,PermissionError) as exc:
+            self.window.statusBar().showMessage(f'Στάθμη: {exc}',8000); return False
+        self.window._redraw_views(all_views=True); self.window.refresh_inspector()
+        self.window.statusBar().showMessage(f'Στάθμη πλατώματος {mark(z)} · επίπεδο ως τα τοιχία · κλικ σε επόμενη · Esc τέλος · Ctrl+Z αναίρεση',8000)
+        return True
+
+    def fit_retaining(self, walls=None):
+        """Τοιχία: z and height of the selected walls (or the given ones) from the ground on their two sides."""
+        from archforge.site.retaining import fit_command
+        doc=self.window.doc
+        walls=walls if walls is not None else [doc.get(i) for i in doc.selection if i in doc.entities and doc.get(i).kind=='wall']
+        if not walls:
+            self.window.statusBar().showMessage('Τοιχία: επίλεξε πρώτα τους τοίχους (τοιχία) που κρατούν το έδαφος',6000); return 0
+        command,n=fit_command(doc,walls)
+        if command is not None:
+            self.window.stack.execute(command); self.window._redraw_views(all_views=True); self.window.refresh_inspector()
+        self.window.statusBar().showMessage(f'Τοιχία: {n} από {len(walls)} πήραν ύψος από το έδαφος δεξιά-αριστερά · Ctrl+Z αναίρεση',8000)
+        return n
 
     def _hit(self, view, x, y):
         e=self.window._terrain_entity()
@@ -193,6 +259,11 @@ class TerrainTools:
         if kind not in ('press','move','release'): return False
         if kind in ('press','release') and event.button()!=Qt.MouseButton.LeftButton: return False
         x,y=self._xy(view,event); self.cursor=(x,y)
+        if self.mode in ('pick','level'):
+            if kind=='press':
+                view._long_press=None
+                (self.place_plateau if self.mode=='pick' else self.place_level)(x,y)
+            return True
         if self.mode in SHAPES:
             if self.mode=='polygon':
                 if kind=='press':
@@ -285,6 +356,9 @@ class TerrainTools:
             draw(r['points'],BLUE if sel else BROWN,sel,shape=r['shape'])
             x=sum(p[0] for p in r['points'])/len(r['points']); y=sum(p[1] for p in r['points'])/len(r['points'])
             label(mark(r['elevation']),x,y,BLUE if sel else BROWN)
+        for x,y,z in params.get('levels') or ():
+            view._scene.addRect(x-radius,y-radius,2*radius,2*radius,QPen(BROWN,0),QBrush(QColor('white'))).setZValue(41)
+            label('F.L. '+mark(z),x+.15,y+.15,BROWN)
         native_points=any(p.role=='terrain-label' for p in getattr(view,'_frame',()).primitives) if hasattr(getattr(view,'_frame',None),'primitives') else False
         for i,p in enumerate(params.get('points') or ()):
             if self.drag and self.drag['hit'][:2]==('point',i): p=self.drag['preview']
@@ -303,8 +377,11 @@ def install(window):
     tool=TerrainTools(window); window._terrain_tools=tool; window.plan_view.terrain_tool=tool
     menu=window._mockup_terrain_menu
     sub=QMenu('Υψομετρικές περιοχές / σχήματα',menu)
-    for shape,text in [*SHAPES.items(),('edit','Επιλογή / επεξεργασία περιοχών και σημείων')]:
+    for shape,text in [('level','Στάθμη πλατώματος (F.L.): επίπεδο ως τα τοιχία'),('pick','Πλάτωμα: κλικ μέσα σε χώρο που κλείνουν τοιχία'),
+                       *SHAPES.items(),('edit','Επιλογή / επεξεργασία περιοχών και σημείων')]:
         a=QAction(text,window); a.triggered.connect(lambda _=False,s=shape:tool.start(s)); sub.addAction(a)
+    fit=QAction('Τοιχία: ύψος από το έδαφος (επιλεγμένοι τοίχοι)',window); fit.triggered.connect(lambda:tool.fit_retaining())
+    sub.addAction(fit)
     menu.insertMenu(menu.actions()[menu.actions().index(next(a for a in menu.actions() if a.text()=='Υψομετρικά σημεία'))+1],sub)
     section=QAction('Τομή εδάφους / υπογείου',window)
     section.triggered.connect(lambda:window._start_site_tool('view_section','Σύρε γραμμή τομής από μπροστά έως πίσω στο οικόπεδο'))

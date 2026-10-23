@@ -463,8 +463,18 @@ function lookPaintSky(elevation, dir) {
 // ---- Ground ---------------------------------------------------------------
 const lookGroundMaterial = new THREE.MeshStandardMaterial({color: 0xffffff, roughness: 1.0, metalness: 0.0});
 lookApplyGrain(lookGroundMaterial, "soil");
-function lookGroundGeometry() {
-  const g = new THREE.CircleGeometry(1500, 128);
+function lookGroundGeometry(hole = null) {
+  // Under a site terrain the terrain is the ground: the disk to the horizon has a hole there, so a pool or a
+  // dug-in building at the terrain's lowest level is not lidded by it (owner 22/10: the OLD VILLA pool).
+  let g = new THREE.CircleGeometry(1500, 128);
+  if (hole) {
+    const shape = new THREE.Shape();
+    shape.absarc(0, 0, 1500, 0, Math.PI * 2, false);
+    const h = new THREE.Path();
+    h.moveTo(hole[0], hole[1]); h.lineTo(hole[0], hole[3]); h.lineTo(hole[2], hole[3]); h.lineTo(hole[2], hole[1]); h.lineTo(hole[0], hole[1]);
+    shape.holes.push(h);
+    g = new THREE.ShapeGeometry(shape, 64);
+  }
   const pos = g.attributes.position, uv = g.attributes.uv;
   for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getX(i), pos.getY(i));   // metres, as a terrain top
   return g;

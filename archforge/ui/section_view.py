@@ -6,6 +6,9 @@
   hatched with a heavy outline, the building behind in elevation, the storey levels.
 * Clicking the line in the plan selects it (Delete removes it); the Properties offer «Άνοιγμα
   τομής», «Αντιστροφή» (look the other way) and «Στο 3D» (clipping plane on the line).
+* «Υπόβαθρο τομής…»: the engineer's section (PDF / DXF) under this section, placed with two
+  clicks (its ±0,00 on ours), calibrated on a known height; the level under the mouse is shown
+  in the status bar to read storey heights, slabs, ground and pool off it.
 
 The drawing itself is ``output/section_cut.py`` (plain data); this module only paints it.
 """
@@ -102,13 +105,58 @@ class SectionView(QGraphicsView):
         evaluation = cache.sync(doc) if cache is not None else None
         self.data = cut_section(doc, doc.get(eid).params, evaluation)
         self._scene.clear()
+        backdrop = self._draw_underlays()
         self._scene.addItem(_Drawing(self.data))
         self._draw_levels()
         self._draw_terrain_marks()
+        self._draw_pools()
         if fit:
             u0, z0, u1, z1 = self.data["bounds"]
-            self.fitInView(QRectF(u0 - 4.5, z0 - 1.0, (u1 - u0) + 9.5, (z1 - z0) + 2.0), Qt.AspectRatioMode.KeepAspectRatio)
+            rect = QRectF(u0 - 4.5, z0 - 1.0, (u1 - u0) + 9.5, (z1 - z0) + 2.0)
+            for item in backdrop:
+                rect = rect.united(item.sceneBoundingRect())
+            self.fitInView(rect, Qt.AspectRatioMode.KeepAspectRatio)
         return self.data
+
+    def _draw_underlays(self):
+        """The engineer's section under ours (faint, behind, never selectable)."""
+        from archforge.project.underlay import section_underlays
+        from archforge.ui.plan_view import add_underlay_item
+        return [add_underlay_item(self._scene, e.params)
+                for e in section_underlays(self.window.doc, self.entity_id) if e.visible]
+
+    # --- clicks for placing / calibrating the section underlay (ui/underlay_tools.py) -----------------
+
+    def _picking(self):
+        state = getattr(self.window, "_underlay_calibration", None)
+        if not state or state["id"] not in self.window.doc.entities:
+            return None
+        return state if self.window.doc.get(state["id"]).params.get("section_id") == self.entity_id else None
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton and self._picking():
+            from archforge.ui.underlay_tools import calibration_click
+            q = self.mapToScene(event.position().toPoint())
+            calibration_click(self.window, q.x(), q.y())
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        super().mouseMoveEvent(event)
+        if self.data is None or event.buttons() != Qt.MouseButton.NoButton:
+            return
+        q = self.mapToScene(event.position().toPoint())
+        self.setCursor(Qt.CursorShape.CrossCursor if self._picking() else Qt.CursorShape.OpenHandCursor)
+        if not self._picking():
+            self.window.statusBar().showMessage(level_readout(q.x(), q.y()), 4000)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape and self._picking():
+            self.window._underlay_calibration = None
+            self.window.statusBar().showMessage("Ακυρώθηκε", 3000)
+            return
+        super().keyPressEvent(event)
 
     def _text(self, text, u, z, color=INK, bold=False, align=(0.0, 0.5)):
         t = self._scene.addText(text)
@@ -139,6 +187,38 @@ class SectionView(QGraphicsView):
         if top is not None and all(abs(top - z) > 0.3 for z, _m, _n in self.data["levels"]):
             self._text(f"{top:+.2f}".replace(".", ",") + "  ανώτατο σημείο", u1 + 0.4, top, QColor(30, 90, 170), False, (0.0, 0.5))
 
+    def _draw_pools(self):
+        """A pool the line crosses: its concrete cut (walls, sloping floor), the water, and its levels — rim, water,
+        bottom at each end — relative to ±0,00 and absolute (section_cut.pool_cuts)."""
+        blue = QColor(30, 110, 200)
+        concrete = QPen(QColor(40, 40, 40)); concrete.setCosmetic(True); concrete.setWidthF(1.6)
+        for c in self.data.get("pools", ()):
+            u0, u1, rim, water, t, f = c["u0"], c["u1"], c["rim"], c["water"], c["wall"], c["floor"]
+            bottom = c["bottom"]
+            shell = ([QPointF(u0 - t, rim), QPointF(u0, rim)] + [QPointF(u, z) for u, z in bottom] +
+                     [QPointF(u1, rim), QPointF(u1 + t, rim), QPointF(u1 + t, bottom[-1][1] - f)] +
+                     [QPointF(u, z - f) for u, z in reversed(bottom)] + [QPointF(u0 - t, bottom[0][1] - f)])
+            # The ground goes on under the basin (the 3D cuts the terrain through for the hole; a section must not).
+            low = min(self.data["bounds"][1], min(z for _u, z in bottom) - f - 0.5)
+            soil = [QPointF(u0 - t, bottom[0][1] - f)] + [QPointF(u, z - f) for u, z in bottom] + \
+                   [QPointF(u1 + t, bottom[-1][1] - f), QPointF(u1 + t, low), QPointF(u0 - t, low)]
+            hatch = QBrush(QColor(125, 75, 25), Qt.BrushStyle.BDiagPattern)
+            self._scene.addPolygon(QPolygonF(soil), QPen(Qt.PenStyle.NoPen), hatch).setZValue(7)
+            self._scene.addPolygon(QPolygonF(shell), concrete, QBrush(QColor(190, 190, 190))).setZValue(8)
+            wet = [QPointF(u0, water), QPointF(u1, water)] + [QPointF(u, z) for u, z in reversed(bottom)]
+            self._scene.addPolygon(QPolygonF(wet), QPen(Qt.PenStyle.NoPen), QBrush(QColor(110, 180, 230, 170))).setZValue(9)
+            ref = c.get("altitude_ref", 0.0)
+
+            def both(z):
+                rel = "±0,00" if abs(z) < 5e-3 else f"{z:+.2f}".replace(".", ",")
+                return rel + (f" (+{z + ref:.2f})".replace(".", ",") if ref else "")
+            self._text(f"χείλος {both(rim)}", u1 + t + 0.15, rim + 0.15, blue, True, (0.0, 1.0))
+            self._text(f"νερό {both(water)}", u1 + t + 0.15, water - 0.05, blue, False, (0.0, 0.0))
+            self._text(f"πυθμένας {both(bottom[0][1])}", u0 + 0.15, bottom[0][1] + 0.1, blue, False, (0.0, 1.0))
+            if abs(bottom[-1][1] - bottom[0][1]) > 0.01:
+                self._text(f"πυθμένας {both(bottom[-1][1])}", u1 - 0.15, bottom[-1][1] + 0.1, blue, False, (1.0, 1.0))
+            self._text(c["name"], (u0 + u1) / 2, water + 0.6, blue, True, (0.5, 1.0))
+
     def _draw_terrain_marks(self):
         from archforge.ui.terrain_tools import mark
         color = QColor(125, 75, 25)
@@ -147,6 +227,12 @@ class SectionView(QGraphicsView):
             tri = QPolygonF([QPointF(u,z), QPointF(u-.12,z+.18), QPointF(u+.12,z+.18)])
             self._scene.addPolygon(tri, pen, QBrush(QColor('white'))).setZValue(7)
             self._text(mark(z), u+.15, z+.3, color, True, (0.,1.))
+
+
+def level_readout(u, z):
+    """Status-bar text for the point under the mouse in a section: «Υψόμετρο +3,20 · 4,15 m κατά μήκος της τομής»."""
+    mark = "±0,00" if abs(z) < 5e-3 else f"{z:+.2f}".replace(".", ",")
+    return f"Υψόμετρο {mark} · " + f"{u:.2f}".replace(".", ",") + " m κατά μήκος της τομής"
 
 
 class SectionPanel(QWidget):
@@ -162,6 +248,10 @@ class SectionPanel(QWidget):
         bar.addWidget(self.title, 1)
         for text, tip, run in (("Αντιστροφή", "Κοίτα από την άλλη πλευρά της γραμμής", lambda: flip_section(window, self.view.entity_id)),
                                ("Στο 3D", "Η ίδια τομή στο 3D, με επίπεδο αποκοπής στη γραμμή", lambda: section_in_3d(window, self.view.entity_id)),
+                               ("Υπόβαθρο τομής…", "Η τομή του μηχανικού (PDF / DXF) κάτω από αυτή — "
+                                "τοποθέτηση με 2 κλικ, μετά διαβάζεις υψόμετρα με το ποντίκι", lambda: import_section_underlay(window, self.view.entity_id)),
+                               ("Αυτόματη θέση", "Το υπόβαθρο τομής στη θέση και τη φορά του, από την πισίνα / τους τοίχους "
+                                "του μοντέλου πάνω στη γραμμή (το ίδιο με το Σύνολο σχεδίων)", lambda: auto_place_section(window, self.view.entity_id)),
                                ("Όλη η τομή", "Προσαρμογή στην οθόνη", lambda: self.refresh(fit=True))):
             b = QPushButton(text); b.setToolTip(tip); b.clicked.connect(lambda _=False, r=run: r()); bar.addWidget(b)
         lay.addLayout(bar)
@@ -203,6 +293,71 @@ def create_section(window, x1, y1, x2, y2):
     window.statusBar().showMessage(f"{entity.name}: κοιτάς προς τα βέλη · «Αντιστροφή» για την άλλη πλευρά · "
                                    "«Στο 3D» για το επίπεδο αποκοπής · Ctrl+Z αναιρεί", 10000)
     return entity
+
+
+def section_sheet(params):
+    """The section underlay as a drawing-set sheet (lines and water in metres, the underlay's own frame)."""
+    from archforge.project import drawing_set as D
+    k = float(params["m_per_unit"])
+    if params.get("source") == "pdf":
+        return D.read_sheet(params["path"], int(params.get("page", 0)), scale=k / D.PT_M)
+    u0, v0 = float(params.get("u0", 0.0)), float(params.get("v0", 0.0))
+    segs = [((a - u0) * k, (b - v0) * k, (c - u0) * k, (d - v0) * k) for a, b, c, d in params.get("segments", ())]
+    return D.Sheet(str(params.get("path", "")), kind="section", scale=k / D.PT_M, segments=segs)
+
+
+def auto_place_section(window, eid):
+    """«Αυτόματη θέση»: the engineer's section under section ``eid`` placed and turned by the model on its line
+    (project/section_fit.py — the pool's water, else the walls); the drawing is checked against the model.
+    One undo.  Returns the fit or None."""
+    from archforge.core.commands import CompositeCommand
+    from archforge.project import section_fit as F
+    from archforge.project.underlay import section_underlays
+    doc = window.doc
+    if eid not in doc.entities:
+        return None
+    under = [u for u in section_underlays(doc, eid) if u.visible]
+    if not under:
+        window.statusBar().showMessage("Αυτόματη θέση: βάλε πρώτα την τομή του μηχανικού («Υπόβαθρο τομής…»)", 7000)
+        return None
+    u = under[-1]
+    p = doc.get(eid).params
+    line = ((float(p["x1"]), float(p["y1"])), (float(p["x2"]), float(p["y2"])))
+    found = F.fit(section_sheet(u.params), doc, line)
+    name = doc.get(eid).name
+    if found is None:
+        window.statusBar().showMessage(F.report(None, name), 9000)
+        return None
+    window.stack.execute(CompositeCommand([UpdateEntity(eid, {"flip": found["flip"]}),
+                                           UpdateEntity(u.id, {"x": found["x"], "y": found["y"]})], "Αυτόματη θέση τομής"))
+    window._redraw_views(all_views=True) if hasattr(window, "_redraw_views") else None
+    panel = getattr(window, "_section_panel", None)
+    if panel is not None:
+        panel.refresh(fit=True)
+    window.statusBar().showMessage(F.report(found, name) + " · Ctrl+Z αναίρεση", 15000)
+    return found
+
+
+def pool_section(window, pool_id, margin=3.0):
+    """Πισίνα ▸ «Τομή πισίνας»: a section line along the pool through its middle, 3 m beyond each end — its levels
+    in the section tab (rim, water, bottom)."""
+    import math
+    from archforge.site.pool import param
+    if pool_id not in window.doc.entities:
+        return None
+    p = window.doc.get(pool_id).params
+    a = math.radians(param(p, "rotation"))
+    h = param(p, "length") / 2 + margin
+    cx, cy = float(p["x"]), float(p["y"])
+    return create_section(window, cx - math.cos(a) * h, cy - math.sin(a) * h, cx + math.cos(a) * h, cy + math.sin(a) * h)
+
+
+def import_section_underlay(window, eid, **kwargs):
+    """The engineer's section (PDF / DXF) under section ``eid`` — then two clicks place it."""
+    if eid not in window.doc.entities:
+        return None
+    from archforge.ui.underlay_tools import import_drawing
+    return import_drawing(window, section_id=eid, **kwargs)
 
 
 def open_section(window, eid):

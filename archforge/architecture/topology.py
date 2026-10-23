@@ -67,6 +67,75 @@ def _segment_intersection(a: Point, b: Point, c: Point, d: Point, tolerance: flo
     return ((a[0]+t*rx,a[1]+t*ry),t,u)
 
 
+# Owner 22/10: «το πρόβλημα με τα μικρά κενά υπάρχει και στο κανονικό σχεδιαστικό … δεν κάνει σναπ όπως έπρεπε»,
+# «το πρόβλημα είναι βαθύτερο και το software απλά το αναπαράγει».  Rooms used to need the wall *axes* to meet
+# within a micrometre: a wall drawn 2 cm short of another, its body already inside the other's, left the room
+# open.  A wall is a body of its thickness: an end whose body reaches the other wall's body (plus BODY_GAP) meets
+# it — in the graph only, the walls themselves are not changed.  A real passage (60 cm and up) stays open.
+BODY_GAP = 0.25                   # NEW VILLA master bedroom: its wall stopped 19 cm short, at the wardrobe
+
+
+def _point_segment_distance(p, a, b):
+    L2 = (b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2
+    t = 0.0 if L2 <= 1e-18 else max(0.0, min(1.0, ((p[0] - a[0]) * (b[0] - a[0]) + (p[1] - a[1]) * (b[1] - a[1])) / L2))
+    return _dist(p, (a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])))
+
+
+def _join_touching_bodies(segments, gap=BODY_GAP):
+    """Move graph ends (not the walls) to where their wall meets a wall its body touches: L / T junctions at the
+    axes' crossing, collinear pieces end to end."""
+    def line_cross(a, b, c, d):
+        rx, ry, sx, sy = b[0] - a[0], b[1] - a[1], d[0] - c[0], d[1] - c[1]
+        den = rx * sy - ry * sx
+        if abs(den) <= 1e-9 * max(1.0, hypot(rx, ry) * hypot(sx, sy)):
+            return None
+        t = ((c[0] - a[0]) * sy - (c[1] - a[1]) * sx) / den
+        u = ((c[0] - a[0]) * ry - (c[1] - a[1]) * rx) / den
+        return (a[0] + t * rx, a[1] + t * ry), t, u
+    moves = []
+    for i, si in enumerate(segments):
+        for end in ('a', 'b'):
+            p, other = si[end], si['b' if end == 'a' else 'a']
+            L = _dist(si['a'], si['b'])
+            ox, oy = (p[0] - other[0]) / L, (p[1] - other[1]) / L          # outwards from this end
+            # Already on another wall: it meets it — never pulled back to something nearer.
+            if any(k != i and _point_segment_distance(p, sk['a'], sk['b']) <= 1e-6 for k, sk in enumerate(segments)):
+                continue
+            best = None
+            for j, sj in enumerate(segments):
+                if i == j or abs(si['z'] - sj['z']) > 1e-6:
+                    continue
+                reach = (si['t'] + sj['t']) / 2 + gap
+                M = _dist(sj['a'], sj['b'])
+                hit = line_cross(si['a'], si['b'], sj['a'], sj['b'])
+                if hit is not None:
+                    c, t, u = hit
+                    d = _dist(c, p)
+                    # The crossing is beyond (or within) this end by at most the bodies + gap, and on the other wall
+                    # or just past its end (an L where both stop short); the end must stay this wall's end.
+                    if d < 1e-9 or d > reach or (c[0] - p[0]) * ox + (c[1] - p[1]) * oy <= 0:
+                        continue                                       # only carried on, never pulled back
+                    if not (-reach / M <= u <= 1 + reach / M):
+                        continue
+                    if _dist(c, other) < 0.5 * L:
+                        continue
+                    if best is None or d < best[0]:
+                        best = (d, c)
+                else:
+                    # Parallel: collinear pieces end to end (axes within the thinner half thickness).
+                    ux, uy = (si['b'][0] - si['a'][0]) / L, (si['b'][1] - si['a'][1]) / L
+                    if abs((sj['a'][0] - si['a'][0]) * -uy + (sj['a'][1] - si['a'][1]) * ux) > min(si['t'], sj['t']) / 2:
+                        continue
+                    for q in (sj['a'], sj['b']):
+                        d = _dist(p, q)
+                        if 1e-9 < d <= gap and (best is None or d < best[0]) and _dist(q, other) > _dist(p, other):
+                            best = (d, q)
+            if best is not None:
+                moves.append((i, end, best[1]))
+    for i, end, c in moves:
+        segments[i][end] = (float(c[0]), float(c[1]))
+
+
 def build_wall_graph(doc, tolerance: float = 1e-6, z: Optional[float] = None) -> WallGraph:
     """Build a planar connectivity graph from visible semantic walls.
 
@@ -87,7 +156,9 @@ def build_wall_graph(doc, tolerance: float = 1e-6, z: Optional[float] = None) ->
         a=(float(p['x1']),float(p['y1']));b=(float(p['x2']),float(p['y2']))
         if _dist(a,b)<=tolerance:
             continue
-        segments.append({'id':eid,'a':a,'b':b,'z':wz,'cuts':[0.0,1.0]})
+        segments.append({'id':eid,'a':a,'b':b,'z':wz,'t':float(p.get('thickness',0.2) or 0.2),'cuts':[0.0,1.0]})
+
+    _join_touching_bodies(segments)
 
     for i in range(len(segments)):
         for j in range(i+1,len(segments)):

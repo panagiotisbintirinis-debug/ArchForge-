@@ -125,6 +125,29 @@ def add_upper_dome(
     return pod_id
 
 
+# The canonical cluster of the Patent Brief: (key, name, diameter, height, dx, dy, rotation, floor above the base).
+# Central hub 8,0 m; peripheral pods overlap it (centre distance < sum of radii) so each gets a flat shared junction.
+CLUSTER = (
+    ('central_pod', "Bio-Spectre Central Pod (Living & Kitchen)", 8.0, 4.5, 0.0, 0.0, 0.0, 0.0),
+    ('master_pod', "Master Bedroom Pod", 5.4, 3.6, 5.3, 0.8, 15.0, 0.0),
+    ('studio_pod', "Studio & Creative Pod", 4.8, 3.3, -4.8, 2.2, -20.0, 0.0),
+    ('bath_pod', "Wellness & Bath Pod", 4.0, 3.0, -3.2, -4.2, 45.0, 0.0),
+    ('upper_dome', "Upper Sky Observational Dome", 4.6, 3.2, 1.2, 1.0, 0.0, 3.2),
+)
+
+
+def cluster_specs(center_x=0.0, center_y=0.0, level=0.0, include_upper_dome=True, names=None):
+    """``[(key, name, pod params)]`` of the canonical cluster around (center_x, center_y) on ``level``."""
+    out = []
+    for key, name, d, h, dx, dy, rot, up in CLUSTER:
+        if key == 'upper_dome' and not include_upper_dome:
+            continue
+        out.append((key, (names or {}).get(key, name), {
+            'cx': center_x + dx, 'cy': center_y + dy, 'floor_level': level + up,
+            'diameter_x': d, 'diameter_y': d, 'height': h, 'shell_thickness': 0.018, 'rotation': rot}))
+    return out
+
+
 def create_bio_spectre_cluster(
     doc: Document,
     center_x: float = 0.0,
@@ -141,95 +164,9 @@ def create_bio_spectre_cluster(
     6. Circular Cistern Foundation beneath the central floor
     """
     register_biospectre_presets(doc)
-    
     created_ids = {}
-    
-    # 1. Central Living / Kitchen Pod (Large hub, diameter 8.0m, height 4.5m)
-    p_central = Entity(
-        kind='pod',
-        name="Bio-Spectre Central Pod (Living & Kitchen)",
-        params={
-            'cx': center_x,
-            'cy': center_y,
-            'floor_level': 0.0,
-            'diameter_x': 8.0,
-            'diameter_y': 8.0,
-            'height': 4.5,
-            'shell_thickness': 0.018,
-            'rotation': 0.0,
-        }
-    )
-    created_ids['central_pod'] = doc.add(p_central)
-    
-    # 2. Master Bedroom Pod (Diameter 5.4m, height 3.6m, overlapping east)
-    # Distance = 5.3m < (8.0 + 5.4)/2 = 6.7m => organic overlap with flat junction
-    p_master = Entity(
-        kind='pod',
-        name="Master Bedroom Pod",
-        params={
-            'cx': center_x + 5.3,
-            'cy': center_y + 0.8,
-            'floor_level': 0.0,
-            'diameter_x': 5.4,
-            'diameter_y': 5.4,
-            'height': 3.6,
-            'shell_thickness': 0.018,
-            'rotation': 15.0,
-        }
-    )
-    created_ids['master_pod'] = doc.add(p_master)
-    
-    # 3. Studio / Guest Pod (Diameter 4.8m, height 3.3m, overlapping northwest)
-    p_studio = Entity(
-        kind='pod',
-        name="Studio & Creative Pod",
-        params={
-            'cx': center_x - 4.8,
-            'cy': center_y + 2.2,
-            'floor_level': 0.0,
-            'diameter_x': 4.8,
-            'diameter_y': 4.8,
-            'height': 3.3,
-            'shell_thickness': 0.018,
-            'rotation': -20.0,
-        }
-    )
-    created_ids['studio_pod'] = doc.add(p_studio)
-    
-    # 4. Wellness & Bathroom Pod (Diameter 4.0m, height 3.0m, overlapping southwest)
-    p_bath = Entity(
-        kind='pod',
-        name="Wellness & Bath Pod",
-        params={
-            'cx': center_x - 3.2,
-            'cy': center_y - 4.2,
-            'floor_level': 0.0,
-            'diameter_x': 4.0,
-            'diameter_y': 4.0,
-            'height': 3.0,
-            'shell_thickness': 0.018,
-            'rotation': 45.0,
-        }
-    )
-    created_ids['bath_pod'] = doc.add(p_bath)
-    
-    # 5. Optional Upper Sky Dome (Observational Mezzanine)
-    if include_upper_dome:
-        p_upper = Entity(
-            kind='pod',
-            name="Upper Sky Observational Dome",
-            params={
-                'cx': center_x + 1.2,
-                'cy': center_y + 1.0,
-                'floor_level': 3.2,
-                'diameter_x': 4.6,
-                'diameter_y': 4.6,
-                'height': 3.2,
-                'shell_thickness': 0.018,
-                'rotation': 0.0,
-            }
-        )
-        created_ids['upper_dome'] = doc.add(p_upper)
+    for key, name, params in cluster_specs(center_x, center_y, 0.0, include_upper_dome):
+        created_ids[key] = doc.add(Entity(kind='pod', name=name, params=params))
 
     # Calculate cluster reorganization
     reorg_info = compute_cluster_reorganization(doc)

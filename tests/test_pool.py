@@ -122,3 +122,118 @@ def test_pool_supply_has_its_own_circuit_and_its_own_rcd_on_the_board():
         assert not [e for e in window.doc.entities.values() if e.params.get('point_type') == 'pool_supply']
     finally:
         window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_the_pool_is_a_hole_in_the_ground():
+    """Open since 17/10 («η λεκάνη χωρίς τρύπα στο έδαφος του 3D»): the terrain stops at the basin's outer face."""
+    from archforge.geometry.mesh_validation import validate_mesh
+    from archforge.geometry.mesh import MeshPayload
+    from archforge.site.terrain import building_exclusions, terrain_mesh
+    doc = Document(); stack = CommandStack(doc)
+    _pool(stack, length=8.0, width=4.0)                                  # inside 8 × 4, walls 25 cm
+    p = {"x0": -10.0, "y0": -10.0, "x1": 10.0, "y1": 10.0, "elevation": 0.0, "slope_x": 0.0, "slope_y": 0.0, "thickness": 0.5}
+    v, t, r = terrain_mesh(p, exclusions=building_exclusions(doc))
+    assert validate_mesh(MeshPayload(v, t, r)).watertight
+    area = 0.0
+    for tri, role in zip(t, r):
+        if role != "top":
+            continue
+        a, b, c = [v[i] for i in tri]
+        x, y = sum(q[0] for q in (a, b, c)) / 3, sum(q[1] for q in (a, b, c)) / 3
+        assert not (abs(x) < 4.25 - 1e-7 and abs(y) < 2.25 - 1e-7)
+        area += abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) / 2
+    assert area == pytest.approx(400 - 8.5 * 4.5)
+
+
+# OLD VILLA (owner 22/10: «η πισίνα είναι Γ με spa» · «μπορεί να είναι και καμπύλο»): a rectangle 7,30 × 3,90 and a
+# spa 1,87 wide with a round end, as one outline.
+def _l_with_spa():
+    import math
+    arc = [(2.70 + 0.935 * math.cos(math.radians(a)), 2.05 + 0.935 * math.sin(math.radians(a))) for a in range(0, 181, 15)]
+    return [(-3.65, -1.95), (3.635, -1.95), (3.635, 1.95)] + arc + [(1.765, 1.95), (-3.65, 1.95)]
+
+
+def test_a_pool_of_any_shape_is_measured_as_drawn():
+    import math
+    from archforge.site.pool import area, outline, perimeter
+    doc = Document(); st = CommandStack(doc)
+    shape = _l_with_spa()
+    pool = _pool(st, length=7.285, width=4.935, outline=[list(q) for q in shape])
+    p = pool.params
+    drawn = abs(sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(shape, shape[1:] + shape[:1]))) / 2
+    assert area(p) == pytest.approx(drawn, rel=1e-6) and drawn < 7.285 * 4.935 * 0.9
+    edges = sum(math.dist(a, b) for a, b in zip(shape, shape[1:] + shape[:1]))
+    assert perimeter(p) == pytest.approx(edges, rel=1e-6)
+    a = analyse(doc, pool)
+    assert a['volume_m3'] == pytest.approx(drawn * 1.45, rel=1e-3)
+    # The notch beside the spa is not water: a socket there is in zone 1, not zone 0.
+    assert zone_of(p, -1.0, 2.0) == 1 and zone_of(p, 2.7, 2.0) == 0         # shape recentred: notch top v = 1,43
+    # Length / width stretch the drawn shape.
+    st.execute(UpdateEntity(pool.id, {'length': 14.57}))
+    assert area(doc.get(pool.id).params) == pytest.approx(2 * drawn, rel=1e-6)
+    assert len(outline(doc.get(pool.id).params, 0.3)) >= len(shape)
+
+
+def test_a_shaped_pool_is_drawn_in_3d_and_cut_into_the_ground():
+    from archforge.site.pool import area, basin_meshes, coping_mesh
+    from archforge.site.terrain import building_exclusions, terrain_mesh
+    from archforge.geometry.mesh_validation import validate_mesh
+    from archforge.geometry.mesh import MeshPayload
+    doc = Document(); st = CommandStack(doc)
+    pool = _pool(st, length=7.285, width=4.935, outline=[list(q) for q in _l_with_spa()])
+    m = basin_meshes(pool.params)
+    wv, wt = m['water']
+    water = sum(abs((wv[b][0] - wv[a][0]) * (wv[c][1] - wv[a][1]) - (wv[b][1] - wv[a][1]) * (wv[c][0] - wv[a][0])) / 2
+                for a, b, c in wt)
+    assert water == pytest.approx(area(pool.params), rel=1e-6)                 # the water is the shape, notch left out
+    assert wv[0][2] == pytest.approx(-0.10)                                     # skimmer: 10 cm under the coping
+    cv, ct = coping_mesh(pool.params)
+    assert ct
+    p = {"x0": -10.0, "y0": -10.0, "x1": 10.0, "y1": 10.0, "elevation": 0.0, "slope_x": 0.0, "slope_y": 0.0, "thickness": 0.5}
+    v, t, r = terrain_mesh(p, exclusions=building_exclusions(doc))
+    assert validate_mesh(MeshPayload(v, t, r)).watertight
+    top = 0.0
+    for tri, role in zip(t, r):
+        if role == "top":
+            a, b, c = [v[i] for i in tri]
+            top += abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) / 2
+    # The ground keeps the notch beside the spa: only the basin and its walls are dug out.
+    assert top == pytest.approx(400 - area(pool.params, 0.25), abs=0.05)
+
+
+def test_corners_rounded_make_a_round_ended_spa():
+    import math
+    from archforge.site.pool import fillet
+    tab = [(0, 0), (1.9, 0), (1.9, 2.0), (0, 2.0)]
+    round_end = fillet(tab, 0.95)                                    # both far corners by half the width
+    area = abs(sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(round_end, round_end[1:] + round_end[:1]))) / 2
+    expected = 1.9 * 2.0 - (4 - math.pi) * 0.95 ** 2                 # four corners rounded, r = 0,95 … all four here
+    assert area == pytest.approx(expected, rel=0.03)                 # arcs as chords within 2 cm
+    assert fillet(tab, 0.0) == [tuple(map(float, q)) for q in tab]
+
+
+def test_the_pool_shape_drawn_by_hand_in_the_plan():
+    """Πισίνα ▸ «Σχεδίασε το σχήμα»: corners clicked in the plan, rounded — the same function the import uses."""
+    from PySide6.QtWidgets import QApplication, QPushButton
+    from archforge.site.pool import area
+    from archforge.ui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    w = MainWindow()
+    try:
+        w._no_modal_dialogs = True
+        w._place_site_point('pool_place', 0.0, 0.0)
+        (pool,) = [e for e in w.doc.entities.values() if e.kind == 'pool']
+        w.doc.select([pool.id]); w.refresh_inspector()
+        assert any(b.text().startswith('Σχεδίασε το σχήμα') for b in w.findChildren(QPushButton))
+        tool = w._pool_shape_tool
+        tool.start(pool.id)
+        L = [(-3.65, -1.95), (3.65, -1.95), (3.65, 4.0), (1.75, 4.0), (1.75, 1.95), (-3.65, 1.95)]   # L, spa 1,90 wide
+        assert tool.apply(L, 0.0)
+        p = w.doc.get(pool.id).params
+        assert area(p) == pytest.approx(7.3 * 3.9 + 1.9 * 2.05, rel=1e-3)
+        assert (p['length'], p['width']) == pytest.approx((7.3, 5.95))
+        w.stack.undo()
+        assert not w.doc.get(pool.id).params.get('outline')
+        assert not tool.apply([(0, 0), (1, 0)], 0.0)                     # two corners: told, nothing changed
+    finally:
+        w._mark_clean(); w.close(); app.processEvents()

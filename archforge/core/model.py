@@ -737,7 +737,7 @@ SCHEMAS = {
     'room_floor': _ROOM_SLAB,
     'room_ceiling': _ROOM_SLAB,
     'room_foundation': _ROOM_SLAB,
-    'room_roof': {**_ROOM_SLAB, 'roof_type': _nonempty, 'overhang': _nonnegative},
+    'room_roof': {**_ROOM_SLAB, 'roof_type': _nonempty, 'overhang': _nonnegative, 'green': _flag, 'soil': _nonnegative},
     'door': _JOINERY_OPENING,
     'window': _JOINERY_OPENING,
     'opening': _ARCH_OPENING,
@@ -795,7 +795,7 @@ SCHEMAS = {
         'x0': _finite, 'y0': _finite, 'x1': _finite, 'y1': _finite,
         'elevation': _finite, 'slope_x': _finite, 'slope_y': _finite, 'thickness': _positive,
         'points': _terrain_points, 'blend_radius': _positive, 'boundary': _plot_boundary,
-        'regions': _terrain_regions,
+        'regions': _terrain_regions, 'levels': _terrain_points,
         'altitude_ref': _finite,
     },
     'site_path': {
@@ -877,7 +877,8 @@ SCHEMAS = {
     # Engineer's drawing under the plan (project/underlay.py): a picture to draw on, not design geometry.
     'underlay': {'source': _choice(('pdf', 'dxf'), 'underlay source'), 'path': str, 'page': _page_index, 'x': _finite, 'y': _finite,
                  'z': _finite, 'u0': _finite, 'v0': _finite, 'm_per_unit': _positive, 'rotation': _finite,
-                 'opacity': _unit_interval, 'page_w': _positive, 'page_h': _positive, 'scale_denominator': _positive},
+                 'opacity': _unit_interval, 'page_w': _positive, 'page_h': _positive, 'scale_denominator': _positive,
+                 'section_id': str},
     'insulation_spec': {'categories': _insulation_categories},
     # Data-sheet figures the user enters (construction/shell.py): pieces per m² of a brick / roof tile.
     'construction_spec': {'pieces_per_m2': _pieces_per_m2},
@@ -1128,8 +1129,8 @@ class Document:
             # Storey slabs derive from every wall of their storey (and the roofs / slabs
             # around them); slab openings cut any slab of their storey.
             for related in self.entities.values():
-                if related.kind == 'terrain' and entity.kind == 'wall':
-                    self.mark_dirty(related.id)       # excavation follows added/moved/deleted walls
+                if related.kind == 'terrain' and entity.kind in ('wall', 'room_roof'):
+                    self.mark_dirty(related.id)       # excavation follows the walls; a green roof is under the ground
                 if related.kind in ('room_floor', 'room_roof', 'room_ceiling') and related.id != entity.id \
                         and (entity.kind == 'slab_opening' or related.params.get('scope') == 'storey'):
                     self.mark_dirty(related.id)

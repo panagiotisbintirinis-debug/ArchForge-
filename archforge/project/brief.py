@@ -80,6 +80,13 @@ QUESTIONS = (
     ("measure", "Μετράμε εξωτερικές ή εσωτερικές διαστάσεις;", MEASURES),
     ("floor_system", "Τι πατώματα / ταβάνια;", FLOOR_SYSTEMS),
 )
+# Asked in the dialog.  The floor system is not (owner 23/10: «ένα έργο μπορεί να έχει και τα δύο»): a timber floor is
+# chosen per room (its joists, Βοηθός ▸ Διανομή δοκίδων); an answer saved before stays honoured.
+ASKED = ("project_type", "wall_system", "interior_walls", "measure")
+# The project's details (owner 23/10: «και εάν είναι νέο έργο, λεπτομέρειες έργου»): written, not chosen.
+DETAILS = (("title", "Τίτλος έργου"), ("client", "Ιδιοκτήτης / πελάτης"), ("address", "Θέση / διεύθυνση"),
+           ("plot", "Αρ. οικοπέδου / ΚΑΕΚ"), ("engineer", "Μηχανικός / μελετητής"),
+           ("altitude", "Απόλυτο υψόμετρο ±0,00 (m)"))
 DEFAULTS = {"project_type": "new", "wall_system": "brick_double_insulated", "interior_walls": "brick_plaster",
             "measure": "exterior", "floor_system": "rc_slab"}
 
@@ -99,7 +106,16 @@ def get_brief(doc):
         for extra in ("_text", "_thickness"):
             if key + extra in e.params:
                 out[key + extra] = e.params[key + extra]
+    for key, _label in DETAILS:
+        if key in e.params:
+            out[key] = e.params[key]
     return out
+
+
+def details_text(doc):
+    """«Τίτλος · πελάτης · θέση» of the project, or '' (the window title, the start page)."""
+    b = get_brief(doc) or {}
+    return " · ".join(str(b[k]) for k in ("title", "client", "address") if str(b.get(k, "")).strip())
 
 
 def wall_defaults(doc):

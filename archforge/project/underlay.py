@@ -17,6 +17,12 @@ Placement: a drawing point (u, v) in drawing units maps to the model as
 
 Either way **calibration** (two clicks on a known dimension + the real
 distance) sets the scale exactly; it is the recommended check.
+
+**Section underlay** (owner 21/10, «NEW VILLA SECTION» 1:50): the same entity with
+``section_id`` = a ``section_line``.  Then (x, y) are the section's (u, z) — distance
+along the cut line and height — and it is drawn only in that section's tab, never in the
+plan.  Placed with two clicks (a point of the drawing → where it belongs, e.g. its ±0,00
+on ArchForge's ±0,00), calibrated like the plan one.
 """
 from __future__ import annotations
 
@@ -146,6 +152,18 @@ def dxf_size_m(text, unit):
     return (x1 - x0) * k, (y1 - y0) * k
 
 
+def for_section(params, section_id):
+    """``params`` (from dxf_params / pdf_params) as the underlay of section ``section_id``: lower-left at u = 0, z = 0."""
+    out = dict(params)
+    out.update(section_id=str(section_id), x=0.0, y=0.0, z=0.0)
+    return out
+
+
+def moved(params, a, b):
+    """Params after placing: the drawing point clicked at ``a`` goes to ``b`` (translation only)."""
+    return {"x": float(params["x"]) + b[0] - a[0], "y": float(params["y"]) + b[1] - a[1]}
+
+
 def pdf_params(path, page, scale_denominator, page_size_pt, z=0.0):
     """Underlay params for one PDF page drawn at 1:``scale_denominator``; page lower-left at the model origin."""
     w, h = page_size_pt
@@ -160,6 +178,22 @@ def to_model(params, u, v):
     s, r = float(params["m_per_unit"]), math.radians(float(params.get("rotation", 0.0)))
     du, dv = (u - float(params.get("u0", 0.0))) * s, (v - float(params.get("v0", 0.0))) * s
     return (float(params["x"]) + du * math.cos(r) - dv * math.sin(r), float(params["y"]) + du * math.sin(r) + dv * math.cos(r))
+
+
+def aligned(params, a, a2, b, b2):
+    """Params after matching two points: the drawing points now at ``a`` and ``b`` (model, as clicked) go to
+    ``a2`` and ``b2`` — scale, turn and place at once (a masterplan over the buildings drawn from the plans)."""
+    d1, d2 = (b[0] - a[0], b[1] - a[1]), (b2[0] - a2[0], b2[1] - a2[1])
+    l1, l2 = math.hypot(*d1), math.hypot(*d2)
+    if l1 < 1e-9 or l2 < 1e-9:
+        raise ValueError("Δύο διαφορετικά σημεία στο σχέδιο και δύο διαφορετικοί στόχοι")
+    k = l2 / l1
+    turn = math.atan2(d2[1], d2[0]) - math.atan2(d1[1], d1[0])
+    c, s_ = math.cos(turn), math.sin(turn)
+    rx, ry = a[0] - float(params["x"]), a[1] - float(params["y"])          # X' = a2 − k·R(turn)·(a − X)
+    return {"m_per_unit": float(params["m_per_unit"]) * k,
+            "rotation": (float(params.get("rotation", 0.0)) + math.degrees(turn) + 180.0) % 360.0 - 180.0,
+            "x": a2[0] - k * (c * rx - s_ * ry), "y": a2[1] - k * (s_ * rx + c * ry)}
 
 
 def calibrated(params, a, b, real_m):
@@ -182,42 +216,77 @@ def model_segments(params):
 
 
 def underlays(doc, z=None):
-    out = [e for e in doc.entities.values() if e.kind == "underlay"]
+    """Plan underlays (of the storey at ``z``); section underlays are left out."""
+    out = [e for e in doc.entities.values() if e.kind == "underlay" and not e.params.get("section_id")]
     if z is not None:
         out = [e for e in out if abs(float(e.params.get("z", 0.0)) - float(z)) < 1e-3]
     return out
 
 
+def section_underlays(doc, section_id):
+    return [e for e in doc.entities.values() if e.kind == "underlay" and e.params.get("section_id") == section_id]
+
+
 # ------------------------------------------------------------------------------------------- lines of a PDF page
 
-def pdf_vector_segments(path, page=0):
+DARK = 0.15                          # «black pen»: every colour channel at most this (0 = black)
+
+
+def _dark(colour):
+    """Near-black in the PDF colour spaces pdfplumber reports: gray (1), RGB (3), CMYK (4)."""
+    if colour is None:
+        return False
+    c = [float(v) for v in (colour if isinstance(colour, (list, tuple)) else (colour,))]
+    if len(c) == 4:
+        return c[3] >= 1.0 - DARK or all(v >= 1.0 - DARK for v in c[:3])
+    return bool(c) and max(c) <= DARK
+
+
+def pdf_vector_segments(path, page=0, dark_only=False):
     """The straight lines drawn on a PDF page, in PDF points with y up (the underlay's drawing units).
 
     A PDF exported from CAD keeps its lines (paths); a scanned one has only a picture → empty list.
-    Lines, rectangle edges and the straight pieces of paths are read (pdfplumber); curves become chords."""
+    Lines, rectangle edges and the straight pieces of paths are read (pdfplumber); curves become chords.
+
+    The frame is the page *as shown* — the one QtPdf renders for the picture: origin at the lower-left of
+    the visible area (CropBox, ISO 32000-1 §14.11.2), page rotation applied.  CAD exports often crop a
+    large sheet (the owner's villa drawings: 1200 × 600 mm sheets, 1872 × 1656 pt visible); measured from
+    the MediaBox the lines came out shifted from the picture.  Lines wholly outside the visible area are
+    not drawn on screen and are left out.  pdfplumber already reports the rotated page with ``top``
+    measured down from its top edge, and its ``cropbox`` as (x0, top, x1, bottom) in that frame.
+
+    ``dark_only``: only lines drawn — or areas filled — in near-black.  Architectural CAD draws walls with
+    the dark pens; hatching, terrain, trees, furniture fills and red mark-ups are coloured or grey (the
+    owner's NEW VILLA PLAN: 57 240 lines → 27 085 dark, the false «walls» on the road, trees and pool gone)."""
     import pdfplumber
     out = []
     with pdfplumber.open(str(path)) as pdf:
         p = pdf.pages[int(page)]
-        h = float(p.height)
+        cx0, ct, cx1, cb = (float(v) for v in p.cropbox)
 
-        def add(pts):
+        def add(pts, obj):
+            if dark_only and not ((obj.get("stroke") and _dark(obj.get("stroking_color"))) or
+                                  (obj.get("fill") and _dark(obj.get("non_stroking_color")))):
+                return
             for (x1, t1), (x2, t2) in zip(pts, pts[1:]):
-                if abs(x2 - x1) + abs(t2 - t1) > 1e-6:
-                    out.append((float(x1), h - float(t1), float(x2), h - float(t2)))
+                if abs(x2 - x1) + abs(t2 - t1) <= 1e-6:
+                    continue
+                if max(x1, x2) < cx0 or min(x1, x2) > cx1 or max(t1, t2) < ct or min(t1, t2) > cb:
+                    continue                                          # outside the visible area
+                out.append((float(x1) - cx0, cb - float(t1), float(x2) - cx0, cb - float(t2)))
         for ln in p.lines:
-            add(ln.get("pts") or [(ln["x0"], ln["top"]), (ln["x1"], ln["bottom"])])
+            add(ln.get("pts") or [(ln["x0"], ln["top"]), (ln["x1"], ln["bottom"])], ln)
         for r in p.rects:
             x0, x1, t0, t1 = r["x0"], r["x1"], r["top"], r["bottom"]
-            add([(x0, t0), (x1, t0), (x1, t1), (x0, t1), (x0, t0)])
+            add([(x0, t0), (x1, t0), (x1, t1), (x0, t1), (x0, t0)], r)
         for c in p.curves:
-            add(c.get("pts") or [])
+            add(c.get("pts") or [], c)
     return out
 
 
-def underlay_model_segments(params):
+def underlay_model_segments(params, dark_only=False):
     """Lines of any underlay in model coordinates (DXF: kept in the project; PDF: read from its file)."""
     if params.get("source") == "pdf":
         return [(*to_model(params, x1, y1), *to_model(params, x2, y2))
-                for x1, y1, x2, y2 in pdf_vector_segments(params["path"], params.get("page", 0))]
+                for x1, y1, x2, y2 in pdf_vector_segments(params["path"], params.get("page", 0), dark_only)]
     return model_segments(params)
