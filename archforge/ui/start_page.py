@@ -166,7 +166,7 @@ class StartPage(QWidget):
         for text, run in (("Νέο έργο", lambda: self._go(w.new_project)),
                           ("Άνοιγμα έργου…", lambda: self._go(w.open)),
                           ("Άνοιγμα δείγματος…", lambda: self._go(w.open_sample)),
-                          ("Σύνολο σχεδίων (πολλά PDF)…", lambda: self._go(lambda: __import__(
+                          ("Από τα σχέδια του μηχανικού (PDF)…", lambda: self._go(lambda: __import__(
                               "archforge.ui.drawing_set_import", fromlist=["import_set"]).import_set(w)))):
             left.addWidget(_link(text, run, big=True))
         left.addSpacing(24)

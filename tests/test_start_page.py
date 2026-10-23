@@ -33,7 +33,7 @@ def test_start_page_tab_actions_and_menu(data):
         page = SP.show_start(w)
         assert w._central_tabs.currentWidget() is page and w._central_tabs.tabText(0) == "Αρχική"
         texts = {b.text() for b in page.findChildren(QPushButton)}
-        assert {"Νέο έργο", "Άνοιγμα έργου…", "Άνοιγμα δείγματος…", "Σύνολο σχεδίων (πολλά PDF)…"} <= texts
+        assert {"Νέο έργο", "Άνοιγμα έργου…", "Άνοιγμα δείγματος…", "Από τα σχέδια του μηχανικού (PDF)…"} <= texts
         assert not SP.mark_path(100).isEmpty()
         path = str(data / "villa.archforge")
         w.current_path = path
