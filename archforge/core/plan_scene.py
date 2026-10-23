@@ -556,12 +556,16 @@ def _swing_handle_point(doc,e,a,b):
 def preview_primitives(preview):
     g=preview.geometry
     if preview.kind=='wall' and g:
-        out=[Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),entity_id=preview.entity_id or '',role='preview')]
+        out=[]
+        body=None
         if g.get('thickness'):
-            # The wall's body: on the drawn line's side when drawn by a face, else around it (wall_face.py).
+            # The wall's body, drawn as the wall will be (owner 23/10: «σαν να προσπαθείς να ζωγραφίσεις κάτι παχύ και
+            # εσύ έχεις το λεπτό μολύβι»): on the drawn line's side when drawn by a face, else around it (wall_face.py).
             from archforge.architecture.wall_face import body_polygon
             body=body_polygon((g['x1'],g['y1']),(g['x2'],g['y2']),int(g.get('face_side',0) or 0),float(g['thickness']))
             if body:out.append(Primitive2D('polygon',body,entity_id=preview.entity_id or '',role='preview',meta=(('semantic','wall-body-preview'),)))
+        if not body:                                  # no thickness known yet: the line alone
+            out.append(Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),entity_id=preview.entity_id or '',role='preview'))
         hud=dict(preview.hud or {})
         if 'corner_deg' in hud:
             # Corner mark: an arc from the previous wall to the new one, with the degrees.

@@ -1909,6 +1909,10 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f'Ήλιος: ύψος {el:.1f}°, αζιμούθιο {az:.0f}°', 5000)
 
     def _cancel_interactions(self):
+        # Esc: the first one cancels what is half done; when nothing is (or on the second), the tool ends — Επιλογή.
+        plan = self.plan_view
+        idle = (plan._tool_idle() and not getattr(plan, 'room_draft', None) and plan.carry is None
+                and not getattr(plan, '_restore_select', False))
         if getattr(self, '_terrain_tools', None) is not None:
             self._terrain_tools.cancel()
         if getattr(self, '_layout_assist', None) is not None:
@@ -1933,6 +1937,10 @@ class MainWindow(QMainWindow):
         self.plan_view.redraw()
         for view in (self.pbr_view, self.structural_view):
             view.cancel_interaction()
+        if idle and str(plan.controller.tool) != 'select':
+            plan.to_select()
+            self.statusBar().showMessage('Επιλογή', 2000)
+            return
         self.statusBar().showMessage('Ακυρώθηκε', 2000)
 
     def _show_3d_view(self):

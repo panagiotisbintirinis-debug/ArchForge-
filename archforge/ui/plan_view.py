@@ -241,6 +241,21 @@ class PlanView(QGraphicsView):
     CLICK_PX=8   # press → release within this many screen pixels is a click, not a drag
     def _wall_chain_active(self):
         return getattr(self.controller,'wall_chain',None) is not None and self.controller.active is not None
+    def _hovered_entity(self):
+        """The object under the mouse (not a slab / roof / ground it stands on), or None."""
+        cursor=getattr(self,'_cursor_xy',None)
+        if cursor is None:return None                   # the mouse is not over the plan
+        from PySide6.QtCore import QPointF
+        hit=self.itemAt(self.mapFromScene(QPointF(*cursor)))
+        eid=self._entity_items.get(hit)
+        if eid and eid in self.doc.entities and self.doc.get(eid).kind not in self.CONTAINER_KINDS:return eid
+        return None
+    def to_select(self,message='Επιλογή'):
+        """Back to Επιλογή (owner 23/10: «τα εργαλεία συνεχίζουν να δουλεύουν, πρέπει να πατήσω επιλογή»)."""
+        window=getattr(self,'marking_menu_window',None)
+        if str(self.controller.tool)!='select':
+            (window._set_active_tool if window is not None else self.controller.set_tool)('select')
+        self.statusChanged.emit(message);self.redraw()
     def finish_wall_chain(self):
         count=(self.controller.wall_chain or {}).get('count',0)
         self.controller.finish_wall_chain();self._mouse_down=False;self.redraw()
@@ -250,9 +265,15 @@ class PlanView(QGraphicsView):
         if self._overlay('dclick',event):event.accept();return
         if event.button()==Qt.MouseButton.LeftButton and self.controller.tool=='plot_point':
             self.finish_plot();event.accept();return
-        if event.button()==Qt.MouseButton.LeftButton and self._wall_chain_active():self.finish_wall_chain();event.accept();return
-        if event.button()==Qt.MouseButton.LeftButton and self._railing_tool():self.finish_railing();event.accept();return
-        if event.button()==Qt.MouseButton.LeftButton and self._slab_tool():self.finish_slab_opening();event.accept();return
+        # Double click, in every tool: what is being drawn ends there, and the tool gives way to Επιλογή (owner 23/10).
+        if event.button()==Qt.MouseButton.LeftButton and self._wall_chain_active():
+            count=(self.controller.wall_chain or {}).get('count',0)
+            self.finish_wall_chain();self.to_select(f'Τοίχοι: έγιναν {count} · Επιλογή · Ctrl+Z = αναίρεση του τελευταίου' if count else 'Επιλογή')
+            event.accept();return
+        if event.button()==Qt.MouseButton.LeftButton and self._railing_tool():self.finish_railing();self.to_select();event.accept();return
+        if event.button()==Qt.MouseButton.LeftButton and self._slab_tool():self.finish_slab_opening();self.to_select();event.accept();return
+        if event.button()==Qt.MouseButton.LeftButton and str(self.controller.tool)!='select' and self._tool_idle():
+            self.to_select();event.accept();return
         if event.button()==Qt.MouseButton.LeftButton:
             hit=self.itemAt(event.position().toPoint());eid=self._entity_items.get(hit)
             if eid and eid in self.doc.entities and self.doc.get(eid).kind=='stair' and getattr(self,'marking_menu_window',None) is not None:
@@ -497,7 +518,8 @@ class PlanView(QGraphicsView):
                     self.controller.pointer_up(ev)
                     if getattr(self.controller,'last_warning',None):self.statusChanged.emit(self.controller.last_warning)
                     elif chain and not self._wall_chain_active():
-                        self.statusChanged.emit('Τοίχοι: το περίγραμμα έκλεισε · Ctrl+Z = αναίρεση του τελευταίου τοίχου')
+                        # The outline closed (or a click twice on a corner): the walls are done — Επιλογή.
+                        self.to_select('Τοίχοι: το περίγραμμα έκλεισε · Επιλογή · Ctrl+Z = αναίρεση του τελευταίου τοίχου')
                     elif self._wall_chain_active():
                         self.statusChanged.emit('Τοίχος: κλικ στην επόμενη γωνία · κλικ στο πρώτο σημείο = κλείσιμο · διπλό κλικ / δεξί κλικ / Enter = τέλος · Esc = ακύρωση')
                 except ValueError as exc:self.statusChanged.emit(str(exc));self.controller.cancel()
@@ -530,8 +552,8 @@ class PlanView(QGraphicsView):
                 and getattr(self,'_railing_draft',None) is None and not getattr(self,'plot_draft',None)
                 and (slab is None or (not slab.points and slab.press is None)))
     def event(self,event):
-        # Drawing walls: Delete takes back the last wall (owner 15/10), not the window's «delete selection».
-        if event.type()==QEvent.Type.ShortcutOverride and event.key()==Qt.Key.Key_Delete and str(self.controller.tool)=='wall':
+        # Drawing with any tool: Delete is the plan's own (what is under the mouse first), not the window's «delete selection».
+        if event.type()==QEvent.Type.ShortcutOverride and event.key()==Qt.Key.Key_Delete and str(self.controller.tool)!='select':
             event.accept();return True
         return super().event(event)
     def keyPressEvent(self,event):
@@ -540,10 +562,20 @@ class PlanView(QGraphicsView):
             else:self.carry=None;self.statusChanged.emit('Σύρσιμο ακυρώθηκε')
             self.redraw();event.accept();return
         if self._overlay('key',event):event.accept();return
-        if event.key()==Qt.Key.Key_Delete and str(self.controller.tool)=='wall' and getattr(self,'marking_menu_window',None) is not None:
-            from archforge.ui.marking_menu import run as _mm_run
+        if event.key()==Qt.Key.Key_Delete and str(self.controller.tool)!='select' and getattr(self,'marking_menu_window',None) is not None:
+            # Owner 23/10 «το Delete να δουλεύει παντού»: while drawing, Delete removes what the mouse points at;
+            # nothing there → the last wall drawn (owner 15/10) in the wall tool, else the selection.
+            window=self.marking_menu_window
+            hovered=self._hovered_entity()
             if self._wall_chain_active():self.controller.finish_wall_chain()   # the rubber segment hung on that wall
-            _mm_run(self.marking_menu_window,'plan',None,'mm:wall:delete_last');self.redraw();event.accept();return
+            if hovered:
+                self.doc.select([hovered]);window._delete_selection()
+            elif str(self.controller.tool)=='wall':
+                from archforge.ui.marking_menu import run as _mm_run
+                _mm_run(window,'plan',None,'mm:wall:delete_last')
+            else:
+                window._delete_selection()
+            self.redraw();event.accept();return
         if event.key()==Qt.Key.Key_F and self.controller.tool=='wall' and not event.modifiers():
             # F: the wall's body to the other side of the drawn line (wall_face.py).
             from archforge.architecture.wall_face import LABELS
@@ -1165,6 +1197,10 @@ class PlanView(QGraphicsView):
             item.setZValue(-30 if p.role=='contour' else -20 if context else (-10 if room else (10 if opening else (20 if preview else (-5 if container else (-1 if p.role=='wall-poche' else (1 if wall_line else 0)))))))
             if p.entity_id and not preview:self._entity_items[item]=p.entity_id
             if preview and p.kind=='polygon' and dict(p.meta).get('fits') is False:item.setBrush(QBrush(QColor(210,40,40,45)))
+            if preview and p.kind=='polygon' and dict(p.meta).get('semantic')=='wall-body-preview':
+                # The wall being drawn looks like a wall: its cut fill, a green edge (not yet placed).
+                item.setBrush(QBrush(QColor(205,200,190,235)));edge=QPen(QColor(40,150,70));edge.setWidthF(.025)
+                edge.setJoinStyle(Qt.PenJoinStyle.MiterJoin);item.setPen(edge)
             # Dim layer (Layers panel / environment): a faint reference under the work.
             if dict(p.meta).get('layer_dim'):item.setOpacity(.28);item.setZValue(-30)
     def _draw_rotate_dial(self,preview):

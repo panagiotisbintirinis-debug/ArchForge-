@@ -96,3 +96,29 @@ for k in others:
 u.end()
 u.shot('core_delete')
 print('--- ΤΡΙΒΕΣ:'); [print('  •', t, '—', n) for t, n in u.notes]
+
+# 5. The same, but Delete pressed while still in the wall tool (what a person does right after drawing).
+u.begin('5 · Αλυσίδα, ο μικρός τοίχος επιλεγμένος με κλικ, Delete ενώ είσαι ακόμα στο εργαλείο Τοίχος')
+u.toolbar('Τοίχος')
+for p in [(0, 12), (4, 12), (4.02, 12.6), (8, 12.6)]:
+    hand_click(*p)
+W = walls(); before = {k: ends(p) for k, p in W.items() if p['y1'] > 11}
+from PySide6.QtGui import QMouseEvent
+from PySide6.QtCore import QEvent
+_p = QPointF(u._pos(4.0, 12.3))                  # the mouse over the short wall, then Delete (sent straight to the view:
+QApplication.sendEvent(vp, QMouseEvent(QEvent.Type.MouseMove, _p, vp.mapToGlobal(_p), Qt.MouseButton.NoButton,
+                                       Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier))   # offscreen drops hover)
+print('  δείκτης', u.plan._cursor_xy, '| κάτω από το ποντίκι:', u.plan._hovered_entity(), [ (type(i).__name__, u.plan._entity_items.get(i) is not None) for i in u.plan.items(u.plan.mapFromScene(QPointF(4.0, 12.3)))][:6])
+QTest.keyClick(vp, Qt.Key.Key_Delete); u.pump()
+move(6, 14); u.pump()
+W2 = walls(); after = {k: ends(W2[k]) for k in before if k in W2}
+pv = u.plan.controller.preview
+print('  πριν', sorted(before.values()), '\n  μετά', sorted(after.values()), '| εργαλείο', u.plan.controller.tool,
+      '| λάστιχο', (pv.kind, {k: round(v, 2) for k, v in (pv.geometry or {}).items() if k in ('x1', 'y1', 'x2', 'y2')}) if pv else None)
+gone = [v for k, v in before.items() if k not in W2]
+print('  σβήστηκε:', gone)
+if gone and gone[0] != min(before.values(), key=lambda e: math.dist(*e)):
+    u.note(f'Delete στο εργαλείο Τοίχος έσβησε τον τελευταίο τοίχο {gone[0]}, όχι τον μικρό')
+u.key(Qt.Key.Key_Escape); u.key(Qt.Key.Key_Escape)
+u.end()
+print('--- ΤΡΙΒΕΣ (όλες):'); [print('  •', t, '—', n) for t, n in u.notes]
