@@ -4,7 +4,7 @@
   Wi-Fi access point, TV/SAT outlet) — the same entity, never part of a power circuit.
 * Network and TV: a **star** from the rack — one cable per outlet (home run), all of a floor's
   cables in one low-voltage conduit tree chased into the walls like the power conduits but on
-  their own run ``LV_RUN_DROP`` lower, so the two systems are drawn and counted apart.  A ceiling
+  their own run ``LV_RUN_RISE`` above, so the two systems are drawn and counted apart.  A ceiling
   access point is fed like a ceiling light (box on the nearest wall, then the ceiling).
   Other floors: a vertical riser at the rack.
 * KNX bus (when the client chose KNX): the bus chain of ``mep.knx`` drawn as its own system.
@@ -20,7 +20,8 @@ from archforge.mep.electrical import (LOW_VOLTAGE_TYPES, POINT_TYPES, WALL_RUN_Z
                                       mount_z)
 from archforge.mep.plumbing import _Grid, _grow
 
-LV_RUN_DROP = 0.10          # low-voltage run 10 cm below the power run (drawing / counting apart)
+LV_RUN_RISE = 0.10          # owner 23/10: low-voltage row above power; DESIGN_DEFAULT, not code clearance
+LV_RUN_DROP = -LV_RUN_RISE  # compatibility for integrations using WALL_RUN_Z - LV_RUN_DROP
 SYSTEM_OF = {"data_outlet": "network", "wifi_ap": "network", "tv_outlet": "tv"}
 SYSTEM_LABELS = {"network": "Δίκτυο δεδομένων", "tv": "TV / SAT", "knx": "Bus KNX"}
 
@@ -28,7 +29,7 @@ register(
     Rule("lv.star", "Δίκτυο δεδομένων και TV σε αστέρα από το rack: ένα καλώδιο ανά πρίζα / σημείο πρόσβασης, κοινή "
          "σωλήνωση ασθενών ανά όροφο, κατακόρυφη στήλη στο rack για άλλους ορόφους", DESIGN_DEFAULT,
          note="Τοπολογία του προγράμματος· ο μελετητής μπορεί να ορίσει άλλη (π.χ. τοπικούς κατανεμητές)."),
-    Rule("lv.separation", "Ασθενή σε δική τους σωλήνωση, 10 cm κάτω από τη γραμμή όδευσης της ισχύος", DESIGN_DEFAULT,
+    Rule("lv.separation", "Ασθενή σε δική τους σωλήνωση, 10 cm πάνω από τη γραμμή όδευσης της ισχύος", DESIGN_DEFAULT,
          note="Απόσταση/διαχωρισμός από τα καλώδια ισχύος κατά το πρότυπο καλωδίωσης (π.χ. σειρά EN 50174) — δεν "
               "διασταυρώθηκε, προς έλεγχο από τον μελετητή"),
     Rule("lv.cable", "Κατηγορία καλωδίου δικτύου (Cat 6 / 6A / 7 …) και τύπος καλωδίου TV", ENGINEER_REVIEW,
@@ -58,7 +59,7 @@ def route_low_voltage(doc):
         for e in outlets:
             by_floor.setdefault(_floor_of(doc, float(e.params["z"])), []).append(e)
         for floor, members in sorted(by_floor.items()):
-            z = floor + WALL_RUN_Z - LV_RUN_DROP
+            z = floor + WALL_RUN_Z + LV_RUN_RISE
             grid = _Grid(doc, floor, [(float(e.params["x"]), float(e.params["y"])) for e in members] + [(rx, ry)])
             grid.mode = "wall"
             source = grid.cell(rx, ry)
@@ -74,7 +75,7 @@ def route_low_voltage(doc):
             seen = set()
             sp = grid.point(source)
             # Riser: from the rack to this floor's run (own floor: rack box up/down to the run).
-            rack_z = mount_z(doc, rack.params) if floor == rack_floor else rack_floor + WALL_RUN_Z - LV_RUN_DROP
+            rack_z = mount_z(doc, rack.params) if floor == rack_floor else rack_floor + WALL_RUN_Z + LV_RUN_RISE
             riser = abs(z - rack_z)
             systems = {SYSTEM_OF[e.params["point_type"]] for e in members}
             for system in sorted(systems):

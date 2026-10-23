@@ -52,7 +52,7 @@ def test_star_from_the_rack_one_cable_per_outlet_and_own_conduit_run():
     # Material economy (owner rule 17/10): one shared conduit tree per floor, far shorter than the cables.
     assert net['conduit_m'] < net['cable_m']
     runs_z = {round(a[2], 3) for a, b, s, _t in r['runs'] if abs(a[2] - b[2]) < 1e-9 and s == 'network'}
-    assert round(WALL_RUN_Z - LV_RUN_DROP, 3) in runs_z                       # own run, below the power run
+    assert round(WALL_RUN_Z - LV_RUN_DROP, 3) in runs_z                       # owner 23/10: own run above power (legacy signed DROP alias)
 
 
 def test_without_rack_the_program_asks_for_one():

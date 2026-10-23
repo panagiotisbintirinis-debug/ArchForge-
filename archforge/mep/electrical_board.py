@@ -512,7 +512,12 @@ def front(result):
         rails.append(rail)
     return {"phases": phases, "ask_phases": phases is None, "rails": rails, "devices": devices,
             "neutral_bars": neutral_bars, "earth_bar": ["ΠΑΡΟΧΗ"] + [r["id"] for r in rows],
-            "rcd_count": len(groups), "main_switch": board.get("main_switch")}
+            "rcd_count": len(groups), "main_switch": board.get("main_switch"),
+            "outputs": [{"circuit":r['id'],"label":r['label'],"point_ids":list(r['point_ids']),
+                         "group":int(conf['rcd_groups'].get(r['id'],1) or 1),
+                         "neutral_bar":f"N Δ{int(conf['rcd_groups'].get(r['id'],1) or 1)}",
+                         "conductors":list(r['conductors']),"phase":r.get('phase')}
+                        for r in rows]}
 
 
 def _mm2(v):

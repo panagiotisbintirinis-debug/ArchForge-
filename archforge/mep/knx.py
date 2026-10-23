@@ -64,7 +64,8 @@ def bus_chain(doc, panel, devices):
         return (float(e.params["x"]), float(e.params["y"]), mount_z(doc, e.params))
 
     def run_z(p):
-        return _floor_of(doc, p[2]) + WALL_RUN_Z
+        from archforge.mep.low_voltage import LV_RUN_RISE
+        return _floor_of(doc, p[2]) + WALL_RUN_Z + LV_RUN_RISE
 
     current, left, order, segments = at(panel), list(devices), [], []
     total = farthest = 0.0
