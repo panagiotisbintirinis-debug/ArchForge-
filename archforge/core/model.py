@@ -883,6 +883,9 @@ SCHEMAS = {
     # Data-sheet figures the user enters (construction/shell.py): pieces per m² of a brick / roof tile.
     'construction_spec': {'pieces_per_m2': _pieces_per_m2},
     'section_line': {'x1': _finite, 'y1': _finite, 'x2': _finite, 'y2': _finite, 'flip': _flag, 'depth': _nonnegative},
+    # Dimensions (architecture/dimensions.py): a tape-measured one, and a storey's automatic ones (read from the walls).
+    'dimension': {'x1': _finite, 'y1': _finite, 'x2': _finite, 'y2': _finite, 'level_z': _finite, 'offset': _finite},
+    'auto_dimensions': {'level_z': _finite, 'exterior': _flag, 'interior': _flag},
     # Saved camera (core/cameras.py): a view preference, never building geometry.
     'camera': {'x': _finite, 'y': _finite, 'level_z': _finite, 'height': _between(0.05, 50.0, 'eye height'),
                'heading': _finite, 'pitch': _between(-80.0, 80.0, 'camera pitch'),

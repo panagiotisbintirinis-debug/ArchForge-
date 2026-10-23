@@ -68,11 +68,12 @@ KIND_LAYERS = {
     'heating_point': 'heating',
     'terrain': 'site', 'plant': 'site', 'site_path': 'site', 'pool': 'site',
     'camera': 'cameras',
+    'dimension': 'dimensions', 'auto_dimensions': 'dimensions',
 }
 
 # Derived plan primitives: the role decides (a label of a column is a «label», a footing is «foundation»).
 ROLE_LAYERS = {
-    'derived-room': 'rooms', 'derived-room-label': 'rooms',
+    'derived-room': 'rooms', 'derived-room-label': 'rooms', 'dimension': 'dimensions', 'dimension-label': 'dimensions',
     'structural-label': 'structural_labels', 'footing-label': 'structural_labels', 'joists-label': 'structural_labels',
     'structural-load': 'structural_labels', 'structural-load-label': 'structural_labels',
     'footing': 'foundation', 'tie-beam': 'foundation',

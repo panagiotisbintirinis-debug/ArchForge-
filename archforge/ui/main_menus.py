@@ -173,7 +173,7 @@ def organize_main_menus(window):
                           acts.get("edit.move"), acts.get("edit.rotate"), acts.get("edit.stretch"),
                           acts.get("edit.duplicate"), None, window.delete_action, None, *tail])
 
-    # --- CAD: drawing aids that exist today; lines, dimensions and markup come next (owner's order 2 and 5) ---
+    # --- CAD: drawing aids and dimensions (tape + automatic, ui/dimension_tool.py); lines and markup come next ---
     grid = getattr(window, "_mockup_grid_check", None)
     snap = getattr(window, "snap_action", None)
     aids = []
@@ -184,9 +184,11 @@ def organize_main_menus(window):
     if snap is not None:
         snap.setText("Έλξη (γωνίες, άκρα, κάνναβος)")
         aids.append(snap)
-    soon = QAction("Γραμμές, διαστάσεις, σήμανση — έρχονται", window); soon.setEnabled(False)
+    from archforge.ui.dimension_tool import menu as dimension_menu
+    soon = QAction("Γραμμές, σήμανση — έρχονται", window); soon.setEnabled(False)
     window._main_actions.append(soon)
-    _fill(cad, [_submenu(window, "Βοηθήματα σχεδίασης", aids), None, soon])
+    dims = dimension_menu(window); window._main_submenus.append(dims)
+    _fill(cad, [_submenu(window, "Βοηθήματα σχεδίασης", aids), None, dims, soon])
     window._cad_menu = cad
 
     if mep is not None:                                  # mechanisms: parts, hinges, slides (kinematics/)

@@ -114,6 +114,8 @@ class MainWindow(QMainWindow):
         insulation_tab.install(self)        # «Μονώσεις»: every surface, thermal + waterproofing
         from archforge.ui import wall_dims_tool
         wall_dims_tool.install(self)     # selected wall: its distances; double click = move it with the mouse
+        from archforge.ui import dimension_tool
+        dimension_tool.install(self)     # CAD ▸ Διαστάσεις: tape (Μεζούρα) + automatic exterior / interior
         self._refresh_library_panel()
         if not os.environ.get('PYTEST_CURRENT_TEST'):
             # First run builds the shipped core library in the background.
