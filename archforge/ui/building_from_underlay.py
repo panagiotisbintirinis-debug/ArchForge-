@@ -40,7 +40,25 @@ def analyse(window, eid):
     segs = underlay_model_segments(p, dark_only=True) or underlay_model_segments(p)
     labels = model_labels(p)
     walls, openings, missing = tidy(find_walls(segs), labels["openings"])
-    return {"walls": walls, "openings": openings, "missing": missing, "rooms": labels["rooms"], "levels": labels["levels"]}
+    return {"walls": walls, "openings": openings, "missing": missing, "rooms": labels["rooms"], "levels": labels["levels"],
+            "items": underlay_items(p)}
+
+
+def underlay_items(p):
+    """Beds, tables, toilets, baths and kitchen / room-height words of a PDF underlay, in model metres — so a plan
+    that writes no room names (OLD VILLA upper floor) gets them here as in a drawing set (drawing_contents.py)."""
+    if p.get("source") != "pdf":
+        return []
+    from archforge.project import drawing_contents as C
+    from archforge.project.drawing_text import pdf_texts
+    from archforge.project.underlay import to_model
+    k = float(p["m_per_unit"])                       # metres per drawing unit (PDF point) at the drawing's scale
+    try:
+        blocks = [(kind, x / k, y / k) for kind, x, y in C.read_items(p["path"], p.get("page", 0), k)]
+        raw = blocks + C.words(pdf_texts(p["path"], p.get("page", 0)))
+    except Exception:
+        return []
+    return [(kind, *to_model(p, x, y)) for kind, x, y in raw]
 
 
 def build(window, eid, found=None, ask=True):

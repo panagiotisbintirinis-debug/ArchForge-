@@ -217,6 +217,8 @@ class SectionPanel(QWidget):
                                ("Στο 3D", "Η ίδια τομή στο 3D, με επίπεδο αποκοπής στη γραμμή", lambda: section_in_3d(window, self.view.entity_id)),
                                ("Υπόβαθρο τομής…", "Η τομή του μηχανικού (PDF / DXF) κάτω από αυτή — "
                                 "τοποθέτηση με 2 κλικ, μετά διαβάζεις υψόμετρα με το ποντίκι", lambda: import_section_underlay(window, self.view.entity_id)),
+                               ("Αυτόματη θέση", "Το υπόβαθρο τομής στη θέση και τη φορά του, από την πισίνα / τους τοίχους "
+                                "του μοντέλου πάνω στη γραμμή (το ίδιο με το Σύνολο σχεδίων)", lambda: auto_place_section(window, self.view.entity_id)),
                                ("Όλη η τομή", "Προσαρμογή στην οθόνη", lambda: self.refresh(fit=True))):
             b = QPushButton(text); b.setToolTip(tip); b.clicked.connect(lambda _=False, r=run: r()); bar.addWidget(b)
         lay.addLayout(bar)
@@ -258,6 +260,49 @@ def create_section(window, x1, y1, x2, y2):
     window.statusBar().showMessage(f"{entity.name}: κοιτάς προς τα βέλη · «Αντιστροφή» για την άλλη πλευρά · "
                                    "«Στο 3D» για το επίπεδο αποκοπής · Ctrl+Z αναιρεί", 10000)
     return entity
+
+
+def section_sheet(params):
+    """The section underlay as a drawing-set sheet (lines and water in metres, the underlay's own frame)."""
+    from archforge.project import drawing_set as D
+    k = float(params["m_per_unit"])
+    if params.get("source") == "pdf":
+        return D.read_sheet(params["path"], int(params.get("page", 0)), scale=k / D.PT_M)
+    u0, v0 = float(params.get("u0", 0.0)), float(params.get("v0", 0.0))
+    segs = [((a - u0) * k, (b - v0) * k, (c - u0) * k, (d - v0) * k) for a, b, c, d in params.get("segments", ())]
+    return D.Sheet(str(params.get("path", "")), kind="section", scale=k / D.PT_M, segments=segs)
+
+
+def auto_place_section(window, eid):
+    """«Αυτόματη θέση»: the engineer's section under section ``eid`` placed and turned by the model on its line
+    (project/section_fit.py — the pool's water, else the walls); the drawing is checked against the model.
+    One undo.  Returns the fit or None."""
+    from archforge.core.commands import CompositeCommand
+    from archforge.project import section_fit as F
+    from archforge.project.underlay import section_underlays
+    doc = window.doc
+    if eid not in doc.entities:
+        return None
+    under = [u for u in section_underlays(doc, eid) if u.visible]
+    if not under:
+        window.statusBar().showMessage("Αυτόματη θέση: βάλε πρώτα την τομή του μηχανικού («Υπόβαθρο τομής…»)", 7000)
+        return None
+    u = under[-1]
+    p = doc.get(eid).params
+    line = ((float(p["x1"]), float(p["y1"])), (float(p["x2"]), float(p["y2"])))
+    found = F.fit(section_sheet(u.params), doc, line)
+    name = doc.get(eid).name
+    if found is None:
+        window.statusBar().showMessage(F.report(None, name), 9000)
+        return None
+    window.stack.execute(CompositeCommand([UpdateEntity(eid, {"flip": found["flip"]}),
+                                           UpdateEntity(u.id, {"x": found["x"], "y": found["y"]})], "Αυτόματη θέση τομής"))
+    window._redraw_views(all_views=True) if hasattr(window, "_redraw_views") else None
+    panel = getattr(window, "_section_panel", None)
+    if panel is not None:
+        panel.refresh(fit=True)
+    window.statusBar().showMessage(F.report(found, name) + " · Ctrl+Z αναίρεση", 15000)
+    return found
 
 
 def import_section_underlay(window, eid, **kwargs):

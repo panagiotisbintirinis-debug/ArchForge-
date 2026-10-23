@@ -88,3 +88,36 @@ def test_the_ground_line_of_the_section():
     off = F.ground_check(prof, ((0.0, 0.0), (10.0, 0.0)), 0, flat)
     assert off == [(7.0, 9.0, 2.5, 0.0)]          # one stretch, the farthest the drawing is off
     assert "στα 7–9 m η τομή έως +2,50, το μοντέλο +0,00" in F.ground_text(off)
+
+
+def test_auto_place_button_in_the_section_tab():
+    """The section tab's «Αυτόματη θέση»: the same fit as the drawing set, for a section line a person drew and
+    the engineer's section put under it by hand — placed, turned, one undo."""
+    import os
+    os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+    from PySide6.QtWidgets import QApplication, QPushButton
+    from archforge.core.commands import AddEntity
+    from archforge.ui.main_window import MainWindow
+    from archforge.ui import section_view as SV
+    app = QApplication.instance() or QApplication([])
+    w = MainWindow()
+    try:
+        for e in _villa().entities.values():
+            if e.kind == "wall":
+                w.stack.execute(AddEntity(Entity("wall", dict(e.params))))
+        line = Entity("section_line", {"x1": 0.0, "y1": 15.0, "x2": 0.0, "y2": -1.0, "flip": 0}, name="Τομή Α-Α")
+        w.stack.execute(AddEntity(line))
+        segs = [list(s) for s in _section((2.0, 7.0)).segments]
+        under = Entity("underlay", {"source": "dxf", "path": "s.dxf", "page": 0, "x": 0.0, "y": 0.0, "z": 0.0, "u0": 0.0,
+                                    "v0": 0.0, "m_per_unit": 1.0, "rotation": 0.0, "opacity": 0.6, "unit": "m",
+                                    "segments": segs, "section_id": line.id}, name="Υπόβαθρο τομής")
+        w.stack.execute(AddEntity(under))
+        SV.open_section(w, line.id)
+        assert any(b.text() == "Αυτόματη θέση" for b in w._section_panel.findChildren(QPushButton))
+        found = SV.auto_place_section(w, line.id)
+        assert found["how"] == "τοίχοι" and w.doc.get(line.id).params["flip"] == 1
+        assert (w.doc.get(under.id).params["x"], w.doc.get(under.id).params["y"]) == pytest.approx((-2.0, -7.0))
+        w.stack.undo()
+        assert w.doc.get(under.id).params["x"] == 0.0 and w.doc.get(line.id).params["flip"] == 0
+    finally:
+        w._mark_clean(); w.close(); app.processEvents()
