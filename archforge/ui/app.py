@@ -11,11 +11,16 @@ from .plumbing_display import install_plumbing_display
 from .plumbing_tab import install_on_class as install_plumbing_tab
 from .plumbing_system_control import install_on_class as install_plumbing_system_control
 from .plumbing_technical_safety import install_safe_connectivity_overlay
+from .lighting_system import install_lighting_system
 
 # Upgrade only the visual PBR presentation. Geometry/model ownership remains
 # untouched; the embedded Three.js viewport receives the improved look before
 # any MainWindow/PBR viewport instance is created.
 install_rendering_quality_upgrade()
+# Architectural lighting shares the same PBR scene: day/afternoon/night plus
+# project Point/Spot/Strip lights.  Light entities remain ordinary project
+# entities, preserving CommandStack/save-load ownership.
+install_lighting_system()
 # The visual Material Library is a UI layer over the existing authoritative
 # material_id / surface_materials system.
 install_material_library(MainWindow)

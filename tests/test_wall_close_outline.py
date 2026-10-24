@@ -94,6 +94,7 @@ def test_closing_onto_the_axis_cuts_the_loose_tail():
     top = next(e for e in doc.entities.values() if e.params['y1'] == 6.3 and e.params['y2'] == 6.3)
     t = WallDrawTransaction(doc, stack, (-4.5, -6.0), angle_increment=MAGNET)
     t.FREE_END_CAPTURE = 0.30                             # as if the pointer stayed far from the corner
+    t.outline_start = (-5.4, 6.3)                         # closing this outline: the tail is its own open start
     t.update(-4.5, 6.2)
     assert t.last_snap.kind == 'wall_on_axis' and abs(t.end[1] - 6.3) < 1e-9
     t.commit()
@@ -142,3 +143,21 @@ def test_zoomed_in_a_wall_15_cm_off_the_other_stays_where_it_is_drawn():
     t.corner_enabled = False                              # … and Ctrl keeps it where the hand is
     t.update(6.15, 0.1)
     assert abs(t.end[0] - 6.15) < 1e-9 and abs(t.end[1] - 0.1) < 1e-9
+
+
+def test_another_outlines_free_end_is_never_cut():
+    """Owner 25/10 (screenshot, two «Π»): a wall drawn from the outer outline up onto the inner one's bottom wall,
+    about 1 m in from its free end — «έκοψε πάνω από ένα μέτρο τοίχο για να ενώσει». Only the open start of the
+    outline being drawn may change to close it; any other wall keeps its length (a T, not a corner)."""
+    doc = Document(); stack = CommandStack(doc)
+    _draw(doc, stack, (3.5, 3.5), (8.8, 3.5))             # inner «Π»: its bottom wall, free end at x = 3.5
+    _draw(doc, stack, (8.8, 3.5), (8.8, 7.1))
+    _draw(doc, stack, (10.0, 8.5), (10.0, 2.4))           # outer «Π»
+    _draw(doc, stack, (10.0, 2.4), (4.5, 2.4))
+    inner = next(e for e in doc.entities.values() if e.params['y1'] == 3.5 and e.params['y2'] == 3.5)
+    t = WallDrawTransaction(doc, stack, (4.5, 2.4), angle_increment=MAGNET)
+    t.outline_start = (10.0, 8.5)                         # this chain began on the outer «Π»
+    t.FREE_END_CAPTURE = 0.30
+    t.update(4.5, 3.45)                                   # straight up onto the inner wall's axis
+    t.commit()
+    assert doc.get(inner.id).params['x1'] == 3.5          # nothing cut

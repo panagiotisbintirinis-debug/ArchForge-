@@ -65,3 +65,13 @@ def test_middle_button_drag_pans():
     _drag(app, view, Qt.MouseButton.MiddleButton, QPoint(400, 300), QPoint(300, 380))
     assert _scroll(view) != before
     view.close()
+
+
+def test_a_pan_whose_release_went_to_a_dialog_ends_on_the_next_move():
+    """Owner 25/10: «πατάω διάσταση … με το που το κλείνω το χεράκι εμφανίζεται και κουνάει όλο το σχέδιο». The press
+    opened a dialog, the release went to it: moving with no button pressed must end the pan, not scroll."""
+    app, _d, view = _view()
+    view._pan_begin(QPointF(400, 300))                    # what the long-press timer started behind the dialog
+    before = _scroll(view)
+    QTest.mouseMove(view.viewport(), QPoint(250, 200)); app.processEvents()
+    assert view._panning is None and _scroll(view) == before

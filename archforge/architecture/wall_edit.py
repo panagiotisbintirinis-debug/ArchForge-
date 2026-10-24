@@ -609,7 +609,8 @@ def plan_corner(doc, a_id, click_a, b_id, click_b):
                 raise ValueError(f'Γωνία: {_label(op)} είναι στο κομμάτι που κόβεται — μετακίνησέ {"την" if op.kind == "door" else "το"} πρώτα')
             if abs(shift) > 1e-12:
                 plan['openings'][op.id] = off
-        if _joined_at(doc, moved, {a_id, b_id}, z):
+        lengthened = (t_keep == 0.0 and t_x > L) or (t_keep == L and t_x < 0.0)
+        if not lengthened and _joined_at(doc, moved, {a_id, b_id}, z):   # lengthened, they still sit on its body
             plan['warnings'].append('⚠ ένας τοίχος που ήταν ενωμένος στην άκρη που άλλαξε έμεινε ελεύθερος')
     if not plan['walls']:
         raise ValueError('Γωνία: οι τοίχοι κάνουν ήδη γωνία')

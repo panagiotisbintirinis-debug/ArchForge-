@@ -1,11 +1,14 @@
 from archforge.ui import pbr_viewport as pbr
 from archforge.ui.rendering_quality_upgrade import install_rendering_quality_upgrade
+from archforge.ui.lighting_system import install_lighting_system
 
 
 def test_realistic_pbr_quality_layer_is_installed_idempotently():
     install_rendering_quality_upgrade()
+    install_lighting_system()
     first = pbr._PBR_HTML
     install_rendering_quality_upgrade()
+    install_lighting_system()
     second = pbr._PBR_HTML
 
     assert first == second
@@ -15,4 +18,8 @@ def test_realistic_pbr_quality_layer_is_installed_idempotently():
     assert "gtao.blendIntensity = 0.76;" in first
     assert "new THREE.MeshPhysicalMaterial({" in first
     assert "material.envMapIntensity = Number(spec.envMapIntensity ?? 1.08);" in first
-    assert "scene.environmentIntensity = useSky ? 0.88 : 0.42;" in first
+    # The quality layer and architectural lighting share one environment path.
+    # Day keeps the tuned 0.88/0.42 values; night/afternoon override them deliberately.
+    assert "night ? 0.035" in first
+    assert "afternoon ? 0.72" in first
+    assert "useSky ? 0.88 : 0.42" in first

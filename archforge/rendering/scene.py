@@ -326,6 +326,28 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                 )
             continue
 
+        if (body.semantic_kind in ("floor", "room_floor", "room_roof", "room_ceiling")
+                and entity is not None and entity.params.get("surface_materials")):
+            # Slab edges have their own finish; painting the edge must not
+            # repaint the walkable top. Keep all original mesh triangles and
+            # entity identity, as for independently finished wall faces.
+            groups = {}
+            for tri, role in zip(mesh.triangles, mesh.triangle_surfaces):
+                material_id = _surface_material_id(entity, str(role))
+                key = str(material_id) if material_id else "__default__"
+                group = groups.setdefault(key, {"role": str(role), "triangles": [], "surfaces": []})
+                group["triangles"].append([int(i) for i in tri])
+                group["surfaces"].append(str(role))
+            for key, group in groups.items():
+                objects.append({
+                    "id": str(body.entity_id), "render_part": f"{body.entity_id}:{key}",
+                    "kind": str(body.semantic_kind), "vertices": vertices,
+                    "triangles": group["triangles"], "surfaces": group["surfaces"],
+                    "material": _material(body.semantic_kind, body.entity_id in selected,
+                                          entity=entity, doc=doc, surface_role=group["role"]),
+                })
+            continue
+
         objects.append(
             {
                 "id": str(body.entity_id),

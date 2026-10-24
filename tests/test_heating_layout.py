@@ -184,12 +184,13 @@ def test_heating_supplies_go_on_the_electrical_board():
     doc, st, _src = _radiator_house()
     st.execute(AddEntity(Entity('electrical_point', {'x': 7.5, 'y': 3.0, 'z': 0.0, 'point_type': 'panel'})))
     need = missing_supplies(doc)
-    assert sorted(k for *_xyz, k, _n in need) == ['heating_supply', 'heating_supply']      # burner + wiring centre
+    # The manifold is in the burner's room: its wiring centre shares the burner's line (S06: two in one room).
+    assert [k for *_xyz, k, _n in need] == ['heating_supply']
     st.execute(AddEntities([Entity('electrical_point', {'x': x, 'y': y, 'z': z, 'point_type': k, 'power_w': 60.0})
                             for x, y, z, k, _n in need]))
     assert not missing_supplies(doc)
     (heating,) = [c for c in design_circuits(doc)['circuits'] if c['group'] == 'heating']
-    assert len(heating['points']) == 2 and heating['breaker_a'] == 10
+    assert len(heating['points']) == 1 and heating['breaker_a'] == 10
     # Without the data-sheet W the board asks for it, never guesses.
     doc2, st2, _ = _radiator_house()
     st2.execute(AddEntity(Entity('electrical_point', {'x': 7.5, 'y': 3.0, 'z': 0.0, 'point_type': 'panel'})))

@@ -365,6 +365,9 @@ class PlanView(QGraphicsView):
         if lp is None or lp[0]!=token or getattr(self,'_panning',None) is not None:return
         from PySide6.QtWidgets import QApplication
         if not QApplication.mouseButtons()&Qt.MouseButton.LeftButton:return
+        # A dialog opened by this press (a dimension's value …) owns the mouse: no pan behind it (owner 25/10:
+        # «πατάω διάσταση … με το που το κλείνω το χεράκι εμφανίζεται και κουνάει όλο το σχέδιο»).
+        if QApplication.activeModalWidget() is not None:return
         if self.controller.active is not None and self.controller.active is not lp[2]:
             self.controller.cancel()          # what this press started (a wall, a move) gives way to the pan
         self._railing_draft=None if lp[3] else getattr(self,'_railing_draft',None)
@@ -454,6 +457,8 @@ class PlanView(QGraphicsView):
     def mouseMoveEvent(self,event):
         self._sync_snap_tolerance()
         pan=getattr(self,'_panning',None)
+        if pan is not None and not event.buttons()&(Qt.MouseButton.LeftButton|Qt.MouseButton.MiddleButton):
+            self._pan_end();pan=None                       # the release went elsewhere (a dialog): the pan is over
         if pan is not None:
             d=event.position()-pan;self._panning=event.position()
             self.horizontalScrollBar().setValue(self.horizontalScrollBar().value()-round(d.x()))

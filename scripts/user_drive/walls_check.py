@@ -325,5 +325,45 @@ check(walls()[south_id][2:] == (round(ex, 3), round(sy, 3)), 'από το δεξ
 u.key(Qt.Key.Key_Escape)
 u.end()
 
+# 12. The owner's own file (25/10, «δεν μπορώ να τα ενώσω, αρχίζω και κουράζομαι»): two room boxes face to face, the
+# room between does not close. With the mouse: delete the three trial walls, G, click the door's wall, click room 2's
+# top wall — the room closes, the other two stay closed.
+u.begin('12 · Αρχείο 123 του ιδιοκτήτη: σβήσιμο δοκιμαστικών τοίχων → G → κλικ, κλικ → ο μεγάλος χώρος κλείνει')
+from PySide6.QtCore import QRectF
+from archforge.architecture.topology import polygon_area
+u.w._open_checked(os.path.join(os.path.dirname(__file__), 'files', 'owner_123.archforge')); u.pump()   # Αρχείο ▸ Άνοιγμα, «Απόρριψη» των προηγούμενων
+def areas():
+    return sorted(round(polygon_area(f.polygon), 2) for f in u.w.doc.active_room_faces())
+print('  χώροι πριν:', areas())
+u.plan.resetTransform(); u.plan.fitInView(QRectF(-4.9, 2.6, 1.4, 1.4)); u.pump(); u.plan._sync_snap_tolerance()
+u.toolbar('Επιλογή')
+# Overlapping trial walls: the ones on top first, the slanted one (under them) last — as a person would.
+junk = {'99bfe6e6-9c08-4452-bc30-a7564ee2bdd1': (-4.338, 3.05), '8564348e-381b-486c-b5ea-34b60861eeb3': (-4.068, 3.0),
+        'b962ee39-99b7-40bd-87f3-3e5621c551c9': (-3.99, 3.478), '7b9ee6ba-865e-4a81-a983-fb7051df5967': (-4.204, 3.303)}
+for wid, (x, y) in junk.items():
+    if wid not in u.w.doc.entities:
+        continue
+    u.w.doc.select([]); u.plan.redraw(); u.pump()
+    u.click(x, y)
+    picked = list(u.w.doc.selection)
+    if not picked or picked[0] not in junk:
+        print('  κλικ στο', (x, y), 'επέλεξε', [u.w.doc.get(i).name for i in picked])
+        continue
+    QTest.keyClick(vp, Qt.Key.Key_Delete); u.pump(); u.steps += 1
+left = [w for w in junk if w in u.w.doc.entities]
+check(not left, f'οι δοκιμαστικοί τοίχοι σβήστηκαν με κλικ + Delete (έμειναν {len(left)})')
+u.plan.resetTransform(); u.plan.scale(55.0, -55.0); u.see(-2, 3); u.pump(); u.plan._sync_snap_tolerance()
+u.w.activateWindow(); u.pump()
+u.key(Qt.Key.Key_G)
+u.click(-4.21, 5.0)                                        # the wall with the door, its upper part
+u.click(0.0, 3.408)                                        # room 2's top wall, to the right
+print('  ', u.status())
+now = areas()
+print('  χώροι μετά:', now)
+check(len(now) == 3 and 57.0 < max(now) < 58.5, f'ο μεγάλος χώρος έκλεισε, οι άλλοι έμειναν ({now})')
+check('ελεύθερος' not in u.status(), 'χωρίς ψευδή προειδοποίηση')
+u.key(Qt.Key.Key_Escape)
+u.end(); u.shot('walls_12_owner_123')
+
 print('--- ΑΠΟΤΕΛΕΣΜΑ:', 'όλα σωστά' if not fails else f'{len(fails)} λάθη')
 for f in fails: print('  ✘', f)
