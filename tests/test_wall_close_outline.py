@@ -19,11 +19,69 @@ def _open_outline():
     return doc, stack
 
 
-def test_the_open_start_of_the_outline_pulls_the_last_wall_to_it():
+def test_the_open_start_of_the_outline_closes_at_a_right_angle():
+    # Owner 24/10: «κρατώντας τη γωνία των 90 μοιρών πήγα να πατήσω στον πρώτο, αλλά αντί να μεγαλώσει εμφανίστηκε
+    # ένας καινούριος και μάλιστα σε κλίση» — the right angle is kept, the first wall meets it (was: swung onto it).
     doc, stack = _open_outline()
+    top = next(e for e in doc.entities.values() if e.params['y1'] == 6.3 and e.params['y2'] == 6.3)
     t = WallDrawTransaction(doc, stack, (-4.5, -6.0), angle_increment=MAGNET)
     t.update(-4.54, 6.27)                                 # pointer straight up, 0.86 m from the open corner
-    assert t.end == (-5.4, 6.3) and t.last_snap.kind == 'endpoint'
+    assert abs(t.end[0] + 4.5) < 1e-9 and abs(t.end[1] - 6.3) < 1e-9 and t.last_snap.kind == 'endpoint'
+    assert t.guide == ((-5.4, 6.3), t.end)
+    t.commit()
+    assert abs(doc.get(top.id).params['x1'] + 4.5) < 1e-9   # the first wall is shortened to the corner
+    assert t.moved_end == ((-5.4, 6.3), t.end)
+    stack.undo()
+    assert doc.get(top.id).params['x1'] == -5.4           # one undo restores both
+
+
+def test_aiming_at_the_first_corner_a_few_degrees_off_still_closes_square():
+    doc, stack = _open_outline()
+    top = next(e for e in doc.entities.values() if e.params['y1'] == 6.3 and e.params['y2'] == 6.3)
+    t = WallDrawTransaction(doc, stack, (-4.5, -6.0), angle_increment=MAGNET)
+    t.update(-5.4, 6.3)                                   # clicked right on the first corner: 4° off the vertical
+    assert abs(t.end[0] + 4.5) < 1e-9 and abs(t.end[1] - 6.3) < 1e-9
+    t.commit()
+    assert abs(doc.get(top.id).params['x1'] + 4.5) < 1e-9
+
+
+def test_the_first_wall_is_lengthened_to_meet_a_right_angle():
+    doc = Document(); stack = CommandStack(doc)
+    _draw(doc, stack, (1.2, -1.25), (-5.0, -1.25))        # first wall, drawn short of where the room ends
+    _draw(doc, stack, (-5.0, -1.25), (-5.0, 3.0))
+    _draw(doc, stack, (-5.0, 3.0), (1.75, 3.0))
+    first = next(e for e in doc.entities.values() if e.params['x1'] == 1.2)
+    t = WallDrawTransaction(doc, stack, (1.75, 3.0), angle_increment=MAGNET)
+    t.update(1.25, -1.3)                                  # «πήγα να πατήσω στον πρώτο»
+    assert abs(t.end[0] - 1.75) < 1e-9 and abs(t.end[1] + 1.25) < 1e-9
+    t.commit()
+    assert abs(doc.get(first.id).params['x1'] - 1.75) < 1e-9
+    assert sum(1 for e in doc.entities.values() if e.kind == 'wall') == 4   # no extra slanted wall
+
+
+def test_shift_still_closes_onto_the_corner_itself():
+    doc, stack = _open_outline()
+    t = WallDrawTransaction(doc, stack, (-4.5, -6.0), angle_increment=MAGNET)
+    t.angle_enabled = False
+    t.update(-4.54, 6.27)
+    assert t.end == (-5.4, 6.3)
+
+
+def test_alignment_guide_shows_where_to_stop_for_right_angles():
+    # Owner 24/10 (Home Designer): a guide to the wall opposite shows where to stop for square walls.
+    doc = Document(); stack = CommandStack(doc)
+    _draw(doc, stack, (-3.3, -1.25), (-5.0, -1.25))
+    _draw(doc, stack, (-5.0, -1.25), (-5.0, 3.0))
+    _draw(doc, stack, (-5.0, 3.0), (1.75, 3.0))
+    first = next(e for e in doc.entities.values() if e.params['x1'] == -3.3)
+    t = WallDrawTransaction(doc, stack, (1.75, 3.0), angle_increment=MAGNET)
+    t.update(1.77, -1.1)                                  # 5 m from the first corner, 15 cm short of its line
+    assert t.last_snap.kind == 'alignment' and abs(t.end[1] + 1.25) < 1e-9
+    assert t.guide == ((-3.3, -1.25), t.end)
+    t.commit()
+    assert abs(doc.get(first.id).params['x1'] - 1.75) < 1e-9   # the first wall runs on to the corner
+    stack.undo()
+    assert doc.get(first.id).params['x1'] == -3.3
 
 
 def test_closing_onto_the_axis_cuts_the_loose_tail():

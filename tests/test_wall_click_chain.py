@@ -112,3 +112,18 @@ def test_hand_tremor_while_clicking_in_the_plan_view_draws_no_tiny_walls():
                      for w in _walls(d))
     assert lengths == [6.0, 6.0, 8.0, 8.0]
     view.close()
+
+
+def test_outline_drawn_by_eye_closes_square_and_shows_the_guide():
+    # Owner 24/10: three walls by eye, the fourth down at 90° — the first wall meets it, the outline closes.
+    from archforge.core.plan_scene import preview_primitives
+    d, stack, ctrl = _ctrl()
+    for x, y in ((1.2, -1.25), (-5, -1.25), (-5, 3), (1.75, 3)):
+        _click(ctrl, x, y)
+    pv = ctrl.pointer_move(PointerEvent(1.25, -1.3))
+    assert [p.role for p in preview_primitives(pv)].count('align-guide') == 1
+    _click(ctrl, 1.25, -1.3)
+    assert ctrl.wall_chain is None                   # closed: back on the (moved) first corner
+    walls = _walls(d)
+    assert len(walls) == 4
+    assert all(abs(w.params['x1'] - w.params['x2']) < 1e-9 or abs(w.params['y1'] - w.params['y2']) < 1e-9 for w in walls)

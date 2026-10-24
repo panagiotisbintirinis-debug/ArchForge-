@@ -566,6 +566,9 @@ def preview_primitives(preview):
             if body:out.append(Primitive2D('polygon',body,entity_id=preview.entity_id or '',role='preview',meta=(('semantic','wall-body-preview'),)))
         if not body:                                  # no thickness known yet: the line alone
             out.append(Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),entity_id=preview.entity_id or '',role='preview'))
+        if g.get('guide'):
+            # Alignment guide (as in Home Designer): from the wall corner the new wall lines up with to where it stops.
+            q,e=g['guide'];out.append(Primitive2D('line',(tuple(q),tuple(e)),role='align-guide'))
         hud=dict(preview.hud or {})
         if 'corner_deg' in hud:
             # Corner mark: an arc from the previous wall to the new one, with the degrees.

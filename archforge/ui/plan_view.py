@@ -1111,6 +1111,9 @@ class PlanView(QGraphicsView):
             pen=QPen(QColor(180,90,20,170));pen.setWidthF(.07)
         if p.role=='wall-move-arrow':
             pen=QPen(QColor(20,110,220));pen.setWidthF(.025);pen.setStyle(Qt.PenStyle.DashLine)
+        if p.role=='align-guide':
+            # Where to stop for right angles: a thin dashed line to the corner it lines up with.
+            pen=QPen(QColor(20,110,220));pen.setCosmetic(True);pen.setWidthF(1.2);pen.setStyle(Qt.PenStyle.DashLine)
         if p.role=='angle-arc':
             # Corner mark: blue on a magnet (90/45/15), grey for a free angle.
             pen=QPen(QColor(20,110,220) if dict(p.meta).get('magnet') else QColor(120,120,120));pen.setWidthF(.02)

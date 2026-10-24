@@ -345,7 +345,8 @@ class PointerController:
             self.preview=PreviewState(
                 'wall',
                 {'x1':sx,'y1':sy,'x2':ex,'y2':ey,'z':self.active.z,
-                 'thickness':float(self.active.thickness),'face_side':int(getattr(self.active,'face_side',0) or 0)},
+                 'thickness':float(self.active.thickness),'face_side':int(getattr(self.active,'face_side',0) or 0),
+                 **({'guide':self.active.guide} if getattr(self.active,'guide',None) else {})},
                 hud.values,
                 snap_info,
             )
@@ -440,6 +441,8 @@ class PointerController:
             if self.wall_chain is not None:
                 self.wall_chain['count']+=1
                 ex,ey=tx.end;fx,fy=self.wall_chain['first']
+                moved=getattr(tx,'moved_end',None)
+                if moved and math.hypot(moved[0][0]-fx,moved[0][1]-fy)<1e-6:fx,fy=moved[1]   # the first corner moved to meet it
                 if committed_id is None or math.hypot(ex-fx,ey-fy)<1e-6:
                     # Back on the first corner: the outline is closed.
                     self.finish_wall_chain();result=self.preview;result.entity_id=committed_id;return result
