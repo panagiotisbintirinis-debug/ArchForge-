@@ -459,7 +459,7 @@ class Gate:
         self.guard(3, "Αποχέτευση: κάθε υποδοχέας ως το φρεάτιο", self._drainage)
         self.guard(3, "Ηλεκτρολογικά: κάθε σημείο σε κύκλωμα, κάθε κύκλωμα ως τον πίνακα", self._electrical)
         self.guard(3, "Συσκευές με ηλεκτρική παροχή δίπλα τους", self._appliance_supply)
-        self.guard(3, "Σωληνώσεις: αγωγοί κατά τον πίνακα πλήρωσης, ≤ 2 καμπύλες ανά μέγεθος", self._conduits)
+        self.guard(3, "Σωληνώσεις: γεωμετρική πλήρωση και γνωστές διαστάσεις", self._conduits)
         self.guard(3, "Διπλά σημεία Η/Μ", self._duplicates)
         self.guard(3, "Θέρμανση: κάθε θερμαινόμενος χώρος με σώμα/βρόχο, προσαγωγή και επιστροφή ως την πηγή", self._heating)
         self.guard(3, "Αλλαγή συστήματος θέρμανσης", self._heating_system_change)
@@ -639,12 +639,12 @@ class Gate:
 
     def _conduits(self):
         from archforge.mep.conduits import conduit_map
-        name = "Σωληνώσεις: αγωγοί κατά τον πίνακα πλήρωσης, ≤ 2 καμπύλες ανά μέγεθος"
+        name = "Σωληνώσεις: γεωμετρική πλήρωση και γνωστές διαστάσεις"
         if not any(e.params.get("point_type") == "panel" for e in self.ents("electrical_point")):
             self.add(3, name, None, "χωρίς ηλεκτρικό πίνακα")
             return
         m = conduit_map(self.doc)
-        over = [p["id"] for p in m["pieces"] if p["fill"] > 1 + 1e-9]
+        over = [p["id"] for p in m["pieces"] if p["fill"] > p["fill_limit"] + 1e-9]
         self.add(3, name, not over and not m["warnings"],
                  f"{m['conduits']} σωληνώσεις · {len(m['pieces'])} κομμάτια · " + ", ".join(f"Φ{dn} {v:.0f} m" for dn, v in m["by_size"].items())
                  + f" · κουτιά χωρισμού {len(m['split_boxes'])}" + (f" · διπλού δομήματος {m['outdoor_m']:.0f} m" if m["outdoor_m"] else "")
