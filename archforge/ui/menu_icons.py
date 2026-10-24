@@ -144,6 +144,10 @@ def _draw(name, p):
     elif name == "split":
         p.drawLine(P(3, 16), P(13, 16)); p.drawLine(P(19, 16), P(29, 16))
         p.setPen(_pen(RED, 2)); p.drawLine(P(14, 8), P(18, 24))
+    elif name == "corner":
+        p.drawLine(P(4, 26), P(20, 26)); p.drawLine(P(26, 4), P(26, 20))
+        p.setPen(_pen(ACCENT)); p.drawLine(P(20, 26), P(26, 26)); p.drawLine(P(26, 26), P(26, 20))
+        p.drawRect(QRectF(23, 23, 6, 6))
     elif name == "fit":
         p.drawLine(P(4, 5), P(28, 5)); p.drawRect(QRectF(9, 14, 14, 14))
         p.setPen(_pen(ACCENT)); p.drawLine(P(16, 13), P(16, 7)); p.drawLine(P(16, 7), P(13, 10)); p.drawLine(P(16, 7), P(19, 10))
