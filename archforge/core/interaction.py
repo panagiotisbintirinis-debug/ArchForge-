@@ -303,7 +303,9 @@ class WallDrawTransaction:
             if e.kind!='wall' or not e.visible or abs(float(e.params.get('z',0.0))-float(self.z))>1e-5:continue
             p=e.params
             for px,py in ((float(p['x1']),float(p['y1'])),(float(p['x2']),float(p['y2']))):
-                if hypot(px-self.start[0],py-self.start[1])<=max(self.min_length,1e-6):continue
+                # Not the corner this wall starts from — drawn by a face, the previous wall's axis ends half a wall
+                # beside the start (it pulled the new wall back onto itself: «πολύ κοντός 0,0 cm» at every small step).
+                if hypot(px-self.start[0],py-self.start[1])<=max(self.min_length,float(p.get('thickness',0.0)),1e-6):continue
                 d=hypot(px-x,py-y)
                 reach=radius
                 if d<=free and d>radius and not self._end_connected(eid,px,py):
@@ -320,6 +322,9 @@ class WallDrawTransaction:
             p=e.params;ax,ay,bx,by=(float(p[k]) for k in ('x1','y1','x2','y2'))
             wx,wy=bx-ax,by-ay;L=hypot(wx,wy)
             if L<1e-9:continue
+            # Never the wall this one starts from (drawn by a face its axis runs half a wall beside the start).
+            near=max(self.min_length,float(p.get('thickness',0.0)))
+            if min(hypot(ax-sx,ay-sy),hypot(bx-sx,by-sy))<=near:continue
             # The pointer must be on (or right next to) that wall.
             t=max(0.0,min(1.0,((x-ax)*wx+(y-ay)*wy)/(L*L)))
             if hypot(ax+wx*t-x,ay+wy*t-y)>float(p.get('thickness',0.2))/2+float(self.snap_tol):continue
