@@ -100,8 +100,12 @@ def conduit_map(doc, route=None):
     circuits = {c["id"]: c for c in route["circuits"]}
     edges_of = {}
     for a, b, group, cid in route["runs"]:
+        if group == "switch" and "switch_runs" in route:
+            continue
         key = cid or f"switch:{_key(a)[:2]}"          # a switch leg is a line of its own (switch → its lights)
         edges_of.setdefault(key, set()).add(tuple(sorted((_key(a), _key(b)))))
+    for a, b, sid in route.get("switch_runs", []):
+        edges_of.setdefault(f"switch:{sid}", set()).add(tuple(sorted((_key(a), _key(b)))))
     if not edges_of:
         return {"pieces": [], "by_size": {}, "conduits": 0, "warnings": [], "rule": RULE, "split_boxes": [], "outdoor_m": 0.0}
     # Switch legs: join the pieces of one switch into one line (they start at the same switch box).
@@ -195,6 +199,7 @@ def conduit_map(doc, route=None):
                 pieces.append({"id": f"Σ{n}.{k}", "conduit": f"Σ{n}", "from": name_of(chain[0]), "to": name_of(chain[-1]),
                                "a": chain[0], "b": chain[-1], "points": chain, "length_m": round(length, 2), "dn": dn,
                                "count": count, "bends": bends, "outdoor": outdoor, "fill": round(fill(dn, mm2) if dn in MAX_CONDUCTORS else 0.0, 2),
+                               "line_ids": lines,
                                "lines": [c if c in circuits else "επιστροφή διακόπτη" for c in lines],
                                "conductors": " + ".join(f"{v}×{s:g}".replace(".", ",") for s, v in sorted(mm2.items()))})
     by_size = {}

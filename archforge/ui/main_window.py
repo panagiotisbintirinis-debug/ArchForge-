@@ -2326,16 +2326,18 @@ class MainWindow(QMainWindow):
         if entity.kind == 'electrical_point':
             from archforge.ui.light_properties import add_rows as light_rows
             light_rows(self, eid)
-        if entity.kind == 'electrical_point' and params.get('point_type') not in ('panel', 'light'):
+        if entity.kind == 'electrical_point' and params.get('point_type') not in ('panel', 'network_rack'):
             from archforge.mep.electrical import routing_of
             combo = QComboBox()
-            for value, label in (('auto', 'Αυτόματα (καλύτερη διαδρομή)'), ('wall', 'Από τοίχο (2,35 m)'), ('floor', 'Από δάπεδο (κουτί 15 cm)')):
+            for value, label in (('auto', 'Αυτόματα (ανά θέση σημείου)'), ('floor', 'Από δάπεδο'), ('ceiling', 'Από οροφή'), ('wall', 'Περιμετρικά στους τοίχους')):
                 combo.addItem(label, value)
             combo.setCurrentIndex(max(0, combo.findData(params.get('routing', 'auto'))))
             combo.currentIndexChanged.connect(
                 lambda _i, widget=combo, entity_id=eid: self._set_entity_choice(entity_id, 'routing', widget.currentData()))
+            combo.setObjectName('electricalRoutingChoice')
+            combo.setToolTip('Αλλάζει την πραγματική όδευση και τις ποσότητες. Τα ύψη είναι προεπιλογές σχεδιασμού προς έλεγχο· δεν επαληθεύονται διελεύσεις μέσα από φέροντα στοιχεία.')
             self.form.addRow('Όδευση', combo)
-            self.form.addRow('', QLabel('→ ' + {'wall': 'τοίχος', 'floor': 'δάπεδο'}[routing_of(self.doc, entity)]))
+            self.form.addRow('', QLabel('→ ' + {'wall': 'περιμετρικά στους τοίχους', 'floor': 'δάπεδο', 'ceiling': 'οροφή'}[routing_of(self.doc, entity)]))
         if entity.kind == 'pitched_roof':
             from archforge.structure.timber_roof import FORMS, TILES, size_rafter
             from archforge.structure.timber_roof import INSULATIONS, build_up, indicative_u

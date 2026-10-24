@@ -21,7 +21,7 @@ none of them is VERIFIED yet, so none is presented as a requirement:
   at 2.35 m (above the lintels) with a junction box above every switch and
   socket; points away from walls (kitchen islands) are fed through the floor
   with a box 15 cm above the floor; the choice is automatic per point or set
-  by the user ('routing' = wall/floor).  Boxes only where needed (owner 18/10):
+  by the user ('routing' = wall/floor/ceiling).  Boxes only where needed (owner 18/10):
   a junction box where a conduit turns vertical to a device or the ceiling,
   a pull box at a corner after a long run (≥ 10 m) — none on a straight run —
   and one box per place, shared by every circuit that passes it.  Same
@@ -65,7 +65,7 @@ register(
          note="Υποθέσεις φορτίου· ο χρήστης τις αλλάζει ανά σημείο (power_w)"),
     Rule("electrical.luminaire_power", "Σποτ/χωνευτό/wall washer: W· ταινία LED: W/m", MANUFACTURER_DATA,
          note="Χωρίς προεπιλογή: 0 W με ⚠ μέχρι να μπει η τιμή του φύλλου"),
-    Rule("electrical.routing_heights", "Όδευση: οριζόντια σε τοίχο στα 2,35 m, κουτί δαπέδου 15 cm, «κοντά σε τοίχο» = 60 cm",
+    Rule("electrical.routing_heights", "Όδευση: οριζόντια σε τοίχο στα 2,35 m, γραμμή δαπέδου 5 cm, κουτί δαπέδου 15 cm, «κοντά σε τοίχο» = 60 cm",
          DESIGN_DEFAULT, note="Πρακτική τοποθέτησης του προγράμματος, όχι κανονισμός"),
     Rule("electrical.pull_boxes", "Κουτιά μόνο όπου χρειάζονται: διακλάδωσης σε κάθετη έξοδο (κατέβασμα σε σημείο, "
          "ανέβασμα στην οροφή), διέλευσης σε γωνία μετά από μεγάλη διαδρομή (≥ 10 m)· όχι σε ευθεία, ένα ανά θέση",
@@ -275,6 +275,7 @@ def _ceiling_fed(e):
 
 
 WALL_RUN_Z = 2.35          # horizontal conduits above the lintels (Greek practice 2.30-2.40 m)
+FLOOR_RUN_Z = 0.05         # existing floor-routing height; DESIGN_DEFAULT, not a verified installation depth
 FLOOR_BOX_Z = 0.15         # junction boxes 15 cm above the floor for floor routing
 WALL_NEAR = 0.60           # auto: a point within 60 cm of a wall face is fed from the wall
 PULL_EVERY = 10.0          # owner 18/10: a pull box only at a corner reached after this long a run (never on a straight)
@@ -296,12 +297,9 @@ def _wall_distance(doc, x, y, floor):
 
 
 def routing_of(doc, e):
-    """'wall' or 'floor' for one point: explicit choice, else nearest wall decides."""
-    choice = str(e.params.get("routing", "auto"))
-    if choice in ("wall", "floor"):
-        return choice
-    floor = _floor_of(doc, float(e.params["z"]))
-    return "wall" if _wall_distance(doc, float(e.params["x"]), float(e.params["y"]), floor) <= WALL_NEAR else "floor"
+    """Effective passage; explicit floor/ceiling/wall choice precedes auto."""
+    from archforge.mep.electrical_routes import mode_of
+    return mode_of(doc, e)
 
 
 def _pull_boxes(points_chain, z, cid):
@@ -344,38 +342,33 @@ def route_cables(doc):
     socket, then down to the device.  Ceiling lights are fed from a box on
     the nearest wall through the ceiling slab.  Floor routing (islands, free
     standing points): runs in the screed, junction box FLOOR_BOX_Z above the
-    floor at the device.  Pull boxes by the stated length/bend rule.
+    floor at the device. Explicit ceiling passage uses the existing ceiling
+    level. Choices change routes and quantities; heights remain design defaults.
+    Pull boxes by the stated length/bend rule.
     """
+    from archforge.mep.electrical_routes import run_z, target_cell, device_legs, switch_runs
     design = design_circuits(doc)
     runs, boxes = [], []
     points = {e.id: e for e in electrical_points(doc)}
     panel = next((e for e in points.values() if e.params["point_type"] == "panel"), None)
     if panel is None:
-        return {**design, "runs": runs, "boxes": boxes}
+        return {**design, "runs": runs, "boxes": boxes, "switch_runs": []}
     px, py = float(panel.params["x"]), float(panel.params["y"])
     for circuit in design["circuits"]:
         members = [points[i] for i in circuit["points"]]
         floor = _floor_of(doc, float(members[0].params["z"]))
         cid, group = circuit["id"], circuit["group"]
-        split = {"wall": [], "floor": []}
+        split = {"wall": [], "floor": [], "ceiling": []}
         for e in members:
-            ceiling_light = POINT_TYPES[e.params["point_type"]][3] is None and "mount_height" not in e.params
-            split["wall" if ceiling_light else routing_of(doc, e)].append(e)
+            split[routing_of(doc, e)].append(e)
         for mode, chosen in split.items():
             if not chosen:
                 continue
-            z = floor + (WALL_RUN_Z if mode == "wall" else 0.05)
+            z = run_z(doc, floor, mode)
             grid = _Grid(doc, floor, [(float(e.params["x"]), float(e.params["y"])) for e in chosen] + [(px, py)])
-            grid.mode = mode
+            grid.mode = "wall" if mode == "wall" else "floor"
             source = grid.cell(px, py)
-            targets = {}
-            for e in chosen:
-                ex, ey = float(e.params["x"]), float(e.params["y"])
-                cell = grid.cell(ex, ey)
-                if mode == "wall" and _ceiling_fed(e) and (grid.wall or grid.near):
-                    # Box on the nearest wall, then through the ceiling to the light (no walls yet: right above it).
-                    cell = min(grid.wall | grid.near, key=lambda c: (c not in grid.wall, math.hypot(*(q - r for q, r in zip(grid.point(c), (ex, ey))))))
-                targets[e.id] = cell
+            targets = {e.id: target_cell(grid, e, mode) for e in chosen}
             paths, _loads, parent = _grow(grid, source, targets)
             seen = set()
             for tid, path in paths.items():
@@ -395,40 +388,19 @@ def route_cables(doc):
             pp = grid.point(source)
             runs.append(((pp[0], pp[1], mount_z(doc, panel.params)), (pp[0], pp[1], z), group, cid))
             for e in chosen:
-                bx, by = grid.point(targets[e.id])
-                device_z = mount_z(doc, e.params)
-                if mode == "wall" and _ceiling_fed(e):
-                    zc = mount_z(doc, e.params)
-                    ex, ey = float(e.params["x"]), float(e.params["y"])
-                    boxes.append((bx, by, z, "junction", cid))
-                    runs += [((bx, by, z), (bx, by, zc), group, cid), ((bx, by, zc), (ex, by, zc), group, cid),
-                             ((ex, by, zc), (ex, ey, zc), group, cid)]
-                elif mode == "wall":
-                    boxes.append((bx, by, z, "junction", cid))
-                    runs.append(((bx, by, z), (bx, by, device_z), group, cid))
-                else:
-                    box_z = floor + FLOOR_BOX_Z
-                    boxes.append((bx, by, box_z, "floor", cid))
-                    runs += [((bx, by, z), (bx, by, box_z), group, cid), ((bx, by, box_z), (bx, by, device_z), group, cid)]
-    # Switch legs: from the switch's box at the wall run, through the ceiling to its lights.
-    for link in design["switch_links"]:
-        sw = points[link["switch"]]
-        floor = _floor_of(doc, float(sw.params["z"]))
-        zr, zc = floor + WALL_RUN_Z, _ceiling(doc, floor)
-        sx, sy = float(sw.params["x"]), float(sw.params["y"])
-        boxes.append((sx, sy, zr, "junction", ""))
-        runs.append(((sx, sy, mount_z(doc, sw.params)), (sx, sy, zr), "switch", ""))
-        runs.append(((sx, sy, zr), (sx, sy, zc), "switch", ""))
-        for lid in link["lights"]:
-            lx, ly = float(points[lid].params["x"]), float(points[lid].params["y"])
-            runs.append(((sx, sy, zc), (lx, sy, zc), "switch", ""))
-            runs.append(((lx, sy, zc), (lx, ly, zc), "switch", ""))
+                terminal, box = device_legs(doc, e, mode, grid.point(targets[e.id]), z)
+                boxes.append((*box, cid))
+                runs.extend((a, b, group, cid) for a, b in terminal)
+    # The board consumes this same geometry instead of reconstructing switch legs.
+    switch_legs, switch_boxes = switch_runs(doc, design, points)
+    runs.extend((a, b, "switch", "") for a, b, _sid in switch_legs)
+    boxes.extend(switch_boxes)
     runs = [r for r in runs if math.dist(r[0], r[1]) > 1e-6]
     boxes = _merge_boxes(boxes)
     design["report"]["conduits"] = conduit_summary(runs, design["circuits"])
     design["report"]["cable_m"] = round(sum(math.dist(a, b) for a, b, _g, _c in runs), 1)
     design["report"]["boxes"] = {k: sum(1 for b in boxes if b[3] == k) for k in ("junction", "floor", "pull")}
-    return {**design, "runs": runs, "boxes": boxes}
+    return {**design, "runs": runs, "boxes": boxes, "switch_runs": switch_legs}
 
 
 def conduit_summary(runs, circuits):
