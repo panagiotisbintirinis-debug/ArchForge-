@@ -631,6 +631,10 @@ def missing_supplies(doc):
             out.append((x, y, z, kind, ELEC[kind][0]))
     for m in route_heating_cached(doc)["manifolds"]:
         x, y, z = m["x"] + 0.30, m["y"], m["z"]
-        if not supplied(x, y, z, "heating_supply"):
+        # A wiring centre in the burner's room shares its line (one supply there, not two).
+        from archforge.mep.electrical import _room_of
+        near_source = src is not None and abs(float(src.params["z"]) - z) < 0.5 and \
+            _room_of(doc, m["x"], m["y"], m["z"]) == _room_of(doc, float(src.params["x"]), float(src.params["y"]), m["z"])
+        if not near_source and not supplied(x, y, z, "heating_supply"):
             out.append((x, y, z, "heating_supply", "Κέντρο καλωδίωσης θερμοστατών (συλλέκτης)"))
     return out
