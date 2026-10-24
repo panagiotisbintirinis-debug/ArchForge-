@@ -98,7 +98,10 @@ def test_menu_places_points_and_schedule_lists_circuits():
     try:
         # Owner 17/10: ασθενή in their own menu — together the two menus hold every point type, none twice.
         from archforge.mep.electrical import LOW_VOLTAGE_TYPES
-        assert len(window._mockup_electrical_menu.actions()) == len(POINT_TYPES) - len(LOW_VOLTAGE_TYPES)
+        # Owner #150 explicitly adds the analysis command to this placement menu.
+        point_actions = [a for a in window._mockup_electrical_menu.actions()
+                         if not a.isSeparator() and a.objectName() != 'electricalAnalysisAction']
+        assert len(point_actions) == len(POINT_TYPES) - len(LOW_VOLTAGE_TYPES)
         assert len(window._mockup_lv_menu.actions()) == len(LOW_VOLTAGE_TYPES)
         window.plan_view.sitePointRequested.emit('elec_panel', 0.5, 0.5)
         window.plan_view.sitePointRequested.emit('elec_socket', 2.0, 0.5)

@@ -222,36 +222,8 @@ def electrical_list(doc, result=None):
     def meta(code, why, status="MODEL_QUANTITY", source="mep/electrical.py"):
         return {"code": code, "why": why, "status": status, "source": source}
 
-    rows = [(f"Καλώδιο αγωγός {p['mm2']:g} mm² (H07V-U ή ισοδύναμο, ανά αγωγό)".replace(".", ","), "m", p["with_waste"],
-             meta(f"electrical.cable.{p['mm2']:g}mm2", "Μέτρα αγωγών από τις διαδρομές στο σχέδιο (φάση, ουδέτερος, γείωση, "
-                  "επιστροφές), με τη φύρα που όρισες.", circuits_status)) for p in r["purchase"]]
-    # Conduits by size (owner 18/10: each size has its own price) from the conduit map: shared where the lines fit.
-    from archforge.mep.conduits import conduit_map
-    cmap = conduit_map(doc)
-    conduit_note = cmap['rule'] + (f" ΠΡΟΣΟΧΗ: {len(cmap['unsupported'])} γραμμές δεν έχουν επιμετρημένες σωληνώσεις."
-                                  if cmap['unsupported'] else '')
-    for dn, metres in cmap["by_size"].items():
-        outdoor = sum(p["length_m"] * p["count"] for p in cmap["pieces"] if p["dn"] == dn and p["outdoor"])
-        inside = round(metres - outdoor, 1)
-        if inside > 0:
-            rows.append((f"Σωλήνας ηλεκτρολογικός Φ{dn} και τοποθέτηση", "m", inside,
-                         meta(f"electrical.conduit.{dn}", "Πραγματικά κομμάτια του χάρτη με αυτή τη διάμετρο. "
-                              + conduit_note, "ENGINEER_REVIEW", "mep/conduits.py")))
-        if outdoor > 0:
-            rows.append((f"Σωλήνας διπλού δομήματος Φ{dn} (έδαφος / εξωτερικά) και τοποθέτηση", "m", round(outdoor, 1),
-                         meta(f"electrical.conduit.outdoor.{dn}", "Υπόγειο γεωμετρικό προφίλ GEONFLEX N750. " + conduit_note,
-                              "ENGINEER_REVIEW", "mep/conduits.py")))
-    if cmap["split_boxes"]:
-        rows.append(("Κουτί διακλάδωσης σωληνώσεων (χωρισμός γραμμών)", "τεμ.", len(cmap["split_boxes"]),
-                     meta("electrical.box.split", "Όπου μια κοινή σωλήνωση χωρίζεται: τα καλώδια βγαίνουν μόνο από κουτί.",
-                          "DESIGN_DEFAULT", "mep/conduits.py")))
-    for kind, label, why in (("junction", "Κουτί διακλάδωσης", "Πάνω από κάθε πρίζα/διακόπτη στη γραμμή όδευσης."),
-                             ("floor", "Κουτί δαπέδου", "Για σημεία μακριά από τοίχο (π.χ. νησίδα κουζίνας)."),
-                             ("pull", "Κουτί διέλευσης", "Σε γωνία μετά από μεγάλη διαδρομή, για να τραβιούνται τα καλώδια.")):
-        n = r["boxes"].get(kind, 0)
-        if n:
-            rows.append((label, "τεμ.", n, meta(f"electrical.box.{kind}", why, rule("electrical.pull_boxes").status
-                                                if kind == "pull" else "MODEL_QUANTITY")))
+    from archforge.mep.electrical_takeoff import measured_rows, finalise_rows, extra_rows
+    rows = measured_rows(doc, r)
     breakers = {}
     for c in r["circuits"]:
         breakers[c["breaker_a"]] = breakers.get(c["breaker_a"], 0) + 1
@@ -311,7 +283,7 @@ def electrical_list(doc, result=None):
                          meta("knx.dali_gateway", "Ελέγχει τα φωτιστικά με ρύθμιση έντασης DALI-2.", rule("knx.dali_gateway").status)))
         rows.append(("Προγραμματισμός KNX (ETS) και παράδοση αρχείου έργου", "τεμ.", 1,
                      meta("knx.ets_programming", "Ρύθμιση του συστήματος· το αρχείο του έργου παραδίδεται στον πελάτη.")))
-    return rows
+    return finalise_rows(doc, rows + extra_rows(doc))
 
 
 def _earth(doc):

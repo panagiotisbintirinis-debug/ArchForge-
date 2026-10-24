@@ -4,7 +4,8 @@
 * three walls by eye, the fourth down at 90° onto the first: the outline closes square, no slanted wall;
 * a wall drawn far from a finished room, in line with it: the guide shows, nothing else moves
   («συμπεριφέρεται εντελώς παράλογα μετακινώντας τοίχους για να κλείσουν»);
-* the free end of a short wall dragged to make it longer: it grows along its own line.
+* the free end of a short wall dragged to make it longer: it grows along its own line;
+* «Γωνία» (G): two walls that do not meet, click one, click the other — they meet in a corner.
 
     QT_QPA_PLATFORM=offscreen python scripts/user_drive/walls_check.py
 """
@@ -275,6 +276,54 @@ if dlg is not None:
     err = max(min(math.dist(a, b) for b in now) for a in truth)
     check(err < 0.002, f'οι εσωτερικές παρειές στις μετρήσεις (απόκλιση {err * 1000:.1f} mm)')
 u.end(); u.shot('walls_10_survey')
+
+# 11. «Γωνία» (handoff 24/10, Revit Trim/Extend to Corner): two walls drawn by eye that do not meet — one stops
+# short, the other runs past — click one, click the other, they meet in a corner.
+u.begin('11 · Γωνία: δύο τοίχοι με το μάτι που δεν συναντιούνται → G → κλικ, κλικ → γωνία')
+u.see(3, -22); u.plan.resetTransform(); u.plan.scale(55.0, -55.0); u.see(3, -22); u.pump(); u.plan._sync_snap_tolerance()
+before = set(walls())
+u.toolbar('Τοίχος')
+hand_click(0.0, -24.0); hand_click(4.4, -24.0); u.key(Qt.Key.Key_Escape); u.key(Qt.Key.Key_Escape)
+u.toolbar('Τοίχος')
+hand_click(5.4, -21.0); hand_click(5.4, -24.8); u.key(Qt.Key.Key_Escape); u.key(Qt.Key.Key_Escape)
+new = [k for k in walls() if k not in before]
+check(len(new) == 2, f'δύο νέοι τοίχοι ({len(new)})')
+south_id = next(k for k in new if abs(walls()[k][1] - walls()[k][3]) < 1e-6)
+east_id = next(k for k in new if k != south_id)
+S0, E0 = walls()[south_id], walls()[east_id]
+print('  πριν:', S0, E0)
+u.toolbar('Επιλογή')
+u.w.activateWindow(); u.pump()        # offscreen, the closed survey window leaves none active (a desktop click would)
+u.key(Qt.Key.Key_G)
+check(u.w._corner_tool.active, 'G → εργαλείο Γωνία')
+sy = S0[1]; ex = E0[0]
+u.click(1.5, sy)
+move(ex, -22.5); move(ex, -22.0)
+pv = u.w._corner_tool.preview
+check(pv is not None and set(pv['walls']) == {south_id, east_id}, 'πριν το 2ο κλικ: διακεκομμένη προεπισκόπηση της γωνίας')
+u.shot('walls_11_corner_preview')
+u.click(ex, -22.0)
+S1, E1 = walls()[south_id], walls()[east_id]
+print('  μετά:', S1, E1)
+check((S1[2], S1[3]) == (round(ex, 3), round(sy, 3)) and (E1[2], E1[3]) == (round(ex, 3), round(sy, 3)),
+      f'ο νότιος μάκρυνε και ο ανατολικός κόπηκε: συναντιούνται στο ({ex:.2f}, {sy:.2f})')
+check(S1[:2] == S0[:2] and E1[:2] == E0[:2], 'οι άλλες άκρες δεν κουνήθηκαν (μένει το κομμάτι του κλικ)')
+check(u.w._corner_tool.active and u.w._corner_tool.first is None, 'το εργαλείο μένει για το επόμενο ζευγάρι')
+u.key(Qt.Key.Key_Escape)
+check(not u.w._corner_tool.active, 'Esc → τέλος')
+u.shot('walls_11_corner')
+QTest.keyClick(vp, Qt.Key.Key_Z, Qt.KeyboardModifier.ControlModifier); u.pump(); u.steps += 1
+check(walls()[south_id] == S0 and walls()[east_id] == E0, 'Ctrl+Z: και οι δύο πίσω με μία αναίρεση')
+# The same from the wall's right-click menu: that wall is the 1st, the next click the 2nd.
+try:
+    u.mm(1.5, sy, 'mm:wall:corner')
+except LookupError as exc:
+    print('  ', exc)
+check(u.w._corner_tool.first is not None and u.w._corner_tool.first[0] == south_id, 'δεξί κλικ ▸ Γωνία με άλλο τοίχο')
+u.click(ex, -22.0)
+check(walls()[south_id][2:] == (round(ex, 3), round(sy, 3)), 'από το δεξί κλικ: η ίδια γωνία')
+u.key(Qt.Key.Key_Escape)
+u.end()
 
 print('--- ΑΠΟΤΕΛΕΣΜΑ:', 'όλα σωστά' if not fails else f'{len(fails)} λάθη')
 for f in fails: print('  ✘', f)

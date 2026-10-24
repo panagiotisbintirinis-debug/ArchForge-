@@ -21,6 +21,16 @@ from __future__ import annotations
 
 import math
 
+from archforge.core.provenance import DESIGN_DEFAULT, Rule, register
+
+register(Rule(
+    "joinery.library_designs",
+    "Τα έτοιμα σχέδια, μεγέθη και αναλογίες κουφωμάτων είναι επεξεργάσιμες επιλογές σχεδίασης.",
+    DESIGN_DEFAULT,
+    source="ArchForge originals — owner library enrichment request, 2026-10-23",
+    note="Όψη μόνο· όχι στοιχεία κατασκευαστή, πιστοποίηση, θερμομόνωση ή οδηγίες κατασκευής.",
+))
+
 # --- Τύποι (ονόματα που βλέπει ο χρήστης) ---------------------------------
 WINDOW_TYPES = {
     "basic": "Απλό (βασικό)",
@@ -54,11 +64,32 @@ FINISHES = {
     "wood_walnut": ("Ξύλο καρυδιά", "#6b4632", 0.60, 0.0),
     "lacquer_white": ("Λάκα λευκή", "#ecebe6", 0.35, 0.0),
 }
+# Project-owned decorative designs; proportions are DESIGN_DEFAULT artwork,
+# not product dimensions, performance ratings or manufacturing instructions.
+LEAF_DESIGNS = {
+    "auto": "Αρχικό σχέδιο τύπου", "plain": "Λείο",
+    "four_panel": "Κλασικό — 4 ταμπλάδες", "six_panel": "Κλασικό — 6 ταμπλάδες",
+    "horizontal": "Σύγχρονο — οριζόντιες ραβδώσεις",
+    "vertical": "Σύγχρονο — κάθετες ραβδώσεις",
+    "glazed": "Με μεγάλο τζάμι", "three_lites": "Με 3 τζάμια",
+}
+DESIGNABLE = {"interior_flush", "interior_panel", "security", "pocket", "folding"}
+GLASS_DESIGNS = {"glazed", "three_lites"}
+
+
+def leaf_design_options(opening_type):
+    if opening_type not in DESIGNABLE:
+        return {"auto": LEAF_DESIGNS["auto"]}
+    # A decorative glazed preset must never imply a rated security door.
+    return {k: v for k, v in LEAF_DESIGNS.items()
+            if opening_type != "security" or k not in GLASS_DESIGNS}
+
+
 ROLES = ("frame", "leaf", "glass", "handle", "shading", "sill")
 ROLE_NAMES = {"frame": "Κάσα", "leaf": "Φύλλο", "glass": "Τζάμι", "handle": "Χερούλι",
               "shading": "Ρολό / παντζούρι", "sill": "Ποδιά / περβάζι"}
 # Παράμετροι κουφώματος (όλες προαιρετικές· απουσία = προεπιλογή τύπου).
-KEYS = ("opening_type", "hinge", "swing", "leaves", "bars_h", "bars_v", "transom", "shading", "ledge", "finish")
+KEYS = ("opening_type", "hinge", "swing", "leaves", "bars_h", "bars_v", "transom", "shading", "ledge", "finish", "leaf_design")
 
 SWINGING = {"casement", "tilt_turn", "interior_flush", "interior_panel", "security", "balcony_casement"}
 SLIDING = {"sliding", "balcony_sliding"}
@@ -107,7 +138,7 @@ def is_typed(params):
 def validate_choice(key, value):
     """Έλεγχος μίας παραμέτρου κουφώματος (καλείται από το SCHEMAS)."""
     options = {"opening_type": set(WINDOW_TYPES) | set(DOOR_TYPES), "hinge": HINGES, "swing": SWINGS,
-               "shading": SHADINGS, "ledge": LEDGES, "finish": FINISHES}
+               "shading": SHADINGS, "ledge": LEDGES, "finish": FINISHES, "leaf_design": LEAF_DESIGNS}
     if key in options:
         v = str(value)
         if v not in options[key]:
@@ -165,6 +196,7 @@ def resolved(kind, params):
         finish = "alu_anthracite"
     return {
         "opening_type": t,
+        "leaf_design": str(p.get("leaf_design", "auto")),
         "hinge": str(p.get("hinge", "left")),
         "swing": str(p.get("swing", "in")),
         "leaves": leaves,
@@ -182,6 +214,9 @@ def validate_joinery(kind, params, wall_length=None):
     t = str(params.get("opening_type", "basic"))
     if t not in TYPES.get(kind, {}):
         raise ValueError(f"{kind} type must be one of {', '.join(TYPES.get(kind, {}))}")
+    design = str(params.get("leaf_design", "auto"))
+    if design not in leaf_design_options(t):
+        raise ValueError(f"leaf design {design} is not supported by {t}")
     if t == "basic":
         return True
     leaves = int(params.get("leaves", 0) or 0)
@@ -514,6 +549,75 @@ def _active_leaf(r, n, sw):
     return n - 1 if r["_at_w"] else 0
 
 
+def _door_leaf(out, design, typ, a, b, s0, s1, zb, ztop, sw=1):
+    """A real leaf with clear glazing voids; all pieces share the leaf pose.
+
+    New decoration uses fractions of the leaf size, so resize preserves the
+    drawing. The fractions below are project-owned DESIGN_DEFAULT choices.
+    ``auto`` keeps legacy geometry exactly (including its old proportions).
+    """
+    if design in GLASS_DESIGNS:
+        # Stiles keep the handle on opaque material; no opaque slab behind glass.
+        edge = (b - a) * 0.20
+        za, zc = zb + (ztop - zb) * 0.18, ztop - (ztop - zb) * 0.12
+        u0, u1 = a + edge, b - edge
+        _box(out, "leaf", a, u0, s0, s1, zb, ztop)
+        _box(out, "leaf", u1, b, s0, s1, zb, ztop)
+        _box(out, "leaf", u0, u1, s0, s1, zb, za)
+        _box(out, "leaf", u0, u1, s0, s1, zc, ztop)
+        n = 3 if design == "three_lites" else 1
+        rail = (ztop - zb) * 0.035
+        pane_h = (zc - za - (n - 1) * rail) / n
+        sc = (s0 + s1) / 2
+        gd = min(GLASS_D, (s1 - s0) * 0.6) / 2
+        for j in range(n):
+            z = za + j * (pane_h + rail)
+            _box(out, "glass", u0, u1, sc - gd, sc + gd, z, z + pane_h)
+            if j < n - 1:
+                _box(out, "leaf", u0, u1, s0, s1, z + pane_h, z + pane_h + rail)
+        return
+    _box(out, "leaf", a, b, s0, s1, zb, ztop)
+    if design == "auto":
+        if typ == "interior_panel":
+            # Δύο ταμπλάδες ανά όψη (κάτω μεγαλύτερος), εσοχή 12 cm από τα άκρα.
+            zm = zb + (ztop - zb) * 0.45
+            for za, zc in ((zb + 0.20, zm - 0.08), (zm + 0.08, ztop - 0.12)):
+                _box(out, "leaf", a + 0.12, b - 0.12, s1, s1 + 0.008, za, zc)
+                _box(out, "leaf", a + 0.12, b - 0.12, s0 - 0.008, s0, za, zc)
+        if typ == "security":
+            # Επένδυση εξωτερικής όψης: οριζόντιες ραβδώσεις.
+            out_face, d = (s0, -1) if sw > 0 else (s1, 1)
+            for j in range(1, 6):
+                zc = zb + (ztop - zb) * j / 6
+                _box(out, "leaf", a + 0.10, b - 0.10, out_face, out_face + d * 0.005, zc - 0.006, zc + 0.006)
+        return
+    if design == "plain":
+        return
+    relief = (s1 - s0) * 0.16
+    if design in ("four_panel", "six_panel"):
+        rows = 2 if design == "four_panel" else 3
+        for col in range(2):
+            u0 = a + (b - a) * (0.14 + col * 0.40)
+            u1 = u0 + (b - a) * 0.32
+            for row in range(rows):
+                z0 = zb + (ztop - zb) * (0.10 + row * 0.80 / rows)
+                z1 = z0 + (ztop - zb) * (0.80 / rows - 0.06)
+                for face, d in ((s0, -1), (s1, 1)):
+                    _box(out, "leaf", u0, u1, face, face + d * relief, z0, z1)
+    else:
+        # Raised strips, described honestly as ribs rather than recessed grooves.
+        for j in range(1, 7):
+            for face, d in ((s0, -1), (s1, 1)):
+                if design == "horizontal":
+                    z = zb + (ztop - zb) * j / 7
+                    _box(out, "leaf", a + (b-a)*0.12, b - (b-a)*0.12,
+                         face, face + d * relief, z, z + (ztop-zb)*0.008)
+                elif design == "vertical":
+                    u = a + (b-a) * j / 7
+                    _box(out, "leaf", u, u + (b-a)*0.018, face, face + d * relief,
+                         zb + (ztop-zb)*0.10, ztop - (ztop-zb)*0.10)
+
+
 def _door_boxes(out, r, W, H, t):
     typ, n = r["opening_type"], r["leaves"]
     half = t / 2
@@ -533,7 +637,7 @@ def _door_boxes(out, r, W, H, t):
     if typ == "pocket":
         at_w = _at_end(r["hinge"], 1, sign_in)
         s0, s1 = -lt / 2, lt / 2
-        _box(out, "leaf", ui0, ui1, s0, s1, zb, ztop)
+        _door_leaf(out, r["leaf_design"], typ, ui0, ui1, s0, s1, zb, ztop)
         uc = ui0 + 0.05 if at_w else ui1 - 0.05      # χούφτα στο ελεύθερο άκρο
         for f, d in ((s1, 1), (s0, -1)):
             _box(out, "handle", uc - 0.0125, uc + 0.0125, f, f + d * 0.004, HANDLE_Z - 0.075, HANDLE_Z + 0.075)
@@ -545,7 +649,7 @@ def _door_boxes(out, r, W, H, t):
         pw = (ui1 - ui0) / n
         for k in range(n):
             a = ui0 + k * pw
-            _box(out, "leaf", a + GAP / 2, a + pw - GAP / 2, -lt / 2, lt / 2, zb, ztop)
+            _door_leaf(out, r["leaf_design"], typ, a + GAP / 2, a + pw - GAP / 2, -lt / 2, lt / 2, zb, ztop)
         k_free = 0 if at_w else n - 1
         uc = ui0 + k_free * pw + (0.05 if at_w else pw - 0.05)
         for f, d in ((lt / 2, 1), (-lt / 2, -1)):
@@ -561,19 +665,7 @@ def _door_boxes(out, r, W, H, t):
         a, b = ui0 + k * lw + (GAP / 2 if k else 0), ui0 + (k + 1) * lw - (GAP / 2 if k < n - 1 else 0)
         i0 = len(out)
         hb = (at_w if n == 1 else (k == n - 1)) if (n == 1 or k in (0, n - 1)) else at_w
-        _box(out, "leaf", a, b, s0, s1, zb, ztop)
-        if typ == "interior_panel":
-            # Δύο ταμπλάδες ανά όψη (κάτω μεγαλύτερος), εσοχή 12 cm από τα άκρα.
-            zm = zb + (ztop - zb) * 0.45
-            for za, zc in ((zb + 0.20, zm - 0.08), (zm + 0.08, ztop - 0.12)):
-                _box(out, "leaf", a + 0.12, b - 0.12, s1, s1 + 0.008, za, zc)
-                _box(out, "leaf", a + 0.12, b - 0.12, s0 - 0.008, s0, za, zc)
-        if typ == "security":
-            # Επένδυση εξωτερικής όψης: οριζόντιες ραβδώσεις.
-            out_face, d = (s0, -1) if sw > 0 else (s1, 1)
-            for j in range(1, 6):
-                zc = zb + (ztop - zb) * j / 6
-                _box(out, "leaf", a + 0.10, b - 0.10, out_face, out_face + d * 0.005, zc - 0.006, zc + 0.006)
+        _door_leaf(out, r["leaf_design"], typ, a, b, s0, s1, zb, ztop, sw)
         if k == active:
             hinge_here = at_w if n == 1 else (k == n - 1)
             uc = a + 0.065 if hinge_here else b - 0.065
@@ -811,6 +903,58 @@ PRESETS = (
      {"opening_type": "balcony_sliding", "leaves": 2, "shading": "roller"}),
     ("d_pocket", "door", "Χωνευτή συρόμενη 80×210", 0.80, 2.10, 0.0, {"opening_type": "pocket"}),
     ("d_folding", "door", "Φυσαρμόνικα 120×210", 1.20, 2.10, 0.0, {"opening_type": "folding"}),
+)
+
+
+# ArchForge original drawings, DESIGN_DEFAULT: editable starting sizes and
+# appearance, not manufacturer products or verified building requirements.
+# Existing 19 keys and their dimensions remain unchanged.
+PRESETS += (
+    ("w_french_white", "window", "Γαλλικό δίφυλλο με καΐτια 120×140", 1.20, 1.40, 0.90,
+     {"opening_type": "casement", "leaves": 2, "bars_v": 1, "bars_h": 2, "finish": "alu_white"}),
+    ("w_cottage_oak", "window", "Παραδοσιακό ξύλινο με καΐτια 80×120", 0.80, 1.20, 0.90,
+     {"opening_type": "casement", "leaves": 1, "bars_v": 1, "bars_h": 2, "finish": "wood_oak"}),
+    ("w_shutters_white", "window", "Νησιώτικο λευκό με παντζούρια 110×140", 1.10, 1.40, 0.90,
+     {"opening_type": "casement", "leaves": 2, "bars_h": 2, "shading": "shutters", "finish": "alu_white"}),
+    ("w_fixed_panorama", "window", "Πανοραμικό σταθερό 240×120", 2.40, 1.20, 0.90,
+     {"opening_type": "fixed", "ledge": "outside"}),
+    ("w_fixed_grid", "window", "Σταθερό με κάνναβο 160×120", 1.60, 1.20, 0.90,
+     {"opening_type": "fixed", "bars_v": 3, "bars_h": 2}),
+    ("w_fixed_tall", "window", "Στενό κατακόρυφο σταθερό 60×180", 0.60, 1.80, 0.60,
+     {"opening_type": "fixed", "ledge": "none"}),
+    ("w_fixed_ribbon", "window", "Οριζόντια φωτιστική λωρίδα 240×50", 2.40, 0.50, 1.60,
+     {"opening_type": "fixed", "bars_v": 2, "ledge": "none"}),
+    ("w_transom_grid", "window", "Δίφυλλο με καΐτια και φεγγίτη 120×180", 1.20, 1.80, 0.60,
+     {"opening_type": "casement", "leaves": 2, "bars_h": 2, "bars_v": 1,
+      "transom": 0.40, "finish": "wood_walnut"}),
+    ("w_sliding_4", "window", "Τετράφυλλο συρόμενο 240×120", 2.40, 1.20, 0.90,
+     {"opening_type": "sliding", "leaves": 4, "finish": "alu_white"}),
+    ("w_casement_3", "window", "Τρίφυλλο ανοιγόμενο με καΐτια 240×120", 2.40, 1.20, 0.90,
+     {"opening_type": "casement", "leaves": 3, "bars_h": 1, "finish": "alu_white"}),
+    ("w_tilt_white", "window", "Ανοιγοανακλινόμενο λευκό με καΐτι 80×120", 0.80, 1.20, 0.90,
+     {"opening_type": "tilt_turn", "leaves": 1, "bars_h": 1, "finish": "pvc_white"}),
+    ("w_hopper_grid", "window", "Φεγγίτης με κάθετα καΐτια 80×50", 0.80, 0.50, 1.60,
+     {"opening_type": "hopper", "bars_v": 2, "finish": "alu_white", "ledge": "none"}),
+    ("d_classic_4", "door", "Κλασική πόρτα με 4 ταμπλάδες 90×210", 0.90, 2.10, 0.0,
+     {"opening_type": "interior_panel", "leaf_design": "four_panel", "finish": "lacquer_white"}),
+    ("d_classic_6", "door", "Κλασική πόρτα με 6 ταμπλάδες 90×210", 0.90, 2.10, 0.0,
+     {"opening_type": "interior_panel", "leaf_design": "six_panel", "finish": "wood_walnut"}),
+    ("d_modern_horizontal", "door", "Σύγχρονη πόρτα με οριζόντιες ραβδώσεις 90×210", 0.90, 2.10, 0.0,
+     {"opening_type": "interior_flush", "leaf_design": "horizontal", "finish": "lacquer_white"}),
+    ("d_modern_vertical", "door", "Σύγχρονη πόρτα με κάθετες ραβδώσεις 90×210", 0.90, 2.10, 0.0,
+     {"opening_type": "interior_flush", "leaf_design": "vertical", "finish": "wood_oak"}),
+    ("d_glazed", "door", "Εσωτερική πόρτα με μεγάλο τζάμι 90×210", 0.90, 2.10, 0.0,
+     {"opening_type": "interior_flush", "leaf_design": "glazed", "finish": "wood_oak"}),
+    ("d_three_lites", "door", "Εσωτερική πόρτα με 3 τζάμια 90×210", 0.90, 2.10, 0.0,
+     {"opening_type": "interior_flush", "leaf_design": "three_lites", "finish": "lacquer_white"}),
+    ("d_double_classic", "door", "Δίφυλλη κλασική με 4 ταμπλάδες ανά φύλλο 140×220", 1.40, 2.20, 0.0,
+     {"opening_type": "interior_panel", "leaves": 2, "leaf_design": "four_panel", "finish": "wood_walnut"}),
+    ("d_pocket_glazed", "door", "Χωνευτή με μεγάλο τζάμι 80×210", 0.80, 2.10, 0.0,
+     {"opening_type": "pocket", "leaf_design": "glazed", "finish": "lacquer_white"}),
+    ("d_balcony_french", "door", "Γαλλική μπαλκονόπορτα με καΐτια 140×220", 1.40, 2.20, 0.0,
+     {"opening_type": "balcony_casement", "leaves": 2, "bars_v": 1, "bars_h": 3, "finish": "alu_white"}),
+    ("d_balcony_slide_4", "door", "Τετράφυλλη συρόμενη μπαλκονόπορτα 240×220", 2.40, 2.20, 0.0,
+     {"opening_type": "balcony_sliding", "leaves": 4}),
 )
 
 

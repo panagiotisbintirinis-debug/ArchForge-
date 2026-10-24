@@ -54,7 +54,7 @@ ICONS = {
     "mm:slab:inner_balcony": "slab", "mm:roofroom:tiled": "roof", "mm:roofroom:terrace": "terrace",
     "mm:drywall:room": "ceiling", "mm:analyze": "statics", "mm:member_statics": "statics",
     "mm:structure:design": "footing", "mm:structure:frame": "column", "mm:wall:moveby": "move",
-    "mm:wall:split": "split", "mm:stairdlg:open": "stair", "mm:fit:ceiling": "fit", "mm:camera:view": "camera",
+    "mm:wall:split": "split", "mm:wall:corner": "corner", "mm:stairdlg:open": "stair", "mm:fit:ceiling": "fit", "mm:camera:view": "camera",
 }
 
 
@@ -220,7 +220,8 @@ def _build_menu(window, view, entity_id=None, xy=None):
             # Walls move with what is joined to them and split where you click (wall_edit.py).
             # Rarely used: behind a small «⋯» (owner 15/10: rare things in a small icon with submenus).
             more = _e("mm:menu:wall_more", "Επεξεργασία τοίχου", children=[
-                _e("mm:wall:moveby", "Μετακίνηση κατά…"), _e("mm:wall:split", "Διαχωρισμός εδώ")])
+                _e("mm:wall:moveby", "Μετακίνηση κατά…"), _e("mm:wall:split", "Διαχωρισμός εδώ"),
+                _e("mm:wall:corner", "Γωνία με άλλο τοίχο")])
             more["small"] = True
             entries.insert(len(entries) - 1, more)
         assist = _e("mm:assist:entity", "Βοηθός εδώ", "panel")
@@ -422,6 +423,9 @@ def run(window, view, entity_id, action_id, plan_xy=None):
         if last:
             window.doc.select([last])
             window._delete_selection()
+    elif group == "wall" and arg == "corner" and entity_id and plan_xy is not None:
+        window._corner_tool.start()                        # this wall is the 1st: next click on the other one
+        window._corner_tool.pick(entity_id, (float(plan_xy[0]), float(plan_xy[1])))
     elif group == "wall" and arg in ("moveby", "split"):
         from archforge.ui import wall_edit_actions
         if arg == "moveby":

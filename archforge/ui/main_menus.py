@@ -171,6 +171,7 @@ def organize_main_menus(window):
                 (window.undo_action, window.redo_action, window.delete_action)]
         _fill(edit_menu, [window.undo_action, window.redo_action, None,
                           acts.get("edit.move"), acts.get("edit.rotate"), acts.get("edit.stretch"),
+                          acts.get("edit.corner"),
                           acts.get("edit.duplicate"), None, window.delete_action, None, *tail])
 
     # --- CAD: drawing aids and dimensions (tape + automatic, ui/dimension_tool.py); lines and markup come next ---
