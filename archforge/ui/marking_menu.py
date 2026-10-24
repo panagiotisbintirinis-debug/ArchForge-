@@ -290,6 +290,7 @@ def _build_menu(window, view, entity_id=None, xy=None):
                 _e("mm:menu:roomuse", "Χρήση χώρου", children=[_e(f"mm:roomuse:{i}", u) for i, u in enumerate(ROOM_USES)]
                    + [_e("mm:roomuse:name", "Όνομα…")]),
                 _e("mm:layout:bath", "Μπάνιο εδώ…"),
+                _e("mm:survey:room", "Αποτύπωση από μετρήσεις…"),
                 _e("mm:roofroom:tiled", "Κεραμοσκεπή"), _e("mm:roofroom:terrace", "Ταράτσα"),
                 _e("mm:slab:atrium", "Αίθριο"), _e("mm:slab:inner_balcony", "Κενό πλάκας (εσωτ. μπαλκόνι)"),
                 _e("mm:drywall:room", "Ψευδοροφή γυψοσανίδας")]))
@@ -384,6 +385,10 @@ def run(window, view, entity_id, action_id, plan_xy=None):
         return
     _mm, group, *rest = action_id.split(":")
     arg = rest[0] if rest else ""
+    if group == "survey":
+        from archforge.ui.survey_dialog import open_survey
+        open_survey(window, plan_xy)
+        return
     if group == "tool":
         window._last_marking_tool = arg if arg != "select" else getattr(window, "_last_marking_tool", None)
         if window.sculpt_action.isChecked():

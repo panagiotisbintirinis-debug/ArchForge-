@@ -236,5 +236,45 @@ if tooth is not None:
     check(0.05 in teeth, f'γράφω 0,05 → το δόντι τώρα {teeth}')
 u.end(); u.shot('walls_9_dimension_drives')
 
+# 10. Survey of an existing room (owner 24/10: «δέκα διαγώνιες μετρήσεις για ένα δωμάτιο τεσσάρων τοίχων για να βγάλω
+# τα παράγωνα»): drawn square by eye, measured out of square on site.
+u.begin('10 · Αποτύπωση: δωμάτιο με το μάτι → πλευρές + διαγώνιοι → οι τοίχοι πάνε στα παράγωνα')
+import math
+from PySide6.QtWidgets import QPushButton
+u.see(3, -14); u.plan.resetTransform(); u.plan.scale(55.0, -55.0); u.see(3, -14); u.pump(); u.plan._sync_snap_tolerance()
+u.toolbar('Τοίχος')
+for p in [(0.0, -16.0), (0.0, -12.0), (5.0, -12.0), (5.0, -16.0), (0.0, -16.0)]:
+    hand_click(*p)
+u.key(Qt.Key.Key_Escape); u.key(Qt.Key.Key_Escape)
+u.toolbar('Επιλογή')
+try:
+    u.mm(2.5, -14.0, 'mm:survey:room')
+except LookupError as exc:
+    print('  ', exc)
+dlg = getattr(u.w, '_survey_dialog', None)
+check(dlg is not None and dlg.isVisible(), 'το παράθυρο αποτύπωσης άνοιξε από το δεξί κλικ στο δωμάτιο')
+if dlg is not None:
+    inner = dlg.room['inner']
+    truth = [inner[0], inner[1], (inner[2][0] + 0.10, inner[2][1]), (inner[3][0] + 0.05, inner[3][1] - 0.05)]
+    n = len(truth)
+    for i in range(n):
+        dlg.set_measure(i, (i + 1) % n, round(math.dist(truth[i], truth[(i + 1) % n]), 3))
+    next(b for b in dlg.findChildren(QPushButton) if b.text() == 'Υπολογισμός').click(); u.pump()
+    check('δεν ορίζουν' in dlg.info.text(), f'μόνο πλευρές → «{dlg.info.text()}»')
+    for i, j in ((0, 2), (1, 3)):
+        dlg.set_measure(i, j, round(math.dist(truth[i], truth[j]), 3))
+    next(b for b in dlg.findChildren(QPushButton) if b.text() == 'Υπολογισμός').click(); u.pump()
+    print('  ', dlg.info.text())
+    check(dlg.info.text().startswith('✔'), 'οι μετρήσεις συμφωνούν')
+    u.shot('walls_10_survey_open'); dlg.grab().save(os.path.join(OUT, 'walls_10_survey_dialog.png'))
+    next(b for b in dlg.findChildren(QPushButton) if b.text() == 'Εφαρμογή').click(); u.pump()
+    from archforge.architecture import survey as S
+    from archforge.geometry.regions import point_in_polygon
+    face = next(f for f in u.w.doc.active_room_faces() if point_in_polygon(2.5, -14.0, f.polygon))
+    now = S.survey_room(u.w.doc, face)['inner']
+    err = max(min(math.dist(a, b) for b in now) for a in truth)
+    check(err < 0.002, f'οι εσωτερικές παρειές στις μετρήσεις (απόκλιση {err * 1000:.1f} mm)')
+u.end(); u.shot('walls_10_survey')
+
 print('--- ΑΠΟΤΕΛΕΣΜΑ:', 'όλα σωστά' if not fails else f'{len(fails)} λάθη')
 for f in fails: print('  ✘', f)

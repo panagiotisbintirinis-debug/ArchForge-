@@ -988,6 +988,7 @@ class PlanView(QGraphicsView):
         if getattr(self,'camera_tool',None) is not None:self.camera_tool.paint(self)
         if getattr(self,'tape_tool',None) is not None:self.tape_tool.paint(self)   # Μεζούρα (dimension_tool.py)
         if getattr(self,'dims_tool',None) is not None:self.dims_tool.paint(self)   # dimensions of a selected wall (wall_dims_tool.py)
+        if getattr(self,'survey_tool',None) is not None:self.survey_tool.paint(self)   # corner numbers (survey_dialog.py)
         if self.carry is not None:self.carry.paint(self)
         if self.controller.preview.kind=='rotate' and self.controller.active is not None:self._draw_rotate_dial(self.controller.preview)
         draft=getattr(self,'plot_draft',None)
