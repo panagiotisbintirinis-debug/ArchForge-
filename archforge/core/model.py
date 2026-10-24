@@ -306,6 +306,20 @@ def _cable_routing(v):
     return v
 
 
+def _conduit_fill_limit(v):
+    value = _finite(v)
+    if not 0 < value < 1:
+        raise ValueError('conduit fill limit must be greater than zero and less than one')
+    return value
+
+
+def _conduit_max_dn(v):
+    value = _finite(v)
+    if value not in (16, 20, 25, 32, 40, 50):
+        raise ValueError('select a supported maximum conduit diameter')
+    return int(value)
+
+
 def _supply_phases(v):
     v = int(v)
     if v not in (0, 1, 3):
@@ -817,6 +831,8 @@ SCHEMAS = {
                      'ridge_posts': _ridge_posts},
     'electrical_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _electrical_type, 'power_w': _nonnegative,
                          'routing': _cable_routing, 'supply_kva': _nonnegative, 'supply_phases': _supply_phases, 'supply_fuse_a': _nonnegative,
+                         'conduit_fill_limit': _conduit_fill_limit, 'conduit_max_dn': _conduit_max_dn,
+                         'conduit_profile': _choice(('conflex', 'superflex_plus', 'supersol_plus'), 'conduit profile'),
                          'demand_factor': _unit_interval, 'install_method': _choice(('A1', 'B1'), 'installation method'),
                          'control_system': _choice(('conventional', 'knx'), 'control system'),
                          'waste_pct': _nonnegative,
