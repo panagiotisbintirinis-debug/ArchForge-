@@ -41,10 +41,14 @@ def add_opening_rows(window, form, entity):
     combo = _combo(joinery.TYPES[kind], typ)
     # Αλλαγή τύπου: φύλλα ξανά αυτόματα (ένα undo).
     combo.currentIndexChanged.connect(
-        lambda _i, w=combo: _apply(window, eid, {'opening_type': w.currentData(), 'leaves': 0}))
+        lambda _i, w=combo: _apply(window, eid, {'opening_type': w.currentData(), 'leaves': 0, 'leaf_design': 'auto'}))
     form.addRow('Τύπος κουφώματος', combo)
     if typ == 'basic':
         return set(joinery.KEYS)
+    if typ in joinery.DESIGNABLE:
+        design = _combo(joinery.leaf_design_options(typ), r['leaf_design'])
+        design.currentIndexChanged.connect(lambda _i, w=design: _apply(window, eid, {'leaf_design': w.currentData()}))
+        form.addRow('Σχέδιο φύλλου', design)
     lo, hi = joinery.LEAF_RANGE[typ]
     if hi > lo:
         spin = QSpinBox()
