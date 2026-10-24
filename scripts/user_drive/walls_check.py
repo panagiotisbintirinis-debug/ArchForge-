@@ -163,5 +163,35 @@ check(side0 == -1 and side1 == 1, f'δεξιά (μέσα όταν σχεδιάζ
 u.key(Qt.Key.Key_Escape); u.key(Qt.Key.Key_Escape)
 u.end()
 
+# 8. Steps of 10–20 cm (owner 24/10: «δεν είναι όλα σε μία ευθεία»): zoomed in, the magnets pull only a few cm; Ctrl
+# turns them off at any zoom.
+u.begin('8 · Τοίχος 15 cm δίπλα στην ευθεία του δωματίου: με ζουμ μένει εκεί, με Ctrl σε κάθε ζουμ')
+from PySide6.QtCore import QRectF
+right_x = max(xs) + 0.135                                  # the room's right outer face (drawn line)
+top_y = max(ys) + 0.135
+u.plan.fitInView(QRectF(right_x - 1.0, top_y - 2.5, 3.0, 3.0)); u.pump(); u.plan._sync_snap_tolerance()
+print('  ανοχή έλξης με ζουμ:', round(u.plan.controller.snap_tolerance, 3), 'm')
+u.toolbar('Τοίχος')
+hand_click(right_x + 0.15, top_y + 0.4)
+move(right_x + 0.15, top_y - 0.6); move(right_x + 0.15, top_y - 1.2)
+_c = u.plan.controller
+ex = _c.active.end[0] if _c.active else None
+check(ex is not None and abs(ex - (right_x + 0.15)) < 0.005, f'με ζουμ: η γραμμή μένει 15 cm έξω ({ex and round(ex, 3)} vs {round(right_x + 0.15, 3)})')
+u.key(Qt.Key.Key_Escape); u.key(Qt.Key.Key_Escape)
+u.see(3, 5); u.plan.resetTransform(); u.plan.scale(55.0, -55.0); u.see(3, 5); u.pump(); u.plan._sync_snap_tolerance()
+print('  ανοχή έλξης από μακριά:', round(u.plan.controller.snap_tolerance, 3), 'm')
+u.toolbar('Τοίχος')
+hand_click(right_x + 0.15, top_y + 0.4)
+from PySide6.QtGui import QMouseEvent
+from PySide6.QtCore import QEvent
+for yy in (top_y - 0.6, top_y - 1.2):
+    _p = QPointF(u._pos(right_x + 0.15, yy))
+    QApplication.sendEvent(vp, QMouseEvent(QEvent.Type.MouseMove, _p, vp.mapToGlobal(_p), Qt.MouseButton.NoButton,
+                                           Qt.MouseButton.NoButton, Qt.KeyboardModifier.ControlModifier)); u.pump()
+ex = _c.active.end[0] if _c.active else None
+check(ex is not None and abs(ex - (right_x + 0.15)) < 0.02, f'από μακριά με Ctrl: μένει 15 cm έξω ({ex and round(ex, 3)})')
+u.key(Qt.Key.Key_Escape); u.key(Qt.Key.Key_Escape)
+u.end()
+
 print('--- ΑΠΟΤΕΛΕΣΜΑ:', 'όλα σωστά' if not fails else f'{len(fails)} λάθη')
 for f in fails: print('  ✘', f)

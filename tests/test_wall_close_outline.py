@@ -26,6 +26,7 @@ def test_the_open_start_of_the_outline_closes_at_a_right_angle():
     top = next(e for e in doc.entities.values() if e.params['y1'] == 6.3 and e.params['y2'] == 6.3)
     t = WallDrawTransaction(doc, stack, (-4.5, -6.0), angle_increment=MAGNET)
     t.outline_start = (-5.4, 6.3)                         # the controller's chain: where this outline began
+    t.snap_tol = 0.25                                     # zoomed out (14 px ≈ 25 cm)
     t.update(-4.54, 6.27)                                 # pointer straight up, 0.86 m from the open corner
     assert abs(t.end[0] + 4.5) < 1e-9 and abs(t.end[1] - 6.3) < 1e-9 and t.last_snap.kind == 'endpoint'
     assert t.guide == ((-5.4, 6.3), t.end)
@@ -40,7 +41,7 @@ def test_aiming_at_the_first_corner_a_few_degrees_off_still_closes_square():
     doc, stack = _open_outline()
     top = next(e for e in doc.entities.values() if e.params['y1'] == 6.3 and e.params['y2'] == 6.3)
     t = WallDrawTransaction(doc, stack, (-4.5, -6.0), angle_increment=MAGNET)
-    t.outline_start = (-5.4, 6.3)
+    t.outline_start = (-5.4, 6.3); t.snap_tol = 0.25
     t.update(-5.4, 6.3)                                   # clicked right on the first corner: 4° off the vertical
     assert abs(t.end[0] + 4.5) < 1e-9 and abs(t.end[1] - 6.3) < 1e-9
     t.commit()
@@ -124,3 +125,20 @@ def test_ctrl_turns_the_corner_autosnap_off():
     t.update(-4.54, 4.0)
     assert t.last_snap is None or t.last_snap.kind != 'endpoint'
     assert abs(t.end[0] + 4.5) < 1e-9                      # still straight up (magnet 90°)
+
+
+def test_zoomed_in_a_wall_15_cm_off_the_other_stays_where_it_is_drawn():
+    """Owner 24/10: «είναι πολύ συχνό να υπάρχουν τοίχοι με μικρές διαφορές 10, 15, 20 πόντους — δεν είναι όλα σε μία
+    ευθεία». The magnets follow the zoom (screen pixels): zoomed in, a 15 cm step is kept; Ctrl keeps it at any zoom."""
+    doc = Document(); stack = CommandStack(doc)
+    _draw(doc, stack, (0.0, 0.0), (6.0, 0.0))             # a wall whose end is at x = 6
+    t = WallDrawTransaction(doc, stack, (6.15, 4.0), angle_increment=MAGNET)
+    t.snap_tol = 0.035                                    # zoomed in: 14 px ≈ 3,5 cm
+    t.update(6.15, 1.0)                                   # straight down, 15 cm right of that end
+    assert abs(t.end[0] - 6.15) < 1e-9 and abs(t.end[1] - 1.0) < 1e-9 and t.last_snap is None
+    t.snap_tol = 0.25                                     # zoomed out it lines up (the guide shows it) …
+    t.update(6.15, 0.1)
+    assert t.last_snap is not None
+    t.corner_enabled = False                              # … and Ctrl keeps it where the hand is
+    t.update(6.15, 0.1)
+    assert abs(t.end[0] - 6.15) < 1e-9 and abs(t.end[1] - 0.1) < 1e-9

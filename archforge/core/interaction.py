@@ -285,6 +285,11 @@ class WallDrawTransaction:
     CORNER_CAPTURE=0.30
     # The open end of the outline being drawn (a wall end nothing touches) pulls from farther: it closes the outline.
     FREE_END_CAPTURE=1.0
+    # The magnets above (and ALIGN_CAPTURE) are the most they pull, zoomed out; they follow the zoom like every snap
+    # (snap_tol = so many screen pixels): zoomed in, a wall 10–20 cm off another stays where it is drawn (owner
+    # 24/10: «είναι πολύ συχνό να υπάρχουν τοίχοι με μικρές διαφορές 10, 15, 20 πόντους»).
+    def _reach(self,most,per_snap):
+        return max(float(self.snap_tol),min(float(most),per_snap*float(self.snap_tol)))
     # Closing onto a free end, a right angle (to the previous wall) holds within this many degrees.
     CLOSE_RIGHT_ANGLE_DEG=15.0
 
@@ -293,7 +298,7 @@ class WallDrawTransaction:
 
         Free ends (the outline's open start) capture from FREE_END_CAPTURE, other corners from CORNER_CAPTURE."""
         from .snapping import SnapPoint
-        radius=max(float(self.snap_tol),self.CORNER_CAPTURE);best=None
+        radius=self._reach(self.CORNER_CAPTURE,2.0);free=self._reach(self.FREE_END_CAPTURE,6.0);best=None
         for eid,e in self.doc.entities.items():
             if e.kind!='wall' or not e.visible or abs(float(e.params.get('z',0.0))-float(self.z))>1e-5:continue
             p=e.params
@@ -301,8 +306,8 @@ class WallDrawTransaction:
                 if hypot(px-self.start[0],py-self.start[1])<=max(self.min_length,1e-6):continue
                 d=hypot(px-x,py-y)
                 reach=radius
-                if d<=self.FREE_END_CAPTURE and d>radius and not self._end_connected(eid,px,py):
-                    reach=self.FREE_END_CAPTURE
+                if d<=free and d>radius and not self._end_connected(eid,px,py):
+                    reach=free
                 if d<=reach and (best is None or d<best[0]):best=(d,SnapPoint(px,py,float(self.z),'endpoint',eid))
         return best[1] if best else None
 
@@ -321,8 +326,8 @@ class WallDrawTransaction:
             den=ux*wy-uy*wx
             if abs(den)<1e-9:continue                      # parallel: no crossing
             r=((ax-sx)*wy-(ay-sy)*wx)/den                  # along the ray
-            q=((ax-sx)*uy-(ay-sy)*ux)/den                  # along the wall
-            if r<=self.min_length or q<-1e-6 or q>L+1e-6:continue
+            q=((ax-sx)*uy-(ay-sy)*ux)/den*L                # along the wall, in metres (was a fraction compared with L:
+            if r<=self.min_length or q<-1e-6 or q>L+1e-6:continue   # walls stopped on another's unseen extension)
             hit=(sx+ux*r,sy+uy*r)
             d=hypot(hit[0]-x,hit[1]-y)
             if best is None or d<best[0]:best=(d,SnapPoint(hit[0],hit[1],float(self.z),'wall_on_axis',eid))
@@ -371,7 +376,7 @@ class WallDrawTransaction:
             if k<=self.min_length or hypot(sx+ux*k-qx,sy+uy*k-qy)<1e-6:continue
             d=abs(k-length)
             # Not further than half the wall drawn so far: a click without moving never jumps to a guide.
-            if d<=min(self.ALIGN_CAPTURE,0.5*length) and (best is None or d<best[0]):best=(d,k,qx,qy,eid)
+            if d<=min(self.ALIGN_CAPTURE,float(self.snap_tol),0.5*length) and (best is None or d<best[0]):best=(d,k,qx,qy,eid)
         if best is None:return None
         _d,k,qx,qy,eid=best
         return SnapPoint(sx+ux*k,sy+uy*k,float(self.z),'alignment',eid),(qx,qy)
@@ -442,9 +447,9 @@ class WallDrawTransaction:
         r=((ox-sx)*wy-(oy-sy)*wx)/den                      # along the new wall
         mx,my=sx+ux*r,sy+uy*r
         if r<=self.min_length:return None
-        if hypot(mx-qx,my-qy)>self.FREE_END_CAPTURE:return None
+        if hypot(mx-qx,my-qy)>self._reach(self.FREE_END_CAPTURE,6.0):return None
         if ((mx-ox)*wx+(my-oy)*wy)/WL<=self.min_length:return None   # the other wall would vanish / turn round
-        near=hypot(x-qx,y-qy)<=(near_q or 0.0) or abs(r-hypot(x-sx,y-sy))<=self.ALIGN_CAPTURE
+        near=hypot(x-qx,y-qy)<=(near_q or 0.0) or abs(r-hypot(x-sx,y-sy))<=min(self.ALIGN_CAPTURE,float(self.snap_tol))
         return (mx,my) if near else None
 
     def _meet_free_end(self,corner,x,y):
@@ -461,7 +466,7 @@ class WallDrawTransaction:
         ends=((float(p['x1']),float(p['y1'])),(float(p['x2']),float(p['y2'])))
         end=1 if hypot(ends[0][0]-corner.x,ends[0][1]-corner.y)<=hypot(ends[1][0]-corner.x,ends[1][1]-corner.y) else 2
         q,o=(ends[0],ends[1]) if end==1 else (ends[1],ends[0])
-        m=self._meet_line(q,o,x,y,near_q=self.FREE_END_CAPTURE)
+        m=self._meet_line(q,o,x,y,near_q=self._reach(self.FREE_END_CAPTURE,6.0))
         if m is None or hypot(m[0]-q[0],m[1]-q[1])<1e-6:return None
         return corner.entity_id,end,m
 
@@ -472,7 +477,7 @@ class WallDrawTransaction:
         seg=getattr(self,'outline_face_first',None)
         if not seg or not getattr(self,'face_side',0):return None
         q,o=seg                                             # q: the outline's start, o: the first wall's far end
-        return self._meet_line(q,o,x,y,near_q=self.FREE_END_CAPTURE)
+        return self._meet_line(q,o,x,y,near_q=self._reach(self.FREE_END_CAPTURE,6.0))
 
     def update(self,x,y):
         x=float(x);y=float(y)
@@ -486,7 +491,8 @@ class WallDrawTransaction:
         # 1. Corners close the outline: a wall end near another wall's end lands exactly on it (autosnap).
         corner=self._corner_near(x,y) if self.snap_enabled and getattr(self,'corner_enabled',True) else None
         self.meet=None;self.guide=None;self.face_close=None
-        face_close=self._face_close(x,y) if constrained and self.snap_enabled else None
+        magnets=self.snap_enabled and getattr(self,'corner_enabled',True)    # Ctrl: none of the position magnets
+        face_close=self._face_close(x,y) if constrained and magnets else None
         meet=self._meet_free_end(corner,x,y) if corner is not None and constrained else None
         if face_close is not None:
             # By a face: the held angle closes on the first wall's face line (its corner joins at commit).
@@ -509,14 +515,14 @@ class WallDrawTransaction:
             if hit is not None:
                 # Reaching another wall: stop on its axis, along the same direction.
                 self.end=(hit.x,hit.y);self.last_snap=hit
-            elif self.snap_enabled:
+            elif self.snap_enabled and getattr(self,'corner_enabled',True):
                 sp=best_snap(self.doc,self.end[0],self.end[1],self.snap_tol,grid=None)
                 if sp is not None:
                     # A point next to the ray (alignment with a corner/midpoint): its projection on the ray.
                     k=max(0.0,(sp.x-sx)*ux+(sp.y-sy)*uy)
                     if hypot(sx+ux*k-sp.x,sy+uy*k-sp.y)<=self.snap_tol and k>self.min_length:
                         self.end=(sx+ux*k,sy+uy*k);self.last_snap=sp
-                if self.last_snap is None:
+                if self.last_snap is None and getattr(self,'corner_enabled',True):
                     align=self._aligned_stop(ux,uy,length)
                     if align is not None:
                         sp,q=align;self.end=(sp.x,sp.y);self.last_snap=sp;self.guide=(q,self.end)
