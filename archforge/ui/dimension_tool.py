@@ -74,7 +74,49 @@ class TapeTool:
 
     def handle(self, view, kind, event):
         if self.points is None:
+            return self._type_dimension(view, kind, event)
+        return self._measure(view, kind, event)
+
+    LABEL_PX = 14                      # a click this close to a dimension's number types it
+
+    def _type_dimension(self, view, kind, event):
+        """Επιλογή: one click on a dimension's number → type the value; the wall at its end follows (D.drive)."""
+        if kind != "press" or event.button() != Qt.MouseButton.LeftButton or str(view.controller.tool) != "select":
             return False
+        doc = self.w.doc
+        if not any(e.kind in ("dimension", "auto_dimensions") for e in doc.entities.values()):
+            return False
+        z = float(doc.work_plane.origin[2])
+        pos = event.position()
+        best = None
+        for d in D.storey_dimensions(doc, z):
+            at = D.drawing(d)["text_at"]
+            q = view.mapFromScene(at[0], at[1])
+            gap = math.hypot(q.x() - pos.x(), q.y() - pos.y())
+            if gap <= self.LABEL_PX and (best is None or gap < best[0]):
+                best = (gap, d)
+        if best is None:
+            return False
+        d = best[1]
+        from PySide6.QtWidgets import QInputDialog
+        value, ok = QInputDialog.getDouble(self.w, "Διάσταση", "Μήκος (m) — ο τοίχος στην άκρη της ακολουθεί:",
+                                           round(float(d["value"]), 3), 0.01, 1000.0, 3)
+        view._long_press = None
+        if not ok:
+            return True
+        try:
+            wid, command = D.drive(doc, z, d, value)
+            self.w.stack.execute(command)
+        except ValueError as exc:
+            self.w.statusBar().showMessage(f"⚠ Διάσταση: {exc}", 8000)
+            return True
+        doc.select([wid])
+        self.w._redraw_views(all_views=True)
+        self.w.refresh_inspector()
+        self.w.statusBar().showMessage(f"Διάσταση {D.fmt(value)} · ο τοίχος ακολούθησε · Ctrl+Z = αναίρεση", 6000)
+        return True
+
+    def _measure(self, view, kind, event):
         if kind == "key":
             if event.key() == Qt.Key.Key_Escape:
                 self.cancel(); return True

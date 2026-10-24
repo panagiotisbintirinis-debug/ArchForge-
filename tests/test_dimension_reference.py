@@ -45,7 +45,7 @@ def test_exterior_measured_10x10_stone_is_10x10_outside_and_9x9_inside():
     from archforge.quantities.takeoff import take_off
     doc = Document(); st = CommandStack(doc); _brief(st, wall_system='stone_bearing')
     ctrl = PointerController(doc, st)
-    _draw(ctrl, [(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)])
+    _draw(ctrl, [(0, 0), (0, 10), (10, 10), (10, 0), (0, 0)])      # clockwise, as Home Designer / Revit ask
     walls = _walls(doc)
     assert len(walls) == 4 and all(w.params.get('reference_applied') for w in walls)
     t = walls[0].params['thickness']
@@ -64,7 +64,7 @@ def test_interior_measured_room_keeps_its_inside_size():
     doc = Document(); st = CommandStack(doc)
     _brief(st, project_type='renovation', measure='interior', wall_system='brick_double_insulated')
     ctrl = PointerController(doc, st)
-    _draw(ctrl, [(0, 0), (4, 0), (4, 3), (0, 3), (0, 0)])
+    _draw(ctrl, [(0, 0), (0, 3), (4, 3), (4, 0), (0, 0)])           # clockwise: the line is the inner face
     from archforge.quantities.takeoff import take_off
     room = take_off(doc)['rooms'][0]
     assert room['floor_m2'] == pytest.approx(12.0, abs=0.01)                        # 4×3 measured inside
@@ -73,22 +73,20 @@ def test_interior_measured_room_keeps_its_inside_size():
 def test_partition_and_window_follow_the_moved_walls():
     doc = Document(); st = CommandStack(doc); _brief(st, wall_system='brick_double_insulated')
     ctrl = PointerController(doc, st)
-    _draw(ctrl, [(0, 0), (8, 0)])
+    _draw(ctrl, [(8, 0), (0, 0)])                                    # the south wall, drawn westwards (clockwise)
     south = _walls(doc)[0]
     t = south.params['thickness']
-    # Alone: where its preview showed it — the drawn line is its face (owner 24/10), the body on the left (inside).
+    # Alone: where its preview showed it — the drawn line is its outer face (owner 24/10), the body on its right.
     assert south.params['y1'] == pytest.approx(t / 2) and south.params['y2'] == pytest.approx(t / 2)
     win = Entity('window', {'offset': 4.0, 'width': 1.2, 'height': 1.4, 'sill': 0.9}, parent_id=south.id)
     st.execute(AddEntity(win))
-    # Owner 21/10: the outline goes to its faces while it is drawn (not only when it closes).
-    _draw(ctrl, [(8, 0), (8, 6), (0, 6), (0, 0)])
-    t = south.params['thickness']
+    _draw(ctrl, [(0, 0), (0, 6), (8, 6), (8, 0)])
     s = doc.get(south.id).params
-    assert s['y1'] == pytest.approx(t / 2) and s['y2'] == pytest.approx(t / 2)       # moved inwards
+    assert s['y1'] == pytest.approx(t / 2) and s['y2'] == pytest.approx(t / 2)       # never moved
     assert len(_walls(doc)) == 4 and all(w.params.get('reference_applied') for w in _walls(doc))
     # The window keeps its place along its wall; the drawn line stays the outer face.
     w = doc.get(win.id).params
-    assert s['x1'] + w['offset'] == pytest.approx(4.0 + t / 2)
+    assert s['x1'] - w['offset'] == pytest.approx(4.0 - t / 2)
     assert _bbox_outer(doc) == pytest.approx((0.0, 0.0, 8.0, 6.0), abs=1e-6)
 
 

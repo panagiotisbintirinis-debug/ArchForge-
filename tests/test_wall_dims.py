@@ -52,9 +52,9 @@ def window():
     w._mark_clean(); w.close(); app.processEvents()
 
 
-def test_double_click_selects_the_wall_with_its_distances_then_press_and_drag_moves_it(window):
-    """Owner 15/10 «εμφανείς διαστάσεις με επιλογή» · 23/10 «διπλό κλικ και πάτημα για μεταφορά»: a double click selects
-    (its distances show), pressing and dragging the selected wall moves it — it no longer follows the mouse."""
+def test_click_selects_the_wall_with_its_distances_then_press_and_drag_moves_it(window):
+    """Owner 15/10 «εμφανείς διαστάσεις με επιλογή» · 24/10 (as in Home Designer / ArchiCAD): a click selects (its
+    distances show), pressing and dragging the wall moves it — it never follows the mouse."""
     from PySide6.QtCore import QPointF, QRectF, Qt
     from PySide6.QtTest import QTest
     w, app = window
@@ -64,9 +64,7 @@ def test_double_click_selects_the_wall_with_its_distances_then_press_and_drag_mo
     vp = view.viewport()
     at = lambda x, y: view.mapFromScene(QPointF(x, y))
     QTest.mouseClick(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, at(6.0, 3.0)); app.processEvents()
-    assert w.doc.selection == []                                         # one click: indication only
-    QTest.mouseDClick(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, at(6.0, 3.0)); app.processEvents()
-    assert w.doc.selection == [ids['mid']]
+    assert w.doc.selection == [ids['mid']]                               # one click: selected
     tool = w._wall_dims
     assert tool.moving is None
     view.redraw()
@@ -81,7 +79,8 @@ def test_double_click_selects_the_wall_with_its_distances_then_press_and_drag_mo
     assert abs(float(w.doc.get(ids['mid']).params['x1']) - 6.0) < 1e-6
 
 
-def test_double_click_on_a_distance_types_the_value(window, monkeypatch):
+def test_one_click_on_a_distance_types_the_value(window, monkeypatch):
+    """Owner 24/10, as in Home Designer: «click on the dimension string itself, enter the desired dimension»."""
     from PySide6.QtCore import QRectF, Qt
     from PySide6.QtTest import QTest
     from PySide6.QtWidgets import QInputDialog
@@ -95,7 +94,24 @@ def test_double_click_on_a_distance_types_the_value(window, monkeypatch):
     monkeypatch.setattr(QInputDialog, 'getDouble', staticmethod(lambda *a, **k: (3.0, True)))
     pos = view.mapFromScene(item.pos())                         # the label's top-left, then into the text
     pos.setX(pos.x() + 12); pos.setY(pos.y() + 8)
-    QTest.mouseDClick(view.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, pos)
+    QTest.mouseClick(view.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, pos)
     app.processEvents()
     after = {s['neighbour']: round(s['clear'], 3) for s in wall_dims(w.doc, ids['mid'])['sides']}
     assert after[ids['e']] == 3.0
+
+
+def test_press_and_drag_on_a_wall_not_yet_selected_moves_it_in_one_gesture(window):
+    """Owner 24/10: «click and drag the wall» — no click first to select it."""
+    from PySide6.QtCore import QPointF, QRectF, Qt
+    from PySide6.QtTest import QTest
+    w, app = window
+    ids = _house(w.doc, w.stack)
+    view = w.plan_view
+    view.fitInView(QRectF(-1, -1, 12, 10)); w.snap_action.setChecked(True); view.set_grid_step(0.10)
+    vp = view.viewport(); at = lambda x, y: view.mapFromScene(QPointF(x, y))
+    w.doc.select([]); view.redraw()
+    QTest.mousePress(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, at(6.0, 3.0))
+    for x in (6.1, 6.3, 6.5):
+        QTest.mouseMove(vp, at(x, 3.0)); app.processEvents()
+    QTest.mouseRelease(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, at(6.5, 3.0)); app.processEvents()
+    assert abs(float(w.doc.get(ids['mid']).params['x1']) - 6.5) < 0.051

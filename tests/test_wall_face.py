@@ -55,10 +55,9 @@ def _outline_box(doc):
 RECT = [(0, 0), (10, 0), (10, 8), (0, 8)]
 
 
-@pytest.mark.parametrize('pts', [RECT, RECT[::-1]], ids=['counter-clockwise', 'clockwise'])
-def test_measured_outside_the_drawn_lines_are_the_outer_faces(window, pts):
+def test_measured_outside_the_drawn_lines_are_the_outer_faces(window):
     _brief(window, 'exterior')
-    _click_outline(window, pts)
+    _click_outline(window, RECT[::-1])                   # clockwise, as Home Designer / Revit ask
     x0, y0, x1, y1, n = _outline_box(window.doc)
     assert n == 4
     assert (x0, y0, x1, y1) == pytest.approx((0, 0, 10, 8), abs=1e-6)      # 10 × 8 outside, as drawn
@@ -67,6 +66,22 @@ def test_measured_outside_the_drawn_lines_are_the_outer_faces(window, pts):
     h = float(next(e for e in window.doc.entities.values() if e.kind == 'wall').params['thickness']) / 2
     xs = [q[0] for q in faces[0].polygon]; ys = [q[1] for q in faces[0].polygon]
     assert (min(xs), max(xs), min(ys), max(ys)) == pytest.approx((h, 10 - h, h, 8 - h), abs=1e-6)   # axes half in
+
+
+def test_counter_clockwise_the_body_stays_on_the_right_and_space_turns_it(window):
+    """Owner 24/10 (Revit's location line): the side never changes by itself; drawn the other way round the walls
+    lie outside the lines — F / Space before drawing puts them inside."""
+    _brief(window, 'exterior')
+    _click_outline(window, RECT)                         # counter-clockwise
+    x0, y0, x1, y1, n = _outline_box(window.doc)
+    t = float(next(e for e in window.doc.entities.values() if e.kind == 'wall').params['thickness'])
+    assert n == 4 and (x0, y0, x1, y1) == pytest.approx((-t, -t, 10 + t, 8 + t), abs=1e-6)
+    for _ in range(4):
+        window.stack.undo()
+    c = window.plan_view.controller
+    c.set_tool('wall'); assert c.flip_wall_face() == 'left'
+    _click_outline(window, RECT)
+    assert _outline_box(window.doc)[:4] == pytest.approx((0, 0, 10, 8), abs=1e-6)
 
 
 def test_measured_inside_the_drawn_lines_are_the_inner_faces(window):

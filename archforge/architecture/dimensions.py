@@ -75,9 +75,8 @@ def _facades(doc, z):
             continue
         t = float(p.get("thickness", 0.2))
         ux, uy = -ny, nx                    # along the face, the same way for every face looking out along n
-        meets = lambda x, y: any(_on_segment_dist(x, y, *rest) < 0.01 for oid, *rest in axes if oid != w.id)
-        e0 = t / 2 if meets(ax, ay) else 0.0
-        e1 = t / 2 if meets(bx, by) else 0.0
+        e0 = _face_end(walls, w.id, ax, ay, (nx, ny))
+        e1 = _face_end(walls, w.id, bx, by, (nx, ny))
         fx, fy = ax + nx * t / 2, ay + ny * t / 2           # a point of the outer face
         line = fx * nx + fy * ny
         sa = ax * ux + ay * uy
@@ -102,6 +101,26 @@ def _facades(doc, z):
         else:
             out.append(dict(f, stops=list(f["stops"])))
     return out
+
+
+def _face_end(walls, wid, x, y, n):
+    """How far the outer face runs on past the axis end (x, y): + half the joined wall's thickness at an outer corner,
+    − half at an inner one (a step / tooth in the façade — owner 24/10: steps of 5–20 cm are common), 0 when free."""
+    for o in walls:
+        if o.id == wid:
+            continue
+        q = o.params
+        ox, oy, px, py = (float(q[k]) for k in ("x1", "y1", "x2", "y2"))
+        if _on_segment_dist(x, y, ox, oy, px, py) >= 0.01:
+            continue
+        h = float(q.get("thickness", 0.2)) / 2
+        # The joined wall's far side from this joint: towards the outside (n) → inner corner, the face stops short.
+        far = (ox, oy) if math.dist((x, y), (ox, oy)) > math.dist((x, y), (px, py)) else (px, py)
+        v = (far[0] - x) * n[0] + (far[1] - y) * n[1]
+        if abs(v) < 1e-6:
+            return h                          # a T or a wall carrying on: the face runs to its face
+        return -h if v > 0 else h
+    return 0.0
 
 
 def _point(f, s, extra=0.0):
@@ -357,3 +376,56 @@ def set_auto(doc, z, exterior=None, interior=None):
     if interior is not None:
         changes["interior"] = int(bool(interior))
     return UpdateEntity(s.id, changes)
+
+
+FACE_TOL = 2e-3             # m: a dimension end lies on a wall face this close
+
+
+def _wall_at(doc, z, p, u):
+    """(wall, sign) whose face, square to ``u``, passes through ``p`` — the wall a dimension ending at ``p`` measures."""
+    best = None
+    for w in _walls(doc, z):
+        q = w.params
+        ax, ay, bx, by = (float(q[k]) for k in ("x1", "y1", "x2", "y2"))
+        L = math.hypot(bx - ax, by - ay)
+        if L < 1e-9:
+            continue
+        dx, dy = (bx - ax) / L, (by - ay) / L
+        if abs(dx * u[0] + dy * u[1]) > 1e-3:
+            continue                                      # not square to the dimension
+        h = float(q.get("thickness", 0.2)) / 2
+        off = (p[0] - ax) * u[0] + (p[1] - ay) * u[1]      # p across the wall, from its axis
+        along = (p[0] - ax) * dx + (p[1] - ay) * dy
+        if abs(abs(off) - h) > FACE_TOL or not (-h - FACE_TOL <= along <= L + h + FACE_TOL):
+            continue
+        d = abs(abs(off) - h)
+        if best is None or d < best[0]:
+            best = (d, w)
+    return best[1] if best else None
+
+
+def drive(doc, z, d, value):
+    """The command that makes dimension ``d`` measure ``value`` (m) by moving the wall at its end (owner 24/10: «εάν
+    βάζουμε τις διαστάσεις μετά που σχεδιάζουμε, οι τοίχοι πρέπει να ακολουθούν τις διαστάσεις, καθώς το χέρι και το μάτι
+    δεν είναι κανόνας — ακόμα και εάν το δόντι στον τοίχο είναι 5 πόντους σε ένα μπάνιο»).
+
+    The wall whose face makes the far end ``b`` moves square to itself, with everything joined to it
+    (``wall_edit.MoveWall``, one undo); when no wall face is there (a door jamb, the storey's overall line), the
+    wall at ``a`` moves instead.  ValueError when neither end is a wall face."""
+    from archforge.architecture.wall_edit import MoveWall, wall_normal
+    value = float(value)
+    if value < MIN_LENGTH / 5:
+        raise ValueError("η διάσταση πρέπει να είναι μεγαλύτερη από 1 cm")
+    a, b = d["a"], d["b"]
+    now = math.dist(a, b)
+    if now < 1e-9:
+        raise ValueError("μηδενική διάσταση")
+    u = ((b[0] - a[0]) / now, (b[1] - a[1]) / now)
+    delta = value - now
+    for p, sign in ((b, 1.0), (a, -1.0)):
+        w = _wall_at(doc, z, p, u)
+        if w is None:
+            continue
+        nx, ny = wall_normal(w.params)
+        return w.id, MoveWall(w.id, sign * delta * (u[0] * nx + u[1] * ny))
+    raise ValueError("η διάσταση δεν καταλήγει σε παρειά τοίχου — βάλε τη σε τοίχο")

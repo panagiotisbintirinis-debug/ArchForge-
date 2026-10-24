@@ -582,9 +582,9 @@ def test_stair_on_a_slab_is_selectable_by_click_in_the_plan_on_both_storeys():
             w._activate_level_by_name(level); w._redraw_views(all_views=True); app.processEvents()
             doc.select([])
             pos = w.plan_view.mapFromScene(QPointF(cx, cy))
-            # Owner 23/10: one click = indication, double click = selection.
+            # Owner 24/10 (as in Home Designer / ArchiCAD): one click selects; a double click keeps it selected.
             QTest.mouseClick(w.plan_view.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, pos)
-            assert doc.selection == [] and w.plan_view._indicated == sid, level
+            assert doc.selection == [sid], level
             QTest.mouseDClick(w.plan_view.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, pos)
             assert doc.selection == [sid], level
         # The slab itself stays selectable where nothing else is on it.

@@ -413,16 +413,14 @@ class PlanView(QGraphicsView):
                 else:
                     self.controller.set_tool('stretch');self.controller.set_target(h.entity_id,h.handle)
         elif self.controller.tool=='select':
-            # Owner 23/10: one click = indication, double click = selection, pressed = use. A click shows what is
-            # under the mouse without picking it (Ctrl+click adds / removes, as before); a click on empty space clears
-            # the selection; only what is selected moves when pressed and dragged («διπλό κλικ και πάτημα για μεταφορά»).
+            # Owner 24/10 (after Home Designer / Chief Architect / ArchiCAD): a click selects, pressing and dragging moves
+            # it at once (was 23/10: click = indication, double click = selection). Ctrl+click adds / removes; a click
+            # on empty space clears the selection.
             eid=self._entity_items.get(hit)
             ctrl=bool(event.modifiers()&Qt.KeyboardModifier.ControlModifier)
-            from archforge.core.layers import workspace
-            if workspace(self.doc)=='mep' and eid:
-                # Η/Μ (owner 23/10: «σε μηχανολογικά λογικά είναι κλικ επιλογή»): a click picks.
-                self.doc.select([eid],add=ctrl);self.selectionChangedByView.emit()
-            elif eid and ctrl:self.doc.select([eid],add=True);self.selectionChangedByView.emit()
+            if eid and ctrl:self.doc.select([eid],add=True);self.selectionChangedByView.emit()
+            elif eid and eid not in (self.doc.selection or ()):
+                self.doc.select([eid]);self.controller.set_target(eid,None);self.selectionChangedByView.emit()
             elif not eid and not ctrl and self.doc.selection:self.doc.select([]);self.selectionChangedByView.emit()
             self.indicate(eid)
             selected=bool(eid) and eid in (self.doc.selection or ())
@@ -600,12 +598,12 @@ class PlanView(QGraphicsView):
             else:
                 window._delete_selection()
             self.redraw();event.accept();return
-        if event.key()==Qt.Key.Key_F and self.controller.tool=='wall' and not event.modifiers():
-            # F: the wall's body to the other side of the drawn line (wall_face.py).
+        if event.key() in (Qt.Key.Key_F,Qt.Key.Key_Space) and self.controller.tool=='wall' and not event.modifiers():
+            # F or Space (as Revit's space bar): the wall's body to the other side of the drawn line (wall_face.py).
             from archforge.architecture.wall_face import LABELS
             mode=self.controller.flip_wall_face()
             if self.controller.active is not None and self._cursor_xy is not None:self.viewport().update()
-            self.statusChanged.emit(f'Τοίχος από: {LABELS[mode]} · F = άλλη πλευρά');self.redraw();event.accept();return
+            self.statusChanged.emit(f'Τοίχος από: {LABELS[mode]} · F / Διάστημα = άλλη πλευρά');self.redraw();event.accept();return
         if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self.controller.tool=='room_box':
             from archforge.ui.room_box_tool import ask_size
             ask_size(self);event.accept();return
@@ -990,6 +988,7 @@ class PlanView(QGraphicsView):
         if getattr(self,'camera_tool',None) is not None:self.camera_tool.paint(self)
         if getattr(self,'tape_tool',None) is not None:self.tape_tool.paint(self)   # Μεζούρα (dimension_tool.py)
         if getattr(self,'dims_tool',None) is not None:self.dims_tool.paint(self)   # dimensions of a selected wall (wall_dims_tool.py)
+        if getattr(self,'survey_tool',None) is not None:self.survey_tool.paint(self)   # corner numbers (survey_dialog.py)
         if self.carry is not None:self.carry.paint(self)
         if self.controller.preview.kind=='rotate' and self.controller.active is not None:self._draw_rotate_dial(self.controller.preview)
         draft=getattr(self,'plot_draft',None)
