@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from math import atan2, degrees, hypot
+from math import atan2, cos, degrees, hypot, radians, sin
 import copy
 
 from .commands import UpdateEntities
@@ -39,11 +39,41 @@ class ConnectedWallEndpointStretchTransaction:
         self.previews=copy.deepcopy(self.before)
         self.preview=copy.deepcopy(self.before[eid])
         self.cancelled=False
+        # A free end (nothing joined there) is lengthened, not swung (owner 24/10: «προσπαθούσα να μεγαλώσω τον
+        # τοίχο που είχε μείνει στην άκρη» — it turned to −111°): the direction holds to the wall's own line and to
+        # 90°/45°, as when drawing. Shift (angle_enabled=False) = free. A corner joined to other walls moves freely.
+        self.angle_enabled=True
+        self.angle_snapped=False
+        p=primary;other=3-endpoint
+        self.fixed=(float(p[f'x{other}']),float(p[f'y{other}']))
+        self.own_deg=degrees(atan2(self.anchor[1]-self.fixed[1],self.anchor[0]-self.fixed[0]))
+
+    OWN_LINE_DEG=12.0            # the wall's own line pulls from this far (deg)
+
+    def _held_direction(self,x,y):
+        """The point along a held direction from the fixed end, or None when the pointer is not near one."""
+        from .interaction import MAGNET_STEPS
+        fx,fy=self.fixed;L=hypot(x-fx,y-fy)
+        if L<1e-9:return None
+        a=degrees(atan2(y-fy,x-fx))
+        def off(t):return abs((a-t+180.0)%360.0-180.0)
+        targets=[(self.own_deg,self.OWN_LINE_DEG),(self.own_deg+180.0,self.OWN_LINE_DEG)]
+        targets+=[(round(a/step)*step,tol) for step,tol in MAGNET_STEPS[:2]]
+        held=min((t for t,tol in targets if off(t)<=tol),key=off,default=None)
+        if held is None:return None
+        r=radians(held);L=round(L*(cos(radians(a-held))),2)    # whole centimetres along the held line
+        return fx+L*cos(r),fy+L*sin(r)
 
     def update(self,x,y):
         exclude={wid for wid,_ in self.linked}
         sp=best_snap(self.doc,x,y,self.snap_tol,self.grid,exclude)
-        x,y=(sp.x,sp.y) if sp else (float(x),float(y))
+        held=None;self.angle_snapped=False
+        if self.angle_enabled and len(self.linked)==1 and (sp is None or sp.kind=='construction_grid'):
+            held=self._held_direction(float(x),float(y))
+        if held is not None:
+            x,y=held;self.angle_snapped=True
+        else:
+            x,y=(sp.x,sp.y) if sp else (float(x),float(y))
         previews=copy.deepcopy(self.before)
         for wid,ep in self.linked:
             p=previews[wid]

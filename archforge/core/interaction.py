@@ -285,6 +285,8 @@ class WallDrawTransaction:
     CORNER_CAPTURE=0.30
     # The open end of the outline being drawn (a wall end nothing touches) pulls from farther: it closes the outline.
     FREE_END_CAPTURE=1.0
+    # Closing onto a free end, a right angle (to the previous wall) holds within this many degrees.
+    CLOSE_RIGHT_ANGLE_DEG=15.0
 
     def _corner_near(self,x,y):
         """Nearest wall end / corner of the active storey within the capture radius (not the start).
@@ -354,6 +356,106 @@ class WallDrawTransaction:
         rel=raw-self.reference_angle_deg
         return self.reference_angle_deg+round(rel/self.angle_increment)*self.angle_increment,float(self.angle_increment)
 
+    # Where the held direction lines up with a wall corner (at right angles to it), the wall stops there from this far (m).
+    ALIGN_CAPTURE=0.25
+
+    def _aligned_stop(self,ux,uy,length):
+        """(stop on the held ray in line with a wall corner, that corner) or None.
+
+        Owner 24/10 (Home Designer): «εμφανίζεται ένας κάνναβος οδηγός που συνδέει με τον τοίχο απέναντι — μου δείχνει
+        πού πρέπει να σταματήσω εάν θέλω ορθογώνιους τοίχους»."""
+        from .snapping import SnapPoint
+        sx,sy=self.start;best=None
+        for eid,e in self.doc.entities.items():
+            if e.kind!='wall' or not e.visible or abs(float(e.params.get('z',0.0))-float(self.z))>1e-5:continue
+            p=e.params
+            for qx,qy in ((float(p['x1']),float(p['y1'])),(float(p['x2']),float(p['y2']))):
+                k=(qx-sx)*ux+(qy-sy)*uy                     # the corner projected on the ray
+                if k<=self.min_length or hypot(sx+ux*k-qx,sy+uy*k-qy)<1e-6:continue
+                d=abs(k-length)
+                if d<=self.ALIGN_CAPTURE and (best is None or d<best[0]):best=(d,k,qx,qy,eid)
+        if best is None:return None
+        _d,k,qx,qy,eid=best
+        return SnapPoint(sx+ux*k,sy+uy*k,float(self.z),'alignment',eid),(qx,qy)
+
+    def _outline_start_at(self,x,y):
+        """Is (x, y) the start of the outline being drawn now? Only that wall may be lengthened to close it (owner
+        24/10: «συμπεριφέρεται εντελώς παράλογα μετακινώντας τοίχους για να κλείσουν»). Not when drawing by a face:
+        the face outline joins its own corners (viewport._commit_face_wall)."""
+        o=getattr(self,'outline_start',None)
+        return o is not None and not getattr(self,'face_side',0) and hypot(o[0]-x,o[1]-y)<=1e-6
+
+    def _extends_free_end(self,eid,q,point):
+        """(wall id, end, point) when the guide runs along that wall from its free end q: the wall grows to the point."""
+        p=self.doc.get(eid).params;ends=((float(p['x1']),float(p['y1'])),(float(p['x2']),float(p['y2'])))
+        end=1 if hypot(ends[0][0]-q[0],ends[0][1]-q[1])<1e-9 else 2 if hypot(ends[1][0]-q[0],ends[1][1]-q[1])<1e-9 else None
+        if end is None or not self._outline_start_at(*q) or self._end_connected(eid,q[0],q[1]):return None
+        ox,oy=ends[1] if end==1 else ends[0];wx,wy=q[0]-ox,q[1]-oy;gx,gy=point[0]-q[0],point[1]-q[1]
+        WL=hypot(wx,wy);GL=hypot(gx,gy)
+        if WL<1e-9 or GL<1e-9 or abs(wx*gy-wy*gx)>1e-6*WL*GL:return None   # not along the wall
+        if (wx*gx+wy*gy)/WL+WL<=self.min_length:return None                                        # would vanish
+        return eid,end,tuple(point)
+
+    def _closing_direction(self,x,y):
+        """The held direction (deg) towards the pointer when closing an outline, or None (free angle)."""
+        sx,sy=self.start
+        deg,step=self._direction(x,y)
+        if not step or step<90.0:
+            # A hand aiming at a corner drifts off the line: closing, a right angle holds from farther.
+            raw=degrees(atan2(y-sy,x-sx));prev=self.previous_direction()
+            base=prev if prev is not None else self.reference_angle_deg
+            near=base+round((raw-base)/90.0)*90.0
+            if abs(raw-near)<=self.CLOSE_RIGHT_ANGLE_DEG:deg,step=near,90.0
+        return deg if step and step>=45.0 else None          # only a held 90° / 45° is kept
+
+    def _meet_line(self,q,o,x,y,near_q=None):
+        """Where the held direction meets the line o→q (q: the free end), or None.
+
+        The pointer must be near q (near_q, m) or the meeting point must be near the pointer along the ray."""
+        sx,sy=self.start;qx,qy=q;ox,oy=o
+        if hypot(x-sx,y-sy)<=1e-9:return None
+        deg=self._closing_direction(x,y)
+        if deg is None:return None
+        wx,wy=qx-ox,qy-oy;WL=hypot(wx,wy)
+        if WL<1e-9:return None
+        ux,uy=cos(radians(deg)),sin(radians(deg))
+        den=ux*wy-uy*wx
+        if abs(den)<1e-9*WL:return None                    # parallel: never meet
+        r=((ox-sx)*wy-(oy-sy)*wx)/den                      # along the new wall
+        mx,my=sx+ux*r,sy+uy*r
+        if r<=self.min_length:return None
+        if hypot(mx-qx,my-qy)>self.FREE_END_CAPTURE:return None
+        if ((mx-ox)*wx+(my-oy)*wy)/WL<=self.min_length:return None   # the other wall would vanish / turn round
+        near=hypot(x-qx,y-qy)<=(near_q or 0.0) or abs(r-hypot(x-sx,y-sy))<=self.ALIGN_CAPTURE
+        return (mx,my) if near else None
+
+    def _meet_free_end(self,corner,x,y):
+        """(wall id, end, point): closing onto a free wall end while holding 90°/45°.
+
+        Owner 24/10: «κρατώντας τη γωνία των 90 μοιρών πήγα να πατήσω στον πρώτο, αλλά αντί να μεγαλώσει εμφανίστηκε
+        ένας καινούριος και μάλιστα σε κλίση». Drawn by eye, the held direction misses the first corner: the wall keeps
+        its angle and the first wall grows (or shrinks) along its own line to where they meet, instead of the new wall
+        being swung onto the corner."""
+        if not corner.entity_id or corner.entity_id not in self.doc.entities:return None
+        if not self._outline_start_at(corner.x,corner.y):return None
+        if self._end_connected(corner.entity_id,corner.x,corner.y):return None
+        p=self.doc.get(corner.entity_id).params
+        ends=((float(p['x1']),float(p['y1'])),(float(p['x2']),float(p['y2'])))
+        end=1 if hypot(ends[0][0]-corner.x,ends[0][1]-corner.y)<=hypot(ends[1][0]-corner.x,ends[1][1]-corner.y) else 2
+        q,o=(ends[0],ends[1]) if end==1 else (ends[1],ends[0])
+        m=self._meet_line(q,o,x,y,near_q=self.FREE_END_CAPTURE)
+        if m is None or hypot(m[0]-q[0],m[1]-q[1])<1e-6:return None
+        return corner.entity_id,end,m
+
+    def _face_close(self,x,y):
+        """Drawing by a face: the point on the first wall's drawn face line where the held direction closes the outline.
+
+        The face outline then joins its first corner by itself (viewport._commit_face_wall)."""
+        seg=getattr(self,'outline_face_first',None)
+        if not seg or not getattr(self,'face_side',0):return None
+        q,o=seg                                             # q: the outline's start, o: the first wall's far end
+        return self._meet_line(q,o,x,y,near_q=self.FREE_END_CAPTURE)
+
     def update(self,x,y):
         x=float(x);y=float(y)
         self.last_snap=None
@@ -365,7 +467,18 @@ class WallDrawTransaction:
 
         # 1. Corners close the outline: a wall end near another wall's end lands exactly on it (autosnap).
         corner=self._corner_near(x,y) if self.snap_enabled and getattr(self,'corner_enabled',True) else None
-        if corner is not None:
+        self.meet=None;self.guide=None;self.face_close=None
+        face_close=self._face_close(x,y) if constrained and self.snap_enabled else None
+        meet=self._meet_free_end(corner,x,y) if corner is not None and constrained else None
+        if face_close is not None:
+            # By a face: the held angle closes on the first wall's face line (its corner joins at commit).
+            self.end=face_close;self.angle_snapped=True;self.face_close=face_close
+            self.guide=(tuple(self.outline_face_first[0]),self.end)
+        elif meet is not None:
+            # The angle is kept and the free end's wall is lengthened / shortened to meet it (owner 24/10).
+            self.end=meet[2];self.last_snap=corner;self.angle_snapped=True;self.meet=meet
+            self.guide=((corner.x,corner.y),self.end)
+        elif corner is not None:
             self.end=(corner.x,corner.y);self.last_snap=corner
         elif constrained and hypot(x-sx,y-sy)>1e-12:
             # 2. The angle (90° / 45° / 15°) is kept: snaps may set where the wall stops, never its direction.
@@ -385,6 +498,11 @@ class WallDrawTransaction:
                     k=max(0.0,(sp.x-sx)*ux+(sp.y-sy)*uy)
                     if hypot(sx+ux*k-sp.x,sy+uy*k-sp.y)<=self.snap_tol and k>self.min_length:
                         self.end=(sx+ux*k,sy+uy*k);self.last_snap=sp
+                if self.last_snap is None:
+                    align=self._aligned_stop(ux,uy,length)
+                    if align is not None:
+                        sp,q=align;self.end=(sp.x,sp.y);self.last_snap=sp;self.guide=(q,self.end)
+                        self.meet=self._extends_free_end(sp.entity_id,q,self.end)
         else:
             sp=best_snap(self.doc,x,y,self.snap_tol,grid=None) if self.snap_enabled else None
             if sp is not None:
@@ -426,7 +544,14 @@ class WallDrawTransaction:
         if getattr(self,'reference',None) in ('exterior','interior'):params['reference']=self.reference
         e=Entity('wall',params,name=next_name(self.doc,'wall'))
         # Closing onto another wall just short of its end: the loose piece beyond is cut, the corner is clean.
-        trims=[t for t in (self._loose_tail(sx,sy),self._loose_tail(ex,ey)) if t]
+        meet=getattr(self,'meet',None) if exact_length is None and not getattr(self,'face_side',0) else None
+        self.moved_end=None
+        if meet is not None:
+            eid,end,(mx,my)=meet;q=self.doc.get(eid).params
+            self.moved_end=((float(q[f'x{end}']),float(q[f'y{end}'])),(mx,my))
+            trims=[t for t in (self._loose_tail(sx,sy),) if t]+[(eid,{f'x{end}':mx,f'y{end}':my})]
+        else:
+            trims=[t for t in (self._loose_tail(sx,sy),self._loose_tail(ex,ey)) if t]
         if trims:
             from .commands import CompositeCommand
             self.stack.execute(CompositeCommand([AddEntity(e)]+[UpdateEntity(eid,ch) for eid,ch in trims],'Τοίχος (κλείσιμο γωνίας)'))
@@ -555,7 +680,7 @@ class StairPlaceTransaction:
         fits=bool(self.fits[self.active_index])
         suggestions=list(active.suggestions)
         if not fits:
-            suggestions.insert(0,'⚠ Η σκάλα περνά από τοίχο — δεν χωράει εδώ: σύρε αλλού ή άλλαξε τύπο (Tab / ροδέλα)')
+            suggestions.insert(0,'⚠ Η σκάλα περνά από τοίχο, μπροστά από πόρτα, πάνω σε ντουλάπια ή άλλη σκάλα — δεν χωράει εδώ: σύρε αλλού ή άλλαξε τύπο (Tab / ροδέλα)')
         self.preview={
             'chosen':active.to_params(),
             'fits':fits,
@@ -595,8 +720,14 @@ class StairPlaceTransaction:
         if not self.candidates:
             raise ValueError('stair has no valid preview')
         chosen=self.active_candidate
-        entity=Entity('stair',chosen.to_params(),name=next_name(self.doc,'stair'))
-        self.stack.execute(AddEntity(entity))
+        entity=Entity('stair',dict(chosen.to_params(),railing='auto'),name=next_name(self.doc,'stair'))
+        # Its railings on the open sides from the start (safety first; Ιδιότητες ▸ Κάγκελο changes it), and a railing
+        # where it arrives (a balcony's) opens the stair's width there — all in the same undo as the stair.
+        from archforge.architecture.railings import stair_arrival_cuts,stair_railing_entities
+        from archforge.core.commands import AddEntities,CompositeCommand
+        own=stair_railing_entities(self.doc,entity,'auto')
+        cuts=stair_arrival_cuts(self.doc,entity.params)
+        self.stack.execute(CompositeCommand([AddEntity(entity)]+([AddEntities(own)] if own else [])+cuts,label='Σκάλα'))
         self.doc.select([entity.id])
         return entity.id
 

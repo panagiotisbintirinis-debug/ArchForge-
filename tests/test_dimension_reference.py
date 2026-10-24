@@ -75,7 +75,9 @@ def test_partition_and_window_follow_the_moved_walls():
     ctrl = PointerController(doc, st)
     _draw(ctrl, [(0, 0), (8, 0)])
     south = _walls(doc)[0]
-    assert south.params['y1'] == 0 and south.params['y2'] == 0                       # alone: on its axis, as drawn
+    t = south.params['thickness']
+    # Alone: where its preview showed it — the drawn line is its face (owner 24/10), the body on the left (inside).
+    assert south.params['y1'] == pytest.approx(t / 2) and south.params['y2'] == pytest.approx(t / 2)
     win = Entity('window', {'offset': 4.0, 'width': 1.2, 'height': 1.4, 'sill': 0.9}, parent_id=south.id)
     st.execute(AddEntity(win))
     # Owner 21/10: the outline goes to its faces while it is drawn (not only when it closes).

@@ -1222,7 +1222,12 @@ controls.addEventListener("start", () => { cameraMovedByHuman = true; });
 window.__cameraMovedByHuman = () => cameraMovedByHuman;
 window.__forgetCameraMoved = () => { cameraMovedByHuman = false; };   // a new project is framed again
 
+// Owner 23/10 (2D and 3D alike): one click = indication, double click = selection, pressed = use. What is selected
+// comes with every scene; pressing and dragging a selected object moves it, anything else orbits as before.
+let selectedIds = new Set();
+let pressInfo = null;
 window.archforgeSetScene = function(payload, fit = true) {
+  selectedIds = new Set((payload && payload.selected) || []);
   disposeModel();
   const objects = (payload && payload.objects) || [];
   Object.assign(patternGeo, (payload && payload.patterns) || {});
@@ -1492,6 +1497,19 @@ function pointOnHorizontalPlane(event, z) {
 renderer.domElement.addEventListener("pointerdown", (event) => {
   if (!bridge) return;
   if (event.button !== 2) hideMarkingMenu();
+
+  if (activeTool === "select" && event.button === 0 && !walkMode) {
+    const hit = pickForSelection(event);
+    const id = hit && hit.face ? (hit.object.userData.entityId || "") : "";
+    const kind = hit ? (hit.object.userData.kind || "") : "";
+    pressInfo = {x: event.clientX, y: event.clientY, id, hit, movable: !!id && selectedIds.has(id) && MOVABLE_3D.includes(kind)};
+    if (pressInfo.movable) {
+      controls.enabled = false;                       // the drag moves the selected object, not the camera
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    return;
+  }
 
   if (activeTool === "move") {
     if (event.button === 2) {
@@ -1885,6 +1903,18 @@ window.addEventListener("keydown", (event) => {
 
 renderer.domElement.addEventListener("pointermove", (event) => {
   if (!bridge) return;
+  if (pressInfo && pressInfo.movable && !movingEntity && (event.buttons & 1) &&
+      Math.abs(event.clientX - pressInfo.x) + Math.abs(event.clientY - pressInfo.y) > 4) {
+    const hit = pressInfo.hit;                       // pressed on a selected object and dragged: move it
+    moveEntityId = pressInfo.id;
+    movingEntity = true;
+    pressInfo.dragging = true;
+    movePlaneZ = Number(hit.point.z);
+    moveAnchor = hit.point.clone();
+    pendingMovePoint = null;
+    startMoveGhost(hit.object);
+    bridge.beginMove(moveEntityId, Number(hit.point.x), Number(hit.point.y));
+  }
   if (movingEntity) {
     const point = pointOnHorizontalPlane(event, movePlaneZ);
     if (point) scheduleMoveUpdate(point, event);
@@ -1937,6 +1967,23 @@ function finishSculptPointer(event, commit=true) {
 renderer.domElement.addEventListener("pointerup", (event) => {
   if (!bridge || !sculpting) return;
   finishSculptPointer(event, true);
+}, true);
+
+window.addEventListener("pointerup", (event) => {
+  const press = pressInfo;
+  pressInfo = null;
+  if (!press || !bridge) return;
+  if (press.dragging && movingEntity) {
+    const point = pointOnHorizontalPlane(event, movePlaneZ);
+    if (point) bridge.updateMove(Number(point.x), Number(point.y), Boolean(snapEnabled && !event.shiftKey), Boolean(event.ctrlKey));
+    movingEntity = false;
+    pendingMovePoint = null;
+    clearMoveGhost();
+    bridge.endMove();
+  } else if (Math.abs(event.clientX - press.x) + Math.abs(event.clientY - press.y) <= 4 && bridge.indicateEntity) {
+    bridge.indicateEntity(press.id);                   // one click: shown, not selected
+  }
+  controls.enabled = true;
 }, true);
 
 renderer.domElement.addEventListener("pointercancel", (event) => {
@@ -2127,6 +2174,14 @@ class PBRInteractionBridge(QObject):
     @Slot(str)
     def selectEntity(self, entity_id: str) -> None:
         self.viewport._select_entity_from_web(entity_id)
+
+    @Slot(str)
+    def indicateEntity(self, entity_id: str) -> None:
+        """One click in 3D: what is under the mouse, in the status bar (not selected)."""
+        doc = self.viewport.doc
+        if entity_id in doc.entities:
+            from archforge.ui.indication import describe
+            self.viewport.statusChanged.emit(describe(doc, entity_id) + " · διπλό κλικ = επιλογή")
 
     @Slot(str, float, float)
     def showContextMenu(self, entity_id: str, x: float, y: float) -> None:

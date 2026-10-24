@@ -84,7 +84,9 @@ def test_chain_follows_the_brief_and_splits_on_a_tee():
     ctrl.finish_wall_chain()
     walls = _walls(d)
     assert len(walls) == 3                           # the old wall split in two
-    new = [w for w in walls if abs(w.params['x1'] - 3) < 1e-6 and abs(w.params['x2'] - 3) < 1e-6]
+    # By the brief's measure the drawn line is its face (owner 24/10): the axis lies half a wall beside x = 3.
+    new = [w for w in walls if abs(w.params['x1'] - w.params['x2']) < 1e-6
+           and abs(abs(w.params['x1'] - 3) - w.params['thickness'] / 2) < 1e-6]
     assert new and new[0].params.get('wall_type') not in (None, 'generic')
 
 
@@ -112,3 +114,62 @@ def test_hand_tremor_while_clicking_in_the_plan_view_draws_no_tiny_walls():
                      for w in _walls(d))
     assert lengths == [6.0, 6.0, 8.0, 8.0]
     view.close()
+
+
+def test_outline_drawn_by_eye_closes_square_and_shows_the_guide():
+    # Owner 24/10: three walls by eye, the fourth down at 90° — the first wall meets it, the outline closes.
+    from archforge.core.plan_scene import preview_primitives
+    d, stack, ctrl = _ctrl()
+    for x, y in ((1.2, -1.25), (-5, -1.25), (-5, 3), (1.75, 3)):
+        _click(ctrl, x, y)
+    pv = ctrl.pointer_move(PointerEvent(1.25, -1.3))
+    assert [p.role for p in preview_primitives(pv)].count('align-guide') == 1
+    _click(ctrl, 1.25, -1.3)
+    assert ctrl.wall_chain is None                   # closed: back on the (moved) first corner
+    walls = _walls(d)
+    assert len(walls) == 4
+    assert all(abs(w.params['x1'] - w.params['x2']) < 1e-9 or abs(w.params['y1'] - w.params['y2']) < 1e-9 for w in walls)
+
+
+def _brief(d):
+    d.add(Entity('project_brief', {'project_type': 'new', 'wall_system': 'brick_double_insulated',
+                                   'interior_walls': 'brick_plaster', 'measure': 'exterior'}))
+
+
+def test_a_wall_drawn_by_its_face_stays_where_its_preview_showed():
+    # Owner 24/10: the drawn line is the wall's face — clicking must not move the wall by half its thickness.
+    from archforge.core.plan_scene import preview_primitives
+    d, _stack, ctrl = _ctrl(); _brief(d)
+    _click(ctrl, 8.1, 10.2)
+    pv = ctrl.pointer_move(PointerEvent(10.3, 10.2))
+    body = next(p for p in preview_primitives(pv) if p.kind == 'polygon')
+    _click(ctrl, 10.3, 10.2)
+    w = _walls(d)[0].params; t = w['thickness']
+    ys = sorted({round(q[1], 6) for q in body.points})
+    assert [round(w['y1'] - t / 2, 6), round(w['y1'] + t / 2, 6)] == ys
+
+
+def test_outline_by_faces_closes_square_on_the_first_face():
+    d, _stack, ctrl = _ctrl(); _brief(d)
+    for x, y in ((1.2, -1.25), (-5, -1.25), (-5, 3), (1.75, 3)):
+        _click(ctrl, x, y)
+    _click(ctrl, 1.25, -1.3)                         # «πήγα να πατήσω στον πρώτο»
+    assert ctrl.wall_chain is None
+    walls = _walls(d); t = walls[0].params['thickness']
+    assert len(walls) == 4
+    xs = sorted({round(v, 6) for w in walls for v in (w.params['x1'], w.params['x2'])})
+    ys = sorted({round(v, 6) for w in walls for v in (w.params['y1'], w.params['y2'])})
+    assert xs == [round(-5 + t / 2, 6), round(1.75 - t / 2, 6)]     # the drawn lines are the outer faces
+    assert ys == [round(-1.25 + t / 2, 6), round(3 - t / 2, 6)]
+
+
+def test_alignment_with_another_wall_never_moves_it():
+    # Owner 24/10: «συμπεριφέρεται εντελώς παράλογα μετακινώντας τοίχους για να κλείσουν».
+    d, _stack, ctrl = _ctrl()
+    d.add(Entity('wall', {'x1': 0.0, 'y1': 8.5, 'x2': 7.0, 'y2': 8.5, 'z': 0.0, 'height': 2.7, 'thickness': 0.15}))
+    before = {e.id: dict(e.params) for e in _walls(d)}
+    _click(ctrl, 9.5, 10.0)
+    pv = ctrl.pointer_move(PointerEvent(9.5, 8.6))
+    assert pv.snap and pv.snap['kind'] == 'alignment'      # the guide is shown …
+    _click(ctrl, 9.5, 8.6)
+    assert all(d.get(k).params == v for k, v in before.items())   # … but the other wall stays as it was

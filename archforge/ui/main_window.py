@@ -760,7 +760,9 @@ class MainWindow(QMainWindow):
         self.stack.execute(AddEntities(entities))
         self._redraw_views(all_views=True)
         self._refresh_project_tree()
-        fixed = f" · στον τοίχο: {', '.join(report['fixed'])}" if report['fixed'] else ''
+        sides = {'S': 'νότια', 'N': 'βόρεια', 'W': 'δυτική', 'E': 'ανατολική'}
+        fixed = (f" · στον τοίχο η {', '.join(sides.get(f, f) for f in report['fixed'])} πλευρά"
+                 if report['fixed'] else '')
         self.statusBar().showMessage(f"Πέργκολα {report['label']} {report['area']:.1f} m²: {report['posts']} κολονάκια, "
                                      f"{report['rafters']} τεγίδες{fixed} — Ctrl+Z για αναίρεση", 8000)
         return entities
@@ -1907,6 +1909,10 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f'Ήλιος: ύψος {el:.1f}°, αζιμούθιο {az:.0f}°', 5000)
 
     def _cancel_interactions(self):
+        # Esc: the first one cancels what is half done; when nothing is (or on the second), the tool ends — Επιλογή.
+        plan = self.plan_view
+        idle = (plan._tool_idle() and not getattr(plan, 'room_draft', None) and plan.carry is None
+                and not getattr(plan, '_restore_select', False))
         if getattr(self, '_terrain_tools', None) is not None:
             self._terrain_tools.cancel()
         if getattr(self, '_layout_assist', None) is not None:
@@ -1931,6 +1937,10 @@ class MainWindow(QMainWindow):
         self.plan_view.redraw()
         for view in (self.pbr_view, self.structural_view):
             view.cancel_interaction()
+        if idle and str(plan.controller.tool) != 'select':
+            plan.to_select()
+            self.statusBar().showMessage('Επιλογή', 2000)
+            return
         self.statusBar().showMessage('Ακυρώθηκε', 2000)
 
     def _show_3d_view(self):
@@ -3024,8 +3034,15 @@ class MainWindow(QMainWindow):
         target = None
         if entity.kind == 'wall':
             target = QComboBox(dialog)
-            target.addItem('Πλευρά Α', 'exterior')
-            target.addItem('Πλευρά Β', 'interior')
+            # The face that really looks out is «Εξωτερική», whichever way the wall was drawn (wall_face.side_roles).
+            from archforge.architecture.wall_face import side_roles
+            roles = side_roles(self.doc, entity.id)
+            if roles:
+                target.addItem('Εξωτερική πλευρά (προς τα έξω)', roles[0])
+                target.addItem('Εσωτερική πλευρά', roles[1])
+            else:
+                target.addItem('Πλευρά Α', 'exterior')
+                target.addItem('Πλευρά Β', 'interior')
             target.addItem('Και οι δύο πλευρές', 'both')
             target.setToolTip(
                 'Το τελείωμα είναι ανά πλευρά του τοίχου: Α και Β είναι οι δύο '
@@ -3462,7 +3479,8 @@ class MainWindow(QMainWindow):
         self.doc.select([])
         self._redraw_views(all_views=True)
         self.refresh_inspector()
-        self.statusBar().showMessage(f'Ενεργός όροφος: {name} — {elevation:.2f} m', 3000)
+        from archforge.output.pdf import level_name
+        self.statusBar().showMessage(f'Ενεργός όροφος: {level_name(name)} — {elevation:.2f} m'.replace('.', ','), 3000)
 
     def _add_floor_level(self):
         from archforge.architecture.stairs import discover_building_levels
@@ -3471,8 +3489,8 @@ class MainWindow(QMainWindow):
         default_elevation = (max(existing) if existing else 0.0) + 2.70
         elevation, accepted = QInputDialog.getDouble(
             self,
-            'Add Floor',
-            'Floor elevation (m):',
+            'Νέος όροφος',
+            'Στάθμη του ορόφου (m):',
             default_elevation,
             -1000.0,
             1000.0,
@@ -3488,13 +3506,14 @@ class MainWindow(QMainWindow):
         try:
             self.stack.execute(CreateFloorLevel(name, elevation))
         except Exception as exc:
-            QMessageBox.warning(self, 'Add Floor', str(exc))
+            QMessageBox.warning(self, 'Νέος όροφος', str(exc))
             return
         self._refresh_floor_selector()
         self._redraw_views(all_views=True)
         self.refresh_inspector()
+        from archforge.output.pdf import level_name
         self.statusBar().showMessage(
-            f'Created and activated {name} at {float(elevation):.2f} m',
+            f'Νέος όροφος: {level_name(name)} στα {float(elevation):.2f} m — σχεδιάζεις εκεί'.replace('.', ','),
             3500,
         )
 

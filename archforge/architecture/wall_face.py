@@ -66,3 +66,44 @@ def intersect(a1, a2, b1, b2):
         return None
     t = ((a1[0] - b1[0]) * (b1[1] - b2[1]) - (a1[1] - b1[1]) * (b1[0] - b2[0])) / d
     return (a1[0] + t * (a2[0] - a1[0]), a1[1] + t * (a2[1] - a1[1]))
+
+
+# --------------------------------------------------------------------------------------------- which face is outside
+# Owner 23/10: «όταν βάζουμε υλικά σε τοίχο μέσα / έξω είναι ανάποδα — το εξωτερικό αλλάζει από μέσα». The wall's
+# side A ('exterior' role, its +normal = left of x1→x2) is only where it was drawn from: a room drawn anticlockwise
+# has side A inside. What faces the open air is read from the building: ``outside_sign`` is +1 when side A faces
+# out (or the wall has rooms on both sides / none), −1 when side B does. Labels, the assembly's layer order and the
+# finishing colours follow it; the stored data does not change.
+_OUTSIDE = {'key': None, 'value': {}}
+
+
+def outside_signs(doc):
+    """``{wall_id: +1 | -1}`` for every wall whose side B faces the open air (others are absent = +1)."""
+    walls = [e for e in doc.entities.values() if e.kind == 'wall']
+    key = tuple((w.id, repr(sorted(w.params.items()))) for w in walls)
+    if _OUTSIDE['key'] == key:
+        return _OUTSIDE['value']
+    from archforge.mep.ventilation import exterior_walls
+    out = {}
+    for z in sorted({round(float(w.params.get('z', 0.0)), 4) for w in walls}):
+        for w, (nx, ny) in exterior_walls(doc, z):
+            p = w.params
+            ax, ay = -(float(p['y2']) - float(p['y1'])), float(p['x2']) - float(p['x1'])    # side A's direction
+            if ax * nx + ay * ny < 0:
+                out[w.id] = -1
+    _OUTSIDE['key'], _OUTSIDE['value'] = key, out
+    return out
+
+
+def outside_sign(doc, wall_id):
+    return outside_signs(doc).get(wall_id, 1)
+
+
+def side_roles(doc, wall_id):
+    """``(outside role, inside role)`` of an exterior wall — ``('exterior', 'interior')`` or swapped — or None for a
+    wall with rooms (or nothing) on both sides."""
+    from archforge.mep.ventilation import exterior_walls
+    w = doc.get(wall_id)
+    if not any(e.id == wall_id for e, _n in exterior_walls(doc, float(w.params.get('z', 0.0)))):
+        return None
+    return ('interior', 'exterior') if outside_sign(doc, wall_id) < 0 else ('exterior', 'interior')

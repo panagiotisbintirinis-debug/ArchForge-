@@ -139,7 +139,9 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
         if not e.parent_id or e.parent_id not in doc.entities:return False
         return _entity_on_active_level(doc,doc.get(e.parent_id),tolerance)
     if e.kind in ('stair','ramp'):
-        return abs(float(p.get('lower_z',0.0))-z)<=tolerance or abs(float(p.get('upper_z',0.0))-z)<=tolerance
+        # The storey it arrives on is upper_floor_z: upper_z is the finished floor (slab + finishes above it).
+        return (abs(float(p.get('lower_z',0.0))-z)<=tolerance or abs(float(p.get('upper_z',0.0))-z)<=tolerance
+                or abs(float(p.get('upper_floor_z',p.get('upper_z',0.0)))-z)<=tolerance)
     if e.kind in ('door','window','opening'):
         if not e.parent_id or e.parent_id not in doc.entities:return False
         host=doc.get(e.parent_id);hp=host.params
@@ -557,12 +559,19 @@ def _swing_handle_point(doc,e,a,b):
 def preview_primitives(preview):
     g=preview.geometry
     if preview.kind=='wall' and g:
-        out=[Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),entity_id=preview.entity_id or '',role='preview')]
+        out=[]
+        body=None
         if g.get('thickness'):
-            # The wall's body: on the drawn line's side when drawn by a face, else around it (wall_face.py).
+            # The wall's body, drawn as the wall will be (owner 23/10: «σαν να προσπαθείς να ζωγραφίσεις κάτι παχύ και
+            # εσύ έχεις το λεπτό μολύβι»): on the drawn line's side when drawn by a face, else around it (wall_face.py).
             from archforge.architecture.wall_face import body_polygon
             body=body_polygon((g['x1'],g['y1']),(g['x2'],g['y2']),int(g.get('face_side',0) or 0),float(g['thickness']))
             if body:out.append(Primitive2D('polygon',body,entity_id=preview.entity_id or '',role='preview',meta=(('semantic','wall-body-preview'),)))
+        if not body:                                  # no thickness known yet: the line alone
+            out.append(Primitive2D('line',((g['x1'],g['y1']),(g['x2'],g['y2'])),entity_id=preview.entity_id or '',role='preview'))
+        if g.get('guide'):
+            # Alignment guide (as in Home Designer): from the wall corner the new wall lines up with to where it stops.
+            q,e=g['guide'];out.append(Primitive2D('line',(tuple(q),tuple(e)),role='align-guide'))
         hud=dict(preview.hud or {})
         if 'corner_deg' in hud:
             # Corner mark: an arc from the previous wall to the new one, with the degrees.
@@ -643,8 +652,13 @@ def preview_primitives(preview):
         return out
     if preview.kind=='stretch' and 'entities' in g:
         out=[]
+        from archforge.architecture.wall_face import body_polygon
         for eid,p in g['entities'].items():
-            if {'x1','y1','x2','y2'}<=set(p):out.append(Primitive2D('line',((p['x1'],p['y1']),(p['x2'],p['y2'])),entity_id=eid,role='preview'))
+            if not {'x1','y1','x2','y2'}<=set(p):continue
+            # Walls being stretched show their body, as when drawn (not a thin line).
+            body=body_polygon((p['x1'],p['y1']),(p['x2'],p['y2']),0,float(p['thickness'])) if p.get('thickness') else None
+            if body:out.append(Primitive2D('polygon',body,entity_id=eid,role='preview',meta=(('semantic','wall-body-preview'),)))
+            else:out.append(Primitive2D('line',((p['x1'],p['y1']),(p['x2'],p['y2'])),entity_id=eid,role='preview'))
         if out:return out
     if preview.kind in ('stretch','rotate') and g:
         eid=preview.entity_id or ''
@@ -953,7 +967,8 @@ def build_plan_frame(doc,preview=None,layers=True):
         if p and doc.get(eid).kind=='wall' and doc.get(eid).params.get('wall_type','generic')!='generic':
             # Layer boundaries of the wall assembly; insulation drawn dashed.
             from archforge.architecture.wall_types import layer_lines
-            for pts,insulation in layer_lines(doc.get(eid).params,doc.get(eid).params['wall_type']):
+            from archforge.architecture.wall_face import outside_sign
+            for pts,insulation in layer_lines(doc.get(eid).params,doc.get(eid).params['wall_type'],outside_sign(doc,eid)):
                 f.primitives.append(Primitive2D('polyline',tuple(pts),entity_id=eid,role='wall-insulation' if insulation else 'wall-layer'))
         if p and doc.get(eid).kind=='pitched_roof':
             from archforge.structure.timber_roof import members

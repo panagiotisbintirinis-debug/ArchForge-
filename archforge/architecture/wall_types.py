@@ -75,17 +75,20 @@ def indicative_u(wall_type):
     return 1.0 / r
 
 
-def face_colors(wall_type):
-    """(exterior face colour, interior face colour) of the finishing layers."""
+def face_colors(wall_type, sign=1):
+    """(side A colour, side B colour) of the finishing layers; ``sign`` −1 = side B faces outside
+    (``wall_face.outside_sign``): the assembly's exterior layer is on side B."""
     ls = layers(wall_type)
     if not ls:
         return None
-    return ls[0][3], ls[-1][3]
+    return (ls[0][3], ls[-1][3]) if sign >= 0 else (ls[-1][3], ls[0][3])
 
 
-def layer_lines(params, wall_type):
-    """Plan lines at internal layer boundaries: ``[(points, is_insulation_boundary)]``."""
+def layer_lines(params, wall_type, sign=1):
+    """Plan lines at internal layer boundaries: ``[(points, is_insulation_boundary)]`` (``sign`` as ``face_colors``)."""
     ls = layers(wall_type)
+    if sign < 0:
+        ls = list(reversed(ls))                   # the exterior layers on side B
     if len(ls) < 2:
         return []
     x1, y1, x2, y2 = (float(params[k]) for k in ("x1", "y1", "x2", "y2"))

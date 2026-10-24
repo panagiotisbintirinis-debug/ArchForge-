@@ -35,19 +35,29 @@ def attached_sides(doc, x0, y0, x1, y1, z):
     for name, ((ax, ay), (bx, by)) in sides.items():
         L = math.hypot(bx - ax, by - ay)
         horizontal = abs(by - ay) < 1e-9
+        lo, hi = (min(ax, bx), max(ax, bx)) if horizontal else (min(ay, by), max(ay, by))
+        spans = []
         for w in _walls(doc, z):
             p = w.params
             wx1, wy1, wx2, wy2 = (float(p[k]) for k in ("x1", "y1", "x2", "y2"))
             t = float(p.get("thickness", .2)) / 2
             if horizontal and abs(wy1 - wy2) < .03 and abs(wy1 - ay) <= WALL_GAP + t:
-                cover = min(max(wx1, wx2), max(ax, bx)) - max(min(wx1, wx2), min(ax, bx))
+                a, b = min(wx1, wx2), max(wx1, wx2)
             elif not horizontal and abs(wx1 - wx2) < .03 and abs(wx1 - ax) <= WALL_GAP + t:
-                cover = min(max(wy1, wy2), max(ay, by)) - max(min(wy1, wy2), min(ay, by))
+                a, b = min(wy1, wy2), max(wy1, wy2)
             else:
                 continue
-            if cover >= .6 * L:
-                out.add(name)
-                break
+            if min(b, hi) > max(a, lo):
+                spans.append((max(a, lo), min(b, hi)))
+        # A wall split where partitions meet it (T junctions) is still one wall: its pieces add up.
+        cover, end = 0.0, None
+        for a, b in sorted(spans):
+            if end is None or a > end:
+                cover += b - a; end = b
+            elif b > end:
+                cover += b - end; end = b
+        if cover >= .6 * L:
+            out.add(name)
     return out
 
 

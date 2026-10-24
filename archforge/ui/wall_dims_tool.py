@@ -139,12 +139,8 @@ class WallDimsTool:
                 if eid:
                     self.type_clear(eid, side)
                     return True
-        eid = view._entity_items.get(hit)
-        if eid and eid in self.doc.entities and self.doc.get(eid).kind == "wall" and not self.doc.get(eid).locked:
-            self.start_move(eid, p.x(), p.y())
-            view.selectionChangedByView.emit()
-            view.redraw()
-            return True
+        # A double click on a wall is its selection now (owner 23/10: «διπλό κλικ και πάτημα για μεταφορά»): it no
+        # longer makes the wall follow the mouse — pressing and dragging the selected wall moves it.
         return False
 
     # ---------------------------------------------------------------- drawing

@@ -52,36 +52,33 @@ def window():
     w._mark_clean(); w.close(); app.processEvents()
 
 
-def test_select_shows_distances_double_click_moves_with_the_mouse(window):
+def test_double_click_selects_the_wall_with_its_distances_then_press_and_drag_moves_it(window):
+    """Owner 15/10 «εμφανείς διαστάσεις με επιλογή» · 23/10 «διπλό κλικ και πάτημα για μεταφορά»: a double click selects
+    (its distances show), pressing and dragging the selected wall moves it — it no longer follows the mouse."""
     from PySide6.QtCore import QPointF, QRectF, Qt
     from PySide6.QtTest import QTest
     w, app = window
     ids = _house(w.doc, w.stack)
     view = w.plan_view
     view.fitInView(QRectF(-1, -1, 12, 10)); w.snap_action.setChecked(True); view.set_grid_step(0.10)
-    w.doc.select([ids['mid']]); view.redraw()
-    tool = w._wall_dims
-    texts = sorted(item.toPlainText().strip() for item, _side in tool._labels)
-    assert texts == ['3,75', '5,75', '8,00']
     vp = view.viewport()
     at = lambda x, y: view.mapFromScene(QPointF(x, y))
-    QTest.mouseDClick(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, at(6.0, 3.0))
-    app.processEvents()
-    assert tool.moving is not None and tool.moving['eid'] == ids['mid']
-    QTest.mouseMove(vp, at(6.53, 3.0)); app.processEvents()
-    assert abs(tool.moving['offset'] - 0.5) < 1e-9                       # on the 10 cm grid
+    QTest.mouseClick(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, at(6.0, 3.0)); app.processEvents()
+    assert w.doc.selection == []                                         # one click: indication only
+    QTest.mouseDClick(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, at(6.0, 3.0)); app.processEvents()
+    assert w.doc.selection == [ids['mid']]
+    tool = w._wall_dims
+    assert tool.moving is None
+    view.redraw()
+    assert sorted(item.toPlainText().strip() for item, _side in tool._labels) == ['3,75', '5,75', '8,00']
     n_before = len(w.stack.done)
-    QTest.mouseClick(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, at(6.53, 3.0))
-    app.processEvents()
-    assert tool.moving is None and abs(float(w.doc.get(ids['mid']).params['x1']) - 6.5) < 1e-6
-    assert len(w.stack.done) == n_before + 1
+    QTest.mousePress(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, at(6.0, 3.0))
+    for x in (6.1, 6.3, 6.5):
+        QTest.mouseMove(vp, at(x, 3.0)); app.processEvents()
+    QTest.mouseRelease(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, at(6.5, 3.0)); app.processEvents()
+    assert abs(float(w.doc.get(ids['mid']).params['x1']) - 6.5) < 0.051 and len(w.stack.done) == n_before + 1
     w._undo()
     assert abs(float(w.doc.get(ids['mid']).params['x1']) - 6.0) < 1e-6
-    # Esc cancels a move without changing anything.
-    QTest.mouseDClick(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, at(6.0, 3.0))
-    QTest.mouseMove(vp, at(7.0, 3.0))
-    QTest.keyClick(vp, Qt.Key.Key_Escape); app.processEvents()
-    assert tool.moving is None and abs(float(w.doc.get(ids['mid']).params['x1']) - 6.0) < 1e-6
 
 
 def test_double_click_on_a_distance_types_the_value(window, monkeypatch):

@@ -155,6 +155,22 @@ def _area(pts):
                for i in range(len(pts))) / 2
 
 
+def _merge_collinear(pts, tol=1e-3):
+    """Drop the corners where the outline goes straight on (a face split where a wall meets it from behind)."""
+    out = list(pts)
+    changed = True
+    while changed and len(out) > 3:
+        changed = False
+        for i in range(len(out)):
+            a, b, c = out[i - 1], out[i], out[(i + 1) % len(out)]
+            cross = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0])
+            if abs(cross) <= tol * max(1.0, math.dist(a, b) + math.dist(b, c)):
+                del out[i]
+                changed = True
+                break
+    return out
+
+
 def interior(doc, z, entity_id=""):
     """Every room's clear sizes, face to face, drawn just inside it."""
     from archforge.quantities.takeoff import net_polygon
@@ -172,6 +188,7 @@ def interior(doc, z, entity_id=""):
             continue
         if _area(pts) < 0:
             pts = pts[::-1]                                  # counter-clockwise: inside on the left
+        pts = _merge_collinear(pts)                          # a face split where walls meet it from behind: one side
         edges = []
         for i in range(len(pts)):
             a, b = pts[i], pts[(i + 1) % len(pts)]

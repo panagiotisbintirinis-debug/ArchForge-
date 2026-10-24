@@ -44,7 +44,7 @@ class SurfaceTarget:
     label: str
 
 
-def _targets(entity) -> tuple[SurfaceTarget, ...]:
+def _targets(entity, doc=None) -> tuple[SurfaceTarget, ...]:
     """Human-facing targets, backed by the existing material_id/surface_materials.
 
     This deliberately does not create a second material model.  It only exposes
@@ -66,6 +66,15 @@ def _targets(entity) -> tuple[SurfaceTarget, ...]:
         "door": (("frame", "Κάσα"), ("leaf", "Φύλλο"), ("handle", "Χερούλι"), ("glass", "Τζάμι")),
         "window": (("frame", "Πλαίσιο"), ("leaf", "Φύλλο"), ("handle", "Χερούλι"), ("glass", "Τζάμι"), ("sill", "Ποδιά")),
     }
+    if entity.kind == "wall" and doc is not None and entity.id in doc.entities:
+        # Owner 23/10 «μέσα / έξω είναι ανάποδα»: the face that really looks out is «εξωτερική», whichever way the
+        # wall was drawn (wall_face.side_roles); a wall with rooms on both sides keeps sides A / B.
+        from archforge.architecture.wall_face import side_roles
+        roles = side_roles(doc, entity.id)
+        if roles:
+            known["wall"] = ((roles[0], "Εξωτερική πλευρά (προς τα έξω)"), (roles[1], "Εσωτερική πλευρά"))
+        else:
+            known["wall"] = (("exterior", "Πλευρά A"), ("interior", "Πλευρά B"))
     seen = {""}
     for key, label in known.get(str(entity.kind), ()): 
         if key not in seen:
@@ -259,7 +268,7 @@ class MaterialLibraryDialog(QDialog):
 
         rl.addWidget(QLabel("Εφαρμογή σε"))
         self.target = QComboBox()
-        targets = _targets(self.entity)
+        targets = _targets(self.entity, getattr(self.main_window, 'doc', None))
         for target in targets: self.target.addItem(target.label, target.key)
         if part_role:
             idx = self.target.findData(str(part_role))

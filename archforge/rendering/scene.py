@@ -289,7 +289,9 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                 continue
         if body.semantic_kind == "wall" and entity is not None:
             from archforge.architecture.wall_types import face_colors
-            type_colors = face_colors(entity.params.get("wall_type", "generic"))
+            from archforge.architecture.wall_face import outside_sign
+            type_colors = face_colors(entity.params.get("wall_type", "generic"),
+                                      outside_sign(doc, entity.id) if doc is not None else 1)
             groups = {}
             for tri, role in zip(mesh.triangles, mesh.triangle_surfaces):
                 role = str(role)
@@ -559,7 +561,7 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
         grain = surface_grain(str(obj.get("kind", "")), obj.get("material") or {}, role)
         if grain:
             obj["material"] = {**obj["material"], "grain": grain}
-    payload = {"objects": objects}
+    payload = {"objects": objects, "selected": sorted(selected)}
     patterns = _scene_patterns(objects)
     if patterns:
         payload["patterns"] = patterns
