@@ -147,3 +147,16 @@ def test_save_load_after_corner():
     loaded = Document.from_dict(copy.deepcopy(doc.to_dict()))
     assert _ends(loaded, a) == ((0, 0), (6, 0)) and _ends(loaded, b) == ((6, 0), (6, 4))
     assert math.isclose(loaded.get(b).params['thickness'], 0.25)
+
+
+def test_owner_file_123_two_room_boxes_close_with_one_corner():
+    """Owner 25/10 («δεν μπορώ να τα ενώσω»): room 1's wall with the door ends 27 / 13,5 cm from room 2's top wall;
+    one «Γωνία» lengthens both, the big room between closes and the others stay closed — no false warning."""
+    doc, stack = _doc()
+    t1 = _wall(stack, (-3.935, 3.408), (2.295, 3.408))                  # room 2: top …
+    _wall(stack, (-3.935, -4.758), (-3.935, 3.408))                      # … left
+    t8 = _wall(stack, (-4.217, 5.975), (-4.205, 3.543))                  # room 1: right wall (the door)
+    _wall(stack, (-4.205, 3.543), (-7.758, 3.543))                       # room 1: bottom, joined at t8's end
+    stack.execute(CornerWalls(t8, (-4.21, 5.0), t1, (0.0, 3.408)))
+    assert _ends(doc, t8)[1] == _ends(doc, t1)[0]
+    assert stack.done[-1].plan['warnings'] == []
