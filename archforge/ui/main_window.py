@@ -4217,7 +4217,7 @@ class MainWindow(QMainWindow):
         # An opened project starts framed in the plan (owner 18/10: «το σχέδιο δεν είναι κεντραρισμένο»).
         from PySide6.QtCore import QTimer
         from .shortcuts import _zoom_all
-        QTimer.singleShot(0, lambda: _zoom_all(self, quiet=True))
+        QTimer.singleShot(0, self, lambda: _zoom_all(self, quiet=True))   # dropped if the window is gone
 
     def new_project(self):
         if not self._confirm_destructive_action():

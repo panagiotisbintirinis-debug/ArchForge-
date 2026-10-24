@@ -28,6 +28,7 @@ def _release_windows():
     if app is None:
         return
     from PySide6.QtCore import QEvent
+    app.processEvents()                      # what the tests left queued runs while its windows exist
     for w in app.topLevelWidgets():
         if key(w) not in before:
             w.hide()
