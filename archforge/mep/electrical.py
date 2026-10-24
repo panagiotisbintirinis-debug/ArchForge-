@@ -170,7 +170,9 @@ def mount_z(doc, params):
 
 def _room_of(doc, x, y, floor):
     try:
-        faces = doc.active_room_faces(z=floor)
+        # Measurement queries must not create or migrate persistent room IDs.
+        from archforge.architecture.topology import room_faces
+        faces = room_faces(doc, z=floor)
     except Exception:
         return None
     for k, face in enumerate(faces):

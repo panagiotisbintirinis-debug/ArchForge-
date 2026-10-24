@@ -84,6 +84,9 @@ class BoardTab(QWidget):
         self.offer = QPushButton("Προσφορά…"); self.offer.setToolTip("Προσφορά προς τον πελάτη μόνο για τα ηλεκτρολογικά (PDF), "
                                                                     "με τις τιμές του «Τιμές & προσφορά»")
         self.offer.clicked.connect(self.export_offer)
+        self.analysis_button = QPushButton('Ποσότητες & κόστος')
+        self.analysis_button.clicked.connect(lambda: self.pages.setCurrentWidget(self.takeoff_page))
+        head.addWidget(self.analysis_button)
         head.addWidget(self.excel); head.addWidget(self.pdf); head.addWidget(self.offer)
         root.addLayout(head)
         root.addLayout(settings_grid)
@@ -158,6 +161,10 @@ class BoardTab(QWidget):
         self.conduits = self._tree(['Σωλήνωση / κομμάτι','Πλήθος','Φ εξ.','Ø εσωτ.','Πλήρωση / όριο','Γραμμές','Αγωγοί','Μήκος','Από','Προς'])
         self.conduits.itemClicked.connect(self._select_item)
         self.pages.addTab(self.conduits,'Σωληνώσεις και καλωδιώσεις')
+        from archforge.ui.electrical_takeoff_page import ElectricalTakeoffPage
+        self.takeoff_page = ElectricalTakeoffPage(self)
+        self.pages.addTab(self.takeoff_page, 'Ποσότητες & κόστος')
+        self.pages.currentChanged.connect(self._page_changed)
         self.splitter = QSplitter(Qt.Orientation.Vertical)
         self.splitter.addWidget(self.technical_plan); self.splitter.addWidget(self.pages)
         self.splitter.setCollapsible(0,False); self.splitter.setCollapsible(1,False)
@@ -171,6 +178,12 @@ class BoardTab(QWidget):
         self.warnings = QLabel(); self.warnings.setWordWrap(True); self.warnings.setStyleSheet("color:#b45309")
         self.rules_line = QLabel(); self.rules_line.setStyleSheet("color:palette(mid);font-size:11px")
         root.addWidget(self.warnings); root.addWidget(self.rules_line)
+
+    def _page_changed(self, _index):
+        if self.pages.currentWidget() is self.takeoff_page:
+            self.takeoff_page.refresh()
+        else:
+            self.technical_plan.rebind(self.window.doc, self.window.stack)
 
     @staticmethod
     def _tree(headers):
@@ -208,7 +221,7 @@ class BoardTab(QWidget):
         b = r["board"]
         has = bool(r["circuits"])
         self.empty.setVisible(not has)
-        self.pages.setVisible(has)
+        self.pages.setVisible(has or any(e.kind == 'electrical_point' for e in self.window.doc.entities.values()))
         for w in (self.control, self.kva, self.phases, self.fuse, self.factor, self.waste, self.method, self.excel, self.pdf, self.offer):
             w.setEnabled(has)
         self._updating = True
@@ -246,8 +259,8 @@ class BoardTab(QWidget):
             options = compare_control_options(self.window.doc)
             current = options[r["settings"]["control_system"]]
             cost = {k: {kk: v[kk] for kk in ("total", "missing", "priced")} for k, v in options.items()}
-            cards["cost"] = ("Κόστος υλικών — σύγκριση για τον πελάτη (τιμοκατάλογος έργου)",
-                             "\n".join(f"{v['label'].split(' (')[0]}: " + (f"{money(v['total'])} · {len(v['missing'])} χωρίς τιμή"
+            cards["cost"] = ("Συμβατικό / KNX — γνωστά ποσά με τις τιμές έργου",
+                             "\n".join(f"{v['label'].split(' (')[0]}: " + (f"Μερικό {money(v['total'])} · {len(v['missing'])} χωρίς τιμή"
                                                                            if v["priced"] else f"— βάλτε τιμές ({len(v['missing'])} είδη)")
                                        for v in options.values()))
             self.result["cost"] = cost; self.result["cost_current"] = current["total"]
@@ -273,7 +286,7 @@ class BoardTab(QWidget):
         self._fill_front(r)
         self._fill_low_voltage()
         self._fill_conduits(r)
-        self.technical_plan.rebind(self.window.doc,self.window.stack)
+        self.takeoff_page.refresh()
         return r
 
     def _fill_conduits(self,r):
@@ -535,6 +548,15 @@ def install(window):
     tab = BoardTab(window)
     window._board_tab = tab
     window.stack.listeners.append(tab.mark_stale)
+    from PySide6.QtGui import QAction
+    menu = getattr(window, '_mockup_electrical_menu', None)
+    if menu is not None:
+        action = QAction('Ανάλυση ηλεκτρολογικών — σχέδιο & κόστος…', window)
+        action.setObjectName('electricalAnalysisAction')
+        action.triggered.connect(lambda _=False: show_analysis(window))
+        menu.insertAction(menu.actions()[0] if menu.actions() else None, action)
+        menu.insertSeparator(menu.actions()[1] if len(menu.actions()) > 1 else None)
+        window._electrical_analysis_action = action
     return tab
 
 
@@ -548,3 +570,13 @@ def show(window):
         tabs.addTab(tab, TAB_TITLE)
     tabs.setCurrentWidget(tab)
     return tab.refresh()
+
+
+def show_analysis(window):
+    result = show(window)
+    tab = getattr(window, '_board_tab', None)
+    if tab is not None:
+        tab.pages.setCurrentWidget(tab.takeoff_page)
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, tab.technical_plan.fit_content)
+    return result
