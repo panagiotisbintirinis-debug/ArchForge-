@@ -4,7 +4,7 @@
 * One wall selected → its length and the clear distances to the walls facing it, in blue, on the plan.
 * Double click on a wall → it follows the mouse (no button held) perpendicular to its axis; the walls joined
   to it stretch in the preview and the distances update live; click = place it, Esc / right click = cancel.
-* Double click on a distance → type the one you want; the wall moves there.
+* Click on a distance → type the one you want; the wall moves there (owner 24/10: one click, as in Home Designer).
 
 Every move is the shared ``wall_edit.MoveWall`` (one undo, joined walls / openings / objects follow).
 """
@@ -85,7 +85,7 @@ class WallDimsTool:
         return had
 
     def type_clear(self, eid, side):
-        """Double click on a distance: the value you want → the wall moves there."""
+        """Click on a distance: the value you want → the wall moves there."""
         from PySide6.QtWidgets import QInputDialog
         dims = wall_dims(self.doc, eid)
         now = next((x["clear"] for x in dims["sides"] if x["side"] == side), None)
@@ -129,9 +129,11 @@ class WallDimsTool:
                 self.commit()
                 return True
             return kind in ("release", "dclick")
-        if kind != "dclick" or event.button() != Qt.MouseButton.LeftButton or str(view.controller.tool) != "select":
+        if kind not in ("press", "dclick") or event.button() != Qt.MouseButton.LeftButton \
+                or str(view.controller.tool) != "select":
             return False
-        # A distance label of the selected wall?
+        # A distance label of the selected wall? One click types it (owner 24/10, as in Home Designer / Chief: «click on
+        # the dimension string itself, enter the desired dimension»).
         hit = view.itemAt(event.position().toPoint())
         for item, side in self._labels:
             if hit is item and side is not None:
@@ -253,7 +255,7 @@ class WallDimsTool:
         item.setPos(x, y)
         item.setZValue(50)
         if editable:
-            item.setToolTip("Διπλό κλικ: γράψε την απόσταση που θέλεις — ο τοίχος μετακινείται")
+            item.setToolTip("Κλικ: γράψε την απόσταση που θέλεις — ο τοίχος μετακινείται")
             item.setCursor(Qt.CursorShape.PointingHandCursor)
         return item
 

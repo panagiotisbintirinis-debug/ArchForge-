@@ -1222,8 +1222,8 @@ controls.addEventListener("start", () => { cameraMovedByHuman = true; });
 window.__cameraMovedByHuman = () => cameraMovedByHuman;
 window.__forgetCameraMoved = () => { cameraMovedByHuman = false; };   // a new project is framed again
 
-// Owner 23/10 (2D and 3D alike): one click = indication, double click = selection, pressed = use. What is selected
-// comes with every scene; pressing and dragging a selected object moves it, anything else orbits as before.
+// Owner 24/10 (2D and 3D alike, as in Home Designer / ArchiCAD): a click selects, pressing and dragging an object
+// moves it at once; anything else orbits as before. (23/10 had: click = indication, double click = selection.)
 let selectedIds = new Set();
 let pressInfo = null;
 window.archforgeSetScene = function(payload, fit = true) {
@@ -1502,7 +1502,7 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     const hit = pickForSelection(event);
     const id = hit && hit.face ? (hit.object.userData.entityId || "") : "";
     const kind = hit ? (hit.object.userData.kind || "") : "";
-    pressInfo = {x: event.clientX, y: event.clientY, id, hit, movable: !!id && selectedIds.has(id) && MOVABLE_3D.includes(kind)};
+    pressInfo = {x: event.clientX, y: event.clientY, id, hit, movable: !!id && MOVABLE_3D.includes(kind)};
     if (pressInfo.movable) {
       controls.enabled = false;                       // the drag moves the selected object, not the camera
       event.preventDefault();
@@ -1980,8 +1980,8 @@ window.addEventListener("pointerup", (event) => {
     pendingMovePoint = null;
     clearMoveGhost();
     bridge.endMove();
-  } else if (Math.abs(event.clientX - press.x) + Math.abs(event.clientY - press.y) <= 4 && bridge.indicateEntity) {
-    bridge.indicateEntity(press.id);                   // one click: shown, not selected
+  } else if (Math.abs(event.clientX - press.x) + Math.abs(event.clientY - press.y) <= 4) {
+    bridge.selectEntity(press.id);                     // one click: selected (empty space clears)
   }
   controls.enabled = true;
 }, true);
