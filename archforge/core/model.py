@@ -306,6 +306,57 @@ def _cable_routing(v):
     return v
 
 
+def _electrical_text_map(v):
+    if not isinstance(v, dict) or any(not isinstance(k, str) or not k or not isinstance(x, str) for k, x in v.items()):
+        raise ValueError('Οι προδιαγραφές πρέπει να είναι αντιστοιχίες κωδικού σε κείμενο.')
+    return {k: x.strip() for k, x in v.items()}
+
+
+def _electrical_box_defaults(v):
+    out = _electrical_text_map(v)
+    if set(out) - {'junction', 'floor', 'pull', 'lv'}:
+        raise ValueError('Άγνωστη χρήση κουτιού.')
+    return out
+
+
+def _electrical_quantity_inputs(v):
+    if not isinstance(v, dict) or set(v) - {'electrical.rcd', 'electrical.panel_enclosure', 'electrical.led_driver'}:
+        raise ValueError('Η ποσότητα μελέτης επιτρέπεται μόνο στα είδη που δεν επιμετρώνται αυτόματα.')
+    out = {}
+    for code, raw in v.items():
+        quantity = _nonnegative(raw)
+        if not quantity.is_integer():
+            raise ValueError('Το πλήθος τεμαχίων πρέπει να είναι ακέραιο.')
+        out[code] = int(quantity)
+    return out
+
+
+def _electrical_extra_items(v):
+    if not isinstance(v, list):
+        raise ValueError('Τα πρόσθετα είδη πρέπει να είναι λίστα.')
+    out, ids = [], set()
+    for raw in v:
+        if not isinstance(raw, dict):
+            raise ValueError('Το πρόσθετο είδος πρέπει να είναι αντικείμενο.')
+        for key in ('id', 'description', 'unit'):
+            if not isinstance(raw.get(key), str) or not raw[key].strip():
+                raise ValueError('Συμπληρώστε κωδικό, περιγραφή και μονάδα μέτρησης.')
+        identity = raw['id'].strip()
+        if identity in ids:
+            raise ValueError('Διπλός κωδικός πρόσθετου είδους.')
+        ids.add(identity)
+        mode = raw.get('mode')
+        if mode not in ('all', 'floor', 'ceiling', 'wall'):
+            raise ValueError('Επιλέξτε διέλευση για το πρόσθετο είδος.')
+        qty = None if raw.get('quantity') is None else _nonnegative(raw['quantity'])
+        unit = raw['unit'].strip()
+        if unit == 'τεμ.' and qty is not None and not qty.is_integer():
+            raise ValueError('Το πλήθος τεμαχίων πρέπει να είναι ακέραιο.')
+        out.append({'id': identity, 'description': raw['description'].strip(), 'unit': unit,
+                    'quantity': qty, 'mode': mode})
+    return out
+
+
 def _conduit_fill_limit(v):
     value = _finite(v)
     if not 0 < value < 1:
@@ -833,6 +884,9 @@ SCHEMAS = {
                          'routing': _cable_routing, 'supply_kva': _nonnegative, 'supply_phases': _supply_phases, 'supply_fuse_a': _nonnegative,
                          'conduit_fill_limit': _conduit_fill_limit, 'conduit_max_dn': _conduit_max_dn,
                          'conduit_profile': _choice(('conflex', 'superflex_plus', 'supersol_plus'), 'conduit profile'),
+                         'electrical_box_defaults': _electrical_box_defaults, 'electrical_box_specs': _electrical_text_map,
+                         'electrical_item_specs': _electrical_text_map, 'electrical_quantity_inputs': _electrical_quantity_inputs,
+                         'electrical_extra_items': _electrical_extra_items,
                          'demand_factor': _unit_interval, 'install_method': _choice(('A1', 'B1'), 'installation method'),
                          'control_system': _choice(('conventional', 'knx'), 'control system'),
                          'waste_pct': _nonnegative,
