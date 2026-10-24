@@ -84,6 +84,9 @@ class BoardTab(QWidget):
         self.offer = QPushButton("Προσφορά…"); self.offer.setToolTip("Προσφορά προς τον πελάτη μόνο για τα ηλεκτρολογικά (PDF), "
                                                                     "με τις τιμές του «Τιμές & προσφορά»")
         self.offer.clicked.connect(self.export_offer)
+        self.settings_button = QPushButton('Ρυθμίσεις'); self.settings_button.setCheckable(True); self.settings_button.setChecked(True)
+        self.settings_button.setToolTip('Εμφάνιση / απόκρυψη ρυθμίσεων και στοιχείων πίνακα')
+        head.addWidget(self.settings_button)
         self.analysis_button = QPushButton('Ποσότητες & κόστος')
         self.analysis_button.clicked.connect(lambda: self.pages.setCurrentWidget(self.takeoff_page))
         head.addWidget(self.analysis_button)
@@ -178,12 +181,21 @@ class BoardTab(QWidget):
         self.warnings = QLabel(); self.warnings.setWordWrap(True); self.warnings.setStyleSheet("color:#b45309")
         self.rules_line = QLabel(); self.rules_line.setStyleSheet("color:palette(mid);font-size:11px")
         root.addWidget(self.warnings); root.addWidget(self.rules_line)
+        self.settings_button.toggled.connect(self._set_settings_visible)
 
     def _page_changed(self, _index):
+        self.settings_button.setChecked(self.pages.currentWidget() is not self.takeoff_page)
         if self.pages.currentWidget() is self.takeoff_page:
             self.takeoff_page.refresh()
         else:
             self.technical_plan.rebind(self.window.doc, self.window.stack)
+
+    def _set_settings_visible(self, visible):
+        for widget in (self.control, self.kva, self.phases, self.fuse, self.factor, self.waste, self.method,
+                       self.pipe_profile, self.pipe_max, self.pipe_fill, self.pipe_note):
+            widget.setVisible(visible)
+        for key, (box, _cap, _value) in self.card_labels.items():
+            box.setVisible(visible and key in getattr(self, '_active_card_keys', set()))
 
     @staticmethod
     def _tree(headers):
@@ -264,6 +276,7 @@ class BoardTab(QWidget):
                                                                            if v["priced"] else f"— βάλτε τιμές ({len(v['missing'])} είδη)")
                                        for v in options.values()))
             self.result["cost"] = cost; self.result["cost_current"] = current["total"]
+        self._active_card_keys = set(cards)
         for key, (box, cap, val) in self.card_labels.items():
             box.setVisible(key in cards)
             if key in cards:
@@ -287,6 +300,7 @@ class BoardTab(QWidget):
         self._fill_low_voltage()
         self._fill_conduits(r)
         self.takeoff_page.refresh()
+        self._set_settings_visible(self.settings_button.isChecked())
         return r
 
     def _fill_conduits(self,r):

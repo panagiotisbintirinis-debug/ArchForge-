@@ -2,7 +2,7 @@
 from __future__ import annotations
 import csv
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QAbstractItemView,QComboBox,QFileDialog,QHBoxLayout,QHeaderView,QInputDialog,
+from PySide6.QtWidgets import (QAbstractItemView,QComboBox,QFileDialog,QScrollArea,QFrame,QHBoxLayout,QHeaderView,QInputDialog,
                                QDialog,QDialogButtonBox,QFormLayout,QLabel,QLineEdit,QPushButton,QTableWidget,QTableWidgetItem,QTabWidget,QVBoxLayout,QWidget)
 from archforge.mep import electrical_takeoff as E
 
@@ -34,21 +34,22 @@ def _amount(data):
             f"{len(data['missing'])} εκκρεμή είδη · {len(data['geometry_missing'])} ελλείψεις διαδρομών")
 
 
-class ElectricalTakeoffPage(QWidget):
+class ElectricalTakeoffPage(QScrollArea):
     def __init__(self,board):
         super().__init__();self.board=board;self.window=board.window
         self.preview_doc=self.window.doc;self.comparison=None;self._compared=False
-        self.setObjectName('electricalTakeoffPage');root=QVBoxLayout(self);root.setContentsMargins(0,4,0,0)
-        bar=QHBoxLayout();bar.addWidget(QLabel('Σχέδιο / ποσότητες:'))
+        self.setObjectName('electricalTakeoffPage');self.setWidgetResizable(True);self.setFrameShape(QFrame.Shape.NoFrame)
+        content=QWidget();self.setWidget(content);root=QVBoxLayout(content);root.setContentsMargins(0,4,0,0)
+        bar=QHBoxLayout();bar.addWidget(QLabel('Διέλευση:'))
         self.mode=QComboBox();self.mode.setObjectName('electricalPassagePreview');self.mode.addItem('Τρέχον έργο','')
         for key,label in E.MODES.items():self.mode.addItem('Προεπισκόπηση: '+label,key)
-        bar.addWidget(self.mode);self.apply=QPushButton('Εφαρμογή διέλευσης')
+        bar.addWidget(self.mode);self.apply=QPushButton('Εφαρμογή')
         self.apply.setToolTip('Αλλάζει όλα τα ηλεκτρολογικά σημεία προορισμού, ισχυρά και ασθενή. Ένα Undo τα επαναφέρει.')
         bar.addWidget(self.apply)
-        fit=QPushButton('Όλο το σχέδιο');fit.clicked.connect(board.technical_plan.fit_content);bar.addWidget(fit);bar.addStretch(1)
+        fit=QPushButton('Όλο σχέδιο');fit.clicked.connect(board.technical_plan.fit_content);bar.addWidget(fit);bar.addStretch(1)
         extra=QPushButton('Πρόσθετο είδος…');extra.clicked.connect(lambda:self._edit_extra());bar.addWidget(extra)
-        remove=QPushButton('Διαγραφή πρόσθετου');remove.clicked.connect(self._remove_extra);bar.addWidget(remove)
-        export=QPushButton('Επιμέτρηση CSV…');export.clicked.connect(self.export_csv);bar.addWidget(export);root.addLayout(bar)
+        remove=QPushButton('Διαγραφή');remove.setToolTip('Διαγραφή επιλεγμένου πρόσθετου είδους, με Undo');remove.clicked.connect(self._remove_extra);bar.addWidget(remove)
+        export=QPushButton('CSV…');export.clicked.connect(self.export_csv);bar.addWidget(export);root.addLayout(bar)
         self.notice=QLabel();self.notice.setWordWrap(True);root.addWidget(self.notice)
         self.summary=QLabel();self.summary.setWordWrap(True);self.summary.setStyleSheet('font-weight:600');root.addWidget(self.summary)
         self.tabs=QTabWidget();root.addWidget(self.tabs,1)

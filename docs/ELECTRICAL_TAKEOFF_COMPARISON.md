@@ -4,6 +4,9 @@ Open **Κατασκευή → Η/Μ εγκαταστάσεις → Ηλεκτρ�
 The same electrical menu is available from the H/M toolbar. The existing parent
 H/M command **Ηλεκτρολογικός πίνακας** still opens the panel. The new command
 selects **Ηλεκτρ. πίνακας → Ποσότητες & κόστος**, under the technical plan.
+The analysis initially folds the engineering settings/cards; **Ρυθμίσεις** reveals
+them. The quantities page scrolls independently, so the window fits 1280×960.
+Other board pages retain their expanded engineering controls.
 
 ## Workflow
 

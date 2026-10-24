@@ -210,3 +210,15 @@ def test_split_box_uses_the_conduit_maps_existing_coordinate_normalisation(monke
     monkeypatch.setattr(low_voltage,'route_low_voltage_cached',lambda d:{'boxes':[]})
     boxes=box_inventory(Document())
     assert len(boxes)==1 and boxes[0]['split']
+
+
+def test_analysis_fits_the_owners_1280_by_960_screen():
+    from PySide6.QtWidgets import QApplication
+    from archforge.ui.main_window import MainWindow
+    app=QApplication.instance() or QApplication([]);w=MainWindow()
+    try:
+        _flat(w.stack);w._electrical_analysis_action.trigger();w.resize(1280,960);w.show();app.processEvents()
+        assert w.width()<=1280 and w.height()<=960
+        assert w._board_tab.takeoff_page.table.viewport().height()>0
+    finally:
+        w._mark_clean();w.close();app.processEvents()
