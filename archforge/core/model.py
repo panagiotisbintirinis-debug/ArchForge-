@@ -757,7 +757,7 @@ def _joinery(key):
 
 
 _JOINERY_OPENING = {**_OPENING, **{k: _joinery(k) for k in (
-    'opening_type', 'hinge', 'swing', 'leaves', 'bars_h', 'bars_v', 'transom', 'shading', 'ledge', 'finish')},
+    'opening_type', 'hinge', 'swing', 'leaves', 'bars_h', 'bars_v', 'transom', 'shading', 'ledge', 'finish', 'leaf_design')},
     'open_angle': _joinery('open_angle')}
 SCHEMAS = {
     'box': {'x': _finite, 'y': _finite, 'z': _finite, 'width': _positive, 'depth': _positive, 'height': _positive, 'rotation': _finite},

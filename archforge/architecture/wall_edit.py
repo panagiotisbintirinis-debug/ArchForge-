@@ -533,3 +533,109 @@ def split_at_point(doc, wid, x, y):
         if float(op.params['offset']) - float(op.params['width']) / 2 < t < float(op.params['offset']) + float(op.params['width']) / 2:
             raise ValueError(f'{_label(op).capitalize()} είναι σε αυτό το σημείο — διαχωρισμός δίπλα του')
     return {wid: [t]}
+
+
+# ---------------------------------------------------------------- corners
+
+def _joined_at(doc, q, skip, z):
+    """Walls other than ``skip`` that have an end at ``q`` or pass through it."""
+    out = []
+    for o in _walls(doc, z):
+        if o.id in skip:
+            continue
+        oa, ob = _ends(o.params)
+        if math.dist(q, oa) <= JOIN or math.dist(q, ob) <= JOIN or _on_body(q, oa, ob, margin=0.0) is not None:
+            out.append(o)
+    return out
+
+
+def plan_corner(doc, a_id, click_a, b_id, click_b):
+    """«Γωνία» (Revit Trim/Extend to Corner): walls ``a`` and ``b`` meet where their axes cross.
+
+    Each wall keeps the part that was clicked (``click_a`` / ``click_b``, plan points on it); its other end goes
+    to the crossing — longer when it fell short, shorter when it ran past.  Its doors/windows stay where they are.
+    Returns ``{'walls': {id: {x1,y1,x2,y2}}, 'openings': {id: offset}, 'objects': {}, 'corner': (x, y),
+    'warnings': [...]}`` or raises ValueError (Greek, for the status bar).
+    """
+    a_id, b_id = str(a_id), str(b_id)
+    if a_id == b_id:
+        raise ValueError('Γωνία: κλικ σε δύο διαφορετικούς τοίχους')
+    walls = [doc.get(i) for i in (a_id, b_id)]
+    if any(w.kind != 'wall' for w in walls):
+        raise ValueError('Γωνία: κλικ σε τοίχους')
+    z = float(walls[0].params.get('z', 0.0))
+    if abs(float(walls[1].params.get('z', 0.0)) - z) > 1e-4:
+        raise ValueError('Γωνία: οι τοίχοι είναι σε άλλο όροφο')
+    for w in walls:
+        if str(w.params.get('phase', 'new')) == 'existing':
+            raise ValueError('υφιστάμενος τοίχος (ανακαίνιση): δεν αλλάζει μήκος — σήμανέ τον «Καθαίρεση» και σχεδίασε νέο')
+        if w.locked:
+            raise ValueError('ο τοίχος είναι κλειδωμένος')
+    old = {w.id: _ends(w.params) for w in walls}
+    corner = _line_hit(*old[a_id], *old[b_id])
+    if corner is None:
+        raise ValueError('Γωνία: οι τοίχοι είναι παράλληλοι — δεν συναντιούνται')
+
+    plan = {'walls': {}, 'openings': {}, 'objects': {}, 'corner': corner, 'warnings': []}
+    for w, click in zip(walls, (click_a, click_b)):
+        p0, p1 = old[w.id]
+        L = math.dist(p0, p1)
+        ux, uy = (p1[0] - p0[0]) / L, (p1[1] - p0[1]) / L
+        t_x = (corner[0] - p0[0]) * ux + (corner[1] - p0[1]) * uy
+        t_c = (float(click[0]) - p0[0]) * ux + (float(click[1]) - p0[1]) * uy
+        if abs(t_c - t_x) < MIN_PIECE / 2:
+            raise ValueError('Γωνία: κλικ στο κομμάτι του τοίχου που μένει, πιο μακριά από τη γωνία')
+        side = 1.0 if t_c > t_x else -1.0
+        kept = [t for t in (0.0, L) if (t - t_x) * side > 0]
+        if not kept:
+            raise ValueError('Γωνία: κλικ στο κομμάτι του τοίχου που μένει, πιο μακριά από τη γωνία')
+        t_keep = max(kept, key=lambda t: abs(t - t_x))
+        moved = p1 if t_keep == 0.0 else p0
+        if math.dist(moved, corner) <= JOIN:
+            continue                                    # this one already ends at the corner
+        L1 = abs(t_keep - t_x)
+        if L1 < MIN_PIECE:
+            raise ValueError('Γωνία: ο τοίχος θα έμενε πολύ μικρός')
+        if t_keep == 0.0:
+            plan['walls'][w.id] = {'x1': p0[0], 'y1': p0[1], 'x2': corner[0], 'y2': corner[1]}
+            shift = 0.0
+        else:
+            plan['walls'][w.id] = {'x1': corner[0], 'y1': corner[1], 'x2': p1[0], 'y2': p1[1]}
+            shift = t_x                                 # the start moved t_x along the wall
+        for op in _openings(doc, w.id):
+            off = float(op.params['offset']) - shift
+            half = float(op.params['width']) / 2
+            if off - half < -1e-9 or off + half > L1 + 1e-9:
+                raise ValueError(f'Γωνία: {_label(op)} είναι στο κομμάτι που κόβεται — μετακίνησέ {"την" if op.kind == "door" else "το"} πρώτα')
+            if abs(shift) > 1e-12:
+                plan['openings'][op.id] = off
+        if _joined_at(doc, moved, {a_id, b_id}, z):
+            plan['warnings'].append('⚠ ένας τοίχος που ήταν ενωμένος στην άκρη που άλλαξε έμεινε ελεύθερος')
+    if not plan['walls']:
+        raise ValueError('Γωνία: οι τοίχοι κάνουν ήδη γωνία')
+    return plan
+
+
+class CornerWalls(Command):
+    """Two walls meet in a corner (Revit Trim/Extend to Corner) — one undo step."""
+
+    def __init__(self, a_id, click_a, b_id, click_b):
+        self.args = (str(a_id), tuple(map(float, click_a)), str(b_id), tuple(map(float, click_b)))
+        self.plan = None
+        self.before_state = None
+        self.before_selection = None
+
+    def do(self, doc):
+        if self.plan is None:
+            self.plan = plan_corner(doc, *self.args)
+            self.before_state = copy.deepcopy(doc.to_dict())
+            self.before_selection = list(doc.selection)
+        try:
+            _apply(doc, self.plan)
+        except Exception:
+            _restore_document_state(doc, self.before_state, self.before_selection or [])
+            raise
+
+    def undo(self, doc):
+        if self.before_state is not None:
+            _restore_document_state(doc, self.before_state, self.before_selection or [])

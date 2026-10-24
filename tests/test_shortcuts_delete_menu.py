@@ -179,7 +179,7 @@ def test_dialog_search_conflict_message_and_export_import(window, tmp_path):
     d = K.open_dialog(window)
     d.search.setText('τοίχ')
     names = {d.table.item(r, 1).text() for r in range(d.table.rowCount())}
-    assert names == {'Τοίχος'}
+    assert names == {'Τοίχος', 'Γωνία (2 τοίχοι)'}
     assert d.select('tool.wall')
     assert not d.set_key('D', ask=False)
     assert 'Το D χρησιμοποιείται ήδη από «Πόρτα»' in d.message.text()

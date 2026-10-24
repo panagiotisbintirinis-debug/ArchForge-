@@ -54,6 +54,30 @@ def asset_thumbnail(asset_id, size=ICON_SIZE):
     return image
 
 
+def opening_thumbnail(key, size=ICON_SIZE):
+    """Outside elevation of the real preset: no triangulation seams or hidden panels."""
+    from archforge.library.joinery_preview import preview_boxes
+    boxes = preview_boxes(key)
+    image, painter = _canvas(size)
+    margin = max(2, size // 16)
+    x0 = min(lo[0] for lo, hi, color in boxes)
+    x1 = max(hi[0] for lo, hi, color in boxes)
+    z0 = min(lo[2] for lo, hi, color in boxes)
+    z1 = max(hi[2] for lo, hi, color in boxes)
+    scale = (size - 2 * margin) / max(x1-x0, z1-z0)
+    cx, cz = (x0+x1)/2, (z0+z1)/2
+    # Looking from -s: far faces first. Sorting along depth only is exact for
+    # this orthographic elevation, unlike average triangle-depth ordering.
+    for lo, hi, color in sorted(boxes, key=lambda b: -b[0][1]):
+        fill = QColor(color)
+        painter.setPen(QPen(fill.darker(125), max(0.4, size/600)))
+        painter.setBrush(fill)
+        painter.drawRect(QRectF(size/2+(lo[0]-cx)*scale, size/2-(hi[2]-cz)*scale,
+                                (hi[0]-lo[0])*scale, (hi[2]-lo[2])*scale))
+    painter.end()
+    return image
+
+
 # ------------------------------------------------------------ pictograms ---
 
 def _column(p, s):
@@ -172,7 +196,7 @@ def library_icon(action, size=ICON_SIZE, doc=None) -> QIcon:
     if not action:
         return QIcon()
     kind = action[0]
-    key = (kind, action[1] if kind in ("asset", "material") else pictogram_kind(action), size)
+    key = (kind, action[1] if kind in ("asset", "material", "opening") else pictogram_kind(action), size)
     if kind == "material":
         # The user can edit a material: the look itself is part of the key.
         import json
@@ -184,6 +208,8 @@ def library_icon(action, size=ICON_SIZE, doc=None) -> QIcon:
     image = None
     if kind == "asset":
         image = asset_thumbnail(action[1], size)
+    elif kind == "opening":
+        image = opening_thumbnail(action[1], size)
     elif kind == "material":
         from archforge.ui.pattern_swatch import material_swatch
         image = material_swatch(action[1], size, size, doc=doc)

@@ -116,6 +116,8 @@ class MainWindow(QMainWindow):
         wall_dims_tool.install(self)     # selected wall: its distances; double click = move it with the mouse
         from archforge.ui import dimension_tool
         dimension_tool.install(self)     # CAD ▸ Διαστάσεις: tape (Μεζούρα) + automatic exterior / interior
+        from archforge.ui import corner_tool
+        corner_tool.install(self)        # Επεξεργασία ▸ Γωνία: two walls meet in a corner (Revit Trim/Extend)
         self._refresh_library_panel()
         if not os.environ.get('PYTEST_CURRENT_TEST'):
             # First run builds the shipped core library in the background.
@@ -4215,7 +4217,7 @@ class MainWindow(QMainWindow):
         # An opened project starts framed in the plan (owner 18/10: «το σχέδιο δεν είναι κεντραρισμένο»).
         from PySide6.QtCore import QTimer
         from .shortcuts import _zoom_all
-        QTimer.singleShot(0, lambda: _zoom_all(self, quiet=True))
+        QTimer.singleShot(0, self, lambda: _zoom_all(self, quiet=True))   # dropped if the window is gone
 
     def new_project(self):
         if not self._confirm_destructive_action():
