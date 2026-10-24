@@ -18,8 +18,12 @@ def _release_windows():
     a message.  Per file, not per test: tests in one file may share a window.  ``deleteLater`` without
     ``close()`` so no «unsaved changes» question is asked.
     """
-    from PySide6.QtWidgets import QApplication
-    from shiboken6 import getCppPointer
+    try:
+        from PySide6.QtWidgets import QApplication
+        from shiboken6 import getCppPointer
+    except ImportError:                      # the agent-orchestration job runs without Qt: no windows to release
+        yield
+        return
     key = lambda w: getCppPointer(w)[0]
     app = QApplication.instance()
     before = set(map(key, app.topLevelWidgets())) if app is not None else set()
