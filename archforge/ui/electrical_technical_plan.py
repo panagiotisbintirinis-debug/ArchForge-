@@ -1,5 +1,5 @@
 """Read-only electrical technical plan, with the plumbing tab's zoom/pan behaviour."""
-from PySide6.QtCore import QPointF, Qt
+from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor,QPainterPath,QPen
 from archforge.ui.plan_view import PlanView
 from archforge.ui.plumbing_tab import PlumbingTechnicalPlan
@@ -24,6 +24,26 @@ class ElectricalTechnicalPlan(PlumbingTechnicalPlan):
         self._scene.clear();self._handle_items.clear();self._entity_items.clear()
         self._frame=build_plan_frame(self.doc,layers=False)
         for primitive in self._frame.primitives:self._draw_primitive(primitive)
+        self._update_label_visibility()
+
+    def fit_content(self):
+        """Fit actual electrical/wall primitives, excluding rulers and the grid."""
+        points = []
+        frame = getattr(self, '_frame', None)
+        if frame is None:
+            return
+        for primitive in frame.primitives:
+            entity = self.doc.entities.get(primitive.entity_id)
+            if primitive.role in ('cable', 'lv-cable') or (entity is not None and entity.kind in ('wall', 'electrical_point')):
+                points.extend(primitive.points)
+        if not points:
+            return
+        left, right = min(p[0] for p in points), max(p[0] for p in points)
+        bottom, top = min(p[1] for p in points), max(p[1] for p in points)
+        # Presentation padding only; no design clearance or installation value.
+        padding = .15 * max(right-left, top-bottom, 1.)
+        self.fitInView(QRectF(left-padding, bottom-padding, right-left+2*padding, top-bottom+2*padding),
+                       Qt.AspectRatioMode.KeepAspectRatio)
         self._update_label_visibility()
 
     def _draw_primitive(self, p):

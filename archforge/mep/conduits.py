@@ -47,7 +47,9 @@ def _outdoor(doc, p):
     if p[2] - floor > 0.5:
         return False
     try:
-        faces = doc.active_room_faces(z=floor)
+        # Measurement queries must not create or migrate persistent room IDs.
+        from archforge.architecture.topology import room_faces
+        faces = room_faces(doc, z=floor)
     except Exception:                                     # noqa: BLE001
         faces = []
     if any(_inside(f.polygon, p[0], p[1]) for f in faces):
