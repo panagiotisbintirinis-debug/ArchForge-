@@ -602,6 +602,9 @@ class WallDrawTransaction:
             for end,(qx,qy),tail in ((1,(ax,ay),t*L),(2,(bx,by),(1-t)*L)):
                 if tail<1e-3 or tail>self.TAIL_MAX or tail>=L/2:continue
                 if self._end_connected(eid,qx,qy):continue
+                # Only the open start of the outline being drawn is cut to close it — never another outline's wall
+                # (owner 25/10: «έκοψε πάνω από ένα μέτρο τοίχο για να ενώσει»; the «Γωνία» tool trims on purpose).
+                if not self._outline_start_at(qx,qy):continue
                 if end==1 and any(o.parent_id==eid for o in self.doc.entities.values() if o.kind in ('door','window','opening')):
                     continue                               # openings are measured from the start: leave it
                 return eid,{f'x{end}':float(px),f'y{end}':float(py)}
