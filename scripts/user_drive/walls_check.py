@@ -89,7 +89,13 @@ u.end(); u.shot('walls_3_after')
 u.begin('4 · Μικρός τοίχος στη γωνία: σύρσιμο της ελεύθερης άκρης για να μακρύνει')
 u.toolbar('Τοίχος')
 corner = next(((w[2], w[3]) for w in room.values() if w[2] == max(xs) and w[3] == min(ys)), (max(xs), min(ys)))
-hand_click(*corner); hand_click(corner[0] + 0.02, corner[1] - 0.7)
+hand_click(*corner)
+check(u.plan.controller.wall_chain is not None, 'το 1ο κλικ στη γωνία ξεκινά τοίχο (δεν φτιάχνει μικρό τοίχο)')
+move(corner[0] - 0.28, corner[1] - 0.4); move(corner[0] + 0.02, corner[1] - 0.7)
+_c = u.plan.controller
+print('  πριν το κλικ: αρχή', _c.active.start if _c.active else None, 'άκρη', [round(v, 3) for v in _c.active.end] if _c.active else None,
+      'έλξη', _c.preview.snap and _c.preview.snap['kind'])
+u.click(corner[0] + 0.02, corner[1] - 0.7)
 u.key(Qt.Key.Key_Escape); u.key(Qt.Key.Key_Escape)
 stub_id = next(k for k in walls() if k not in after)
 s = walls()[stub_id]
@@ -104,6 +110,58 @@ check(abs(a1 - a2) < 0.5 and L2 > L1 + 1.0, f'μάκρυνε στην ευθεί
 check(u.plan.controller.tool == 'select', f'μετά το σύρσιμο: Επιλογή ({u.plan.controller.tool})')
 print('  γραμμή κατάστασης:', u.status())
 u.end(); u.shot('walls_4_stretch')
+
+# 5. (α) The room's exterior dimensions came by themselves when it closed.
+u.begin('5 · Αυτόματες εξωτερικές διαστάσεις στο κλείσιμο (α)')
+from archforge.architecture import dimensions as D
+z = float(u.w.doc.work_plane.origin[2])
+s_dims = D.settings(u.w.doc, z)
+check(s_dims is not None and int(s_dims.params.get('exterior', 0)) == 1, 'εξωτερικές διαστάσεις ανοιχτές χωρίς μενού')
+chains = D.exterior(u.w.doc, z)
+check(len(chains) > 0, f'αλυσίδες εξωτερικών διαστάσεων: {len(chains)}')
+u.end(); u.shot('walls_5_auto_dims')
+
+# 6. (γ) One click selects a wall; pressing and dragging another one moves it at once. (β) One click on its
+# distance types it.
+u.begin('6 · Κλικ = επιλογή, σύρσιμο = μεταφορά (γ) · κλικ στη διάσταση = πληκτρολόγηση (β)')
+u.key(Qt.Key.Key_Escape)
+u.toolbar('Επιλογή')
+far = next(e for e in u.w.doc.entities.values() if e.kind == 'wall' and e.id not in room and abs(float(e.params['x1']) - 9.6) < 0.3 and abs(float(e.params['x1']) - float(e.params['x2'])) < 1e-6)
+fx = float(far.params['x1']); fy = (float(far.params['y1']) + float(far.params['y2'])) / 2
+u.w.doc.select([]); u.plan.redraw(); u.pump()
+u.click(fx, fy)
+check(u.w.doc.selection == [far.id], 'ένα κλικ επέλεξε τον τοίχο')
+u.w.doc.select([]); u.plan.redraw(); u.pump()
+u.drag(fx, fy, fx + 0.6, fy)
+x_after = float(u.w.doc.get(far.id).params['x1'])
+check(abs(x_after - (fx + 0.6)) < 0.06, f'σύρθηκε χωρίς να επιλεγεί πρώτα: x {fx:.2f} → {x_after:.2f}')
+u.w.doc.select([far.id]); u.plan.redraw(); u.pump()
+labels = [(i, side) for i, side in u.w._wall_dims._labels if side is not None]
+if labels:
+    item, side = labels[0]
+    u.answers.append(1.50)
+    pos = u.plan.mapFromScene(item.pos()); pos.setX(pos.x() + 12); pos.setY(pos.y() + 8)
+    before = float(u.w.doc.get(far.id).params['x1'])
+    QTest.mouseClick(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, pos); u.pump()
+    from archforge.architecture.wall_dims import wall_dims
+    clears = [round(x['clear'], 2) for x in wall_dims(u.w.doc, far.id)['sides']]
+    check(1.5 in clears, f'ένα κλικ στη διάσταση → 1,50 m (καθαρές: {clears})')
+else:
+    check(False, 'ο επιλεγμένος τοίχος δεν δείχνει αποστάσεις')
+u.end(); u.shot('walls_6_click_drag')
+
+# 7. (δ) The side never changes by itself: drawn anticlockwise the walls lie outside the lines; Space turns them.
+u.begin('7 · Πλευρά σώματος σταθερή, Διάστημα = άλλη πλευρά (δ)')
+u.see(3, -6)
+u.toolbar('Τοίχος')
+hand_click(0, -8)
+move(3, -8)
+side0 = u.plan.controller.active.face_side
+QTest.keyClick(vp, Qt.Key.Key_Space); u.pump()
+side1 = u.plan.controller.active.face_side
+check(side0 == -1 and side1 == 1, f'δεξιά (μέσα όταν σχεδιάζεις δεξιόστροφα) → Διάστημα → αριστερά ({side0} → {side1})')
+u.key(Qt.Key.Key_Escape); u.key(Qt.Key.Key_Escape)
+u.end()
 
 print('--- ΑΠΟΤΕΛΕΣΜΑ:', 'όλα σωστά' if not fails else f'{len(fails)} λάθη')
 for f in fails: print('  ✘', f)

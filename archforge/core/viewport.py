@@ -130,20 +130,14 @@ class PointerController:
         return self.preview
     def _face_side(self,live_dir=None):
         """+1 / -1 / 0: which side of the drawn line the wall's body takes (wall_face.py)."""
-        from archforge.architecture.wall_face import SIDES,auto_side,turn
+        from archforge.architecture.wall_face import SIDES,auto_side
         mode=getattr(self,'wall_face','auto')
         if mode!='auto':return SIDES[mode]
         from archforge.project.brief import get_brief
         brief=get_brief(self.doc)
         measure=brief['measure'] if brief else None
         if not measure:return 0
-        run=self._face_run_for(self.active.start if isinstance(self.active,WallDrawTransaction) else None)
-        turning=run.get('turn',0)
-        segs=run.get('segs') or []
-        if not turning and segs and live_dir is not None:
-            a,b=segs[-1]['a'],segs[-1]['b'];L=((b[0]-a[0])**2+(b[1]-a[1])**2)**.5
-            if L>1e-9:turning=turn(((b[0]-a[0])/L,(b[1]-a[1])/L),live_dir)
-        return auto_side(measure,turning)
+        return auto_side(measure)                 # fixed side, like Revit's location line (wall_face.py)
     def _face_run_for(self,start):
         """The outline being drawn by faces when a wall starts at ``start`` (its last wall ends there), else empty —
         click-click chains and walls dragged one after the other alike."""
@@ -551,6 +545,7 @@ class PointerController:
         from archforge.project.brief import interior_wall_defaults,wall_is_interior
         interior=interior_wall_defaults(self.doc)
         faces_before=self.doc.active_room_faces(z=self.active.z) if interior else []
+        rooms_before=len(faces_before) if interior else len(self.doc.active_room_faces(z=self.active.z))
         since=len(self.stack.done)
         if getattr(self.active,'face_side',0) and getattr(self,'wall_face','auto')=='auto' and interior and wall_is_interior(
                 faces_before,{'x1':self.active.start[0],'y1':self.active.start[1],'x2':self.active.end[0],'y2':self.active.end[1]}):
@@ -582,6 +577,13 @@ class PointerController:
             from archforge.architecture.storey_slabs import auto_floor_command
             command=auto_floor_command(self.doc,float(self.active.z))
             if command is not None:self.stack.amend(command)
+        if committed_id and getattr(self,'auto_dimensions',True):
+            # A space closes: its exterior dimensions appear by themselves (owner 24/10, as in Home Designer / Chief
+            # Architect) — once per storey; turned off in CAD ▸ Διαστάσεις, they stay off.
+            from archforge.architecture import dimensions as dims
+            z=float(self.active.z)
+            if dims.settings(self.doc,z) is None and len(self.doc.active_room_faces(z=z))>rooms_before:
+                self.stack.amend(dims.set_auto(self.doc,z,exterior=True))
         self.stack.squash(since,'Τοίχος')       # the wall and its corner with the previous one: one undo step
         return committed_id
     def draw_room_box(self,clear_corners):

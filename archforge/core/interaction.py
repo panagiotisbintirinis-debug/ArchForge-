@@ -366,17 +366,35 @@ class WallDrawTransaction:
         πού πρέπει να σταματήσω εάν θέλω ορθογώνιους τοίχους»."""
         from .snapping import SnapPoint
         sx,sy=self.start;best=None
-        for eid,e in self.doc.entities.items():
-            if e.kind!='wall' or not e.visible or abs(float(e.params.get('z',0.0))-float(self.z))>1e-5:continue
-            p=e.params
-            for qx,qy in ((float(p['x1']),float(p['y1'])),(float(p['x2']),float(p['y2']))):
-                k=(qx-sx)*ux+(qy-sy)*uy                     # the corner projected on the ray
-                if k<=self.min_length or hypot(sx+ux*k-qx,sy+uy*k-qy)<1e-6:continue
-                d=abs(k-length)
-                if d<=self.ALIGN_CAPTURE and (best is None or d<best[0]):best=(d,k,qx,qy,eid)
+        for eid,qx,qy in self._align_points():
+            k=(qx-sx)*ux+(qy-sy)*uy                         # the corner projected on the ray
+            if k<=self.min_length or hypot(sx+ux*k-qx,sy+uy*k-qy)<1e-6:continue
+            d=abs(k-length)
+            # Not further than half the wall drawn so far: a click without moving never jumps to a guide.
+            if d<=min(self.ALIGN_CAPTURE,0.5*length) and (best is None or d<best[0]):best=(d,k,qx,qy,eid)
         if best is None:return None
         _d,k,qx,qy,eid=best
         return SnapPoint(sx+ux*k,sy+uy*k,float(self.z),'alignment',eid),(qx,qy)
+
+    def _align_points(self):
+        """(wall id or '', x, y) the drawn line may line up with: the walls' axis ends when drawing on the axis; when
+        drawing by a face, the corners of the walls' faces as the plan shows them (and the jambs of their openings) —
+        a face lines up with faces (owner 24/10: «οδηγός από όλες τις γωνίες και τις παρειές»)."""
+        if not getattr(self,'face_side',0):
+            out=[]
+            for eid,e in self.doc.entities.items():
+                if e.kind!='wall' or not e.visible or abs(float(e.params.get('z',0.0))-float(self.z))>1e-5:continue
+                p=e.params
+                out+=[(eid,float(p['x1']),float(p['y1'])),(eid,float(p['x2']),float(p['y2']))]
+            return out
+        cache=getattr(self,'_face_points',None)
+        if cache is None:
+            from .plan_scene import wall_poche
+            cache=[]
+            for outer,holes in wall_poche(self.doc):
+                for ring in (outer,*holes):cache+=[('',float(q[0]),float(q[1])) for q in ring]
+            self._face_points=cache                         # the walls do not change while one is drawn
+        return cache
 
     def _outline_start_at(self,x,y):
         """Is (x, y) the start of the outline being drawn now? Only that wall may be lengthened to close it (owner
@@ -502,7 +520,7 @@ class WallDrawTransaction:
                     align=self._aligned_stop(ux,uy,length)
                     if align is not None:
                         sp,q=align;self.end=(sp.x,sp.y);self.last_snap=sp;self.guide=(q,self.end)
-                        self.meet=self._extends_free_end(sp.entity_id,q,self.end)
+                        if sp.entity_id in self.doc.entities:self.meet=self._extends_free_end(sp.entity_id,q,self.end)
         else:
             sp=best_snap(self.doc,x,y,self.snap_tol,grid=None) if self.snap_enabled else None
             if sp is not None:

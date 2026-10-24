@@ -4,9 +4,11 @@
 The line the human draws is one face of the wall; the wall's body lies to the left or to the right of it (seen
 along the drawing direction).  ``side`` is +1 (left), -1 (right) or 0 (the line is the axis, as before).
 
-«Αυτόματα» follows the project brief (Στοιχεία έργου ▸ από πού μετράμε): measured outside → the body goes inside
-the outline, measured inside → outside.  Which side is inside is known from the first corner (the turn of the
-outline); until then the guess is «left», and the first wall is turned over at that corner if the guess was wrong.
+«Αυτόματα» follows the project brief (Στοιχεία έργου ▸ από πού μετράμε), as Revit's location line: measured outside
+→ the line is the outer face and the body goes to its right (inside, when the outline is drawn clockwise, as Home
+Designer / Chief Architect / Revit ask); measured inside → the line is the inner face, the body to its left.  The side
+never changes by itself (owner 24/10: the turn-guessed side turned walls over at the first corner — «παράλογα»);
+F or Space puts the body on the other side, as Revit's space bar.
 
 Consecutive walls meet where their axes cross, so the faces drawn stay exactly where they were drawn.
 """
@@ -49,13 +51,14 @@ def turn(d1, d2):
     return 0 if abs(c) < 1e-6 else (1 if c > 0 else -1)
 
 
-def auto_side(measure, turning):
-    """Body side for the brief's measure, given the outline's turning (+1 left / -1 right; 0 unknown → left)."""
-    inside = turning or 1                    # turning left (counter-clockwise): the inside is on the left
+def auto_side(measure, turning=0):
+    """Body side for the brief's measure: outside → right of the line (-1), inside → left (+1), else the axis (0).
+
+    Fixed, whatever the outline's turn (``turning`` is kept for old callers and not used)."""
     if measure == 'exterior':
-        return inside
+        return -1
     if measure == 'interior':
-        return -inside
+        return 1
     return 0
 
 
