@@ -327,6 +327,11 @@ class PointerController:
     def pointer_move(self,ev):
         x,y=self._plan_xy(ev)
         if isinstance(self.active,WallDrawTransaction):
+            self.active.outline_start=tuple(self.wall_chain['first']) if self.wall_chain else None
+            run=self._face_run_for(self.active.start) if self.wall_chain else {}
+            segs=run.get('segs') or []
+            # By a face: the first wall's drawn face, which the held angle may close on (WallDrawTransaction._face_close).
+            self.active.outline_face_first=(tuple(segs[0]['a']),tuple(segs[0]['b'])) if len(segs)>=2 and segs[0]['id'] in self.doc.entities else None
             self.active.snap_enabled=self.snap_enabled and not ev.shift
             self.active.angle_enabled=not ev.shift
             # Ctrl: no corner autosnap (the angle magnet stays) — to stop near a corner on purpose.
@@ -443,6 +448,7 @@ class PointerController:
                 ex,ey=tx.end;fx,fy=self.wall_chain['first']
                 moved=getattr(tx,'moved_end',None)
                 if moved and math.hypot(moved[0][0]-fx,moved[0][1]-fy)<1e-6:fx,fy=moved[1]   # the first corner moved to meet it
+                if getattr(tx,'face_close',None) is not None:fx,fy=ex,ey            # closed on the first wall's face
                 if committed_id is None or math.hypot(ex-fx,ey-fy)<1e-6:
                     # Back on the first corner: the outline is closed.
                     self.finish_wall_chain();result=self.preview;result.entity_id=committed_id;return result
@@ -493,10 +499,14 @@ class PointerController:
         prev=segs[-1] if segs else None
         auto=getattr(self,'wall_face','auto')=='auto'
         if prev is None and auto:
-            # Alone so far: on its axis, like any single wall (a partition, a fence); it goes to its face when the
-            # next wall continues it — then the outline's turn also says which side is inside.
-            tx.start,tx.end=a,b
-            committed=tx.commit(None)
+            # Alone so far: where its preview showed it — the drawn line is its face (owner 24/10: «η σχεδιαστική
+            # γραμμή είναι τώρα το πάχος του τοίχου, αλλά όταν το κλείνεις… περνάει τη διάσταση προς τα μέσα»). The
+            # next wall's turn says which side is inside; the body crosses over then, the drawn line stays the face.
+            tx.start,tx.end=offset_segment(a,b,side,t)
+            try:
+                committed=tx.commit(None)
+            finally:
+                tx.start,tx.end=a,b
             segs.append({'a':a,'b':b,'side':side,'t':t,'id':committed,'applied':False})
             return committed
         na,nb=offset_segment(a,b,side,t)
@@ -519,7 +529,8 @@ class PointerController:
                 if L1>0 and L2>0:
                     chain['turn']=turn(((prev['b'][0]-prev['a'][0])/L1,(prev['b'][1]-prev['a'][1])/L1),((b[0]-a[0])/L2,(b[1]-a[1])/L2))
         first=chain.get('first')
-        closing=len(segs)>=2 and first is not None and math.dist(b,first)<1e-6 and segs[0]['id'] in self.doc.entities
+        closed_on_face=getattr(tx,'face_close',None) is not None and not length     # on the first face line, not its corner
+        closing=len(segs)>=2 and first is not None and (math.dist(b,first)<1e-6 or closed_on_face) and segs[0]['id'] in self.doc.entities
         tx.start,tx.end=na,nb
         try:
             committed=tx.commit(None)

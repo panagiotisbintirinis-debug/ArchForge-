@@ -25,6 +25,7 @@ def test_the_open_start_of_the_outline_closes_at_a_right_angle():
     doc, stack = _open_outline()
     top = next(e for e in doc.entities.values() if e.params['y1'] == 6.3 and e.params['y2'] == 6.3)
     t = WallDrawTransaction(doc, stack, (-4.5, -6.0), angle_increment=MAGNET)
+    t.outline_start = (-5.4, 6.3)                         # the controller's chain: where this outline began
     t.update(-4.54, 6.27)                                 # pointer straight up, 0.86 m from the open corner
     assert abs(t.end[0] + 4.5) < 1e-9 and abs(t.end[1] - 6.3) < 1e-9 and t.last_snap.kind == 'endpoint'
     assert t.guide == ((-5.4, 6.3), t.end)
@@ -39,6 +40,7 @@ def test_aiming_at_the_first_corner_a_few_degrees_off_still_closes_square():
     doc, stack = _open_outline()
     top = next(e for e in doc.entities.values() if e.params['y1'] == 6.3 and e.params['y2'] == 6.3)
     t = WallDrawTransaction(doc, stack, (-4.5, -6.0), angle_increment=MAGNET)
+    t.outline_start = (-5.4, 6.3)
     t.update(-5.4, 6.3)                                   # clicked right on the first corner: 4° off the vertical
     assert abs(t.end[0] + 4.5) < 1e-9 and abs(t.end[1] - 6.3) < 1e-9
     t.commit()
@@ -52,6 +54,7 @@ def test_the_first_wall_is_lengthened_to_meet_a_right_angle():
     _draw(doc, stack, (-5.0, 3.0), (1.75, 3.0))
     first = next(e for e in doc.entities.values() if e.params['x1'] == 1.2)
     t = WallDrawTransaction(doc, stack, (1.75, 3.0), angle_increment=MAGNET)
+    t.outline_start = (1.2, -1.25)
     t.update(1.25, -1.3)                                  # «πήγα να πατήσω στον πρώτο»
     assert abs(t.end[0] - 1.75) < 1e-9 and abs(t.end[1] + 1.25) < 1e-9
     t.commit()
@@ -62,7 +65,7 @@ def test_the_first_wall_is_lengthened_to_meet_a_right_angle():
 def test_shift_still_closes_onto_the_corner_itself():
     doc, stack = _open_outline()
     t = WallDrawTransaction(doc, stack, (-4.5, -6.0), angle_increment=MAGNET)
-    t.angle_enabled = False
+    t.outline_start = (-5.4, 6.3); t.angle_enabled = False
     t.update(-4.54, 6.27)
     assert t.end == (-5.4, 6.3)
 
@@ -75,6 +78,7 @@ def test_alignment_guide_shows_where_to_stop_for_right_angles():
     _draw(doc, stack, (-5.0, 3.0), (1.75, 3.0))
     first = next(e for e in doc.entities.values() if e.params['x1'] == -3.3)
     t = WallDrawTransaction(doc, stack, (1.75, 3.0), angle_increment=MAGNET)
+    t.outline_start = (-3.3, -1.25)
     t.update(1.77, -1.1)                                  # 5 m from the first corner, 15 cm short of its line
     assert t.last_snap.kind == 'alignment' and abs(t.end[1] + 1.25) < 1e-9
     assert t.guide == ((-3.3, -1.25), t.end)
