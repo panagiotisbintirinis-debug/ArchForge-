@@ -104,6 +104,8 @@ def test_board_limit_and_diameter_are_real_undoable_project_settings():
         w.stack.undo();tab.refresh();assert tab.result['conduit_map']['conduits']==2
         headers=[tab.conduits.headerItem().text(i) for i in range(tab.conduits.columnCount())]
         assert 'Πλήρωση / όριο' in headers and 'Ø εσωτ.' in headers
+        assert 'αντικατάσταση' in tab.pipe_note.text()
+        assert 'αλλαγές διεύθυνσης' in tab.conduits.topLevelItem(0).toolTip(7)
         before=w.doc.to_dict();tab.technical_plan.redraw();assert w.doc.to_dict()==before
     finally:
         w._mark_clean();w.close();app.processEvents()
@@ -117,3 +119,32 @@ def test_invalid_project_limit_is_rejected_without_changing_the_document():
         with pytest.raises(ValueError):
             stack.execute(AddEntity(Entity('electrical_point',dict(x=0,y=0,z=0,point_type='panel',conduit_fill_limit=value))))
         assert doc.to_dict()==before
+
+
+def test_pulling_review_reports_route_geometry_without_certifying_replacement():
+    from archforge.mep.conduits import pulling_review
+    # Synthetic route: collinear router vertices do not add bends; a 3D turn does.
+    r=pulling_review([(0,0,0),(1,0,0),(1,0,0),(2,0,0),(2,1,0),(2,1,1)])
+    assert r['length_m']==pytest.approx(4)
+    assert r['turn_angles_deg']==pytest.approx([90,90])
+    assert r['total_turn_deg']==pytest.approx(180)
+    assert r['replacement_status']=='ENGINEER_REVIEW'
+    assert r['bend_radii_m'] is None and r['accessibility_verified'] is False
+    assert 'αντικατάσταση' in r['summary']
+
+
+def test_low_fill_straight_conduit_still_needs_pulling_and_access_review():
+    from archforge.core.commands import AddEntity,CommandStack
+    from archforge.core.model import Document,Entity
+    from archforge.mep.conduits import conduit_map
+    doc=Document();st=CommandStack(doc)
+    for typ,x in [('panel',0),('socket',3)]:
+        st.execute(AddEntity(Entity('electrical_point',dict(x=x,y=0,z=0,point_type=typ))))
+    m=conduit_map(doc)
+    assert m['pieces'] and len(m['review'])==len(m['pieces'])
+    for p in m['pieces']:
+        assert p['fill']<p['fill_limit']
+        assert p['pulling']['replacement_status']=='ENGINEER_REVIEW'
+        assert p['pulling']['length_m']==pytest.approx(sum(__import__('math').dist(a,b)
+            for a,b in zip(p['points'],p['points'][1:])))
+        assert p['pulling']['summary'] in m['review']

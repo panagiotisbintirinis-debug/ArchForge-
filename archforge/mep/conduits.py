@@ -9,7 +9,6 @@ from __future__ import annotations
 import math
 
 SIZES=(16,20,25,32,40,50)
-MAX_BENDS=2  # Existing study flag only; no capacity/count multiplier.
 OUTDOOR_MIN=50  # Existing underground study choice; not a verified code clause.
 OUTDOOR_SIZES=(50,63)
 RULE=('Γεωμετρική πλήρωση από εξωτερικές ονομαστικές διαμέτρους μονωμένων αγωγών Nexans H07V-U/R '
@@ -68,10 +67,33 @@ def _key(p):
     return (round(p[0], 3), round(p[1], 3), round(p[2], 3))
 
 
-def _direction(a, b):
-    d = [b[i] - a[i] for i in range(3)]
-    n = math.sqrt(sum(v * v for v in d)) or 1.0
-    return tuple(round(v / n, 6) for v in d)
+def pulling_review(points, *, label=''):
+    """Measured route geometry, not a pulling-force or replaceability certificate.
+
+    Model polylines have no installed bend radii, friction data, pulling-force
+    limits or confirmed access. No undocumented length/angle threshold turns
+    this into a pass. Repeated and collinear router vertices add no bend.
+    """
+    vectors=[];length=0.
+    for a,b in zip(points,points[1:]):
+        vector=tuple(float(y)-float(x) for x,y in zip(a,b))
+        distance=math.sqrt(sum(v*v for v in vector))
+        length+=distance
+        if distance>0:vectors.append(tuple(v/distance for v in vector))
+    angles=[]
+    for a,b in zip(vectors,vectors[1:]):
+        dot=max(-1.,min(1.,sum(x*y for x,y in zip(a,b))))
+        cross=(a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0])
+        angle=math.degrees(math.atan2(math.sqrt(sum(v*v for v in cross)),dot))
+        if angle>1e-7:angles.append(angle)  # floating point noise only, not an installation limit
+    total=sum(angles)
+    summary=(f'{label+": " if label else ""}{length:.2f} m · {len(angles)} αλλαγές διεύθυνσης '
+             f'· άθροισμα {total:g}° — έλξη/αντικατάσταση προς έλεγχο. '
+             'Δεν έχουν επαληθευτεί ακτίνες καμπυλών, τριβές/όρια έλξης και πρόσβαση στα άκρα/κουτιά. '
+             'Η πλήρωση δεν πιστοποιεί εύκολη αντικατάσταση.')
+    return {'length_m':length,'turn_angles_deg':angles,'total_turn_deg':total,
+            'bend_radii_m':None,'accessibility_verified':False,
+            'replacement_status':'ENGINEER_REVIEW','summary':summary}
 
 
 def conduit_map(doc, route=None):
@@ -186,8 +208,8 @@ def conduit_map(doc, route=None):
                     pipe=bundle['pipe'];line_ids=pipe['lines'];wire_counts={}
                     for cid in line_ids:
                         for section,count in sections[cid].items():wire_counts[section]=wire_counts.get(section,0)+count
-                    directions=[_direction(a,b) for a,b in zip(chain,chain[1:])]
-                    bends=sum(a!=b for a,b in zip(directions,directions[1:]))
+                    pulling=pulling_review(chain,label=f'Σ{n}.{part}')
+                    bends=len(pulling['turn_angles_deg'])
                     selected=bundle['profile'];profile=CONDUIT_PROFILES[selected]
                     piece={'id':f'Σ{n}.{part}','conduit':f'Σ{n}','from':name_of(chain[0]),'to':name_of(chain[-1]),
                            'a':chain[0],'b':chain[-1],'points':chain,
@@ -199,10 +221,9 @@ def conduit_map(doc, route=None):
                            'lines':[cid if cid in circuits else 'επιστροφή διακόπτη' for cid in line_ids],
                            'conductors':' + '.join(f'{count}×{section:g}'.replace('.',',') for section,count in sorted(wire_counts.items())),
                            'wire_sources':{s:WIRE_DIAMETERS[s]['source'] for s in wire_counts},
-                           'status':'ENGINEER_REVIEW'}
+                           'pulling':pulling,'status':'ENGINEER_REVIEW'}
                     pieces.append(piece)
-                    if bends>MAX_BENDS:
-                        review.append(f"{piece['id']}: {bends} καμπύλες — έλεγχος έλξης/κουτιών, δεν δημιουργείται δεύτερος σωλήνας λόγω καμπυλών")
+                    review.append(pulling['summary'])
     by_size={}
     for p in pieces:by_size[p['dn']]=round(by_size.get(p['dn'],0)+p['length_m'],2)
     warnings=[f'{cid}: λείπει τεκμηριωμένη διάμετρος ή η γραμμή δεν χωρά στη μέγιστη επιλεγμένη διάμετρο'

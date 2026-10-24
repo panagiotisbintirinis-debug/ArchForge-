@@ -289,11 +289,13 @@ class BoardTab(QWidget):
             ids += [cid.split(':',1)[1] for cid in p['line_ids'] if cid.startswith('switch:')]
             item.setData(0,Qt.ItemDataRole.UserRole,ids)
             item.setToolTip(0,f"{p['profile_name']} · {p['profile_source']}\nΟι ίδιες σωληνώσεις εμφανίζονται στην κάτοψη, στο 3D και στην επιμέτρηση. Ονομαστικές διαστάσεις αγωγών· έλεγχος εγκατάστασης εκκρεμεί.")
+            for column in (0,4,7,8,9):
+                item.setToolTip(column,item.toolTip(column)+'\n'+p['pulling']['summary'])
             self.conduits.addTopLevelItem(item)
         if cmap['warnings']:
             self.warnings.setText(self.warnings.text()+'\n'+'\n'.join(cmap['warnings']))
         if cmap['review']:
-            self.pipe_note.setText(f"Γεωμετρική εκτίμηση με ονομαστικές διαμέτρους Nexans H07V-U/R · {len(cmap['review'])} κομμάτια χρειάζονται έλεγχο καμπυλών/έλξης. Το όριο έργου δεν είναι κανονιστική επαλήθευση.")
+            self.pipe_note.setText(f"Έλξη / μελλοντική αντικατάσταση: {len(cmap['review'])} κομμάτια προς έλεγχο · μήκος και αλλαγές διεύθυνσης στις λεπτομέρειες κάθε γραμμής. Η πλήρωση δεν πιστοποιεί εύκολο πέρασμα· ακτίνες καμπυλών και πρόσβαση στα κουτιά ανεπιβεβαίωτες.")
         else:
             self.pipe_note.setText('Γεωμετρική εκτίμηση με ονομαστικές διαμέτρους Nexans H07V-U/R · όριο πλήρωσης έργου, προς μηχανικό έλεγχο.')
 

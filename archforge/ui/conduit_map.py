@@ -21,11 +21,18 @@ def show(window):
                   (f"{p['count']}×" if p["count"] > 1 else "") + f"Φ{p['dn']}" + (" διπλού δομ." if p["outdoor"] else ""),
                   f"{p['inner_mm']:g} mm", str(p["bends"]), ", ".join(p["lines"]), p["conductors"], f"{p['fill'] * 100:.1f}%", f"{p['fill_limit'] * 100:g}%", p["profile_name"])
         for j, v in enumerate(values):
-            table.setItem(i, j, QTableWidgetItem(v))
+            item=QTableWidgetItem(v)
+            item.setToolTip(p['pulling']['summary'])
+            table.setItem(i, j, item)
     table.resizeColumnsToContents()
     layout.addWidget(table)
-    for w in m["warnings"] + m["review"]:
+    for w in m["warnings"]:
         layout.addWidget(QLabel("⚠ " + w))
+    if m['review']:
+        note=QLabel(f"Έλξη / μελλοντική αντικατάσταση: {len(m['review'])} κομμάτια προς έλεγχο. "
+                    "Μήκος και αλλαγές διεύθυνσης στις λεπτομέρειες κάθε γραμμής. "
+                    "Η πλήρωση δεν πιστοποιεί εύκολο πέρασμα ή πρόσβαση στα κουτιά.")
+        note.setWordWrap(True);layout.addWidget(note)
     note = QLabel(m["rule"])
     note.setWordWrap(True)
     layout.addWidget(note)
