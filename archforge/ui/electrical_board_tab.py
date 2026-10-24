@@ -56,8 +56,23 @@ class BoardTab(QWidget):
         for value, label in CONTROL_SYSTEMS.items():
             self.control.addItem(label, value)
         self.control.activated.connect(lambda _i: self._set("control_system", self.control.currentData()))
+        from archforge.mep.conduit_fill import CONDUIT_PROFILES
+        self.pipe_profile = QComboBox(); self.pipe_profile.setObjectName('conduitProfile')
+        for key,spec in CONDUIT_PROFILES.items():
+            if key!='geonflex':self.pipe_profile.addItem(spec['name'],key)
+        self.pipe_profile.setToolTip('Προφίλ γεωμετρικού υπολογισμού: εσωτερική διάμετρος από τον κατασκευαστή. Η καταλληλότητα εγκατάστασης χρειάζεται επιβεβαίωση.')
+        self.pipe_profile.activated.connect(lambda _i: self._set('conduit_profile',self.pipe_profile.currentData()))
+        self.pipe_max = QComboBox(); self.pipe_max.setObjectName('conduitMaxDiameter')
+        for dn in (16,20,25,32,40,50):self.pipe_max.addItem(f'Μέγιστο Φ{dn}',dn)
+        self.pipe_max.setToolTip('Ανώτατη διάμετρος για τη σύγκριση ενός ή περισσότερων σωλήνων. Ισχύει και η διαθεσιμότητα της επιλεγμένης σειράς.')
+        self.pipe_max.activated.connect(lambda _i: self._set('conduit_max_dn',int(self.pipe_max.currentData())))
+        self.pipe_fill = QDoubleSpinBox(); self.pipe_fill.setObjectName('conduitFillLimit')
+        self.pipe_fill.setRange(1,99);self.pipe_fill.setDecimals(1);self.pipe_fill.setPrefix('Πλήρωση ≤ ');self.pipe_fill.setSuffix(' %')
+        self.pipe_fill.setToolTip('Όριο έργου: ο ιδιοκτήτης επέλεξε 30%. Δεν είναι επαληθευμένη κανονιστική απαίτηση. Ονομαστικές εξωτερικές διάμετροι μονωμένων αγωγών, όχι διατομές χαλκού.')
+        self.pipe_fill.editingFinished.connect(lambda: self._set('conduit_fill_limit',self.pipe_fill.value()/100))
         settings_grid = QGridLayout()
-        for index,w in enumerate((self.control,self.kva,self.phases,self.fuse,self.factor,self.waste,self.method)):
+        for index,w in enumerate((self.control,self.kva,self.phases,self.fuse,self.factor,self.waste,self.method,
+                                 self.pipe_profile,self.pipe_max,self.pipe_fill)):
             settings_grid.addWidget(w,index//4,index%4)
         self.kva.editingFinished.connect(lambda: self._set("supply_kva", float(self.kva.value())))
         self.phases.activated.connect(lambda _i: self._set("supply_phases", int(self.phases.currentData())))
@@ -72,6 +87,8 @@ class BoardTab(QWidget):
         head.addWidget(self.excel); head.addWidget(self.pdf); head.addWidget(self.offer)
         root.addLayout(head)
         root.addLayout(settings_grid)
+        self.pipe_note=QLabel('Γεωμετρική εκτίμηση με ονομαστικές διαμέτρους Nexans H07V-U/R · όριο πλήρωσης έργου, προς μηχανικό έλεγχο.')
+        self.pipe_note.setWordWrap(True);root.addWidget(self.pipe_note)
 
         self.cards = QGridLayout(); self.cards.setHorizontalSpacing(8)
         self.card_labels = {}
@@ -138,7 +155,7 @@ class BoardTab(QWidget):
         self.provenance.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         rules_scroll = QScrollArea(); rules_scroll.setWidget(self.provenance); rules_scroll.setWidgetResizable(True)
         self.rules_index = self.pages.addTab(rules_scroll, "Κατάσταση κανόνων")
-        self.conduits = self._tree(['Σωλήνωση / κομμάτι','Πλήθος','Φ','Γραμμές','Αγωγοί','Μήκος','Από','Προς'])
+        self.conduits = self._tree(['Σωλήνωση / κομμάτι','Πλήθος','Φ εξ.','Ø εσωτ.','Πλήρωση / όριο','Γραμμές','Αγωγοί','Μήκος','Από','Προς'])
         self.conduits.itemClicked.connect(self._select_item)
         self.pages.addTab(self.conduits,'Σωληνώσεις και καλωδιώσεις')
         self.splitter = QSplitter(Qt.Orientation.Vertical)
@@ -203,6 +220,10 @@ class BoardTab(QWidget):
             self.waste.setValue(conf["waste_pct"])
             self.method.setCurrentIndex(max(0, self.method.findData(conf["install_method"])))
             self.control.setCurrentIndex(max(0, self.control.findData(conf["control_system"])))
+            self.pipe_profile.setCurrentIndex(max(0,self.pipe_profile.findData(conf['conduit_profile'])))
+            self.pipe_max.setCurrentIndex(max(0,self.pipe_max.findData(conf['conduit_max_dn'])))
+            self.pipe_fill.setValue(conf['conduit_fill_limit']*100)
+            for w in (self.pipe_profile,self.pipe_max,self.pipe_fill):w.setEnabled(conf['panel'] is not None)
         finally:
             self._updating = False
         cards = {}
@@ -261,12 +282,22 @@ class BoardTab(QWidget):
         by_cid = {c['id']: c for c in r['circuits']}
         self.conduits.clear()
         for p in cmap['pieces']:
-            item = QTreeWidgetItem([p['id'],str(p['count']),f"Φ{p['dn']}",','.join(p['lines']),
+            item = QTreeWidgetItem([p['id'],str(p['count']),f"Φ{p['dn']}",f"{p['inner_mm']:g} mm",
+                                    f"{p['fill']*100:.1f}% / {p['fill_limit']*100:g}%",','.join(p['lines']),
                                     p['conductors'],f"{p['length_m']:.2f} m",p['from'],p['to']])
-            ids = [pid for cid in p['lines'] for pid in by_cid.get(cid,{}).get('point_ids',())]
+            ids = [pid for cid in p['line_ids'] for pid in by_cid.get(cid,{}).get('point_ids',())]
+            ids += [cid.split(':',1)[1] for cid in p['line_ids'] if cid.startswith('switch:')]
             item.setData(0,Qt.ItemDataRole.UserRole,ids)
-            item.setToolTip(0,'Οι ίδιες σωληνώσεις εμφανίζονται στην κάτοψη, στο 3D και στην επιμέτρηση.')
+            item.setToolTip(0,f"{p['profile_name']} · {p['profile_source']}\nΟι ίδιες σωληνώσεις εμφανίζονται στην κάτοψη, στο 3D και στην επιμέτρηση. Ονομαστικές διαστάσεις αγωγών· έλεγχος εγκατάστασης εκκρεμεί.")
+            for column in (0,4,7,8,9):
+                item.setToolTip(column,item.toolTip(column)+'\n'+p['pulling']['summary'])
             self.conduits.addTopLevelItem(item)
+        if cmap['warnings']:
+            self.warnings.setText(self.warnings.text()+'\n'+'\n'.join(cmap['warnings']))
+        if cmap['review']:
+            self.pipe_note.setText(f"Έλξη / μελλοντική αντικατάσταση: {len(cmap['review'])} κομμάτια προς έλεγχο · μήκος και αλλαγές διεύθυνσης στις λεπτομέρειες κάθε γραμμής. Η πλήρωση δεν πιστοποιεί εύκολο πέρασμα· ακτίνες καμπυλών και πρόσβαση στα κουτιά ανεπιβεβαίωτες.")
+        else:
+            self.pipe_note.setText('Γεωμετρική εκτίμηση με ονομαστικές διαμέτρους Nexans H07V-U/R · όριο πλήρωσης έργου, προς μηχανικό έλεγχο.')
 
     # ------------------------------------------------------------------------------------------------ ασθενή
     def _set_rack(self, key, value):

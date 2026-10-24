@@ -1,62 +1,42 @@
-"""Conduit map (χάρτης σωληνώσεων) — owner 18/10: from the cable lines and their destinations come the conduits, as a
-construction map the trade can price (material + labour per size) and prefabricate.
+"""Physical conduit pieces from geometric fill (owner 24/10/2026).
 
-A spiral conduit takes only so many conductors: with more, the friction and the pull deform the cables or cut them
-at the bends.  Owner's table 18/10 (ΕΛΟΤ HD 60364-5-52 space factor 33–40 %, conduit makers' guides — KOUVIDIS,
-Courbi), single-core H07V-U/R («ΝΥΑ») conductors in spiral / rigid plastic conduit:
-
-* MAX_CONDUCTORS[Ø][mm²] — where the table gives a range the lower (safe) end is kept; a piece carrying mixed
-  sections fits when Σ n/max ≤ 1 (each section takes its share of the space);
-* more than MAX_BENDS 90° bends with no box between → one size bigger;
-* a piece outside the building (ground, lean concrete — e.g. to the pool's equipment room): double-wall heavy duty
-  conduit, at least Ø50 (OUTDOOR_MIN);
-* low-voltage (UTP / bus) never shares a power conduit — they are routed apart (mep/low_voltage.py).
-
-Circuits that travel the same way share a conduit while it fits in the largest size; each conduit is cut into pieces
-box to box (panel, junction/pull/floor box, device), each with the smallest size that carries it.
+Outside insulated wire diameters and minimum product bores come from cited
+manufacturer tables in conduit_fill. The owner selected 30% as a project
+setting, not a verified code limit. Every pipe has its own assigned lines.
+Pulling and bends remain separate engineering review, not extra empty pipes.
 """
 from __future__ import annotations
-
 import math
 
-SIZES = (16, 20, 25, 32)
-# Owner's table 18/10 — maximum H07V conductors per conduit (lower end of each range).  Φ32 for 1,5 / 2,5 mm² is not
-# in the table: taken in proportion to the 4 mm² column of the same row (7 vs 4 in Φ25) and marked so.
-# 10 mm² (cooker line): the table's NYM-J 3×10 needs Φ32 → three single cores in Φ32.
-MAX_CONDUCTORS = {16: {1.5: 3, 2.5: 2},
-                  20: {1.5: 5, 2.5: 3, 4.0: 3, 6.0: 2},
-                  25: {1.5: 8, 2.5: 6, 4.0: 4, 6.0: 3},
-                  32: {1.5: 14, 2.5: 10, 4.0: 7, 6.0: 5, 10.0: 3}}
-MAX_BENDS = 2                  # 90° bends between boxes; more → one size bigger
-OUTDOOR_MIN = 50               # heavy duty double-wall conduit in the ground / outside the building
-OUTDOOR_SIZES = (50, 63)
-RULE = ("Πίνακας ιδιοκτήτη 18/10 (ΕΛΟΤ HD 60364-5-52 συντ. πλήρωσης 33–40 %, οδηγίες KOUVIDIS/Courbi): αγωγοί H07V ανά "
-        "Φ — Φ16: 3×1,5 ή 2×2,5· Φ20: 5×1,5 / 3×2,5 / 3×4 / 2×6· Φ25: 8×1,5 / 6×2,5 / 4×4 / 3×6· Φ32: 7×4 / 5×6 "
-        "(1,5/2,5 αναλογικά, 3×10 όπως NYM 3×10)· > 2 καμπύλες χωρίς κουτί → ένα μέγεθος πάνω· έξω/στο έδαφος διπλού "
-        "δομήματος ≥ Φ50· ασθενή ποτέ με ισχυρά")
+SIZES=(16,20,25,32,40,50)
+OUTDOOR_MIN=50  # Existing underground study choice; not a verified code clause.
+OUTDOOR_SIZES=(50,63)
+RULE=('Γεωμετρική πλήρωση από εξωτερικές ονομαστικές διαμέτρους μονωμένων αγωγών Nexans H07V-U/R '
+      'και εσωτερικές διαμέτρους επιλεγμένων σωλήνων KOUVIDIS. Προεπιλογή ορίου έργου 30% κατόπιν επιλογής ιδιοκτήτη '
+      '(24/10/2026), ρυθμιζόμενο· όχι επαληθευμένη κανονιστική απαίτηση. Καμπύλες/έλξη/θερμική '
+      'ομαδοποίηση/καταλληλότητα προϊόντος προς έλεγχο. Κάθε σωλήνας έχει δικές του γραμμές.')
 
 
 def fill(dn, conductors):
-    """Share of the conduit taken by ``{mm²: n}`` (≤ 1 fits); a section the size cannot take → infinity."""
-    table = MAX_CONDUCTORS[dn]
-    total = 0.0
-    for mm2, n in conductors.items():
-        cap = table.get(mm2) or next((v for k, v in sorted(table.items()) if k >= mm2), 0)
-        if not cap:
-            return math.inf
-        total += n / cap
-    return total
+    """Geometric area fraction for the default calculation profile; no copper-area shortcut."""
+    from archforge.mep.conduit_fill import CONDUIT_PROFILES,wire_bundle,geometric_fill
+    wires=wire_bundle(conductors)
+    bore=CONDUIT_PROFILES['conflex']['bores'].get(dn)
+    return geometric_fill(bore,wires) if bore and wires is not None else math.inf
 
 
-def size_for(conductors, bends, outdoor=False):
-    """Smallest Ø for ``{mm²: n}`` conductors with ``bends`` bends, else None (needs another conduit)."""
-    if outdoor:
-        return OUTDOOR_SIZES[0] if fill(32, conductors) <= 1 else OUTDOOR_SIZES[1]
-    fits = [dn for dn in SIZES if fill(dn, conductors) <= 1 + 1e-9]
-    if not fits:
-        return None
-    k = SIZES.index(fits[0]) + (1 if bends > MAX_BENDS else 0)
-    return SIZES[k] if k < len(SIZES) else None
+def size_for(conductors, bends=0, outdoor=False):
+    """Smallest diameter under the owner's 30% setting and existing study size range.
+
+    Bends are reviewed independently: a second pipe cannot fix a bend problem.
+    """
+    from archforge.mep.conduit_fill import CONDUIT_PROFILES,DEFAULT_LIMIT,DEFAULT_MAX_DN,wire_bundle,geometric_fill
+    wires=wire_bundle(conductors)
+    if wires is None:return None
+    profile=CONDUIT_PROFILES['geonflex' if outdoor else 'conflex']
+    candidates=[dn for dn,bore in sorted(profile['bores'].items())
+                if (outdoor or dn<=DEFAULT_MAX_DN) and geometric_fill(bore,wires)<=DEFAULT_LIMIT+1e-12]
+    return candidates[0] if candidates else None
 
 
 def _outdoor(doc, p):
@@ -87,123 +67,168 @@ def _key(p):
     return (round(p[0], 3), round(p[1], 3), round(p[2], 3))
 
 
-def _direction(a, b):
-    d = [b[i] - a[i] for i in range(3)]
-    n = math.sqrt(sum(v * v for v in d)) or 1.0
-    return tuple(round(v / n, 6) for v in d)
+def pulling_review(points, *, label=''):
+    """Measured route geometry, not a pulling-force or replaceability certificate.
+
+    Model polylines have no installed bend radii, friction data, pulling-force
+    limits or confirmed access. No undocumented length/angle threshold turns
+    this into a pass. Repeated and collinear router vertices add no bend.
+    """
+    vectors=[];length=0.
+    for a,b in zip(points,points[1:]):
+        vector=tuple(float(y)-float(x) for x,y in zip(a,b))
+        distance=math.sqrt(sum(v*v for v in vector))
+        length+=distance
+        if distance>0:vectors.append(tuple(v/distance for v in vector))
+    angles=[]
+    for a,b in zip(vectors,vectors[1:]):
+        dot=max(-1.,min(1.,sum(x*y for x,y in zip(a,b))))
+        cross=(a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0])
+        angle=math.degrees(math.atan2(math.sqrt(sum(v*v for v in cross)),dot))
+        if angle>1e-7:angles.append(angle)  # floating point noise only, not an installation limit
+    total=sum(angles)
+    summary=(f'{label+": " if label else ""}{length:.2f} m · {len(angles)} αλλαγές διεύθυνσης '
+             f'· άθροισμα {total:g}° — έλξη/αντικατάσταση προς έλεγχο. '
+             'Δεν έχουν επαληθευτεί ακτίνες καμπυλών, τριβές/όρια έλξης και πρόσβαση στα άκρα/κουτιά. '
+             'Η πλήρωση δεν πιστοποιεί εύκολη αντικατάσταση.')
+    return {'length_m':length,'turn_angles_deg':angles,'total_turn_deg':total,
+            'bend_radii_m':None,'accessibility_verified':False,
+            'replacement_status':'ENGINEER_REVIEW','summary':summary}
 
 
 def conduit_map(doc, route=None):
-    """``{"pieces": [...], "by_size": {Ø: m}, "conduits": n, "warnings": [...], "rule": RULE}``."""
-    from archforge.mep.electrical import POINT_TYPES, electrical_points, mount_z, route_cables_cached
+    """One row per real pipe piece, with its own conductors and geometric fill."""
+    from collections import Counter
+    from archforge.mep.electrical import electrical_points, mount_z, route_cables_cached
+    from archforge.mep.electrical_board import conductors, switch_leg
+    from archforge.mep.knx import dimming_of, control_system
+    from archforge.mep.conduit_fill import (CONDUIT_PROFILES, DEFAULT_LIMIT, DEFAULT_MAX_DN,
+                                           WIRE_DIAMETERS, allocate, wire_bundle, geometric_fill)
     route = route if route is not None else route_cables_cached(doc)
-    circuits = {c["id"]: c for c in route["circuits"]}
-    edges_of = {}
-    for a, b, group, cid in route["runs"]:
-        if group == "switch" and "switch_runs" in route:
+    points = {e.id:e for e in electrical_points(doc)}
+    panel = next((e for e in points.values() if e.params['point_type']=='panel'), None)
+    params = panel.params if panel is not None else {}
+    limit = float(params.get('conduit_fill_limit', DEFAULT_LIMIT))
+    profile_id = str(params.get('conduit_profile', 'conflex'))
+    max_dn = int(params.get('conduit_max_dn', DEFAULT_MAX_DN))
+    if profile_id not in CONDUIT_PROFILES or profile_id=='geonflex':
+        raise ValueError('select a supported indoor conduit profile')
+    circuits = {c['id']:c for c in route['circuits']}
+    sections, edges_of = {}, {}
+    for cid, circuit in circuits.items():
+        dali = any(dimming_of(points[i].params)=='dali2' for i in circuit['points'] if i in points)
+        sections[cid] = dict(Counter(s for _,_,s in conductors(circuit,dali)))
+    for a,b,group,cid in route['runs']:
+        if group=='switch' or cid not in circuits:
             continue
-        key = cid or f"switch:{_key(a)[:2]}"          # a switch leg is a line of its own (switch → its lights)
-        edges_of.setdefault(key, set()).add(tuple(sorted((_key(a), _key(b)))))
-    for a, b, sid in route.get("switch_runs", []):
-        edges_of.setdefault(f"switch:{sid}", set()).add(tuple(sorted((_key(a), _key(b)))))
-    if not edges_of:
-        return {"pieces": [], "by_size": {}, "conduits": 0, "warnings": [], "rule": RULE, "split_boxes": [], "outdoor_m": 0.0}
-    # Switch legs: join the pieces of one switch into one line (they start at the same switch box).
-    def cond(cid):
-        return {float(circuits[cid]["cable_mm2"]): 3} if cid in circuits else {1.5: 2}     # L N PE · switch: L + return
-
-    def merged(*parts):
-        out = {}
-        for p in parts:
-            for k, v in p.items():
-                out[k] = out.get(k, 0) + v
-        return out
-    # Bundles: the longest lines first; each joins the bundle it shares most route with, while it fits in Φ32.
-    bundles = []
-    for cid in sorted(edges_of, key=lambda c: (-len(edges_of[c]), c)):
-        best = None
-        for b in bundles:
-            if fill(SIZES[-1], merged(b["cond"], cond(cid))) > 1 + 1e-9:
-                continue
-            shared = len(edges_of[cid] & b["edges"])
-            if shared and (best is None or shared > best[0]):
-                best = (shared, b)
-        if best is None:
-            bundles.append({"lines": [cid], "edges": set(edges_of[cid]), "cond": cond(cid)})
-        else:
-            b = best[1]
-            b["lines"].append(cid); b["edges"] |= edges_of[cid]; b["cond"] = merged(b["cond"], cond(cid))
-    boxes = {_key((x, y, z)): kind for x, y, z, kind, _c in route["boxes"]}
-    pts = electrical_points(doc)
-    panel = next((e for e in pts if e.params["point_type"] == "panel"), None)
-
+        edge=tuple(sorted((_key(a),_key(b))))
+        if edge[0]!=edge[1]:edges_of.setdefault(cid,set()).add(edge)
+    if control_system(doc)!='knx':
+        light_circuit = {pid:c for c in route['circuits'] if c['group']=='lighting' for pid in c['points']}
+        switch_circuit = {link['switch']:next((light_circuit[i] for i in link['lights'] if i in light_circuit),None)
+                          for link in route['switch_links']}
+        for a,b,sid in route.get('switch_runs',[]):
+            circuit=switch_circuit.get(sid)
+            if circuit is None:continue
+            cid=f'switch:{sid}'
+            sections[cid]=dict(Counter(s for _,_,s in switch_leg(float(circuit['cable_mm2']))))
+            edge=tuple(sorted((_key(a),_key(b))))
+            if edge[0]!=edge[1]:edges_of.setdefault(cid,set()).add(edge)
+    diameters={cid:wire_bundle(counts) for cid,counts in sections.items()}
+    unsupported={cid for cid in edges_of if diameters[cid] is None}
+    on_edge={}
+    for cid,edges in edges_of.items():
+        if cid in unsupported:continue
+        for edge in edges:on_edge.setdefault(edge,set()).add(cid)
+    allocation_cache, bundles, all_optimal = {}, {}, True
+    for edge, active in sorted(on_edge.items()):
+        midpoint=tuple((a+b)/2 for a,b in zip(*edge))
+        outdoor=_outdoor(doc,midpoint)
+        selected='geonflex' if outdoor else profile_id
+        profile=CONDUIT_PROFILES[selected]
+        options={dn:bore for dn,bore in profile['bores'].items() if not outdoor or dn>=OUTDOOR_MIN}
+        maximum=max(options) if outdoor else max_dn
+        cache_key=(selected,tuple(sorted(active)),maximum)
+        if cache_key not in allocation_cache:
+            allocation_cache[cache_key]=allocate({cid:diameters[cid] for cid in sorted(active)},
+                                                 options,limit=limit,max_dn=maximum)
+        result=allocation_cache[cache_key]
+        unsupported.update(result['unsupported']);all_optimal=all_optimal and result['optimal_count']
+        for pipe in result['pipes']:
+            key=(selected,pipe['dn'],tuple(pipe['lines']))
+            bundle=bundles.setdefault(key,{'edges':set(),'pipe':pipe,'profile':selected,'outdoor':outdoor})
+            bundle['edges'].add(edge)
+    edge_bundles={}
+    for key,bundle in bundles.items():
+        for edge in bundle['edges']:edge_bundles.setdefault(edge,set()).add(key)
+    signatures={}
+    for edge,keys in edge_bundles.items():
+        for node in edge:signatures.setdefault(node,set()).add(frozenset(keys))
+    # A change in pipe contents/size needs a junction. Parallel pipes that
+    # simply continue together do not create a box at every router grid node.
+    boundaries={node for node,values in signatures.items() if len(values)>1}
+    boxes={_key((x,y,z)):kind for x,y,z,kind,_cid in route['boxes']}
+    split=set()
     def name_of(node):
         if node in boxes:
-            return {"junction": "κουτί διακλάδωσης", "pull": "κουτί διέλευσης", "floor": "κουτί δαπέδου"}[boxes[node]]
-        if panel is not None and math.hypot(node[0] - float(panel.params["x"]), node[1] - float(panel.params["y"])) < 0.3 \
-                and abs(node[2] - mount_z(doc, panel.params)) < 0.3:
-            return "πίνακας"
-        near = [(math.hypot(node[0] - float(e.params["x"]), node[1] - float(e.params["y"])) + abs(node[2] - mount_z(doc, e.params)), e)
-                for e in pts]
-        d, e = min(near, key=lambda t: t[0]) if near else (9.9, None)
-        if e is not None and d < 0.6:
-            return e.name or POINT_TYPES[e.params["point_type"]][0]
-        # Where a shared conduit parts (lines leave it) the cables need a box to come out: one per place.
-        split.add(node)
-        return "κουτί διακλάδωσης σωληνώσεων"
-    pieces, warnings, split = [], [], set()
-    for n, b in enumerate(bundles, 1):
-        adj = {}
-        lines_on = {}
-        for cid in b["lines"]:
-            for e in edges_of[cid]:
-                lines_on.setdefault(e, set()).add(cid)
-        for a_, b_ in lines_on:
-            adj.setdefault(a_, set()).add(b_); adj.setdefault(b_, set()).add(a_)
-        cut = {v for v, ns in adj.items() if len(ns) != 2 or v in boxes}
-        # A change in the lines carried (a circuit leaves) also ends a piece.
-        for v, ns in adj.items():
-            if len(ns) == 2:
-                e1, e2 = (tuple(sorted((v, u))) for u in ns)
-                if lines_on[e1] != lines_on[e2]:
-                    cut.add(v)
-        seen, k = set(), 0
-        for start in sorted(cut) or [next(iter(adj))]:
-            for nxt in sorted(adj[start]):
-                e0 = tuple(sorted((start, nxt)))
-                if e0 in seen:
-                    continue
-                chain, prev, cur = [start, nxt], start, nxt
-                seen.add(e0)
-                while cur not in cut:
-                    step = next(u for u in adj[cur] if u != prev)
-                    seen.add(tuple(sorted((cur, step))))
-                    prev, cur = cur, step
-                    chain.append(cur)
-                length = sum(math.dist(p, q) for p, q in zip(chain, chain[1:]))
-                dirs = [_direction(p, q) for p, q in zip(chain, chain[1:])]
-                bends = sum(1 for d1, d2 in zip(dirs, dirs[1:]) if d1 != d2)
-                lines = sorted(lines_on[e0], key=lambda c: (len(c), c))
-                mm2 = merged(*(cond(c) for c in lines))
-                mid = chain[len(chain) // 2]
-                outdoor = _outdoor(doc, mid)
-                dn = size_for(mm2, bends, outdoor)
-                count = 1
-                if dn is None:
-                    # More than Φ32 carries with these bends: a second conduit (or a pull box to cut the bends).
-                    count = 2 if fill(SIZES[-1], mm2) <= 2 else math.ceil(fill(SIZES[-1], mm2))
-                    dn = SIZES[-1]
-                    warnings.append(f"Σωλήνωση Σ{n}: {len(lines)} γραμμές με {bends} καμπύλες δεν χωρούν σε έναν Φ32 — "
-                                    f"{count} σωλήνες ή κουτί διέλευσης στη διαδρομή")
-                k += 1
-                pieces.append({"id": f"Σ{n}.{k}", "conduit": f"Σ{n}", "from": name_of(chain[0]), "to": name_of(chain[-1]),
-                               "a": chain[0], "b": chain[-1], "points": chain, "length_m": round(length, 2), "dn": dn,
-                               "count": count, "bends": bends, "outdoor": outdoor, "fill": round(fill(dn, mm2) if dn in MAX_CONDUCTORS else 0.0, 2),
-                               "line_ids": lines,
-                               "lines": [c if c in circuits else "επιστροφή διακόπτη" for c in lines],
-                               "conductors": " + ".join(f"{v}×{s:g}".replace(".", ",") for s, v in sorted(mm2.items()))})
-    by_size = {}
-    for p in pieces:
-        by_size[p["dn"]] = round(by_size.get(p["dn"], 0.0) + p["length_m"] * p["count"], 2)
-    return {"pieces": pieces, "by_size": dict(sorted(by_size.items())), "conduits": len(bundles), "warnings": warnings, "rule": RULE,
-            "split_boxes": sorted(split), "outdoor_m": round(sum(p["length_m"] * p["count"] for p in pieces if p["outdoor"]), 2)}
+            return {'junction':'κουτί διακλάδωσης','pull':'κουτί διέλευσης','floor':'κουτί δαπέδου'}.get(boxes[node],'κουτί')
+        if panel is not None and math.dist(node,(float(panel.params['x']),float(panel.params['y']),mount_z(doc,panel.params)))<.3:
+            return 'πίνακας'
+        near=[(math.dist(node,(float(e.params['x']),float(e.params['y']),mount_z(doc,e.params))),e)
+              for e in points.values()]
+        distance,e=min(near,key=lambda item:item[0]) if near else (math.inf,None)
+        if e is not None and distance<.6:return e.name or e.params['point_type']
+        split.add(node);return 'κουτί διακλάδωσης σωληνώσεων'
+    pieces, review, n = [], [], 0
+    for key,bundle in sorted(bundles.items()):
+        adjacency={}
+        for a,b in bundle['edges']:
+            adjacency.setdefault(a,set()).add(b);adjacency.setdefault(b,set()).add(a)
+        remaining=set(adjacency)
+        while remaining:
+            seed=min(remaining);component={seed};queue=[seed];remaining.remove(seed)
+            while queue:
+                node=queue.pop()
+                for other in adjacency[node]:
+                    if other in remaining:remaining.remove(other);component.add(other);queue.append(other)
+            n+=1;part=0
+            cut={v for v in component if len(adjacency[v])!=2 or v in boxes or v in boundaries}
+            if not cut:cut={min(component)}
+            seen=set()
+            for start in sorted(cut):
+                for nxt in sorted(adjacency[start]):
+                    edge=tuple(sorted((start,nxt)))
+                    if edge in seen:continue
+                    chain=[start,nxt];previous,current=start,nxt;seen.add(edge)
+                    while current not in cut:
+                        following=next(v for v in adjacency[current] if v!=previous)
+                        seen.add(tuple(sorted((current,following))))
+                        previous,current=current,following;chain.append(current)
+                    part+=1
+                    pipe=bundle['pipe'];line_ids=pipe['lines'];wire_counts={}
+                    for cid in line_ids:
+                        for section,count in sections[cid].items():wire_counts[section]=wire_counts.get(section,0)+count
+                    pulling=pulling_review(chain,label=f'Σ{n}.{part}')
+                    bends=len(pulling['turn_angles_deg'])
+                    selected=bundle['profile'];profile=CONDUIT_PROFILES[selected]
+                    piece={'id':f'Σ{n}.{part}','conduit':f'Σ{n}','from':name_of(chain[0]),'to':name_of(chain[-1]),
+                           'a':chain[0],'b':chain[-1],'points':chain,
+                           'length_m':round(sum(math.dist(a,b) for a,b in zip(chain,chain[1:])),2),
+                           'dn':pipe['dn'],'inner_mm':pipe['inner_mm'],'profile':selected,'profile_name':profile['name'],
+                           'profile_source':profile['source'],'count':1,'bends':bends,'outdoor':bundle['outdoor'],
+                           'fill':geometric_fill(pipe['inner_mm'],pipe['diameters']),'fill_limit':limit,
+                           'diameters':dict(pipe['diameters']),'wire_counts':wire_counts,'line_ids':list(line_ids),
+                           'lines':[cid if cid in circuits else 'επιστροφή διακόπτη' for cid in line_ids],
+                           'conductors':' + '.join(f'{count}×{section:g}'.replace('.',',') for section,count in sorted(wire_counts.items())),
+                           'wire_sources':{s:WIRE_DIAMETERS[s]['source'] for s in wire_counts},
+                           'pulling':pulling,'status':'ENGINEER_REVIEW'}
+                    pieces.append(piece)
+                    review.append(pulling['summary'])
+    by_size={}
+    for p in pieces:by_size[p['dn']]=round(by_size.get(p['dn'],0)+p['length_m'],2)
+    warnings=[f'{cid}: λείπει τεκμηριωμένη διάμετρος ή η γραμμή δεν χωρά στη μέγιστη επιλεγμένη διάμετρο'
+              for cid in sorted(unsupported)]
+    return {'pieces':pieces,'by_size':dict(sorted(by_size.items())),'conduits':n,'warnings':warnings,
+            'unsupported':sorted(unsupported),'review':review,'rule':RULE+f' Ενεργό όριο έργου: {limit*100:g}%.','fill_limit':limit,
+            'profile':profile_id,'max_dn':max_dn,'packing_optimal_per_segment':all_optimal,
+            'split_boxes':sorted(split),'outdoor_m':round(sum(p['length_m'] for p in pieces if p['outdoor']),2)}

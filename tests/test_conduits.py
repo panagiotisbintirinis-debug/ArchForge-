@@ -1,4 +1,4 @@
-"""Conduit map (owner 18/10): conduits from the cable lines and their destinations, sized by the owner's fill table."""
+"""Conduit map (owner 18/10): conduits from the cable lines and their destinations, sized from sourced diameters and the owner-selected 30% project limit."""
 import os
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
@@ -8,16 +8,20 @@ from archforge.core.model import Document, Entity
 from archforge.mep.conduits import conduit_map, fill, size_for
 
 
-def test_owner_fill_table_and_one_size_up_after_two_bends():
-    assert size_for({1.5: 3}, 0) == 16                     # one lighting line L N PE
-    assert size_for({2.5: 3}, 0) == 20                     # one socket line 3×2,5 (Φ16 takes 2)
-    assert size_for({2.5: 6}, 0) == 25 and size_for({2.5: 6}, 2) == 25
-    assert size_for({2.5: 6}, 3) == 32                     # > 2 bends without a box → one size up
-    assert size_for({10.0: 3}, 0) == 32                    # cooker 3×10 like NYM-J 3×10
-    assert size_for({1.5: 3, 2.5: 3}, 0) == 25             # mixed: 3/5 + 3/3 > 1 in Φ20
-    assert fill(20, {1.5: 3, 2.5: 3}) > 1 and fill(25, {1.5: 3, 2.5: 3}) <= 1
-    assert size_for({2.5: 30}, 0) is None                  # more than Φ32 holds: another conduit
-    assert size_for({2.5: 3}, 0, outdoor=True) == 50       # in the ground: double wall ≥ Φ50
+def test_geometric_fill_and_owner_selected_thirty_percent_limit():
+    # Owner 24/10 replaced the old relative-capacity table with geometric fill.
+    # Nexans H07V-U 1.5 has nominal OD 3.2; CONFLEX DN16 has min bore 10.1.
+    assert fill(16, {1.5:3}) == __import__('pytest').approx(3*3.2**2/10.1**2)
+    assert fill(16, {1.5:3}) > .30
+    assert size_for({1.5:3},0)==20
+    assert size_for({2.5:3},0)==20
+    assert size_for({2.5:6},0)==25 and size_for({2.5:6},3)==25
+    # Bends require a separate pulling review, not an empty extra conduit.
+    assert size_for({10.0:3},0)==32
+    assert size_for({1.5:3,2.5:3},0)==25
+    assert fill(20,{1.5:3,2.5:3})>.30 and fill(25,{1.5:3,2.5:3})<=.30
+    assert size_for({2.5:30},0) is None  # exceeds the existing default maximum DN32
+    assert size_for({2.5:3},0,outdoor=True)==50
 
 
 def _house(stack):
@@ -38,7 +42,7 @@ def test_map_shares_conduits_within_the_table_and_boxes_where_they_part():
     for x, y in ((2.0, 3.0), (6.0, 3.0)):
         _pt(st, 'light', x, y)
     m = conduit_map(doc)
-    assert m['pieces'] and all(p['fill'] <= 1 + 1e-9 for p in m['pieces']) and not m['warnings']
+    assert m['pieces'] and all(p['fill'] <= p['fill_limit'] + 1e-9 for p in m['pieces']) and not m['warnings']
     assert set(m['by_size']) <= {16, 20, 25, 32}
     shared = [p for p in m['pieces'] if len(p['lines']) > 1]
     assert shared                                                     # lines going the same way share a conduit

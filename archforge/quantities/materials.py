@@ -226,19 +226,21 @@ def electrical_list(doc, result=None):
              meta(f"electrical.cable.{p['mm2']:g}mm2", "Μέτρα αγωγών από τις διαδρομές στο σχέδιο (φάση, ουδέτερος, γείωση, "
                   "επιστροφές), με τη φύρα που όρισες.", circuits_status)) for p in r["purchase"]]
     # Conduits by size (owner 18/10: each size has its own price) from the conduit map: shared where the lines fit.
-    from archforge.mep.conduits import RULE as CONDUIT_RULE, conduit_map
+    from archforge.mep.conduits import conduit_map
     cmap = conduit_map(doc)
+    conduit_note = cmap['rule'] + (f" ΠΡΟΣΟΧΗ: {len(cmap['unsupported'])} γραμμές δεν έχουν επιμετρημένες σωληνώσεις."
+                                  if cmap['unsupported'] else '')
     for dn, metres in cmap["by_size"].items():
         outdoor = sum(p["length_m"] * p["count"] for p in cmap["pieces"] if p["dn"] == dn and p["outdoor"])
         inside = round(metres - outdoor, 1)
         if inside > 0:
-            rows.append((f"Σωλήνας ηλεκτρολογικός σπιράλ Φ{dn} και σωλήνωση", "m", inside,
-                         meta(f"electrical.conduit.{dn}", "Κομμάτια του χάρτη σωληνώσεων με αυτή τη διατομή (γραμμές που χωρούν "
-                              "με τις καμπύλες τους): " + CONDUIT_RULE, "DESIGN_DEFAULT", "mep/conduits.py")))
+            rows.append((f"Σωλήνας ηλεκτρολογικός Φ{dn} και τοποθέτηση", "m", inside,
+                         meta(f"electrical.conduit.{dn}", "Πραγματικά κομμάτια του χάρτη με αυτή τη διάμετρο. "
+                              + conduit_note, "ENGINEER_REVIEW", "mep/conduits.py")))
         if outdoor > 0:
             rows.append((f"Σωλήνας διπλού δομήματος Φ{dn} (έδαφος / εξωτερικά) και τοποθέτηση", "m", round(outdoor, 1),
-                         meta(f"electrical.conduit.outdoor.{dn}", "Οδεύσεις έξω από το κτίριο, στο έδαφος (π.χ. προς αντλιοστάσιο).",
-                              "DESIGN_DEFAULT", "mep/conduits.py")))
+                         meta(f"electrical.conduit.outdoor.{dn}", "Υπόγειο γεωμετρικό προφίλ GEONFLEX N750. " + conduit_note,
+                              "ENGINEER_REVIEW", "mep/conduits.py")))
     if cmap["split_boxes"]:
         rows.append(("Κουτί διακλάδωσης σωληνώσεων (χωρισμός γραμμών)", "τεμ.", len(cmap["split_boxes"]),
                      meta("electrical.box.split", "Όπου μια κοινή σωλήνωση χωρίζεται: τα καλώδια βγαίνουν μόνο από κουτί.",

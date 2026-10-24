@@ -104,6 +104,7 @@ CONDUCTOR_LABELS = {"L": "Φάση", "N": "Ουδέτερος", "PE": "Γείω�
 
 def settings(doc):
     """Board settings from the panel point; 0 = not entered (no hidden defaults)."""
+    from archforge.mep.conduit_fill import DEFAULT_LIMIT, DEFAULT_MAX_DN
     panel = next((e for e in electrical_points(doc) if e.params["point_type"] == "panel"), None)
     p = panel.params if panel is not None else {}
     return {"panel": panel.id if panel is not None else None, "supply_kva": float(p.get("supply_kva", 0.0)),
@@ -111,7 +112,10 @@ def settings(doc):
             "demand_factor": float(p.get("demand_factor", 0.0)), "waste_pct": float(p.get("waste_pct", 0.0)),
             "install_method": str(p.get("install_method", "B1")),
             "rcd_groups": _rcd_groups(doc, p), "rcd_ratings": list(p.get("rcd_ratings") or []),
-            "control_system": str(p.get("control_system", "conventional"))}
+            "control_system": str(p.get("control_system", "conventional")),
+            "conduit_fill_limit": float(p.get("conduit_fill_limit", DEFAULT_LIMIT)),
+            "conduit_max_dn": int(p.get("conduit_max_dn", DEFAULT_MAX_DN)),
+            "conduit_profile": str(p.get("conduit_profile", "conflex"))}
 
 
 def _rcd_groups(doc, p):
