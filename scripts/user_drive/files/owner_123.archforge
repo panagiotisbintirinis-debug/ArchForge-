@@ -1,0 +1,1605 @@
+{
+  "format": 7,
+  "entities": [
+    {
+      "kind": "project_brief",
+      "params": {
+        "project_type": "new",
+        "wall_system": "brick_double_insulated",
+        "interior_walls": "brick_plaster",
+        "measure": "exterior",
+        "title": "123",
+        "client": "",
+        "address": "",
+        "plot": "",
+        "engineer": "",
+        "altitude": ""
+      },
+      "name": "\u03a3\u03c4\u03bf\u03b9\u03c7\u03b5\u03af\u03b1 \u03ad\u03c1\u03b3\u03bf\u03c5",
+      "id": "79181cb5-255e-4328-945c-1c13829ae28e",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": -3.934999999999998,
+        "y1": 3.4077272727272727,
+        "x2": 2.2950000000000017,
+        "y2": 3.4077272727272723,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.27,
+        "wall_type": "brick_double_insulated"
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 1",
+      "id": "8495964e-7254-4796-804b-736d52bf89c0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 2
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 2.295000000000001,
+        "y1": 3.4077272727272723,
+        "x2": 2.295,
+        "y2": 0.11954545454545418,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.27,
+        "wall_type": "brick_double_insulated"
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 2",
+      "id": "9db53594-2817-4ae2-ad6f-a0568e54cc03",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 3
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 2.294999999999999,
+        "y1": -4.757727272727274,
+        "x2": -3.9350000000000014,
+        "y2": -4.757727272727273,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.27,
+        "wall_type": "brick_double_insulated"
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 3",
+      "id": "20375dfb-fd8f-4c62-a701-aa68402b282a",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 3
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": -3.9349999999999996,
+        "y1": -4.757727272727273,
+        "x2": -3.934999999999998,
+        "y2": 3.407727272727273,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.27,
+        "wall_type": "brick_double_insulated"
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 4",
+      "id": "e3a9cf80-7e8e-4abe-a231-2f0ab0fec6ec",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 2
+    },
+    {
+      "kind": "auto_dimensions",
+      "params": {
+        "level_z": 0.0,
+        "exterior": 1,
+        "interior": 0
+      },
+      "name": "\u0394\u03b9\u03b1\u03c3\u03c4\u03ac\u03c3\u03b5\u03b9\u03c2 (\u03b1\u03c5\u03c4\u03cc\u03bc\u03b1\u03c4\u03b1)",
+      "id": "d4b08148-e663-4d4a-941f-2e64adac12c8",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 2.295,
+        "y1": 0.1195454545454544,
+        "x2": 9.182418176082486,
+        "y2": 0.11954545454545268,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.27,
+        "wall_type": "brick_double_insulated"
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 5",
+      "id": "99bd8a8f-6fe2-4782-bb97-bedd3733494e",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 2.295,
+        "y1": 0.11954545454545418,
+        "x2": 2.294999999999999,
+        "y2": -4.757727272727274,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.27,
+        "wall_type": "brick_double_insulated"
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 2",
+      "id": "a08fcfd5-ffe6-473c-815f-2da8bc21552a",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 9.317418176082485,
+        "y1": 0.11954545454545268,
+        "x2": 9.317418176082485,
+        "y2": 5.836629601599035,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.27,
+        "wall_type": "brick_double_insulated"
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 6",
+      "id": "d663fad2-46a7-4263-a45c-1b55ff8456bb",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 9.317418176082485,
+        "y1": 5.971629601599035,
+        "x2": -4.216836829498202,
+        "y2": 5.975446308632254,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.27,
+        "wall_type": "brick_double_insulated"
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 7",
+      "id": "54c4ce4f-edcf-47f9-80e0-934baa6a1d5d",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 3
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": -4.216836829498202,
+        "y1": 5.975446308632254,
+        "x2": -4.205000000000003,
+        "y2": 3.542727272727273,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.27,
+        "wall_type": "brick_double_insulated"
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 8",
+      "id": "39ce2596-4bcf-4486-8887-2d10de923391",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 2
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": -4.205000000000003,
+        "y1": 3.542727272727273,
+        "x2": -4.3400015980415985,
+        "y2": 3.542727272727273,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.27,
+        "wall_type": "brick_double_insulated"
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 9",
+      "id": "9273293c-ce92-4e6e-8e05-a51ef7c8b05a",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 2
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": -7.757714978524814,
+        "y1": 3.542727272727273,
+        "x2": -7.757714978524814,
+        "y2": 5.9716296015990356,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.27,
+        "wall_type": "brick_double_insulated"
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 10",
+      "id": "eea6051b-2e54-4c41-9e56-9ac290d0b4e7",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 1
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": -7.757714978524814,
+        "y1": 5.9716296015990356,
+        "x2": -4.216836829498202,
+        "y2": 5.975446308632254,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.27,
+        "wall_type": "brick_double_insulated"
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 11",
+      "id": "d1ff134e-02e5-4e8c-a121-557dfcbe24b0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 2
+    },
+    {
+      "kind": "room_floor",
+      "params": {
+        "scope": "storey",
+        "level_z": 0.0,
+        "thickness": 0.15,
+        "offset_z": 0.0
+      },
+      "name": "\u03a0\u03bb\u03ac\u03ba\u03b1 \u03b4\u03b1\u03c0\u03ad\u03b4\u03bf\u03c5 \u2014 \u0399\u03c3\u03cc\u03b3\u03b5\u03b9\u03bf",
+      "id": "ea710ef4-5384-49da-bdf5-ad80f626eb49",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "pitched_roof",
+      "params": {
+        "x0": -4.07,
+        "y0": -4.893,
+        "x1": 2.4299999999999997,
+        "y1": 3.543,
+        "eave_z": 2.7,
+        "pitch": 25.0,
+        "overhang": 0.5,
+        "rafter_spacing": 0.6,
+        "roof_form": "gable",
+        "tile": "roman",
+        "snow_zone": 2,
+        "altitude": 0.0,
+        "insulation": "xps",
+        "insulation_thickness": 0.08,
+        "gables": [
+          "y0",
+          "y1",
+          "x0",
+          "x1"
+        ]
+      },
+      "name": "\u039a\u03b5\u03c1\u03b1\u03bc\u03bf\u03c3\u03ba\u03b5\u03c0\u03ae \u03b4\u03af\u03c1\u03c1\u03b9\u03c7\u03c4\u03b7",
+      "id": "c347067c-7222-4d37-a20c-929d25dc64b5",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "pitched_roof",
+      "params": {
+        "x0": -7.893,
+        "y0": 3.4080000000000004,
+        "x1": -4.07,
+        "y1": 6.107,
+        "eave_z": 2.7,
+        "pitch": 25.0,
+        "overhang": 0.5,
+        "rafter_spacing": 0.6,
+        "roof_form": "gable",
+        "tile": "roman",
+        "snow_zone": 2,
+        "altitude": 0.0,
+        "insulation": "xps",
+        "insulation_thickness": 0.08,
+        "gables": [
+          "y0",
+          "y1",
+          "x0",
+          "x1"
+        ]
+      },
+      "name": "\u039a\u03b5\u03c1\u03b1\u03bc\u03bf\u03c3\u03ba\u03b5\u03c0\u03ae \u03b4\u03af\u03c1\u03c1\u03b9\u03c7\u03c4\u03b7",
+      "id": "b8305a13-a3ee-4d16-b43f-8cd267d856bc",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": -5.981,
+        "y": 4.757,
+        "z": 0.0,
+        "point_type": "light",
+        "power_w": 60.0
+      },
+      "name": "\u03a6\u03c9\u03c4\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc \u03bf\u03c1\u03bf\u03c6\u03ae\u03c2",
+      "id": "f819cf9f-46cb-4d08-9e94-b9b603f19e3b",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": -5.981,
+        "y": 3.798,
+        "z": 0.0,
+        "point_type": "socket",
+        "power_w": 200.0
+      },
+      "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
+      "id": "8a10552d-2866-46be-bb21-0fac75cb6a52",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": -5.981,
+        "y": 5.717,
+        "z": 0.0,
+        "point_type": "socket",
+        "power_w": 200.0
+      },
+      "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
+      "id": "a4924609-d260-4ae4-856b-f74081880abf",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": -0.224,
+        "y": -0.516,
+        "z": 0.0,
+        "point_type": "light",
+        "power_w": 60.0
+      },
+      "name": "\u03a6\u03c9\u03c4\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc \u03bf\u03c1\u03bf\u03c6\u03ae\u03c2",
+      "id": "82ab1fec-d876-4762-b578-ca70536ae49d",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": -3.68,
+        "y": -0.675,
+        "z": 0.0,
+        "point_type": "socket",
+        "power_w": 200.0
+      },
+      "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
+      "id": "c6a6ab45-e181-4089-9111-10eec3198bca",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": -0.82,
+        "y": -4.503,
+        "z": 0.0,
+        "point_type": "socket",
+        "power_w": 200.0
+      },
+      "name": "\u03a0\u03c1\u03af\u03b6\u03b1 \u03c3\u03bf\u03cd\u03ba\u03bf",
+      "id": "161b5e4c-3f09-44f6-8a74-8d5a4d0ab717",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": -3.679999999999998,
+        "y": 2.6727272727272724,
+        "z": 0.0,
+        "point_type": "panel",
+        "power_w": 0.0
+      },
+      "name": "\u0397\u03bb\u03b5\u03ba\u03c4\u03c1\u03b9\u03ba\u03cc\u03c2 \u03c0\u03af\u03bd\u03b1\u03ba\u03b1\u03c2",
+      "id": "41f602b5-54e1-4ec4-96ce-22dc586aecb1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": -7.685,
+        "y": 3.615,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a7",
+      "id": "84792176-9799-4745-8cbf-e3813ecf7771",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": -7.685,
+        "y": 5.885,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a1",
+      "id": "e56bc9cd-4184-4279-8aff-e43025f57c3b",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": -3.885,
+        "y": -4.685,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a16",
+      "id": "26163d00-a266-4720-83b4-e27b624d9af0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": -3.885,
+        "y": 0.1,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a15",
+      "id": "0e482dd2-c21a-49c0-bb90-abf4400715e8",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": -3.885,
+        "y": 3.465,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a8",
+      "id": "4d6812e1-621b-49b7-8436-6d7d1c544608",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": -3.95,
+        "y": 5.885,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a2",
+      "id": "347c6a8e-a289-48bc-8c47-5b25da18cc2d",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": -0.85,
+        "y": -4.685,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a17",
+      "id": "8815174f-d711-4f59-9ee9-191942f172fd",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": -0.85,
+        "y": 3.4,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a10",
+      "id": "f8e47d4a-860a-4f55-b247-0d99ac3dcdda",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": -0.85,
+        "y": 5.885,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a3",
+      "id": "eef6dd4f-1b1d-4c90-b27c-71191eec6921",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 2.235,
+        "y": -4.685,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a18",
+      "id": "a478f7c8-98e4-426c-9087-4c66e3ceb8ba",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 2.235,
+        "y": 0.165,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a12",
+      "id": "4ba153e2-6058-43fb-94b3-709ce8801730",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 2.3,
+        "y": 3.4,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a11",
+      "id": "d40612df-ce5f-43fd-bf97-3c6bfbb47187",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 2.3,
+        "y": 5.885,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a4",
+      "id": "4d4a4028-5eaa-4518-9ba2-e86a76fa1da0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 5.8,
+        "y": 0.165,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a13",
+      "id": "ebb7ec6f-3e4e-4c4e-8161-cd43bf4588f6",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 5.8,
+        "y": 5.885,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a5",
+      "id": "552e7631-3bb9-4ae2-8edc-c797dfb651b4",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 9.235,
+        "y": 0.165,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a14",
+      "id": "f090c9f2-c866-4a35-a21b-65f5fe7143b7",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 9.235,
+        "y": 3.5,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a9",
+      "id": "fce50fde-664c-469c-8bf3-51dc964c536f",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 9.235,
+        "y": 5.885,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Unassigned"
+      },
+      "name": "\u039a6",
+      "id": "06bf8684-d386-4985-845f-f1f912aba4b5",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": -7.75,
+        "y1": 3.5500000000000003,
+        "x2": -7.75,
+        "y2": 5.95,
+        "z": 2.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u03941",
+      "id": "57ca09f0-89b3-44a6-8c3e-697cfc688da8",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": -3.95,
+        "y1": -4.75,
+        "x2": -3.95,
+        "y2": 0.1,
+        "z": 2.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u039413",
+      "id": "e9a379f5-8002-4441-b94f-a37e84d7904f",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": -3.95,
+        "y1": 0.1,
+        "x2": -3.95,
+        "y2": 3.4000000000000004,
+        "z": 2.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u03949",
+      "id": "d4704f9b-9c0b-4fd4-b1d8-477464cc81ef",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 2.3000000000000003,
+        "y1": -4.75,
+        "x2": 2.3000000000000003,
+        "y2": 0.1,
+        "z": 2.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u039414",
+      "id": "580643e2-b764-4ac5-a54a-5c32bab3c171",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 2.3000000000000003,
+        "y1": 0.1,
+        "x2": 2.3000000000000003,
+        "y2": 3.4000000000000004,
+        "z": 2.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u039412",
+      "id": "b1f7aa77-b102-47f8-992f-bbdb99dc2911",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 9.3,
+        "y1": 0.1,
+        "x2": 9.3,
+        "y2": 3.5,
+        "z": 2.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u03948",
+      "id": "7b24e089-76e0-4702-8544-5d12b1b88fc6",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 9.3,
+        "y1": 3.5,
+        "x2": 9.3,
+        "y2": 5.95,
+        "z": 2.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u03947",
+      "id": "314fe253-2380-453a-92e1-9d337d43898e",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": -7.75,
+        "y1": 5.95,
+        "x2": -3.95,
+        "y2": 5.95,
+        "z": 2.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u03942",
+      "id": "cbfdc1de-8781-4c70-87e7-dd308fd4f940",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": -3.95,
+        "y1": 5.95,
+        "x2": -0.8500000000000001,
+        "y2": 5.95,
+        "z": 2.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u03943",
+      "id": "046440df-5342-402f-a055-021afb9bc4b6",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": -0.8500000000000001,
+        "y1": 5.95,
+        "x2": 2.3000000000000003,
+        "y2": 5.95,
+        "z": 2.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u03944",
+      "id": "e4f01f60-5f52-485a-b359-4ff25cae86b8",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 2.3000000000000003,
+        "y1": 5.95,
+        "x2": 5.800000000000001,
+        "y2": 5.95,
+        "z": 2.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u03945",
+      "id": "eae7a591-7529-44fd-a3ab-be2d426952e5",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 5.800000000000001,
+        "y1": 5.95,
+        "x2": 9.3,
+        "y2": 5.95,
+        "z": 2.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u03946",
+      "id": "5ff08cd8-9c0a-42b0-985f-d7948d644eb4",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": -3.95,
+        "y1": -4.75,
+        "x2": -0.8500000000000001,
+        "y2": -4.75,
+        "z": 2.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u039417",
+      "id": "745e7f83-402c-4936-aa99-ea57b86f5786",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": -0.8500000000000001,
+        "y1": -4.75,
+        "x2": 2.3000000000000003,
+        "y2": -4.75,
+        "z": 2.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u039418",
+      "id": "6c61dbe7-09e3-464e-bc04-bab2030ca04c",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 2.3000000000000003,
+        "y1": 0.1,
+        "x2": 5.800000000000001,
+        "y2": 0.1,
+        "z": 2.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u039415",
+      "id": "eea1de36-27eb-43a1-a2ff-16d0862383c3",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 5.800000000000001,
+        "y1": 0.1,
+        "x2": 9.3,
+        "y2": 0.1,
+        "z": 2.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u039416",
+      "id": "f95e1ba9-53ef-4787-b3f3-51e3c993b753",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": -3.95,
+        "y1": 3.4000000000000004,
+        "x2": -0.8500000000000001,
+        "y2": 3.4000000000000004,
+        "z": 2.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u039410",
+      "id": "d0cb5310-0e0d-4a0b-a548-952018221995",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": -0.8500000000000001,
+        "y1": 3.4000000000000004,
+        "x2": 2.3000000000000003,
+        "y2": 3.4000000000000004,
+        "z": 2.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground"
+      },
+      "name": "\u039411",
+      "id": "05ed1441-9b58-42e3-bfa0-7c9ed8307597",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "opening",
+      "params": {
+        "offset": 3.1848831643899698,
+        "width": 1.6610000000000003,
+        "height": 2.3,
+        "sill": 0.0,
+        "shape": "arch",
+        "arch_rise": 0.5,
+        "flat_margin": 0.0
+      },
+      "name": "\u0386\u03bd\u03bf\u03b9\u03b3\u03bc\u03b1 1",
+      "id": "de4a4bbd-607d-45c8-ae91-26abc848f556",
+      "parent_id": "8495964e-7254-4796-804b-736d52bf89c0",
+      "locked": false,
+      "visible": true,
+      "revision": 3
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 0.7912424289627237,
+        "width": 0.9,
+        "height": 2.1,
+        "sill": 0.0,
+        "swing": "out"
+      },
+      "name": "\u03a0\u03cc\u03c1\u03c4\u03b1 1",
+      "id": "3175ea70-6a2a-45d9-b3a8-3729621f83ca",
+      "parent_id": "39ce2596-4bcf-4486-8887-2d10de923391",
+      "locked": false,
+      "visible": true,
+      "revision": 3
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": -4.340726972193994,
+        "y1": 3.691807016501136,
+        "x2": -4.06693783305005,
+        "y2": 2.9137155728295125,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.27,
+        "wall_type": "brick_double_insulated",
+        "reference_applied": true
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 12",
+      "id": "7b9ee6ba-865e-4a81-a983-fb7051df5967",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 2
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": -4.3400015980415985,
+        "y1": 3.542727272727273,
+        "x2": -4.336934637004692,
+        "y2": 2.9124018550979125,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.27,
+        "wall_type": "brick_double_insulated"
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 12",
+      "id": "99bfe6e6-9c08-4452-bc30-a7564ee2bdd1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": -4.3400015980415985,
+        "y1": 3.542727272727273,
+        "x2": -7.757714978524814,
+        "y2": 3.542727272727273,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.27,
+        "wall_type": "brick_double_insulated"
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 9",
+      "id": "89f34fd5-64f7-43c3-8d08-e10c580a5706",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": -4.06693783305005,
+        "y1": 2.9137155728295125,
+        "x2": -4.069539274911341,
+        "y2": 3.4483669452874146,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.27,
+        "wall_type": "brick_double_insulated",
+        "reference_applied": true
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 13",
+      "id": "8564348e-381b-486c-b5ea-34b60861eeb3",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 2
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": -4.069539274911341,
+        "y1": 3.4483669452874146,
+        "x2": -3.9155009449463005,
+        "y2": 3.504432312330765,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.27,
+        "wall_type": "brick_double_insulated",
+        "reference_applied": true
+      },
+      "name": "\u03a4\u03bf\u03af\u03c7\u03bf\u03c2 14",
+      "id": "b962ee39-99b7-40bd-87f3-3e5621c551c9",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 1
+    }
+  ],
+  "dependencies": {
+    "8495964e-7254-4796-804b-736d52bf89c0": [
+      "de4a4bbd-607d-45c8-ae91-26abc848f556"
+    ],
+    "39ce2596-4bcf-4486-8887-2d10de923391": [
+      "3175ea70-6a2a-45d9-b3a8-3729621f83ca"
+    ]
+  },
+  "levels": {
+    "Ground": 0.0
+  },
+  "work_plane": {
+    "name": "XY",
+    "origin": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "u": [
+      1.0,
+      0.0,
+      0.0
+    ],
+    "v": [
+      0.0,
+      1.0,
+      0.0
+    ]
+  },
+  "materials": {},
+  "constructions": {},
+  "room_data": {},
+  "room_bindings": {
+    "98cef48a-ea87-4240-a69d-a53d9412a8aa": {
+      "signature": "room-6bf0106cdfc21703",
+      "polygon": [
+        [
+          -3.934999999999998,
+          3.4077272727272727
+        ],
+        [
+          -3.9349999999999996,
+          -4.757727272727273
+        ],
+        [
+          2.294999999999999,
+          -4.757727272727274
+        ],
+        [
+          2.295,
+          0.11954545454545418
+        ],
+        [
+          2.295,
+          3.4077272727272723
+        ]
+      ],
+      "z": 0.0,
+      "status": "enclosed"
+    },
+    "efb2ed0f-cfe7-449b-90cb-fad0aef06528": {
+      "signature": "room-703807c67bbbbd6f",
+      "polygon": [
+        [
+          -4.216836829498202,
+          5.975446308632254
+        ],
+        [
+          -7.757714978524814,
+          5.9716296015990356
+        ],
+        [
+          -7.757714978524814,
+          3.542727272727273
+        ],
+        [
+          -4.205000000000003,
+          3.542727272727273
+        ]
+      ],
+      "z": 0.0,
+      "status": "unclosed"
+    },
+    "2808404a-84a3-4344-8e76-68dea3993286": {
+      "signature": "room-4dd06886799d8bee",
+      "polygon": [
+        [
+          -4.216836829498202,
+          5.975446308632254
+        ],
+        [
+          -7.757714978524814,
+          5.9716296015990356
+        ],
+        [
+          -7.757714978524814,
+          3.542727272727273
+        ],
+        [
+          -4.3400015980415985,
+          3.542727272727273
+        ],
+        [
+          -4.340726972193994,
+          3.691807016501136
+        ],
+        [
+          -4.3400015980415985,
+          3.542727272727273
+        ],
+        [
+          -4.205000000000003,
+          3.542727272727273
+        ]
+      ],
+      "z": 0.0,
+      "status": "unclosed"
+    },
+    "f455ba18-3b49-418c-9e7a-9119ad55a7ae": {
+      "signature": "room-499353424d4f65c5",
+      "polygon": [
+        [
+          -4.216836829498202,
+          5.975446308632254
+        ],
+        [
+          -7.757714978524814,
+          5.9716296015990356
+        ],
+        [
+          -7.757714978524814,
+          3.542727272727273
+        ],
+        [
+          -4.3400015980415985,
+          3.542727272727273
+        ],
+        [
+          -4.288269879851424,
+          3.542727272727273
+        ],
+        [
+          -4.340726972193994,
+          3.691807016501136
+        ],
+        [
+          -4.288269879851424,
+          3.542727272727273
+        ],
+        [
+          -4.205000000000003,
+          3.542727272727273
+        ]
+      ],
+      "z": 0.0,
+      "status": "enclosed"
+    },
+    "7ebaf6f6-c50b-4e50-8d47-8a81eb432686": {
+      "signature": "room-c5a38ff243a87a83",
+      "polygon": [
+        [
+          -3.934999999999998,
+          3.4077272727272727
+        ],
+        [
+          2.295,
+          3.4077272727272723
+        ],
+        [
+          2.295,
+          0.11954545454545418
+        ],
+        [
+          9.317418176082484,
+          0.11954545454545265
+        ],
+        [
+          9.317418176082485,
+          5.971629601599035
+        ],
+        [
+          -4.216836829498202,
+          5.975446308632254
+        ],
+        [
+          -4.205000000000003,
+          3.542727272727273
+        ],
+        [
+          -4.288269879851424,
+          3.542727272727273
+        ],
+        [
+          -3.934999999999998,
+          2.538756583171244
+        ]
+      ],
+      "z": 0.0,
+      "status": "unclosed"
+    }
+  },
+  "surface_modifiers": [],
+  "view_layers": {
+    "workspace": "arch",
+    "overrides": {}
+  }
+}
