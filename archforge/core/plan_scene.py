@@ -199,16 +199,19 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
         return z<=lowest+tolerance
     return True
 
-def _conduit_labels(doc,f):
+def _conduit_labels(doc,f,cmap=None):
     from archforge.mep.conduits import conduit_map
+    from archforge.mep.conduit_display import display_pieces,display_segments
     from archforge.mep.electrical import _floor_of as elec_floor
     level=float(doc.work_plane.origin[2])
     specs=[]
-    for p in conduit_map(doc)['pieces']:
-        a,b=p['a'],p['b']
-        if abs(a[2]-b[2])>1e-6 or elec_floor(doc,a[2])!=level or len(p['lines'])<2 or p['length_m']<.5:
+    for p in display_pieces(cmap if cmap is not None else conduit_map(doc)):
+        segments=[(a,b) for a,b,source,connector in display_segments(p)
+                  if not connector and abs(source[0][2]-source[1][2])<1e-6 and elec_floor(doc,source[0][2])==level]
+        if not segments or p['length_m']<.5:
             continue
-        text=(f"{p['count']}×" if p['count']>1 else '')+f"Φ{p['dn']} · "+",".join(p['lines'])
+        a,b=max(segments,key=lambda q: math.dist(*q))
+        text=f"{p['conduit']} · Φ{p['dn']} · "+",".join(p['lines'])
         specs.append((text,_axis_candidates(a[:2],b[:2],.12)))
     placed=place_labels(tuple(specs))
     for (text,_c),(anchor,align,min_scale) in zip(specs,placed):
@@ -1041,12 +1044,23 @@ def build_plan_frame(doc,preview=None,layers=True):
         from archforge.mep.electrical import POINT_TYPES as ELEC,_floor_of as elec_floor,route_cables_cached
         level=float(doc.work_plane.origin[2])
         wiring=route_cables_cached(doc)
-        for a,b,group,cid in wiring['runs']:
-            rel=a[2]-level
-            if abs(a[2]-b[2])<1e-9 and elec_floor(doc,a[2])==level:
-                run='floor' if rel<1.0 else ('wall' if rel<2.45 else 'ceiling')
-                f.primitives.append(Primitive2D('polyline',((a[0],a[1]),(b[0],b[1])),role='cable',meta=(('group',group),('circuit',cid),('run',run))))
-        for x,y,z,kind,cid in wiring['boxes']:
+        from archforge.mep.conduits import conduit_map
+        from archforge.mep.conduit_display import display_pieces,display_segments,circuit_group
+        conduit_map_ = conduit_map(doc,wiring)
+        for p in display_pieces(conduit_map_):
+            for a,b,source,connector in display_segments(p):
+                rel=source[0][2]-level
+                if not connector and abs(source[0][2]-source[1][2])<1e-9 and elec_floor(doc,source[0][2])==level:
+                    run='floor' if rel<1.0 else ('wall' if rel<2.45 else 'ceiling')
+                    meta=(('group',circuit_group(p,wiring)),('circuit',','.join(p['lines'])),('run',run),
+                          ('conduit',p['conduit']),('conduit_piece',p['id']),('pipe_index',p['pipe_index']),
+                          ('diameter_mm',p['dn']),('source_segment',source),('connector',connector),('schematic',p['schematic']))
+                    f.primitives.append(Primitive2D('polyline',((a[0],a[1]),(b[0],b[1])),role='cable',meta=meta))
+        box_rows = list(wiring['boxes'])
+        occupied = {tuple(round(float(v),6) for v in row[:3]) for row in box_rows}
+        box_rows += [(x,y,z,'junction','') for x,y,z in conduit_map_['split_boxes']
+                     if tuple(round(float(v),6) for v in (x,y,z)) not in occupied]
+        for x,y,z,kind,cid in box_rows:
             if elec_floor(doc,z)==level:
                 r=.07
                 pts=((x,y-r),(x+r,y),(x,y+r),(x-r,y),(x,y-r)) if kind=='floor' else ((x-r,y-r),(x+r,y-r),(x+r,y+r),(x-r,y+r),(x-r,y-r))
@@ -1057,9 +1071,10 @@ def build_plan_frame(doc,preview=None,layers=True):
         # Ασθενή of the active storey: data / TV star from the rack and the KNX bus (own layer and colours).
         from archforge.mep.low_voltage import LV_RUN_DROP,route_low_voltage_cached
         lv=route_low_voltage_cached(doc)
-        for a,b,system,tid in lv['runs']:
-            if abs(a[2]-b[2])<1e-9 and elec_floor(doc,a[2])==level:
-                f.primitives.append(Primitive2D('polyline',((a[0],a[1]),(b[0],b[1])),role='lv-cable',meta=(('system',system),('outlet',tid))))
+        from archforge.mep.conduit_display import low_voltage_segments
+        for a,b,system,tid,source,connector in low_voltage_segments(lv,display_pieces(conduit_map_)):
+            if not connector and abs(source[0][2]-source[1][2])<1e-9 and elec_floor(doc,source[0][2])==level:
+                f.primitives.append(Primitive2D('polyline',((a[0],a[1]),(b[0],b[1])),role='lv-cable',meta=(('system',system),('outlet',tid),('source_segment',source),('connector',connector),('schematic',True))))
         for x,y,z,_kind,tid in lv['boxes']:
             if elec_floor(doc,z)==level:
                 r=.05
@@ -1213,7 +1228,7 @@ def build_plan_frame(doc,preview=None,layers=True):
                 f.primitives.append(Primitive2D('label',((float(e.params['x'])+.15,float(e.params['y'])+.30),),entity_id=eid,role='ventilation-label',meta=(('text',text),)))
     # Conduit map: size and lines on every shared piece of the active storey (owner 18/10: «πόσα καλώδια περνάνε;»).
     if any(e.kind=='electrical_point' and e.params.get('point_type')=='panel' for e in doc.entities.values()):
-        _conduit_labels(doc,f)
+        _conduit_labels(doc,f,conduit_map_)
     # Pools of the active storey: inside edge, depths, safety zones 0/1/2, pipes to the equipment room.
     if any(e.kind=='pool' for e in doc.entities.values()):
         _pool_primitives(doc,f)

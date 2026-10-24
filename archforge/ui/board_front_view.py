@@ -25,11 +25,15 @@ class BoardFrontView(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.front = None
+        self.selected_circuit = None
         self._hits = []
         self.setMinimumSize(560, 360)
 
     def set_front(self, front):
         self.front = front
+        outputs = front.get('outputs',[]) if front else []
+        if self.selected_circuit not in {o['circuit'] for o in outputs}:
+            self.selected_circuit = outputs[0]['circuit'] if outputs else None
         self._hits = []
         if front:
             rails = max(len(front["rails"]), 1)
@@ -37,8 +41,33 @@ class BoardFrontView(QWidget):
             bars = 1 + len(front["neutral_bars"])
             terms = max([len(front["earth_bar"])] + [len(n["terminals"]) for n in front["neutral_bars"]])
             self.setMinimumSize(int(max(600, 2 * PAD + max(widest, 12) * MW + 140, 2 * PAD + 160 + 30 * terms)),
-                                int(130 + rails * (DH + RAIL_GAP) + bars * BAR_STEP + 90))
+                                int(130 + rails * (DH + RAIL_GAP) + bars * BAR_STEP + 90 +
+                                    (60+24*max(len(o["conductors"]) for o in outputs) if outputs else 0)))
         self.update()
+
+    def set_circuit(self,circuit_id):
+        if self.front and any(o['circuit']==circuit_id for o in self.front.get('outputs',())):
+            self.selected_circuit=circuit_id
+            self.update()
+
+    def _output_wiring(self,p,y,w):
+        output=next((o for o in self.front.get('outputs',()) if o['circuit']==self.selected_circuit),None)
+        if output is None:return y
+        p.setPen(QColor('#1f2937'))
+        p.drawText(QPointF(PAD,y),f"{output['circuit']} — σύνδεση προς {output['label']}")
+        y+=18
+        for code,_label,section in output['conductors']:
+            source = (f"Ασφάλεια {output['circuit']} ({output.get('phase') or 'L'})" if code=='L' else
+                      output['neutral_bar'] if code=='N' else 'Μπάρα PE' if code=='PE' else 'Έλεγχος DALI από τη μελέτη')
+            p.setPen(QColor('#374151'));p.drawText(QRectF(PAD,y-10,210,20),Qt.AlignmentFlag.AlignVCenter,source)
+            pen=QPen(QColor(WIRE.get(code,'#75608c')),2.2)
+            if code.startswith('DA'):pen.setStyle(Qt.PenStyle.DashLine)
+            p.setPen(pen);p.drawLine(QPointF(PAD+216,y),QPointF(w-PAD-135,y))
+            p.drawEllipse(QPointF(w-PAD-135,y),3,3)
+            p.setPen(QColor('#1f2937'))
+            p.drawText(QPointF(w-PAD-123,y+4),f"{code} · {section:g} mm²".replace('.',','))
+            y+=24
+        return y+18
 
     # ------------------------------------------------------------------------------------------------ paint
     def paintEvent(self, _event):
@@ -145,6 +174,7 @@ class BoardFrontView(QWidget):
         p.drawLine(QPointF(x0 + 8 * (len(lines) - 1), top + 6), QPointF(x0 + 8 * (len(lines) - 1), y + 9))
         p.drawLine(QPointF(x0 + 8 * (len(lines) - 1), y + 9), QPointF(bar_x, y + 9))
         y += BAR_STEP
+        y = self._output_wiring(p,y,w)
         p.setPen(QColor("#555"))
         p.drawText(QRectF(PAD, y - 12, w - 2 * PAD, 40), Qt.TextFlag.TextWordWrap,
                    "Σχηματικό (board.front_layout), όχι κατασκευαστικό σχέδιο · χρώματα αγωγών: σύμβαση σχεδίου — "
@@ -206,6 +236,7 @@ class BoardFrontView(QWidget):
         pos = event.position()
         for rect, cid in self._hits:
             if rect.contains(pos):
+                self.set_circuit(cid)
                 self.circuit_clicked.emit(cid)
                 return
         super().mousePressEvent(event)
