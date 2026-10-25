@@ -1,5 +1,19 @@
 # ArchForge — Αρχείο εργασιών (Worklog)
 
+## 25/10 — GPT: ολοκλήρωση παράδοσης περιεχομένου πάνω στη λωρίδα Claude
+
+`codex/lighting-content-integration`, βάση `adb567a` του `claude/kind-cannon-nvcs2f`.
+Ανακτήθηκε το αυθεντικό πακέτο των 16 φωτιστικών και συμπεριλήφθηκε στον κώδικα/Windows packaging:
+native geometry, GLB, 26 emitters και εικονίδια. Η εκκίνηση συμπληρώνει τον υπάρχοντα κατάλογο χωρίς
+αντικατάσταση αρχείων χρήστη. Διορθώθηκαν το emissive γενικό on/auto/off, η διατήρηση ομάδας στην
+Αλλαγή και ο συγχρονισμός του ανοιχτού popup μετά από Undo/Ιδιότητες χωρίς δεύτερη εντολή.
+
+Πριν τις διορθώσεις αναπαράχθηκαν οι νέες αποτυχίες. Μετά: 23 στοχευμένα passed και Qt offscreen
+mouse checks για το πραγματικό popup και τις 16 επιλογές αντικατάστασης. Η αρχική πλήρης σειρά
+του Claude πέρασε (2125 / 1 skipped). Τελική πλήρης σειρά και Windows CI: βλ. PR του branch.
+Δεν επιβεβαιώθηκε 3D εικόνα στο παρόν περιβάλλον (WebGL/X socket/download περιορισμοί), ούτε
+Windows laptop. Καμία συγχώνευση· το HOLD διατηρείται. Λεπτομέρειες στο HANDOFF και LIGHTING_CONTENT.
+
 > Συνέχεια από προηγούμενο chat: δες **`docs/HANDOFF.md`** (αιτήματα ιδιοκτήτη, αποφάσεις, πού σταματήσαμε).
 
 Branch: `gpt/fix-empty-frame-storey` (από `gpt/terrain-regions-basement`, `bcb3304`) · Δοκιμή στα Windows:

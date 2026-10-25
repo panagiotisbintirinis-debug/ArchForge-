@@ -1605,8 +1605,9 @@ class MainWindow(QMainWindow):
     def _seed_core_library(self):
         """Build the shipped core library into the local store (first run only)."""
         from archforge.library.catalog import seed_core_library
+        from archforge.library.bundled_lights import seed_lights
         try:
-            built = seed_core_library()
+            built = seed_lights() + seed_core_library()
         except Exception as exc:
             self.statusBar().showMessage(f'Βασική βιβλιοθήκη: {exc}', 6000)
             return

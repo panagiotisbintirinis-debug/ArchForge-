@@ -14,7 +14,7 @@ Owner 25/10: «μικρό μενού που θα μας δείχνει όλα τ
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QSignalBlocker
 from PySide6.QtWidgets import (QCheckBox, QDockWidget, QHBoxLayout, QLabel, QMenu, QPushButton, QScrollArea, QSlider,
                                QToolButton, QWidget, QWidgetAction)
 
@@ -81,6 +81,27 @@ class LightingStrip(QWidget):
             ids = [i for g in room["groups"] for i in g["ids"]]
             lit = sum(1 for i in ids if fixture_on(self.window.doc.get(i)))
             self.buttons[room["title"]].setText(f"{'💡' if lit else '○'} {room['title']}  {lit}/{len(ids)}")
+        # Undo and Inspector edits use the same model. Keep an open popup truthful
+        # without rebuilding the widget under a pressed mouse or emitting edits.
+        if self._open_menu is not None:
+            from archforge.mep.lighting import fixture_level, fixture_switch
+            for action in self._open_menu.actions():
+                if not isinstance(action, QWidgetAction):
+                    continue
+                row = action.defaultWidget()
+                eid = row.objectName().removeprefix("lightRow_")
+                entity = self.window.doc.entities.get(eid)
+                row.setEnabled(entity is not None)
+                if entity is None:
+                    continue
+                on = row.findChild(QCheckBox, "lightRowOn")
+                dim = row.findChild(QSlider, "lightRowDim")
+                with QSignalBlocker(on):
+                    on.setChecked(fixture_switch(entity))
+                if not dim.isSliderDown():
+                    with QSignalBlocker(dim):
+                        dim.setValue(int(round(fixture_level(entity) * 100)))
+                    row.findChild(QLabel, "lightRowLevel").setText(f"{dim.value()} %")
 
     # -- one room's pop-up ---------------------------------------------------------------------------------------
     def _fill(self, menu, title):
@@ -119,7 +140,7 @@ class LightingStrip(QWidget):
             from archforge.library.lighting import capabilities
             if not capabilities(entity)["dimmable"]:
                 dim.setEnabled(False); dim.setToolTip("Το μοντέλο δεν ρυθμίζεται σε ένταση (μόνο αναμμένο / σβηστό)")
-        shown = QLabel(f"{dim.value()} %"); shown.setFixedWidth(36)
+        shown = QLabel(f"{dim.value()} %"); shown.setFixedWidth(36); shown.setObjectName("lightRowLevel")
         dim.valueChanged.connect(lambda v, l=shown: l.setText(f"{v} %"))
         dim.sliderReleased.connect(lambda s=dim, i=eid: self._switch(i, level=s.value() / 100.0))
         dim.valueChanged.connect(lambda v, s=dim, i=eid: not s.isSliderDown() and self._switch(i, level=v / 100.0))

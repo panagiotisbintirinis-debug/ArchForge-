@@ -101,6 +101,17 @@ function afUpdateLightVisibility() {
   archLightRoot.visible = architecturalLightsSwitch === "on" ||
       (architecturalLightsSwitch === "auto" && architecturalLightingMode === "night");
   window.__archforgeProjectLightsOn = archLightRoot.visible;
+  // Lamp glass follows the very same project switch as the emitted light.
+  // Keep the instance's base value so on/off never compounds the dimmer.
+  modelRoot.traverse((object) => {
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    for (const material of materials) {
+      if (material && material.userData.projectLightEmissive !== undefined) {
+        material.emissiveIntensity = archLightRoot.visible ? material.userData.projectLightEmissive : 0;
+      }
+    }
+  });
+  if (typeof wakeRender === "function") wakeRender(2);
 }
 
 window.setArchitecturalLights = function(payload) {

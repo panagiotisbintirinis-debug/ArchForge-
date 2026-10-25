@@ -406,7 +406,8 @@ def replacement_choices(entity):
     return out
 
 
-LIBRARY_KEPT_ON_REPLACE = ("light_enabled", "light_level", "light_shadows", "aim_tilt_deg", "aim_azimuth_deg")
+LIBRARY_KEPT_ON_REPLACE = ("light_enabled", "light_level", "light_shadows", "aim_tilt_deg", "aim_azimuth_deg",
+                           "automation_group")
 
 
 def replace_fixture(doc, eid, kind, ref=None):

@@ -282,6 +282,7 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                     glow = record.get("emissive_materials", {}).get(_name) if entity.params.get("light_sources") else None
                     if glow:
                         material["emissive"] = glow
+                        material["projectLightEmissive"] = True
                         material["emissiveIntensity"] = (float(entity.params.get("light_level", 1))
                                                         if entity.params.get("light_enabled", 1) else 0.0)
                     objects.append({

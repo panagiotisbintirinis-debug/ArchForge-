@@ -39,6 +39,7 @@ jobs:
           pyinstaller --noconfirm --windowed --name ArchForge
           --collect-submodules archforge
           --add-data "archforge/ui/vendor;archforge/ui/vendor"
+          --add-data "archforge/library/content;archforge/library/content"
           --add-data "build_info.json;."
           --add-data "docs/scenarios/S*.archforge;samples"
           --collect-all OCP

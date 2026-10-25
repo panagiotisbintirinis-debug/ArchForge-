@@ -1,0 +1,437 @@
+{
+  "title": "ArchForge Lighting 01",
+  "items": [
+    {
+      "id": "01_pendant_dome",
+      "name_el": "Κρεμαστό καμπάνα",
+      "name_en": "Dome pendant",
+      "model": "models/01_pendant_dome.glb",
+      "bbox_m": [
+        0.4,
+        0.4,
+        0.6
+      ],
+      "mount": "ceiling",
+      "category": "interior",
+      "dimension_status": "DESIGN_DEFAULT: original visual model dimensions, not a manufacturer product",
+      "provenance": {
+        "source": "original procedural geometry",
+        "license": "CC0-1.0",
+        "redistributable": true
+      },
+      "triangles": 1664,
+      "asset_id": "afef4a9dc1fd493d9",
+      "active_light": true,
+      "render_dimmable": true,
+      "aimable": false,
+      "light_role": "central",
+      "emitters": 1,
+      "source_status": "DESIGN_DEFAULT: sourced reference inputs; original fixture, analytic distribution"
+    },
+    {
+      "id": "02_pendant_globe",
+      "name_el": "Κρεμαστό σφαίρα",
+      "name_en": "Globe pendant",
+      "model": "models/02_pendant_globe.glb",
+      "bbox_m": [
+        0.3,
+        0.3,
+        0.6
+      ],
+      "mount": "ceiling",
+      "category": "interior",
+      "dimension_status": "DESIGN_DEFAULT: original visual model dimensions, not a manufacturer product",
+      "provenance": {
+        "source": "original procedural geometry",
+        "license": "CC0-1.0",
+        "redistributable": true
+      },
+      "triangles": 1280,
+      "asset_id": "a7f1f925813da4064",
+      "active_light": true,
+      "render_dimmable": true,
+      "aimable": false,
+      "light_role": "central",
+      "emitters": 1,
+      "source_status": "DESIGN_DEFAULT: sourced reference inputs; original fixture, analytic distribution"
+    },
+    {
+      "id": "03_pendant_ring",
+      "name_el": "Κρεμαστό δακτύλιος",
+      "name_en": "Ring pendant",
+      "model": "models/03_pendant_ring.glb",
+      "bbox_m": [
+        0.588,
+        0.588,
+        0.48331479122813215
+      ],
+      "mount": "ceiling",
+      "category": "interior",
+      "dimension_status": "DESIGN_DEFAULT: original visual model dimensions, not a manufacturer product",
+      "provenance": {
+        "source": "original procedural geometry",
+        "license": "CC0-1.0",
+        "redistributable": true
+      },
+      "triangles": 2116,
+      "asset_id": "a9713a53d1531cbc2",
+      "active_light": true,
+      "render_dimmable": true,
+      "aimable": false,
+      "light_role": "central",
+      "emitters": 8,
+      "source_status": "DESIGN_DEFAULT: sourced reference inputs; original fixture, analytic distribution"
+    },
+    {
+      "id": "04_ceiling_disk",
+      "name_el": "Πλαφονιέρα δίσκος",
+      "name_en": "Ceiling disk",
+      "model": "models/04_ceiling_disk.glb",
+      "bbox_m": [
+        0.42,
+        0.42,
+        0.05
+      ],
+      "mount": "ceiling",
+      "category": "interior",
+      "dimension_status": "DESIGN_DEFAULT: original visual model dimensions, not a manufacturer product",
+      "provenance": {
+        "source": "original procedural geometry",
+        "license": "CC0-1.0",
+        "redistributable": true
+      },
+      "triangles": 320,
+      "asset_id": "a1a69280c81eb5a22",
+      "active_light": true,
+      "render_dimmable": true,
+      "aimable": false,
+      "light_role": "central",
+      "emitters": 1,
+      "source_status": "DESIGN_DEFAULT: sourced reference inputs; original fixture, analytic distribution"
+    },
+    {
+      "id": "05_surface_spot",
+      "name_el": "Σποτ κυλινδρικό",
+      "name_en": "Surface spotlight",
+      "model": "models/05_surface_spot.glb",
+      "bbox_m": [
+        0.1,
+        0.1,
+        0.12
+      ],
+      "mount": "ceiling",
+      "category": "interior",
+      "dimension_status": "DESIGN_DEFAULT: original visual model dimensions, not a manufacturer product",
+      "provenance": {
+        "source": "original procedural geometry",
+        "license": "CC0-1.0",
+        "redistributable": true
+      },
+      "triangles": 320,
+      "asset_id": "aacea72f460b5e86b",
+      "active_light": true,
+      "render_dimmable": true,
+      "aimable": false,
+      "light_role": "spot",
+      "emitters": 1,
+      "source_status": "DESIGN_DEFAULT: sourced reference inputs; original fixture, analytic distribution"
+    },
+    {
+      "id": "06_wall_globe",
+      "name_el": "Απλίκα σφαίρα",
+      "name_en": "Wall globe",
+      "model": "models/06_wall_globe.glb",
+      "bbox_m": [
+        0.2,
+        0.26,
+        0.2
+      ],
+      "mount": "wall",
+      "category": "interior",
+      "dimension_status": "DESIGN_DEFAULT: original visual model dimensions, not a manufacturer product",
+      "provenance": {
+        "source": "original procedural geometry",
+        "license": "CC0-1.0",
+        "redistributable": true
+      },
+      "triangles": 1132,
+      "asset_id": "a255c8c2a13455351",
+      "active_light": true,
+      "render_dimmable": true,
+      "aimable": false,
+      "light_role": "wall",
+      "emitters": 1,
+      "source_status": "DESIGN_DEFAULT: sourced reference inputs; original fixture, analytic distribution"
+    },
+    {
+      "id": "07_table_lamp",
+      "name_el": "Επιτραπέζιο με καπέλο",
+      "name_en": "Table lamp",
+      "model": "models/07_table_lamp.glb",
+      "bbox_m": [
+        0.36,
+        0.36,
+        0.45
+      ],
+      "mount": "table",
+      "category": "interior",
+      "dimension_status": "DESIGN_DEFAULT: original visual model dimensions, not a manufacturer product",
+      "provenance": {
+        "source": "original procedural geometry",
+        "license": "CC0-1.0",
+        "redistributable": true
+      },
+      "triangles": 1664,
+      "asset_id": "a64684bac9c4a575a",
+      "active_light": true,
+      "render_dimmable": true,
+      "aimable": false,
+      "light_role": "table",
+      "emitters": 1,
+      "source_status": "DESIGN_DEFAULT: sourced reference inputs; original fixture, analytic distribution"
+    },
+    {
+      "id": "08_floor_lamp",
+      "name_el": "Επιδαπέδιο με καπέλο",
+      "name_en": "Floor lamp",
+      "model": "models/08_floor_lamp.glb",
+      "bbox_m": [
+        0.48,
+        0.48,
+        1.48
+      ],
+      "mount": "floor",
+      "category": "interior",
+      "dimension_status": "DESIGN_DEFAULT: original visual model dimensions, not a manufacturer product",
+      "provenance": {
+        "source": "original procedural geometry",
+        "license": "CC0-1.0",
+        "redistributable": true
+      },
+      "triangles": 1664,
+      "asset_id": "aa12072030d5ba7f9",
+      "active_light": true,
+      "render_dimmable": true,
+      "aimable": false,
+      "light_role": "floor",
+      "emitters": 1,
+      "source_status": "DESIGN_DEFAULT: sourced reference inputs; original fixture, analytic distribution"
+    },
+    {
+      "id": "09_outdoor_up_down",
+      "name_el": "Εξωτερική απλίκα πάνω–κάτω",
+      "name_en": "Outdoor up-down sconce",
+      "model": "models/09_outdoor_up_down.glb",
+      "bbox_m": [
+        0.1,
+        0.11,
+        0.2
+      ],
+      "mount": "wall",
+      "category": "exterior",
+      "dimension_status": "DESIGN_DEFAULT: original visual model dimensions, not a manufacturer product",
+      "provenance": {
+        "source": "original procedural geometry",
+        "license": "CC0-1.0",
+        "redistributable": true
+      },
+      "triangles": 492,
+      "asset_id": "a9ab0198d15c63c0d",
+      "active_light": true,
+      "render_dimmable": true,
+      "aimable": false,
+      "light_role": "wall",
+      "emitters": 2,
+      "source_status": "DESIGN_DEFAULT: sourced reference inputs; original fixture, analytic distribution"
+    },
+    {
+      "id": "10_outdoor_bulkhead",
+      "name_el": "Εξωτερική πλαφονιέρα",
+      "name_en": "Outdoor bulkhead",
+      "model": "models/10_outdoor_bulkhead.glb",
+      "bbox_m": [
+        0.26,
+        0.26,
+        0.05
+      ],
+      "mount": "ceiling",
+      "category": "exterior",
+      "dimension_status": "DESIGN_DEFAULT: original visual model dimensions, not a manufacturer product",
+      "provenance": {
+        "source": "original procedural geometry",
+        "license": "CC0-1.0",
+        "redistributable": true
+      },
+      "triangles": 1280,
+      "asset_id": "aa08d3e63067238e9",
+      "active_light": true,
+      "render_dimmable": true,
+      "aimable": false,
+      "light_role": "central",
+      "emitters": 1,
+      "source_status": "DESIGN_DEFAULT: sourced reference inputs; original fixture, analytic distribution"
+    },
+    {
+      "id": "11_garden_bollard",
+      "name_el": "Κολωνάκι κήπου",
+      "name_en": "Garden bollard",
+      "model": "models/11_garden_bollard.glb",
+      "bbox_m": [
+        0.16,
+        0.16,
+        0.76
+      ],
+      "mount": "floor",
+      "category": "exterior",
+      "dimension_status": "DESIGN_DEFAULT: original visual model dimensions, not a manufacturer product",
+      "provenance": {
+        "source": "original procedural geometry",
+        "license": "CC0-1.0",
+        "redistributable": true
+      },
+      "triangles": 640,
+      "asset_id": "a197f81c38ac2bce5",
+      "active_light": true,
+      "render_dimmable": true,
+      "aimable": false,
+      "light_role": "garden",
+      "emitters": 1,
+      "source_status": "DESIGN_DEFAULT: sourced reference inputs; original fixture, analytic distribution"
+    },
+    {
+      "id": "12_path_light",
+      "name_el": "Φωτιστικό διαδρομής",
+      "name_en": "Path light",
+      "model": "models/12_path_light.glb",
+      "bbox_m": [
+        0.26,
+        0.26,
+        0.47000000000000003
+      ],
+      "mount": "floor",
+      "category": "exterior",
+      "dimension_status": "DESIGN_DEFAULT: original visual model dimensions, not a manufacturer product",
+      "provenance": {
+        "source": "original procedural geometry",
+        "license": "CC0-1.0",
+        "redistributable": true
+      },
+      "triangles": 864,
+      "asset_id": "a3921d0a1886303c1",
+      "active_light": true,
+      "render_dimmable": true,
+      "aimable": false,
+      "light_role": "path",
+      "emitters": 1,
+      "source_status": "DESIGN_DEFAULT: sourced reference inputs; original fixture, analytic distribution"
+    },
+    {
+      "id": "13_wall_lantern",
+      "name_el": "Φανάρι τοίχου",
+      "name_en": "Wall lantern",
+      "model": "models/13_wall_lantern.glb",
+      "bbox_m": [
+        0.16,
+        0.19,
+        0.26999999999999996
+      ],
+      "mount": "wall",
+      "category": "exterior",
+      "dimension_status": "DESIGN_DEFAULT: original visual model dimensions, not a manufacturer product",
+      "provenance": {
+        "source": "original procedural geometry",
+        "license": "CC0-1.0",
+        "redistributable": true
+      },
+      "triangles": 1056,
+      "asset_id": "aaabc0e236f6ef231",
+      "active_light": true,
+      "render_dimmable": true,
+      "aimable": false,
+      "light_role": "wall",
+      "emitters": 1,
+      "source_status": "DESIGN_DEFAULT: sourced reference inputs; original fixture, analytic distribution"
+    },
+    {
+      "id": "14_garden_projector",
+      "name_el": "Προβολέας κήπου",
+      "name_en": "Garden floodlight",
+      "model": "models/14_garden_projector.glb",
+      "bbox_m": [
+        0.2,
+        0.1,
+        0.2
+      ],
+      "mount": "floor",
+      "category": "exterior",
+      "dimension_status": "DESIGN_DEFAULT: original visual model dimensions, not a manufacturer product",
+      "provenance": {
+        "source": "original procedural geometry",
+        "license": "CC0-1.0",
+        "redistributable": true
+      },
+      "triangles": 220,
+      "asset_id": "a60ae3bf801300cfe",
+      "active_light": true,
+      "render_dimmable": true,
+      "aimable": true,
+      "light_role": "projector",
+      "emitters": 1,
+      "source_status": "DESIGN_DEFAULT: sourced reference inputs; original fixture, analytic distribution"
+    },
+    {
+      "id": "15_garden_sphere",
+      "name_el": "Σφαίρα κήπου",
+      "name_en": "Garden sphere",
+      "model": "models/15_garden_sphere.glb",
+      "bbox_m": [
+        0.3,
+        0.3,
+        0.32
+      ],
+      "mount": "floor",
+      "category": "exterior",
+      "dimension_status": "DESIGN_DEFAULT: original visual model dimensions, not a manufacturer product",
+      "provenance": {
+        "source": "original procedural geometry",
+        "license": "CC0-1.0",
+        "redistributable": true
+      },
+      "triangles": 1120,
+      "asset_id": "abc4849b5226ce676",
+      "active_light": true,
+      "render_dimmable": true,
+      "aimable": false,
+      "light_role": "garden",
+      "emitters": 1,
+      "source_status": "DESIGN_DEFAULT: sourced reference inputs; original fixture, analytic distribution"
+    },
+    {
+      "id": "16_linear_wall",
+      "name_el": "Γραμμική απλίκα εξωτερικού",
+      "name_en": "Linear outdoor wall light",
+      "model": "models/16_linear_wall.glb",
+      "bbox_m": [
+        0.6,
+        0.07400000000000001,
+        0.06
+      ],
+      "mount": "wall",
+      "category": "exterior",
+      "dimension_status": "DESIGN_DEFAULT: original visual model dimensions, not a manufacturer product",
+      "provenance": {
+        "source": "original procedural geometry",
+        "license": "CC0-1.0",
+        "redistributable": true
+      },
+      "triangles": 36,
+      "asset_id": "a7c1b0e0eb8f87b5b",
+      "active_light": true,
+      "render_dimmable": true,
+      "aimable": false,
+      "light_role": "wall",
+      "emitters": 3,
+      "source_status": "DESIGN_DEFAULT: sourced reference inputs; original fixture, analytic distribution"
+    }
+  ]
+}
