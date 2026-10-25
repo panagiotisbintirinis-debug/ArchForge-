@@ -22,11 +22,11 @@ def test_shipped_fixtures_install_once_without_overwriting_user_content(tmp_path
         for size in (40, 80):
             assert (assets.asset_dir() / 'thumbs' / f"{r['id']}_{size}.png").is_file()
     path = assets.asset_dir() / f'{ids[0]}.json'
-    record = json.loads(path.read_text())
+    record = json.loads(path.read_text(encoding='utf-8'))
     record['name'] = 'User name'
-    path.write_text(json.dumps(record))
+    path.write_text(json.dumps(record),encoding='utf-8')
     seed_lights()
-    assert json.loads(path.read_text())['name'] == 'User name'
+    assert json.loads(path.read_text(encoding='utf-8'))['name'] == 'User name'
 
 
 def test_real_pack_replacement_preserves_instance_and_renders_emitters(tmp_path, monkeypatch):

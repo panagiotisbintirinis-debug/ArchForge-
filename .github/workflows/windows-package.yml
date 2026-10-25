@@ -29,7 +29,12 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install dependencies
-        run: python -m pip install -r requirements.txt pyinstaller
+        run: python -m pip install -r requirements.txt pyinstaller pytest
+      - name: Check shipped fixture installation with Windows text encoding
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QT_QPA_FONTDIR: C:/Windows/Fonts
+        run: python -m pytest -q tests/test_bundled_lights.py
       - name: Check actual 3D fixture controls in a desktop window
         env:
           QT_QPA_PLATFORM: windows
