@@ -94,3 +94,23 @@ def test_cached_fixture_mesh_follows_a_changed_ceiling_with_its_emitters(install
     body=next(b for b in result.bodies if b.entity_id==lamp.id)
     proxy=attached_instance(doc,doc.get(lamp.id))
     assert min(v[2] for v in body.payload.vertices)==pytest.approx(proxy.params['z'])
+
+
+def test_bound_housing_is_visible_in_architecture_and_respects_layer_locks(installed):
+    from archforge.core.layers import set_workspace,set_layer_state
+    from archforge.geometry.incremental import IncrementalEvaluationCache
+    from archforge.geometry.sculpt import SculptedPreviewBackend
+    from archforge.ui.pbr_viewport import scene_payload
+    doc=Document();stack=CommandStack(doc);lamp=_pt(stack,'spot',1,2)
+    command,_=replace_fixture(doc,lamp.id,'library',installed[0]['id']);stack.execute(command)
+    evaluation=IncrementalEvaluationCache(SculptedPreviewBackend()).sync(doc)
+    set_workspace(doc,'arch')
+    objects=scene_payload(doc,evaluation)['objects']
+    assert any(o['id']==lamp.id for o in objects)
+    set_layer_state(doc,'electrical',locked=True)
+    objects=scene_payload(doc,evaluation)['objects']
+    assert any(o.get('physical_fixture') and o['id']=='' for o in objects)
+    set_layer_state(doc,'furniture',visible=False)
+    assert not any(o.get('physical_fixture') for o in scene_payload(doc,evaluation)['objects'])
+    set_workspace(doc,'mep')
+    assert any(o['id']==lamp.id for o in scene_payload(doc,evaluation)['objects'])

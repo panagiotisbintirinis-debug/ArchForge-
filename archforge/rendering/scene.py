@@ -294,6 +294,7 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                         "cast_shadow": not bool(glow),
                         "render_part": f"{body.entity_id}:{part_role}",
                         "kind": entity.kind,
+                        "physical_fixture": entity.kind == 'electrical_point',
                         "vertices": vertices,
                         "triangles": tris,
                         "surfaces": roles,

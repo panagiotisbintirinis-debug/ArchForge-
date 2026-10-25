@@ -85,3 +85,21 @@ def test_horizontal_dimmer_previews_and_cancels_without_committing():
         w.stack.undo();assert w.doc.get(lamp.id).params['dim_level']==1
     finally:
         w._mark_clean();w.close();app.processEvents()
+
+
+def test_3d_selection_opens_rotors_for_bound_electrical_fixture_in_architecture(tmp_path,monkeypatch):
+    from archforge.library.bundled_lights import seed_lights
+    from archforge.library.assets import load_asset
+    from archforge.mep.lighting import replace_fixture
+    monkeypatch.setenv('ARCHFORGE_DATA',str(tmp_path))
+    app=QApplication.instance() or QApplication([]);w=MainWindow()
+    try:
+        r=next(load_asset(aid) for aid in seed_lights() if load_asset(aid)['light_capabilities']['aimable'])
+        doc=Document();stack=CommandStack(doc);lamp=_pt(stack,'spot',1,2)
+        cmd,_=replace_fixture(doc,lamp.id,'library',r['id']);stack.execute(cmd)
+        w._replace_project(doc)
+        w.pbr_view._select_entity_from_web(lamp.id);app.processEvents()
+        assert w.doc.selection==[lamp.id]
+        assert w.form.parentWidget().findChild(QDial,'aimBearing') is not None
+    finally:
+        w._mark_clean();w.close();app.processEvents()
