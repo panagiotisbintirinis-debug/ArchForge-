@@ -30,6 +30,11 @@ jobs:
           python-version: '3.11'
       - name: Install dependencies
         run: python -m pip install -r requirements.txt pyinstaller
+      - name: Check actual 3D fixture controls in a desktop window
+        env:
+          QT_QPA_PLATFORM: windows
+          ARCHFORGE_DATA: ${{ runner.temp }}\fixture-3d-check
+        run: python scripts/check_fixture_3d.py
       - name: Stamp the build (Αρχείο ▸ Έλεγχος για ενημερώσεις compares it with the release)
         shell: bash
         run: |
@@ -52,6 +57,8 @@ jobs:
         run: |
           $p = Start-Process dist\ArchForge\ArchForge.exe -PassThru -Wait
           if ($p.ExitCode -ne 0) { throw "ArchForge.exe exited with $($p.ExitCode)" }
+          $records = Get-ChildItem "$env:ARCHFORGE_DATA\library\assets\*.json" | ForEach-Object { Get-Content -Raw $_.FullName | ConvertFrom-Json } | Where-Object { $_.lights }
+          if ($records.Count -lt 16) { throw "Packaged executable did not install the 16 luminous models" }
       - name: Zip
         shell: pwsh
         run: Compress-Archive -Path dist\ArchForge -DestinationPath ArchForge-windows.zip

@@ -242,7 +242,7 @@ def test_each_luminaire_controls_its_own_light_and_an_adjustable_spot_is_aimed()
 
 
 def test_spot_properties_have_on_off_tilt_and_bearing_with_undo():
-    from PySide6.QtWidgets import QApplication, QCheckBox, QDoubleSpinBox
+    from PySide6.QtWidgets import QApplication, QCheckBox, QDial
     from archforge.ui.main_window import MainWindow
     app = QApplication.instance() or QApplication([])
     window = MainWindow()
@@ -251,15 +251,15 @@ def test_spot_properties_have_on_off_tilt_and_bearing_with_undo():
         spot = next(e for e in window.doc.entities.values() if e.params.get('point_type') == 'spot')
         window.doc.select([spot.id]); window.refresh_inspector()
         panel = window.form.parentWidget()
-        tilt = panel.findChild(QDoubleSpinBox, 'aimTilt')
-        bearing = panel.findChild(QDoubleSpinBox, 'aimBearing')
+        tilt = panel.findChild(QDial, 'aimTilt')
+        bearing = panel.findChild(QDial, 'aimBearing')
         assert tilt is not None and bearing is not None
-        tilt.setValue(30.0); tilt.editingFinished.emit()
+        tilt.setSliderDown(True); tilt.setValue(30); tilt.setSliderDown(False)
         assert window.doc.get(spot.id).params['aim_tilt_deg'] == 30.0
         app.processEvents()
         panel = window.form.parentWidget()
-        bearing = panel.findChild(QDoubleSpinBox, 'aimBearing')
-        bearing.setValue(180.0); bearing.editingFinished.emit()
+        bearing = panel.findChild(QDial, 'aimBearing')
+        bearing.setSliderDown(True); bearing.setValue(180); bearing.setSliderDown(False)
         p = window.doc.get(spot.id).params
         assert (p['aim_tilt_deg'], p['aim_azimuth_deg']) == (30.0, 180.0)
         window._undo()
@@ -272,6 +272,6 @@ def test_spot_properties_have_on_off_tilt_and_bearing_with_undo():
         window.plan_view.sitePointRequested.emit('elec_light', 3.0, 3.0)
         lamp = next(e for e in window.doc.entities.values() if e.params.get('point_type') == 'light')
         window.doc.select([lamp.id]); window.refresh_inspector(); app.processEvents()
-        assert window.form.parentWidget().findChild(QDoubleSpinBox, 'aimTilt') is None
+        assert window.form.parentWidget().findChild(QDial, 'aimTilt') is None
     finally:
         window._mark_clean(); window.close(); app.processEvents()

@@ -208,7 +208,7 @@ def test_library_fixtures_join_their_room_with_their_own_controls(tmp_path, monk
 
 
 def test_strip_rows_for_library_fixtures(tmp_path, monkeypatch):
-    from PySide6.QtWidgets import QApplication, QCheckBox, QDoubleSpinBox, QLabel, QSlider
+    from PySide6.QtWidgets import QApplication, QCheckBox, QDial, QLabel, QSlider
     from archforge.ui.main_window import MainWindow
     monkeypatch.setenv('ARCHFORGE_DATA', str(tmp_path))
     app = QApplication.instance() or QApplication([])
@@ -233,9 +233,9 @@ def test_strip_rows_for_library_fixtures(tmp_path, monkeypatch):
         assert window.doc.get(post.id).params['light_enabled'] == 1.0                  # the other one untouched
         # Ιδιότητες: aim rows for the projector, «Σταθερή δέσμη» for the post.
         window.doc.select([proj.id]); window.refresh_inspector(); app.processEvents()
-        assert window.form.parentWidget().findChild(QDoubleSpinBox, 'aimTilt') is not None
+        assert window.form.parentWidget().findChild(QDial, 'aimTilt') is not None
         window.doc.select([post.id]); window.refresh_inspector(); app.processEvents()
-        assert window.form.parentWidget().findChild(QDoubleSpinBox, 'aimTilt') is None
+        assert window.form.parentWidget().findChild(QDial, 'aimTilt') is None
         assert any(isinstance(w, QLabel) and w.text().startswith('Σταθερή δέσμη')
                    for w in window.form.parentWidget().findChildren(QLabel))
     finally:

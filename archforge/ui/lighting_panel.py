@@ -118,6 +118,10 @@ class LightingStrip(QWidget):
                 entity = self.window.doc.get(eid)
                 if entity.kind == "library_object":
                     label = entity.name or group["label"]                  # the model's name (Κρεμαστό Ø40 …)
+                elif entity.params.get('fixture_asset'):
+                    from archforge.mep.fixture_models import model_record
+                    record = model_record(entity)
+                    label = record['name'] if record else entity.name
                 else:
                     label = f"{group['label']} {n}" if len(group["ids"]) > 1 else group["label"]
                 act.setDefaultWidget(self._row(eid, label))
@@ -141,9 +145,9 @@ class LightingStrip(QWidget):
             if not capabilities(entity)["dimmable"]:
                 dim.setEnabled(False); dim.setToolTip("Το μοντέλο δεν ρυθμίζεται σε ένταση (μόνο αναμμένο / σβηστό)")
         shown = QLabel(f"{dim.value()} %"); shown.setFixedWidth(36); shown.setObjectName("lightRowLevel")
-        dim.valueChanged.connect(lambda v, l=shown: l.setText(f"{v} %"))
-        dim.sliderReleased.connect(lambda s=dim, i=eid: self._switch(i, level=s.value() / 100.0))
-        dim.valueChanged.connect(lambda v, s=dim, i=eid: not s.isSliderDown() and self._switch(i, level=v / 100.0))
+        from archforge.ui.fixture_controls import bind_control
+        bind_control(self.window,eid,dim,shown,'light_level' if entity.kind=='library_object' else 'dim_level',
+                     lambda v:v/100.0,lambda v:self._switch(eid,level=v))
         change = QToolButton(); change.setText("Αλλαγή"); change.setObjectName("lightRowChange")
         change.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         change.setToolTip("Άλλο φωτιστικό στο ίδιο σημείο (βιβλιοθήκη ▸ Φωτιστικά) — μόνο αυτό")
@@ -161,6 +165,7 @@ class LightingStrip(QWidget):
         from archforge.mep.lighting import replacement_choices
         entity = self.window.doc.get(eid)
         current = (("library", entity.params.get("asset")) if entity.kind == "library_object"
+                   else ("library", entity.params['fixture_asset']) if entity.params.get('fixture_asset')
                    else (entity.params.get("point_type"), entity.params.get("catalog_id") or None))
         for label, point_type, catalog_id in replacement_choices(entity):
             a = menu.addAction(label)

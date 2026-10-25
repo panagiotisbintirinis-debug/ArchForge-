@@ -16,8 +16,9 @@ def add_rows(window, entity):
     slider=QSlider(Qt.Orientation.Horizontal);slider.setRange(0,100)
     slider.setValue(round(100*float(p.get('light_level',1))))
     text=QLabel(f'{slider.value()} %')
-    slider.valueChanged.connect(lambda v:text.setText(f'{v} %'))
-    slider.sliderReleased.connect(lambda:window._set_entity_choice(eid,'light_level',slider.value()/100))
+    from archforge.ui.fixture_controls import bind_control
+    bind_control(window,eid,slider,text,'light_level',lambda v:v/100.0,
+                 lambda v:window._set_entity_choice(eid,'light_level',v))
     window.form.addRow('Φωτεινότητα',slider);window.form.addRow('',text)
     color=QComboBox();color.addItem('Χρώμα από το μοντέλο',0.0)
     for value in sorted({2700.,3000.,4000.,6500.} | ({float(p['light_kelvin'])} if p.get('light_kelvin') else set())):
