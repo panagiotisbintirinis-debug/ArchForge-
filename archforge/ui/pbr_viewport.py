@@ -1222,8 +1222,8 @@ controls.addEventListener("start", () => { cameraMovedByHuman = true; });
 window.__cameraMovedByHuman = () => cameraMovedByHuman;
 window.__forgetCameraMoved = () => { cameraMovedByHuman = false; };   // a new project is framed again
 
-// Owner 24/10 (2D and 3D alike, as in Home Designer / ArchiCAD): a click selects, pressing and dragging an object
-// moves it at once; anything else orbits as before. (23/10 had: click = indication, double click = selection.)
+// Owner 24/10: a click selects. In 3D (25/10) pressing and dragging moves an object only once it is selected;
+// dragging anything else orbits — the building fills the view, there is no empty space to orbit from.
 let selectedIds = new Set();
 let pressInfo = null;
 window.archforgeSetScene = function(payload, fit = true) {
@@ -1502,7 +1502,10 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     const hit = pickForSelection(event);
     const id = hit && hit.face ? (hit.object.userData.entityId || "") : "";
     const kind = hit ? (hit.object.userData.kind || "") : "";
-    pressInfo = {x: event.clientX, y: event.clientY, id, hit, movable: !!id && MOVABLE_3D.includes(kind)};
+    // Only a SELECTED object moves when dragged; dragging anything else orbits (owner 25/10: «προσπαθώντας να κάνω
+    // χρήση της περιστροφής της εικόνας το ποντίκι πιάνει αντικείμενα» — in 3D the building fills the screen).
+    pressInfo = {x: event.clientX, y: event.clientY, id, hit,
+                 movable: !!id && MOVABLE_3D.includes(kind) && selectedIds.has(id)};
     if (pressInfo.movable) {
       controls.enabled = false;                       // the drag moves the selected object, not the camera
       event.preventDefault();
@@ -1980,8 +1983,10 @@ window.addEventListener("pointerup", (event) => {
     pendingMovePoint = null;
     clearMoveGhost();
     bridge.endMove();
-  } else if (Math.abs(event.clientX - press.x) + Math.abs(event.clientY - press.y) <= 4) {
-    bridge.selectEntity(press.id);                     // one click: selected (empty space clears)
+  } else if (!press.id && Math.abs(event.clientX - press.x) + Math.abs(event.clientY - press.y) <= 4) {
+    // 3D: a double click selects (the dblclick handler) — inside a building walls are everywhere, one click would
+    // keep catching them (owner 25/10: «για να επιλέξω κάτι είπαμε ότι βάζουμε διπλό κλικ»). Empty space clears.
+    bridge.selectEntity("");
   }
   controls.enabled = true;
 }, true);
@@ -2107,16 +2112,31 @@ if (window.__archforgePendingScene) window.archforgeSetScene(window.__archforgeP
 if (window.__archforgePendingStairPreview) window.setStairPreview(window.__archforgePendingStairPreview);
 if (window.__archforgePendingRampPreview) window.setRampPreview(window.__archforgePendingRampPreview);
 
-function animate() {
+// Draw on demand (owner 25/10: «ακούω το PC να δουλεύει τρελά»): every frame while the mouse, the keys or the
+// camera move and for a second after; otherwise two frames a second, which still shows what the plan, the menus
+// or Python push into the scene. It used to draw 60 frames a second with every effect even when nothing moved.
+let renderFrames = 120;
+let lastIdleRender = 0;
+function wakeRender(frames) { renderFrames = Math.max(renderFrames, frames || 60); }
+window.archforgeWakeRender = wakeRender;
+for (const name of ["pointerdown", "pointermove", "pointerup", "wheel", "keydown", "keyup", "resize", "focus"]) {
+  window.addEventListener(name, () => wakeRender(60), {passive: true, capture: true});
+}
+controls.addEventListener("change", () => wakeRender(30));
+function animate(now) {
+  requestAnimationFrame(animate);
   walkStep();
+  if (walkMode && walkKeys.size) wakeRender(10);
+  if (walkMode) controls.enabled = false;
+  else controls.update();                    // damping goes on; a camera change wakes the drawing
+  const idle = renderFrames <= 0;
+  if (idle && now - lastIdleRender < 500) return;
+  if (idle) lastIdleRender = now; else renderFrames--;
   // Haze ends before the far plane, so the ground never shows a cut edge.
   if (scene.fog) { scene.fog.far = Math.min(1400, camera.far * 0.9); scene.fog.near = scene.fog.far * 0.1; }
-  if (walkMode) controls.enabled = false;
-  else controls.update();
   if (useComposer()) composer.render(); else renderer.render(scene, camera);
-  requestAnimationFrame(animate);
 }
-animate();
+requestAnimationFrame(animate);
 </script>
 </body>
 </html>

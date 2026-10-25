@@ -99,8 +99,16 @@ def test_menu_places_points_and_schedule_lists_circuits():
         # Owner 17/10: ασθενή in their own menu — together the two menus hold every point type, none twice.
         from archforge.mep.electrical import LOW_VOLTAGE_TYPES
         # Owner #150 explicitly adds the analysis command to this placement menu.
-        point_actions = [a for a in window._mockup_electrical_menu.actions()
-                         if not a.isSeparator() and a.objectName() != 'electricalAnalysisAction']
+        # Owner 25/10: grouped in submenus (lighting on its own) — every point type still once, counted inside them.
+        def leaves(menu):
+            for a in menu.actions():
+                if a.menu() is not None:
+                    yield from leaves(a.menu())
+                elif not a.isSeparator() and a.objectName() != 'electricalAnalysisAction':
+                    yield a
+        point_actions = list(leaves(window._mockup_electrical_menu))
+        lighting = next(a.menu() for a in window._mockup_electrical_menu.actions() if a.menu() and a.text() == 'Φωτισμός')
+        assert {a.text() for a in lighting.actions()} >= {'Φωτιστικό οροφής', 'Απλίκα', 'Κρυφός φωτισμός — ταινία LED'}
         assert len(point_actions) == len(POINT_TYPES) - len(LOW_VOLTAGE_TYPES)
         assert len(window._mockup_lv_menu.actions()) == len(LOW_VOLTAGE_TYPES)
         window.plan_view.sitePointRequested.emit('elec_panel', 0.5, 0.5)

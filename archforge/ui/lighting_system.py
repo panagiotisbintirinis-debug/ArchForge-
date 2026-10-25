@@ -92,8 +92,11 @@ function afStripLights(spec) {
 
 window.setArchitecturalLights = function(payload) {
   afDisposeLightRoot();
-  for (const spec of ((payload && payload.lights) || [])) {
-    if (!spec || spec.enabled === false) continue;
+  let shadowBudget = 16;          // a point light's shadow is 6 extra renders: bounded for laptops
+  for (const raw of ((payload && payload.lights) || [])) {
+    if (!raw || raw.enabled === false) continue;
+    const spec = Object.assign({}, raw, {shadows: !!raw.shadows && shadowBudget > 0});
+    if (spec.shadows) shadowBudget--;
     const kind = String(spec.kind || "point");
     let light = null;
     if (kind === "spot") light = afSpotLight(spec);
@@ -156,7 +159,27 @@ def _install_html_patch(pbr_module) -> None:
     pbr_module._PBR_HTML = html
 
 
-def _entity_light_spec(entity):
+def _light_z(doc, kind, p):
+    """Height of the light: an electrical point at its real mount (ceiling / mounting height, as the electrical
+    drawings place it) — its ``z`` is the floor it stands on, so a ceiling light sat on the floor and lit the
+    ground and the slab from below. Native light entities keep their own ``z``."""
+    if kind == "electrical_point" and doc is not None:
+        try:
+            from archforge.mep.electrical import mount_z
+            z = float(mount_z(doc, p))
+        except (KeyError, TypeError, ValueError, ImportError):
+            return float(p.get("z", 2.4))
+        # Never above the walls of its storey: with no storey above, the electrical «ceiling» is floor + 2,80 m, inside
+        # the roof of 2,70 m walls — the light then lit the eaves. (The same 2,80 for the ceiling conduits is noted
+        # in HANDOFF for the electrical side.)
+        floor = float(p.get("z", 0.0))
+        tops = [float(e.params.get("z", 0.0)) + float(e.params.get("height", 0.0)) for e in doc.entities.values()
+                if e.kind == "wall" and abs(float(e.params.get("z", 0.0)) - floor) <= 0.05]
+        return min(z, max(tops) - 0.05) if tops else z
+    return float(p.get("z", 2.4))
+
+
+def _entity_light_spec(entity, doc=None):
     """Map both native ArchForge lights and electrical lighting points to one PBR spec.
 
     Electrical points remain the authoritative project objects.  Photometric
@@ -204,8 +227,10 @@ def _entity_light_spec(entity):
         "range": float(p.get("range", 12.0)),
         "angle_deg": float(p.get("angle_deg", p.get("beam_angle_deg", 35.0))),
         "penumbra": float(p.get("penumbra", 0.35)),
-        "shadows": bool(p.get("shadows", light_kind == "spot")),
-        "position": [float(p.get("x", 0.0)), float(p.get("y", 0.0)), float(p.get("z", 2.4))],
+        # Walls and roof stop the light: a ceiling light without shadows lit the eaves and the ground through
+        # them (owner 25/10: «το φως έπρεπε να φαίνεται μόνο από τα παράθυρα»).
+        "shadows": bool(p.get("shadows", light_kind in ("point", "spot"))),
+        "position": [float(p.get("x", 0.0)), float(p.get("y", 0.0)), _light_z(doc, kind, p)],
         "electrical_point_type": electrical_point_type,
         "power_w": float(p.get("power_w", 0.0)),
         "dimmer": dimmer,
@@ -251,7 +276,7 @@ def install_lighting_system() -> None:
     def _lighting_payload(self):
         lights = []
         for entity in self.doc.entities.values():
-            spec = _entity_light_spec(entity)
+            spec = _entity_light_spec(entity, self.doc)
             if spec is not None:
                 lights.append(spec)
         return {"lights": lights}
