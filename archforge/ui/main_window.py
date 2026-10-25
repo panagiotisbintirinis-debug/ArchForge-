@@ -1659,7 +1659,7 @@ class MainWindow(QMainWindow):
         from archforge.library import assets
         from archforge.library.catalog import CATEGORIES
         from archforge.mep.electrical import POINT_TYPES as ELEC
-        from archforge.mep.plumbing import POINT_TYPES as PLUMB
+        from archforge.mep.plumbing import POINT_TYPES as PLUMB, SOURCES as PLUMB_SOURCES
         from archforge.mep.ventilation import POINT_TYPES as VENT
         from archforge.rendering.materials import picker_categories, picker_materials
         by_cat = {}
@@ -1680,14 +1680,24 @@ class MainWindow(QMainWindow):
                                                     ('Ψευδοροφή — σχεδίαση (ορθογώνιο/πολύγωνο)', ('tool', 'drywall_ceiling'))])]),
             ('Κουζίνα', [('Ντουλάπια', [(label, ('cabinet', label)) for label in getattr(self, '_kitchen_defs', {})]),
                          ('Συσκευές', by_cat.pop('Συσκευές', []))]),
-            ('Έπιπλα', [(cat, by_cat.pop(cat)) for cat in ('Σαλόνι', 'Τραπεζαρία', 'Υπνοδωμάτιο', 'Παιδικό', 'Γραφείο', 'Φωτισμός', 'Διακόσμηση', 'Είσοδος')
+            ('Έπιπλα', [(cat, by_cat.pop(cat)) for cat in ('Σαλόνι', 'Τραπεζαρία', 'Υπνοδωμάτιο', 'Παιδικό', 'Γραφείο', 'Διακόσμηση', 'Είσοδος')
                         if cat in by_cat]),
             ('Μπάνιο', [(None, by_cat.pop('Μπάνιο', []))]),
             ('Εξωτερικοί χώροι', [(None, by_cat.pop('Εξωτερικοί χώροι', []))]),
-            ('Η/Μ', [('Υδραυλικά', [(v[0], ('tool', f'plumb_{k}')) for k, v in PLUMB.items()]),
-                     ('Ηλεκτρολογικά', [(v[0], ('tool', f'elec_{k}')) for k, v in ELEC.items() if v[1] != 'low_voltage']),
-                     ('Ασθενή', [(v[0], ('tool', f'elec_{k}')) for k, v in ELEC.items() if v[1] == 'low_voltage']),
-                     ('Εξαερισμοί', [(v[0], ('tool', f'vent_{k}')) for k, v in VENT.items()])]),
+        ]
+        # Owner 25/10: lighting, electrical and plumbing each have their own part of the library (no shared «Η/Μ»).
+        elec = [(k, v) for k, v in ELEC.items() if v[1] not in ('lighting', 'low_voltage')]
+        themes += [
+            ('Φωτιστικά', [('Σημεία φωτισμού', [(v[0], ('tool', f'elec_{k}')) for k, v in ELEC.items() if v[1] == 'lighting']),
+                           ('Φωτιστικά σώματα', by_cat.pop('Φωτισμός', []))]),
+            ('Ηλεκτρολογικά', [('Πίνακας & διακόπτες', [(v[0], ('tool', f'elec_{k}')) for k, v in elec if v[1] in ('panel', 'switch')]),
+                               ('Πρίζες', [(v[0], ('tool', f'elec_{k}')) for k, v in elec if v[1] in ('sockets', 'kitchen_sockets')]),
+                               ('Παροχές συσκευών', [(v[0], ('tool', f'elec_{k}')) for k, v in elec
+                                                     if v[1] not in ('panel', 'switch', 'sockets', 'kitchen_sockets')]),
+                               ('Ασθενή', [(v[0], ('tool', f'elec_{k}')) for k, v in ELEC.items() if v[1] == 'low_voltage'])]),
+            ('Υδραυλικά', [('Παροχές & θερμοσίφωνες', [(v[0], ('tool', f'plumb_{k}')) for k, v in PLUMB.items() if k in PLUMB_SOURCES]),
+                           ('Υδραυλικοί υποδοχείς', [(v[0], ('tool', f'plumb_{k}')) for k, v in PLUMB.items() if k not in PLUMB_SOURCES])]),
+            ('Εξαερισμοί', [(None, [(v[0], ('tool', f'vent_{k}')) for k, v in VENT.items()])]),
         ]
         from archforge.architecture.joinery import PRESETS as JOINERY
         themes.append(('Κουφώματα', [
