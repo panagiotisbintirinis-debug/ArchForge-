@@ -82,6 +82,8 @@ def test_renderer_receives_library_light_after_drag_drop(tmp_path, monkeypatch):
     from archforge.library import assets
     from archforge.ui.main_window import MainWindow
     from archforge.ui.lighting_system import install_lighting_system
+    from archforge.ui.rendering_quality_upgrade import install_rendering_quality_upgrade
+    install_rendering_quality_upgrade()
     install_lighting_system()
     from archforge.ui.library_drag import LibraryCarry
     monkeypatch.setenv('ARCHFORGE_DATA',str(tmp_path))
