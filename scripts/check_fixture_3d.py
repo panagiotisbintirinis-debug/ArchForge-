@@ -27,6 +27,10 @@ def main():
     app=QApplication.instance() or QApplication([])
     # Test-only access to the actual embedded renderer, no separate rendering implementation.
     probe='''
+window.__fixtureEvents=[];
+for(const kind of ['pointerdown','pointerup','click','dblclick'])renderer.domElement.addEventListener(kind,e=>{
+  window.__fixtureEvents.push([kind,e.clientX,e.clientY,e.detail]);
+},true);
 window.__fixtureQA = () => ({ready:true,on:archLightRoot.visible,
   aim:archLightRoot.children.filter(x=>x.isSpotLight).map(x=>[...x.position.toArray(),...x.target.position.toArray()]),
   parts:modelRoot.children.filter(x=>x.userData.kind === 'electrical_point').length});
@@ -38,10 +42,12 @@ window.__fixturePick = function(eid) {
       v.set(0,0,0);
       for(let k=0;k<3;k++)v.add(new THREE.Vector3().fromBufferAttribute(pos,ix?ix.getX(i+k):i+k));
       v.multiplyScalar(1/3).project(camera);if(Math.abs(v.x)>1||Math.abs(v.y)>1)continue;
-      ray.setFromCamera(new THREE.Vector2(v.x,v.y),camera);
+      const x=Math.round((v.x+1)*renderer.domElement.clientWidth/2);
+      const y=Math.round((1-v.y)*renderer.domElement.clientHeight/2);
+      ray.setFromCamera(new THREE.Vector2(2*x/renderer.domElement.clientWidth-1,
+          1-2*y/renderer.domElement.clientHeight),camera);
       const hit=ray.intersectObjects(modelRoot.children,false)[0];
-      if(hit&&hit.object.userData.entityId===eid)return [(v.x+1)*renderer.domElement.clientWidth/2,
-         (1-v.y)*renderer.domElement.clientHeight/2];
+      if(hit&&hit.object.userData.entityId===eid)return [x,y];
     }
   }
   return null;
@@ -82,9 +88,14 @@ window.__fixturePick = function(eid) {
         assert pick,'Could not locate a visible triangle of the actual fixture'
         target=w.pbr_view.web_view.focusProxy() or w.pbr_view.web_view
         point=target.mapFrom(w.pbr_view.web_view,QPoint(round(pick[0]),round(pick[1])))
+        # WebEngine needs the first native click as well as the second double-click event.
+        QTest.mouseClick(target,Qt.LeftButton,Qt.NoModifier,point)
+        QTest.qWait(80)
         QTest.mouseDClick(target,Qt.LeftButton,Qt.NoModifier,point)
-        QTest.qWait(250)
-        assert w.doc.selection==[lamp.id],'Double-click did not select the native electrical fixture'
+        deadline=time.monotonic()+5
+        while w.doc.selection!=[lamp.id] and time.monotonic()<deadline:QTest.qWait(25)
+        assert w.doc.selection==[lamp.id],('Double-click did not select the native electrical fixture',
+            pick,js('JSON.stringify(window.__fixtureEvents)'),list(w.doc.selection))
         rotor=w.form.parentWidget().findChild(QDial,'aimBearing')
         assert rotor is not None,'The selected 3D fixture has no rotation control'
         before=w.doc.to_dict()
@@ -107,6 +118,9 @@ window.__fixturePick = function(eid) {
         w.stack.undo();assert w.doc.get(lamp.id).params['dim_level']==1
         w.stack.undo();assert w.doc.get(lamp.id).params['aim_azimuth_deg']==0
         print('PASS: real WebGL fixture, double-click properties, live rotor, visible dimming and one Undo per gesture')
+    except Exception:
+        w.grab().save('fixture-3d-failure.png')
+        raise
     finally:
         w._mark_clean();w.close();app.processEvents()
 

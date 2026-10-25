@@ -38,6 +38,13 @@ jobs:
           QTWEBENGINE_CHROMIUM_FLAGS: --ignore-gpu-blocklist
           ARCHFORGE_DATA: ${{ runner.temp }}\fixture-3d-check
         run: python scripts/check_fixture_3d.py
+      - name: Keep the synthetic 3D window if verification fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fixture-3d-failure
+          path: fixture-3d-failure.png
+          retention-days: 5
       - name: Stamp the build (Αρχείο ▸ Έλεγχος για ενημερώσεις compares it with the release)
         shell: bash
         run: |
