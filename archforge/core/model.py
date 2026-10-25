@@ -88,6 +88,11 @@ def _matrix16(v):
     return [_finite(x) for x in v]
 
 
+def _library_light_sources(v):
+    from archforge.library.lighting import validate_sources
+    return validate_sources(v)
+
+
 def _mesh_metadata(v):
     if not isinstance(v, dict):
         raise ValueError('mesh metadata must be a dictionary')
@@ -925,6 +930,8 @@ SCHEMAS = {
         'x': _finite, 'y': _finite, 'z': _finite, 'rotation': _finite,
         'width': _positive, 'depth': _positive, 'height': _positive,
         'uniform': _unit_interval, 'asset': _nonempty, 'mirror': _unit_interval,
+        'light_sources': _library_light_sources,
+        'light_level': _unit_interval, 'light_enabled': _unit_interval, 'light_shadows': _unit_interval, 'light_kelvin': lambda v: 0.0 if float(v) == 0 else _kelvin(v),
     },
     'kitchen_part': {
         'x': _finite, 'y': _finite, 'z': _finite,

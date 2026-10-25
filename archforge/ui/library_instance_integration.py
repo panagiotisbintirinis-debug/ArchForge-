@@ -11,7 +11,7 @@ def library_instance_params(record, *, x: float, y: float, z: float) -> dict:
     """Return fresh mutable params for one placement of an immutable asset."""
     w, d, h = (float(v) for v in record["size"])
     asset_id = str(record["id"])
-    return {
+    params = {
         "x": float(x),
         "y": float(y),
         "z": float(z),
@@ -29,6 +29,11 @@ def library_instance_params(record, *, x: float, y: float, z: float) -> dict:
         "material_id": "",
         "surface_materials": {},
     }
+    if record.get("lights"):
+        import copy
+        params.update(light_sources=copy.deepcopy(record["lights"]), light_level=1.0,
+                      light_enabled=1.0, light_shadows=1.0)
+    return params
 
 
 def source_size_for_instance(params) -> tuple[float, float, float] | None:

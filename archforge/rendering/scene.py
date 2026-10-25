@@ -277,8 +277,16 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                                          surface_role=part_role)
                     if not _surface_material_id(entity, part_role) and body.entity_id not in selected:
                         material["color"] = color
+                    from archforge.library.assets import load_asset
+                    record = load_asset(str(entity.params.get("asset", ""))) or {}
+                    glow = record.get("emissive_materials", {}).get(_name) if entity.params.get("light_sources") else None
+                    if glow:
+                        material["emissive"] = glow
+                        material["emissiveIntensity"] = (float(entity.params.get("light_level", 1))
+                                                        if entity.params.get("light_enabled", 1) else 0.0)
                     objects.append({
                         "id": str(body.entity_id),
+                        "cast_shadow": not bool(glow),
                         "render_part": f"{body.entity_id}:{part_role}",
                         "kind": "library_object",
                         "vertices": vertices,

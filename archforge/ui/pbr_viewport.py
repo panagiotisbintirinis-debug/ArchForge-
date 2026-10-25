@@ -906,7 +906,7 @@ function applyTechnique() {
     obj.material.transparent = see;
     obj.material.opacity = glass ? Math.min(base, 0.34) : base;
     obj.material.depthWrite = !see;
-    obj.castShadow = !technical && !see;
+    obj.castShadow = !technical && !see && obj.userData.castShadow !== false;
     // A section reads like a drawing: even light, no roof shadow inside.
     obj.receiveShadow = !technical && !sectionPlane;
     obj.material.needsUpdate = true;
@@ -1250,9 +1250,10 @@ window.archforgeSetScene = function(payload, fit = true) {
     mesh.userData.kind = item.kind || "";
     mesh.userData.surfaceRoles = item.surfaces || [];
     mesh.userData.renderPart = item.render_part || "";
+    mesh.userData.castShadow = item.cast_shadow !== false;
     mesh.visible = meshShouldShow(mesh);
     mesh.material.clippingPlanes = clipPlanes();
-    mesh.castShadow = true;
+    mesh.castShadow = item.cast_shadow !== false;
     mesh.receiveShadow = true;
     modelRoot.add(mesh);
   }

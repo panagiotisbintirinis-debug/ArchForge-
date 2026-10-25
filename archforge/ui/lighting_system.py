@@ -48,9 +48,13 @@ function afConfigureShadow(light, spec) {
   }
 }
 
+function afEmitterColor(spec) {
+  return Array.isArray(spec.color) ? new THREE.Color().setRGB(...spec.color) : afKelvinColor(spec.kelvin);
+}
+
 function afPointLight(spec, position) {
   const light = new THREE.PointLight(
-    afKelvinColor(spec.kelvin), Number(spec.intensity || 400), Number(spec.range || 10), 2.0
+    afEmitterColor(spec), Number(spec.intensity ?? 400), Number(spec.range ?? 10), 2.0
   );
   light.position.set(position[0], position[1], position[2]);
   afConfigureShadow(light, spec);
@@ -60,7 +64,7 @@ function afPointLight(spec, position) {
 function afSpotLight(spec) {
   const angle = THREE.MathUtils.degToRad(Math.max(1, Math.min(89, Number(spec.angle_deg || 35))));
   const light = new THREE.SpotLight(
-    afKelvinColor(spec.kelvin), Number(spec.intensity || 700), Number(spec.range || 14),
+    afEmitterColor(spec), Number(spec.intensity ?? 700), Number(spec.range ?? 14),
     angle, Number(spec.penumbra ?? 0.35), 2.0
   );
   const p = spec.position || [0, 0, 2.4];
@@ -275,7 +279,11 @@ def install_lighting_system() -> None:
 
     def _lighting_payload(self):
         lights = []
+        from archforge.library.lighting import instance_light_specs
         for entity in self.doc.entities.values():
+            if entity.kind == "library_object":
+                lights.extend(instance_light_specs(entity))
+                continue
             spec = _entity_light_spec(entity, self.doc)
             if spec is not None:
                 lights.append(spec)
