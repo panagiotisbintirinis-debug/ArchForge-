@@ -314,6 +314,13 @@ def install_approved_mockup_shell(window):
     from archforge.mep.electrical import POINT_TYPES as ELEC
     electrical=QMenu("Ηλεκτρολογικά σημεία",mep_menu); mep_menu.addMenu(electrical)
     lv_menu=QMenu("Ασθενή (δίκτυο / TV)",mep_menu)
+    # By kind, lighting on its own (owner 25/10: «τα βγάζει όλα … πρέπει να είναι συρόμενο και ο φωτισμός
+    # ξεχωριστά σαν υπομενού»); the board stays at the top. Added after the loop, so they come below the board.
+    kinds=(("Φωτισμός",("lighting",)),("Διακόπτες",("switch",)),("Πρίζες",("sockets","kitchen_sockets")),
+           ("Συσκευές",("cooker","water_heater","air_conditioner","washing_machine","dishwasher")),
+           ("Παροχές εξοπλισμού (θέρμανση, πισίνα)",("heating","heat_pump","pool")))
+    kind_menus=[QMenu(title,electrical) for title,_gs in kinds]
+    menu_of={g:m for m,(_t,gs) in zip(kind_menus,kinds) for g in gs}
     for key,(label,_g,_w,_h,_l) in ELEC.items():
         if _g=="low_voltage":
             a=QAction(label,window)
@@ -322,7 +329,9 @@ def install_approved_mockup_shell(window):
         a=QAction(label,window)
         how="σύρε τη γραμμή της ταινίας (στην εσοχή της ψευδοροφής ακολουθεί το ύψος της)" if key=="led_strip" else "κλικ στην κάτοψη"
         a.triggered.connect(lambda _=False,k=key,l=label,h=how: window._start_site_tool(f"elec_{k}",f"{l}: {h} — τα κυκλώματα σχηματίζονται αυτόματα, Esc για τέλος"))
-        electrical.addAction(a)
+        menu_of.get(_g,electrical).addAction(a)
+    for m in kind_menus:
+        electrical.addMenu(m)
     window._mockup_electrical_menu=electrical
     mep_menu.addMenu(lv_menu); window._mockup_lv_menu=lv_menu
     from archforge.mep.drainage import POINT_TYPES as DRAIN

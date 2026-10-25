@@ -166,9 +166,16 @@ def _light_z(doc, kind, p):
     if kind == "electrical_point" and doc is not None:
         try:
             from archforge.mep.electrical import mount_z
-            return float(mount_z(doc, p))
+            z = float(mount_z(doc, p))
         except (KeyError, TypeError, ValueError, ImportError):
-            pass
+            return float(p.get("z", 2.4))
+        # Never above the walls of its storey: with no storey above, the electrical «ceiling» is floor + 2,80 m, inside
+        # the roof of 2,70 m walls — the light then lit the eaves. (The same 2,80 for the ceiling conduits is noted
+        # in HANDOFF for the electrical side.)
+        floor = float(p.get("z", 0.0))
+        tops = [float(e.params.get("z", 0.0)) + float(e.params.get("height", 0.0)) for e in doc.entities.values()
+                if e.kind == "wall" and abs(float(e.params.get("z", 0.0)) - floor) <= 0.05]
+        return min(z, max(tops) - 0.05) if tops else z
     return float(p.get("z", 2.4))
 
 

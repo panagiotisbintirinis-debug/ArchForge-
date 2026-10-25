@@ -14,7 +14,9 @@ def test_night_is_in_the_sun_menu_and_an_hour_brings_the_day_back():
     app = QApplication.instance() or QApplication([])
     # Only the lighting layer, as tests/test_lighting_system.py does: importing archforge.ui.app would install every
     # startup layer on MainWindow for the rest of the run and break later tests.
+    from archforge.ui.rendering_quality_upgrade import install_rendering_quality_upgrade
     from archforge.ui.lighting_system import install_lighting_system
+    install_rendering_quality_upgrade()          # app.py's order: the quality look first, then the lighting
     install_lighting_system()
     from archforge.ui.main_window import MainWindow
     w = MainWindow()
@@ -39,5 +41,5 @@ def test_a_ceiling_light_sits_at_the_ceiling_and_walls_stop_it():
         doc = Document.from_dict(json.load(f))
     light = next(e for e in doc.entities.values() if e.kind == 'electrical_point' and e.params['point_type'] == 'light')
     spec = _entity_light_spec(light, doc)
-    assert 2.0 < spec['position'][2] <= 2.7           # under the 2,70 m ceiling, not on the floor
+    assert 2.0 < spec['position'][2] < 2.7            # under the top of the 2,70 m walls, not on the floor
     assert spec['shadows'] is True
