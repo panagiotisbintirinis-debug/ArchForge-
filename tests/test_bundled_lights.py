@@ -86,6 +86,7 @@ def test_project_switch_controls_emissive_in_the_javascript_renderer():
     engine = QJSEngine()
     prefix = '''
       var window = {};
+      function wakeRender() { throw new Error('render loop not initialized'); }
       const THREE = {Group: class {constructor() {this.children=[];} add(x) {this.children.push(x);}}};
       const scene = {add() {}};
       const lamp = {userData: {projectLightEmissive: 0.4}, emissiveIntensity: 0.4};

@@ -111,7 +111,7 @@ function afUpdateLightVisibility() {
       }
     }
   });
-  if (typeof wakeRender === "function") wakeRender(2);
+  if (typeof window.archforgeWakeRender === "function") window.archforgeWakeRender(2);
 }
 
 window.setArchitecturalLights = function(payload) {
