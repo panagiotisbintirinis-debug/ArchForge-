@@ -895,7 +895,10 @@ SCHEMAS = {
                          'beam_deg': _beam, 'dim_level': _unit_interval, 'direction': _light_direction,
                          'automation_group': str, 'mount_height': _nonnegative, 'catalog_id': str,
                          'dimming': _choice(('onoff', 'phase_cut', 'dali2', '0_10v'), 'dimming protocol'),
-                         'target_x': _finite, 'target_y': _finite, 'target_z': _finite},
+                         'target_x': _finite, 'target_y': _finite, 'target_z': _finite,
+                         # per luminaire (owner 25/10): on/off, and the aim of an adjustable head (mep/lighting.aim_target)
+                         'light_on': _flag, 'aim_tilt_deg': _between(0.0, 90.0, 'aim tilt'),
+                         'aim_azimuth_deg': lambda v: _finite(v) % 360.0},
     'plumbing_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _plumbing_type, 'pipe_system': _pipe_system},
     'ceiling_joists': {'points': _polygon, 'z': _finite, 'spacing': _joist_spacing, 'usage': _joist_usage,
                        'direction': _joist_direction},

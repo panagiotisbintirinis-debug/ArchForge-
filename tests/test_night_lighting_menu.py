@@ -43,3 +43,31 @@ def test_a_ceiling_light_sits_at_the_ceiling_and_walls_stop_it():
     spec = _entity_light_spec(light, doc)
     assert 2.0 < spec['position'][2] < 2.7            # under the top of the 2,70 m walls, not on the floor
     assert spec['shadows'] is True
+
+
+def test_project_lights_are_off_by_day_and_have_a_switch_in_the_sun_menu():
+    """Owner 25/10: «μεσημέρι και τα φώτα αναμμένα — πού τα κλείνω;»"""
+    app = QApplication.instance() or QApplication([])
+    from archforge.ui import pbr_viewport
+    from archforge.ui.rendering_quality_upgrade import install_rendering_quality_upgrade
+    from archforge.ui.lighting_system import install_lighting_system
+    install_rendering_quality_upgrade()
+    install_lighting_system()
+    html = pbr_viewport._PBR_HTML
+    # By default (auto) the lights' group is shown only in night mode; the mode and the lights both re-check it.
+    assert 'architecturalLightsSwitch === "auto" && architecturalLightingMode === "night"' in html
+    assert html.count('afUpdateLightVisibility();') >= 2
+    from archforge.ui.main_window import MainWindow
+    w = MainWindow()
+    app.processEvents()
+    try:
+        actions = w._mockup_project_lights_actions
+        assert set(actions) == {'auto', 'on', 'off'} and actions['auto'].isChecked()
+        assert all(a in w._mockup_sun_menu.actions() for a in actions.values())
+        assert w.pbr_view._lighting_payload is not None
+        actions['off'].trigger()
+        assert w.pbr_view._project_lights == 'off'
+        actions['on'].trigger()
+        assert w.pbr_view._project_lights == 'on' and not actions['auto'].isChecked()
+    finally:
+        w._mark_clean(); w.close(); app.processEvents()

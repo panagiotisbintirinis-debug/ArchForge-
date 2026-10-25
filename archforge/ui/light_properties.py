@@ -7,9 +7,10 @@ driver for a strip).
 """
 from __future__ import annotations
 
-from PySide6.QtWidgets import QComboBox, QDoubleSpinBox, QLabel, QSlider
+from PySide6.QtWidgets import QCheckBox, QComboBox, QDoubleSpinBox, QLabel, QSlider
 
-LIGHT_KEYS = ("lumen", "kelvin", "beam_deg", "dim_level", "w_per_m", "power_w")
+LIGHT_KEYS = ("lumen", "kelvin", "beam_deg", "dim_level", "w_per_m", "power_w",
+              "light_on", "aim_tilt_deg", "aim_azimuth_deg", "target_x", "target_y", "target_z")
 KELVINS = (2700.0, 3000.0, 4000.0, 5000.0)   # quick picks of the colour temperature written on the data sheet
 DIRECTION_LABELS = {"auto": "Αυτόματα", "down": "Προς τα κάτω", "up": "Προς τα πάνω (έμμεσο)",
                     "wall": "Προς τον τοίχο", "both": "Πάνω και κάτω"}
@@ -102,6 +103,11 @@ def add_rows(window, eid):
                             and window._set_entity_choice(eid, "kelvin", float(w.currentData())))
     temps.lineEdit().editingFinished.connect(lambda w=temps: _typed_kelvin(window, eid, w.currentText()))
     form.addRow("Χρώμα φωτός", temps)
+    on = QCheckBox("Αναμμένο (στο 3D / νύχτα)")
+    on.setObjectName("lightOnChoice")
+    on.setChecked(bool(int(p.get("light_on", 1))))
+    on.toggled.connect(lambda checked: window._set_entity_choice(eid, "light_on", 1 if checked else 0))
+    form.addRow("Φωτιστικό", on)
     dim = QSlider(); dim.setOrientation(__import__("PySide6.QtCore", fromlist=["Qt"]).Qt.Orientation.Horizontal)
     dim.setRange(0, 100); dim.setValue(int(round(float(p.get("dim_level", 1.0)) * 100)))
     shown = QLabel(f"{dim.value()} %")
@@ -115,6 +121,7 @@ def add_rows(window, eid):
     direction.setCurrentIndex(max(0, direction.findData(str(p.get("direction", "auto")))))
     direction.activated.connect(lambda _i, w=direction: _set_direction(window, eid, w.currentData()))
     form.addRow("Κατεύθυνση", direction)
+    add_aim_rows(window, eid)
     form.addRow("Ομάδα αυτοματισμού", _group_combo(window, eid, str(p.get("automation_group", ""))))
     spec = light_spec(doc, entity)
     control = ("ροοστάτης" if spec["dimmer"] else "διακόπτης") if spec["switch"] else "⚠ χωρίς διακόπτη"
@@ -157,3 +164,43 @@ def _typed_kelvin(window, eid, text):
 def _set_direction(window, eid, value):
     # «Αυτόματα» = 'auto': cove strips light upwards, the rest by type (mep/lighting.direction_of).
     window._set_entity_choice(eid, "direction", value or "auto")
+
+
+def add_aim_rows(window, eid):
+    """Aim of an adjustable head (σποτ, wall washer): tilt from the vertical and compass bearing, one undo each.
+
+    A fixed fitting (downlight, plafonnier, απλίκα, ταινία) says so instead — its beam follows «Κατεύθυνση».
+    """
+    from archforge.mep.lighting import AIMABLE
+    p = window.doc.get(eid).params
+    if p.get("point_type") not in AIMABLE:
+        window.form.addRow("Στόχευση", QLabel("Σταθερή δέσμη — το φωτιστικό δεν στρέφεται (ακολουθεί την Κατεύθυνση)"))
+        return False
+    tilt = QDoubleSpinBox(); tilt.setObjectName("aimTilt")
+    tilt.setRange(0.0, 90.0); tilt.setDecimals(0); tilt.setSingleStep(5.0); tilt.setSuffix("°")
+    tilt.setValue(float(p.get("aim_tilt_deg", 0.0)))
+    tilt.setToolTip("0° = κατακόρυφα (κάτω, ή πάνω με «Προς τα πάνω») · 90° = οριζόντια")
+    tilt.editingFinished.connect(lambda w=tilt: _set_aim(window, eid, "aim_tilt_deg", w.value()))
+    window.form.addRow("Κλίση δέσμης", tilt)
+    bearing = QDoubleSpinBox(); bearing.setObjectName("aimBearing")
+    bearing.setRange(0.0, 359.0); bearing.setDecimals(0); bearing.setSingleStep(15.0); bearing.setSuffix("°")
+    bearing.setWrapping(True)
+    bearing.setValue(float(p.get("aim_azimuth_deg", 0.0)))
+    bearing.setToolTip("Προς τα πού στην κάτοψη: 0° Βορράς (+y) · 90° Ανατολή (+x) · 180° Νότος · 270° Δύση")
+    bearing.editingFinished.connect(lambda w=bearing: _set_aim(window, eid, "aim_azimuth_deg", w.value()))
+    window.form.addRow("Προσανατολισμός", bearing)
+    return True
+
+
+def _set_aim(window, eid, key, value):
+    """Tilt and bearing together (one UpdateEntity): the first change of either fixes the other at its shown value."""
+    from archforge.core.commands import UpdateEntity
+    p = window.doc.get(eid).params
+    changes = {"aim_tilt_deg": float(p.get("aim_tilt_deg", 0.0)), "aim_azimuth_deg": float(p.get("aim_azimuth_deg", 0.0))}
+    changes[key] = float(value)
+    if all(k in p and float(p[k]) == v for k, v in changes.items()):
+        return
+    window.stack.execute(UpdateEntity(eid, changes))
+    window._redraw_views(all_views=True)
+    from PySide6.QtCore import QTimer
+    QTimer.singleShot(0, window.refresh_inspector)

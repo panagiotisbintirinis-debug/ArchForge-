@@ -43,6 +43,9 @@ DEFAULT_DIRECTION = {"light": "down", "spot": "down", "downlight": "down", "wall
 PHOTOMETRY = DEFAULT_DIRECTION            # the luminaire types
 BEAM_PRESETS = (10.0, 24.0, 36.0, 60.0)   # owner's list (15/10): 10° / 24° / 36° / 60° or custom
 DIRECTIONS = ("down", "up", "wall", "both")
+# Fittings with an adjustable head: their beam is aimed (tilt from the vertical, compass bearing); the rest are fixed.
+AIMABLE = ("spot", "wall_washer")
+AIM_REACH = 2.0            # length of the aim line to the renderer's target point (m) — direction only, not a range
 COVE_SET_BACK = 0.05       # strip this far in front of the upstand, on the low band (placement, not a rating)
 
 
@@ -106,6 +109,38 @@ def direction_of(doc, entity):
     return DEFAULT_DIRECTION[p["point_type"]]
 
 
+def is_on(params):
+    """The luminaire is switched on in the picture: «Αναμμένο» ticked and the dimmer above 0 %."""
+    return bool(int(params.get("light_on", 1))) and float(params.get("dim_level", 1.0)) > 0
+
+
+def aim_target(doc, params, x, y, z):
+    """Point the beam is aimed at, or None when the fitting has no aim (renderer keeps its own default).
+
+    An adjustable head (``AIMABLE``) aimed in Ιδιότητες: ``aim_tilt_deg`` from the vertical (0° = straight down,
+    90° = horizontal) and ``aim_azimuth_deg`` as a compass bearing in plan (0° = +y Βορράς, 90° = +x Ανατολή);
+    «Προς τα πάνω» turns the same aim upwards.  Otherwise an explicit ``target_x/y/z``, else the direction.
+    """
+    p = params
+    kind = p.get("point_type")
+    direction = p.get("direction", "auto")
+    if kind in AIMABLE and "aim_tilt_deg" in p:
+        tilt = math.radians(float(p["aim_tilt_deg"]))
+        bearing = math.radians(float(p.get("aim_azimuth_deg", 0.0)))
+        reach = AIM_REACH * math.sin(tilt)
+        rise = AIM_REACH * math.cos(tilt) * (1.0 if direction == "up" else -1.0)
+        return [x + reach * math.sin(bearing), y + reach * math.cos(bearing), z + rise]
+    if "target_x" in p:
+        return [float(p["target_x"]), float(p.get("target_y", y)), float(p.get("target_z", z - AIM_REACH))]
+    if direction == "up":
+        return [x, y, z + AIM_REACH]
+    if direction == "wall" or (kind == "wall_washer" and direction == "auto"):
+        return _toward_wall(doc, x, y, z) if doc is not None else [x, y, z - AIM_REACH]
+    if direction == "down" or kind in ("spot", "downlight", "wall_washer"):
+        return [x, y, z - AIM_REACH]
+    return None
+
+
 def lumen_of(params):
     """Luminous flux (lm) from the data sheet value the user entered (lm/m for a strip), or None."""
     if not params.get("lumen"):
@@ -139,7 +174,7 @@ def light_spec(doc, entity):
     circuit = next((c["id"] for c in wiring["circuits"] if entity.id in c["points"]), "")
     control = next((l for l in wiring["switch_links"] if entity.id in l["lights"]), None)
     spec = {"id": entity.id, "type": kind, "kelvin": float(p["kelvin"]) if p.get("kelvin") else None,
-            "lumen": None if flux is None else round(flux, 1), "beam_deg": beam, "dim_level": dim, "enabled": dim > 0,
+            "lumen": None if flux is None else round(flux, 1), "beam_deg": beam, "dim_level": dim, "enabled": is_on(p),
             "direction": direction, "position": [x, y, z], "circuit": circuit,
             "switch": control["switch"] if control else "", "dimmer": bool(control and control["dimmer"]),
             "automation_group": str(p.get("automation_group", "")), "load_w": round(point_load_w(p), 1),
@@ -152,10 +187,7 @@ def light_spec(doc, entity):
         if beam is not None:
             spec["angle_deg"] = beam / 2
     elif kind in ("spot", "downlight", "wall_washer"):
-        target = [float(p.get("target_x", x)), float(p.get("target_y", y)), float(p.get("target_z", z - 2.0))]
-        if kind == "wall_washer" and "target_x" not in p:
-            target = _toward_wall(doc, x, y, z)
-        spec.update(kind="spot", target=target, shadows=kind == "spot")
+        spec.update(kind="spot", target=aim_target(doc, p, x, y, z), shadows=kind == "spot")
         if beam is not None:
             spec["angle_deg"] = beam / 2
         spec["intensity"] = (None if flux is None or beam is None
