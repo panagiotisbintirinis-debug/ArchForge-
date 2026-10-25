@@ -152,6 +152,21 @@ def _adopt(toolbar, widget):
     toolbar.addWidget(widget).setVisible(True)
 
 
+def _lighting_mode(window, mode):
+    """Ημέρα / Απόγευμα / Νύχτα of ui/lighting_system.py (installed by app.py); quiet when it is not installed."""
+    setter = getattr(window.pbr_view, "set_lighting_mode", None)
+    if setter is not None:
+        setter(mode)
+        window.statusBar().showMessage({"night": "Φωτισμός: Νύχτα — ανάβουν μόνο τα φώτα του έργου (Ηλεκτρολογικά)"}
+                                       .get(mode, ""), 6000)
+
+
+def _daylight(window, hour):
+    """A sun hour from the menu: back to daylight, then the sun at that hour."""
+    _lighting_mode(window, "day")
+    window.pbr_view.set_sun(hour)
+
+
 def install_approved_mockup_shell(window):
     """Use the supplied mockup structure, but mount the real ArchForge editors."""
     window.setWindowTitle("ArchForge"); window.resize(1536,1000); window.setStyleSheet(STYLE)
@@ -389,7 +404,12 @@ def install_approved_mockup_shell(window):
     for text,hour in (("Πρωί (09:00)",9.0),("Μεσημέρι (11:00)",11.0),("Απόγευμα (17:00)",17.0),
                       ("Δειλινό (19:00)",19.0),("Χωρίς ουρανό (στούντιο)",None)):
         a=QAction(text,sun_menu); a.setCheckable(True); a.setChecked(hour==11.0)
-        a.triggered.connect(lambda _=False,h=hour: window.pbr_view.set_sun(h)); sun_group.addAction(a); sun_menu.addAction(a)
+        a.triggered.connect(lambda _=False,h=hour: _daylight(window,h)); sun_group.addAction(a); sun_menu.addAction(a)
+    # Night: only the project's own lights (owner 25/10: «το πρόγραμμα για δοκιμές φωτισμού σε νυχτερινό δεν το είδα
+    # ποτέ στην πράξη» — the night mode of ui/lighting_system.py had no command).
+    night=QAction("Νύχτα (μόνο τα φώτα του έργου)",sun_menu); night.setCheckable(True)
+    night.triggered.connect(lambda _=False: _lighting_mode(window,"night")); sun_group.addAction(night); sun_menu.addAction(night)
+    window._mockup_night_action=night
     sun_menu.addSeparator()
     custom=QAction("Ώρα και μήνας…",sun_menu); custom.triggered.connect(window._choose_sun_time); sun_menu.addAction(custom)
     window._mockup_sun_menu=sun_menu
