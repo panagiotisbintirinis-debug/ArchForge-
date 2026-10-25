@@ -107,9 +107,12 @@ window.__fixturePick = function(eid) {
         assert w.doc.get(lamp.id).params['aim_azimuth_deg']==90
         slider=w.form.parentWidget().findChild(QSlider)
         assert slider is not None and slider.orientation()==Qt.Horizontal
-        bright=w.pbr_view.web_view.grab().toImage()
+        # Native QWidget grabs can return a cached GPU composition on virtual desktops.
+        # Capture the actual final canvas through the app's existing frame-capture API.
+        bright=js('window.archforgeCaptureFrame()')
+        assert isinstance(bright,str) and bright.startswith('data:image/png;base64,'),'No real rendered frame'
         slider.setSliderDown(True);slider.setValue(0);QTest.qWait(700)
-        dark=w.pbr_view.web_view.grab().toImage()
+        dark=js('window.archforgeCaptureFrame()')
         assert not json.loads(js('JSON.stringify(window.__fixtureQA())'))['aim'],'Dimmed fixture still emits light'
         assert bright!=dark,'Rendered pixels did not change when dimmed to zero'
         assert w.doc.get(lamp.id).params['dim_level']==1,'The dimmer preview changed the project'

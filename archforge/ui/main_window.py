@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QLabel, QTabWidget, QStatusBar, QFileDialog, QMessageBox, QComboBox, QInputDialog,
     QDialog, QDialogButtonBox, QVBoxLayout, QListWidget, QListWidgetItem,
     QToolButton, QMenu, QSplitter, QTreeWidget, QTreeWidgetItem,
-    QLineEdit, QPushButton, QHBoxLayout, QGroupBox,
+    QLineEdit, QPushButton, QHBoxLayout, QGroupBox, QScrollArea,
 )
 
 from archforge.core.model import Document, WorkPlane, Entity
@@ -2008,7 +2008,11 @@ class MainWindow(QMainWindow):
         self.dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
         self.inspector = QWidget()
         self.form = QFormLayout(self.inspector)
-        self.dock.setWidget(self.inspector)
+        self.inspector_scroll = QScrollArea()
+        self.inspector_scroll.setWidgetResizable(True)
+        self.inspector_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        self.inspector_scroll.setWidget(self.inspector)
+        self.dock.setWidget(self.inspector_scroll)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dock)
 
     def _build_mockup_workspace(self):

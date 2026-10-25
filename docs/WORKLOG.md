@@ -11,6 +11,9 @@
 Ο πραγματικός Windows WebGL έλεγχος αποκάλυψε κρυμμένο σώμα στο αρχιτεκτονικό layer:
 διορθώθηκε η εμφάνιση του φυσικού σώματος χωρίς αλλαγή του ηλεκτρολογικού layer ή
 των κλειδωμάτων. Νέα regressions πλήρους scene payload και 3D selection bridge.
+Το μεγάλο σύνολο Ιδιοτήτων δεν μεγαλώνει πια το κύριο παράθυρο: κύλιση στο ίδιο
+dock, με regression για την οθόνη 1280×960. Η σύγκριση εικόνας στο virtual Windows
+desktop χρησιμοποιεί τον υπάρχοντα frame-capture renderer αντί του cached QWidget.grab.
 41 στοχευμένα passed· τελικό full/Windows και actual 3D check: βλ. #158.
 Η παράδοση ζητήθηκε μετά τους ελέγχους, ως Windows artifact. Καμία συγχώνευση.
 

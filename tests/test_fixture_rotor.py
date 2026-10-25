@@ -101,5 +101,7 @@ def test_3d_selection_opens_rotors_for_bound_electrical_fixture_in_architecture(
         w.pbr_view._select_entity_from_web(lamp.id);app.processEvents()
         assert w.doc.selection==[lamp.id]
         assert w.form.parentWidget().findChild(QDial,'aimBearing') is not None
+        w.resize(1280,960);w.show();app.processEvents()
+        assert w.minimumSizeHint().height()<=960,'The fixture properties force the window beyond the owner screen'
     finally:
         w._mark_clean();w.close();app.processEvents()
