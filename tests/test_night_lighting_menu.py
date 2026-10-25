@@ -12,7 +12,10 @@ from PySide6.QtWidgets import QApplication
 
 def test_night_is_in_the_sun_menu_and_an_hour_brings_the_day_back():
     app = QApplication.instance() or QApplication([])
-    import archforge.ui.app  # noqa: F401  (installs the lighting system, as the program does)
+    # Only the lighting layer, as tests/test_lighting_system.py does: importing archforge.ui.app would install every
+    # startup layer on MainWindow for the rest of the run and break later tests.
+    from archforge.ui.lighting_system import install_lighting_system
+    install_lighting_system()
     from archforge.ui.main_window import MainWindow
     w = MainWindow()
     app.processEvents()
