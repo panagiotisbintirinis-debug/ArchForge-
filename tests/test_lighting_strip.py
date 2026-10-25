@@ -139,3 +139,104 @@ def test_direction_only_for_fittings_that_turn_dimmer_for_all():
         assert isinstance(aimed['Ένταση (ροοστάτης)'], QSlider)
     finally:
         window._mark_clean(); window.close(); app.processEvents()
+
+
+# -- luminous library models (content pack, PR #157): same strip, their own fields, aim only when declared ----------
+def _lit_asset(name, role, aimable=False, dimmable=True, kind='spot'):
+    import math
+    from archforge.library import assets
+    source = dict(kind=kind, position=[0.0, 0.0, 0.3], direction=[0, 0, -1], intensity_cd=200.0, color=[1, 1, 1],
+                  range_m=0.0, provenance={'light_role': role, 'aimable': aimable, 'render_dimmable': dimmable})
+    if kind == 'spot':
+        source.update(outer_cone_rad=math.pi / 6, inner_cone_rad=0.0)
+    aid, _ = assets.store_asset(name, [((-.1, -.1, 0), (.1, -.1, 0), (0, .1, .3))], {'source': 'test'},
+                                category=('Φωτισμός',), lighting={'sources': [source]})
+    return aid
+
+
+def _place(stack, aid, x, y):
+    from archforge.core.commands import AddEntity
+    from archforge.core.model import Entity
+    from archforge.library import assets
+    from archforge.ui.library_instance_integration import library_instance_params
+    record = assets.load_asset(aid)
+    e = Entity('library_object', library_instance_params(record, x=x, y=y, z=0.0), name=record['name'])
+    stack.execute(AddEntity(e))
+    return e
+
+
+def test_library_fixtures_join_their_room_with_their_own_controls(tmp_path, monkeypatch):
+    import math
+    from archforge.library.lighting import instance_light_specs
+    from archforge.mep.lighting import (fixture_aimable, fixture_changes, fixture_on, replace_fixture,
+                                        replacement_choices)
+    from archforge.core.commands import UpdateEntity
+    monkeypatch.setenv('ARCHFORGE_DATA', str(tmp_path))
+    doc, stack, left, right, _garden = _two_rooms()
+    pendant = _lit_asset('Κρεμαστό δοκιμής', 'pendant')
+    projector = _lit_asset('Προβολέας με βραχίονα', 'garden_projector', aimable=True)
+    plain = _lit_asset('Κολωνάκι δοκιμής', 'bollard', dimmable=False, kind='point')
+    lamp = _place(stack, pendant, 1.5, 4.0)                       # left room, next to its electrical lights
+    proj = _place(stack, projector, 12.0, 1.0)                    # garden
+    room = next(r for r in lights_by_room(doc) if lamp.id in [i for g in r['groups'] for i in g['ids']])
+    assert {e.id for e in left} < {i for g in room['groups'] for i in g['ids']}
+    assert next(g for g in room['groups'] if lamp.id in g['ids'])['label'] == 'Κρεμαστά'
+    outside = lights_by_room(doc)[-1]
+    assert outside['title'] == OUTSIDE_ROOMS and next(g for g in outside['groups'] if proj.id in g['ids'])['label'] == 'Προβολείς'
+    # One state per kind: the pack's light_enabled / light_level, never light_on / dim_level on a library object.
+    assert fixture_changes(doc.get(lamp.id), on=False, level=0.5) == {'light_enabled': 0.0, 'light_level': 0.5}
+    stack.execute(UpdateEntity(lamp.id, fixture_changes(doc.get(lamp.id), level=0.5)))
+    assert instance_light_specs(doc.get(lamp.id))[0]['intensity'] == 100.0 and fixture_on(doc.get(lamp.id))
+    # Aim only where the model says so: the projector turns, the pendant (a spot cone too) does not.
+    assert fixture_aimable(doc.get(proj.id)) and not fixture_aimable(doc.get(lamp.id))
+    stack.execute(UpdateEntity(proj.id, {'aim_tilt_deg': 60.0, 'aim_azimuth_deg': 0.0}))
+    spec = instance_light_specs(doc.get(proj.id))[0]
+    d = [t - q for t, q in zip(spec['target'], spec['position'])]
+    assert d == pytest.approx([0.0, math.sin(math.radians(60)), -math.cos(math.radians(60))])   # north, 60° from down
+    stack.execute(UpdateEntity(lamp.id, {'aim_tilt_deg': 60.0}))
+    spec = instance_light_specs(doc.get(lamp.id))[0]
+    assert [t - q for t, q in zip(spec['target'], spec['position'])] == pytest.approx([0, 0, -1])   # fixed beam
+    # Replace with another luminous model at the same place; only lit models are offered.
+    choices = replacement_choices(doc.get(lamp.id))
+    assert {c for _l, k, c in choices if k == 'library'} == {pendant, projector, plain}
+    command, new = replace_fixture(doc, lamp.id, 'library', plain)
+    stack.execute(command)
+    p = doc.get(new.id).params
+    assert (p['x'], p['y'], p['asset'], p['light_level']) == (1.5, 4.0, plain, 0.5) and 'aim_tilt_deg' not in p
+    stack.undo()
+    assert lamp.id in doc.entities and new.id not in doc.entities
+
+
+def test_strip_rows_for_library_fixtures(tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QApplication, QCheckBox, QDoubleSpinBox, QLabel, QSlider
+    from archforge.ui.main_window import MainWindow
+    monkeypatch.setenv('ARCHFORGE_DATA', str(tmp_path))
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    try:
+        doc, stack, left, _right, _garden = _two_rooms()
+        window._replace_project(doc)
+        plain = _lit_asset('Κολωνάκι δοκιμής', 'bollard', dimmable=False, kind='point')
+        projector = _lit_asset('Προβολέας με βραχίονα', 'garden_projector', aimable=True)
+        post = _place(window.stack, plain, 12.0, 1.0)
+        proj = _place(window.stack, projector, 12.0, 4.0)
+        strip = window._lighting_strip
+        strip.refresh()
+        menu = strip.buttons[OUTSIDE_ROOMS].menu()
+        strip._fill(menu, OUTSIDE_ROOMS)
+        rows = {a.defaultWidget().objectName()[len('lightRow_'):]: a.defaultWidget() for a in menu.actions()
+                if hasattr(a, 'defaultWidget') and a.defaultWidget()}
+        assert rows[post.id].findChild(QSlider, 'lightRowDim').isEnabled() is False     # model is on/off only
+        rows[proj.id].findChild(QCheckBox, 'lightRowOn').setChecked(False)
+        assert window.doc.get(proj.id).params['light_enabled'] == 0.0
+        assert 'light_on' not in window.doc.get(proj.id).params
+        assert window.doc.get(post.id).params['light_enabled'] == 1.0                  # the other one untouched
+        # Ιδιότητες: aim rows for the projector, «Σταθερή δέσμη» for the post.
+        window.doc.select([proj.id]); window.refresh_inspector(); app.processEvents()
+        assert window.form.parentWidget().findChild(QDoubleSpinBox, 'aimTilt') is not None
+        window.doc.select([post.id]); window.refresh_inspector(); app.processEvents()
+        assert window.form.parentWidget().findChild(QDoubleSpinBox, 'aimTilt') is None
+        assert any(isinstance(w, QLabel) and w.text().startswith('Σταθερή δέσμη')
+                   for w in window.form.parentWidget().findChildren(QLabel))
+    finally:
+        window._mark_clean(); window.close(); app.processEvents()

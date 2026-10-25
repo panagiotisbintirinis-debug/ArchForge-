@@ -8,7 +8,8 @@ Owner 25/10: «μικρό μενού που θα μας δείχνει όλα τ
 * The strip is a dock: bottom by default, can be dragged anywhere (floating) and resized; hidden until asked.
 * Each room's menu lists its luminaires under their kind (Κεντρικό, Απλίκες, Κρυφός φωτισμός …). Every row acts on
   **that one luminaire only**: «Αναμμένο», the dimmer, «Αλλαγή ▸» (another fitting / catalogue entry at the same
-  point, ``mep.lighting.replace_luminaire``). Each change is one undo step through the stack, so the 3D redraws now.
+  point, ``mep.lighting.replace_fixture``). Electrical luminaires and luminous library models (GLB emitters) alike,
+  each through its own fields (``mep.lighting.fixture_changes``). Each change is one undo step through the stack, so the 3D redraws now.
 * Clicking a luminaire's name selects it (Ιδιότητες show it).
 """
 from __future__ import annotations
@@ -75,10 +76,10 @@ class LightingStrip(QWidget):
             self.row.addStretch(1)
             if not titles:
                 self.row.insertWidget(0, QLabel("Δεν υπάρχουν φωτιστικά στο σχέδιο (Η/Μ ▸ Ηλεκτρολογικά ▸ Φωτισμός)"))
-        from archforge.mep.lighting import is_on
+        from archforge.mep.lighting import fixture_on
         for room in (r for r in rooms if r["title"] in self.buttons):
             ids = [i for g in room["groups"] for i in g["ids"]]
-            lit = sum(1 for i in ids if is_on(self.window.doc.get(i).params))
+            lit = sum(1 for i in ids if fixture_on(self.window.doc.get(i)))
             self.buttons[room["title"]].setText(f"{'💡' if lit else '○'} {room['title']}  {lit}/{len(ids)}")
 
     # -- one room's pop-up ---------------------------------------------------------------------------------------
@@ -93,25 +94,35 @@ class LightingStrip(QWidget):
             menu.addSection(group["label"])
             for n, eid in enumerate(group["ids"], 1):
                 act = QWidgetAction(menu)
-                act.setDefaultWidget(self._row(eid, f"{group['label']} {n}" if len(group["ids"]) > 1 else group["label"]))
+                entity = self.window.doc.get(eid)
+                if entity.kind == "library_object":
+                    label = entity.name or group["label"]                  # the model's name (Κρεμαστό Ø40 …)
+                else:
+                    label = f"{group['label']} {n}" if len(group["ids"]) > 1 else group["label"]
+                act.setDefaultWidget(self._row(eid, label))
                 menu.addAction(act)
 
     def _row(self, eid, label):
-        p = self.window.doc.get(eid).params
+        from archforge.mep.lighting import fixture_level, fixture_switch
+        entity = self.window.doc.get(eid)
         w = QWidget(); w.setObjectName(f"lightRow_{eid}")
         lay = QHBoxLayout(w); lay.setContentsMargins(8, 1, 8, 1); lay.setSpacing(6)
-        on = QCheckBox(); on.setObjectName("lightRowOn"); on.setChecked(bool(int(p.get("light_on", 1))))
+        on = QCheckBox(); on.setObjectName("lightRowOn"); on.setChecked(fixture_switch(entity))
         on.setToolTip("Αναμμένο / σβηστό — μόνο αυτό το φωτιστικό")
-        on.toggled.connect(lambda checked, i=eid: self._set(i, {"light_on": 1 if checked else 0}))
+        on.toggled.connect(lambda checked, i=eid: self._switch(i, on=checked))
         name = QPushButton(label); name.setFlat(True); name.setObjectName("lightRowName")
         name.setToolTip("Επιλογή — οι Ιδιότητές του στο πάνελ")
         name.clicked.connect(lambda _=False, i=eid: self._select(i))
         dim = QSlider(Qt.Orientation.Horizontal); dim.setObjectName("lightRowDim"); dim.setRange(0, 100)
-        dim.setFixedWidth(110); dim.setValue(int(round(float(p.get("dim_level", 1.0)) * 100)))
+        dim.setFixedWidth(110); dim.setValue(int(round(fixture_level(entity) * 100)))
+        if entity.kind == "library_object":
+            from archforge.library.lighting import capabilities
+            if not capabilities(entity)["dimmable"]:
+                dim.setEnabled(False); dim.setToolTip("Το μοντέλο δεν ρυθμίζεται σε ένταση (μόνο αναμμένο / σβηστό)")
         shown = QLabel(f"{dim.value()} %"); shown.setFixedWidth(36)
         dim.valueChanged.connect(lambda v, l=shown: l.setText(f"{v} %"))
-        dim.sliderReleased.connect(lambda s=dim, i=eid: self._set(i, {"dim_level": s.value() / 100.0}))
-        dim.valueChanged.connect(lambda v, s=dim, i=eid: not s.isSliderDown() and self._set(i, {"dim_level": v / 100.0}))
+        dim.sliderReleased.connect(lambda s=dim, i=eid: self._switch(i, level=s.value() / 100.0))
+        dim.valueChanged.connect(lambda v, s=dim, i=eid: not s.isSliderDown() and self._switch(i, level=v / 100.0))
         change = QToolButton(); change.setText("Αλλαγή"); change.setObjectName("lightRowChange")
         change.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         change.setToolTip("Άλλο φωτιστικό στο ίδιο σημείο (βιβλιοθήκη ▸ Φωτιστικά) — μόνο αυτό")
@@ -128,13 +139,20 @@ class LightingStrip(QWidget):
     def _fill_replacements(self, menu, eid):
         from archforge.mep.lighting import replacement_choices
         entity = self.window.doc.get(eid)
-        current = (entity.params.get("point_type"), entity.params.get("catalog_id") or None)
+        current = (("library", entity.params.get("asset")) if entity.kind == "library_object"
+                   else (entity.params.get("point_type"), entity.params.get("catalog_id") or None))
         for label, point_type, catalog_id in replacement_choices(entity):
             a = menu.addAction(label)
             a.setCheckable(True); a.setChecked((point_type, catalog_id) == current)
             a.triggered.connect(lambda _=False, i=eid, t=point_type, c=catalog_id: self.replace(i, t, c))
 
     # -- commands (one luminaire each) ---------------------------------------------------------------------------
+    def _switch(self, eid, on=None, level=None):
+        from archforge.mep.lighting import fixture_changes
+        if eid not in self.window.doc.entities:
+            return False
+        return self._set(eid, fixture_changes(self.window.doc.get(eid), on=on, level=level))
+
     def _set(self, eid, changes):
         from archforge.core.commands import UpdateEntity
         if eid not in self.window.doc.entities:
@@ -148,8 +166,8 @@ class LightingStrip(QWidget):
         return True
 
     def replace(self, eid, point_type, catalog_id=None):
-        from archforge.mep.lighting import replace_luminaire
-        command, new = replace_luminaire(self.window.doc, eid, point_type, catalog_id)
+        from archforge.mep.lighting import replace_fixture
+        command, new = replace_fixture(self.window.doc, eid, point_type, catalog_id)
         self.window.stack.execute(command)
         if self._open_menu is not None:
             self._open_menu.close()

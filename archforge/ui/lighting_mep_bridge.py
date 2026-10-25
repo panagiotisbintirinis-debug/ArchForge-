@@ -21,6 +21,9 @@ def _renderer_specs_from_mep(doc):
         if spec.get("intensity") is None:
             continue
         renderable.append(spec)
+    from archforge.library.lighting import instance_light_specs
+    for entity in getattr(doc, "entities", {}).values():
+        renderable.extend(instance_light_specs(entity))
     return renderable
 
 

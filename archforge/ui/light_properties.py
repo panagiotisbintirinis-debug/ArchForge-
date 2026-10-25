@@ -165,18 +165,23 @@ def add_aim_rows(window, eid):
 
     A fixed fitting (downlight, plafonnier, απλίκα, ταινία) says so instead — its beam follows «Κατεύθυνση».
     """
-    from archforge.mep.lighting import AIMABLE
-    p = window.doc.get(eid).params
-    # Owner 25/10: «κατεύθυνση μόνο σε αυτά που έχουν τη δυνατότητα» — the dimmer is for all (above).
-    if p.get("point_type") not in AIMABLE:
+    from archforge.mep.lighting import fixture_aimable
+    entity = window.doc.get(eid)
+    p = entity.params
+    # Owner 25/10: «κατεύθυνση μόνο σε αυτά που έχουν τη δυνατότητα» — the dimmer is for all (above). A library model
+    # turns only when its content says ``aimable`` (a spot cone alone does not).
+    if not fixture_aimable(entity):
         window.form.addRow("Κατεύθυνση", QLabel("Σταθερή δέσμη — το φωτιστικό δεν στρέφεται"))
         return False
-    direction = QComboBox()
-    for value, label in DIRECTION_LABELS.items():
-        direction.addItem(label, value)
-    direction.setCurrentIndex(max(0, direction.findData(str(p.get("direction", "auto")))))
-    direction.activated.connect(lambda _i, w=direction: _set_direction(window, eid, w.currentData()))
-    window.form.addRow("Κατεύθυνση", direction)
+    if entity.kind == "electrical_point":
+        direction = QComboBox()
+        for value, label in DIRECTION_LABELS.items():
+            direction.addItem(label, value)
+        direction.setCurrentIndex(max(0, direction.findData(str(p.get("direction", "auto")))))
+        direction.activated.connect(lambda _i, w=direction: _set_direction(window, eid, w.currentData()))
+        window.form.addRow("Κατεύθυνση", direction)
+    else:
+        window.form.addRow("Κατεύθυνση", QLabel("Ρυθμιζόμενη κεφαλή — Κλίση και Προσανατολισμός"))
     tilt = QDoubleSpinBox(); tilt.setObjectName("aimTilt")
     tilt.setRange(0.0, 90.0); tilt.setDecimals(0); tilt.setSingleStep(5.0); tilt.setSuffix("°")
     tilt.setValue(float(p.get("aim_tilt_deg", 0.0)))

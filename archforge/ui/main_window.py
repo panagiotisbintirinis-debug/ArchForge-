@@ -1042,6 +1042,8 @@ class MainWindow(QMainWindow):
                 return None
         try:
             parts, dropped = drop_ground_planes(read_gltf(path))
+            from archforge.library.lighting import read_gltf_lighting
+            lighting = read_gltf_lighting(path)
         except Exception as exc:
             QMessageBox.warning(self, 'Βιβλιοθήκη', f'Το μοντέλο δεν διαβάζεται:\n{exc}')
             return None
@@ -1056,7 +1058,7 @@ class MainWindow(QMainWindow):
         asset_id, size = assets.store_asset(name.strip(), tris, {
             'source': 'user-file', 'file': os.path.basename(path),
             'license': 'supplied by the user', 'redistributable': False,
-        }, colors=colors, part_names=part_names)
+        }, colors=colors, part_names=part_names, lighting=lighting)
         self._refresh_library_panel()
         note = f' (αφαιρέθηκε βάση: {", ".join(dropped)})' if dropped else ''
         self.statusBar().showMessage(
@@ -1888,7 +1890,7 @@ class MainWindow(QMainWindow):
             if not chosen:
                 return None
             asset_id = chosen[0]
-        self._pending_library_asset = next(r for r in records if r['id'] == asset_id)
+        self._pending_library_asset = assets.load_asset(asset_id) or next(r for r in records if r['id'] == asset_id)
         self._start_site_tool(
             'library_place', f"{self._pending_library_asset['name']}: κλικ στην κάτοψη — Esc για τέλος")
         return asset_id
@@ -1897,12 +1899,9 @@ class MainWindow(QMainWindow):
         record = getattr(self, '_pending_library_asset', None)
         if record is None:
             return None
-        w, d, h = record['size']
-        obj = Entity('library_object', {
-            'x': float(x), 'y': float(y), 'z': float(self.doc.work_plane.origin[2]),
-            'rotation': 0.0, 'width': float(w), 'depth': float(d), 'height': float(h),
-            'uniform': 1.0, 'asset': record['id'],
-        }, name=record['name'])
+        from archforge.ui.library_instance_integration import library_instance_params
+        obj = Entity('library_object', library_instance_params(
+            record, x=x, y=y, z=self.doc.work_plane.origin[2]), name=record['name'])
         self.stack.execute(AddEntity(obj))
         self._redraw_views(all_views=True)
         self.statusBar().showMessage(
@@ -2164,6 +2163,9 @@ class MainWindow(QMainWindow):
         from archforge.architecture.joinery import KEYS as joinery_keys
         from archforge.ui.light_properties import LIGHT_KEYS as light_keys
         for key, value in (() if entity.kind in ('railing', 'drywall_ceiling', 'section_line', 'camera', 'stair', 'mechanical_joint') or slab_tools.is_slab_panel(entity) else params.items()):
+            if entity.kind == 'library_object' and key in ('light_level','light_enabled','light_shadows','light_kelvin',
+                                                           'aim_tilt_deg','aim_azimuth_deg'):
+                continue
             if entity.kind in ('door', 'window') and key in joinery_keys:
                 continue  # Κουφώματα: δικές τους γραμμές (ui/opening_properties.py).
             if entity.kind == 'stair' and key == 'plan_numbers':
@@ -2417,6 +2419,9 @@ class MainWindow(QMainWindow):
         if entity.kind == 'drywall_ceiling':
             from archforge.ui.drywall_tools import add_rows as add_drywall_rows
             add_drywall_rows(self, eid)
+        if entity.kind == 'library_object':
+            from archforge.ui.library_light_properties import add_rows as library_light_rows
+            library_light_rows(self, entity)
         if entity.kind in ('library_object', 'cabinet'):
             button = QPushButton('Επεξεργασία αντικειμένου (οπτικά)…')
             button.setToolTip('Διαστάσεις, υλικά ανά τμήμα και Sculpt του αντικειμένου')

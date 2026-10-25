@@ -61,7 +61,7 @@ def normalise(triangles, colors=None):
     return verts, tris, size
 
 
-def store_asset(name, triangles, provenance, colors=None, category=None, part_names=None):
+def store_asset(name, triangles, provenance, colors=None, category=None, part_names=None, lighting=None):
     """Normalise and save a mesh with its plan symbol; return (id, size).
 
     ``colors`` are optional per-triangle hex colours (kept as a palette; each
@@ -75,13 +75,29 @@ def store_asset(name, triangles, provenance, colors=None, category=None, part_na
     else:
         verts, tris, size = normalise(triangles)
         kept = None
-    digest = hashlib.sha1(json.dumps([verts, tris]).encode()).hexdigest()[:16]
+    lighting = dict(lighting or {})
+    from archforge.library.lighting import validate_sources
+    sources = validate_sources(lighting.get("sources", []))
+    if sources:
+        pts = [v for t in triangles for v in t]
+        low = [min(v[i] for v in pts) for i in range(3)]
+        high = [max(v[i] for v in pts) for i in range(3)]
+        offset = [(low[0]+high[0])/2, (low[1]+high[1])/2, low[2]]
+        for source in sources:
+            source["position"] = [v-o for v,o in zip(source["position"], offset)]
+    fingerprint = [verts, tris]
+    if sources:
+        fingerprint += [sources, lighting.get("emissive_materials", {})]
+    digest = hashlib.sha1(json.dumps(fingerprint).encode()).hexdigest()[:16]
     asset_id = f"a{digest}"
     folder = asset_dir()
     folder.mkdir(parents=True, exist_ok=True)
     record = {"id": asset_id, "name": name, "size": size, "vertices": verts,
               "triangles": tris, "provenance": dict(provenance),
               "plan": plan_symbol(verts, tris)}
+    if sources:
+        record["lights"] = sources
+        record["emissive_materials"] = dict(lighting.get("emissive_materials", {}))
     if category:
         record["category"] = list(category)
     if kept is not None:
@@ -118,7 +134,8 @@ def list_assets():
     for p in sorted(folder.glob("*.json")):
         try:
             r = json.loads(p.read_text(encoding="utf-8"))
-            out.append({k: r[k] for k in ("id", "name", "size", "provenance")} | {"category": r.get("category", [])})
+            out.append({k: r[k] for k in ("id", "name", "size", "provenance")} | {"category": r.get("category", []),
+                                                                               "lit": bool(r.get("lights"))})
         except (OSError, ValueError, KeyError):
             continue
     return sorted(out, key=lambda r: r["name"].lower())

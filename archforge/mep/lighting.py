@@ -294,10 +294,67 @@ KEPT_ON_REPLACE = ("x", "y", "z", "x2", "y2", "automation_group", "light_on", "d
                    "aim_tilt_deg", "aim_azimuth_deg")
 
 
+def is_fixture(entity):
+    """A light of the building: an electrical luminaire or a luminous library object (GLB with emitters)."""
+    from archforge.library.lighting import is_luminous
+    return is_luminaire(entity) or is_luminous(entity)
+
+
+def fixture_on(entity):
+    """Switched on: one state per kind — ``light_on``/``dim_level`` (electrical), ``light_enabled``/``light_level``
+    (library object, the content pack's fields).  Never a second copy of either."""
+    p = entity.params
+    if entity.kind == "library_object":
+        return bool(float(p.get("light_enabled", 1))) and float(p.get("light_level", 1.0)) > 0
+    return is_on(p)
+
+
+def fixture_switch(entity):
+    p = entity.params
+    return bool(float(p.get("light_enabled", 1))) if entity.kind == "library_object" else bool(int(p.get("light_on", 1)))
+
+
+def fixture_level(entity):
+    key = "light_level" if entity.kind == "library_object" else "dim_level"
+    return float(entity.params.get(key, 1.0))
+
+
+def fixture_changes(entity, on=None, level=None):
+    """Params of ONE fixture for on/off and the dimmer (owner 25/10: «όχι μαζική, τοπική αλλαγή»)."""
+    library = entity.kind == "library_object"
+    out = {}
+    if on is not None:
+        out["light_enabled" if library else "light_on"] = (1.0 if on else 0.0) if library else (1 if on else 0)
+    if level is not None:
+        out["light_level" if library else "dim_level"] = max(0.0, min(1.0, float(level)))
+    return out
+
+
+def fixture_aimable(entity):
+    """Turns: an electrical spot / wall washer, or a library model that declares ``aimable``."""
+    from archforge.library.lighting import capabilities, is_luminous
+    if is_luminous(entity):
+        return capabilities(entity)["aimable"]
+    return entity.params.get("point_type") in AIMABLE
+
+
+def _fixture_group(entity):
+    from archforge.library.lighting import capabilities, role_label
+    if entity.kind == "library_object":
+        label = role_label(capabilities(entity)["role"])
+        return f"lib:{label}", label
+    t = entity.params["point_type"]
+    return t, GROUP_LABELS[t]
+
+
 def lights_by_room(doc):
-    """``[{"title", "groups": [{"type", "label", "ids"}]}]`` — rooms in drawing order, then «Εκτός χώρων»."""
+    """``[{"title", "groups": [{"type", "label", "ids"}]}]`` — rooms in drawing order, then «Εκτός χώρων».
+
+    Electrical luminaires by their type, luminous library objects by the role their model declares.
+    """
     from archforge.assistant.understanding import read_drawing
-    lights = [e for e in electrical_points(doc) if is_luminaire(e)]
+    from archforge.mep.electrical import _floor_of
+    lights = [e for e in doc.entities.values() if is_fixture(e)]
     if not lights:
         return []
     order = list(GROUP_LABELS)
@@ -306,14 +363,20 @@ def lights_by_room(doc):
     placed, out = set(), []
 
     def groups_of(ids):
-        by_type = {}
+        by_key, labels = {}, {}
         for i in ids:
-            by_type.setdefault(doc.get(i).params["point_type"], []).append(i)
-        return [{"type": t, "label": GROUP_LABELS[t], "ids": by_type[t]} for t in order if t in by_type]
+            key, label = _fixture_group(doc.get(i))
+            by_key.setdefault(key, []).append(i); labels[key] = label
+        keys = [k for k in order if k in by_key] + sorted((k for k in by_key if k not in order), key=lambda k: labels[k])
+        return [{"type": k, "label": labels[k], "ids": by_key[k]} for k in keys]
 
+    library = [e for e in lights if e.kind == "library_object"]
     for storey in reading:
         for room in storey["rooms"]:
             ids = [i for i in room["electrical"] if i not in placed and is_luminaire(doc.get(i))]
+            ids += [e.id for e in library if e.id not in placed
+                    and abs(_floor_of(doc, float(e.params.get("z", 0.0))) - storey["z"]) < 1e-6
+                    and _inside(room["polygon"], float(e.params["x"]), float(e.params["y"]))]
             if not ids:
                 continue
             placed.update(ids)
@@ -325,7 +388,13 @@ def lights_by_room(doc):
 
 
 def replacement_choices(entity):
-    """``[(label, point_type, catalog_id or None)]`` that can take this luminaire's place (same point / same line)."""
+    """``[(label, point_type, catalog_id or None)]`` that can take this luminaire's place (same point / same line).
+
+    A luminous library object is replaced by another luminous model of the library: ``(name, "library", asset id)``.
+    """
+    if entity.kind == "library_object":
+        from archforge.library import assets
+        return [(r["name"], "library", r["id"]) for r in assets.list_assets() if r.get("lit")]
     from archforge.mep.electrical import POINT_TYPES
     from archforge.mep.luminaire_catalog import entries_for
     line = entity.params.get("point_type") in LINE_TYPES
@@ -335,6 +404,39 @@ def replacement_choices(entity):
         out.append((POINT_TYPES[t][0], t, None))
         out += [(e.label, t, e.id) for e in entries_for(t)]
     return out
+
+
+LIBRARY_KEPT_ON_REPLACE = ("light_enabled", "light_level", "light_shadows", "aim_tilt_deg", "aim_azimuth_deg")
+
+
+def replace_fixture(doc, eid, kind, ref=None):
+    """(command, new entity) for a row of ``replacement_choices`` — the strip's «Αλλαγή»."""
+    if kind == "library":
+        return replace_library_fixture(doc, eid, ref)
+    return replace_luminaire(doc, eid, kind, ref)
+
+
+def replace_library_fixture(doc, eid, asset_id):
+    """Another luminous library model at the same place and turn; on/off, level, shadows and aim stay (the aim only
+    when the new model turns too); its emitters, size and Kelvin are the new model's."""
+    from archforge.core.commands import AddEntity, CompositeCommand, DeleteEntities
+    from archforge.core.model import Entity
+    from archforge.library import assets
+    from archforge.library.lighting import capabilities
+    from archforge.ui.library_instance_integration import library_instance_params
+    old = doc.get(eid)
+    record = assets.load_asset(str(asset_id))
+    if not record or not record.get("lights"):
+        raise ValueError("το μοντέλο δεν έχει πηγές φωτός — δεν είναι φωτιστικό")
+    p = old.params
+    params = library_instance_params(record, x=float(p["x"]), y=float(p["y"]), z=float(p.get("z", 0.0)))
+    params["rotation"] = float(p.get("rotation", 0.0))
+    params.update({k: p[k] for k in LIBRARY_KEPT_ON_REPLACE if k in p})
+    new = Entity("library_object", params, name=record["name"])
+    new.parent_id = old.parent_id
+    if not capabilities(new)["aimable"]:
+        new.params.pop("aim_tilt_deg", None); new.params.pop("aim_azimuth_deg", None)
+    return CompositeCommand([DeleteEntities([eid]), AddEntity(new)], "Αντικατάσταση φωτιστικού"), new
 
 
 def replace_luminaire(doc, eid, point_type, catalog_id=None):
