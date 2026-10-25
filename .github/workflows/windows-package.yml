@@ -33,6 +33,9 @@ jobs:
       - name: Check actual 3D fixture controls in a desktop window
         env:
           QT_QPA_PLATFORM: windows
+          # The runner uses Microsoft's virtual D3D adapter, which Chromium blocklists.
+          # Exercise real WebGL on it; retain all rendering/interaction assertions.
+          QTWEBENGINE_CHROMIUM_FLAGS: --ignore-gpu-blocklist
           ARCHFORGE_DATA: ${{ runner.temp }}\fixture-3d-check
         run: python scripts/check_fixture_3d.py
       - name: Stamp the build (Αρχείο ▸ Έλεγχος για ενημερώσεις compares it with the release)
