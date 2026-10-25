@@ -281,3 +281,81 @@ def lighting_report(doc):
         g["load_w"], g["lumen"], g["strip_m"] = round(g["load_w"], 1), round(g["lumen"]), round(g["strip_m"], 2)
         out.append(g)
     return {"groups": out, "warnings": warnings, "provenance": PROVENANCE}
+
+
+# The lights of the building by room (owner 25/10: «μικρό μενού που θα μας δείχνει όλα τα φώτα του κτιρίου ανά χώρο —
+# δωμάτιο 1: κρυφός φωτισμός, απλίκες, κεντρικό …»): the lighting strip of the 3D (ui/lighting_panel.py).
+GROUP_LABELS = {"light": "Κεντρικό", "downlight": "Χωνευτά", "spot": "Σποτ", "wall_washer": "Wall washer",
+                "wall_light": "Απλίκες", "led_strip": "Κρυφός φωτισμός"}
+OUTSIDE_ROOMS = "Εκτός χώρων"
+# What a luminaire can be replaced with at the same point: a strip is a line, the rest are points.
+LINE_TYPES = ("led_strip",)
+KEPT_ON_REPLACE = ("x", "y", "z", "x2", "y2", "automation_group", "light_on", "dim_level", "routing", "direction",
+                   "aim_tilt_deg", "aim_azimuth_deg")
+
+
+def lights_by_room(doc):
+    """``[{"title", "groups": [{"type", "label", "ids"}]}]`` — rooms in drawing order, then «Εκτός χώρων»."""
+    from archforge.assistant.understanding import read_drawing
+    lights = [e for e in electrical_points(doc) if is_luminaire(e)]
+    if not lights:
+        return []
+    order = list(GROUP_LABELS)
+    reading = read_drawing(doc)["storeys"]
+    several = len(reading) > 1
+    placed, out = set(), []
+
+    def groups_of(ids):
+        by_type = {}
+        for i in ids:
+            by_type.setdefault(doc.get(i).params["point_type"], []).append(i)
+        return [{"type": t, "label": GROUP_LABELS[t], "ids": by_type[t]} for t in order if t in by_type]
+
+    for storey in reading:
+        for room in storey["rooms"]:
+            ids = [i for i in room["electrical"] if i not in placed and is_luminaire(doc.get(i))]
+            if not ids:
+                continue
+            placed.update(ids)
+            out.append({"title": f"{storey['name']} · {room['name']}" if several else room["name"], "groups": groups_of(ids)})
+    rest = [e.id for e in lights if e.id not in placed]
+    if rest:
+        out.append({"title": OUTSIDE_ROOMS, "groups": groups_of(rest)})
+    return out
+
+
+def replacement_choices(entity):
+    """``[(label, point_type, catalog_id or None)]`` that can take this luminaire's place (same point / same line)."""
+    from archforge.mep.electrical import POINT_TYPES
+    from archforge.mep.luminaire_catalog import entries_for
+    line = entity.params.get("point_type") in LINE_TYPES
+    types = [t for t in PHOTOMETRY if (t in LINE_TYPES) == line]
+    out = []
+    for t in types:
+        out.append((POINT_TYPES[t][0], t, None))
+        out += [(e.label, t, e.id) for e in entries_for(t)]
+    return out
+
+
+def replace_luminaire(doc, eid, point_type, catalog_id=None):
+    """(command, new entity): another luminaire at the same place, one undo step.
+
+    The place, the control (group, on/off, dimmer level), the routing and the aim stay; the product's own values
+    (W, lm, K, beam, driver) do not — they belong to the removed fitting (a catalogue entry fills them in).
+    """
+    from archforge.core.commands import AddEntity, CompositeCommand, DeleteEntities
+    from archforge.core.model import Entity
+    from archforge.mep.electrical import POINT_TYPES
+    from archforge.mep.luminaire_catalog import apply_values
+    old = doc.get(eid)
+    if (old.params.get("point_type") in LINE_TYPES) != (point_type in LINE_TYPES) or point_type not in PHOTOMETRY:
+        raise ValueError("μια ταινία αντικαθίσταται μόνο με ταινία και ένα σημειακό φωτιστικό με σημειακό")
+    params = {k: old.params[k] for k in KEPT_ON_REPLACE if k in old.params}
+    if point_type not in LINE_TYPES:
+        params.pop("x2", None); params.pop("y2", None)
+    params.update(point_type=point_type, power_w=float(POINT_TYPES[point_type][2]))
+    if catalog_id:
+        params.update(apply_values(catalog_id))
+    new = Entity("electrical_point", params, name=POINT_TYPES[point_type][0])
+    new.parent_id = old.parent_id
+    return CompositeCommand([DeleteEntities([eid]), AddEntity(new)], "Αντικατάσταση φωτιστικού"), new

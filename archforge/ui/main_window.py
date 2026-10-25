@@ -104,6 +104,8 @@ class MainWindow(QMainWindow):
         organize_main_menus(self)        # the 8 menus of the approved mockup (after the above: moves, never drops)
         from archforge.ui import quality_panel
         quality_panel.install(self)      # Προβολή ▸ Έλεγχος ποιότητας (live quality gate)
+        from archforge.ui import lighting_panel
+        lighting_panel.install(self)     # Φωτισμός ανά χώρο: small strip at the bottom, one pop-up per room
         from archforge.ui.layout2 import install_layout2
         install_layout2(self)            # Διάταξη 2: thin first row, tool groups, «Κοινά», panels on the right
         from archforge.ui import electrical_board_tab
@@ -4198,6 +4200,8 @@ class MainWindow(QMainWindow):
         _follow_domes(self)
         from archforge.ui.quality_panel import listen as _quality_listen
         _quality_listen(self)
+        from archforge.ui.lighting_panel import listen as _lighting_listen
+        _lighting_listen(self)
         for view in (self.plan_view, self.pbr_view, self.structural_view):
             view.rebind(self.doc, self.stack)
         if hasattr(self, '_layers_dock'):

@@ -115,12 +115,6 @@ def add_rows(window, eid):
     dim.sliderReleased.connect(lambda w=dim: window._set_entity_choice(eid, "dim_level", w.value() / 100.0))
     form.addRow("Ένταση (ροοστάτης)", dim)
     form.addRow("", shown)
-    direction = QComboBox()
-    for value, label in DIRECTION_LABELS.items():
-        direction.addItem(label, value)
-    direction.setCurrentIndex(max(0, direction.findData(str(p.get("direction", "auto")))))
-    direction.activated.connect(lambda _i, w=direction: _set_direction(window, eid, w.currentData()))
-    form.addRow("Κατεύθυνση", direction)
     add_aim_rows(window, eid)
     form.addRow("Ομάδα αυτοματισμού", _group_combo(window, eid, str(p.get("automation_group", ""))))
     spec = light_spec(doc, entity)
@@ -173,9 +167,16 @@ def add_aim_rows(window, eid):
     """
     from archforge.mep.lighting import AIMABLE
     p = window.doc.get(eid).params
+    # Owner 25/10: «κατεύθυνση μόνο σε αυτά που έχουν τη δυνατότητα» — the dimmer is for all (above).
     if p.get("point_type") not in AIMABLE:
-        window.form.addRow("Στόχευση", QLabel("Σταθερή δέσμη — το φωτιστικό δεν στρέφεται (ακολουθεί την Κατεύθυνση)"))
+        window.form.addRow("Κατεύθυνση", QLabel("Σταθερή δέσμη — το φωτιστικό δεν στρέφεται"))
         return False
+    direction = QComboBox()
+    for value, label in DIRECTION_LABELS.items():
+        direction.addItem(label, value)
+    direction.setCurrentIndex(max(0, direction.findData(str(p.get("direction", "auto")))))
+    direction.activated.connect(lambda _i, w=direction: _set_direction(window, eid, w.currentData()))
+    window.form.addRow("Κατεύθυνση", direction)
     tilt = QDoubleSpinBox(); tilt.setObjectName("aimTilt")
     tilt.setRange(0.0, 90.0); tilt.setDecimals(0); tilt.setSingleStep(5.0); tilt.setSuffix("°")
     tilt.setValue(float(p.get("aim_tilt_deg", 0.0)))
