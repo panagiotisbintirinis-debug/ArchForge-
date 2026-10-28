@@ -68,3 +68,68 @@ def test_ordinary_mixed_move_still_one_undo_step():
     assert doc.get(box.id).params['x'] == 1.0 and doc.get(column.id).params['x'] == 4.0
     stack.undo()
     assert doc.get(box.id).params['x'] == 0.0 and doc.get(column.id).params['x'] == 3.0
+
+
+# -- Audit addendum 01 (28/10): the same rule for rotate, group add and composites ------------------------------------
+def _state(doc):
+    import copy
+    return copy.deepcopy(doc.to_dict())
+
+
+def test_reverse_order_mixed_move_also_changes_nothing():
+    doc = Document(); stack = CommandStack(doc)
+    box, column = _box(), _column('existing')
+    stack.execute(AddEntity(box)); stack.execute(AddEntity(column))
+    before, n = _state(doc), len(stack.done)
+    with pytest.raises(ValueError):
+        stack.execute(MoveEntities([column.id, box.id], 1.0, 0.0, 0.0))
+    assert _state(doc) == before and len(stack.done) == n
+
+
+def test_a01_mixed_rotate_changes_nothing():
+    from archforge.core.commands import RotateEntities
+    doc = Document(); stack = CommandStack(doc)
+    box, column = _box(), _column('existing')
+    stack.execute(AddEntity(box)); stack.execute(AddEntity(column))
+    before, n = _state(doc), len(stack.done)
+    with pytest.raises(ValueError):
+        stack.execute(RotateEntities([box.id, column.id], 45.0))
+    assert _state(doc) == before and len(stack.done) == n
+
+
+def test_a02_group_add_with_a_duplicate_id_adds_nothing():
+    from archforge.core.commands import AddEntities
+    doc = Document(); stack = CommandStack(doc)
+    box = _box(); stack.execute(AddEntity(box))
+    before, n = _state(doc), len(stack.done)
+    with pytest.raises(ValueError):
+        stack.execute(AddEntities([_box(2.0), doc.get(box.id).clone()]))
+    assert _state(doc) == before and len(stack.done) == n
+
+
+def test_a03_composite_with_a_failing_mixed_move_changes_nothing():
+    from archforge.core.commands import CompositeCommand
+    doc = Document(); stack = CommandStack(doc)
+    box, column = _box(), _column('existing')
+    stack.execute(AddEntity(box)); stack.execute(AddEntity(column))
+    before, n = _state(doc), len(stack.done)
+    with pytest.raises(ValueError):
+        stack.execute(CompositeCommand([AddEntity(_box(4.0)), MoveEntities([box.id, column.id], 1.0, 0.0, 0.0)]))
+    assert _state(doc) == before and len(stack.done) == n
+
+
+def test_rotate_and_group_add_still_one_undo_step_when_they_succeed():
+    from archforge.core.commands import AddEntities, RotateEntities
+    doc = Document(); stack = CommandStack(doc)
+    a, b = _box(0.0), _box(3.0)
+    stack.execute(AddEntities([a, b]))
+    assert len(doc.entities) == 2 and len(stack.done) == 1
+    stack.execute(RotateEntities([a.id, b.id], 90.0))
+    params = lambda: {e.id: dict(e.params) for e in doc.entities.values()}
+    turned = params()
+    stack.undo()
+    assert 'rotation' not in doc.get(a.id).params          # exactly as before (no leftover 90°)
+    stack.redo()
+    assert params() == turned                              # 90°, not 180° (found 28/10, also on develop)
+    stack.undo(); stack.undo()
+    assert not doc.entities

@@ -19,8 +19,17 @@ class AddEntities(Command):
     """Add a group of semantic entities as one undo/redo step."""
     entities: List[Entity]
     def do(self, doc):
-        for entity in self.entities:
-            doc.add(entity.clone())
+        # Audit A02: all or nothing — a duplicate id (or any refusal) removes the ones already added.
+        added = []
+        try:
+            for entity in self.entities:
+                doc.add(entity.clone())
+                added.append(entity.id)
+        except Exception:
+            for eid in reversed(added):
+                if eid in doc.entities:
+                    doc.remove(eid)
+            raise
     def undo(self, doc):
         for entity in reversed(self.entities):
             if entity.id in doc.entities:
@@ -148,10 +157,22 @@ class MoveEntities(Command):
             m.target.subregion['world_center']=[c[0]+self.dx,c[1]+self.dy,c[2]+self.dz]
             doc.mark_dirty(m.target.owner_id)
     def undo(self,doc):
-        for i,p in self.before.items():doc.update(i,copy.deepcopy(p))
+        for i,p in self.before.items():_restore_params(doc,i,p)
         if self.before_modifiers:
             for mid,m in self.before_modifiers.items():
                 doc.surface_modifiers[mid]=copy.deepcopy(m);doc.mark_dirty(m.target.owner_id)
+
+
+def _restore_params(doc, eid, params):
+    """Params exactly as they were: ``doc.update`` merges, so a key the command added (e.g. ``rotation`` on a box that
+    had none) would survive the undo and a redo would turn the box twice."""
+    doc.update(eid, copy.deepcopy(params))
+    entity = doc.get(eid)
+    extra = [k for k in entity.params if k not in params]
+    for k in extra:
+        entity.params.pop(k)
+    if extra:
+        doc.mark_dirty(eid)
 
 
 @dataclass
@@ -163,8 +184,20 @@ class RotateEntities(Command):
     before: Dict[str, Dict[str, Any]] | None = None
 
     def do(self, doc: Document):
+        # Audit A01: every refusal before the first change; a failure half-way puts back what already turned.
+        for i in self.ids:
+            e = doc.get(i)
+            if e.kind in ('structural_column', 'structural_beam') and str(e.params.get('phase', 'new')) == 'existing':
+                raise ValueError('υφιστάμενο φέρον στοιχείο (ανακαίνιση): δεν περιστρέφεται')
         if self.before is None:
             self.before = {i: copy.deepcopy(doc.get(i).params) for i in self.ids}
+        try:
+            self._apply(doc)
+        except Exception:
+            self.undo(doc)
+            raise
+
+    def _apply(self, doc: Document):
         import math
         r = math.radians(self.angle)
         c, s = math.cos(r), math.sin(r)
@@ -242,7 +275,7 @@ class RotateEntities(Command):
     def undo(self, doc: Document):
         if self.before is not None:
             for i, p in self.before.items():
-                doc.update(i, copy.deepcopy(p))
+                _restore_params(doc, i, p)
 
 
 
