@@ -3,16 +3,13 @@
 Drawn with Qt (QPdfWriter + QPainter) as vectors on A4 landscape, so it
 prints sharp at any size.  Plans:
 
+* the drawing itself is the plan view's: the storey's plan frame (core/plan_scene.build_plan_frame) painted
+  with the same styles (core/plan_style.py) — walls, joinery, stairs, furniture, rooms, dimensions, MEP; what
+  the plan view hides or switches off is not printed (owner 28/10: one drawing, the PDF only translates it);
+  only the working aids of the screen (previews, guides, pick lines, cameras, the storey below) are left out;
 * scale: the largest of 1:20 / 1:50 / 1:100 / 1:200 / 1:500 that fits the
-  sheet (with room for the dimensions), stated in the title block and as a
-  scale bar;
-* walls filled (poché), cut by their doors (leaf + swing), windows (glass
-  lines) and openings; columns black; stairs and fitted furniture as thin
-  lines; every room with its name, area and inner size;
-* dimensions: architecture/dimensions.py, the same ones as the plan view —
-  the storey's automatic exterior / interior ones as switched there, and the
-  tape ones; a storey with no such settings (older projects) still gets the
-  exterior chains.
+  sheet, stated in the title block and as a scale bar; line widths are the
+  plan's at 1:100 (0.035 m → 0.35 mm) whatever the scale.
 
 Everything comes from the same Document the program draws from; nothing is
 typed twice.
@@ -126,25 +123,6 @@ def wall_pieces(doc, wall, walls):
     return [quad(a, b) for a, b in pieces], [(u0, u1, e, frame) for u0, u1, e in holes]
 
 
-def _extras(doc, z):
-    """Stairs, ramps, fitted furniture and fixtures of the storey, as plan primitives (thin lines)."""
-    from archforge.core.model import WorkPlane
-    from archforge.core.plan_scene import build_plan_frame
-    keep = {"stair", "ramp", "cabinet", "library_object", "component", "kitchen_run", "plumbing_point"}
-    old = doc.work_plane
-    try:
-        doc.work_plane = WorkPlane(name=old.name, origin=(old.origin[0], old.origin[1], z), u=old.u, v=old.v)
-        frame = build_plan_frame(doc)
-    finally:
-        doc.work_plane = old
-    out = []
-    for prim in frame.primitives:
-        e = doc.entities.get(prim.entity_id) if prim.entity_id else None
-        if e is not None and e.kind in keep and prim.kind in ("polygon", "polyline", "line") and len(prim.points) >= 2:
-            out.append((prim.kind, [tuple(map(float, q)) for q in prim.points]))
-    return out
-
-
 def net_room(doc, room, z):
     """(net area m², width, depth) of a room inside its walls (as the take-off measures it)."""
     from archforge.quantities.takeoff import _area, net_polygon
@@ -209,31 +187,108 @@ def level_name(name):
     return f"{int(m.group(1)) - 1}ος όροφος" if m else LEVEL_NAMES.get(str(name), str(name))
 
 
-def plan_dimensions(doc, z):
-    """The dimensions the PDF draws on storey ``z``: exactly those of the plan view (architecture/dimensions.py).
+def plan_frame(doc, z):
+    """The plan view's drawing of storey ``z`` as printed: its frame with nothing selected, without the screen aids.
 
-    Once the storey has its ``auto_dimensions`` settings, the human's choices there decide — exterior / interior
-    off, or the settings hidden, leave them off the PDF too.  A storey that never had them (older projects) keeps
-    the exterior chains the PDF always drew."""
-    from archforge.architecture import dimensions as D
-    if D.settings(doc, z) is not None:
-        return D.storey_dimensions(doc, z)
-    return D.exterior(doc, z) + [d for d in D.storey_dimensions(doc, z) if d["kind"] == "manual"]
+    ``[(primitive, entity kind)]`` in the plan view's stacking order."""
+    from archforge.core.model import WorkPlane
+    from archforge.core.plan_scene import build_plan_frame
+    from archforge.core.plan_style import label_style, printable, style
+    old, selection = doc.work_plane, doc.selection
+    try:
+        doc.work_plane = WorkPlane(name=old.name, origin=(old.origin[0], old.origin[1], float(z)), u=old.u, v=old.v)
+        doc.selection = []
+        frame = build_plan_frame(doc)
+    finally:
+        doc.work_plane, doc.selection = old, selection
+    out = []
+    for prim in frame.primitives:
+        e = doc.entities.get(prim.entity_id) if prim.entity_id else None
+        kind = e.kind if e is not None else None
+        if printable(prim, kind):
+            out.append((prim, kind))
+    # Stable sort by the plan view's z: what lies on top on screen lies on top on paper.
+    zs = [label_style(q).z if q.kind == "label" else style(q, k).z for q, k in out]
+    return [item for _z, _i, item in sorted(zip(zs, range(len(out)), out), key=lambda t: (t[0], t[1]))]
+
+
+LABEL_PT = 6.5          # pt of a plan label on paper (× its style's scale)
+
+
+def _paint_label(sh, prim, at, s):
+    from PySide6.QtGui import QFontMetricsF
+    meta = dict(prim.meta)
+    text = str(meta.get("text", ""))
+    if not text:
+        return
+    f = QFont(FONT); f.setPointSizeF(LABEL_PT * s.text_scale); f.setBold(s.bold)
+    sh.p.setFont(f)
+    color = QColor(*s.text_color); color.setAlphaF(color.alphaF() * s.opacity); sh.p.setPen(color)
+    lines = text.split("\n")
+    fm = QFontMetricsF(f, sh.p.device())
+    w = max(fm.horizontalAdvance(t) for t in lines); h = fm.height() * len(lines)
+    x, y = sh.pt(*at).x(), sh.pt(*at).y()
+    sh.p.save()
+    sh.p.translate(x, y)
+    if prim.role == "dimension-label":
+        # Along its dimension line, just above it (as in the plan view).
+        sh.p.rotate(-float(meta.get("angle", 0.0)))
+        rect = QRectF(-w / 2, -h - fm.descent() * .3, w, h)
+    else:
+        hx, vy = meta.get("align") or (0.0, 0.0)
+        rect = QRectF(-hx * w, -vy * h, w, h)
+    sh.p.drawText(rect, int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop), text)
+    sh.p.restore()
+
+
+def paint_plan(sh, items, to_mm):
+    """Paint the plan frame ``items`` (``plan_frame``) on the sheet: each primitive with its plan-view style."""
+    from archforge.core.plan_style import label_style, style
+    from archforge.output.plan_qt import qbrush, qpen
+    for prim, kind in items:
+        if prim.kind == "label":
+            _paint_label(sh, prim, to_mm(*prim.points[0]), label_style(prim))
+            continue
+        s = style(prim, kind)
+        pen = qpen(s, max(.05, s.width * 10.0) * sh.k)       # the plan's metres at 1:100 → paper mm
+        if s.opacity != 1.0:
+            c = pen.color(); c.setAlphaF(c.alphaF() * s.opacity); pen.setColor(c)
+        sh.p.setPen(pen)
+        brush = qbrush(s)
+        if s.opacity != 1.0 and s.fill is not None:
+            c = QColor(*s.fill); c.setAlphaF(c.alphaF() * s.opacity); brush = QBrush(c)
+        meta = dict(prim.meta)
+        if prim.kind == "polygon" and meta.get("islands"):
+            path = QPainterPath(); path.setFillRule(Qt.FillRule.OddEvenFill)
+            for outer, holes in meta["islands"]:
+                for loop in (outer,) + tuple(holes):
+                    path.moveTo(sh.pt(*to_mm(*loop[0])))
+                    for q in loop[1:]:
+                        path.lineTo(sh.pt(*to_mm(*q)))
+                    path.closeSubpath()
+            sh.p.setBrush(brush); sh.p.drawPath(path)
+        elif prim.kind == "polygon":
+            sh.p.setBrush(brush); sh.p.drawPolygon(QPolygonF([sh.pt(*to_mm(*q)) for q in prim.points]))
+        elif prim.kind in ("line", "polyline") and len(prim.points) >= 2:
+            path = QPainterPath(sh.pt(*to_mm(*prim.points[0])))
+            for q in prim.points[1:]:
+                path.lineTo(sh.pt(*to_mm(*q)))
+            sh.p.setBrush(Qt.BrushStyle.NoBrush); sh.p.drawPath(path)
+        elif prim.kind == "ellipse":
+            cx, cy = to_mm(*prim.points[0])
+            k = abs(to_mm(1.0, 0.0)[0] - to_mm(0.0, 0.0)[0])
+            sh.p.setBrush(brush)
+            sh.p.drawEllipse(sh.pt(cx, cy), prim.radius_x * k * sh.k, prim.radius_y * k * sh.k)
+        sh.p.setBrush(Qt.BrushStyle.NoBrush)
 
 
 def _plan_page(sh, doc, storey, sheet_no, project, date):
-    from archforge.assistant.understanding import centroid
-    from archforge.mep.ventilation import exterior_walls
     z = float(storey["z"])
-    walls = _storey_walls(doc, z)
-    pieces, holes = [], []
-    for w in walls:
-        pc, hl = wall_pieces(doc, w, walls)
-        pieces += pc; holes += hl
-    xs = [q[0] for poly in pieces for q in poly] or [0.0]
-    ys = [q[1] for poly in pieces for q in poly] or [0.0]
+    items = plan_frame(doc, z)
+    pts = [q for prim, _k in items for q in prim.points] or [(0.0, 0.0)]
+    xs = [float(q[0]) for q in pts]; ys = [float(q[1]) for q in pts]
     x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
-    margin = 2.2                                          # m for the dimension chains
+    margin = 0.6                                          # m around the drawing (its dimensions are in it)
     box_w, box_h = 268.0, 150.0
     scale = next((s for s in SCALES if (x1 - x0 + 2 * margin) * 1000 / s <= box_w and (y1 - y0 + 2 * margin) * 1000 / s <= box_h), SCALES[-1])
     k = 1000.0 / scale
@@ -243,76 +298,7 @@ def _plan_page(sh, doc, storey, sheet_no, project, date):
     def to_mm(x, y):
         return ox + (x - cx) * k, oy - (y - cy) * k
     sh.text(12, 8, f"Κάτοψη — {level_name(storey['name'])} (+{z:.2f})", size=13, bold=True, w=200)
-    # Rooms: light fill and labels.
-    for r in storey["rooms"]:
-        sh.poly([to_mm(*q) for q in r["polygon"]], color=QColor(255, 255, 255, 0), width=.01, fill=QColor(247, 243, 236))
-    for kind, pts in _extras(doc, z):
-        mm = [to_mm(*q) for q in pts]
-        if kind == "polygon":
-            sh.poly(mm, color=QColor(90, 90, 90), width=.15)
-        else:
-            for a, b in zip(mm, mm[1:]):
-                sh.line(*a, *b, color=QColor(90, 90, 90), width=.15)
-    # Walls (poché).
-    for poly in pieces:
-        sh.poly([to_mm(*q) for q in poly], color=INK, width=.3, fill=POCHE)
-    # Openings.
-    outward = {w.id: n for w, n in exterior_walls(doc, z)}
-    from archforge.architecture.joinery import plan_symbol_world
-    for u0, u1, e, f in holes:
-        if not e.visible:
-            continue                                      # the wall stays cut, as in the plan view, with no symbol
-        (axx, ayy), (ux, uy), (nx, ny), t = f["a"], f["u"], f["n"], f["t"]
-        P = lambda u, s: to_mm(axx + ux * u + nx * s, ayy + uy * u + ny * s)
-        symbol = plan_symbol_world(doc, e)
-        if symbol:
-            # Typed joinery: the same symbol as the plan view (architecture/joinery.py).
-            for style, pts in symbol:
-                mm = [to_mm(*q) for q in pts]
-                for a_, b_ in zip(mm, mm[1:]):
-                    sh.line(*a_, *b_, width={"solid": .25, "thin": .13}.get(style, .13),
-                            style=Qt.PenStyle.DashLine if style == "dashed" else Qt.PenStyle.SolidLine)
-            continue
-        if e.kind == "window":
-            for s in (t / 2, -t / 2, 0.0):
-                sh.line(*P(u0, s), *P(u1, s), width=.18 if s else .12)
-            sh.line(*P(u0, t / 2), *P(u0, -t / 2), width=.25); sh.line(*P(u1, t / 2), *P(u1, -t / 2), width=.25)
-        elif e.kind == "door":
-            w = u1 - u0
-            # Swing into the building: away from the outside of an exterior wall.
-            out = outward.get(e.parent_id)
-            sgn = -1.0 if out is None or (out[0] * nx + out[1] * ny) > 0 else 1.0
-            P_ = P
-            P = lambda u, s_, P_=P_: P_(u, sgn * -s_)
-            hinge, leaf = P(u0, -t / 2), P(u0, -t / 2 - w)
-            sh.line(*hinge, *leaf, width=.3)
-            path = QPainterPath(); steps = 18
-            for i in range(steps + 1):
-                a = math.pi / 2 * i / steps
-                q = P(u0 + w * math.sin(a), -t / 2 - w * math.cos(a))
-                (path.moveTo if i == 0 else path.lineTo)(sh.pt(*q))
-            sh.pen(INK, .13); sh.p.drawPath(path)
-            sh.line(*P(u0, t / 2), *P(u0, -t / 2), width=.25); sh.line(*P(u1, t / 2), *P(u1, -t / 2), width=.25)
-            P = P_
-        else:
-            for s in (t / 2, -t / 2):
-                sh.line(*P(u0, s), *P(u1, s), width=.13, style=Qt.PenStyle.DashLine)
-    # Columns.
-    for cid in storey.get("columns", ()):
-        c = doc.get(cid).params
-        w2, d2 = float(c.get("width", .3)) / 2, float(c.get("depth", .3)) / 2
-        x, y = float(c["x"]), float(c["y"])
-        sh.poly([to_mm(x - w2, y - d2), to_mm(x + w2, y - d2), to_mm(x + w2, y + d2), to_mm(x - w2, y + d2)], width=.2, fill=INK)
-    # Room labels.
-    for r in storey["rooms"]:
-        mx, my = to_mm(*centroid(r["polygon"]))
-        a, rw, rd = net_room(doc, r, z)
-        sh.text(mx, my - 2.6, r["name"], size=8.5, bold=True, align="center", w=50)
-        sh.text(mx, my + 1.2, f"{a:.2f} m²", size=7.5, align="center", w=50)
-        sh.text(mx, my + 4.6, f"{rw:.2f} × {rd:.2f}", size=6.5, align="center", w=50,
-                color=QColor(110, 110, 110))
-    for d in plan_dimensions(doc, z):
-        _dimension(sh, d["a"], d["b"], d["n"], float(d["offset"]) * k, d["value"], to_mm)
+    paint_plan(sh, items, to_mm)
     _north(sh, 275, 30)
     _scale_bar(sh, 14, 190, scale)
     _title_block(sh, f"Κάτοψη {level_name(storey['name'])}", scale, sheet_no, project, date)

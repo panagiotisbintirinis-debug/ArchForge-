@@ -49,6 +49,8 @@ def test_pdf_has_cover_plan_per_storey_takeoff_and_quote(tmp_path):
     pieces, holes = wall_pieces(doc, ws[0], ws)
     assert len(pieces) == 3 and len(holes) == 2                       # the front wall cut by a window and a door
     assert level_name('Ground') == 'Ισόγειο' and level_name('Floor 2') == '1ος όροφος'
+    from archforge.architecture.dimensions import set_auto
+    st.execute(set_auto(doc, 0.0, exterior=True))
     path = tmp_path / 'ergo.pdf'
     r = export_pdf(doc, path)
     assert r['pages'] == 4 and r['scales'] == [100]
@@ -58,7 +60,7 @@ def test_pdf_has_cover_plan_per_storey_takeoff_and_quote(tmp_path):
         proc = subprocess.run(['pdftotext', '-enc', 'UTF-8', '-layout', str(path), '-'],
                               capture_output=True, text=True, encoding='utf-8', check=True)
         text = proc.stdout
-        for s in ('Κατοικία', 'Κάτοψη — Ισόγειο', '1:100', '10.30', 'Επιμέτρηση', 'Προσφορά', 'ΦΠΑ 24%', 'Γ. Παπαδόπουλος'):
+        for s in ('Κατοικία', 'Κάτοψη — Ισόγειο', '1:100', '10,30', 'Επιμέτρηση', 'Προσφορά', 'ΦΠΑ 24%', 'Γ. Παπαδόπουλος'):
             assert s in text, s
 
 
@@ -89,23 +91,38 @@ def test_price_dialog_saves_prices_in_one_undo_and_the_menu_exports(tmp_path):
         window._mark_clean(); window.close(); app.processEvents()
 
 
-def test_pdf_dimensions_follow_the_plan_view_settings():
-    """The PDF draws the plan view's dimensions: exterior ones switched off there stay off the PDF."""
+def test_the_pdf_plan_is_the_plan_view_drawing():
+    """One drawing (owner 28/10): the PDF prints the plan view's frame — minus only the screen aids — so what the
+    plan switches off or hides is not printed either."""
     from archforge.architecture import dimensions as D
-    from archforge.output.pdf import plan_dimensions
-    doc = Document(); st = CommandStack(doc); _house(st)
-    # An older project without settings keeps the PDF's exterior chains.
-    assert plan_dimensions(doc, 0.0) == D.exterior(doc, 0.0) and plan_dimensions(doc, 0.0)
-    st.execute(D.set_auto(doc, 0.0, exterior=False, interior=False))
-    assert plan_dimensions(doc, 0.0) == [] == D.storey_dimensions(doc, 0.0)
-    st.execute(AddEntity(D.tape_entity((0, -1), (10, -1), 0.0, .5)))
-    assert [d['kind'] for d in plan_dimensions(doc, 0.0)] == ['manual']
-    st.execute(D.set_auto(doc, 0.0, interior=True))
-    kinds = {d['kind'] for d in plan_dimensions(doc, 0.0)}
-    assert kinds == {'interior', 'manual'} and plan_dimensions(doc, 0.0) == D.storey_dimensions(doc, 0.0)
-    st.execute(UpdateEntity(D.settings(doc, 0.0).id, {'exterior': 1}))
-    assert plan_dimensions(doc, 0.0) == D.storey_dimensions(doc, 0.0)
-    assert {d['kind'] for d in plan_dimensions(doc, 0.0)} == {'exterior', 'interior', 'manual'}
+    from archforge.core.model import WorkPlane
+    from archforge.core.plan_scene import build_plan_frame
+    from archforge.output.pdf import plan_frame
+    doc = Document(); st = CommandStack(doc); ws = _house(st)
+    roles = lambda: [p.role for p, _k in plan_frame(doc, 0.0)]
+    assert 'wall-poche' in roles() and 'opening-symbol' in roles() and 'derived-room-label' in roles()
+    assert not {'opening', 'preview', 'floor-underlay'} & set(roles())
+    assert not any(p.kind == 'line' and k == 'wall' for p, k in plan_frame(doc, 0.0))     # axis pick lines
+    # Every printed primitive is one the plan view draws.
+    screen = build_plan_frame(doc).primitives
+    assert all(p in screen for p, _k in plan_frame(doc, 0.0))
+    # Dimensions: only when the plan shows them, exactly as switched there.
+    assert 'dimension' not in roles()
+    st.execute(D.set_auto(doc, 0.0, exterior=True))
+    assert 'dimension' in roles()
+    st.execute(D.set_auto(doc, 0.0, exterior=False))
+    assert 'dimension' not in roles()
+    # Hidden: a hidden wall leaves the cut region; selection does not change the print.
+    poche = lambda: [p for p, _k in plan_frame(doc, 0.0) if p.role == 'wall-poche']
+    before = poche()
+    doc.selection = [ws[4].id]
+    assert poche() == before and doc.selection == [ws[4].id]
+    doc.get(ws[4].id).visible = False
+    assert poche() != before
+    # The storey being worked on is left as it was.
+    doc.work_plane = WorkPlane(name='x', origin=(0, 0, 3.0))
+    plan_frame(doc, 0.0)
+    assert doc.work_plane.origin[2] == 3.0
 
 
 def test_pdf_leaves_off_what_the_plan_view_hides():

@@ -31,6 +31,7 @@
 
 | Εργαλείο | Τι κάνει | Εκτέλεση |
 |---|---|---|
+| `scripts/toolbox/plan_view_snapshot.py` | Καταγράφει πώς ζωγραφίζει η κάτοψη (πένα, γέμισμα, z, κείμενα ανά στοιχείο) σε κάθε όροφο αρχείων· `--diff` δύο καταγραφές. Απόδειξη ότι αλλαγή στον κώδικα σχεδίασης δεν άλλαξε την οθόνη. | `QT_QPA_PLATFORM=offscreen python scripts/toolbox/plan_view_snapshot.py before.json` · ξανά μετά · `… --diff before.json after.json` |
 | `scripts/user_drive/user.py` | Οδηγεί το ArchForge offscreen όπως ένας άνθρωπος: ribbon/μενού, κλικ στην κάτοψη, marking menu· μετρά βήματα, μαζεύει σημειώσεις τριβής (`U.notes`). | `from user import *` (δες `house.py`) |
 | `scripts/user_drive/core_check.py` | Ο πυρήνας με το ποντίκι όπως σχεδιάζει ο ιδιοκτήτης (κλικ λίγα εκ. δίπλα στις γωνίες). | `QT_QPA_PLATFORM=offscreen python scripts/user_drive/core_check.py` |
 | `scripts/user_drive/walls_check.py` | Τοίχοι από την όψη, κλείσιμο περιγράμματος στις 90°, οδηγοί (24/10). | ίδιο |
@@ -73,6 +74,7 @@
 
 | Πού | Τι |
 |---|---|
+| `archforge/core/plan_style.py` + `archforge/output/plan_qt.py` | **Ένα σχέδιο:** πώς φαίνεται κάθε primitive της κάτοψης (`style`, `label_style`) και τι είναι μόνο βοήθημα οθόνης (`printable`). Κάθε έξοδος (PDF, DXF…) ζωγραφίζει το `build_plan_frame` με αυτά — ποτέ δικό της σχέδιο. Παράδειγμα: `pdf.plan_frame` / `pdf.paint_plan`. |
 | `archforge/core/commands.py` | `CompositeCommand` (πολλές εντολές = μία αναίρεση, rollback αν αποτύχει μία) · `_restore_document_state` · `CommandStack.squash/amend`. |
 | `archforge/core/notices.py` | **«Δεν υπολογίστηκε»:** αντί για σιωπηλό `except: 0 / [] / None`, `not_computed(code, μήνυμα, στοιχείο, exc)`· ό,τι τρέχει ο χρήστης τα μαζεύει με `collecting()` και τα δείχνει δίπλα στο αποτέλεσμα· αλλιώς φαίνονται στη γραμμή κατάστασης (Α3). |
 | `archforge/project/persistence.py` | `atomic_write_text/json` (παλιό ή νέο αρχείο, ποτέ μισό) · **`read_user_json`**: κάθε αρχείο δεδομένων χρήστη (ρυθμίσεις, τιμές…) διαβάζεται με αυτό — κατεστραμμένο κρατιέται ως `.broken-…` πριν γραφτεί, ο χρήστης ειδοποιείται (Α3). |
