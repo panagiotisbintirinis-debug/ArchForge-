@@ -93,15 +93,32 @@ def _legacy_world_modifier(mod):
 class MoveEntities(Command):
     ids:List[str]; dx:float;dy:float;dz:float=0.0;before:Dict[str,Dict[str,Any]]|None=None;before_modifiers:Dict[str,Any]|None=None
     def do(self,doc):
-        if self.before is None:
-            self.before={i:copy.deepcopy(doc.get(i).params) for i in self.ids}
-            self.before_modifiers={mid:copy.deepcopy(m) for mid,m in doc.surface_modifiers.items() if m.target.owner_id in self.ids and _legacy_world_modifier(m)}
+        # Audit F01/F04 (28/10): every refusal before the first change, a failure half-way puts back what moved, and a
+        # move that changes nothing is a no-op (``noop``: CommandStack records no undo step for it).
+        self.noop=abs(self.dx)<1e-12 and abs(self.dy)<1e-12 and abs(self.dz)<1e-12
+        if self.noop:
+            return
         for i in self.ids:
             e=doc.get(i); p=e.params
             if e.kind in ('structural_column','structural_beam') and str(p.get('phase','new'))=='existing':
                 raise ValueError('υφιστάμενο φέρον στοιχείο (ανακαίνιση): δεν μετακινείται')
             if e.kind in ('structural_column','structural_beam') and abs(float(self.dz))>1e-12:
                 raise ValueError(f'{e.kind} vertical position is level-driven; change its level instead')
+            if e.kind in ('stair','ramp') and abs(float(self.dz))>1e-12:
+                raise ValueError(f'{e.kind}s can only move in XY; floor elevations remain linked')
+        if self.before is None:
+            self.before={i:copy.deepcopy(doc.get(i).params) for i in self.ids}
+            self.before_modifiers={mid:copy.deepcopy(m) for mid,m in doc.surface_modifiers.items() if m.target.owner_id in self.ids and _legacy_world_modifier(m)}
+        revisions={i:doc.get(i).revision for i in self.ids}
+        try:
+            self._apply(doc)
+        except Exception:
+            self.undo(doc)
+            raise
+        self.noop=all(doc.get(i).revision==revisions[i] for i in self.ids) and not self.before_modifiers
+    def _apply(self,doc):
+        for i in self.ids:
+            e=doc.get(i); p=e.params
             if e.kind in ('box','mechanical_part','library_object','kitchen_part','cabinet','plumbing_point','electrical_point','ventilation_point','drainage_point','heating_point','pool'):
                 changes={'x':p['x']+self.dx,'y':p['y']+self.dy,'z':p['z']+self.dz}
                 if e.kind=='pool' and 'plant_x' in p:changes.update(plant_x=p['plant_x']+self.dx,plant_y=p['plant_y']+self.dy)   # its equipment room goes along
@@ -120,9 +137,8 @@ class MoveEntities(Command):
             elif e.kind in ('floor','room','ceiling_joists'):
                 doc.update(i,{'points':[(x+self.dx,y+self.dy) for x,y in p['points']], 'z':p['z']+self.dz})
             elif e.kind in ('stair','ramp'):
-                if abs(float(self.dz))>1e-12:
-                    raise ValueError(f'{e.kind}s can only move in XY; floor elevations remain linked')
                 doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy})
+            elif e.kind=='dimension':doc.update(i,{'x1':p['x1']+self.dx,'x2':p['x2']+self.dx,'y1':p['y1']+self.dy,'y2':p['y2']+self.dy})
         # Compatibility only: modern UV/local attachments are immutable semantic intent.
         # Old project files may still contain world-only sculpt centers, so translate those
         # until they can be migrated to an intrinsic surface frame.
@@ -899,7 +915,10 @@ class CommandStack:
         # A locked layer (Layers panel / environment) refuses changes to its entities.
         from .layers import check_command
         check_command(self.doc,c)
-    def execute(self,c):self._check_layers(c);c.do(self.doc);self.done.append(c);self.undone.clear();self._notify()
+    def execute(self,c):
+        self._check_layers(c);c.do(self.doc)
+        if getattr(c,'noop',False):return       # changed nothing: no empty undo step (audit F04)
+        self.done.append(c);self.undone.clear();self._notify()
     def amend(self,c):
         """Run ``c`` as part of the last step: one undo removes both (e.g. a wall and its dimension reference)."""
         if not self.done:
