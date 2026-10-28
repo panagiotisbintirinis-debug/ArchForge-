@@ -66,6 +66,11 @@ class IncrementalEvaluationCache:
             }
 
         if rebuild_ids or deleted_ids:
+            # Bound lamp geometry and its emitters must read the same current mounting height.
+            mount_inputs = {'wall','floor','room_floor','room_ceiling','room_roof','drywall_ceiling'}
+            if deleted_ids or any(doc.entities[eid].kind in mount_inputs for eid in rebuild_ids):
+                rebuild_ids = set(rebuild_ids) | {eid for eid,e in doc.entities.items()
+                    if e.kind=='electrical_point' and e.params.get('fixture_asset')}
             # A tiled roof is derived from the walls and ceilings under it (inner walls up to the roof).
             if deleted_ids or any(doc.entities[eid].kind in ROOF_INPUTS for eid in rebuild_ids):
                 rebuild_ids = set(rebuild_ids) | {eid for eid, e in doc.entities.items() if e.kind == 'pitched_roof'}

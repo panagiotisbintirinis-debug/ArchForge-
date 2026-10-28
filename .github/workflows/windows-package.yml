@@ -29,7 +29,27 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install dependencies
-        run: python -m pip install -r requirements.txt pyinstaller
+        run: python -m pip install -r requirements.txt pyinstaller pytest
+      - name: Check shipped fixture installation with Windows text encoding
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QT_QPA_FONTDIR: C:/Windows/Fonts
+        run: python -m pytest -q tests/test_bundled_lights.py
+      - name: Check actual 3D fixture controls in a desktop window
+        env:
+          QT_QPA_PLATFORM: windows
+          # The runner uses Microsoft's virtual D3D adapter, which Chromium blocklists.
+          # Exercise real WebGL on it; retain all rendering/interaction assertions.
+          QTWEBENGINE_CHROMIUM_FLAGS: --ignore-gpu-blocklist
+          ARCHFORGE_DATA: ${{ runner.temp }}\fixture-3d-check
+        run: python scripts/check_fixture_3d.py
+      - name: Keep the synthetic 3D window if verification fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fixture-3d-failure
+          path: fixture-3d-failure.png
+          retention-days: 5
       - name: Stamp the build (Αρχείο ▸ Έλεγχος για ενημερώσεις compares it with the release)
         shell: bash
         run: |
@@ -39,6 +59,7 @@ jobs:
           pyinstaller --noconfirm --windowed --name ArchForge
           --collect-submodules archforge
           --add-data "archforge/ui/vendor;archforge/ui/vendor"
+          --add-data "archforge/library/content;archforge/library/content"
           --add-data "build_info.json;."
           --add-data "docs/scenarios/S*.archforge;samples"
           --collect-all OCP
@@ -51,6 +72,8 @@ jobs:
         run: |
           $p = Start-Process dist\ArchForge\ArchForge.exe -PassThru -Wait
           if ($p.ExitCode -ne 0) { throw "ArchForge.exe exited with $($p.ExitCode)" }
+          $records = Get-ChildItem "$env:ARCHFORGE_DATA\library\assets\*.json" | ForEach-Object { Get-Content -Raw $_.FullName | ConvertFrom-Json } | Where-Object { $_.lights }
+          if ($records.Count -lt 16) { throw "Packaged executable did not install the 16 luminous models" }
       - name: Zip
         shell: pwsh
         run: Compress-Archive -Path dist\ArchForge -DestinationPath ArchForge-windows.zip

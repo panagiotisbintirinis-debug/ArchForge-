@@ -203,3 +203,75 @@ def test_group_with_mixed_dimming_protocols_is_flagged():
     g = next(g for g in rep['groups'] if g['group'] == 'Σαλόνι')
     assert g['dimming'] == ['dali2', 'phase_cut'] and any('διαφορετικά πρωτόκολλα' in w for w in rep['warnings'])
     assert g['driver_hint_w'] == pytest.approx(2.0 * 14.4 * 1.2, abs=0.1)
+
+
+def test_each_luminaire_controls_its_own_light_and_an_adjustable_spot_is_aimed():
+    """Owner 25/10: «έλεγχο του φωτισμού ανά φωτιστικό και την κατεύθυνση σε κατευθυνόμενη δέσμη όταν το φωτιστικό
+    το επιτρέπει» — on/off, dimmer, beam and aim of each luminaire reach the 3D; a fixed fitting has no aim."""
+    from archforge.mep.lighting import aim_target
+    from archforge.ui.lighting_system import _entity_light_spec
+    doc = Document(); stack = CommandStack(doc); _house(stack)
+    _pt(stack, 'panel', 0.3, 3.0)
+    spot = _pt(stack, 'spot', 2.0, 3.0)
+    lamp = _pt(stack, 'light', 3.0, 3.0)
+    x, y, z = light_spec(doc, spot)['position']
+    assert aim_target(doc, spot.params, x, y, z) == [x, y, z - 2.0]                # straight down until aimed
+    stack.execute(UpdateEntity(spot.id, {'aim_tilt_deg': 45.0, 'aim_azimuth_deg': 90.0, 'beam_deg': 24.0,
+                                         'dim_level': 0.5}))
+    tx, ty, tz = light_spec(doc, doc.get(spot.id))['target']
+    assert tx == pytest.approx(x + 2 * math.sin(math.radians(45))) and ty == pytest.approx(y)   # east, 45° down
+    assert tz == pytest.approx(z - 2 * math.cos(math.radians(45)))
+    shown = _entity_light_spec(doc.get(spot.id), doc)
+    aim = [t - q for t, q in zip(shown['target'], shown['position'])]   # same aim from its 3D height (under the walls' top)
+    assert shown['kind'] == 'spot' and aim == pytest.approx([tx - x, ty - y, tz - z])
+    assert shown['angle_deg'] == 12.0 and shown['intensity'] == pytest.approx(350.0) and shown['enabled']
+    # Wall washer is aimable too; a downlight / plafonnier is not.
+    washer = _pt(stack, 'wall_washer', 1.0, 1.0)
+    assert _entity_light_spec(doc.get(washer.id), doc)['kind'] == 'spot'
+    stack.execute(UpdateEntity(lamp.id, {'aim_tilt_deg': 60.0}))
+    assert light_spec(doc, doc.get(lamp.id))['kind'] == 'point'
+    # Off per luminaire: only that one goes dark.
+    stack.execute(UpdateEntity(spot.id, {'light_on': 0}))
+    assert not _entity_light_spec(doc.get(spot.id), doc)['enabled'] and not light_spec(doc, doc.get(spot.id))['enabled']
+    assert _entity_light_spec(doc.get(lamp.id), doc)['enabled']
+    with pytest.raises(ValueError):
+        stack.execute(UpdateEntity(spot.id, {'aim_tilt_deg': 120.0}))
+    # Saved and reloaded with the project.
+    again = Document.from_dict(doc.to_dict()).get(spot.id).params
+    assert (again['aim_tilt_deg'], again['aim_azimuth_deg'], again['light_on']) == (45.0, 90.0, 0)
+
+
+def test_spot_properties_have_on_off_tilt_and_bearing_with_undo():
+    from PySide6.QtWidgets import QApplication, QCheckBox, QDial
+    from archforge.ui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    try:
+        window.plan_view.sitePointRequested.emit('elec_spot', 2.0, 2.0)
+        spot = next(e for e in window.doc.entities.values() if e.params.get('point_type') == 'spot')
+        window.doc.select([spot.id]); window.refresh_inspector()
+        panel = window.form.parentWidget()
+        tilt = panel.findChild(QDial, 'aimTilt')
+        bearing = panel.findChild(QDial, 'aimBearing')
+        assert tilt is not None and bearing is not None
+        tilt.setSliderDown(True); tilt.setValue(30); tilt.setSliderDown(False)
+        assert window.doc.get(spot.id).params['aim_tilt_deg'] == 30.0
+        app.processEvents()
+        panel = window.form.parentWidget()
+        bearing = panel.findChild(QDial, 'aimBearing')
+        bearing.setSliderDown(True); bearing.setValue(180); bearing.setSliderDown(False)
+        p = window.doc.get(spot.id).params
+        assert (p['aim_tilt_deg'], p['aim_azimuth_deg']) == (30.0, 180.0)
+        window._undo()
+        assert window.doc.get(spot.id).params['aim_azimuth_deg'] == 0.0
+        app.processEvents()
+        on = window.form.parentWidget().findChild(QCheckBox, 'lightOnChoice')
+        on.setChecked(False)
+        assert window.doc.get(spot.id).params['light_on'] == 0
+        # A plafonnier has no aim rows.
+        window.plan_view.sitePointRequested.emit('elec_light', 3.0, 3.0)
+        lamp = next(e for e in window.doc.entities.values() if e.params.get('point_type') == 'light')
+        window.doc.select([lamp.id]); window.refresh_inspector(); app.processEvents()
+        assert window.form.parentWidget().findChild(QDial, 'aimTilt') is None
+    finally:
+        window._mark_clean(); window.close(); app.processEvents()

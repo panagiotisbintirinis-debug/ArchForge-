@@ -88,6 +88,11 @@ def _matrix16(v):
     return [_finite(x) for x in v]
 
 
+def _library_light_sources(v):
+    from archforge.library.lighting import validate_sources
+    return validate_sources(v)
+
+
 def _mesh_metadata(v):
     if not isinstance(v, dict):
         raise ValueError('mesh metadata must be a dictionary')
@@ -669,6 +674,12 @@ def _flag(v):
     return 1 if int(round(float(v))) else 0
 
 
+def _id_list(v):
+    if not isinstance(v, (list, tuple)):
+        raise ValueError('expected a list of entity ids')
+    return list(dict.fromkeys(str(i) for i in v))
+
+
 def _between(lo, hi, label):
     def check(v):
         v = _finite(v)
@@ -894,8 +905,14 @@ SCHEMAS = {
                          'x2': _finite, 'y2': _finite, 'w_per_m': _nonnegative, 'lumen': _nonnegative, 'kelvin': _kelvin,
                          'beam_deg': _beam, 'dim_level': _unit_interval, 'direction': _light_direction,
                          'automation_group': str, 'mount_height': _nonnegative, 'catalog_id': str,
+                         'fixture_asset': _nonempty, 'rotation': _finite,
                          'dimming': _choice(('onoff', 'phase_cut', 'dali2', '0_10v'), 'dimming protocol'),
-                         'target_x': _finite, 'target_y': _finite, 'target_z': _finite},
+                         'target_x': _finite, 'target_y': _finite, 'target_z': _finite,
+                         # per luminaire (owner 25/10): on/off, and the aim of an adjustable head (mep/lighting.aim_target)
+                         'controls': _id_list,
+                         'knx_group_address': str, 'knx_channels': lambda v: int(_nonnegative(v)),
+                         'light_on': _flag, 'aim_tilt_deg': _between(0.0, 90.0, 'aim tilt'),
+                         'aim_azimuth_deg': lambda v: _finite(v) % 360.0},
     'plumbing_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _plumbing_type, 'pipe_system': _pipe_system},
     'ceiling_joists': {'points': _polygon, 'z': _finite, 'spacing': _joist_spacing, 'usage': _joist_usage,
                        'direction': _joist_direction},
@@ -925,6 +942,9 @@ SCHEMAS = {
         'x': _finite, 'y': _finite, 'z': _finite, 'rotation': _finite,
         'width': _positive, 'depth': _positive, 'height': _positive,
         'uniform': _unit_interval, 'asset': _nonempty, 'mirror': _unit_interval,
+        'light_sources': _library_light_sources,
+        'light_level': _unit_interval, 'light_enabled': _unit_interval, 'light_shadows': _unit_interval, 'light_kelvin': lambda v: 0.0 if float(v) == 0 else _kelvin(v),
+        'aim_tilt_deg': _between(0.0, 90.0, 'aim tilt'), 'aim_azimuth_deg': lambda v: _finite(v) % 360.0,
     },
     'kitchen_part': {
         'x': _finite, 'y': _finite, 'z': _finite,

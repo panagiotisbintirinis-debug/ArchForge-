@@ -181,8 +181,9 @@ def test_library_is_one_tree_of_themes_with_search_and_actions():
         window._seed_core_library()
         tree = window._library_tree
         themes = [tree.topLevelItem(i).text(0).split(' (')[0] for i in range(tree.topLevelItemCount())]
-        assert themes[:7] == ['Δομικά', 'Κουζίνα', 'Έπιπλα', 'Μπάνιο', 'Εξωτερικοί χώροι', 'Η/Μ', 'Υλικά'][:7] or \
-            themes[:6] == ['Δομικά', 'Κουζίνα', 'Έπιπλα', 'Μπάνιο', 'Εξωτερικοί χώροι', 'Η/Μ']
+        assert themes[:9] == ['Δομικά', 'Κουζίνα', 'Έπιπλα', 'Μπάνιο', 'Εξωτερικοί χώροι',
+                              'Φωτιστικά', 'Ηλεκτρολογικά', 'Υδραυλικά', 'Εξαερισμοί']
+        assert 'Η/Μ' not in themes
         assert themes[-1] == 'Υλικά'
         furniture = next(tree.topLevelItem(i) for i in range(tree.topLevelItemCount()) if tree.topLevelItem(i).text(0).startswith('Έπιπλα'))
         subs = [furniture.child(i).text(0).split(' (')[0] for i in range(furniture.childCount())]
@@ -200,8 +201,8 @@ def test_library_is_one_tree_of_themes_with_search_and_actions():
         window._library_tree_action(visible[0])
         assert window.plan_view.controller.tool == 'library_place'
         window._library_search.setText('')
-        mep = next(tree.topLevelItem(i) for i in range(tree.topLevelItemCount()) if tree.topLevelItem(i).text(0).startswith('Η/Μ'))
-        vent = next(mep.child(i) for i in range(mep.childCount()) if mep.child(i).text(0).startswith('Εξαερισμοί'))
+        top = {tree.topLevelItem(i).text(0).split(' (')[0]: tree.topLevelItem(i) for i in range(tree.topLevelItemCount())}
+        vent = top['Εξαερισμοί']
         window._library_tree_action(vent.child(0))
         assert window.plan_view.controller.tool == 'vent_hood'
     finally:
@@ -228,3 +229,23 @@ def test_menus_say_import_objects_without_naming_a_vendor():
         assert not [t for t in texts if 'Home Designer' in t or 'Chief' in t or '.calib' in t]
     finally:
         window.close()
+
+
+def test_lighting_electrical_and_plumbing_have_their_own_library_parts():
+    """Owner 25/10: «τα φωτιστικά και όλα τα ηλεκτρολογικά και τα υδραυλικά πρέπει να έχουν δικό τους κομμάτι»."""
+    from archforge.mep.electrical import POINT_TYPES as ELEC
+    from archforge.mep.plumbing import POINT_TYPES as PLUMB
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    try:
+        window._seed_core_library()
+        outline = {theme: dict(subs) for theme, subs in window._library_outline()}
+        tools = {theme: [a[1] for items in subs.values() for _l, a in items if a[0] == 'tool'] for theme, subs in outline.items()}
+        assert sorted(tools['Φωτιστικά']) == sorted(f'elec_{k}' for k, v in ELEC.items() if v[1] == 'lighting')
+        assert sorted(tools['Ηλεκτρολογικά']) == sorted(f'elec_{k}' for k, v in ELEC.items() if v[1] != 'lighting')
+        assert sorted(tools['Υδραυλικά']) == sorted(f'plumb_{k}' for k in PLUMB)
+        # The 3D light fittings live with the lighting points, not among the furniture.
+        assert outline['Φωτιστικά'].get('Φωτιστικά σώματα')
+        assert 'Φωτισμός' not in outline['Έπιπλα']
+    finally:
+        window._mark_clean(); window.close(); app.processEvents()

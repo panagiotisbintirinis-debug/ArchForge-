@@ -466,6 +466,9 @@ function startMoveGhost(sourceMesh) {
     depthWrite: true,
     side: THREE.DoubleSide
   });
+  if (spec.projectLightEmissive) {
+    material.userData.projectLightEmissive = Number(spec.emissiveIntensity ?? 0.0);
+  }
   moveGhost = new THREE.Mesh(sourceMesh.geometry.clone(), material);
   moveGhost.userData.preview = true;
   previewRoot.add(moveGhost);
@@ -906,7 +909,7 @@ function applyTechnique() {
     obj.material.transparent = see;
     obj.material.opacity = glass ? Math.min(base, 0.34) : base;
     obj.material.depthWrite = !see;
-    obj.castShadow = !technical && !see;
+    obj.castShadow = !technical && !see && obj.userData.castShadow !== false;
     // A section reads like a drawing: even light, no roof shadow inside.
     obj.receiveShadow = !technical && !sectionPlane;
     obj.material.needsUpdate = true;
@@ -1250,9 +1253,10 @@ window.archforgeSetScene = function(payload, fit = true) {
     mesh.userData.kind = item.kind || "";
     mesh.userData.surfaceRoles = item.surfaces || [];
     mesh.userData.renderPart = item.render_part || "";
+    mesh.userData.castShadow = item.cast_shadow !== false;
     mesh.visible = meshShouldShow(mesh);
     mesh.material.clippingPlanes = clipPlanes();
-    mesh.castShadow = true;
+    mesh.castShadow = item.cast_shadow !== false;
     mesh.receiveShadow = true;
     modelRoot.add(mesh);
   }
@@ -1263,6 +1267,7 @@ window.archforgeSetScene = function(payload, fit = true) {
   fitSunShadow();
   applyTechnique();
   // Once the human has moved the camera, a scene update never refits it
+  if (typeof afUpdateLightVisibility === "function") afUpdateLightVisibility();
   // (owner: «η κάμερα με πέταγε έξω κάθε φορά που άλλαζα κλίσεις στο terrain»).
   // The Fit command and the view presets call fitCamera()/setCameraPreset directly.
   if (fit && !cameraMovedByHuman) fitCamera();

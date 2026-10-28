@@ -254,22 +254,60 @@ def design_circuits(doc):
                _floor_of(doc, float(e.params["z"]))) for e in points if POINT_TYPES[e.params["point_type"]][1] == "lighting"]
     # Groups that have their own switch/dimmer; their lights leave the room's plain switch.
     grouped = {str(e.params.get("automation_group", "")) for e in points if e.params["point_type"] in SWITCH_TYPES} - {""}
+    # Owner 25/10: a switch linked to particular luminaires in Ιδιότητες («controls») controls exactly those; they
+    # leave the automatic room/group switching.
+    light_ids = {l.id for l, _r, _f in lights}
+    linked = {i for e in points if e.params["point_type"] in SWITCH_TYPES for i in e.params.get("controls", ()) if i in light_ids}
     for sw in (e for e in points if e.params["point_type"] in SWITCH_TYPES):
         floor = _floor_of(doc, float(sw.params["z"]))
         room = _room_of(doc, float(sw.params["x"]), float(sw.params["y"]), floor)
         group = str(sw.params.get("automation_group", ""))
-        if group:
+        if "controls" in sw.params:
+            controlled = [i for i in sw.params["controls"] if i in light_ids]
+        elif group:
             controlled = [l.id for l, _r, _f in lights if str(l.params.get("automation_group", "")) == group]
         else:
             controlled = [l.id for l, lroom, lfloor in lights if lfloor == floor and lroom == room and room is not None
-                          and str(l.params.get("automation_group", "")) not in grouped]
-        if not controlled:
+                          and str(l.params.get("automation_group", "")) not in grouped and l.id not in linked]
+        if not controlled and "controls" not in sw.params:
             near = sorted((math.hypot(float(l.params["x"]) - float(sw.params["x"]), float(l.params["y"]) - float(sw.params["y"])), l.id)
                           for l, _r, lf in lights if lf == floor)
             controlled = [near[0][1]] if near else []
         out["switch_links"].append({"switch": sw.id, "lights": controlled, "dimmer": sw.params["point_type"] == "dimmer",
                                     "group": group})
+    _switching_schemes(out, {e.id: e for e in points})
     return out
+
+
+SCHEMES = {"single": "Απλός", "two_way": "Αλέ-ρετούρ (κομιτατέρ)", "intermediate": "Αντιστροφέας (ενδιάμεσος)"}
+
+
+def _switching_schemes(out, points):
+    """Several switches for the same luminaires = one multi-way switching: the two ends two-way (αλέ-ρετούρ), the ones
+    between intermediate (αντιστροφέας); ``partners`` is the chain the travellers run along (ordered by distance)."""
+    links = out["switch_links"]
+    by_set = {}
+    for link in links:
+        link.update(scheme="single", partners=[])
+        if link["lights"]:
+            by_set.setdefault(frozenset(link["lights"]), []).append(link)
+    for same in by_set.values():
+        if len(same) < 2:
+            continue
+        # chain: start at the switch farthest from the others, then nearest neighbour (no crossing back)
+        pos = {l["switch"]: (float(points[l["switch"]].params["x"]), float(points[l["switch"]].params["y"])) for l in same}
+        start = max(same, key=lambda l: sum(math.dist(pos[l["switch"]], pos[o["switch"]]) for o in same))
+        chain, rest = [start], [l for l in same if l is not start]
+        while rest:
+            nxt = min(rest, key=lambda l: math.dist(pos[chain[-1]["switch"]], pos[l["switch"]]))
+            chain.append(nxt); rest.remove(nxt)
+        ids = [l["switch"] for l in chain]
+        for k, link in enumerate(chain):
+            link["scheme"] = "two_way" if k in (0, len(chain) - 1) else "intermediate"
+            link["partners"] = ids
+        if any(l["dimmer"] for l in chain):
+            out["report"]["warnings"].append(
+                "Ροοστάτης σε πολλαπλή αφή: χρειάζεται ροοστάτης για αλέ-ρετούρ ή μπουτόν με ρελέ — προς έλεγχο ηλεκτρολόγου")
 
 
 def _ceiling_fed(e):
@@ -488,3 +526,39 @@ CABLE_COLORS = {"lighting": "#e0b400", "sockets": "#e07a00", "kitchen_sockets": 
                 "washing_machine": "#7b2fbf", "dishwasher": "#7b2fbf",
                 # Ασθενή (drawing convention): data, TV, KNX bus.
                 "network": "#0e9aa7", "tv": "#6d28d9", "knx": "#2e7d32"}
+
+
+# -- switches linked from the luminaire's Ιδιότητες (owner 25/10) ---------------------------------------------------
+def switches_of(doc, light_id):
+    """The switch links (with ``scheme``/``partners``) that control this luminaire."""
+    return [l for l in route_cables_cached(doc)["switch_links"] if light_id in l["lights"]]
+
+
+def link_switch_changes(doc, light_id, switch_id, mode="same"):
+    """``{switch id: {"controls": [...]}}`` for a new switch at ``switch_id``.
+
+    ``same``: another place of the luminaire's existing switching (αλέ-ρετούρ, a third place → αντιστροφέας) — the
+    new switch takes the lights of the existing one, which keeps them explicitly. ``own``: a switch only for this
+    luminaire; it leaves the others. The automatic room switching is frozen into ``controls`` where it is touched,
+    so nothing else moves.
+    """
+    existing = switches_of(doc, light_id)
+    changes = {}
+    if mode == "same" and existing:
+        lights = list(existing[0]["lights"])
+        for link in existing:
+            if link["lights"] == lights:
+                changes[link["switch"]] = {"controls": lights}
+        changes[switch_id] = {"controls": lights}
+        return changes
+    for link in existing:
+        changes[link["switch"]] = {"controls": [i for i in link["lights"] if i != light_id]}
+    changes[switch_id] = {"controls": [light_id]}
+    return changes
+
+
+def unlink_switch_changes(doc, light_id, switch_id):
+    link = next((l for l in switches_of(doc, light_id) if l["switch"] == switch_id), None)
+    if link is None:
+        return {}
+    return {switch_id: {"controls": [i for i in link["lights"] if i != light_id]}}

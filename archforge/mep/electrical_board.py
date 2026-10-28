@@ -99,7 +99,8 @@ def unverified_lines():
     return out
 
 
-CONDUCTOR_LABELS = {"L": "Φάση", "N": "Ουδέτερος", "PE": "Γείωση", "R": "Επιστροφή διακόπτη"}
+CONDUCTOR_LABELS = {"L": "Φάση", "N": "Ουδέτερος", "PE": "Γείωση", "R": "Επιστροφή διακόπτη",
+                    "T1": "Ενδιάμεσος αγωγός 1 (αλέ-ρετούρ)", "T2": "Ενδιάμεσος αγωγός 2 (αλέ-ρετούρ)"}
 
 
 def settings(doc):
@@ -143,6 +144,11 @@ def conductors(circuit, dali=False):
 def switch_leg(section):
     """Switch leg of a lighting circuit: phase to the switch and its return, at the circuit's section."""
     return [("L", CONDUCTOR_LABELS["L"], section), ("R", CONDUCTOR_LABELS["R"], section)]
+
+
+def traveller_leg(section):
+    """Between two switches of a multi-way switching: the two travellers, at the circuit's section."""
+    return [("T1", CONDUCTOR_LABELS["T1"], section), ("T2", CONDUCTOR_LABELS["T2"], section)]
 
 
 # --- where each run lies --------------------------------------------------------------------------------------
@@ -278,10 +284,13 @@ def analyse(doc, override=None):
     switch_runs = _switch_runs(doc, wiring, points)
     dali_circuit = {c["id"]: any(dimming_of(points[i].params) == "dali2" for i in c["points"] if i in points) for c in circuits}
     tagged = [(a, b, cid, conductors(by_id[cid], dali_circuit[cid]), "line") for a, b, _g, cid in wiring["runs"] if cid in by_id]
+    from archforge.mep.electrical_routes import TRAVELLER
     for a, b, sid in ([] if knx else switch_runs):       # KNX: buttons on the bus, no 230 V switch legs
-        cid = switch_circuit.get(sid, "")
+        travel = sid.startswith(TRAVELLER)
+        cid = switch_circuit.get(sid[len(TRAVELLER):] if travel else sid, "")
         if cid in by_id:
-            tagged.append((a, b, cid, switch_leg(float(by_id[cid]["cable_mm2"])), "switch"))
+            leg = traveller_leg if travel else switch_leg
+            tagged.append((a, b, cid, leg(float(by_id[cid]["cable_mm2"])), "switch"))
         else:
             warnings.append(f"Διακόπτης {sid[:6]} χωρίς κύκλωμα φωτισμού: τα σκέλη του δεν μετρήθηκαν")
     for a, b, cid, wires, kind in tagged:

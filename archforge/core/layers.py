@@ -298,7 +298,12 @@ def apply_to_scene_objects(doc, objects):
     out = []
     for o in objects:
         eid = o.get('id') or ''
-        if o.get('layer') in SCENE_LAYERS:
+        physical_fixture = bool(o.get('physical_fixture')) and eid in doc.entities
+        if physical_fixture:
+            # The housing is architectural content, while its plan symbol/circuit stays electrical.
+            # In MEP it follows electrical visibility; logical electrical locks still protect it.
+            key = 'electrical' if workspace(doc) == 'mep' else 'furniture'
+        elif o.get('layer') in SCENE_LAYERS:
             key = SCENE_LAYERS[o['layer']]
         elif eid and eid in doc.entities:
             e = doc.get(eid)
@@ -306,7 +311,9 @@ def apply_to_scene_objects(doc, objects):
         else:
             out.append(o)
             continue
-        s = states[key]
+        s = dict(states[key])
+        if physical_fixture:
+            s['locked'] = s['locked'] or states['electrical']['locked'] or doc.get(eid).locked
         if not s['visible']:
             continue
         if s['locked'] or s['dim']:

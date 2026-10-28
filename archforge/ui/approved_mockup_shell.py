@@ -419,6 +419,14 @@ def install_approved_mockup_shell(window):
     night=QAction("Νύχτα (μόνο τα φώτα του έργου)",sun_menu); night.setCheckable(True)
     night.triggered.connect(lambda _=False: _lighting_mode(window,"night")); sun_group.addAction(night); sun_menu.addAction(night)
     window._mockup_night_action=night
+    # The project's lights (owner 25/10: «μεσημέρι και τα φώτα αναμμένα — πού τα κλείνω;»): only at night by default.
+    from archforge.ui.lighting_system import PROJECT_LIGHTS
+    sun_menu.addSeparator()
+    lights_group=QActionGroup(sun_menu); lights_group.setExclusive(True); window._mockup_project_lights_actions={}
+    for key,label in PROJECT_LIGHTS.items():
+        a=QAction(f"Φώτα του έργου: {label}",sun_menu); a.setCheckable(True); a.setChecked(key=="auto")
+        a.triggered.connect(lambda _=False,k=key: window.pbr_view.set_project_lights(k))
+        lights_group.addAction(a); sun_menu.addAction(a); window._mockup_project_lights_actions[key]=a
     sun_menu.addSeparator()
     custom=QAction("Ώρα και μήνας…",sun_menu); custom.triggered.connect(window._choose_sun_time); sun_menu.addAction(custom)
     window._mockup_sun_menu=sun_menu

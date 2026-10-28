@@ -48,9 +48,13 @@ function afConfigureShadow(light, spec) {
   }
 }
 
+function afEmitterColor(spec) {
+  return Array.isArray(spec.color) ? new THREE.Color().setRGB(...spec.color) : afKelvinColor(spec.kelvin);
+}
+
 function afPointLight(spec, position) {
   const light = new THREE.PointLight(
-    afKelvinColor(spec.kelvin), Number(spec.intensity || 400), Number(spec.range || 10), 2.0
+    afEmitterColor(spec), Number(spec.intensity ?? 400), Number(spec.range ?? 10), 2.0
   );
   light.position.set(position[0], position[1], position[2]);
   afConfigureShadow(light, spec);
@@ -60,7 +64,7 @@ function afPointLight(spec, position) {
 function afSpotLight(spec) {
   const angle = THREE.MathUtils.degToRad(Math.max(1, Math.min(89, Number(spec.angle_deg || 35))));
   const light = new THREE.SpotLight(
-    afKelvinColor(spec.kelvin), Number(spec.intensity || 700), Number(spec.range || 14),
+    afEmitterColor(spec), Number(spec.intensity ?? 700), Number(spec.range ?? 14),
     angle, Number(spec.penumbra ?? 0.35), 2.0
   );
   const p = spec.position || [0, 0, 2.4];
@@ -90,8 +94,34 @@ function afStripLights(spec) {
   return group;
 }
 
+// Owner 25/10 («μεσημέρι και τα φώτα αναμμένα — πού τα κλείνω;»): the project's lights shine only at night unless
+// the menu «Φώτα του έργου» says always on / off.
+let architecturalLightsSwitch = "auto";
+let architecturalGlowLevels = {};
+function afUpdateLightVisibility() {
+  archLightRoot.visible = architecturalLightsSwitch === "on" ||
+      (architecturalLightsSwitch === "auto" && architecturalLightingMode === "night");
+  window.__archforgeProjectLightsOn = archLightRoot.visible;
+  // Lamp glass follows the very same project switch as the emitted light.
+  // Keep the instance's base value so on/off never compounds the dimmer.
+  modelRoot.traverse((object) => {
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    for (const material of materials) {
+      if (material && material.userData.projectLightEmissive !== undefined) {
+        const eid = String((object.userData || {}).entityId || "");
+        const level = architecturalGlowLevels[eid] ?? material.userData.projectLightEmissive;
+        material.emissiveIntensity = archLightRoot.visible ? level : 0;
+      }
+    }
+  });
+  if (typeof window.archforgeWakeRender === "function") window.archforgeWakeRender(2);
+}
+
 window.setArchitecturalLights = function(payload) {
   afDisposeLightRoot();
+  architecturalGlowLevels = (payload && payload.glow_levels) || {};
+  const wanted = String((payload && payload.project_lights) || "auto");
+  architecturalLightsSwitch = ["auto", "on", "off"].includes(wanted) ? wanted : "auto";
   let shadowBudget = 16;          // a point light's shadow is 6 extra renders: bounded for laptops
   for (const raw of ((payload && payload.lights) || [])) {
     if (!raw || raw.enabled === false) continue;
@@ -108,6 +138,7 @@ window.setArchitecturalLights = function(payload) {
       archLightRoot.add(light);
     }
   }
+  afUpdateLightVisibility();
 };
 
 window.setArchitecturalLightingMode = function(mode) {
@@ -115,9 +146,13 @@ window.setArchitecturalLightingMode = function(mode) {
   if (!["day", "afternoon", "night"].includes(mode)) mode = "day";
   architecturalLightingMode = mode;
   window.__archforgeLightingMode = mode;
+  afUpdateLightVisibility();
   if (typeof applySunAndSky === "function") applySunAndSky();
 };
 '''
+
+
+PROJECT_LIGHTS = {"auto": "αυτόματα (μόνο τη νύχτα)", "on": "πάντα αναμμένα", "off": "σβηστά"}
 
 
 def _replace_one_of(text: str, candidates: tuple[str, ...], new: str, label: str) -> str:
@@ -165,17 +200,10 @@ def _light_z(doc, kind, p):
     ground and the slab from below. Native light entities keep their own ``z``."""
     if kind == "electrical_point" and doc is not None:
         try:
-            from archforge.mep.electrical import mount_z
-            z = float(mount_z(doc, p))
+            from archforge.mep.fixture_models import light_mount_z
+            return light_mount_z(doc, p)
         except (KeyError, TypeError, ValueError, ImportError):
             return float(p.get("z", 2.4))
-        # Never above the walls of its storey: with no storey above, the electrical «ceiling» is floor + 2,80 m, inside
-        # the roof of 2,70 m walls — the light then lit the eaves. (The same 2,80 for the ceiling conduits is noted
-        # in HANDOFF for the electrical side.)
-        floor = float(p.get("z", 0.0))
-        tops = [float(e.params.get("z", 0.0)) + float(e.params.get("height", 0.0)) for e in doc.entities.values()
-                if e.kind == "wall" and abs(float(e.params.get("z", 0.0)) - floor) <= 0.05]
-        return min(z, max(tops) - 0.05) if tops else z
     return float(p.get("z", 2.4))
 
 
@@ -195,8 +223,10 @@ def _entity_light_spec(entity, doc=None):
         electrical_kinds = {
             "light": "point",
             "wall_light": "spot",
+            "spot": "spot",
             "spot_light": "spot",
             "downlight": "spot",
+            "wall_washer": "spot",
             "hidden_light": "strip",
             "linear_light": "strip",
             "led_strip": "strip",
@@ -214,18 +244,34 @@ def _entity_light_spec(entity, doc=None):
     # Renderer intensity is deliberately separate from electrical watts.
     # power_w remains available to circuit/load calculations; dimming affects
     # the visible output without silently rewriting the electrical design load.
+    # Per luminaire (Ιδιότητες, mep/lighting.py): the dimmer slider «dim_level», «Αναμμένο», lumen → candela, the
+    # beam and the aim of an adjustable head.  ``dimming`` there is the driver protocol (text), not a level.
     intensity = float(p.get("intensity", p.get("render_intensity", 700.0)))
-    dimmer = max(0.0, min(1.0, float(p.get("dimmer", p.get("dimming", 1.0)))))
-    intensity *= dimmer
+    level = p.get("dim_level", p.get("dimmer", p.get("dimming", 1.0)))
+    try:
+        dimmer = max(0.0, min(1.0, float(level)))
+    except (TypeError, ValueError):
+        dimmer = 1.0
+    mep = None
+    if electrical_point_type and doc is not None:
+        from archforge.mep.lighting import is_luminaire, light_spec
+        if is_luminaire(entity):
+            mep = light_spec(doc, entity)
+    if mep is not None and mep.get("intensity") is not None:
+        intensity = float(mep["intensity"])        # from the data sheet's lumen, already dimmed
+    else:
+        intensity *= dimmer
 
     spec = {
         "id": str(getattr(entity, "id", "")),
         "kind": light_kind,
-        "enabled": bool(p.get("enabled", True)),
+        "enabled": bool(p.get("enabled", True)) and bool(int(p.get("light_on", 1))) and dimmer > 0,
         "intensity": intensity,
         "kelvin": float(p.get("kelvin", 3000.0)),
         "range": float(p.get("range", 12.0)),
-        "angle_deg": float(p.get("angle_deg", p.get("beam_angle_deg", 35.0))),
+        # The data sheet's beam is the full cone; the renderer's angle is half of it.
+        "angle_deg": (float(p["beam_deg"]) / 2 if "beam_deg" in p
+                      else float(p.get("angle_deg", p.get("beam_angle_deg", 35.0)))),
         "penumbra": float(p.get("penumbra", 0.35)),
         # Walls and roof stop the light: a ceiling light without shadows lit the eaves and the ground through
         # them (owner 25/10: «το φως έπρεπε να φαίνεται μόνο από τα παράθυρα»).
@@ -236,7 +282,16 @@ def _entity_light_spec(entity, doc=None):
         "dimmer": dimmer,
         "automation_group": str(p.get("automation_group", "")),
     }
-    if light_kind == "spot":
+    if mep is not None and mep.get("kelvin"):
+        spec["kelvin"] = float(mep["kelvin"])
+    aimed = None
+    if light_kind == "spot" and electrical_point_type:
+        from archforge.mep.lighting import aim_target
+        position = spec["position"]
+        aimed = aim_target(doc, p, *position)
+    if aimed is not None:
+        spec["target"] = [float(v) for v in aimed]
+    elif light_kind == "spot":
         spec["target"] = [
             float(p.get("target_x", p.get("x", 0.0))),
             float(p.get("target_y", float(p.get("y", 0.0)) + 1.0)),
@@ -272,19 +327,58 @@ def install_lighting_system() -> None:
     def __init__(self, *args, **kwargs):
         original_init(self, *args, **kwargs)
         self._architectural_lighting_mode = "day"
+        self._project_lights = "auto"
+        self._fixture_control_preview = None
 
     def _lighting_payload(self):
         lights = []
+        glow_levels = {}
+        from archforge.library.lighting import instance_light_specs
+        from archforge.mep.fixture_models import model_record, attached_light_specs
         for entity in self.doc.entities.values():
+            preview = getattr(self, '_fixture_control_preview', None)
+            if preview is not None and preview[0] == entity.id:
+                entity = entity.clone()
+                entity.params.update(preview[1])
+                from archforge.mep.lighting import fixture_level, fixture_switch
+                glow_levels[entity.id] = fixture_level(entity) if fixture_switch(entity) else 0
+            if entity.kind == "library_object":
+                lights.extend(instance_light_specs(entity))
+                continue
+            if model_record(entity) is not None:
+                lights.extend(attached_light_specs(self.doc, entity))
+                continue
             spec = _entity_light_spec(entity, self.doc)
             if spec is not None:
                 lights.append(spec)
-        return {"lights": lights}
+        return {"lights": lights, "glow_levels":glow_levels}
+
+    def preview_fixture_control(self, eid, changes):
+        if eid not in self.doc.entities:
+            return
+        from archforge.mep.lighting import is_fixture
+        entity = self.doc.get(eid)
+        if not is_fixture(entity):
+            return
+        allowed = {'light_level','dim_level','aim_tilt_deg','aim_azimuth_deg'}
+        values = {k:v for k,v in changes.items() if k in allowed}
+        if any(k.startswith('aim_') for k in values):
+            values = {k:entity.params.get(k,0) for k in ('aim_tilt_deg','aim_azimuth_deg')} | values
+        self._fixture_control_preview = (eid, values)
+        self._push_architectural_lights()
+
+    def clear_fixture_control_preview(self, eid):
+        preview = getattr(self,'_fixture_control_preview',None)
+        if preview is not None and preview[0] == eid:
+            self._fixture_control_preview = None
+            self._push_architectural_lights()
 
     def _push_architectural_lights(self):
         if self.web_view is None:
             return
-        payload = json.dumps(self._lighting_payload(), separators=(",", ":"))
+        payload = dict(self._lighting_payload())
+        payload["project_lights"] = getattr(self, "_project_lights", "auto")
+        payload = json.dumps(payload, separators=(",", ":"))
         mode = json.dumps(str(self._architectural_lighting_mode))
         self.web_view.page().runJavaScript(
             "if(window.setArchitecturalLightingMode)window.setArchitecturalLightingMode(" + mode + ");"
@@ -302,20 +396,34 @@ def install_lighting_system() -> None:
         labels = {"day": "Ημέρα", "afternoon": "Απόγευμα", "night": "Νύχτα"}
         self.statusChanged.emit("Φωτισμός: " + labels[mode])
 
+    def set_project_lights(self, mode: str) -> None:
+        """The project's luminaires in 3D: «auto» = only at night, «on» = always, «off» = never (each one's own
+        «Αναμμένο» still applies)."""
+        mode = str(mode).lower()
+        if mode not in PROJECT_LIGHTS:
+            raise ValueError("project lights must be auto, on or off")
+        self._project_lights = mode
+        self._push_architectural_lights()
+        self.statusChanged.emit("Φώτα του έργου: " + PROJECT_LIGHTS[mode])
+
     def _on_load_finished(self, ok: bool) -> None:
         original_on_load(self, ok)
         if ok:
             self._push_architectural_lights()
 
     def redraw(self, *args, **kwargs):
+        self._fixture_control_preview = None
         result = original_redraw(self, *args, **kwargs)
         self._push_architectural_lights()
         return result
 
     cls.__init__ = __init__
     cls._lighting_payload = _lighting_payload
+    cls.preview_fixture_control = preview_fixture_control
+    cls.clear_fixture_control_preview = clear_fixture_control_preview
     cls._push_architectural_lights = _push_architectural_lights
     cls.set_lighting_mode = set_lighting_mode
+    cls.set_project_lights = set_project_lights
     cls._on_load_finished = _on_load_finished
     cls.redraw = redraw
     cls._arch_lighting_installed = True

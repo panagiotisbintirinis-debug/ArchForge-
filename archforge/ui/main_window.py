@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QLabel, QTabWidget, QStatusBar, QFileDialog, QMessageBox, QComboBox, QInputDialog,
     QDialog, QDialogButtonBox, QVBoxLayout, QListWidget, QListWidgetItem,
     QToolButton, QMenu, QSplitter, QTreeWidget, QTreeWidgetItem,
-    QLineEdit, QPushButton, QHBoxLayout, QGroupBox,
+    QLineEdit, QPushButton, QHBoxLayout, QGroupBox, QScrollArea,
 )
 
 from archforge.core.model import Document, WorkPlane, Entity
@@ -104,6 +104,8 @@ class MainWindow(QMainWindow):
         organize_main_menus(self)        # the 8 menus of the approved mockup (after the above: moves, never drops)
         from archforge.ui import quality_panel
         quality_panel.install(self)      # Προβολή ▸ Έλεγχος ποιότητας (live quality gate)
+        from archforge.ui import lighting_panel
+        lighting_panel.install(self)     # Φωτισμός ανά χώρο: small strip at the bottom, one pop-up per room
         from archforge.ui.layout2 import install_layout2
         install_layout2(self)            # Διάταξη 2: thin first row, tool groups, «Κοινά», panels on the right
         from archforge.ui import electrical_board_tab
@@ -724,6 +726,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage('Το έδαφος διαγράφηκε (Ctrl+Z για αναίρεση)', 4000)
 
     def _start_site_tool(self, tool, message):
+        self._pending_switch_link = None     # a new tool cancels «Προσθήκη διακόπτη» (it sets the link after this)
         central = getattr(self, '_central_tabs', None)
         simultaneous = getattr(self, '_simultaneous_action', None)
         if central is not None and not (simultaneous is not None and simultaneous.isChecked()):
@@ -1040,6 +1043,8 @@ class MainWindow(QMainWindow):
                 return None
         try:
             parts, dropped = drop_ground_planes(read_gltf(path))
+            from archforge.library.lighting import read_gltf_lighting
+            lighting = read_gltf_lighting(path)
         except Exception as exc:
             QMessageBox.warning(self, 'Βιβλιοθήκη', f'Το μοντέλο δεν διαβάζεται:\n{exc}')
             return None
@@ -1054,7 +1059,7 @@ class MainWindow(QMainWindow):
         asset_id, size = assets.store_asset(name.strip(), tris, {
             'source': 'user-file', 'file': os.path.basename(path),
             'license': 'supplied by the user', 'redistributable': False,
-        }, colors=colors, part_names=part_names)
+        }, colors=colors, part_names=part_names, lighting=lighting)
         self._refresh_library_panel()
         note = f' (αφαιρέθηκε βάση: {", ".join(dropped)})' if dropped else ''
         self.statusBar().showMessage(
@@ -1440,6 +1445,9 @@ class MainWindow(QMainWindow):
             params.update(x2=float(x2), y2=float(y2))     # W/m from the strip's data sheet (Ιδιότητες)
         point = Entity('electrical_point', params, name=label)
         self.stack.execute(AddEntity(point))
+        if point_type in ('switch', 'dimmer'):
+            from archforge.ui.light_properties import finish_linked_switch
+            finish_linked_switch(self, point)      # «Προσθήκη διακόπτη» from a luminaire's Ιδιότητες
         self._redraw_views(all_views=True)
         wiring = route_cables_cached(self.doc)
         circuit = next((c for c in wiring['circuits'] if point.id in c['points']), None)
@@ -1601,8 +1609,9 @@ class MainWindow(QMainWindow):
     def _seed_core_library(self):
         """Build the shipped core library into the local store (first run only)."""
         from archforge.library.catalog import seed_core_library
+        from archforge.library.bundled_lights import seed_lights
         try:
-            built = seed_core_library()
+            built = seed_lights() + seed_core_library()
         except Exception as exc:
             self.statusBar().showMessage(f'Βασική βιβλιοθήκη: {exc}', 6000)
             return
@@ -1659,7 +1668,7 @@ class MainWindow(QMainWindow):
         from archforge.library import assets
         from archforge.library.catalog import CATEGORIES
         from archforge.mep.electrical import POINT_TYPES as ELEC
-        from archforge.mep.plumbing import POINT_TYPES as PLUMB
+        from archforge.mep.plumbing import POINT_TYPES as PLUMB, SOURCES as PLUMB_SOURCES
         from archforge.mep.ventilation import POINT_TYPES as VENT
         from archforge.rendering.materials import picker_categories, picker_materials
         by_cat = {}
@@ -1680,14 +1689,24 @@ class MainWindow(QMainWindow):
                                                     ('Ψευδοροφή — σχεδίαση (ορθογώνιο/πολύγωνο)', ('tool', 'drywall_ceiling'))])]),
             ('Κουζίνα', [('Ντουλάπια', [(label, ('cabinet', label)) for label in getattr(self, '_kitchen_defs', {})]),
                          ('Συσκευές', by_cat.pop('Συσκευές', []))]),
-            ('Έπιπλα', [(cat, by_cat.pop(cat)) for cat in ('Σαλόνι', 'Τραπεζαρία', 'Υπνοδωμάτιο', 'Παιδικό', 'Γραφείο', 'Φωτισμός', 'Διακόσμηση', 'Είσοδος')
+            ('Έπιπλα', [(cat, by_cat.pop(cat)) for cat in ('Σαλόνι', 'Τραπεζαρία', 'Υπνοδωμάτιο', 'Παιδικό', 'Γραφείο', 'Διακόσμηση', 'Είσοδος')
                         if cat in by_cat]),
             ('Μπάνιο', [(None, by_cat.pop('Μπάνιο', []))]),
             ('Εξωτερικοί χώροι', [(None, by_cat.pop('Εξωτερικοί χώροι', []))]),
-            ('Η/Μ', [('Υδραυλικά', [(v[0], ('tool', f'plumb_{k}')) for k, v in PLUMB.items()]),
-                     ('Ηλεκτρολογικά', [(v[0], ('tool', f'elec_{k}')) for k, v in ELEC.items() if v[1] != 'low_voltage']),
-                     ('Ασθενή', [(v[0], ('tool', f'elec_{k}')) for k, v in ELEC.items() if v[1] == 'low_voltage']),
-                     ('Εξαερισμοί', [(v[0], ('tool', f'vent_{k}')) for k, v in VENT.items()])]),
+        ]
+        # Owner 25/10: lighting, electrical and plumbing each have their own part of the library (no shared «Η/Μ»).
+        elec = [(k, v) for k, v in ELEC.items() if v[1] not in ('lighting', 'low_voltage')]
+        themes += [
+            ('Φωτιστικά', [('Σημεία φωτισμού', [(v[0], ('tool', f'elec_{k}')) for k, v in ELEC.items() if v[1] == 'lighting']),
+                           ('Φωτιστικά σώματα', by_cat.pop('Φωτισμός', []))]),
+            ('Ηλεκτρολογικά', [('Πίνακας & διακόπτες', [(v[0], ('tool', f'elec_{k}')) for k, v in elec if v[1] in ('panel', 'switch')]),
+                               ('Πρίζες', [(v[0], ('tool', f'elec_{k}')) for k, v in elec if v[1] in ('sockets', 'kitchen_sockets')]),
+                               ('Παροχές συσκευών', [(v[0], ('tool', f'elec_{k}')) for k, v in elec
+                                                     if v[1] not in ('panel', 'switch', 'sockets', 'kitchen_sockets')]),
+                               ('Ασθενή', [(v[0], ('tool', f'elec_{k}')) for k, v in ELEC.items() if v[1] == 'low_voltage'])]),
+            ('Υδραυλικά', [('Παροχές & θερμοσίφωνες', [(v[0], ('tool', f'plumb_{k}')) for k, v in PLUMB.items() if k in PLUMB_SOURCES]),
+                           ('Υδραυλικοί υποδοχείς', [(v[0], ('tool', f'plumb_{k}')) for k, v in PLUMB.items() if k not in PLUMB_SOURCES])]),
+            ('Εξαερισμοί', [(None, [(v[0], ('tool', f'vent_{k}')) for k, v in VENT.items()])]),
         ]
         from archforge.architecture.joinery import PRESETS as JOINERY
         themes.append(('Κουφώματα', [
@@ -1876,7 +1895,7 @@ class MainWindow(QMainWindow):
             if not chosen:
                 return None
             asset_id = chosen[0]
-        self._pending_library_asset = next(r for r in records if r['id'] == asset_id)
+        self._pending_library_asset = assets.load_asset(asset_id) or next(r for r in records if r['id'] == asset_id)
         self._start_site_tool(
             'library_place', f"{self._pending_library_asset['name']}: κλικ στην κάτοψη — Esc για τέλος")
         return asset_id
@@ -1885,12 +1904,9 @@ class MainWindow(QMainWindow):
         record = getattr(self, '_pending_library_asset', None)
         if record is None:
             return None
-        w, d, h = record['size']
-        obj = Entity('library_object', {
-            'x': float(x), 'y': float(y), 'z': float(self.doc.work_plane.origin[2]),
-            'rotation': 0.0, 'width': float(w), 'depth': float(d), 'height': float(h),
-            'uniform': 1.0, 'asset': record['id'],
-        }, name=record['name'])
+        from archforge.ui.library_instance_integration import library_instance_params
+        obj = Entity('library_object', library_instance_params(
+            record, x=x, y=y, z=self.doc.work_plane.origin[2]), name=record['name'])
         self.stack.execute(AddEntity(obj))
         self._redraw_views(all_views=True)
         self.statusBar().showMessage(
@@ -1996,7 +2012,11 @@ class MainWindow(QMainWindow):
         self.dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
         self.inspector = QWidget()
         self.form = QFormLayout(self.inspector)
-        self.dock.setWidget(self.inspector)
+        self.inspector_scroll = QScrollArea()
+        self.inspector_scroll.setWidgetResizable(True)
+        self.inspector_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        self.inspector_scroll.setWidget(self.inspector)
+        self.dock.setWidget(self.inspector_scroll)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dock)
 
     def _build_mockup_workspace(self):
@@ -2152,6 +2172,9 @@ class MainWindow(QMainWindow):
         from archforge.architecture.joinery import KEYS as joinery_keys
         from archforge.ui.light_properties import LIGHT_KEYS as light_keys
         for key, value in (() if entity.kind in ('railing', 'drywall_ceiling', 'section_line', 'camera', 'stair', 'mechanical_joint') or slab_tools.is_slab_panel(entity) else params.items()):
+            if entity.kind == 'library_object' and key in ('light_level','light_enabled','light_shadows','light_kelvin',
+                                                           'aim_tilt_deg','aim_azimuth_deg'):
+                continue
             if entity.kind in ('door', 'window') and key in joinery_keys:
                 continue  # Κουφώματα: δικές τους γραμμές (ui/opening_properties.py).
             if entity.kind == 'stair' and key == 'plan_numbers':
@@ -2405,6 +2428,9 @@ class MainWindow(QMainWindow):
         if entity.kind == 'drywall_ceiling':
             from archforge.ui.drywall_tools import add_rows as add_drywall_rows
             add_drywall_rows(self, eid)
+        if entity.kind == 'library_object':
+            from archforge.ui.library_light_properties import add_rows as library_light_rows
+            library_light_rows(self, entity)
         if entity.kind in ('library_object', 'cabinet'):
             button = QPushButton('Επεξεργασία αντικειμένου (οπτικά)…')
             button.setToolTip('Διαστάσεις, υλικά ανά τμήμα και Sculpt του αντικειμένου')
@@ -4188,6 +4214,8 @@ class MainWindow(QMainWindow):
         _follow_domes(self)
         from archforge.ui.quality_panel import listen as _quality_listen
         _quality_listen(self)
+        from archforge.ui.lighting_panel import listen as _lighting_listen
+        _lighting_listen(self)
         for view in (self.plan_view, self.pbr_view, self.structural_view):
             view.rebind(self.doc, self.stack)
         if hasattr(self, '_layers_dock'):

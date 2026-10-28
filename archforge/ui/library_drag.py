@@ -146,8 +146,9 @@ class LibraryCarry:
 
     def _asset_params(self, x, y):
         w, d, h = (float(v) for v in self.record.get('size', (0.6, 0.6, 0.8)))
-        p = {'x': x, 'y': y, 'z': self.z, 'rotation': self.turn, 'width': w, 'depth': d, 'height': h,
-             'uniform': 1.0, 'asset': str(self.action[1])}
+        from archforge.ui.library_instance_integration import library_instance_params
+        p = library_instance_params(self.record, x=x, y=y, z=self.z)
+        p['rotation'] = self.turn
         if self.free:
             return p, None
         snapped = None

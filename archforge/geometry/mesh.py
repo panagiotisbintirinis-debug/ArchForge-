@@ -632,6 +632,14 @@ def _payload(doc,node):
   from archforge.structure.timber_roof import roof_mesh
   v,t,r=roof_mesh(p,doc);return MeshPayload(v,t,r)
  if k=='electrical_point':
+  if p.get('fixture_asset'):
+   from archforge.mep.fixture_models import attached_instance
+   from archforge.core.model import Entity
+   instance=attached_instance(doc,Entity(k,p,id=node.entity_id))
+   if instance is not None:
+    from archforge.library.objects import library_object_mesh
+    v,t,r=library_object_mesh(instance.params)
+    return MeshPayload(v,t,tuple('marker' for _ in t))
   from archforge.mep.electrical import point_marker_mesh as elec_marker
   v,t=elec_marker(doc,p);return MeshPayload(tuple(v),tuple(tuple(x) for x in t),tuple('marker' for _ in t))
  if k=='ceiling_joists':

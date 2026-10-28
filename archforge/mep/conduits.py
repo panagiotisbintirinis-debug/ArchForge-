@@ -129,8 +129,9 @@ def conduit_map(doc, route=None):
         light_circuit = {pid:c for c in route['circuits'] if c['group']=='lighting' for pid in c['points']}
         switch_circuit = {link['switch']:next((light_circuit[i] for i in link['lights'] if i in light_circuit),None)
                           for link in route['switch_links']}
+        from archforge.mep.electrical_routes import TRAVELLER
         for a,b,sid in route.get('switch_runs',[]):
-            circuit=switch_circuit.get(sid)
+            circuit=switch_circuit.get(sid[len(TRAVELLER):] if sid.startswith(TRAVELLER) else sid)
             if circuit is None:continue
             cid=f'switch:{sid}'
             sections[cid]=dict(Counter(s for _,_,s in switch_leg(float(circuit['cable_mm2']))))
