@@ -195,9 +195,19 @@ def heating_source(window):
 
 
 def heating(window, options):
+    from archforge.mep.heat_load import connection_point, heat_load, summary
+    # F06 (owner 28/10): no source → a standard connection point with the suggested power; the kind of source
+    # stays the mechanical engineer's decision.
+    point = connection_point(window.doc)
+    if point is not None:
+        from archforge.core.commands import AddEntity
+        window.stack.execute(AddEntity(point))
     emitters = sum(_each_storey(window, lambda name, z: window._auto_heating_emitters("radiator") or 0))
     supplies = window._heating_supplies() or 0
-    return f"{emitters} σώματα · {supplies} παροχές" if emitters or supplies else None
+    done = [f"{emitters} σώματα · {supplies} παροχές"] if emitters or supplies else []
+    if point is not None:
+        done.insert(0, "σημείο σύνδεσης θέρμανσης (το είδος: μηχανολόγος)")
+    return " · ".join(done + [summary(heat_load(window.doc))]) if done else None
 
 
 def structure(window, options):
@@ -241,8 +251,8 @@ def plan(window):
          no_walls or (None if named else "δώσε χρήση στους χώρους (δεξί κλικ ▸ Χρήση χώρου)"), kitchens_and_baths),
         ("room_points", "Φως, διακόπτης και πρίζες σε κάθε χώρο", True, no_walls, room_points),
         ("panel", "Ηλεκτρολογικός πίνακας", True, no_walls or ("υπάρχει ήδη" if has_panel(window) else None), panel),
-        ("heating", "Θέρμανση: σώματα σε κάθε χώρο και παροχές", True,
-         no_walls or (None if heating_source(window) is not None else "βάλε πρώτα λέβητα / αντλία θερμότητας"), heating),
+        ("heating", "Θέρμανση: σώματα σε κάθε χώρο και παροχές (χωρίς πηγή: σημείο σύνδεσης με προτεινόμενη ισχύ)", True,
+         no_walls, heating),
         ("structure", "Φέρων οργανισμός: κολόνες, δοκοί, θεμελίωση", True, no_walls, structure),
     ]
 

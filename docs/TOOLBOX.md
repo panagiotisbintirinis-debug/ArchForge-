@@ -63,6 +63,7 @@
 | `archforge/construction/` (`insulation.py`, `drywall.py`, `isotex.py`, `icf.py`, `shell.py`, `earthworks.py`) | Δομικά συστήματα και οι ποσότητές τους. | |
 | `archforge/architecture/joinery.py` | Κουφώματα: τύποι πόρτας και παραθύρου. | |
 | `archforge/kitchen/cabinets.py` · `cabinet_run.py` · `generator.py` | Παραμετρικά ντουλάπια, γραμμή ντουλαπιών, κουζίνα. | |
+| `archforge/mep/heat_load.py` | Ενδεικτική ισχύς θέρμανσης από τις απώλειες (τοίχοι, κουφώματα, αερισμός), με τις υποθέσεις του έργου και τι δεν μετρήθηκε· `connection_point` = τυπικό σημείο σύνδεσης (F06). |
 | `archforge/quantities/price_book.py` | Ο κοινός τιμοκατάλογος του επαγγελματία (ποτέ επινοημένη τιμή). | Τιμές τις βάζει ο χρήστης |
 | `archforge/core/provenance.py` | Κατάσταση κάθε τεχνικού κανόνα/τιμής (VERIFIED / DESIGN_DEFAULT / ENGINEER_REVIEW …). | Κάθε νέα τιμή γράφεται εδώ |
 | `.claude/skills/archforge-library/` (skill) | Πώς χτίζεις και συντηρείς τις βιβλιοθήκες: `.afcatalog`, άδειες/προέλευση, CC0 υλικά. Scripts: `asset_preview.py` (φύλλο επαλήθευσης), `build_model.py` (αντικείμενο από φωτογραφία), `calib_*.py`, `fetch_khronos.py`, `find_reference_photos.py`. | |
