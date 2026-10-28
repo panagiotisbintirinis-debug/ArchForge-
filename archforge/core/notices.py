@@ -58,6 +58,16 @@ def collecting():
         bucket[:] = unique
 
 
+def skipped_lines(code, what, lines):
+    """One notice for a file read with unreadable lines: ``lines`` = [(line number, text)] (none: nothing said)."""
+    if lines:
+        n, text = lines[0]
+        where = f'γραμμή {n}: ' if n is not None else ''
+        return not_computed(code, f'{what}: {len(lines)} γραμμές δεν διαβάστηκαν και παραλείφθηκαν '
+                                  f'(π.χ. {where}«{str(text)[:40]}») — ελέγξτε το αρχείο')
+    return None
+
+
 def recent():
     return [issue for _n, issue in _recent]
 

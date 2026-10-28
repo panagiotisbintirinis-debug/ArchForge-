@@ -45,7 +45,10 @@ class LightingStrip(QWidget):
         from archforge.mep.lighting import lights_by_room
         try:
             return lights_by_room(self.window.doc)
-        except Exception:            # a half-drawn plan must never break the strip
+        except Exception as exc:     # a half-drawn plan must never break the strip — but it is said
+            from archforge.core.notices import not_computed
+            not_computed("lighting.strip", "Φώτα του έργου: δεν ομαδοποιήθηκαν ανά χώρο (η λίστα φαίνεται άδεια)",
+                         exc=exc)
             return []
 
     def schedule(self):

@@ -85,7 +85,10 @@ def heated_rooms(doc, floor):
     """Room faces of the storey that are heated (not open to the sky, not stairs / storage / boiler room)."""
     try:
         faces = doc.active_room_faces(z=floor)
-    except Exception:                                         # noqa: BLE001 - a storey without closed rooms
+    except Exception as exc:                                  # noqa: BLE001 — a failure, not «no heated rooms»
+        from archforge.core.notices import not_computed
+        not_computed("heating.rooms", f"Θέρμανση: δεν αναγνωρίστηκαν οι χώροι του ορόφου {floor:+.2f}, δεν "
+                     "τοποθετήθηκε τίποτα εκεί", exc=exc)
         return []
     return [f for f in faces if not any(_room_use(doc, f).startswith(u) for u in UNHEATED_USES)]
 

@@ -476,12 +476,17 @@ def platforms(doc, sheets, storeys, pools, transition=3.0):
         try:
             validate_regions(regions + [candidate])
             regions.append(candidate)
-        except ValueError:
-            pass                                    # inside / against a building platform at another level
+        except ValueError as exc:                   # inside / against a building platform at another level
+            from archforge.core.notices import not_computed
+            not_computed("import.pool_platform", f"Εισαγωγή: το πλάτωμα της πισίνας {candidate['id']} δεν μπήκε", exc=exc)
     try:
         return validate_regions(regions)
-    except ValueError:
-        return [r for r in regions if r["id"].startswith("building")][:1]
+    except ValueError as exc:
+        from archforge.core.notices import not_computed
+        kept = [r for r in regions if r["id"].startswith("building")][:1]
+        not_computed("import.platforms", f"Εισαγωγή: τα πλατώματα συγκρούονται — κρατήθηκε μόνο "
+                     f"{'το πρώτο του κτιρίου' if kept else 'κανένα'} από {len(regions)}", exc=exc)
+        return kept
 
 
 def summary_text(sheets, placed, storeys):
@@ -529,6 +534,9 @@ def import_set(window, paths=None, reference=None, ask=True):
     since = len(stack.done)
     QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
     built, terrain = {}, None
+    from archforge.core.notices import collecting
+    gathered = collecting()
+    not_computed = gathered.__enter__()             # Α3: what the import could not read is in its report
     try:
         for i, (sim, _how) in sorted(placed.items(), key=lambda kv: (sheets[kv[0]].kind != "site", storeys.get(kv[0], ("", 0.0))[1])):
             s = sheets[i]
@@ -577,8 +585,10 @@ def import_set(window, paths=None, reference=None, ask=True):
                 if r["id"].startswith("pool"):
                     try:
                         regions = validate_regions(regions + [r])
-                    except ValueError:
-                        pass
+                    except ValueError as exc:
+                        from archforge.core.notices import not_computed
+                        not_computed("import.pool_platform", f"Εισαγωγή: το πλάτωμα της πισίνας {r['id']} δεν μπήκε",
+                                     exc=exc)
             if regions:
                 terrain["regions"] = regions
             section_ground(terrain, sections)
@@ -597,13 +607,14 @@ def import_set(window, paths=None, reference=None, ask=True):
                     off = F.ground_check(v["profile"], v["line"], v["flip"], lambda x, y: terrain_height_at(doc, x, y))
                     v["report"] += " · " + F.ground_text(off)
     finally:
+        gathered.__exit__(None, None, None)
         QApplication.restoreOverrideCursor()
     stack.squash(since, "Σύνολο σχεδίων")
     window._refresh_floor_selector()
     window._redraw_views(all_views=True)
     window._refresh_project_tree()
     done = {"sheets": sheets, "placed": placed, "storeys": storeys, "built": built, "terrain": terrain, "pools": made_pools,
-            "sections": sections, "roofs": roofs}
+            "sections": sections, "roofs": roofs, "not_computed": [i.message for i in not_computed]}
     text = (f"{len(placed)} από {len(sheets)} σχέδια στη θέση τους · {len(set(n for n, _z, _a in storeys.values()))} όροφοι · "
             f"τοίχοι {sum(b['walls'] for b in built.values() if b)} · πισίνες {len(made_pools)} · "
             f"έδαφος από {len(terrain['points']) if terrain else 0} υψόμετρα"
@@ -612,6 +623,8 @@ def import_set(window, paths=None, reference=None, ask=True):
     window.statusBar().showMessage(text, 20000)
     if ask:
         checks = "\n".join(v["report"] for v in sections.values())
+        missing = "\n".join("• " + m for m in done["not_computed"])
         QMessageBox.information(window, "Σύνολο σχεδίων", summary_text(sheets, placed, storeys) + "\n\n" + text +
-                                ("\n\n" + checks if checks else ""))
+                                ("\n\n" + checks if checks else "") +
+                                ("\n\nΕΛΛΙΠΗΣ ΕΙΣΑΓΩΓΗ — δεν διαβάστηκαν:\n" + missing if missing else ""))
     return done

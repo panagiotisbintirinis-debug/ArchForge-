@@ -32,6 +32,19 @@
 · `output/formwork.py:59, 282` · `construction/drywall.py:189` · `architecture/roof_need.py:41, 122, 150` (και: με
 άγνωστη κάλυψη **δεν προστίθεται ούτε αφαιρείται στέγη**) · `architecture/storey_slabs.py:477` ·
 `architecture/stairs.py:402, 422` · `scenarios/gate.py:213, 321` (ό,τι δεν ελέγχθηκε δεν γράφεται πια «ελεύθερο»).
+**Εισαγωγή (✓):** `project/underlay.py:43, 116` και `site/survey.py:58, 72, 130` (γραμμές που δεν διαβάστηκαν
+μετριούνται, ένα μήνυμα ανά αρχείο με παράδειγμα γραμμής) · `site/plateaus.py:85, 132` · `site/terrain.py:94` ·
+`ui/building_from_underlay.py:134, 150` · `ui/drawing_set_import.py:479, 483, 580` — η αναφορά «Σύνολο σχεδίων»
+γράφει «ΕΛΛΙΠΗΣ ΕΙΣΑΓΩΓΗ — δεν διαβάστηκαν: …».
+**Τοίχοι, ανοίγματα, διαστάσεις (✓):** `architecture/dimension_reference.py:49` · `architecture/dimensions.py:89, 199,
+204` · `architecture/joinery.py:288` · `architecture/railings.py:567` · `architecture/wall_edit.py:160`.
+**Εξετάστηκαν και μένουν (λόγος):** `architecture/openings.py:113, 169` και `architecture/wall_edit.py:365` τρέχουν σε
+κάθε κίνηση του ποντικιού (εύρεση τοίχου / προεπισκόπηση)· τοίχος που δεν προβάλλεται (μηδενικό μήκος) δεν μπορεί να
+φιλοξενήσει άνοιγμα, και η εντολή μετακίνησης τοίχου λέει πια ό,τι δεν ελέγχθηκε (`wall_edit.py:160`) ·
+`architecture/railings.py:586`: κρατά έγκυρη θέση για κρυφό κάγκελο, το 567 το λέει.
+**Η/Μ, φωτισμός (✓):** `mep/conduits.py:53` · `mep/electrical.py:176` · `mep/heating_layout.py:88` · `mep/lighting.py:66`
+· `ui/lighting_system.py:205` · `ui/lighting_panel.py:48` · `library/lighting.py:110` · `ui/plumbing_tab.py:132`.
+Μένει: `ui/lighting_mep_bridge.py:50` (μεταβατικό `ModuleNotFoundError`· το `mep/lighting.py` υπάρχει, δεν εκτελείται).
 
 **Ανοιχτά:**
 

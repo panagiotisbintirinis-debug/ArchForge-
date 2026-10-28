@@ -50,7 +50,10 @@ def _outdoor(doc, p):
         # Measurement queries must not create or migrate persistent room IDs.
         from archforge.architecture.topology import room_faces
         faces = room_faces(doc, z=floor)
-    except Exception:                                     # noqa: BLE001
+    except Exception as exc:                              # noqa: BLE001 — said: unknown rooms ≠ outdoors
+        from archforge.core.notices import not_computed
+        not_computed("conduits.rooms", f"Σωληνώσεις: δεν αναγνωρίστηκαν οι χώροι του ορόφου {floor:+.2f} — η διαδρομή "
+                     "μπορεί να θεωρηθεί εξωτερική/υπόγεια", exc=exc)
         faces = []
     if any(_inside(f.polygon, p[0], p[1]) for f in faces):
         return False

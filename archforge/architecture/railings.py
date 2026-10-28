@@ -564,7 +564,10 @@ def _stair_child_state(doc, stair, side, flight):
     p = stair.params
     try:
         lines = stair_railing_lines(p, side)
-    except ValueError:                        # spiral: not supported yet
+    except ValueError as exc:                 # spiral: not supported yet — said, not a silent missing railing
+        from archforge.core.notices import not_computed
+        not_computed("railing.stair", f"Κάγκελο σκάλας «{stair.name or stair.id}»: δεν δημιουργήθηκε "
+                     "(η ελικοειδής σκάλα δεν υποστηρίζεται ακόμη)", stair.id, exc)
         return None, False
     if flight >= len(lines):
         return None, False

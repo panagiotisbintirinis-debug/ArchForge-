@@ -63,7 +63,10 @@ def _cove_of(doc, x, y, floor):
         try:
             poly = outline(doc, e)
             level = ceiling_level(doc, e.params)
-        except Exception:
+        except Exception as exc:
+            from archforge.core.notices import not_computed
+            not_computed("lighting.drywall", f"Φωτιστικό: η ψευδοροφή «{e.name or e.id}» δεν ελέγχθηκε — το ύψος "
+                         "ανάρτησης μπορεί να είναι της πλάκας", e.id, exc)
             continue
         if not poly or not _inside(poly, x, y):
             continue

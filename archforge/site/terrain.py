@@ -91,7 +91,9 @@ def green_roofs(doc):
             else:
                 from archforge.architecture.rooms import room_slab_geometry
                 g = room_slab_geometry(doc, e)
-        except Exception:
+        except Exception as exc:
+            from archforge.core.notices import not_computed
+            not_computed('site.terrain_slab', f'Έδαφος: η πλάκα «{e.name or e.id}» δεν λήφθηκε υπόψη', e.id, exc)
             g = None
         if not g:
             continue

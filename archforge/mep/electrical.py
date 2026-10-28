@@ -173,7 +173,10 @@ def _room_of(doc, x, y, floor):
         # Measurement queries must not create or migrate persistent room IDs.
         from archforge.architecture.topology import room_faces
         faces = room_faces(doc, z=floor)
-    except Exception:
+    except Exception as exc:
+        from archforge.core.notices import not_computed
+        not_computed("electrical.room", f"Ηλεκτρολογικά: δεν αναγνωρίστηκαν οι χώροι του ορόφου {floor:+.2f} — τα "
+                     "σημεία μένουν χωρίς χώρο", exc=exc)
         return None
     for k, face in enumerate(faces):
         poly = face.polygon

@@ -285,7 +285,10 @@ def _served_side(doc, wall, opening, nx, ny, t):
     cx, cy = x1 + (x2 - x1) / L * c, y1 + (y2 - y1) / L * c
     try:
         faces = doc.active_room_faces(z=float(p.get("z", 0.0)))
-    except Exception:                                            # noqa: BLE001
+    except Exception as exc:                                     # noqa: BLE001 — said: unknown is not «no room»
+        from archforge.core.notices import not_computed
+        not_computed("joinery.side", f"Πόρτα «{opening.name or opening.id}»: δεν βρέθηκε ο χώρος που εξυπηρετεί — "
+                     "ελέγξτε τη φορά της", opening.id, exc)
         return 0
     sides = {}
     for sign in (1, -1):
