@@ -1804,11 +1804,20 @@ class MainWindow(QMainWindow):
                        lambda: self._library_tree_action(item))
         if action[0] == 'material':
             menu.addAction('Ιδιότητες υλικού… (εικόνα, μέγεθος, αρμός, χρώμα)',
-                           lambda: self._edit_material_properties(action[1]))
+                           lambda: self._browse_material_properties(action[1]))
         self._library_menu = menu        # reachable from tests
         if global_pos is not None:
             menu.popup(global_pos)
         return menu
+
+    def _browse_material_properties(self, material_id):
+        """Library material editing uses the same dark browser as application."""
+        from archforge.ui.material_library import MaterialLibraryDialog
+        selected_id = self.doc.selection[0] if len(self.doc.selection) == 1 else None
+        dialog = MaterialLibraryDialog(self, selected_id, initial_material_id=str(material_id))
+        self._material_library_dialog = dialog
+        dialog.exec()
+        return dialog.selected_material_id
 
     def _edit_material_properties(self, material_id, dialog=None):
         """Open «Ιδιότητες υλικού»; a material the project carries is updated with one undo step."""
@@ -1865,18 +1874,10 @@ class MainWindow(QMainWindow):
             return False
         entity_id = self.doc.selection[0]
         entity = self.doc.get(entity_id)
-        changes = {'material_id': str(material_id)}
-        if entity.kind in ('library_object', 'cabinet'):
-            changes['surface_materials'] = {}
-        # A user material travels with the project, in the same undo step.
-        from archforge.core.commands import CompositeCommand
-        from archforge.rendering import user_materials as um
+        # Same authoritative command path as the dark material browser.
+        from archforge.ui.material_library import _apply_material
         from archforge.rendering.materials import material_name
-        carry = um.carry_command(self.doc, str(material_id))
-        update = UpdateEntity(entity_id, changes)
-        self.stack.execute(CompositeCommand([carry, update], label='Υλικό') if carry else update)
-        self._redraw_views(all_views=True)
-        self.refresh_inspector()
+        _apply_material(self, entity_id, '', str(material_id))
         self.statusBar().showMessage(f"{material_name(material_id, self.doc, material_id)} → {entity.name or entity.kind}", 3000)
         return True
 

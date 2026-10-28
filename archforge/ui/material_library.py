@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QSlider,
@@ -51,7 +52,8 @@ def _targets(entity, doc=None) -> tuple[SurfaceTarget, ...]:
     roles already understood by ArchForge, plus roles that are already present
     on the entity itself.
     """
-    out: list[SurfaceTarget] = [SurfaceTarget("", "Όλο το αντικείμενο")]
+    whole_label = "Όλος ο τοίχος" if entity.kind == "wall" else "Όλο το αντικείμενο"
+    out: list[SurfaceTarget] = [SurfaceTarget("", whole_label)]
     known: dict[str, tuple[tuple[str, str], ...]] = {
         "wall": (("exterior", "Πλευρά A / εξωτερική"), ("interior", "Πλευρά B / εσωτερική")),
         "stair": (
@@ -113,6 +115,11 @@ def _apply_material(main_window, entity_id: str, role: str, material_id: str) ->
         changes["surface_materials"] = surface_map
     else:
         changes["material_id"] = str(material_id)
+        # Whole-object assignment must win over previous per-face finishes.
+        # Otherwise a wall that was textured separately on both sides would
+        # not visibly change when the user chooses «Όλος ο τοίχος».
+        if entity.params.get("surface_materials"):
+            changes["surface_materials"] = {}
 
     commands = []
     carry = um.carry_command(main_window.doc, material_id)
@@ -172,8 +179,11 @@ class MaterialSphere(QWidget):
         p.translate(-self.width() / 2, -self.height() / 2)
         p.drawPixmap(x, y, side, side, pix)
         # soft lighting overlay: highlight at upper left, darker lower/right edge
-        grad = QRadialGradient(x + side * 0.32, y + side * 0.27, side * 0.74)
-        grad.setColorAt(0.0, QColor(255, 255, 255, int(105 * self.brightness)))
+        # This is a qualitative Qt highlight, not a physically accurate PBR
+        # preview. The 3D renderer receives the actual persisted roughness.
+        rough = max(0.0, min(1.0, float(self.roughness if self.roughness is not None else 0.6)))
+        grad = QRadialGradient(x + side * 0.32, y + side * 0.27, side * (0.28 + 0.5 * rough))
+        grad.setColorAt(0.0, QColor(255, 255, 255, int((150 - 85 * rough) * self.brightness)))
         grad.setColorAt(0.58, QColor(255, 255, 255, 0))
         grad.setColorAt(1.0, QColor(0, 0, 0, 155))
         p.setBrush(grad); p.setPen(Qt.PenStyle.NoPen)
@@ -193,18 +203,21 @@ class MaterialSphere(QWidget):
 # Browser dialog
 
 class MaterialLibraryDialog(QDialog):
-    def __init__(self, main_window, entity_id: str, part_role: str | None = None, legacy_opener=None):
+    def __init__(self, main_window, entity_id: str | None = None, part_role: str | None = None,
+                 legacy_opener=None, initial_material_id: str | None = None):
         super().__init__(main_window)
         self.main_window = main_window
-        self.entity_id = str(entity_id)
-        self.entity = main_window.doc.get(self.entity_id)
+        self.entity_id = str(entity_id) if entity_id is not None else ""
+        self.entity = main_window.doc.get(self.entity_id) if self.entity_id else None
         self.legacy_opener = legacy_opener
-        self.selected_material_id = ""
+        self.selected_material_id = str(initial_material_id or "")
         self.setWindowTitle("ArchForge — Βιβλιοθήκη Υλικών")
-        self.resize(1180, 760)
+        self.resize(1230, 870)
+        self.setWindowState(self.windowState() | Qt.WindowState.WindowMaximized)
         self.setModal(True)
         self.setStyleSheet("""
             QDialog { background:#10161d; color:#edf2f7; }
+            QLabel,QCheckBox { color:#e0e9f3; }
             QFrame#panel { background:#18212b; border:1px solid #2b3845; border-radius:10px; }
             QLineEdit,QComboBox,QDoubleSpinBox,QListWidget {
                 background:#0f151c; color:#edf2f7; border:1px solid #344553; border-radius:6px; padding:6px;
@@ -214,6 +227,9 @@ class MaterialLibraryDialog(QDialog):
             QPushButton#apply:disabled { background:#334150; color:#7d8a96; }
             QLabel#title { font-size:19px; font-weight:700; }
             QLabel#muted { color:#95a3b2; }
+            QScrollArea { background:#10161d; border:0; }
+            QWidget#materialRightContent, QWidget#materialPropertiesHost { background:#18212b; }
+            QLabel#materialEmptyProperties { background:#18212b; color:#95a3b2; }
             QListWidget::item { border-radius:5px; padding:8px; }
             QListWidget::item:selected { background:#245f95; }
         """)
@@ -222,7 +238,8 @@ class MaterialLibraryDialog(QDialog):
         head = QHBoxLayout()
         title_box = QVBoxLayout()
         title = QLabel("Βιβλιοθήκη Υλικών"); title.setObjectName("title")
-        subtitle = QLabel(f"{self.entity.name or self.entity.kind.title()} · επίλεξε, προεπισκόπησε και εφάρμοσε")
+        subject = (self.entity.name or self.entity.kind.title()) if self.entity is not None else "Διαχείριση υλικών"
+        subtitle = QLabel(f"{subject} · επίλεξε, προεπισκόπησε και εφάρμοσε")
         subtitle.setObjectName("muted")
         title_box.addWidget(title); title_box.addWidget(subtitle)
         head.addLayout(title_box); head.addStretch(1)
@@ -234,13 +251,31 @@ class MaterialLibraryDialog(QDialog):
 
         body = QHBoxLayout(); root.addLayout(body, 1)
 
-        # Categories ---------------------------------------------------------
-        left = QFrame(); left.setObjectName("panel"); left.setMinimumWidth(215)
+        # The left column is now a real work area: categories above, full
+        # material editor below. Editing never competes with the sphere.
+        left = QFrame(); left.setObjectName("panel"); left.setMinimumWidth(345); left.setMaximumWidth(465)
         ll = QVBoxLayout(left); ll.addWidget(QLabel("ΚΑΤΗΓΟΡΙΕΣ"))
         self.categories = QListWidget(); self.categories.addItem("Όλα τα υλικά")
         for cat in picker_categories(self.main_window.doc): self.categories.addItem(str(cat))
-        ll.addWidget(self.categories, 1)
-        body.addWidget(left)
+        ll.addWidget(self.categories, 2)
+        ll.addWidget(QLabel("ΕΠΕΞΕΡΓΑΣΙΑ ΥΛΙΚΟΥ · ΧΡΩΜΑ · ΜΟΤΙΒΟ · ΦΩΤΟΓΡΑΦΙΑ"))
+        self.properties_scroll = QScrollArea(left)
+        self.properties_scroll.setWidgetResizable(True)
+        self.properties_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.properties_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.properties_scroll.setMinimumHeight(320)
+        self.properties_host = QWidget(); self.properties_host.setObjectName("materialPropertiesHost")
+        self.properties_layout = QVBoxLayout(self.properties_host)
+        self.properties_layout.setContentsMargins(4, 4, 4, 4)
+        self.properties_layout.setSpacing(0)
+        self.properties_editor = None
+        self._set_properties_editor(None)
+        self.properties_scroll.setWidget(self.properties_host)
+        ll.addWidget(self.properties_scroll, 5)
+        self.save_properties_button = QPushButton("Αποθήκευση ιδιοτήτων")
+        self.save_properties_button.setEnabled(False)
+        ll.addWidget(self.save_properties_button)
+        body.addWidget(left, 3)
 
         # Material grid ------------------------------------------------------
         center = QFrame(); center.setObjectName("panel")
@@ -256,52 +291,68 @@ class MaterialLibraryDialog(QDialog):
         self.grid.setGridSize(QSize(150, 122))
         self.grid.setSpacing(4)
         cl.addWidget(self.grid, 1)
-        body.addWidget(center, 2)
+        body.addWidget(center, 4)
 
         # Preview / assignment ---------------------------------------------
-        right = QFrame(); right.setObjectName("panel"); right.setMinimumWidth(335)
+        right = QFrame(); right.setObjectName("panel"); right.setMinimumWidth(330); right.setMaximumWidth(405)
         rl = QVBoxLayout(right)
-        rl.addWidget(QLabel("ΠΡΟΕΠΙΣΚΟΠΗΣΗ"))
+        # Preview stays on the right, with application independent of editing.
+        self.right_scroll = QScrollArea(right)
+        self.right_scroll.setWidgetResizable(True)
+        self.right_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.right_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        right_content = QWidget(); right_content.setObjectName("materialRightContent")
+        detail = QVBoxLayout(right_content)
+        detail.addWidget(QLabel("ΠΡΟΕΠΙΣΚΟΠΗΣΗ"))
         self.sphere = MaterialSphere(); self.sphere.doc = self.main_window.doc
-        rl.addWidget(self.sphere)
+        self.sphere.setMinimumSize(155, 155)
+        self.sphere.setMaximumHeight(190)
+        detail.addWidget(self.sphere)
         self.preview_name = QLabel("Επίλεξε υλικό"); self.preview_name.setObjectName("title")
         self.preview_info = QLabel(""); self.preview_info.setObjectName("muted"); self.preview_info.setWordWrap(True)
-        rl.addWidget(self.preview_name); rl.addWidget(self.preview_info)
+        detail.addWidget(self.preview_name); detail.addWidget(self.preview_info)
 
-        rl.addWidget(QLabel("Εφαρμογή σε"))
+        detail.addWidget(QLabel("Εφαρμογή σε"))
         self.target = QComboBox()
-        targets = _targets(self.entity, getattr(self.main_window, 'doc', None))
+        targets = _targets(self.entity, getattr(self.main_window, 'doc', None)) if self.entity is not None else ()
         for target in targets: self.target.addItem(target.label, target.key)
+        if self.entity is None:
+            self.target.addItem("Επιλέξτε πρώτα αντικείμενο", "")
+            self.target.setEnabled(False)
         if part_role:
             idx = self.target.findData(str(part_role))
             if idx >= 0: self.target.setCurrentIndex(idx)
-        rl.addWidget(self.target)
+        detail.addWidget(self.target)
         self.current = QLabel(""); self.current.setObjectName("muted"); self.current.setWordWrap(True)
-        rl.addWidget(self.current)
+        detail.addWidget(self.current)
 
         # Appearance controls are useful already for preview and define the
         # intended interaction. Renderer-side persistence can evolve without
         # changing the library workflow.
-        rl.addWidget(QLabel("Κλίμακα προεπισκόπησης"))
+        detail.addWidget(QLabel("Κλίμακα προεπισκόπησης"))
         self.scale = QSlider(Qt.Orientation.Horizontal); self.scale.setRange(40, 220); self.scale.setValue(100)
-        rl.addWidget(self.scale)
-        rl.addWidget(QLabel("Περιστροφή"))
+        detail.addWidget(self.scale)
+        detail.addWidget(QLabel("Περιστροφή"))
         self.rotation = QSlider(Qt.Orientation.Horizontal); self.rotation.setRange(0, 359); self.rotation.setValue(0)
-        rl.addWidget(self.rotation)
-        rl.addWidget(QLabel("Φωτεινότητα προεπισκόπησης"))
+        detail.addWidget(self.rotation)
+        detail.addWidget(QLabel("Φωτεινότητα προεπισκόπησης"))
         self.brightness = QSlider(Qt.Orientation.Horizontal); self.brightness.setRange(50, 150); self.brightness.setValue(100)
-        rl.addWidget(self.brightness)
+        detail.addWidget(self.brightness)
 
         rough_row = QHBoxLayout(); rough_row.addWidget(QLabel("Τραχύτητα"))
         self.roughness = QDoubleSpinBox(); self.roughness.setRange(0.0, 1.0); self.roughness.setSingleStep(0.05); self.roughness.setDecimals(2)
-        self.roughness.setReadOnly(True); self.roughness.setToolTip("Η πραγματική τραχύτητα προέρχεται από το υλικό. Αλλάζει στις Ιδιότητες υλικού.")
-        rough_row.addWidget(self.roughness); rl.addLayout(rough_row)
+        self.roughness.setEnabled(False)
+        self.roughness.setToolTip("Επεξεργασία τραχύτητας — αποθηκεύεται μαζί με τις υπόλοιπες ιδιότητες του υλικού.")
+        rough_row.addWidget(self.roughness); detail.addLayout(rough_row)
 
-        rl.addStretch(1)
+        detail.addStretch(1)
+        self.right_scroll.setWidget(right_content)
+        rl.addWidget(self.right_scroll, 1)
+
         self.apply = QPushButton("Εφαρμογή υλικού"); self.apply.setObjectName("apply"); self.apply.setEnabled(False)
         rl.addWidget(self.apply)
         close = QPushButton("Κλείσιμο"); close.clicked.connect(self.accept); rl.addWidget(close)
-        body.addWidget(right)
+        body.addWidget(right, 3)
 
         self.categories.currentTextChanged.connect(self._refill)
         self.search.textChanged.connect(self._refill)
@@ -310,6 +361,8 @@ class MaterialLibraryDialog(QDialog):
         self.scale.valueChanged.connect(self._preview_controls)
         self.rotation.valueChanged.connect(self._preview_controls)
         self.brightness.valueChanged.connect(self._preview_controls)
+        self.roughness.valueChanged.connect(self._roughness_changed)
+        self.save_properties_button.clicked.connect(self._save_selected_properties)
         self.apply.clicked.connect(self._apply)
         self.categories.setCurrentRow(0)
         self._refill(); self._refresh_current()
@@ -344,7 +397,11 @@ class MaterialLibraryDialog(QDialog):
 
     def _material_changed(self, current, _previous):
         if current is None:
-            self.selected_material_id = ""; self.apply.setEnabled(False); return
+            self.selected_material_id = ""
+            self.apply.setEnabled(False)
+            self.save_properties_button.setEnabled(False)
+            self._set_properties_editor(None)
+            return
         self.selected_material_id = str(current.data(Qt.ItemDataRole.UserRole))
         spec = material_spec(self.selected_material_id, self.main_window.doc) or {}
         self.preview_name.setText(str(spec.get("name", self.selected_material_id)))
@@ -352,10 +409,67 @@ class MaterialLibraryDialog(QDialog):
         if spec.get("code"): details.append(f"Κωδικός {spec['code']}")
         if spec.get("supplier"): details.append(str(spec["supplier"]))
         self.preview_info.setText(" · ".join(x for x in details if x))
+        blocked = self.roughness.blockSignals(True)
         self.roughness.setValue(float(spec.get("roughness", 0.6)))
+        self.roughness.blockSignals(blocked)
+        self.roughness.setEnabled(True)
         self.sphere.set_material(self.selected_material_id, self.main_window.doc)
         self._preview_controls()
-        self.apply.setEnabled(True)
+        self.apply.setEnabled(self.entity is not None)
+        self.save_properties_button.setEnabled(True)
+        from archforge.ui.material_properties import MaterialPropertiesDialog
+        editor = MaterialPropertiesDialog(self, self.selected_material_id, self.main_window.doc, embedded=True)
+        self._set_properties_editor(editor)
+
+    def _set_properties_editor(self, editor):
+        old = self.properties_layout.takeAt(0)
+        if old is not None and old.widget() is not None:
+            old.widget().deleteLater()
+        self.properties_editor = editor
+        if editor is None:
+            empty = QLabel("Επίλεξε υλικό για επεξεργασία")
+            empty.setObjectName("materialEmptyProperties")
+            self.properties_layout.addWidget(empty)
+        else:
+            self.properties_layout.addWidget(editor)
+
+    def _roughness_changed(self, value):
+        if self.properties_editor is not None:
+            self.properties_editor.roughness.setValue(value)
+        self.sphere.roughness = float(value)
+        self.sphere.update()
+
+    def _save_selected_properties(self):
+        """Save in the same user-material registry and project command stack as before."""
+        editor = self.properties_editor
+        if editor is None or not self.selected_material_id:
+            return None
+        try:
+            spec = editor.spec()
+            saved = um.save_properties(self.selected_material_id, spec)
+        except ValueError as exc:
+            QMessageBox.information(self, "Ιδιότητες υλικού", str(exc))
+            return None
+        self.selected_material_id = saved
+        if saved in (getattr(self.main_window.doc, "materials", None) or {}):
+            carry = um.carry_command(self.main_window.doc, saved)
+            if carry is not None:
+                self.main_window.stack.execute(carry)
+        self.main_window._refresh_library_tree()
+        # A modified built-in becomes a new entry under «Δικά μου υλικά».
+        spec = material_spec(saved, self.main_window.doc) or {}
+        new_category = str(spec.get("category", ""))
+        if new_category != self.categories.currentItem().text():
+            matches = self.categories.findItems(new_category, Qt.MatchFlag.MatchExactly)
+            if matches:
+                self.categories.setCurrentItem(matches[0])
+            else:
+                self._refill()
+        else:
+            self._refill()
+        self.main_window._redraw_views(all_views=True)
+        self.main_window.statusBar().showMessage(f"Αποθηκεύτηκε υλικό «{spec.get('name', saved)}»", 4000)
+        return saved
 
     def _preview_controls(self, *_args):
         self.sphere.scale = float(self.scale.value()) / 100.0
@@ -364,6 +478,9 @@ class MaterialLibraryDialog(QDialog):
         self.sphere.update()
 
     def _refresh_current(self, *_args):
+        if self.entity is None:
+            self.current.setText("Επιλέξτε αντικείμενο για εφαρμογή · οι ιδιότητες αποθηκεύονται κανονικά")
+            return
         role = str(self.target.currentData() or "")
         current_id = _assigned_material(self.entity, role)
         spec = material_spec(current_id, self.main_window.doc) if current_id else None
@@ -371,7 +488,7 @@ class MaterialLibraryDialog(QDialog):
         self.current.setText(f"Τώρα — {target}: {spec.get('name', current_id) if spec else 'προεπιλογή αντικειμένου'}")
 
     def _apply(self):
-        if not self.selected_material_id: return
+        if not self.selected_material_id or self.entity is None: return
         role = str(self.target.currentData() or "")
         _apply_material(self.main_window, self.entity_id, role, self.selected_material_id)
         self.entity = self.main_window.doc.get(self.entity_id)
@@ -394,8 +511,8 @@ class MaterialLibraryDialog(QDialog):
 
 
 def open_material_library(main_window, entity_id: str, part_role: str | None = None, legacy_opener=None):
-    entity_id = str(entity_id)
-    if entity_id not in main_window.doc.entities: return
+    entity_id = str(entity_id) if entity_id is not None else None
+    if entity_id is not None and entity_id not in main_window.doc.entities: return
     MaterialLibraryDialog(main_window, entity_id, part_role, legacy_opener=legacy_opener).exec()
 
 

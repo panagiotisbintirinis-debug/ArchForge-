@@ -300,8 +300,8 @@ def install_material_object_integration():
 
     old_targets = ml._targets
 
-    def targets(entity):
-        out = list(old_targets(entity))
+    def targets(entity, doc=None):                      # the browser passes the document too (owner's fix 28/10)
+        out = list(old_targets(entity, doc))
         seen = {target.key for target in out}
 
         # Library assets know their material parts even before the user has
