@@ -77,7 +77,8 @@ class Sheet:
 
 # ---------------------------------------------------------------- plan geometry (metres)
 def _storey_walls(doc, z):
-    return [e for e in doc.entities.values() if e.kind == "wall" and abs(float(e.params.get("z", 0.0)) - z) < .05
+    """The storey's walls as the plan view shows them: hidden ones are left off the PDF too."""
+    return [e for e in doc.entities.values() if e.kind == "wall" and e.visible and abs(float(e.params.get("z", 0.0)) - z) < .05
             and str(e.params.get("phase", "new")) != "demolish"]
 
 
@@ -259,6 +260,8 @@ def _plan_page(sh, doc, storey, sheet_no, project, date):
     outward = {w.id: n for w, n in exterior_walls(doc, z)}
     from archforge.architecture.joinery import plan_symbol_world
     for u0, u1, e, f in holes:
+        if not e.visible:
+            continue                                      # the wall stays cut, as in the plan view, with no symbol
         (axx, ayy), (ux, uy), (nx, ny), t = f["a"], f["u"], f["n"], f["t"]
         P = lambda u, s: to_mm(axx + ux * u + nx * s, ayy + uy * u + ny * s)
         symbol = plan_symbol_world(doc, e)

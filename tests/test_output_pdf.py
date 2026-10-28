@@ -106,3 +106,17 @@ def test_pdf_dimensions_follow_the_plan_view_settings():
     st.execute(UpdateEntity(D.settings(doc, 0.0).id, {'exterior': 1}))
     assert plan_dimensions(doc, 0.0) == D.storey_dimensions(doc, 0.0)
     assert {d['kind'] for d in plan_dimensions(doc, 0.0)} == {'exterior', 'interior', 'manual'}
+
+
+def test_pdf_leaves_off_what_the_plan_view_hides():
+    """A hidden wall is not printed; a hidden window still cuts its wall but draws no symbol — as in the plan view."""
+    from archforge.output.pdf import _storey_walls, wall_pieces
+    doc = Document(); st = CommandStack(doc); ws = _house(st)
+    ids = lambda: {w.id for w in _storey_walls(doc, 0.0)}
+    assert ws[4].id in ids()
+    doc.get(ws[4].id).visible = False
+    assert ws[4].id not in ids() and len(ids()) == 4
+    window = next(e for e in doc.entities.values() if e.kind == 'window')
+    window.visible = False
+    pieces, holes = wall_pieces(doc, doc.get(ws[0].id), _storey_walls(doc, 0.0))
+    assert len(pieces) == 3 and any(e.id == window.id for _a, _b, e, _f in holes)
