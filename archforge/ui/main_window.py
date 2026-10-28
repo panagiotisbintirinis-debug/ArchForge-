@@ -1801,7 +1801,7 @@ class MainWindow(QMainWindow):
         menu.addAction('Εφαρμογή στο επιλεγμένο' if action[0] == 'material' else 'Τοποθέτηση',
                        lambda: self._library_tree_action(item))
         if action[0] == 'material':
-            menu.addAction('Ιδιότητες υλικού… (μέγεθος, αρμός, χρώμα, φορά)',
+            menu.addAction('Ιδιότητες υλικού… (εικόνα, μέγεθος, αρμός, χρώμα)',
                            lambda: self._edit_material_properties(action[1]))
         self._library_menu = menu        # reachable from tests
         if global_pos is not None:

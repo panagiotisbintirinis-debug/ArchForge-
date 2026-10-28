@@ -707,6 +707,22 @@ window.setRampPreview = function(payload) {
 // metric UVs of withMetricUVs().
 const patternGeo = {};
 const patternTextures = new Map();
+const imageTextureSpecs = {};
+const imageTextures = new Map();
+
+function imageTextureFor(key) {
+  if (imageTextures.has(key)) return imageTextures.get(key);
+  const spec = imageTextureSpecs[key];
+  if (!spec || !spec.data || !(spec.width_m > 0) || !(spec.height_m > 0)) return null;
+  // TextureLoader handles the embedded data URI without an external file or server.
+  const texture = new THREE.TextureLoader().load(spec.data);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(1 / spec.width_m, 1 / spec.height_m);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  imageTextures.set(key, texture);
+  return texture;
+}
 
 function patternRandom(seed) {          // mulberry32: deterministic speckle
   let a = seed >>> 0;
@@ -872,9 +888,14 @@ function materialFor(spec) {
     emissiveIntensity: Number(spec.emissiveIntensity ?? 0.0),
     side: THREE.DoubleSide
   });
-  const textures = spec.pattern_key ? patternTexturesFor(spec.pattern_key) : null;
-  if (!textures && spec.grain && opacity >= 1.0) lookApplyGrain(material, spec.grain);
-  if (textures) {
+  const photo = spec.image_texture_key ? imageTextureFor(spec.image_texture_key) : null;
+  const textures = !photo && spec.pattern_key ? patternTexturesFor(spec.pattern_key) : null;
+  if (!photo && !textures && spec.grain && opacity >= 1.0) lookApplyGrain(material, spec.grain);
+  if (photo) {
+    material.map = photo;
+    material.color.set(0xffffff);
+    material.userData.patterned = true;
+  } else if (textures) {
     // The canvas carries every stone's own tone; the colour only tints.
     material.map = textures.map;
     material.color.set(0xffffff);
@@ -1234,6 +1255,7 @@ window.archforgeSetScene = function(payload, fit = true) {
   disposeModel();
   const objects = (payload && payload.objects) || [];
   Object.assign(patternGeo, (payload && payload.patterns) || {});
+  Object.assign(imageTextureSpecs, (payload && payload.image_textures) || {});
   for (const item of objects) {
     const positions = [];
     for (const v of item.vertices) positions.push(v[0], v[1], v[2]);
@@ -1245,7 +1267,8 @@ window.archforgeSetScene = function(payload, fit = true) {
     geometry.computeVertexNormals();
     if (item.kind === "terrain" && item.surfaces) terrainNormals(geometry, item.surfaces);
     const spec = item.material || {};
-    const geom = ((spec.pattern_key && patternGeo[spec.pattern_key]) || spec.grain) ? withMetricUVs(geometry) : geometry;
+    const geom = ((spec.pattern_key && patternGeo[spec.pattern_key]) || spec.image_texture_key || spec.grain)
+      ? withMetricUVs(geometry) : geometry;
     geom.computeBoundingSphere();
     const mesh = new THREE.Mesh(geom, materialFor(spec));
     mesh.name = item.id || item.kind || "entity";

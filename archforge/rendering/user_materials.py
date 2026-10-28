@@ -23,7 +23,11 @@ from __future__ import annotations
 
 import copy
 import csv
+import base64
+import binascii
+import hashlib
 import io
+import json
 import re
 import unicodedata
 from typing import Mapping
@@ -89,9 +93,50 @@ def valid_spec(spec) -> bool:
         return (bool(str(spec.get("name", "")).strip())
                 and normalise_color(spec.get("color")) is not None
                 and 0.0 <= float(spec.get("roughness", 0.5)) <= 1.0
-                and 0.0 <= float(spec.get("metalness", 0.0)) <= 1.0)
+                and 0.0 <= float(spec.get("metalness", 0.0)) <= 1.0
+                and ("image_texture" not in spec or valid_image_texture(spec["image_texture"])))
     except (TypeError, ValueError):
         return False
+
+
+_JPEG_PREFIX = "data:image/jpeg;base64,"
+
+
+def valid_image_texture(value) -> bool:
+    """Portable embedded photo + user-entered area represented by one image tile.
+
+    A file path would break when moving a project to another computer. The UI
+    encodes bounded JPEG data, not a path or a request to a remote URL.
+    """
+    if not isinstance(value, Mapping):
+        return False
+    try:
+        data = value.get("data")
+        if not isinstance(data, str) or not data.startswith(_JPEG_PREFIX) or len(data) > 1_250_000:
+            return False
+        raw = base64.b64decode(data[len(_JPEG_PREFIX):], validate=True)
+        w, h = float(value["width_m"]), float(value["height_m"])
+        return (len(raw) >= 4 and raw.startswith(b"\xff\xd8\xff") and raw.endswith(b"\xff\xd9")
+                and 0 < w <= 1000 and 0 < h <= 1000)
+    except (ValueError, TypeError, KeyError, binascii.Error, OverflowError):
+        return False
+
+
+def with_image_texture(spec, data: str, width_m, height_m) -> dict:
+    """Choose a photo instead of a procedural pattern; require actual dimensions."""
+    image_texture = {"data": data, "width_m": float(width_m), "height_m": float(height_m)}
+    if not valid_image_texture(image_texture):
+        raise ValueError("Έλεγξε την εικόνα και τις πραγματικές διαστάσεις της (μέτρα).")
+    out = copy.deepcopy(dict(spec))
+    out.pop("pattern", None)
+    out["image_texture"] = image_texture
+    return out
+
+
+def image_texture_key(value: Mapping) -> str:
+    """Stable content key so all faces share one texture in the 3D scene."""
+    data = json.dumps(value, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
 
 def _clean(spec: Mapping) -> dict:
