@@ -128,6 +128,11 @@ Owner: «πρέπει να υπάρχει η λογική της οικονομ�
 
 ## Scenario quality gate & shared tools (owner, 2026-10-17, binding)
 
+**Full index of shared tools and libraries: `docs/TOOLBOX.md` (owner 28/10, binding for every agent with repo
+access).** Libraries (objects, materials, wall types, joinery, luminaires, cabinets, prices) are tools too. Search the
+index before writing a helper script, check, test house, material or object; use what exists, extend it instead of
+copying it; whatever new tool or library item you need is saved in the repo, tested, and listed there in the same PR.
+
 Every test scenario passes the full gate in `docs/scenarios/QUALITY_GATE.md` before the next one starts: all six
 sections (design, statics, MEP, quote, program behaviour, visual), fix, rerun the WHOLE list, regression on earlier
 scenarios. "Built without an exception" is never a pass. Reuse these instead of writing your own:

@@ -1,5 +1,16 @@
 # ArchForge — Αρχείο εργασιών (Worklog)
 
+## 28/10 — Claude: εργαλειοθήκη για όλα τα AI, έλεγχος branches με απόδειξη
+
+Εντολή ιδιοκτήτη: «να είσαι σίγουρος 100%» για ό,τι σβήνεται· «toolbox για όλους τους agents».
+`docs/TOOLBOX.md` (ευρετήριο εργαλείων και βιβλιοθηκών, κανόνας χρήσης/προσθήκης), `scripts/toolbox/branch_audit.py`
+(MERGED / SAME_PATCH / NO_NET_CHANGE / KEEP / PROTECTED, μόνο ανάγνωση), `scripts/toolbox/branch_tests_on_develop.py`
+(τεστ παλιού branch πάνω στο develop σε προσωρινό worktree), `docs/BRANCH_AUDIT.md`, κανόνας σε CLAUDE.md / AGENTS.md.
+Τεστ: `tests/test_toolbox_branch_audit.py` (δοκιμαστικό repo με merged, cherry-pick, μοναδικό, merge με δική του
+αλλαγή, αλλαγή+αναίρεση, ανοιχτό PR). Αποδείχθηκε ότι χωρίς τον έλεγχο των merge commits το εργαλείο θα πρότεινε για
+διαγραφή branch με αλλαγή μόνο μέσα στο merge (το τεστ αποτυγχάνει). Διασταύρωση στο πραγματικό repo: `git cherry` και
+`git log --cherry-pick` συμφωνούν για όλα τα SAME_PATCH. Τίποτα δεν σβήστηκε.
+
 ## 25/10 — GPT: σώμα σε ηλεκτρολογικό σημείο και ρότορες 3D
 
 Ρητή αλλαγή ιδιοκτήτη: χωρίς βελάκι κάτοψης, χωρίς αριθμητική εισαγωγή γωνίας/έντασης.
