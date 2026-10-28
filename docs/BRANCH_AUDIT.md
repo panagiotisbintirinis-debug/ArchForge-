@@ -1,4 +1,4 @@
-# Branches — τι σβήνεται χωρίς απώλεια (28/10/2026, develop `5afa949`)
+# Branches — τι σβήνεται χωρίς απώλεια (28/10/2026, develop `c298b5b`, μετά το #163)
 
 > Εντολή ιδιοκτήτη: «να είσαι σίγουρος 100% ότι τα branches που σβήνεις είναι ολόκληρα, με τις ίδιες ακριβώς
 > λειτουργίες, και όχι αποσπασματικά». Τα AI δεν σβήνουν branches· σβήνει ο ιδιοκτήτης με τις εντολές στο τέλος.
@@ -20,7 +20,7 @@
 
 ## Αποτέλεσμα
 
-**129 branches σβήνονται με απόδειξη** (116 MERGED, 12 SAME_PATCH, 1 NO_NET_CHANGE) · 16 KEEP · 14 PROTECTED.
+**130 branches σβήνονται με απόδειξη** (117 MERGED, 12 SAME_PATCH, 1 NO_NET_CHANGE) · 16 KEEP · 14 PROTECTED.
 
 ## KEEP — πρόταση ανά branch (αποφασίζεις εσύ)
 
@@ -51,7 +51,6 @@
 
 | PR | Branch | Τεστ του πάνω στο develop | Τι λείπει από το develop |
 |---|---|---|---|
-| #163 | `claude/roof-under-upper-storey` | — (πράσινο CI) | στέγη U01/U02· περιμένει merge |
 | #88 | `gpt/issue-64-runnable-pilot` | 4 errors | `VertexMoveTransaction`, `ApplyStructuralFrame`, `MutateEntityProperty` (ο `MEPPathRouter` υπάρχει ήδη) |
 | #106 | `gpt/issue-103-roof-edge-offsets` | 2 errors | `core/roof_commands.py`, `core/roof_edge_transaction.py` |
 | #114 | `gpt/issue-104-wall-top-endpoints` | 1 error | `wall_detail.opening_fits_wall_profile` (το `SetWallTopEndpoint` υπάρχει ήδη) |
@@ -62,7 +61,7 @@
 
 ## Πλήρης πίνακας και εντολές διαγραφής
 
-Σύνολο 159 · MERGED 116 · SAME_PATCH 12 · NO_NET_CHANGE 1 · KEEP 16 · PROTECTED 14
+Σύνολο 160 · MERGED 117 · SAME_PATCH 12 · NO_NET_CHANGE 1 · KEEP 16 · PROTECTED 14
 
 | Κατάσταση | Branch | Τελευταίο commit | Δικά του commits (χωρίς ίδιο αντίγραφο στο develop) |
 |---|---|---|---|
@@ -94,8 +93,8 @@
 | PROTECTED | `gpt/fix-empty-frame-storey` | 2026-10-14 `20dc9b2` | 0  |
 | PROTECTED | `codex/s01-foundation-comparison` | 2026-10-18 `73b118a` | 3 Add visually inspected S01 foundation option comparison; Replace S01 commercial quote requirement with unpriced materials by work; Export surfaces and unpriced materials for all ten residential review files |
 | PROTECTED | `codex/s02-furnished-review` | 2026-10-18 `b8867a9` | 6 Add visually inspected S01 foundation option comparison; Replace S01 commercial quote requirement with unpriced materials by work; Export surfaces and unpriced materials for all ten residential review files … |
-| PROTECTED | `claude/roof-under-upper-storey` | 2026-10-28 `a2d1e35` | 2 Στέγη κάτω ορόφου: σταματά στον τοίχο του πάνω ορόφου, κάθεται στα δοκάρια (U01, U02 — αρχείο ιδιοκτήτη «…111»); merge a2d1e35 (δεν ελέγχεται με patch-id) |
-| PROTECTED | `develop` | 2026-10-28 `5afa949` | 0  |
+| PROTECTED | `claude/wonderful-pasteur-ejxzix` | 2026-10-28 `f3c3f0d` | 1 Εργαλειοθήκη για όλα τα AI και έλεγχος branches με απόδειξη (εργασίες 6–7) |
+| PROTECTED | `develop` | 2026-10-28 `c298b5b` | 0  |
 | NO_NET_CHANGE | `gpt/issue-102-display-palette` | 2026-09-26 `c897ec6` | 2 feat(ui): add viewport display settings palette; chore: revert incomplete display palette spike |
 | SAME_PATCH | `feature/foundation-identity-regressions` | 2026-09-14 `294ef76` | 0  |
 | SAME_PATCH | `feature/room-preview-dormancy` | 2026-09-14 `865ebf1` | 0  |
@@ -225,8 +224,9 @@
 | MERGED | `claude/image-materials` | 2026-10-28 `0a8e8c5` | 0  |
 | MERGED | `claude/kind-cannon-nvcs2f` | 2026-10-28 `28692db` | 0  |
 | MERGED | `claude/move-atomic-undo` | 2026-10-28 `1aa68fd` | 0  |
+| MERGED | `claude/roof-under-upper-storey` | 2026-10-28 `a2d1e35` | 0  |
 
-Εντολή διαγραφής (129 branches, μόνο MERGED, SAME_PATCH, NO_NET_CHANGE):
+Εντολή διαγραφής (130 branches, μόνο MERGED, SAME_PATCH, NO_NET_CHANGE):
 
 ```
 git push origin --delete gpt/issue-102-display-palette
@@ -358,4 +358,5 @@ git push origin --delete claude/complete-building-differential
 git push origin --delete claude/image-materials
 git push origin --delete claude/kind-cannon-nvcs2f
 git push origin --delete claude/move-atomic-undo
+git push origin --delete claude/roof-under-upper-storey
 ```
