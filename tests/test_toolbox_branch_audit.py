@@ -99,3 +99,38 @@ def test_delete_commands_only_for_proven(repo):
     assert [l for l in first.splitlines() if l.startswith('git push')] == ['git push origin --delete merged']
     assert [l for l in rest.splitlines() if l.startswith('git push')] == ['git push origin --delete picked']
     assert 'spike' not in [l.split()[-1] for l in text.splitlines() if l.startswith('git push')]
+
+
+def test_delete_tool_re_proves_each_branch_before_deleting(tmp_path, monkeypatch):
+    """delete_merged_branches: only branches whose every commit is in develop, re-checked at deletion time."""
+    spec = importlib.util.spec_from_file_location(
+        'delete_merged', os.path.join(ROOT, 'scripts', 'toolbox', 'delete_merged_branches.py'))
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+    remote = str(tmp_path / 'remote.git')
+    _git(str(tmp_path), 'init', '-q', '--bare', remote)
+    work = str(tmp_path / 'work')
+    os.makedirs(work)
+    _git(work, 'init', '-q', '-b', 'develop')
+    _commit(work, 'a.txt', 'a\n', 'base')
+    _git(work, 'branch', 'done')                               # merged
+    _git(work, 'checkout', '-q', '-b', 'late')                 # was merged when audited, got a new commit since
+    _commit(work, 'l.txt', 'l\n', 'new work after the audit')
+    _git(work, 'checkout', '-q', 'develop')
+    _git(work, 'remote', 'add', 'origin', remote)
+    _git(work, 'push', '-q', 'origin', 'develop', 'done', 'late')
+    _git(work, 'fetch', '-q', 'origin')
+    audit = tmp_path / 'BRANCH_AUDIT.md'
+    audit.write_text('Εντολή διαγραφής (3):\n\n```\ngit push origin --delete done\ngit push origin --delete late\n'
+                     'git push origin --delete develop\n```\n\nΜόνο με ρητή έγκριση (1):\n```\n'
+                     'git push origin --delete picked\n```\n', encoding='utf-8')
+    monkeypatch.chdir(work)
+    assert tool.merged_list(str(audit)) == ['done', 'late', 'develop']
+    lines = []
+    deleted, skipped = tool.run(tool.merged_list(str(audit)), yes=True, record=str(tmp_path / 'rec.txt'),
+                                out=lines.append)
+    assert deleted == ['done']
+    assert {n for n, _w in skipped} == {'late', 'develop'}
+    heads = _git(work, 'ls-remote', '--heads', 'origin')
+    assert 'refs/heads/done' not in heads and 'refs/heads/late' in heads
+    assert (tmp_path / 'rec.txt').read_text().split()[0] == 'done'

@@ -24,6 +24,7 @@
 | Εργαλείο | Τι κάνει | Εκτέλεση |
 |---|---|---|
 | `scripts/toolbox/branch_audit.py` | Για κάθε branch, **απόδειξη git** για το αν σβήνεται χωρίς απώλεια: μόνο MERGED (κάθε commit του είναι commit του develop) μπαίνει στη λίστα· SAME_PATCH (ίδιος κώδικας, άλλα commits) χωριστά, με έγκριση· NO_NET_CHANGE και KEEP ποτέ. Δεν σβήνει τίποτα· βγάζει πίνακα και εντολές για τον ιδιοκτήτη. | `git fetch origin --prune` · `python scripts/toolbox/branch_audit.py --protect <ανοιχτά PR> --markdown out.md` |
+| `scripts/toolbox/delete_merged_branches.py` | **Μόνο για τον ιδιοκτήτη** (τα AI δεν σβήνουν branches): σβήνει τα MERGED της λίστας του `docs/BRANCH_AUDIT.md`, ξαναελέγχοντας το καθένα τη στιγμή της διαγραφής· γράφει το τελευταίο commit κάθε branch στο `deleted_branches.txt`. | `git fetch origin --prune` · `py scripts/toolbox/delete_merged_branches.py` (δείχνει) · `… --yes` (σβήνει) |
 | `scripts/toolbox/branch_tests_on_develop.py` | Τρέχει τα **τεστ ενός παλιού branch πάνω στο σημερινό develop** (σε προσωρινό worktree). Πράσινα = η συμπεριφορά υπάρχει ήδη. Αποτυχίες με την αιτία (π.χ. `No module named …` = λείπει ο κώδικας). | `QTWEBENGINE_DISABLE_SANDBOX=1 python scripts/toolbox/branch_tests_on_develop.py <branch> …` |
 
 ## Έλεγχος σαν χρήστης (ποντίκι, μενού, 3D)
