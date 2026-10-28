@@ -23,7 +23,7 @@
 
 | Εργαλείο | Τι κάνει | Εκτέλεση |
 |---|---|---|
-| `scripts/toolbox/branch_audit.py` | Για κάθε branch, **απόδειξη git** για το αν σβήνεται χωρίς απώλεια: MERGED (όλα τα commits του είναι στο develop), SAME_PATCH (ίδιο diff γραμμή-γραμμή), KEEP (έστω ένα commit ή merge χωρίς αντίγραφο). Δεν σβήνει τίποτα· βγάζει πίνακα και εντολές για τον ιδιοκτήτη. | `git fetch origin --prune` · `python scripts/toolbox/branch_audit.py --protect <ανοιχτά PR> --markdown out.md` |
+| `scripts/toolbox/branch_audit.py` | Για κάθε branch, **απόδειξη git** για το αν σβήνεται χωρίς απώλεια: μόνο MERGED (κάθε commit του είναι commit του develop) μπαίνει στη λίστα· SAME_PATCH (ίδιος κώδικας, άλλα commits) χωριστά, με έγκριση· NO_NET_CHANGE και KEEP ποτέ. Δεν σβήνει τίποτα· βγάζει πίνακα και εντολές για τον ιδιοκτήτη. | `git fetch origin --prune` · `python scripts/toolbox/branch_audit.py --protect <ανοιχτά PR> --markdown out.md` |
 | `scripts/toolbox/branch_tests_on_develop.py` | Τρέχει τα **τεστ ενός παλιού branch πάνω στο σημερινό develop** (σε προσωρινό worktree). Πράσινα = η συμπεριφορά υπάρχει ήδη. Αποτυχίες με την αιτία (π.χ. `No module named …` = λείπει ο κώδικας). | `QTWEBENGINE_DISABLE_SANDBOX=1 python scripts/toolbox/branch_tests_on_develop.py <branch> …` |
 
 ## Έλεγχος σαν χρήστης (ποντίκι, μενού, 3D)

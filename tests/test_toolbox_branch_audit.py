@@ -94,6 +94,8 @@ def test_only_proven_branches_are_offered(repo):
 def test_delete_commands_only_for_proven(repo):
     mod = _load()
     text = mod.markdown(mod.audit('origin', 'develop', protect=['open_pr']), 'origin')
-    commands = [line for line in text.splitlines() if line.startswith('git push')]
-    assert sorted(commands) == ['git push origin --delete merged', 'git push origin --delete picked',
-                                'git push origin --delete spike']
+    first, _, rest = text.partition('Μόνο με ρητή έγκριση')
+    # Only branches whose every commit is a develop commit; a spike+revert keeps work found nowhere else (Astra 28/10).
+    assert [l for l in first.splitlines() if l.startswith('git push')] == ['git push origin --delete merged']
+    assert [l for l in rest.splitlines() if l.startswith('git push')] == ['git push origin --delete picked']
+    assert 'spike' not in [l.split()[-1] for l in text.splitlines() if l.startswith('git push')]

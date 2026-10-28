@@ -8,11 +8,16 @@
 
 | Κατάσταση | Τι αποδεικνύει | Σβήνεται; |
 |---|---|---|
-| MERGED | Κάθε commit του branch **είναι** commit του develop (`merge-base --is-ancestor`). | Ναι |
-| SAME_PATCH | Κάθε commit έχει στο develop commit με **ίδιο diff γραμμή-γραμμή** (`git cherry`), χωρίς δικά του merge commits. Διασταυρώθηκε και με `git log --cherry-pick`: 0 διαφορές. | Ναι |
-| NO_NET_CHANGE | Τα τελικά αρχεία του branch είναι **byte-byte ίδια** με commit του develop (αλλαγή + αναίρεσή της). | Ναι |
+| MERGED | Κάθε commit του branch **είναι** commit του develop (`merge-base --is-ancestor`). | **Ναι** (η μόνη αυτόματη λίστα) |
+| SAME_PATCH | Κάθε commit έχει στο develop commit με **ίδιο diff γραμμή-γραμμή** (`git cherry`, και `git log --cherry-pick`), χωρίς δικά του merge commits. Ο κώδικας και κάθε έκδοση αρχείου υπάρχουν στο develop· τα **αρχικά commits** (ημερομηνία, συγγραφέας, μήνυμα) όχι. | Μόνο με **ρητή έγκρισή σου** (χωριστή λίστα) |
+| NO_NET_CHANGE | Τα τελικά αρχεία είναι ίδια με commit του develop (αλλαγή + αναίρεσή της). **Δεν είναι απόδειξη:** η ενδιάμεση δουλειά υπάρχει μόνο στο branch. | **Όχι** |
 | KEEP | Έστω ένα commit (ή merge) χωρίς ίδιο αντίγραφο στο develop. | **Όχι** χωρίς απόφαση ιδιοκτήτη |
 | PROTECTED | develop, main, ανοιχτά PR και οι βάσεις τους, ενεργή εργασία. | **Όχι** |
+
+**Ανεξάρτητη επαλήθευση (Astra, 28/10):** συμφώνησε για τα MERGED· διαφώνησε (σωστά) για το NO_NET_CHANGE
+`gpt/issue-102-display-palette` (το `archforge/ui/display_settings.py` του `93041d8` δεν υπάρχει στο ιστορικό του
+develop) και για τα 12 SAME_PATCH με το αυστηρό κριτήριο «να μη λείπει κανένα commit» (επιβεβαίωσε όμως ότι ο κώδικάς
+τους υπάρχει όλος). Το εργαλείο διορθώθηκε: αυτόματη λίστα = μόνο MERGED.
 
 Για τα KEEP / PROTECTED έτρεξαν επιπλέον **τα δικά τους τεστ πάνω στο σημερινό develop**
 (`scripts/toolbox/branch_tests_on_develop.py`). Πράσινα = η συμπεριφορά υπάρχει ήδη, όχι ότι ο κώδικας είναι ίδιος·
@@ -20,7 +25,8 @@
 
 ## Αποτέλεσμα
 
-**130 branches σβήνονται με απόδειξη** (117 MERGED, 12 SAME_PATCH, 1 NO_NET_CHANGE) · 16 KEEP · 14 PROTECTED.
+**117 branches σβήνονται με απόδειξη** (MERGED) · 12 SAME_PATCH μόνο αν το εγκρίνεις · 1 NO_NET_CHANGE και 16 KEEP
+μένουν · 14 PROTECTED.
 
 ## KEEP — πρόταση ανά branch (αποφασίζεις εσύ)
 
@@ -43,6 +49,10 @@
 - `gpt/issue-96-smooth-sculpt-sampling` 11/12 (μόνο τεστ): το παράθυρο δεν έχει πια `view_3d`.
 - `gpt/issue-100-view-menu-visibility` 0/1: ψάχνει μενού «View»· τα μενού είναι πια ελληνικά. Θέλει έλεγχο αν το
   μενού «Προβολή» έχει τους ίδιους διακόπτες ορατότητας πριν κλείσει.
+
+**Ενδιάμεση δουλειά μόνο εδώ:** `gpt/issue-102-display-palette` (NO_NET_CHANGE): παλέτα ρυθμίσεων προβολής
+(`archforge/ui/display_settings.py`, 18 γραμμές) που προστέθηκε και αναιρέθηκε ως «ημιτελής». → Μένει μέχρι να πεις
+αν τη θέλεις.
 
 **Παλιές σημειώσεις:** `claude/clever-einstein-8lalhs` (μία γραμμή HANDOFF «1679 passed»),
 `codex/residential-s01-quality-gate` (σημείωμα συντονισμού για το PR #128) → κλείνουν.
@@ -93,7 +103,7 @@
 | PROTECTED | `gpt/fix-empty-frame-storey` | 2026-10-14 `20dc9b2` | 0  |
 | PROTECTED | `codex/s01-foundation-comparison` | 2026-10-18 `73b118a` | 3 Add visually inspected S01 foundation option comparison; Replace S01 commercial quote requirement with unpriced materials by work; Export surfaces and unpriced materials for all ten residential review files |
 | PROTECTED | `codex/s02-furnished-review` | 2026-10-18 `b8867a9` | 6 Add visually inspected S01 foundation option comparison; Replace S01 commercial quote requirement with unpriced materials by work; Export surfaces and unpriced materials for all ten residential review files … |
-| PROTECTED | `claude/wonderful-pasteur-ejxzix` | 2026-10-28 `f3c3f0d` | 1 Εργαλειοθήκη για όλα τα AI και έλεγχος branches με απόδειξη (εργασίες 6–7) |
+| PROTECTED | `claude/wonderful-pasteur-ejxzix` | 2026-10-28 `0914c65` | 3 Εργαλειοθήκη για όλα τα AI και έλεγχος branches με απόδειξη (εργασίες 6–7); BRANCH_AUDIT μετά το merge του #163: 130/160 σβήνονται με απόδειξη; merge ee6d966 (δεν ελέγχεται με patch-id) |
 | PROTECTED | `develop` | 2026-10-28 `c298b5b` | 0  |
 | NO_NET_CHANGE | `gpt/issue-102-display-palette` | 2026-09-26 `c897ec6` | 2 feat(ui): add viewport display settings palette; chore: revert incomplete display palette spike |
 | SAME_PATCH | `feature/foundation-identity-regressions` | 2026-09-14 `294ef76` | 0  |
@@ -226,22 +236,9 @@
 | MERGED | `claude/move-atomic-undo` | 2026-10-28 `1aa68fd` | 0  |
 | MERGED | `claude/roof-under-upper-storey` | 2026-10-28 `a2d1e35` | 0  |
 
-Εντολή διαγραφής (130 branches, μόνο MERGED, SAME_PATCH, NO_NET_CHANGE):
+Εντολή διαγραφής (117 branches, μόνο MERGED: κάθε commit τους είναι commit του develop):
 
 ```
-git push origin --delete gpt/issue-102-display-palette
-git push origin --delete feature/foundation-identity-regressions
-git push origin --delete feature/room-preview-dormancy
-git push origin --delete feature/room-preview-dormancy-v2
-git push origin --delete feature/arboreal-persistent-branches
-git push origin --delete feature/biospectre-true-3d-overlap
-git push origin --delete feature/issue-42-ai-execution-contract
-git push origin --delete ops/architecture-merit-rule
-git push origin --delete ops/autonomous-agent-pilot-v2
-git push origin --delete test/issue-60-v01-acceptance
-git push origin --delete feat/issue-70-clipped-net-footprint-area
-git push origin --delete feat/issue-74-manual-ai-pipeline-equivalence
-git push origin --delete gpt/issue-102-pbr-display-palette
 git push origin --delete feature/automatic-house-intent
 git push origin --delete feature/embedded-mechanism-cavities
 git push origin --delete feature/end-to-end-sculpt-start
@@ -359,4 +356,21 @@ git push origin --delete claude/image-materials
 git push origin --delete claude/kind-cannon-nvcs2f
 git push origin --delete claude/move-atomic-undo
 git push origin --delete claude/roof-under-upper-storey
+```
+
+Μόνο με ρητή έγκριση του ιδιοκτήτη (12 SAME_PATCH: ίδιος κώδικας, αλλά τα αρχικά commits δεν είναι στο develop):
+
+```
+git push origin --delete feature/foundation-identity-regressions
+git push origin --delete feature/room-preview-dormancy
+git push origin --delete feature/room-preview-dormancy-v2
+git push origin --delete feature/arboreal-persistent-branches
+git push origin --delete feature/biospectre-true-3d-overlap
+git push origin --delete feature/issue-42-ai-execution-contract
+git push origin --delete ops/architecture-merit-rule
+git push origin --delete ops/autonomous-agent-pilot-v2
+git push origin --delete test/issue-60-v01-acceptance
+git push origin --delete feat/issue-70-clipped-net-footprint-area
+git push origin --delete feat/issue-74-manual-ai-pipeline-equivalence
+git push origin --delete gpt/issue-102-pbr-display-palette
 ```
