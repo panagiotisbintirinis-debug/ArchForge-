@@ -4703,6 +4703,23 @@ class MainWindow(QMainWindow):
         if self.autosave.enabled:
             from PySide6.QtCore import QTimer
             QTimer.singleShot(800, self._offer_recovery)
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(900, self._warn_damaged_user_files)
+
+    def _warn_damaged_user_files(self):
+        """Α3: a settings / price file that could not be read is said, with where its copy was kept."""
+        from archforge.project.persistence import damaged_user_files
+        found = damaged_user_files()
+        if found:
+            lines = '\n'.join(f'• {path}\n   αντίγραφο: {keep}' for path, keep in found)
+            # Not modal: it informs, nothing waits on an answer.
+            box = QMessageBox(QMessageBox.Icon.Warning, 'Αρχείο ρυθμίσεων κατεστραμμένο',
+                              'Δεν διαβάστηκε και χρησιμοποιούνται οι προεπιλογές. Το παλιό περιεχόμενο '
+                              'κρατήθηκε, δεν χάθηκε τίποτα:\n\n' + lines, parent=self)
+            box.setModal(False)
+            self._damaged_files_box = box
+            box.show()
+        return found
 
     def _update_window_title(self):
         """«ArchForge — έργο.archforge*»: which file, and whether it has unsaved work."""

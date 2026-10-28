@@ -19,10 +19,14 @@ def path():
 
 def load():
     """The saved prices, or {} when there is no book (or it cannot be read)."""
+    from archforge.project.persistence import UserDataError, read_user_json
     try:
-        raw = json.loads(path().read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        return _prices(read_user_json(path()))   # a damaged book is kept aside first, never overwritten blind (Α3)
+    except UserDataError:
         return {}
+
+
+def _prices(raw):
     out = {}
     for code, v in (raw.get("trade_prices") or {}).items():
         if not isinstance(v, dict):
@@ -35,8 +39,11 @@ def load():
 
 
 def save(prices):
-    """Merge ``prices`` (``{code: {"material", "labour"}}``) into the book; returns how many codes were written."""
-    book = load()
+    """Merge ``prices`` (``{code: {"material", "labour"}}``) into the book; returns how many codes were written.
+
+    ``UserDataError`` (nothing written) when the book exists but can neither be read nor kept aside."""
+    from archforge.project.persistence import atomic_write_text, read_user_json
+    book = _prices(read_user_json(path()))
     n = 0
     for code, v in prices.items():
         entry = {"material": v.get("material"), "labour": v.get("labour")}
@@ -44,10 +51,9 @@ def save(prices):
             continue
         book[str(code)] = {k: (None if x is None else float(x)) for k, x in entry.items()}
         n += 1
-    p = path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps({"updated": datetime.date.today().isoformat(), "trade_prices": book},
-                            ensure_ascii=False, indent=1, sort_keys=True), encoding="utf-8")
+    # Old file or new one, never half of it (a cut file used to cost the whole book on the next save).
+    atomic_write_text(path(), json.dumps({"updated": datetime.date.today().isoformat(), "trade_prices": book},
+                                         ensure_ascii=False, indent=1, sort_keys=True))
     return n
 
 

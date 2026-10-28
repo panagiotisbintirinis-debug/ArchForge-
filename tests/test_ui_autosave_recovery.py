@@ -197,3 +197,33 @@ def test_open_with_invalid_entities_loads_the_rest(data_dir):
     assert list(window.doc.entities) == [good.id]
     assert 'Παραλείφθηκαν 1' in window._file_check_box.text()
     assert window._is_dirty()                          # not what is in the file any more
+
+
+def test_a_failed_recovery_write_is_said_not_swallowed(data_dir, monkeypatch):
+    """Λίστα Α3 (Astra 28/10): the write runs on a thread; its failure is shown by the next save, which retries."""
+    window = _window()
+    window.stack.execute(AddEntity(_wall(2.0)))
+    real = persistence.write_recovery
+
+    def full(*a, **k):
+        raise OSError('δίσκος γεμάτος')
+    monkeypatch.setattr(persistence, 'write_recovery', full)
+    assert window.autosave.save_now(wait=True) is True
+    monkeypatch.setattr(persistence, 'write_recovery', real)
+    window.autosave.save_now(wait=True)
+    assert 'απέτυχε' in window.statusBar().currentMessage() and 'δίσκος γεμάτος' in window.statusBar().currentMessage()
+    assert len(_recoveries()) == 1                    # and the retry wrote it
+
+
+def test_damaged_ribbon_arrangement_is_kept_and_said(data_dir, tmp_path):
+    from PySide6.QtCore import QSettings
+    from archforge.ui import toolbar_custom as tc
+    persistence.damaged_user_files()
+    window = _window()
+    settings = QSettings(str(tmp_path / 'layout.ini'), QSettings.Format.IniFormat)
+    settings.setValue('custom/prefs', '{"icon_size": 16, "mouse"')          # cut short
+    tc.load(window, settings)
+    assert settings.value('custom/prefs_broken') == '{"icon_size": 16, "mouse"'
+    found = window._warn_damaged_user_files()
+    assert found and 'custom/prefs' in found[0][0]
+    assert not window._damaged_files_box.isModal()
