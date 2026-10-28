@@ -726,6 +726,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage('Το έδαφος διαγράφηκε (Ctrl+Z για αναίρεση)', 4000)
 
     def _start_site_tool(self, tool, message):
+        self._pending_switch_link = None     # a new tool cancels «Προσθήκη διακόπτη» (it sets the link after this)
         central = getattr(self, '_central_tabs', None)
         simultaneous = getattr(self, '_simultaneous_action', None)
         if central is not None and not (simultaneous is not None and simultaneous.isChecked()):
@@ -1444,6 +1445,9 @@ class MainWindow(QMainWindow):
             params.update(x2=float(x2), y2=float(y2))     # W/m from the strip's data sheet (Ιδιότητες)
         point = Entity('electrical_point', params, name=label)
         self.stack.execute(AddEntity(point))
+        if point_type in ('switch', 'dimmer'):
+            from archforge.ui.light_properties import finish_linked_switch
+            finish_linked_switch(self, point)      # «Προσθήκη διακόπτη» from a luminaire's Ιδιότητες
         self._redraw_views(all_views=True)
         wiring = route_cables_cached(self.doc)
         circuit = next((c for c in wiring['circuits'] if point.id in c['points']), None)

@@ -99,7 +99,32 @@ def switch_runs(doc, wiring, points):
                 terminal, box = device_legs(doc, e, mode, grid.point(targets[e.id]), z)
                 legs.extend(terminal); boxes.append((*box, ''))
         runs.extend((a, b, sw.id) for a, b in legs if math.dist(a, b) > 1e-6)
+    runs.extend(traveller_runs(doc, wiring, points))
     return runs, boxes
+
+
+TRAVELLER = 'traveller:'
+
+
+def traveller_runs(doc, wiring, points):
+    """Multi-way switching (αλέ-ρετούρ / αντιστροφέας): the two travellers between consecutive switches of a chain,
+    at the horizontal wall-run height — ``(a, b, 'traveller:<switch id>')`` (DESIGN_DEFAULT path, not a survey)."""
+    from archforge.mep.electrical import WALL_RUN_Z, _floor_of, mount_z
+    runs, done = [], set()
+    for link in wiring['switch_links']:
+        chain = link.get('partners') or []
+        for a, b in zip(chain, chain[1:]):
+            if (a, b) in done or a not in points or b not in points:
+                continue
+            done.add((a, b))
+            pa, pb = points[a].params, points[b].params
+            ax, ay, bx, by = float(pa['x']), float(pa['y']), float(pb['x']), float(pb['y'])
+            za = _floor_of(doc, float(pa['z'])) + WALL_RUN_Z
+            zb = _floor_of(doc, float(pb['z'])) + WALL_RUN_Z
+            path = [(ax, ay, mount_z(doc, pa)), (ax, ay, za), (bx, ay, za), (bx, by, za), (bx, by, zb),
+                    (bx, by, mount_z(doc, pb))]
+            runs.extend((p, q, TRAVELLER + a) for p, q in zip(path, path[1:]) if math.dist(p, q) > 1e-6)
+    return runs
 
 
 def bus_legs(doc, start, e, mode, rise):

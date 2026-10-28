@@ -231,12 +231,81 @@ def test_strip_rows_for_library_fixtures(tmp_path, monkeypatch):
         assert window.doc.get(proj.id).params['light_enabled'] == 0.0
         assert 'light_on' not in window.doc.get(proj.id).params
         assert window.doc.get(post.id).params['light_enabled'] == 1.0                  # the other one untouched
-        # Ιδιότητες: aim rows for the projector, «Σταθερή δέσμη» for the post.
+        # Ιδιότητες: aim rows for the projector, «Σταθερό» for the post.
         window.doc.select([proj.id]); window.refresh_inspector(); app.processEvents()
         assert window.form.parentWidget().findChild(QDoubleSpinBox, 'aimTilt') is not None
         window.doc.select([post.id]); window.refresh_inspector(); app.processEvents()
         assert window.form.parentWidget().findChild(QDoubleSpinBox, 'aimTilt') is None
-        assert any(isinstance(w, QLabel) and w.text().startswith('Σταθερή δέσμη')
+        assert any(isinstance(w, QLabel) and w.text().startswith('Σταθερό')
                    for w in window.form.parentWidget().findChildren(QLabel))
+    finally:
+        window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_second_and_third_switch_from_the_luminaire_make_two_way_and_intermediate():
+    """Owner 25/10: «δεύτερο διακόπτη απλό ή dimmable ή τρίτο, συνδεδεμένο με συγκεκριμένο φωτιστικό από τις Ιδιότητες·
+    οι συνδέσεις στο ηλεκτρολογικό να ακολουθούν, εκτός αν έχουμε KNX»."""
+    from archforge.core.commands import UpdateEntities
+    from archforge.mep.electrical import link_switch_changes, route_cables, switches_of, unlink_switch_changes
+    from archforge.mep.electrical_board import analyse
+    doc, stack, left, right, _garden = _two_rooms()
+    lamp = left[0]
+    first = _pt(stack, 'switch', 0.2, 2.0)                         # the room's own switch (automatic)
+    assert [l['switch'] for l in switches_of(doc, lamp.id)] == [first.id]
+    second = _pt(stack, 'switch', 3.8, 5.0)
+    stack.execute(UpdateEntities(link_switch_changes(doc, lamp.id, second.id, 'same')))
+    links = {l['switch']: l for l in route_cables(doc)['switch_links']}
+    assert links[first.id]['lights'] == links[second.id]['lights'] and lamp.id in links[second.id]['lights']
+    assert {links[first.id]['scheme'], links[second.id]['scheme']} == {'two_way'}
+    third = _pt(stack, 'dimmer', 2.0, 5.8)
+    stack.execute(UpdateEntities(link_switch_changes(doc, lamp.id, third.id, 'same')))
+    wiring = route_cables(doc)
+    schemes = {l['switch']: l['scheme'] for l in wiring['switch_links']}
+    assert sorted(schemes[i] for i in (first.id, second.id, third.id)) == ['intermediate', 'two_way', 'two_way']
+    assert any('πολλαπλή αφή' in w for w in wiring['report']['warnings'])           # dimmer in multi-way: flagged
+    travellers = [r for r in wiring['switch_runs'] if r[2].startswith('traveller:')]
+    assert travellers                                                              # 2 conductors between switches
+    import math
+    travel_m = sum(math.dist(a, b) for a, b, _s in travellers)
+    metres = lambda d: sum(r['metres'] for r in analyse(d)['purchase'])
+    conventional = metres(doc)
+    # KNX: buttons on the bus — no 230 V switch legs and no travellers are bought.
+    panel = next(e for e in doc.entities.values() if e.params.get('point_type') == 'panel')
+    from archforge.core.commands import UpdateEntity
+    stack.execute(UpdateEntity(panel.id, {'control_system': 'knx'}))
+    assert conventional - metres(doc) >= 2 * travel_m - 0.5            # two travellers along each traveller run
+    # «Μόνο για αυτό»: a switch of its own; the others let it go.
+    own = _pt(stack, 'switch', 1.0, 5.8)
+    stack.execute(UpdateEntities(link_switch_changes(doc, left[1].id, own.id, 'own')))
+    assert [l['switch'] for l in switches_of(doc, left[1].id)] == [own.id]
+    stack.execute(UpdateEntities(unlink_switch_changes(doc, lamp.id, third.id)))
+    assert third.id not in [l['switch'] for l in switches_of(doc, lamp.id)]
+
+
+def test_add_switch_from_luminaire_properties_by_a_click():
+    from PySide6.QtWidgets import QApplication
+    from archforge.ui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    try:
+        doc, _stack, left, _right, _garden = _two_rooms()
+        window._replace_project(doc)
+        lamp = left[0]
+        window.doc.select([lamp.id]); window.refresh_inspector(); app.processEvents()
+        own = next(a for a in window._switch_add_menu.actions() if a.data() == ('switch', 'own'))
+        own.trigger()
+        assert window.plan_view.controller.tool == 'elec_switch'
+        n = len(window.stack.done)
+        window.plan_view.sitePointRequested.emit('elec_switch', 0.3, 2.5)
+        assert len(window.stack.done) == n + 1                                       # placement + link: one undo
+        from archforge.mep.electrical import switches_of
+        sid = switches_of(window.doc, lamp.id)[0]['switch']
+        assert window.doc.get(sid).params['controls'] == [lamp.id]
+        window._undo()
+        assert sid not in window.doc.entities
+        # Another tool cancels the pending link.
+        own = next(a for a in window._switch_add_menu.actions() if a.data() == ('switch', 'own'))
+        own.trigger(); window._start_site_tool('elec_socket', '')
+        assert window._pending_switch_link is None
     finally:
         window._mark_clean(); window.close(); app.processEvents()

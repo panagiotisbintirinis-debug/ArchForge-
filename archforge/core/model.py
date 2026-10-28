@@ -674,6 +674,12 @@ def _flag(v):
     return 1 if int(round(float(v))) else 0
 
 
+def _id_list(v):
+    if not isinstance(v, (list, tuple)):
+        raise ValueError('expected a list of entity ids')
+    return list(dict.fromkeys(str(i) for i in v))
+
+
 def _between(lo, hi, label):
     def check(v):
         v = _finite(v)
@@ -902,6 +908,8 @@ SCHEMAS = {
                          'dimming': _choice(('onoff', 'phase_cut', 'dali2', '0_10v'), 'dimming protocol'),
                          'target_x': _finite, 'target_y': _finite, 'target_z': _finite,
                          # per luminaire (owner 25/10): on/off, and the aim of an adjustable head (mep/lighting.aim_target)
+                         'controls': _id_list,
+                         'knx_group_address': str, 'knx_channels': lambda v: int(_nonnegative(v)),
                          'light_on': _flag, 'aim_tilt_deg': _between(0.0, 90.0, 'aim tilt'),
                          'aim_azimuth_deg': lambda v: _finite(v) % 360.0},
     'plumbing_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _plumbing_type, 'pipe_system': _pipe_system},
