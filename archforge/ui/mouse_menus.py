@@ -470,7 +470,10 @@ class MouseMenuEditor(QDialog):
                 menu = _build_menu(self.w, "plan", sample if task.startswith("object:") else None, None)
                 return _decorate(menu["entries"])
             return []
-        except Exception:
+        except Exception as exc:
+            from archforge.core.notices import not_computed
+            not_computed("menus.defaults", "Μενού ποντικιού: οι προεπιλεγμένες εντολές δεν φορτώθηκαν (άδεια λίστα)",
+                         exc=exc)
             return []
         finally:
             if temp is not None:

@@ -202,7 +202,10 @@ def _light_z(doc, kind, p):
         try:
             from archforge.mep.fixture_models import light_mount_z
             return light_mount_z(doc, p)
-        except (KeyError, TypeError, ValueError, ImportError):
+        except (KeyError, TypeError, ValueError, ImportError) as exc:
+            from archforge.core.notices import not_computed
+            not_computed("lighting.mount", "Φως στο 3D: δεν βρέθηκε το ύψος τοποθέτησης, η πηγή μπαίνει στο "
+                         "ύψος του σημείου", exc=exc)
             return float(p.get("z", 2.4))
     return float(p.get("z", 2.4))
 

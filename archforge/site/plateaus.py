@@ -82,7 +82,10 @@ def written_level(doc, polygon, altitude_ref=0.0):
             continue
         try:
             labels = model_labels(u.params)["levels"]
-        except Exception:
+        except Exception as exc:
+            from archforge.core.notices import not_computed
+            not_computed("site.pdf_levels", f"Υψόμετρα: δεν διαβάστηκαν από το υπόβαθρο «{u.name or u.params.get('path')}»"
+                         f" (σελ. {int(u.params.get('page', 0)) + 1}) — δώστε τη στάθμη με το χέρι", u.id, exc)
             continue
         for lv in labels:
             if not lv.ceiling and lv.value >= 10.0 and point_in_polygon(lv.x, lv.y, polygon):
@@ -129,7 +132,10 @@ def written_level_near(doc, x, y, altitude_ref=0.0, reach=1.5):
             continue
         try:
             labels = model_labels(u.params)["levels"]
-        except Exception:
+        except Exception as exc:
+            from archforge.core.notices import not_computed
+            not_computed("site.pdf_levels", f"Υψόμετρα: δεν διαβάστηκαν από το υπόβαθρο «{u.name or u.params.get('path')}»"
+                         f" (σελ. {int(u.params.get('page', 0)) + 1}) — δώστε τη στάθμη με το χέρι", u.id, exc)
             continue
         for lv in labels:
             d = math.dist((lv.x, lv.y), (x, y))

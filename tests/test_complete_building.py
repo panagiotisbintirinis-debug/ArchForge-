@@ -199,3 +199,26 @@ def test_f08_no_disabled_coming_soon_entry_in_the_menus(house):
                 yield a
     entries = [a for top in w.menuBar().actions() if top.menu() is not None for a in walk(top.menu())]
     assert not [a.text() for a in entries if 'έρχονται' in a.text() or 'έρχεται' in a.text()]
+
+
+def test_f06_without_a_source_heating_gets_a_connection_point_with_the_suggested_power(house):
+    """Owner 28/10: no boiler / heat pump → the step is not refused; a standard connection point with the
+    indicative kW goes in (the kind of source: the mechanical engineer), with the emitters, one undo."""
+    w = house
+    src = next(e for e in w.doc.entities.values() if e.kind == 'heating_point'
+               and e.params.get('point_type') in ('boiler', 'heat_pump', 'heat_source'))
+    from archforge.core.commands import DeleteEntities
+    w.stack.execute(DeleteEntities([src.id]))
+    step = next(s for s in plan(w) if s[0] == 'heating')
+    assert step[3] is None                                     # not refused any more
+    since = len(w.stack.done)
+    report = dict((label, note) for label, ok, note in complete(w, ['heating']))
+    point = next(e for e in w.doc.entities.values() if e.kind == 'heating_point'
+                 and e.params.get('point_type') == 'heat_source')
+    assert 'μηχανολόγος' in point.name and point.params['power_w'] > 0
+    assert not any(point_in_polygon(point.params['x'], point.params['y'], f.polygon) for f in w.doc.active_room_faces())
+    note = next(iter(report.values()))
+    assert 'σημείο σύνδεσης' in note and 'Ενδεικτική ισχύς θέρμανσης' in note and 'όχι μελέτη' in note
+    assert len(w.stack.done) == since + 1                      # one undo
+    w.stack.undo()
+    assert point.id not in w.doc.entities

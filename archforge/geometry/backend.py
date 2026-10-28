@@ -8,12 +8,7 @@ import math
 from .plan import EvaluationPlan, build_evaluation_plan
 
 
-@dataclass(frozen=True)
-class GeometryIssue:
-    severity: str
-    code: str
-    message: str
-    entity_id: Optional[str] = None
+from archforge.core.notices import Issue as GeometryIssue     # one record for geometry and «δεν υπολογίστηκε»
 
 
 @dataclass(frozen=True)

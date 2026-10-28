@@ -136,6 +136,8 @@ def list_assets():
             r = json.loads(p.read_text(encoding="utf-8"))
             out.append({k: r[k] for k in ("id", "name", "size", "provenance")} | {"category": r.get("category", []),
                                                                                "lit": bool(r.get("lights"))})
-        except (OSError, ValueError, KeyError):
+        except (OSError, ValueError, KeyError) as exc:
+            from archforge.core.notices import not_computed
+            not_computed("library.asset", f"Βιβλιοθήκη: το αρχείο «{p.name}» δεν φορτώθηκε (λείπει από τη λίστα)", exc=exc)
             continue
     return sorted(out, key=lambda r: r["name"].lower())

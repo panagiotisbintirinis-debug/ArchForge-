@@ -28,15 +28,20 @@ def program_dir():
     return os.path.dirname(sys.executable)
 
 
+last_check_error = None     # why the last check could not answer (Α3: «failed» is not «up to date»)
+
+
 def current_build():
     """``{"sha": …, "date": …}`` of this package, or None when running from source."""
     if not packaged():
         return None
     path = os.path.join(getattr(sys, "_MEIPASS", program_dir()), "build_info.json")
+    global last_check_error
     try:
         with open(path, encoding="utf-8") as f:
             return json.load(f)
-    except (OSError, ValueError):
+    except (OSError, ValueError) as exc:
+        last_check_error = f"δεν διαβάστηκε η έκδοση του προγράμματος ({exc})"
         return None
 
 
@@ -48,9 +53,11 @@ def _fetch_json(url, timeout=10):
 
 def latest_release(fetch=_fetch_json):
     """``{"sha", "url", "size", "published"}`` of the published package, or None (no release, no network)."""
+    global last_check_error
     try:
         rel = fetch(RELEASE_API)
-    except Exception:
+    except Exception as exc:
+        last_check_error = f"δεν απάντησε το GitHub ({exc})"
         return None
     asset = next((a for a in rel.get("assets", []) if a.get("name") == ASSET), None)
     if asset is None:
@@ -61,6 +68,8 @@ def latest_release(fetch=_fetch_json):
 
 def available_update(build=None, fetch=_fetch_json):
     """The newer release, or None: up to date, running from source, or no answer from GitHub."""
+    global last_check_error
+    last_check_error = None
     build = build if build is not None else current_build()
     if not build or not build.get("sha"):
         return None

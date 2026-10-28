@@ -74,6 +74,57 @@ def atomic_write_json(path, data, indent=2):
     atomic_write_text(path, json.dumps(data, indent=indent))
 
 
+# ------------------------------------------------------------ user data files
+
+class UserDataError(OSError):
+    """A user data file exists, cannot be read and could not be kept aside; ``str()`` is a Greek message."""
+
+
+_damaged = []          # [(file, kept copy)] not yet shown to the user
+
+
+def read_user_json(path):
+    """A user data file (settings.json, the price book): ``{}`` when it does not exist yet.
+
+    One that exists but cannot be read (cut by a power loss, a sync tool, a hand edit) is never overwritten blind
+    (Λίστα εργασιών Α3, 28/10: one new price used to leave 1 of 50 prices): it is first copied beside itself as
+    ``<name>.broken-<date>-<hash>``, listed for the window to tell the user, and ``{}`` is returned.  When even the
+    copy fails, ``UserDataError`` — the caller must not write.
+    """
+    path = os.path.abspath(os.fspath(path))
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, 'rb') as handle:
+            raw = handle.read()
+    except OSError as exc:
+        raise UserDataError(f'Το αρχείο {path} υπάρχει αλλά δεν διαβάζεται ({exc}). '
+                            'Δεν γράφτηκε τίποτα πάνω του· κλείσε ό,τι το κρατά ανοιχτό και ξαναδοκίμασε.') from exc
+    try:
+        data = json.loads(raw.decode('utf-8'))
+        if isinstance(data, dict):
+            return data
+    except (UnicodeDecodeError, ValueError):
+        pass
+    import hashlib
+    keep = f"{path}.broken-{time.strftime('%Y%m%d')}-{hashlib.sha256(raw).hexdigest()[:8]}"
+    if not os.path.exists(keep):
+        try:
+            shutil.copy2(path, keep)
+        except OSError as exc:
+            raise UserDataError(f'Το αρχείο {path} είναι κατεστραμμένο και δεν κρατήθηκε αντίγραφο ({exc}). '
+                                'Δεν γράφτηκε τίποτα πάνω του.') from exc
+        _damaged.append((path, keep))
+    return {}
+
+
+def damaged_user_files():
+    """``[(file, kept copy)]`` found since the last call (the window shows them once)."""
+    out = list(_damaged)
+    _damaged.clear()
+    return out
+
+
 # -------------------------------------------------------------------- backups
 
 def backup_paths(path):

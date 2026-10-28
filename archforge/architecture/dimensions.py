@@ -86,7 +86,9 @@ def _facades(doc, z):
         for o in children.get(w.id, ()):
             try:
                 (qx, qy), (rx, ry) = plan_segment(p, o.params)
-            except (KeyError, TypeError, ValueError):
+            except (KeyError, TypeError, ValueError) as exc:
+                from archforge.core.notices import not_computed
+                not_computed("dims.opening", f"Διαστάσεις: το άνοιγμα «{o.name or o.id}» δεν διαστασιολογήθηκε", o.id, exc)
                 continue
             stops += [qx * ux + qy * uy, rx * ux + ry * uy]
         faces.append({"n": (nx, ny), "u": (ux, uy), "line": line, "lo": lo, "hi": hi, "stops": stops})
@@ -194,14 +196,19 @@ def interior(doc, z, entity_id=""):
     """Every room's clear sizes, face to face, drawn just inside it."""
     from archforge.quantities.takeoff import net_polygon
     out = []
+    from archforge.core.notices import not_computed
     try:
         faces = doc.active_room_faces(z=float(z))
-    except (ValueError, KeyError):
+    except (ValueError, KeyError) as exc:
+        not_computed("dims.rooms", f"Εσωτερικές διαστάσεις: δεν αναγνωρίστηκαν οι χώροι του ορόφου {float(z):+.2f}",
+                     exc=exc)
         return out
     for face in faces:
         try:
             pts = [(float(x), float(y)) for x, y in net_polygon(doc, face.polygon, float(z))]
-        except (ValueError, KeyError, ZeroDivisionError):
+        except (ValueError, KeyError, ZeroDivisionError) as exc:
+            name = doc.room_metadata(face.signature).get("name") or "χώρος"
+            not_computed("dims.room", f"Εσωτερικές διαστάσεις: ο χώρος «{name}» δεν διαστασιολογήθηκε", exc=exc)
             continue
         if len(pts) < 3 or abs(_area(pts)) < 0.2:
             continue

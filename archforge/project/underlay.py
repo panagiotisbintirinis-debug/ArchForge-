@@ -35,12 +35,14 @@ ARC_SEGMENTS = 24
 
 # ---------------------------------------------------------------------------------------------------- DXF lines
 
-def _pairs(text):
+def _pairs(text, skipped=None):
     lines = str(text).splitlines()
     for i in range(0, len(lines) - 1, 2):
         try:
             yield int(lines[i].strip()), lines[i + 1].strip()
         except ValueError:
+            if skipped is not None:                  # Α3: counted and said once per file, never silent
+                skipped.append((i + 1, lines[i]))
             continue
 
 
@@ -84,7 +86,8 @@ def parse_dxf_segments(text):
         elif entity == "VERTEX" and poly is not None and 10 in data:
             poly.append((data[10], data.get(20, 0.0)))
 
-    for code, value in _pairs(text):
+    skipped = []
+    for code, value in _pairs(text, skipped):
         if code == 0:
             if entity is not None and section == "ENTITIES":
                 flush()
@@ -114,6 +117,7 @@ def parse_dxf_segments(text):
             try:
                 v = float(value)
             except ValueError:
+                skipped.append((None, f"κωδικός {code} = {value}"))
                 continue
             if entity == "LWPOLYLINE" and code in (10, 20):
                 xy = data.setdefault("_xy", [])
@@ -125,6 +129,8 @@ def parse_dxf_segments(text):
                 data[code] = v
                 if entity == "POLYLINE" and code == 70:
                     poly_closed = bool(int(v) & 1)
+    from archforge.core.notices import skipped_lines
+    skipped_lines("dxf.underlay", "Υπόβαθρο DXF", skipped)
     return {"segments": segs, "layers": layers}
 
 

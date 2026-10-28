@@ -31,7 +31,10 @@ def _pdf_page_image(path,page,dpi=150):
     import os
     try:
         key=(str(path),int(page),os.path.getmtime(path),dpi)
-    except OSError:
+    except OSError as exc:
+        from archforge.core.notices import not_computed
+        not_computed('underlay.pdf_missing',f'Υπόβαθρο: το PDF «{os.path.basename(str(path))}» λείπει ή δεν διαβάζεται — '
+                     'συνδέστε το ξανά',exc=exc)
         return None
     if key not in _PDF_CACHE:
         from PySide6.QtCore import QSize
@@ -941,8 +944,9 @@ class PlanView(QGraphicsView):
                             meta=(('semantic','structural-load'),('text',label),('source',load.source)),
                         )
                     )
-            except (ValueError,KeyError):
-                pass
+            except (ValueError,KeyError) as exc:
+                from archforge.core.notices import not_computed
+                not_computed('plan.loads','Κάτοψη: τα στατικά φορτία δεν σχεδιάστηκαν όλα',exc=exc)
         for p in frame.primitives:self._draw_primitive(p)
         for h in frame.handles:self._draw_handle(h)
         if frame.snap:self._draw_snap(frame.snap)

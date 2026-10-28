@@ -635,7 +635,11 @@ def _terrain_start_z(doc,origin,storey_z):
             if (y1>y)!=(y2>y) and x<(x2-x1)*(y-y1)/(y2-y1)+x1:hit=not hit
         return hit
     try:faces=doc.active_room_faces()
-    except Exception:faces=[]
+    except Exception as exc:
+        # Unknown rooms: not «outside» — nothing is placed on the ground (Α3).
+        from archforge.core.notices import not_computed
+        not_computed('place.rooms','Τοποθέτηση: δεν αναγνωρίστηκαν οι χώροι, δεν μπήκε στο έδαφος',exc=exc)
+        return None
     if any(inside(f.polygon) for f in faces):return None
     return ground
 

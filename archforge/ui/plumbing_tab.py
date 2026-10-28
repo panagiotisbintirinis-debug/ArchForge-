@@ -129,10 +129,12 @@ class PlumbingTechnicalPlan(PlanView):
                     item.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations, True)
                     item.setPos(x, y)
                     item.setZValue(80)
-        except Exception:
+        except Exception as exc:
             # The report tables remain usable even if an incomplete model cannot
-            # yet produce all technical-plan graphics.
-            pass
+            # yet produce all technical-plan graphics — but the plan says it is partial.
+            from archforge.core.notices import not_computed
+            not_computed("plumbing.plan", "Τεχνική κάτοψη υδραυλικών: δεν σχεδιάστηκε ολόκληρη (οι πίνακες ισχύουν)",
+                         exc=exc)
 
     # This view is documentation-only. Left drag pans the view instead of
     # selecting/moving model entities; the inherited wheelEvent keeps zoom.

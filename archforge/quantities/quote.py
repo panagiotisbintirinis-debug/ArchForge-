@@ -100,10 +100,13 @@ def quote(doc, only=None):
 
     ``only``: sheet names to quote (e.g. ``("Ηλεκτρολογικά",)`` for the electrician's quote); None = everything.
     """
+    from archforge.core.notices import collecting
     from archforge.quantities.materials import all_lists
     s = settings(doc)
     sections, owner = [], []
-    for name, title, rows, _notes in all_lists(doc):
+    with collecting() as not_computed:                   # Α3: what could not be measured is said with the total
+        lists = all_lists(doc)
+    for name, title, rows, _notes in lists:
         if only is not None and name not in only:
             continue
         out = costed(doc, name, rows)
@@ -124,6 +127,7 @@ def quote(doc, only=None):
     return {"sections": sections, "by_trade": by_trade, "subtotal": subtotal, "material": material, "labour": labour, "vat": s["vat"],
             "vat_amount": vat_amount, "total": round(subtotal + vat_amount, 2), "missing": missing,
             "incomplete": sum(1 for r in rows if r["amount"] is not None and not r["complete"]),
+            "not_computed": [i.message for i in not_computed],
             "owner_view": owner, "client": s["client"], "project": s["project"], "notes": s["notes"],
             "validity_days": s["validity_days"]}
 

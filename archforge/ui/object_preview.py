@@ -81,7 +81,9 @@ class ObjectPreview(QWidget):
                 roles = tuple(f"part{i}" for i in idx) if idx is not None and len(idx) == len(tris) else ("body",) * len(tris)
             else:
                 verts, tris, roles = (), (), ()
-        except (KeyError, ValueError, TypeError):
+        except (KeyError, ValueError, TypeError) as exc:
+            from archforge.core.notices import not_computed
+            not_computed("preview.mesh", "Προεπισκόπηση αντικειμένου: η γεωμετρία δεν υπολογίστηκε", exc=exc)
             verts, tris, roles = (), (), ()
         self._mesh = (verts, tris, roles)
         self._colors = self._role_colors(p, roles)

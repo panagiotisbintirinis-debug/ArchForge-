@@ -131,7 +131,9 @@ def underlay_glass(p):
     from archforge.project.underlay import to_model
     try:
         return [[to_model(p, x, y) for x, y in poly] for poly in water_fills(p["path"], p.get("page", 0))]
-    except Exception:
+    except Exception as exc:
+        from archforge.core.notices import not_computed
+        not_computed("pdf.water_fills", "Σχέδιο PDF: δεν διαβάστηκαν τα γαλάζια γεμίσματα (τζάμια, πισίνες)", exc=exc)
         return []
 
 
@@ -147,7 +149,10 @@ def underlay_items(p):
     try:
         blocks = [(kind, x / k, y / k) for kind, x, y in C.read_items(p["path"], p.get("page", 0), k)]
         raw = blocks + C.words(pdf_texts(p["path"], p.get("page", 0)))
-    except Exception:
+    except Exception as exc:
+        from archforge.core.notices import not_computed
+        not_computed("pdf.contents", "Σχέδιο PDF: δεν διαβάστηκαν σύμβολα και λέξεις (έπιπλα, είδη υγιεινής, χώροι) — "
+                     "δεν σημαίνει ότι δεν υπάρχουν", exc=exc)
         return []
     return [(kind, *to_model(p, x, y)) for kind, x, y in raw]
 

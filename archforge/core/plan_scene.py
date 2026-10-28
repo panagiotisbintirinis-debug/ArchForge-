@@ -541,7 +541,9 @@ def selection_handles(doc):
         if e.kind in ROTATABLE_KINDS and (not e.kind.startswith('structural_') or e.params.get('role')=='pergola') and not e.locked and str(e.params.get('phase','new'))!='existing' and _entity_on_active_level(doc,e):
             try:
                 hx,hy=rotate_handle_point(doc,e.id);out.append(Handle2D(hx,hy,e.id,'rotate','rotate'))
-            except (KeyError,ValueError,TypeError):pass
+            except (KeyError,ValueError,TypeError) as exc:
+                from archforge.core.notices import not_computed
+                not_computed('plan.rotate_handle',f'«{e.name or e.kind}»: χωρίς λαβή περιστροφής (περιστροφή από τις Ιδιότητες)',e.id,exc)
     return out
 def _swing_handle_point(doc,e,a,b):
     """Point on the side the door/window opens to, half a leaf out from the wall."""
@@ -842,8 +844,11 @@ def wall_poche(doc):
         cuts.append([(ax-nx,ay-ny),(bx-nx,by-ny),(bx+nx,by+ny),(ax+nx,ay+ny)])
     try:
         value=region(bands,cuts,tolerance=1e-5) if bands else []
-    except Exception:
-        value=[]
+    except Exception as exc:
+        # Α3: said, and not cached — a failure is not a valid «no walls», the next redraw tries again.
+        from archforge.core.notices import not_computed
+        not_computed('plan.wall_fill','Κάτοψη: δεν σχεδιάστηκαν τα γεμίσματα των τοίχων',exc=exc)
+        return []
     _POCHE['key'],_POCHE['value']=key,value
     return value
 
@@ -887,8 +892,9 @@ def build_plan_frame(doc,preview=None,layers=True):
             meta=(('semantic','derived-room'),('signature',face.signature),('wall_ids',face.wall_ids),('area',m['area']),('net_area',net),('perimeter',m['perimeter']),('name',name),('use',use))
             f.primitives.append(Primitive2D('polygon',tuple(face.polygon),role='derived-room',meta=meta))
             cx,cy=m['centroid'];f.primitives.append(Primitive2D('label',((cx,cy),),role='derived-room-label',meta=(('signature',face.signature),('text',label))))
-    except (ValueError,KeyError):
-        pass
+    except (ValueError,KeyError) as exc:
+        from archforge.core.notices import not_computed
+        not_computed('plan.rooms','Κάτοψη: οι χώροι και τα εμβαδά δεν σχεδιάστηκαν όλοι',exc=exc)
     for eid,e in doc.entities.items():
         if e.kind!='terrain' or not e.visible or not _entity_on_active_level(doc,e):continue
         # The plot: its boundary with the area, and the ground's contour lines.

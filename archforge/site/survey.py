@@ -39,8 +39,8 @@ def _number(token):
 
 def parse_points(text):
     """[(x, y, z)] from a points file (X Y Z or label X Y Z per line)."""
-    out = []
-    for line in str(text).splitlines():
+    out, skipped = [], []
+    for number, line in enumerate(str(text).splitlines(), 1):
         line = line.strip()
         if not line or line.startswith(("#", "//")):
             continue
@@ -61,15 +61,21 @@ def parse_points(text):
             nums = nums[-3:] if abs(nums[0]) < 1e5 and float(nums[0]).is_integer() else nums[:3]
         if len(nums) == 3:
             out.append(tuple(nums))
+        elif nums:                                     # some numbers but not a point: a damaged line (a header has none)
+            skipped.append((number, line))
+    from archforge.core.notices import skipped_lines
+    skipped_lines("survey.points", "Αρχείο σημείων τοπογραφικού", skipped)
     return out
 
 
-def _dxf_pairs(text):
+def _dxf_pairs(text, skipped=None):
     lines = str(text).splitlines()
     for i in range(0, len(lines) - 1, 2):
         try:
             yield int(lines[i].strip()), lines[i + 1].strip()
         except ValueError:
+            if skipped is not None:                  # Α3: counted and said once per file, never silent
+                skipped.append((i + 1, lines[i]))
             continue
 
 
@@ -98,7 +104,8 @@ def parse_dxf(text):
         elif kind == "VERTEX" and in_polyline and 10 in data:
             verts.append((data[10], data.get(20, 0.0), data.get(30, poly_elev)))
 
-    for code, value in _dxf_pairs(text):
+    skipped = []
+    for code, value in _dxf_pairs(text, skipped):
         if code == 0:
             if entity is not None:
                 flush()
@@ -128,6 +135,7 @@ def parse_dxf(text):
             try:
                 v = float(value)
             except ValueError:
+                skipped.append((None, f"κωδικός {code} = {value}"))
                 continue
             if entity == "LWPOLYLINE" and code in (10, 20):
                 xy = data.setdefault("_xy", [])
@@ -147,6 +155,8 @@ def parse_dxf(text):
     for _layer, _closed, pts in polylines:
         if any(abs(p[2]) > 1e-9 for p in pts):
             points.extend(pts)
+    from archforge.core.notices import skipped_lines
+    skipped_lines("dxf.survey", "Τοπογραφικό DXF", skipped)
     return {"points": points, "polylines": polylines}
 
 

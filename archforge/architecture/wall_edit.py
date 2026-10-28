@@ -157,7 +157,10 @@ def _touches(e, a, b, half):
     """True when the object stands against a face of the wall a→b (thickness 2·half)."""
     try:
         pts = _footprint(e)
-    except (KeyError, TypeError, ValueError):
+    except (KeyError, TypeError, ValueError) as exc:
+        from archforge.core.notices import not_computed
+        not_computed("walls.attached", f"Μετακίνηση τοίχου: το «{e.name or e.id}» δεν ελέγχθηκε αν ακουμπά στον τοίχο — "
+                     "ίσως μείνει πίσω", e.id, exc)
         return False
     L = math.dist(a, b)
     if L <= 1e-9:

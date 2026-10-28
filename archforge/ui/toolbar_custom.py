@@ -55,8 +55,11 @@ def load(window, settings=None):
         try:
             got = json.loads(raw)
             data.update({k: got[k] for k in list(DEFAULTS) + ["mouse"] if k in got})
-        except (TypeError, ValueError):
-            pass
+        except (TypeError, ValueError, AttributeError):
+            # Α3: the defaults are used, but the damaged arrangement is kept (the next save overwrites custom/prefs).
+            s.setValue("custom/prefs_broken", raw)
+            from archforge.project import persistence
+            persistence._damaged.append(("ribbon / μενού ποντικιού (custom/prefs)", "custom/prefs_broken"))
     window._ui_prefs = data
     apply(window)
     return data

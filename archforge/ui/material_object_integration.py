@@ -16,11 +16,23 @@ def _selected_role(dialog):
         if callable(fn):
             try:
                 role = fn()
-            except Exception:
-                role = None
+            except Exception as exc:
+                # Α3: unknown is not «the whole object» — the material is not applied (``_choose_selected``).
+                from archforge.core.notices import not_computed
+                not_computed("materials.part", "Υλικό: δεν αναγνωρίστηκε το επιλεγμένο τμήμα", exc=exc)
+                raise LookupError("δεν αναγνωρίστηκε το επιλεγμένο τμήμα") from exc
             if role:
                 return role
     return None
+
+
+def _choose_selected(dialog):
+    try:
+        role = _selected_role(dialog)
+    except LookupError as exc:
+        dialog.window.statusBar().showMessage(f"Υλικό: {exc} — δεν εφαρμόστηκε, επιλέξτε ξανά το τμήμα", 8000)
+        return None
+    return dialog.choose_material(role)
 
 
 def _refresh_material_card(dialog):
@@ -46,8 +58,8 @@ def _refresh_material_card(dialog):
             label.setText(f"{part_name}:  {material_name}")
         else:
             label.setText(f"Όλο το αντικείμενο:  {material_name}")
-    except Exception:
-        label.setText("Υλικό: προεπιλογή αντικειμένου")
+    except Exception as exc:
+        label.setText(f"Υλικό: δεν διαβάστηκε ({exc})")     # never a plausible «default» that is not the case
 
 
 def _sync_preview_from_part_list(dialog):
@@ -101,7 +113,7 @@ def _compact_visual_column(dialog):
     row = QHBoxLayout()
     selected = QPushButton("Βιβλιοθήκη Υλικών…")
     selected.setToolTip("Άνοιγμα της οπτικής βιβλιοθήκης για το επιλεγμένο τμήμα")
-    selected.clicked.connect(lambda: dialog.choose_material(_selected_role(dialog)))
+    selected.clicked.connect(lambda: _choose_selected(dialog))
     row.addWidget(selected, 2)
 
     whole = QPushButton("Όλο το αντικείμενο…")
@@ -288,8 +300,8 @@ def install_material_object_integration():
 
     old_targets = ml._targets
 
-    def targets(entity):
-        out = list(old_targets(entity))
+    def targets(entity, doc=None):                      # the browser passes the document too (owner's fix 28/10)
+        out = list(old_targets(entity, doc))
         seen = {target.key for target in out}
 
         # Library assets know their material parts even before the user has
@@ -304,8 +316,10 @@ def install_material_object_integration():
                         label = str(name).strip() if name else f"Τμήμα {index}"
                         out.append(ml.SurfaceTarget(role, label))
                         seen.add(role)
-            except Exception:
-                pass
+            except Exception as exc:
+                from archforge.core.notices import not_computed
+                not_computed("materials.parts", f"«{entity.name or entity.id}»: τα τμήματα δεν φορτώθηκαν, μόνο «Όλο το "
+                             "αντικείμενο» διαθέσιμο", entity.id, exc)
         return tuple(out)
 
     ml._targets = targets

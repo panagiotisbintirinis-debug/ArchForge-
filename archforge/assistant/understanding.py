@@ -104,7 +104,10 @@ def read_drawing(doc):
         walls = [e for e in entities if e.kind == "wall" and abs(float(e.params.get("z", 0.0)) - z) < 0.05]
         try:
             faces = doc.active_room_faces(z=z)
-        except Exception:
+        except Exception as exc:
+            from archforge.core.notices import not_computed
+            not_computed("assistant.rooms", f"Βοηθός: οι χώροι του ορόφου «{name}» δεν αναγνωρίστηκαν — η περιγραφή "
+                         "του κτιρίου είναι ελλιπής", exc=exc)
             faces = []
         ext = {w.id for w, _n in exterior_walls(doc, z)} if walls else set()
         storey = {"name": name, "z": z, "top": top, "walls": len(walls),

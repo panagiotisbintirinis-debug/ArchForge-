@@ -399,7 +399,9 @@ def stair_obstacles(doc, lower_z: float, upper_floor_z: float):
         if e.kind == 'stair':
             try:
                 fp = [tuple(q) for q in stair_footprint(candidate_from_params(e.params))]
-            except (KeyError, TypeError, ValueError):
+            except (KeyError, TypeError, ValueError) as exc:
+                from archforge.core.notices import not_computed
+                not_computed('stair.obstacle', f'Σκάλα: η σκάλα «{e.name or e.id}» δεν ελέγχθηκε για σύγκρουση', e.id, exc)
                 continue
             sl, su = float(e.params.get('lower_z', 0.0)), float(e.params.get('upper_floor_z', e.params.get('upper_z', 0.0)))
             if su < float(lower_z) - 0.2 or sl > float(upper_floor_z) + 0.2:
@@ -419,7 +421,9 @@ def stair_obstacles(doc, lower_z: float, upper_floor_z: float):
                 continue
             try:
                 (ax, ay), (bx, by) = plan_segment(w.params, e.params)
-            except (KeyError, TypeError, ValueError):
+            except (KeyError, TypeError, ValueError) as exc:
+                from archforge.core.notices import not_computed
+                not_computed('stair.door', f'Σκάλα: η πόρτα «{e.name or e.id}» δεν ελέγχθηκε για σύγκρουση', e.id, exc)
                 continue
             L = hypot(bx - ax, by - ay)
             if L < 1e-6:

@@ -46,7 +46,10 @@ def plan(doc, z):
     # Only walls of a CLOSED space move (all of its walls together), never a half-drawn outline.
     try:
         enclosed = {wid for face in doc.active_room_faces(z=z) for wid in face.wall_ids}
-    except Exception:
+    except Exception as exc:
+        from archforge.core.notices import not_computed
+        not_computed("walls.reference", "Τοίχοι από την όψη τους: δεν αναγνωρίστηκαν οι κλειστοί χώροι, οι τοίχοι "
+                     "δεν μεταφέρθηκαν στον άξονά τους", exc=exc)
         enclosed = set()
     shift = {}
     for w in walls:

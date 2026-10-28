@@ -36,6 +36,8 @@ class MainWindow(QMainWindow):
         self.doc = Document()
         self.stack = CommandStack(self.doc)
         self.stack.listeners.append(self._on_document_changed)
+        from archforge.core import notices as _notices
+        self._notices_seen = _notices.serial()   # this window says only what its own edits could not compute
         from archforge.ui.dome_tool import install as _follow_domes
         _follow_domes(self)                  # flat shared partitions follow the Bio-Spectre domes
         self.current_path = None
@@ -1802,11 +1804,20 @@ class MainWindow(QMainWindow):
                        lambda: self._library_tree_action(item))
         if action[0] == 'material':
             menu.addAction('Ιδιότητες υλικού… (εικόνα, μέγεθος, αρμός, χρώμα)',
-                           lambda: self._edit_material_properties(action[1]))
+                           lambda: self._browse_material_properties(action[1]))
         self._library_menu = menu        # reachable from tests
         if global_pos is not None:
             menu.popup(global_pos)
         return menu
+
+    def _browse_material_properties(self, material_id):
+        """Library material editing uses the same dark browser as application."""
+        from archforge.ui.material_library import MaterialLibraryDialog
+        selected_id = self.doc.selection[0] if len(self.doc.selection) == 1 else None
+        dialog = MaterialLibraryDialog(self, selected_id, initial_material_id=str(material_id))
+        self._material_library_dialog = dialog
+        dialog.exec()
+        return dialog.selected_material_id
 
     def _edit_material_properties(self, material_id, dialog=None):
         """Open «Ιδιότητες υλικού»; a material the project carries is updated with one undo step."""
@@ -1863,18 +1874,10 @@ class MainWindow(QMainWindow):
             return False
         entity_id = self.doc.selection[0]
         entity = self.doc.get(entity_id)
-        changes = {'material_id': str(material_id)}
-        if entity.kind in ('library_object', 'cabinet'):
-            changes['surface_materials'] = {}
-        # A user material travels with the project, in the same undo step.
-        from archforge.core.commands import CompositeCommand
-        from archforge.rendering import user_materials as um
+        # Same authoritative command path as the dark material browser.
+        from archforge.ui.material_library import _apply_material
         from archforge.rendering.materials import material_name
-        carry = um.carry_command(self.doc, str(material_id))
-        update = UpdateEntity(entity_id, changes)
-        self.stack.execute(CompositeCommand([carry, update], label='Υλικό') if carry else update)
-        self._redraw_views(all_views=True)
-        self.refresh_inspector()
+        _apply_material(self, entity_id, '', str(material_id))
         self.statusBar().showMessage(f"{material_name(material_id, self.doc, material_id)} → {entity.name or entity.kind}", 3000)
         return True
 
@@ -4118,7 +4121,19 @@ class MainWindow(QMainWindow):
             + ' — προδιάσταση, προς έλεγχο στατικού', 9000)
         return entity
 
+    def _show_not_computed(self):
+        """Α3: what a calculation behind the last edit could not compute is said in the status bar, once."""
+        from archforge.core import notices
+        found = notices.since(getattr(self, '_notices_seen', 0))
+        self._notices_seen = notices.serial()
+        if found:
+            text = '; '.join(i.message for i in found[:3]) + (f' (+{len(found) - 3})' if len(found) > 3 else '')
+            self.statusBar().showMessage('Δεν υπολογίστηκε: ' + text, 12000)
+        return found
+
     def _on_document_changed(self):
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self._show_not_computed)   # after the redraw, which may raise notices too
         if getattr(self, 'autosave', None) is not None:
             self.autosave.note_change()
             self.setWindowModified(True)
@@ -4703,6 +4718,23 @@ class MainWindow(QMainWindow):
         if self.autosave.enabled:
             from PySide6.QtCore import QTimer
             QTimer.singleShot(800, self._offer_recovery)
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(900, self._warn_damaged_user_files)
+
+    def _warn_damaged_user_files(self):
+        """Α3: a settings / price file that could not be read is said, with where its copy was kept."""
+        from archforge.project.persistence import damaged_user_files
+        found = damaged_user_files()
+        if found:
+            lines = '\n'.join(f'• {path}\n   αντίγραφο: {keep}' for path, keep in found)
+            # Not modal: it informs, nothing waits on an answer.
+            box = QMessageBox(QMessageBox.Icon.Warning, 'Αρχείο ρυθμίσεων κατεστραμμένο',
+                              'Δεν διαβάστηκε και χρησιμοποιούνται οι προεπιλογές. Το παλιό περιεχόμενο '
+                              'κρατήθηκε, δεν χάθηκε τίποτα:\n\n' + lines, parent=self)
+            box.setModal(False)
+            self._damaged_files_box = box
+            box.show()
+        return found
 
     def _update_window_title(self):
         """«ArchForge — έργο.archforge*»: which file, and whether it has unsaved work."""

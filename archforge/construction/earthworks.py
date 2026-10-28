@@ -74,8 +74,10 @@ def earthworks(doc):
                                       for i in range(len(poly))) > 0 else poly[::-1]
                     outer = [tuple(q) for q in offset_loop(ccw, [half] * len(ccw))]
                     poly = outer if _area(outer) >= _area(poly) else poly
-                except Exception:
-                    pass
+                except Exception as exc:
+                    from archforge.core.notices import not_computed
+                    not_computed("earthworks.basement_outline", "Εκσκαφή υπογείου: μετρήθηκε στους άξονες των τοίχων, "
+                                 "όχι στην εξωτερική τους παρειά (μικρότερη από την πραγματική)", exc=exc)
                 total_basement += _area(poly) * depth
                 basement_polys.append((poly, z))
     if total_basement:
@@ -86,7 +88,9 @@ def earthworks(doc):
         from archforge.structure.analysis import fresh_result
         from archforge.structure.foundation import TIE_B, TIE_H, levels
         r = fresh_result(doc)
-    except Exception:
+    except Exception as exc:
+        from archforge.core.notices import not_computed
+        not_computed("earthworks.foundation", "Εκσκαφή θεμελίωσης: δεν υπολογίστηκε (στατική επίλυση)", exc=exc)
         r = None
     fd = (r or {}).get("foundation") if r and not r.get("error") else None
     if fd:

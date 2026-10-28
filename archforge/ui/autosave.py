@@ -36,16 +36,15 @@ def _settings_path():
 
 
 def load_settings():
+    """The saved settings, ``{}`` if none.  A damaged file is kept aside first (``persistence.read_user_json``)."""
     try:
-        with open(_settings_path(), encoding='utf8') as handle:
-            data = json.load(handle)
-        return data if isinstance(data, dict) else {}
-    except Exception:
-        return {}
+        return persistence.read_user_json(_settings_path())
+    except persistence.UserDataError:
+        return {}                        # read-only use; save_settings refuses to write over it
 
 
 def save_settings(changes):
-    data = load_settings()
+    data = persistence.read_user_json(_settings_path())     # UserDataError: nothing is written over the file
     data.update(changes)
     persistence.atomic_write_json(_settings_path(), data)
 
@@ -64,6 +63,7 @@ class Autosave(QObject):
         self._thread = None
         self._changes = 0                # committed commands since the last snapshot
         self._last_written = None        # the snapshot on disk (skip identical rewrites)
+        self.write_error = None          # the last failed background write, not yet shown
         self.last_saved_at = None
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.save_now)
@@ -110,6 +110,10 @@ class Autosave(QObject):
             if not wait:
                 return False             # the next tick or command catches up
             self._thread.join()
+        error, self.write_error = self.write_error, None
+        failed = f'Η προηγούμενη αυτόματη αποθήκευση ανάκτησης απέτυχε ({error})' if error else ''
+        if failed:
+            self.window.statusBar().showMessage(failed, 10000)
         data = self._snapshot()
         self._changes = 0
         if data == self.window._clean_state:
@@ -131,8 +135,9 @@ class Autosave(QObject):
             name='archforge-autosave', daemon=True)
         self._thread.start()
         self.last_saved_at = saved_at
-        self.window.statusBar().showMessage(
-            'Αυτόματη αποθήκευση ανάκτησης ' + time.strftime('%H:%M', time.localtime(saved_at)), 2500)
+        message = 'Αυτόματη αποθήκευση ανάκτησης ' + time.strftime('%H:%M', time.localtime(saved_at))
+        self.window.statusBar().showMessage(f'{failed} — νέα προσπάθεια: {message}' if failed else message,
+                                            10000 if failed else 2500)
         if wait:
             self._thread.join()
         return True
@@ -140,8 +145,9 @@ class Autosave(QObject):
     def _write(self, path, data, project_path, saved_at):
         try:
             persistence.write_recovery(path, data, project_path, saved_at)
-        except Exception:
+        except Exception as exc:
             self._last_written = None    # retry on the next tick; the user's file is not involved
+            self.write_error = str(exc)  # shown on the UI thread by the next save_now (Α3: never silent)
 
     def wait(self):
         if self._thread is not None:

@@ -107,7 +107,10 @@ def capabilities(entity):
     try:
         from archforge.library.assets import load_asset
         caps = dict((load_asset(str(p.get("asset", ""))) or {}).get("light_capabilities") or {})
-    except Exception:
+    except Exception as exc:
+        from archforge.core.notices import not_computed
+        not_computed("lighting.capabilities", f"Φωτιστικό «{entity.name or entity.id}»: δεν διαβάστηκε ο κατάλογος, "
+                     "κατεύθυνση/dimming από τις πηγές του μόνο", entity.id, exc)
         caps = {}
     marks = [dict(s.get("provenance") or {}) for s in p.get("light_sources") or []]
     aimable = bool(caps.get("aimable")) or any(m.get("aimable") for m in marks)

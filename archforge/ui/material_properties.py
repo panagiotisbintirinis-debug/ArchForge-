@@ -42,7 +42,10 @@ def _image_aspect(data: str) -> float | None:
         return None
     try:
         image = QImage.fromData(base64.b64decode(data.partition(",")[2]), "JPEG")
-    except (ValueError, OSError):
+    except (ValueError, OSError) as exc:
+        from archforge.core.notices import not_computed
+        not_computed("materials.photo", "Υλικό από φωτογραφία: η εικόνα δεν διαβάστηκε, το κλείδωμα αναλογιών δεν "
+                     "ισχύει", exc=exc)
         return None
     if image.isNull() or image.height() <= 0:
         return None
@@ -50,8 +53,13 @@ def _image_aspect(data: str) -> float | None:
 
 
 class MaterialPropertiesDialog(QDialog):
-    def __init__(self, parent, material_id, doc=None):
+    def __init__(self, parent, material_id, doc=None, *, embedded=False):
         super().__init__(parent)
+        self.embedded = bool(embedded)
+        if self.embedded:
+            # Reuse the exact same editor as a panel in the main dark browser.
+            # It is no longer a second top-level window when embedded.
+            self.setWindowFlags(Qt.WindowType.Widget)
         self.material_id = str(material_id)
         self.saved_id = None
         self.doc = doc
@@ -68,14 +76,24 @@ class MaterialPropertiesDialog(QDialog):
                       "Δικό σου υλικό: η αλλαγή ισχύει σε όλα τα έργα που το χρησιμοποιούν.")
         note.setWordWrap(True)
         note.setStyleSheet("color:#5B6778;")
-        layout.addWidget(note)
+        if not self.embedded:
+            layout.addWidget(note)
         form = QFormLayout()
+        if self.embedded:
+            form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapAllRows)
+            form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         layout.addLayout(form)
 
         self._color = str(self._spec.get("color", "#9a9a9a"))
         self.color_button = QPushButton(self)
         self.color_button.clicked.connect(lambda: self._pick("_color", "Χρώμα υλικού"))
         form.addRow("Χρώμα", self.color_button)
+
+        # The dark library exposes the same value above its preview; this
+        # field is kept in the editor model so Save persists it atomically.
+        self.roughness = _spin(self, 0.0, 1.0, float(self._spec.get("roughness", 0.6)), 0.05, "", 2)
+        if not self.embedded:
+            form.addRow("Τραχύτητα", self.roughness)
 
         self.has_pattern = QCheckBox("Με μοτίβο (πλακάκια, πέτρα, σανίδες με αρμό)", self)
         self.has_pattern.setChecked(bool(pattern))
@@ -134,7 +152,10 @@ class MaterialPropertiesDialog(QDialog):
             self.has_pattern.setChecked(False)
 
         self.preview = QLabel(self)
-        self.preview.setFixedSize(360, 140)
+        if self.embedded:
+            self.preview.setFixedSize(285, 110)
+        else:
+            self.preview.setFixedSize(360, 140)
         self.preview.setStyleSheet("border: 1px solid #747b82;")
         layout.addWidget(self.preview, 0, Qt.AlignmentFlag.AlignHCenter)
         self.problem = QLabel(self)
@@ -151,7 +172,12 @@ class MaterialPropertiesDialog(QDialog):
         buttons.accepted.connect(self._accept)
         buttons.rejected.connect(self.reject)
         self.ok_button = buttons.button(QDialogButtonBox.StandardButton.Ok)
-        layout.addWidget(buttons)
+        if not self.embedded:
+            layout.addWidget(buttons)
+        else:
+            # Parent-owned widgets not in a layout otherwise float at (0,0)
+            # above the first editing row in Qt, even though unused here.
+            buttons.hide()
 
         for box in (self.unit_w, self.unit_h, self.joint):
             box.valueChanged.connect(lambda *_: self._refresh())
@@ -161,6 +187,7 @@ class MaterialPropertiesDialog(QDialog):
         for combo in (self.kind, self.direction, self.offset):
             combo.currentIndexChanged.connect(lambda *_: self._refresh())
         self.has_pattern.toggled.connect(lambda *_: self._refresh())
+        self.roughness.valueChanged.connect(lambda *_: self._refresh())
         self._refresh()
 
     def _photo_dimension_changed(self, changed: str):
@@ -249,6 +276,7 @@ class MaterialPropertiesDialog(QDialog):
         """The edited spec; raises ValueError when the pattern is not valid."""
         if not self.has_pattern.isChecked():
             result = um.with_properties(self._spec, color=self._color, pattern_type="")
+            result["roughness"] = self.roughness.value()
             if self._photo_data:
                 return um.with_image_texture(result, self._photo_data,
                                              self.image_width.value(), self.image_height.value())
@@ -259,6 +287,7 @@ class MaterialPropertiesDialog(QDialog):
             unit_w=self.unit_w.value() / 100, unit_h=self.unit_h.value() / 100,
             joint=self.joint.value() / 1000, joint_color=self._joint_color,
             rotated=self.direction.currentIndex() == 1, offset=self.offset.currentData())
+        result["roughness"] = self.roughness.value()
         result.pop("image_texture", None)
         return result
 

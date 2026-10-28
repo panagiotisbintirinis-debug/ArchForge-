@@ -109,7 +109,10 @@ def slab_quantities(doc):
             continue
         try:
             g = room_slab_geometry(doc, e)
-        except (ValueError, KeyError):
+        except (ValueError, KeyError) as exc:
+            from archforge.core.notices import not_computed
+            not_computed("takeoff.slab", f"Πλάκα «{e.name or e.kind}»: δεν υπολογίστηκε, λείπει από τις ποσότητες",
+                         e.id, exc)
             g = None
         if g is None:
             continue

@@ -48,7 +48,10 @@ def _levels(doc):
     try:
         from archforge.architecture.stairs import discover_building_levels
         found = [(str(i["name"]), float(i["elevation"])) for i in discover_building_levels(doc)]
-    except Exception:
+    except Exception as exc:
+        from archforge.core.notices import not_computed
+        not_computed("outline.levels", "Δέντρο έργου: δεν αναγνωρίστηκαν οι όροφοι από το κτίριο, φαίνονται οι "
+                     "αποθηκευμένες στάθμες", exc=exc)
         found = []
     if not found:
         found = [(str(n), float(z)) for n, z in doc.levels.items()]
@@ -90,7 +93,10 @@ def entity_level(doc, entity, levels=None):
         if key in p:
             try:
                 return _owner(levels, float(p[key]))
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as exc:
+                from archforge.core.notices import not_computed
+                not_computed("outline.elevation", f"Δέντρο έργου: «{entity.name or entity.id}» με άκυρο υψόμετρο "
+                             f"({key}={p[key]!r}) — φαίνεται στον πρώτο όροφο", entity.id, exc)
                 break
     return levels[0][0]
 
@@ -115,7 +121,10 @@ def _slab_face(doc, entity):
     from archforge.architecture.roof_need import room_face_of
     try:
         return room_face_of(doc, entity)
-    except Exception:
+    except Exception as exc:
+        from archforge.core.notices import not_computed
+        not_computed("outline.slab_room", f"Δέντρο έργου: η πλάκα «{entity.name or entity.id}» δεν συνδέθηκε με χώρο",
+                     entity.id, exc)
         return None
 
 
@@ -158,7 +167,10 @@ def slab_info(doc, entity):
         try:
             from archforge.architecture.rooms import room_slab_geometry
             g = room_slab_geometry(doc, entity)
-        except Exception:
+        except Exception as exc:
+            from archforge.core.notices import not_computed
+            not_computed("outline.slab_area", f"Δέντρο έργου: εμβαδόν πλάκας «{entity.name or entity.id}» μη "
+                         "υπολογίσιμο", entity.id, exc)
             g = None
         if g:
             outline = [q for island, _holes in g.get("islands") or [(g["points"], [])] for q in island]
@@ -375,7 +387,9 @@ def project_outline(doc, title="Έργο"):
         try:
             from archforge.structure.slabs import design_slabs
             slab_panels = design_slabs(doc)["panels"]
-        except Exception:
+        except Exception as exc:
+            from archforge.core.notices import not_computed
+            not_computed("outline.slabs", "Δέντρο έργου: τα φατνώματα πλακών δεν υπολογίστηκαν", exc=exc)
             slab_panels = []
     for k, storey in enumerate(reading["storeys"]):
         name, z = storey["name"], storey["z"]
