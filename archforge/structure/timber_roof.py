@@ -202,6 +202,11 @@ def height_at(p, plane, x, y):
     return float(p["eave_z"]) + d * math.tan(math.radians(float(p["pitch"])))
 
 
+def roof_z_at(p, x, y):
+    """Height of the roof surface over plan point (x, y) inside the frame (the lowest of its planes)."""
+    return min(height_at(p, plane, x, y) for plane in planes(p))
+
+
 def ridge_z(p):
     return float(p["eave_z"]) + rafter_span(p) * math.tan(math.radians(float(p["pitch"])))
 
@@ -548,14 +553,24 @@ def auto_roofs(doc, lower_storeys=False):
             out.append((dict(params, gables=wall_sides(doc, params, z=top)), reason + " · ανά χώρο (όροφος σε σχήμα Γ/Τ)"))
     for z in (storeys[:-1] if lower_storeys else []):
         faces = [f for f in doc.active_room_faces(z=z) if coverage(doc, f.polygon, z) < 0.5]
-        groups = []
-        for f in faces:
+        # The open rooms' plan cut into rectangles (an L → body + wing): the box of an L-shaped room would also
+        # cover its neighbour, and two roofs overlapped there (U01, owner's file «…111»).
+        from archforge.architecture.roof_choice import _rectangles
+        square = [f for f in faces if _rectangles([{"polygon": [(float(q[0]), float(q[1])) for q in f.polygon]}])]
+        rects = _rectangles([{"polygon": [(float(q[0]), float(q[1])) for q in f.polygon]} for f in square])
+        groups = [[min(q[0] for q in r), min(q[1] for q in r), max(q[0] for q in r), max(q[1] for q in r)]
+                  for r in rects]
+        for f in (faces if not rects else [f for f in faces if f not in square]):   # a slanted room: its own box
             xs = [float(q[0]) for q in f.polygon]
             ys = [float(q[1]) for q in f.polygon]
             box = [min(xs), min(ys), max(xs), max(ys)]
             for g in groups:
                 if box[0] <= g[2] + 0.3 and g[0] <= box[2] + 0.3 and box[1] <= g[3] + 0.3 and g[1] <= box[3] + 0.3:
-                    g[:] = [min(g[0], box[0]), min(g[1], box[1]), max(g[2], box[2]), max(g[3], box[3])]
+                    merged = [min(g[0], box[0]), min(g[1], box[1]), max(g[2], box[2]), max(g[3], box[3])]
+                    rect = [(merged[0], merged[1]), (merged[2], merged[1]), (merged[2], merged[3]), (merged[0], merged[3])]
+                    if coverage(doc, rect, z) >= 0.02:
+                        continue          # one roof over both would run under the storey above (U01): keep apart
+                    g[:] = merged
                     break
             else:
                 groups.append(box)
@@ -569,7 +584,60 @@ def auto_roofs(doc, lower_storeys=False):
     return out
 
 
+def _taller(p, ez):
+    """A wall of the storey above (standing at about the eaves) or one rising well past them."""
+    base, top = float(p.get("z", 0.0)), float(p.get("z", 0.0)) + float(p.get("height", 0.0))
+    return abs(base - ez) < 0.35 or (base < ez - 0.1 and top > ez + 1.0)
+
+
+def stop_at_taller_walls(doc, params, min_overlap=0.3):
+    """The frame side that a taller wall stands on is pulled back to that wall's NEAR face (owner 28/10, U01).
+
+    A lower storey's roof was framed to the outer faces of its own walls; where the storey above stands on one of
+    them, that side ran through the upper wall to its far face, and the gable rose inside it.  Only axis-parallel
+    walls along a side (within the wall's thickness + 20 cm) and overlapping it by ``min_overlap`` count.
+    """
+    x0, y0, x1, y1 = (float(params[k]) for k in ("x0", "y0", "x1", "y1"))
+    ez = float(params["eave_z"])
+    new = {"x0": x0, "y0": y0, "x1": x1, "y1": y1}
+    for w in doc.entities.values():
+        if w.kind != "wall" or not _taller(w.params, ez):
+            continue
+        p = w.params
+        half = float(p.get("thickness", 0.2)) / 2
+        ax, ay, bx, by = (float(p[k]) for k in ("x1", "y1", "x2", "y2"))
+        if abs(ax - bx) < 1e-6 and min(max(ay, by), y1) - max(min(ay, by), y0) >= min_overlap:
+            if abs(x1 - ax) <= half + 0.2 and x0 < ax - half:
+                new["x1"] = min(new["x1"], ax - half)
+            if abs(x0 - ax) <= half + 0.2 and x1 > ax + half:
+                new["x0"] = max(new["x0"], ax + half)
+        elif abs(ay - by) < 1e-6 and min(max(ax, bx), x1) - max(min(ax, bx), x0) >= min_overlap:
+            if abs(y1 - ay) <= half + 0.2 and y0 < ay - half:
+                new["y1"] = min(new["y1"], ay - half)
+            if abs(y0 - ay) <= half + 0.2 and y1 > ay + half:
+                new["y0"] = max(new["y0"], ay + half)
+    return dict(params, **new)
+
+
+def seat_on_beams(doc, params, reach=0.8):
+    """Eaves on the top of the concrete beams the roof stands on, when they rise past the walls' top (owner 28/10:
+    «στη στέγη φαίνονται τα δοκάρια του μπετού από πάνω» — ground beams to 3,00 under a roof framed at 2,70)."""
+    x0, y0, x1, y1 = (float(params[k]) for k in ("x0", "y0", "x1", "y1"))
+    ez = float(params["eave_z"])
+    tops = []
+    for e in doc.entities.values():
+        if e.kind != "structural_beam":
+            continue
+        p = e.params
+        top = float(p.get("z", 0.0)) + float(p.get("height", 0.0))
+        ends = ((float(p["x1"]), float(p["y1"])), (float(p["x2"]), float(p["y2"])))
+        if ez < top <= ez + reach and all(x0 - 0.2 <= x <= x1 + 0.2 and y0 - 0.2 <= y <= y1 + 0.2 for x, y in ends):
+            tops.append(top)
+    return dict(params, eave_z=max(tops)) if tops else params
+
+
 def _auto_form(doc, params):
+    params = stop_at_taller_walls(doc, seat_on_beams(doc, params))
     x0, y0, x1, y1 = _frame(params)
     ez = float(params["eave_z"])
     # A taller wall along one edge (one that rises past the eaves, or a wall of the storey
