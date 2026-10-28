@@ -8,6 +8,8 @@ get a plain colour swatch.
 """
 from __future__ import annotations
 
+import base64
+
 from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QBrush, QColor, QIcon, QImage, QLinearGradient, QPainter, QPen, QPixmap, QPolygonF
 
@@ -71,6 +73,23 @@ def material_swatch(material_id: str, width: int, height: int, doc=None, spec=No
     spec = spec or material_spec(str(material_id), doc) or {}
     image = QImage(max(1, width), max(1, height), QImage.Format.Format_RGB32)
     image.fill(QColor(spec.get("color", "#9a9a9a")))
+    photo = spec.get("image_texture")
+    if photo:
+        try:
+            data = base64.b64decode(str(photo["data"]).partition(",")[2])
+            source = QImage.fromData(data, "JPEG")
+            if not source.isNull():
+                # Properties preview shows ONE whole photograph at its native
+                # aspect; physical dimensions belong to 3D metric UV scaling.
+                fitted = source.scaled(width, height, Qt.AspectRatioMode.KeepAspectRatio,
+                                       Qt.TransformationMode.SmoothTransformation)
+                painter = QPainter(image)
+                painter.drawImage((width - fitted.width()) // 2,
+                                  (height - fitted.height()) // 2, fitted)
+                painter.end()
+        except (ValueError, KeyError):
+            pass
+        return image
     pattern = spec.get("pattern")
     if not pattern:
         return image

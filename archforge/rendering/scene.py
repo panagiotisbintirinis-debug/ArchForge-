@@ -148,6 +148,14 @@ def _material(kind: str, selected: bool, entity=None, doc=None, surface_role: st
             from archforge.rendering.patterns import pattern_key
             spec["pattern"] = dict(custom["pattern"])
             spec["pattern_key"] = pattern_key(str(material_id), custom["pattern"], str(spec["color"]))
+        if custom.get("image_texture"):
+            from archforge.rendering.user_materials import image_texture_key
+            photo = dict(custom["image_texture"])
+            spec["image_texture_key"] = image_texture_key(photo)
+            # Deduplicate below: never copy a large base64 image into every mesh.
+            spec["image_texture"] = photo
+            spec.pop("pattern_key", None)
+            spec.pop("pattern", None)
     if selected:
         # Keep the real surface visible while selected; use a subtle emissive
         # accent instead of replacing the material with selection blue.
@@ -587,7 +595,22 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
     patterns = _scene_patterns(objects)
     if patterns:
         payload["patterns"] = patterns
+    image_textures = _scene_image_textures(objects)
+    if image_textures:
+        payload["image_textures"] = image_textures
     return payload
+
+
+def _scene_image_textures(objects) -> dict:
+    """Store each embedded image once per scene; meshes reference only its key."""
+    out = {}
+    for obj in objects:
+        material = obj.get("material") or {}
+        photo = material.pop("image_texture", None)
+        key = material.get("image_texture_key")
+        if key and photo is not None:
+            out.setdefault(key, photo)
+    return out
 
 
 def _scene_patterns(objects) -> dict:
