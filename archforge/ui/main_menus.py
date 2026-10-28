@@ -186,10 +186,9 @@ def organize_main_menus(window):
         snap.setText("Έλξη (γωνίες, άκρα, κάνναβος)")
         aids.append(snap)
     from archforge.ui.dimension_tool import menu as dimension_menu
-    soon = QAction("Γραμμές, σήμανση — έρχονται", window); soon.setEnabled(False)
-    window._main_actions.append(soon)
+    # Audit F08: no visible «— έρχονται» entry; lines and markup appear here when they work (RELEASE_PLAN rule 2.7).
     dims = dimension_menu(window); window._main_submenus.append(dims)
-    _fill(cad, [_submenu(window, "Βοηθήματα σχεδίασης", aids), None, dims, soon])
+    _fill(cad, [_submenu(window, "Βοηθήματα σχεδίασης", aids), None, dims])
     window._cad_menu = cad
 
     if mep is not None:                                  # mechanisms: parts, hinges, slides (kinematics/)
