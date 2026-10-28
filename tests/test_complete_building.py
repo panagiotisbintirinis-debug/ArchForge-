@@ -117,3 +117,85 @@ def test_change_by_numbers_then_update(house):
     new = {e.id for e in w.doc.entities.values() if e.kind in ('pitched_roof', 'structural_column')}
     assert new and not (new & old)
     assert any(e.kind == 'pitched_roof' for e in w.doc.entities.values())
+
+
+# -- Audit 27/10 + addendum 01: complete what is missing, keep what the human placed, say what really happened ----------
+def _face_at(w, x, y):
+    return next(f for f in w.doc.active_room_faces() if point_in_polygon(x, y, f.polygon))
+
+
+def _points_in(w, face, types):
+    return [e for e in w.doc.entities.values() if e.kind == 'electrical_point'
+            and e.params.get('point_type') in types and point_in_polygon(float(e.params['x']), float(e.params['y']), face.polygon)]
+
+
+def test_f02_one_socket_does_not_stop_the_light_and_switch_of_its_room(house):
+    w = house
+    w._place_site_point('elec_socket', 8.0, 7.6)                           # the human's own socket in the Σαλόνι
+    living = _face_at(w, 7, 6)
+    complete(w, keys=['room_points'])
+    assert _points_in(w, living, ('light',)), 'the room still gets its ceiling light'
+    sockets = _points_in(w, living, ('socket',))
+    assert len(sockets) == 1 and abs(float(sockets[0].params['x']) - 8.0) < 1e-6     # his socket kept, none added
+
+
+def test_f03_one_cabinet_does_not_cancel_the_kitchen(house):
+    w = house
+    from archforge.core.commands import AddEntity
+    from archforge.core.model import Entity
+    from archforge.kitchen.cabinets import default_params
+    p = default_params('base', width=0.6); p.update(x=2.6, y=0.35, z=0.0, rotation=0.0)
+    w.stack.execute(AddEntity(Entity('cabinet', p, name='Ντουλάπι του χρήστη')))
+    kitchen = _face_at(w, 1, 1)
+    complete(w, keys=['kitchen_bath'])
+    inside = [e for e in w.doc.entities.values() if e.kind == 'cabinet'
+              and point_in_polygon(float(e.params['x']), float(e.params['y']), kitchen.polygon)]
+    assert any(e.params.get('layout_role') == 'sink' for e in inside), 'the kitchen is planned around his cabinet'
+    assert any(e.name == 'Ντουλάπι του χρήστη' for e in inside)
+    # A finished kitchen is not planned twice.
+    n = len(inside)
+    complete(w, keys=['kitchen_bath'])
+    assert len([e for e in w.doc.entities.values() if e.kind == 'cabinet'
+                and point_in_polygon(float(e.params['x']), float(e.params['y']), kitchen.polygon)]) == n
+
+
+def test_f09_a_roof_elsewhere_does_not_block_the_top_storey_roof(house):
+    w = house
+    from archforge.ui.complete_building import has_roof
+    from archforge.core.commands import AddEntity
+    from archforge.core.model import Entity
+    # A small canopy at ground level (eave 2.4 m) does not cover a top storey whose walls reach 3 m.
+    from archforge.structure.timber_roof import default_params
+    canopy = default_params(w.doc)
+    canopy.update(x0=10.5, y0=0.0, x1=12.0, y1=2.0, eave_z=2.4, overhang=0.1)
+    w.stack.execute(AddEntity(Entity('pitched_roof', canopy)))
+    top = max(float(e.params.get('z', 0.0)) for e in w.doc.entities.values() if e.kind == 'wall')
+    wall_h = max(float(e.params.get('height', 0.0)) for e in w.doc.entities.values() if e.kind == 'wall')
+    if 2.4 >= top + wall_h - 0.3:
+        pytest.skip('fixture walls lower than the canopy')
+    assert not has_roof(w)
+    complete(w, keys=['roof'])
+    assert has_roof(w)
+
+
+def test_f10_a_part_that_added_nothing_is_not_reported_as_done(house):
+    w = house
+    from archforge.ui.complete_building import SKIPPED
+    complete(w, keys=['room_points'])
+    report = complete(w, keys=['room_points'])                            # everything already there
+    (_label, ok, note), = report
+    assert ok and note.startswith(SKIPPED)
+
+
+def test_f08_no_disabled_coming_soon_entry_in_the_menus(house):
+    """RELEASE_PLAN rule 2.7: an entry works or is hidden — never «— έρχονται» greyed out."""
+    w = house
+
+    def walk(menu):
+        for a in menu.actions():
+            if a.menu() is not None:
+                yield from walk(a.menu())
+            elif not a.isSeparator():
+                yield a
+    entries = [a for top in w.menuBar().actions() if top.menu() is not None for a in walk(top.menu())]
+    assert not [a.text() for a in entries if 'έρχονται' in a.text() or 'έρχεται' in a.text()]
