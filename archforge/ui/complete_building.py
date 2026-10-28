@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from archforge.geometry.regions import point_in_polygon
 
+# F10: a part that added nothing says so — never «✓» for nothing.
+SKIPPED = "παραλείφθηκε"
 KITCHEN_WORDS = ("κουζ", "kitchen")
 BATH_WORDS = ("μπάνιο", "λουτρ", "wc", "bath", "ντους")
 
@@ -72,7 +74,20 @@ def floors(window, options):
 
 
 def has_roof(window):
-    return any(e.kind in ("pitched_roof", "room_roof") for e in window.doc.entities.values())
+    """The TOP storey (highest one with walls) is covered — a canopy or a roof on another storey does not count (F09)."""
+    doc = window.doc
+    walls = [e for e in doc.entities.values() if e.kind == "wall"]
+    if not walls:
+        return False
+    top = max(float(e.params.get("z", 0.0)) for e in walls)
+    wall_top = max(float(e.params.get("z", 0.0)) + float(e.params.get("height", 0.0)) for e in walls
+                   if abs(float(e.params.get("z", 0.0)) - top) < 0.05)
+    for e in doc.entities.values():
+        if e.kind == "room_roof" and abs(float(e.params.get("level_z", -1e9)) - top) < 0.05:
+            return True
+        if e.kind == "pitched_roof" and float(e.params.get("eave_z", -1e9)) >= wall_top - 0.30:
+            return True
+    return False
 
 
 def roof(window, options):
@@ -90,7 +105,9 @@ def kitchens_and_baths(window, options):
         for face in _faces(window):
             use = _use(window, face)
             kind = "kitchen" if any(w in use for w in KITCHEN_WORDS) else "bath" if any(w in use for w in BATH_WORDS) else None
-            if kind is None or _inside(window, face, ("cabinet", "library_object"), z):
+            # F03: what is already in the room stays and the planner works around it (room_layout.obstacles); only a
+            # room that already HAS its kitchen (a sink) / bath (a WC) is left alone.
+            if kind is None or _has_layout(window, face, kind, z):
                 continue
             cx = sum(p[0] for p in face.polygon) / len(face.polygon)
             cy = sum(p[1] for p in face.polygon) / len(face.polygon)
@@ -106,15 +123,33 @@ def kitchens_and_baths(window, options):
     return ", ".join(made) or None
 
 
+def _has_layout(window, face, kind, z):
+    """A kitchen has its sink, a bath its WC (cabinet / fixture role or the plumbing point)."""
+    role, point = ("sink", "kitchen_sink") if kind == "kitchen" else ("wc", "wc")
+    return any(e.params.get("layout_role") == role or (e.kind == "plumbing_point" and e.params.get("point_type") == point)
+               for e in _inside(window, face, ("cabinet", "library_object", "plumbing_point"), z))
+
+
+# F02: per room, each role on its own — the human's socket does not stop the light and the switch.
+POINT_ROLES = {"elec_light": "lighting", "elec_switch": "switch", "elec_socket": "sockets"}
+
+
+def _role_of(point_type):
+    from archforge.mep.electrical import POINT_TYPES
+    group = POINT_TYPES.get(point_type, ("", ""))[1]
+    return {"kitchen_sockets": "sockets"}.get(group, group)
+
+
 def room_points(window, options):
     from archforge.scenarios.builder import _room_points
 
     def run(name, z):
         n = 0
         for face in _faces(window):
-            if _inside(window, face, ("electrical_point",), z):
-                continue                                   # the human placed this room's points already
+            have = {_role_of(e.params.get("point_type")) for e in _inside(window, face, ("electrical_point",), z)}
             for tool, (x, y) in _room_points(window.doc, face, z):
+                if POINT_ROLES.get(tool) in have:
+                    continue                               # the human placed this role in this room already
                 window._place_site_point(tool, float(x), float(y))
                 n += 1
         return n
@@ -240,7 +275,7 @@ def complete(window, keys=None, options=None):
             done.add(key)
             try:
                 note = run(window, options)
-                report.append((label, True, note or "τίποτα να προστεθεί"))
+                report.append((label, True, note or f"{SKIPPED} — δεν έλειπε κάτι"))
             except Exception as exc:                     # noqa: BLE001 — shown to the human, never hidden
                 report.append((label, False, f"{exc}"))
     finally:
@@ -283,7 +318,9 @@ def open_dialog(window):
         return None
     keys = [k for k, c in checks.items() if c.isChecked() and c.isEnabled()]
     report = complete(window, keys, {"roof": roof_form.currentData()})
-    text = "\n".join(f"{'✓' if ok else '✗'} {label}: {note}" for label, ok, note in report) or "Τίποτα να προστεθεί."
+    mark = lambda ok, note: ("–" if str(note).startswith(SKIPPED) else "✓") if ok else "✗"
+    text = "\n".join(f"{mark(ok, note)} {label}: {note}" for label, ok, note in report) or "Τίποτα να προστεθεί."
     QMessageBox.information(window, "Ολοκλήρωση κτιρίου", text + "\n\nCtrl+Z = αναίρεση όλων.")
-    window.statusBar().showMessage("Ολοκλήρωση κτιρίου: " + " · ".join(l for l, ok, _n in report if ok), 10000)
+    window.statusBar().showMessage("Ολοκλήρωση κτιρίου: " + " · ".join(l for l, ok, n in report
+                                                                      if ok and not str(n).startswith(SKIPPED)), 10000)
     return report
