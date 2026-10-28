@@ -36,6 +36,8 @@ class MainWindow(QMainWindow):
         self.doc = Document()
         self.stack = CommandStack(self.doc)
         self.stack.listeners.append(self._on_document_changed)
+        from archforge.core import notices as _notices
+        self._notices_seen = _notices.serial()   # this window says only what its own edits could not compute
         from archforge.ui.dome_tool import install as _follow_domes
         _follow_domes(self)                  # flat shared partitions follow the Bio-Spectre domes
         self.current_path = None
@@ -4118,7 +4120,19 @@ class MainWindow(QMainWindow):
             + ' — προδιάσταση, προς έλεγχο στατικού', 9000)
         return entity
 
+    def _show_not_computed(self):
+        """Α3: what a calculation behind the last edit could not compute is said in the status bar, once."""
+        from archforge.core import notices
+        found = notices.since(getattr(self, '_notices_seen', 0))
+        self._notices_seen = notices.serial()
+        if found:
+            text = '; '.join(i.message for i in found[:3]) + (f' (+{len(found) - 3})' if len(found) > 3 else '')
+            self.statusBar().showMessage('Δεν υπολογίστηκε: ' + text, 12000)
+        return found
+
     def _on_document_changed(self):
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self._show_not_computed)   # after the redraw, which may raise notices too
         if getattr(self, 'autosave', None) is not None:
             self.autosave.note_change()
             self.setWindowModified(True)

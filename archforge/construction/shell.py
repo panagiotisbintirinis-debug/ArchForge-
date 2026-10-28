@@ -99,7 +99,9 @@ def plaster_list(doc):
     rows = []
     try:
         inner = float(take_off(doc)["totals"].get("paint_walls_m2", 0.0))
-    except Exception:
+    except Exception as exc:
+        from archforge.core.notices import not_computed
+        not_computed("plaster.interior", "Σοβάς εσωτερικός: δεν υπολογίστηκε η επιφάνεια των τοίχων", exc=exc)
         inner = 0.0
     if inner > 0:
         rows.append(("Σοβάς εσωτερικός (τοίχοι χώρων, πλην πλακιδίων)", "m²", round(inner, 2),

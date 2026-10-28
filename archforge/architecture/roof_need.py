@@ -38,8 +38,10 @@ def coverage(doc, polygon, base_z, cell=0.10):
     for z in above:
         try:
             upper += [[(float(p[0]), float(p[1])) for p in f.polygon] for f in doc.active_room_faces(z=z)]
-        except Exception:
-            pass
+        except Exception as exc:
+            from archforge.core.notices import not_computed
+            not_computed("roof.coverage", f"Στέγες: δεν αναγνωρίστηκαν οι χώροι του ορόφου {z:+.2f} — δεν είναι "
+                         "γνωστό τι σκεπάζει από πάνω", exc=exc)
     if not upper:
         return 0.0
     poly = [(float(p[0]), float(p[1])) for p in polygon]
@@ -97,6 +99,24 @@ def under_pitched_roof(doc, polygon, base_z):
 OPEN_AIR_USES = ("Πισίνα", "Αυλή", "Αίθριο")
 
 
+def _known_coverage(doc, polygon, base_z):
+    """``coverage``, or None when a storey above could not be read: then no roof is added or removed (Α3)."""
+    from archforge.core.notices import collecting
+    with collecting() as unknown:
+        c = coverage(doc, polygon, base_z)
+    return None if unknown else c
+
+
+def _faces_or_said(doc, z, what):
+    try:
+        return doc.active_room_faces(z=z)
+    except Exception as exc:
+        from archforge.core.notices import not_computed
+        not_computed("roof.storey_rooms", f"{what}: δεν αναγνωρίστηκαν οι χώροι του ορόφου {z:+.2f}, δεν ελέγχθηκε",
+                     exc=exc)
+        return []
+
+
 def roof_plan(doc):
     """What "Fix roofs" would do: ``{"remove": [roof ids under a storey], "add": [room signatures without a roof]}``."""
     remove, roofed = [], set()
@@ -113,20 +133,19 @@ def roof_plan(doc):
             continue
         face, base_z = found
         roofed.add(face.signature)
-        if coverage(doc, face.polygon, base_z) >= COVERED:
+        c = _known_coverage(doc, face.polygon, base_z)
+        if c is not None and c >= COVERED:
             remove.append(e.id)
     add = []
     for z in _storeys(doc):
-        try:
-            faces = doc.active_room_faces(z=z)
-        except Exception:
-            faces = []
+        faces = _faces_or_said(doc, z, "Στέγες")
         for face in faces:
             if face.signature in roofed or under_pitched_roof(doc, face.polygon, z):
                 continue
             if doc.room_metadata(face.signature).get("use") in OPEN_AIR_USES:
                 continue                                  # a pool or a courtyard stays open to the sky
-            if coverage(doc, face.polygon, z) < COVERED:
+            c = _known_coverage(doc, face.polygon, z)
+            if c is not None and c < COVERED:
                 add.append(face.signature)
     return {"remove": remove, "add": add}
 
@@ -145,10 +164,7 @@ def attic_rooms(doc):
               for e in doc.entities.values() if e.kind == "ceiling_joists"]
     out = []
     for z in _storeys(doc):
-        try:
-            faces = doc.active_room_faces(z=z)
-        except Exception:
-            faces = []
+        faces = _faces_or_said(doc, z, "Οροφές σοφίτας")
         for face in faces:
             if face.signature in ceiled or not under_pitched_roof(doc, face.polygon, z):
                 continue

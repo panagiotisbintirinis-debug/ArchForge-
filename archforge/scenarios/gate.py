@@ -210,8 +210,8 @@ class Gate:
                 try:
                     if _overlap(footprint(e.params), sq) > 0.02:
                         bad.append(f"{d.name}: {e.name}")
-                except Exception:                                # noqa: BLE001
-                    continue
+                except Exception:                                # noqa: BLE001 — unchecked is not «free» (Α3)
+                    bad.append(f"{d.name}: {e.name} δεν ελέγχθηκε")
         self.add(1, "Τίποτα μέσα στη σάρωση των θυρόφυλλων", not bad, "ελεύθερες" if not bad else " · ".join(bad[:10]))
 
     def _floors(self):
@@ -318,7 +318,8 @@ class Gate:
         for e in objs:
             try:
                 poly = footprint(e.params)
-            except Exception:                                    # noqa: BLE001
+            except Exception:                                    # noqa: BLE001 — unchecked is not «free» (Α3)
+                problems.append(f"{e.name}: δεν ελέγχθηκε (αποτύπωμα)")
                 continue
             polys[e.id] = poly
             z = self._floor_z(e)

@@ -274,8 +274,13 @@ def complete(window, keys=None, options=None):
             key, label, run = step
             done.add(key)
             try:
-                note = run(window, options)
-                report.append((label, True, note or f"{SKIPPED} — δεν έλειπε κάτι"))
+                from archforge.core.notices import collecting
+                with collecting() as unknown:
+                    note = run(window, options)
+                note = note or f"{SKIPPED} — δεν έλειπε κάτι"
+                if unknown:                              # Α3: what could not be checked is said with the step
+                    note += " — ΕΛΛΙΠΕΣ: " + "; ".join(i.message for i in unknown[:3])
+                report.append((label, True, note))
             except Exception as exc:                     # noqa: BLE001 — shown to the human, never hidden
                 report.append((label, False, f"{exc}"))
     finally:

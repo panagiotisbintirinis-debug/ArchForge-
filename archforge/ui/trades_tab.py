@@ -155,6 +155,7 @@ class TradesTab(QWidget):
         v.addWidget(table, 1)
         note = QLabel(f"Με ΦΠΑ {q['vat']:g}%: {money(q['total'])}."
                       + (f" {q['missing']} είδη χωρίς τιμή ή ποσότητα δεν μετράνε στο σύνολο." if q["missing"] else "")
+                      + ("\nΕΛΛΙΠΕΣ — δεν υπολογίστηκαν: " + "; ".join(q["not_computed"]) if q["not_computed"] else "")
                       + "\nΔεν μετριούνται ακόμη: " + ", ".join(NOT_MEASURED) + " — το σύνολο δεν τα περιλαμβάνει.")
         note.setWordWrap(True); v.addWidget(note)
         self.summary_table = table
@@ -172,7 +173,9 @@ class TradesTab(QWidget):
         q = quote(self.window.doc, only=tuple(names))
         self.summary.setText(f"{', '.join(names)}: υλικά {money(q['material'])} · εργασία {money(q['labour'])} · "
                              f"ΦΠΑ {q['vat']:g}% · σύνολο {money(q['total'])}"
-                             + (f" · {q['missing']} είδη χωρίς τιμή (δεν μετράνε)" if q["missing"] else ""))
+                             + (f" · {q['missing']} είδη χωρίς τιμή (δεν μετράνε)" if q["missing"] else "")
+                             + (f" · ΕΛΛΙΠΕΣ: {len(q['not_computed'])} δεν υπολογίστηκαν" if q["not_computed"] else ""))
+        self.summary.setToolTip("\n".join(q["not_computed"]))
 
     def selected_trades(self):
         """Ticked cards; else the open card; the «Σύνολο έργου» card = every trade (construction cost)."""

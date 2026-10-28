@@ -474,7 +474,10 @@ def auto_floor_command(doc, level_z):
     try:
         if not storey_faces(doc, 'room_floor', level_z):
             return None
-    except Exception:
+    except Exception as exc:
+        from archforge.core.notices import not_computed
+        not_computed('slab.auto_floor', f'Δάπεδο ορόφου {level_z:+.2f}: δεν δημιουργήθηκε αυτόματα — βάλτε το από '
+                     'Πλάκες ▸ Δάπεδο ορόφου', exc=exc)
         return None
     name = next((str(n) for n, v in doc.levels.items() if abs(float(v) - level_z) < 1e-4), '')
     command, _entity = storey_slab_command(doc, 'room_floor', level_z, name)

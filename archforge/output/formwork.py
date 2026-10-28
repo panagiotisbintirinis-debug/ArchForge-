@@ -56,7 +56,9 @@ def storey_frames(doc):
     try:
         from archforge.structure.slabs import design_slabs
         slabs = design_slabs(doc)["panels"]
-    except Exception:                                    # slab pre-design is optional on the sheet
+    except Exception as exc:                             # slab pre-design is optional on the sheet, but said
+        from archforge.core.notices import not_computed
+        not_computed("formwork.slabs", "Ξυλότυπος: οι πλάκες δεν προδιαστασιολογήθηκαν, λείπουν από το φύλλο", exc=exc)
         slabs = []
     out = []
     for s in storeys:
@@ -279,7 +281,9 @@ def foundation_of(doc):
     try:
         from archforge.structure.analysis import analyze_cached
         fd = (analyze_cached(doc) or {}).get("foundation")
-    except Exception:
+    except Exception as exc:
+        from archforge.core.notices import not_computed
+        not_computed("formwork.foundation", "Θεμελίωση: η στατική επίλυση απέτυχε, δεν σχεδιάστηκε", exc=exc)
         return None
     return fd if fd and (fd.get("footings") or fd.get("strips")) else None
 

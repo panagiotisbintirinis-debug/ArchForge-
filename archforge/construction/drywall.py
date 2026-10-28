@@ -186,7 +186,9 @@ def inner_outline(poly, width):
     from archforge.geometry.regions import offset_loop
     try:
         inner = offset_loop(poly, [-float(width)] * len(poly))
-    except (ValueError, ZeroDivisionError):
+    except (ValueError, ZeroDivisionError) as exc:
+        from archforge.core.notices import not_computed
+        not_computed("drywall.cove", "Κορνίζα ψευδοροφής: δεν σχηματίζεται το εσωτερικό περίγραμμα", exc=exc)
         return None
     if len(inner) != len(poly) or _area(inner) <= 0.05:
         return None
