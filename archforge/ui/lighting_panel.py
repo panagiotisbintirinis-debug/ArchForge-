@@ -14,7 +14,7 @@ Owner 25/10: «μικρό μενού που θα μας δείχνει όλα τ
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QSignalBlocker
 from PySide6.QtWidgets import (QCheckBox, QDockWidget, QHBoxLayout, QLabel, QMenu, QPushButton, QScrollArea, QSlider,
                                QToolButton, QWidget, QWidgetAction)
 
@@ -81,6 +81,27 @@ class LightingStrip(QWidget):
             ids = [i for g in room["groups"] for i in g["ids"]]
             lit = sum(1 for i in ids if fixture_on(self.window.doc.get(i)))
             self.buttons[room["title"]].setText(f"{'💡' if lit else '○'} {room['title']}  {lit}/{len(ids)}")
+        # Undo and Inspector edits use the same model. Keep an open popup truthful
+        # without rebuilding the widget under a pressed mouse or emitting edits.
+        if self._open_menu is not None:
+            from archforge.mep.lighting import fixture_level, fixture_switch
+            for action in self._open_menu.actions():
+                if not isinstance(action, QWidgetAction):
+                    continue
+                row = action.defaultWidget()
+                eid = row.objectName().removeprefix("lightRow_")
+                entity = self.window.doc.entities.get(eid)
+                row.setEnabled(entity is not None)
+                if entity is None:
+                    continue
+                on = row.findChild(QCheckBox, "lightRowOn")
+                dim = row.findChild(QSlider, "lightRowDim")
+                with QSignalBlocker(on):
+                    on.setChecked(fixture_switch(entity))
+                if not dim.isSliderDown():
+                    with QSignalBlocker(dim):
+                        dim.setValue(int(round(fixture_level(entity) * 100)))
+                    row.findChild(QLabel, "lightRowLevel").setText(f"{dim.value()} %")
 
     # -- one room's pop-up ---------------------------------------------------------------------------------------
     def _fill(self, menu, title):
@@ -97,6 +118,10 @@ class LightingStrip(QWidget):
                 entity = self.window.doc.get(eid)
                 if entity.kind == "library_object":
                     label = entity.name or group["label"]                  # the model's name (Κρεμαστό Ø40 …)
+                elif entity.params.get('fixture_asset'):
+                    from archforge.mep.fixture_models import model_record
+                    record = model_record(entity)
+                    label = record['name'] if record else entity.name
                 else:
                     label = f"{group['label']} {n}" if len(group["ids"]) > 1 else group["label"]
                 act.setDefaultWidget(self._row(eid, label))
@@ -119,10 +144,10 @@ class LightingStrip(QWidget):
             from archforge.library.lighting import capabilities
             if not capabilities(entity)["dimmable"]:
                 dim.setEnabled(False); dim.setToolTip("Το μοντέλο δεν ρυθμίζεται σε ένταση (μόνο αναμμένο / σβηστό)")
-        shown = QLabel(f"{dim.value()} %"); shown.setFixedWidth(36)
-        dim.valueChanged.connect(lambda v, l=shown: l.setText(f"{v} %"))
-        dim.sliderReleased.connect(lambda s=dim, i=eid: self._switch(i, level=s.value() / 100.0))
-        dim.valueChanged.connect(lambda v, s=dim, i=eid: not s.isSliderDown() and self._switch(i, level=v / 100.0))
+        shown = QLabel(f"{dim.value()} %"); shown.setFixedWidth(36); shown.setObjectName("lightRowLevel")
+        from archforge.ui.fixture_controls import bind_control
+        bind_control(self.window,eid,dim,shown,'light_level' if entity.kind=='library_object' else 'dim_level',
+                     lambda v:v/100.0,lambda v:self._switch(eid,level=v))
         change = QToolButton(); change.setText("Αλλαγή"); change.setObjectName("lightRowChange")
         change.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         change.setToolTip("Άλλο φωτιστικό στο ίδιο σημείο (βιβλιοθήκη ▸ Φωτιστικά) — μόνο αυτό")
@@ -140,6 +165,7 @@ class LightingStrip(QWidget):
         from archforge.mep.lighting import replacement_choices
         entity = self.window.doc.get(eid)
         current = (("library", entity.params.get("asset")) if entity.kind == "library_object"
+                   else ("library", entity.params['fixture_asset']) if entity.params.get('fixture_asset')
                    else (entity.params.get("point_type"), entity.params.get("catalog_id") or None))
         for label, point_type, catalog_id in replacement_choices(entity):
             a = menu.addAction(label)

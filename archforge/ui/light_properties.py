@@ -57,6 +57,12 @@ def add_rows(window, eid):
         return True
     if not is_luminaire(entity):
         return False
+    if p.get('fixture_asset'):
+        from archforge.mep.fixture_models import model_record
+        model = model_record(entity)
+        label = QLabel(model['name'] if model else 'Το 3D σώμα λείπει από τη βιβλιοθήκη αυτού του υπολογιστή')
+        label.setWordWrap(True)
+        form.addRow('3D σώμα', label)
     from archforge.mep.luminaire_catalog import DIMMING, apply_values, entries_for, status_of
     catalog = QComboBox()
     catalog.addItem("— επιλέξτε από κατάλογο", None)
@@ -112,8 +118,9 @@ def add_rows(window, eid):
     dim = QSlider(); dim.setOrientation(__import__("PySide6.QtCore", fromlist=["Qt"]).Qt.Orientation.Horizontal)
     dim.setRange(0, 100); dim.setValue(int(round(float(p.get("dim_level", 1.0)) * 100)))
     shown = QLabel(f"{dim.value()} %")
-    dim.valueChanged.connect(lambda v, l=shown: l.setText(f"{v} %"))
-    dim.sliderReleased.connect(lambda w=dim: window._set_entity_choice(eid, "dim_level", w.value() / 100.0))
+    from archforge.ui.fixture_controls import bind_control
+    bind_control(window, eid, dim, shown, "dim_level", lambda v:v/100.0,
+                 lambda v:window._set_entity_choice(eid,"dim_level",v))
     form.addRow("Ένταση (ροοστάτης)", dim)
     form.addRow("", shown)
     add_aim_rows(window, eid)
@@ -184,19 +191,8 @@ def add_aim_rows(window, eid):
         window.form.addRow("Κατεύθυνση", direction)
     else:
         window.form.addRow("Κατεύθυνση", QLabel("Ρυθμιζόμενη κεφαλή — Κλίση και Προσανατολισμός"))
-    tilt = QDoubleSpinBox(); tilt.setObjectName("aimTilt")
-    tilt.setRange(0.0, 90.0); tilt.setDecimals(0); tilt.setSingleStep(5.0); tilt.setSuffix("°")
-    tilt.setValue(float(p.get("aim_tilt_deg", 0.0)))
-    tilt.setToolTip("0° = κατακόρυφα (κάτω, ή πάνω με «Προς τα πάνω») · 90° = οριζόντια")
-    tilt.editingFinished.connect(lambda w=tilt: _set_aim(window, eid, "aim_tilt_deg", w.value()))
-    window.form.addRow("Κλίση δέσμης", tilt)
-    bearing = QDoubleSpinBox(); bearing.setObjectName("aimBearing")
-    bearing.setRange(0.0, 359.0); bearing.setDecimals(0); bearing.setSingleStep(15.0); bearing.setSuffix("°")
-    bearing.setWrapping(True)
-    bearing.setValue(float(p.get("aim_azimuth_deg", 0.0)))
-    bearing.setToolTip("Προς τα πού στην κάτοψη: 0° Βορράς (+y) · 90° Ανατολή (+x) · 180° Νότος · 270° Δύση")
-    bearing.editingFinished.connect(lambda w=bearing: _set_aim(window, eid, "aim_azimuth_deg", w.value()))
-    window.form.addRow("Προσανατολισμός", bearing)
+    from archforge.ui.fixture_controls import add_aim_rotors
+    add_aim_rotors(window, eid)
     return True
 
 

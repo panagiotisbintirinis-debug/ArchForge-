@@ -257,14 +257,18 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                 objects.append({"id": str(body.entity_id), "render_part": f"{body.entity_id}:{role}", "kind": "railing",
                                 "vertices": vertices, "triangles": tris, "surfaces": [role] * len(tris), "material": material})
             continue
-        if body.semantic_kind == "library_object" and entity is not None:
+        library_entity = entity
+        if body.semantic_kind == 'electrical_point' and entity is not None and entity.params.get('fixture_asset'):
+            from archforge.mep.fixture_models import attached_instance
+            library_entity = attached_instance(doc, entity)
+        if library_entity is not None and library_entity.kind == 'library_object':
             # One derived mesh per material part of the referenced asset. A part
             # keeps its catalogue colour until the user assigns a palette
             # material to it (surface_materials["part<i>"]) or to the whole
             # object (material_id), exactly like wall faces.
             from archforge.library.objects import asset_parts, triangle_part_indices
-            parts = asset_parts(entity.params)
-            indices = triangle_part_indices(entity.params)
+            parts = asset_parts(library_entity.params)
+            indices = triangle_part_indices(library_entity.params)
             if parts and indices is not None and len(indices) == len(mesh.triangles):
                 groups = {}
                 for tri, role, index in zip(mesh.triangles, mesh.triangle_surfaces, indices):
@@ -278,17 +282,19 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                     if not _surface_material_id(entity, part_role) and body.entity_id not in selected:
                         material["color"] = color
                     from archforge.library.assets import load_asset
-                    record = load_asset(str(entity.params.get("asset", ""))) or {}
-                    glow = record.get("emissive_materials", {}).get(_name) if entity.params.get("light_sources") else None
+                    record = load_asset(str(library_entity.params.get("asset", ""))) or {}
+                    glow = record.get("emissive_materials", {}).get(_name) if library_entity.params.get("light_sources") else None
                     if glow:
                         material["emissive"] = glow
-                        material["emissiveIntensity"] = (float(entity.params.get("light_level", 1))
-                                                        if entity.params.get("light_enabled", 1) else 0.0)
+                        material["projectLightEmissive"] = True
+                        material["emissiveIntensity"] = (float(library_entity.params.get("light_level", 1))
+                                                        if library_entity.params.get("light_enabled", 1) else 0.0)
                     objects.append({
                         "id": str(body.entity_id),
                         "cast_shadow": not bool(glow),
                         "render_part": f"{body.entity_id}:{part_role}",
-                        "kind": "library_object",
+                        "kind": entity.kind,
+                        "physical_fixture": entity.kind == 'electrical_point',
                         "vertices": vertices,
                         "triangles": tris,
                         "surfaces": roles,

@@ -97,14 +97,29 @@ function afStripLights(spec) {
 // Owner 25/10 («μεσημέρι και τα φώτα αναμμένα — πού τα κλείνω;»): the project's lights shine only at night unless
 // the menu «Φώτα του έργου» says always on / off.
 let architecturalLightsSwitch = "auto";
+let architecturalGlowLevels = {};
 function afUpdateLightVisibility() {
   archLightRoot.visible = architecturalLightsSwitch === "on" ||
       (architecturalLightsSwitch === "auto" && architecturalLightingMode === "night");
   window.__archforgeProjectLightsOn = archLightRoot.visible;
+  // Lamp glass follows the very same project switch as the emitted light.
+  // Keep the instance's base value so on/off never compounds the dimmer.
+  modelRoot.traverse((object) => {
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    for (const material of materials) {
+      if (material && material.userData.projectLightEmissive !== undefined) {
+        const eid = String((object.userData || {}).entityId || "");
+        const level = architecturalGlowLevels[eid] ?? material.userData.projectLightEmissive;
+        material.emissiveIntensity = archLightRoot.visible ? level : 0;
+      }
+    }
+  });
+  if (typeof window.archforgeWakeRender === "function") window.archforgeWakeRender(2);
 }
 
 window.setArchitecturalLights = function(payload) {
   afDisposeLightRoot();
+  architecturalGlowLevels = (payload && payload.glow_levels) || {};
   const wanted = String((payload && payload.project_lights) || "auto");
   architecturalLightsSwitch = ["auto", "on", "off"].includes(wanted) ? wanted : "auto";
   let shadowBudget = 16;          // a point light's shadow is 6 extra renders: bounded for laptops
@@ -185,17 +200,10 @@ def _light_z(doc, kind, p):
     ground and the slab from below. Native light entities keep their own ``z``."""
     if kind == "electrical_point" and doc is not None:
         try:
-            from archforge.mep.electrical import mount_z
-            z = float(mount_z(doc, p))
+            from archforge.mep.fixture_models import light_mount_z
+            return light_mount_z(doc, p)
         except (KeyError, TypeError, ValueError, ImportError):
             return float(p.get("z", 2.4))
-        # Never above the walls of its storey: with no storey above, the electrical «ceiling» is floor + 2,80 m, inside
-        # the roof of 2,70 m walls — the light then lit the eaves. (The same 2,80 for the ceiling conduits is noted
-        # in HANDOFF for the electrical side.)
-        floor = float(p.get("z", 0.0))
-        tops = [float(e.params.get("z", 0.0)) + float(e.params.get("height", 0.0)) for e in doc.entities.values()
-                if e.kind == "wall" and abs(float(e.params.get("z", 0.0)) - floor) <= 0.05]
-        return min(z, max(tops) - 0.05) if tops else z
     return float(p.get("z", 2.4))
 
 
@@ -320,18 +328,50 @@ def install_lighting_system() -> None:
         original_init(self, *args, **kwargs)
         self._architectural_lighting_mode = "day"
         self._project_lights = "auto"
+        self._fixture_control_preview = None
 
     def _lighting_payload(self):
         lights = []
+        glow_levels = {}
         from archforge.library.lighting import instance_light_specs
+        from archforge.mep.fixture_models import model_record, attached_light_specs
         for entity in self.doc.entities.values():
+            preview = getattr(self, '_fixture_control_preview', None)
+            if preview is not None and preview[0] == entity.id:
+                entity = entity.clone()
+                entity.params.update(preview[1])
+                from archforge.mep.lighting import fixture_level, fixture_switch
+                glow_levels[entity.id] = fixture_level(entity) if fixture_switch(entity) else 0
             if entity.kind == "library_object":
                 lights.extend(instance_light_specs(entity))
+                continue
+            if model_record(entity) is not None:
+                lights.extend(attached_light_specs(self.doc, entity))
                 continue
             spec = _entity_light_spec(entity, self.doc)
             if spec is not None:
                 lights.append(spec)
-        return {"lights": lights}
+        return {"lights": lights, "glow_levels":glow_levels}
+
+    def preview_fixture_control(self, eid, changes):
+        if eid not in self.doc.entities:
+            return
+        from archforge.mep.lighting import is_fixture
+        entity = self.doc.get(eid)
+        if not is_fixture(entity):
+            return
+        allowed = {'light_level','dim_level','aim_tilt_deg','aim_azimuth_deg'}
+        values = {k:v for k,v in changes.items() if k in allowed}
+        if any(k.startswith('aim_') for k in values):
+            values = {k:entity.params.get(k,0) for k in ('aim_tilt_deg','aim_azimuth_deg')} | values
+        self._fixture_control_preview = (eid, values)
+        self._push_architectural_lights()
+
+    def clear_fixture_control_preview(self, eid):
+        preview = getattr(self,'_fixture_control_preview',None)
+        if preview is not None and preview[0] == eid:
+            self._fixture_control_preview = None
+            self._push_architectural_lights()
 
     def _push_architectural_lights(self):
         if self.web_view is None:
@@ -372,12 +412,15 @@ def install_lighting_system() -> None:
             self._push_architectural_lights()
 
     def redraw(self, *args, **kwargs):
+        self._fixture_control_preview = None
         result = original_redraw(self, *args, **kwargs)
         self._push_architectural_lights()
         return result
 
     cls.__init__ = __init__
     cls._lighting_payload = _lighting_payload
+    cls.preview_fixture_control = preview_fixture_control
+    cls.clear_fixture_control_preview = clear_fixture_control_preview
     cls._push_architectural_lights = _push_architectural_lights
     cls.set_lighting_mode = set_lighting_mode
     cls.set_project_lights = set_project_lights

@@ -466,6 +466,9 @@ function startMoveGhost(sourceMesh) {
     depthWrite: true,
     side: THREE.DoubleSide
   });
+  if (spec.projectLightEmissive) {
+    material.userData.projectLightEmissive = Number(spec.emissiveIntensity ?? 0.0);
+  }
   moveGhost = new THREE.Mesh(sourceMesh.geometry.clone(), material);
   moveGhost.userData.preview = true;
   previewRoot.add(moveGhost);
@@ -1264,6 +1267,7 @@ window.archforgeSetScene = function(payload, fit = true) {
   fitSunShadow();
   applyTechnique();
   // Once the human has moved the camera, a scene update never refits it
+  if (typeof afUpdateLightVisibility === "function") afUpdateLightVisibility();
   // (owner: «η κάμερα με πέταγε έξω κάθε φορά που άλλαζα κλίσεις στο terrain»).
   // The Fit command and the view presets call fitCamera()/setCameraPreset directly.
   if (fit && !cameraMovedByHuman) fitCamera();

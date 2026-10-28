@@ -335,11 +335,20 @@ def fixture_aimable(entity):
     from archforge.library.lighting import capabilities, is_luminous
     if is_luminous(entity):
         return capabilities(entity)["aimable"]
+    from archforge.mep.fixture_models import model_capabilities
+    caps = model_capabilities(entity)
+    if caps is not None:
+        return caps['aimable']
     return entity.params.get("point_type") in AIMABLE
 
 
 def _fixture_group(entity):
     from archforge.library.lighting import capabilities, role_label
+    from archforge.mep.fixture_models import model_capabilities
+    attached = model_capabilities(entity)
+    if attached is not None:
+        label = role_label(attached['role'])
+        return f'lib:{label}', label
     if entity.kind == "library_object":
         label = role_label(capabilities(entity)["role"])
         return f"lib:{label}", label
@@ -403,10 +412,14 @@ def replacement_choices(entity):
     for t in types:
         out.append((POINT_TYPES[t][0], t, None))
         out += [(e.label, t, e.id) for e in entries_for(t)]
+    if not line:
+        from archforge.library import assets
+        out += [(r['name'], 'library', r['id']) for r in assets.list_assets() if r.get('lit')]
     return out
 
 
-LIBRARY_KEPT_ON_REPLACE = ("light_enabled", "light_level", "light_shadows", "aim_tilt_deg", "aim_azimuth_deg")
+LIBRARY_KEPT_ON_REPLACE = ("light_enabled", "light_level", "light_shadows", "aim_tilt_deg", "aim_azimuth_deg",
+                           "automation_group")
 
 
 def replace_fixture(doc, eid, kind, ref=None):
@@ -428,6 +441,13 @@ def replace_library_fixture(doc, eid, asset_id):
     record = assets.load_asset(str(asset_id))
     if not record or not record.get("lights"):
         raise ValueError("το μοντέλο δεν έχει πηγές φωτός — δεν είναι φωτιστικό")
+    if old.kind == 'electrical_point':
+        if not is_luminaire(old) or old.params.get('point_type') in LINE_TYPES:
+            raise ValueError('μια ταινία αντικαθίσταται μόνο με ταινία')
+        from archforge.core.commands import UpdateEntity
+        new = old.clone()
+        new.params['fixture_asset'] = record['id']
+        return UpdateEntity(eid, {'fixture_asset':record['id']}), new
     p = old.params
     params = library_instance_params(record, x=float(p["x"]), y=float(p["y"]), z=float(p.get("z", 0.0)))
     params["rotation"] = float(p.get("rotation", 0.0))

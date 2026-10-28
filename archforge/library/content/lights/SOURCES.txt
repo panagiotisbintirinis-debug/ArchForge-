@@ -1,0 +1,28 @@
+REFERENCE INPUTS — CHECKED 2026-10-25
+These are reference emitter inputs for original visual fixtures. The fixture geometry and analytic distribution
+are not manufacturer photometry; no fit, IP or enclosure-loss claim is made.
+
+A60 reference: Philips 929001243082, 7 W, 806 lm, 2700 K.
+https://www.signify.com/global/prof/led-lamps-and-tubes/led-bulbs/philips-classic-frosted-led-lamps/929001243082_EU/product
+Technical sections: Luminous Flux / Correlated Color Temperature / Power Consumption.
+Used as total reference flux in generic fixtures. Ring and linear fixtures distribute this total among several emitters.
+
+Spot reference: Philips 929001218199, 4.6 W, 370 lm, 3000 K, full beam 36 degrees.
+https://www.signify.com/api/assets/v1/file/Signify/content/929001218199_EU.en_AA.PROF.FP/Corepro_LEDspot_4.6_50W_GU10_830_36D_UK.pdf
+Datasheet 2026-05-15, page 1. Used for the surface spotlight and each up/down emitter.
+
+Wide-beam reference: Philips BVP131 911401858798, 10 W, 800 lm, 3000 K, full beam 100 degrees.
+https://www.assets.lighting.philips.com/is/content/PhilipsLighting/fp911401858798-pss-en_pk
+Datasheet 2023-04-30, page 1. Used as reference for the garden projector and path light.
+
+Rendering model (DESIGN_DEFAULT, already used by ArchForge):
+Point intensity = luminous flux / (4*pi).
+Spot intensity = luminous flux / (2*pi*(1-cos(full_beam/2))).
+These uniform distributions approximate light appearance; they do not reproduce a manufacturer's measured candela diagram.
+Ring/line: reference flux is divided between 8 / 3 emitters respectively, without multiplying the total.
+Kelvin-to-RGB uses the same approximate display conversion as ArchForge.
+The reference sources listed above are non-dimmable products. The package's brightness control is a rendering control.
+
+File semantics:
+https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_lights_punctual
+KHR_lights_punctual: linear RGB, point/spot intensity in candela, cone half-angle in radians, metre units.

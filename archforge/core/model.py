@@ -905,6 +905,7 @@ SCHEMAS = {
                          'x2': _finite, 'y2': _finite, 'w_per_m': _nonnegative, 'lumen': _nonnegative, 'kelvin': _kelvin,
                          'beam_deg': _beam, 'dim_level': _unit_interval, 'direction': _light_direction,
                          'automation_group': str, 'mount_height': _nonnegative, 'catalog_id': str,
+                         'fixture_asset': _nonempty, 'rotation': _finite,
                          'dimming': _choice(('onoff', 'phase_cut', 'dali2', '0_10v'), 'dimming protocol'),
                          'target_x': _finite, 'target_y': _finite, 'target_z': _finite,
                          # per luminaire (owner 25/10): on/off, and the aim of an adjustable head (mep/lighting.aim_target)

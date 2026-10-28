@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QLabel, QTabWidget, QStatusBar, QFileDialog, QMessageBox, QComboBox, QInputDialog,
     QDialog, QDialogButtonBox, QVBoxLayout, QListWidget, QListWidgetItem,
     QToolButton, QMenu, QSplitter, QTreeWidget, QTreeWidgetItem,
-    QLineEdit, QPushButton, QHBoxLayout, QGroupBox,
+    QLineEdit, QPushButton, QHBoxLayout, QGroupBox, QScrollArea,
 )
 
 from archforge.core.model import Document, WorkPlane, Entity
@@ -1609,8 +1609,9 @@ class MainWindow(QMainWindow):
     def _seed_core_library(self):
         """Build the shipped core library into the local store (first run only)."""
         from archforge.library.catalog import seed_core_library
+        from archforge.library.bundled_lights import seed_lights
         try:
-            built = seed_core_library()
+            built = seed_lights() + seed_core_library()
         except Exception as exc:
             self.statusBar().showMessage(f'Βασική βιβλιοθήκη: {exc}', 6000)
             return
@@ -2011,7 +2012,11 @@ class MainWindow(QMainWindow):
         self.dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
         self.inspector = QWidget()
         self.form = QFormLayout(self.inspector)
-        self.dock.setWidget(self.inspector)
+        self.inspector_scroll = QScrollArea()
+        self.inspector_scroll.setWidgetResizable(True)
+        self.inspector_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        self.inspector_scroll.setWidget(self.inspector)
+        self.dock.setWidget(self.inspector_scroll)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dock)
 
     def _build_mockup_workspace(self):
