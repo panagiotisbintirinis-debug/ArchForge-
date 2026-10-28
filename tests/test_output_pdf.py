@@ -87,3 +87,22 @@ def test_price_dialog_saves_prices_in_one_undo_and_the_menu_exports(tmp_path):
         assert window._pdf_action.text().startswith('Εξαγωγή PDF')
     finally:
         window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_pdf_dimensions_follow_the_plan_view_settings():
+    """The PDF draws the plan view's dimensions: exterior ones switched off there stay off the PDF."""
+    from archforge.architecture import dimensions as D
+    from archforge.output.pdf import plan_dimensions
+    doc = Document(); st = CommandStack(doc); _house(st)
+    # An older project without settings keeps the PDF's exterior chains.
+    assert plan_dimensions(doc, 0.0) == D.exterior(doc, 0.0) and plan_dimensions(doc, 0.0)
+    st.execute(D.set_auto(doc, 0.0, exterior=False, interior=False))
+    assert plan_dimensions(doc, 0.0) == [] == D.storey_dimensions(doc, 0.0)
+    st.execute(AddEntity(D.tape_entity((0, -1), (10, -1), 0.0, .5)))
+    assert [d['kind'] for d in plan_dimensions(doc, 0.0)] == ['manual']
+    st.execute(D.set_auto(doc, 0.0, interior=True))
+    kinds = {d['kind'] for d in plan_dimensions(doc, 0.0)}
+    assert kinds == {'interior', 'manual'} and plan_dimensions(doc, 0.0) == D.storey_dimensions(doc, 0.0)
+    st.execute(UpdateEntity(D.settings(doc, 0.0).id, {'exterior': 1}))
+    assert plan_dimensions(doc, 0.0) == D.storey_dimensions(doc, 0.0)
+    assert {d['kind'] for d in plan_dimensions(doc, 0.0)} == {'exterior', 'interior', 'manual'}

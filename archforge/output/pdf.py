@@ -9,9 +9,10 @@ prints sharp at any size.  Plans:
 * walls filled (poché), cut by their doors (leaf + swing), windows (glass
   lines) and openings; columns black; stairs and fitted furniture as thin
   lines; every room with its name, area and inner size;
-* dimensions: architecture/dimensions.py, as the plan view — on every façade
-  a chain through its openings, the whole façade and the overall width /
-  depth; the interior (clear room sizes) and tape ones when the storey has them.
+* dimensions: architecture/dimensions.py, the same ones as the plan view —
+  the storey's automatic exterior / interior ones as switched there, and the
+  tape ones; a storey with no such settings (older projects) still gets the
+  exterior chains.
 
 Everything comes from the same Document the program draws from; nothing is
 typed twice.
@@ -207,6 +208,18 @@ def level_name(name):
     return f"{int(m.group(1)) - 1}ος όροφος" if m else LEVEL_NAMES.get(str(name), str(name))
 
 
+def plan_dimensions(doc, z):
+    """The dimensions the PDF draws on storey ``z``: exactly those of the plan view (architecture/dimensions.py).
+
+    Once the storey has its ``auto_dimensions`` settings, the human's choices there decide — exterior / interior
+    off, or the settings hidden, leave them off the PDF too.  A storey that never had them (older projects) keeps
+    the exterior chains the PDF always drew."""
+    from archforge.architecture import dimensions as D
+    if D.settings(doc, z) is not None:
+        return D.storey_dimensions(doc, z)
+    return D.exterior(doc, z) + [d for d in D.storey_dimensions(doc, z) if d["kind"] == "manual"]
+
+
 def _plan_page(sh, doc, storey, sheet_no, project, date):
     from archforge.assistant.understanding import centroid
     from archforge.mep.ventilation import exterior_walls
@@ -295,16 +308,7 @@ def _plan_page(sh, doc, storey, sheet_no, project, date):
         sh.text(mx, my + 1.2, f"{a:.2f} m²", size=7.5, align="center", w=50)
         sh.text(mx, my + 4.6, f"{rw:.2f} × {rd:.2f}", size=6.5, align="center", w=50,
                 color=QColor(110, 110, 110))
-    # Dimensions (architecture/dimensions.py, the same chains as the plan view): the exterior ones always —
-    # through the openings, each façade, the overall size — plus the interior / tape ones the storey asks for.
-    from archforge.architecture import dimensions as D
-    dims = D.exterior(doc, z)
-    s_ = D.settings(doc, z)
-    if s_ is not None and int(s_.params.get("interior", 0)):
-        dims += D.interior(doc, z)
-    dims += [d for d in (D.manual(e) for e in doc.entities.values() if e.kind == "dimension" and e.visible
-                         and abs(float(e.params.get("level_z", 0.0)) - z) <= D.LEVEL_TOL) if d is not None]
-    for d in dims:
+    for d in plan_dimensions(doc, z):
         _dimension(sh, d["a"], d["b"], d["n"], float(d["offset"]) * k, d["value"], to_mm)
     _north(sh, 275, 30)
     _scale_bar(sh, 14, 190, scale)
