@@ -1,0 +1,2592 @@
+{
+  "format": 7,
+  "entities": [
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 10.0,
+        "y2": 0.0,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Exterior wall L0",
+      "id": "s01-wall-0-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 10.0,
+        "y1": 0.0,
+        "x2": 10.0,
+        "y2": 8.0,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Exterior wall L0",
+      "id": "s01-wall-0-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 10.0,
+        "y1": 8.0,
+        "x2": 0.0,
+        "y2": 8.0,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Exterior wall L0",
+      "id": "s01-wall-0-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0.0,
+        "y1": 8.0,
+        "x2": 0.0,
+        "y2": 0.0,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Exterior wall L0",
+      "id": "s01-wall-0-3",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 5.0,
+        "y1": 0.0,
+        "x2": 5.0,
+        "y2": 8.0,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.15
+      },
+      "name": "Partition A L0",
+      "id": "s01-part-0-a",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0.0,
+        "y1": 4.0,
+        "x2": 10.0,
+        "y2": 4.0,
+        "z": 0.0,
+        "height": 2.7,
+        "thickness": 0.15
+      },
+      "name": "Partition B L0",
+      "id": "s01-part-0-b",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "cabinet",
+      "params": {
+        "x": 1.0,
+        "y": 7.5,
+        "z": 0.0,
+        "rotation": 0.0,
+        "width": 0.6,
+        "depth": 0.6,
+        "height": 0.86,
+        "plinth": 0.1,
+        "height_end": 0.86,
+        "cabinet_type": "base",
+        "doors": 1,
+        "drawers": 1,
+        "shelves": 1,
+        "worktop": 1.0,
+        "handle": "bar",
+        "front_style": "flat",
+        "mechanism": "none",
+        "blind_side": "left"
+      },
+      "name": "Kitchen base L0",
+      "id": "s01-cab-0-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "cabinet",
+      "params": {
+        "x": 1.8,
+        "y": 7.5,
+        "z": 0.0,
+        "rotation": 0.0,
+        "width": 0.8,
+        "depth": 0.6,
+        "height": 0.86,
+        "plinth": 0.1,
+        "height_end": 0.86,
+        "cabinet_type": "sink",
+        "doors": 2,
+        "drawers": 0,
+        "shelves": 0,
+        "worktop": 1.0,
+        "handle": "bar",
+        "front_style": "flat",
+        "mechanism": "bin",
+        "blind_side": "left"
+      },
+      "name": "Kitchen sink cabinet L0",
+      "id": "s01-cab-0-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 10.0,
+        "y2": 0.0,
+        "z": 3.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Exterior wall L1",
+      "id": "s01-wall-1-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 10.0,
+        "y1": 0.0,
+        "x2": 10.0,
+        "y2": 8.0,
+        "z": 3.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Exterior wall L1",
+      "id": "s01-wall-1-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 10.0,
+        "y1": 8.0,
+        "x2": 0.0,
+        "y2": 8.0,
+        "z": 3.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Exterior wall L1",
+      "id": "s01-wall-1-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0.0,
+        "y1": 8.0,
+        "x2": 0.0,
+        "y2": 0.0,
+        "z": 3.0,
+        "height": 2.7,
+        "thickness": 0.25
+      },
+      "name": "Exterior wall L1",
+      "id": "s01-wall-1-3",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 5.0,
+        "y1": 0.0,
+        "x2": 5.0,
+        "y2": 8.0,
+        "z": 3.0,
+        "height": 2.7,
+        "thickness": 0.15
+      },
+      "name": "Partition A L1",
+      "id": "s01-part-1-a",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "wall",
+      "params": {
+        "x1": 0.0,
+        "y1": 4.0,
+        "x2": 10.0,
+        "y2": 4.0,
+        "z": 3.0,
+        "height": 2.7,
+        "thickness": 0.15
+      },
+      "name": "Partition B L1",
+      "id": "s01-part-1-b",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "floor",
+      "params": {
+        "points": [
+          [
+            2.0,
+            0.0
+          ],
+          [
+            8.0,
+            0.0
+          ],
+          [
+            8.0,
+            -1.6
+          ],
+          [
+            2.0,
+            -1.6
+          ]
+        ],
+        "z": 2.82,
+        "thickness": 0.18
+      },
+      "name": "Balcony L1",
+      "id": "s01-balcony-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "railing",
+      "params": {
+        "points": [
+          [
+            8.0,
+            0.0
+          ],
+          [
+            8.0,
+            -1.6
+          ],
+          [
+            2.0,
+            -1.6
+          ],
+          [
+            2.0,
+            0.0
+          ]
+        ],
+        "z": 3.0,
+        "closed": 0,
+        "height": 1.05,
+        "railing_type": "balusters",
+        "handrail": "square",
+        "handrail_size": 0.045,
+        "post_spacing": 1.2,
+        "gap": 0.1,
+        "base_height": 0.0,
+        "metal": "iron"
+      },
+      "name": "Balcony railing L1",
+      "id": "s01-rail-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "pitched_roof",
+      "params": {
+        "x0": 0.0,
+        "y0": 0.0,
+        "x1": 10.0,
+        "y1": 8.0,
+        "eave_z": 5.7,
+        "pitch": 27.0,
+        "overhang": 0.45,
+        "rafter_spacing": 0.6,
+        "roof_form": "gable",
+        "tile": "roman",
+        "snow_zone": 2,
+        "altitude": 0.0,
+        "insulation": "none",
+        "insulation_thickness": 0.0,
+        "shed_high": "auto"
+      },
+      "name": "Aegean Courtyard Duplex tiled roof",
+      "id": "s01-roof",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 1
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Level 1",
+        "profile": ""
+      },
+      "name": "\u039a1",
+      "id": "s01-col-0-0-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 0.0,
+        "y": 4.0,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Level 1",
+        "profile": ""
+      },
+      "name": "\u039a2",
+      "id": "s01-col-0-0-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 0.0,
+        "y": 8.0,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Level 1",
+        "profile": ""
+      },
+      "name": "\u039a3",
+      "id": "s01-col-0-0-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 5.0,
+        "y": 0.0,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Level 1",
+        "profile": ""
+      },
+      "name": "\u039a4",
+      "id": "s01-col-0-1-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 5.0,
+        "y": 4.0,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Level 1",
+        "profile": ""
+      },
+      "name": "\u039a5",
+      "id": "s01-col-0-1-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 5.0,
+        "y": 8.0,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Level 1",
+        "profile": ""
+      },
+      "name": "\u039a6",
+      "id": "s01-col-0-1-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 10.0,
+        "y": 0.0,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Level 1",
+        "profile": ""
+      },
+      "name": "\u039a7",
+      "id": "s01-col-0-2-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 10.0,
+        "y": 4.0,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Level 1",
+        "profile": ""
+      },
+      "name": "\u039a8",
+      "id": "s01-col-0-2-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 10.0,
+        "y": 8.0,
+        "z": 0.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 3.0,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Ground",
+        "top_level": "Level 1",
+        "profile": ""
+      },
+      "name": "\u039a9",
+      "id": "s01-col-0-2-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 10.0,
+        "y2": 0.0,
+        "z": 2.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground",
+        "profile": ""
+      },
+      "name": "\u03941",
+      "id": "s01-beamx-0-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0.0,
+        "y1": 4.0,
+        "x2": 10.0,
+        "y2": 4.0,
+        "z": 2.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground",
+        "profile": ""
+      },
+      "name": "\u03942",
+      "id": "s01-beamx-0-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0.0,
+        "y1": 8.0,
+        "x2": 10.0,
+        "y2": 8.0,
+        "z": 2.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground",
+        "profile": ""
+      },
+      "name": "\u03943",
+      "id": "s01-beamx-0-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 0.0,
+        "y2": 8.0,
+        "z": 2.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground",
+        "profile": ""
+      },
+      "name": "\u03944",
+      "id": "s01-beamy-0-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 5.0,
+        "y1": 0.0,
+        "x2": 5.0,
+        "y2": 8.0,
+        "z": 2.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground",
+        "profile": ""
+      },
+      "name": "\u03945",
+      "id": "s01-beamy-0-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 10.0,
+        "y1": 0.0,
+        "x2": 10.0,
+        "y2": 8.0,
+        "z": 2.5,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Ground",
+        "profile": ""
+      },
+      "name": "\u03946",
+      "id": "s01-beamy-0-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 3.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Level 1",
+        "top_level": "Unassigned",
+        "profile": ""
+      },
+      "name": "\u039a10",
+      "id": "s01-col-1-0-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 1
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 0.0,
+        "y": 4.0,
+        "z": 3.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Level 1",
+        "top_level": "Unassigned",
+        "profile": ""
+      },
+      "name": "\u039a11",
+      "id": "s01-col-1-0-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 1
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 0.0,
+        "y": 8.0,
+        "z": 3.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Level 1",
+        "top_level": "Unassigned",
+        "profile": ""
+      },
+      "name": "\u039a12",
+      "id": "s01-col-1-0-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 1
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 5.0,
+        "y": 0.0,
+        "z": 3.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Level 1",
+        "top_level": "Unassigned",
+        "profile": ""
+      },
+      "name": "\u039a13",
+      "id": "s01-col-1-1-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 1
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 5.0,
+        "y": 4.0,
+        "z": 3.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Level 1",
+        "top_level": "Unassigned",
+        "profile": ""
+      },
+      "name": "\u039a14",
+      "id": "s01-col-1-1-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 1
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 5.0,
+        "y": 8.0,
+        "z": 3.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Level 1",
+        "top_level": "Unassigned",
+        "profile": ""
+      },
+      "name": "\u039a15",
+      "id": "s01-col-1-1-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 1
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 10.0,
+        "y": 0.0,
+        "z": 3.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Level 1",
+        "top_level": "Unassigned",
+        "profile": ""
+      },
+      "name": "\u039a16",
+      "id": "s01-col-1-2-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 1
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 10.0,
+        "y": 4.0,
+        "z": 3.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Level 1",
+        "top_level": "Unassigned",
+        "profile": ""
+      },
+      "name": "\u039a17",
+      "id": "s01-col-1-2-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 1
+    },
+    {
+      "kind": "structural_column",
+      "params": {
+        "x": 10.0,
+        "y": 8.0,
+        "z": 3.0,
+        "width": 0.4,
+        "depth": 0.4,
+        "height": 2.7,
+        "rotation": 0.0,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "base_level": "Level 1",
+        "top_level": "Unassigned",
+        "profile": ""
+      },
+      "name": "\u039a18",
+      "id": "s01-col-1-2-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 1
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 10.0,
+        "y2": 0.0,
+        "z": 5.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Level 1",
+        "profile": ""
+      },
+      "name": "\u03947",
+      "id": "s01-beamx-1-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 1
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0.0,
+        "y1": 4.0,
+        "x2": 10.0,
+        "y2": 4.0,
+        "z": 5.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Level 1",
+        "profile": ""
+      },
+      "name": "\u03948",
+      "id": "s01-beamx-1-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 1
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0.0,
+        "y1": 8.0,
+        "x2": 10.0,
+        "y2": 8.0,
+        "z": 5.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Level 1",
+        "profile": ""
+      },
+      "name": "\u03949",
+      "id": "s01-beamx-1-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 1
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 0.0,
+        "y1": 0.0,
+        "x2": 0.0,
+        "y2": 8.0,
+        "z": 5.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Level 1",
+        "profile": ""
+      },
+      "name": "\u039410",
+      "id": "s01-beamy-1-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 1
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 5.0,
+        "y1": 0.0,
+        "x2": 5.0,
+        "y2": 8.0,
+        "z": 5.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Level 1",
+        "profile": ""
+      },
+      "name": "\u039411",
+      "id": "s01-beamy-1-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 1
+    },
+    {
+      "kind": "structural_beam",
+      "params": {
+        "x1": 10.0,
+        "y1": 0.0,
+        "x2": 10.0,
+        "y2": 8.0,
+        "z": 5.2,
+        "width": 0.25,
+        "height": 0.5,
+        "role": "structural",
+        "construction": "reinforced_concrete",
+        "section": "rectangular",
+        "level": "Level 1",
+        "profile": ""
+      },
+      "name": "\u039412",
+      "id": "s01-beamy-1-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 1
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 0.6,
+        "y": 0.6,
+        "z": 0.0,
+        "point_type": "water_supply",
+        "pipe_system": "multilayer"
+      },
+      "name": "\u03a0\u03b1\u03c1\u03bf\u03c7\u03ae \u03ba\u03c1\u03cd\u03bf\u03c5 \u03bd\u03b5\u03c1\u03bf\u03cd",
+      "id": "s01-water",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 6.0,
+        "y": 7.0,
+        "z": 0.0,
+        "point_type": "wc"
+      },
+      "name": "wc L0",
+      "id": "s01-plumb-0-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 1
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 7.0,
+        "y": 7.0,
+        "z": 0.0,
+        "point_type": "basin"
+      },
+      "name": "basin L0",
+      "id": "s01-plumb-0-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 1
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 8.0,
+        "y": 7.0,
+        "z": 0.0,
+        "point_type": "shower"
+      },
+      "name": "shower L0",
+      "id": "s01-plumb-0-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 1
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 1.8,
+        "y": 7.3,
+        "z": 0.0,
+        "point_type": "kitchen_sink"
+      },
+      "name": "kitchen_sink L0",
+      "id": "s01-plumb-0-3",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 0.7,
+        "y": 0.7,
+        "z": 0.0,
+        "point_type": "panel"
+      },
+      "name": "panel L0",
+      "id": "s01-elec-0-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 2.5,
+        "y": 2.0,
+        "z": 0.0,
+        "point_type": "light"
+      },
+      "name": "light L0",
+      "id": "s01-elec-0-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 7.5,
+        "y": 6.0,
+        "z": 0.0,
+        "point_type": "light"
+      },
+      "name": "light L0",
+      "id": "s01-elec-0-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 0.8,
+        "y": 4.0,
+        "z": 0.0,
+        "point_type": "switch"
+      },
+      "name": "switch L0",
+      "id": "s01-elec-0-3",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 2.0,
+        "y": 0.5,
+        "z": 0.0,
+        "point_type": "socket"
+      },
+      "name": "socket L0",
+      "id": "s01-elec-0-4",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 8.0,
+        "y": 0.5,
+        "z": 0.0,
+        "point_type": "socket"
+      },
+      "name": "socket L0",
+      "id": "s01-elec-0-5",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 1.5,
+        "y": 7.6,
+        "z": 0.0,
+        "point_type": "kitchen_socket"
+      },
+      "name": "kitchen_socket L0",
+      "id": "s01-elec-0-6",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 6.0,
+        "y": 7.0,
+        "z": 3.0,
+        "point_type": "wc"
+      },
+      "name": "wc L1",
+      "id": "s01-plumb-1-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 1
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 7.0,
+        "y": 7.0,
+        "z": 3.0,
+        "point_type": "basin"
+      },
+      "name": "basin L1",
+      "id": "s01-plumb-1-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 1
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 8.0,
+        "y": 7.0,
+        "z": 3.0,
+        "point_type": "shower"
+      },
+      "name": "shower L1",
+      "id": "s01-plumb-1-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 1
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 0.7,
+        "y": 0.7,
+        "z": 3.0,
+        "point_type": "panel"
+      },
+      "name": "panel L1",
+      "id": "s01-elec-1-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 2.5,
+        "y": 2.0,
+        "z": 3.0,
+        "point_type": "light"
+      },
+      "name": "light L1",
+      "id": "s01-elec-1-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 7.5,
+        "y": 6.0,
+        "z": 3.0,
+        "point_type": "light"
+      },
+      "name": "light L1",
+      "id": "s01-elec-1-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 0.8,
+        "y": 4.0,
+        "z": 3.0,
+        "point_type": "switch"
+      },
+      "name": "switch L1",
+      "id": "s01-elec-1-3",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 2.0,
+        "y": 0.5,
+        "z": 3.0,
+        "point_type": "socket"
+      },
+      "name": "socket L1",
+      "id": "s01-elec-1-4",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 8.0,
+        "y": 0.5,
+        "z": 3.0,
+        "point_type": "socket"
+      },
+      "name": "socket L1",
+      "id": "s01-elec-1-5",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "electrical_point",
+      "params": {
+        "x": 1.5,
+        "y": 7.6,
+        "z": 3.0,
+        "point_type": "kitchen_socket"
+      },
+      "name": "kitchen_socket L1",
+      "id": "s01-elec-1-6",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "price_list",
+      "params": {
+        "vat": 0.0,
+        "entries": {
+          "plumbing.pipe.cold.dn15": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.pipe.hot.dn15": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.pipe.cold.dn16": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.pipe.hot.dn16": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.pipe.cold.dn18": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.pipe.hot.dn18": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.pipe.cold.dn20": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.pipe.hot.dn20": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.pipe.cold.dn22": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.pipe.hot.dn22": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.pipe.cold.dn26": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.pipe.hot.dn26": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.point.wc": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.point.basin": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.point.shower": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.point.kitchen_sink": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.manifold.cold.1way": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.manifold.cold.2way": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.manifold.cold.3way": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.manifold.cold.4way": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.manifold.cold.5way": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.manifold.cold.6way": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.manifold.cold.7way": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.manifold.cold.8way": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.manifold.cold.9way": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.manifold.cold.10way": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.manifold.cold.11way": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.manifold.cold.12way": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.manifold.hot.1way": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.manifold.hot.2way": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.manifold.hot.3way": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.manifold.hot.4way": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.manifold.hot.5way": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.manifold.hot.6way": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.manifold.hot.7way": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.manifold.hot.8way": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.manifold.hot.9way": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.manifold.hot.10way": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.manifold.hot.11way": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          },
+          "plumbing.manifold.hot.12way": {
+            "material_unit_price": 1.0,
+            "labour_unit_price": 1.0,
+            "currency": "EUR",
+            "source": "TEST_FIXTURE \u2014 synthetic, not market data"
+          }
+        }
+      },
+      "name": "TEST_FIXTURE prices \u2014 not market data",
+      "id": "s01-prices",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "plumbing_point",
+      "params": {
+        "x": 9.0,
+        "y": 7.0,
+        "z": 0.0,
+        "point_type": "water_heater"
+      },
+      "name": "TEST_FIXTURE \u2014 \u03b8\u03b5\u03c1\u03bc\u03bf\u03c3\u03af\u03c6\u03c9\u03bd\u03b1\u03c2",
+      "id": "s01-hot-source",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "stair",
+      "params": {
+        "x": 1.1,
+        "y": 1.0,
+        "lower_z": 0.0,
+        "upper_z": 3.0,
+        "upper_floor_z": 2.7,
+        "upper_slab_thickness": 0.3,
+        "layout": "u",
+        "angle_deg": 0.0,
+        "width": 1.0,
+        "riser_count": 18,
+        "riser_height": 0.16666666666666666,
+        "tread_depth": 0.29,
+        "landing_depth": 1.0,
+        "turn_direction": 1,
+        "opening_margin": 0.05
+      },
+      "name": "\u03a3\u03ba\u03ac\u03bb\u03b1 \u03b9\u03c3\u03cc\u03b3\u03b5\u03b9\u03bf\u2013\u03cc\u03c1\u03bf\u03c6\u03bf\u03c2",
+      "id": "s01-stair",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_floor",
+      "params": {
+        "scope": "storey",
+        "level_z": 0.0,
+        "thickness": 0.18,
+        "offset_z": 0.0
+      },
+      "name": "\u03a0\u03bb\u03ac\u03ba\u03b1 \u03b4\u03b1\u03c0\u03ad\u03b4\u03bf\u03c5 \u2014 \u0399\u03c3\u03cc\u03b3\u03b5\u03b9\u03bf",
+      "id": "s01-room_floor-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_roof",
+      "params": {
+        "scope": "storey",
+        "level_z": 0.0,
+        "thickness": 0.3,
+        "offset_z": 2.7,
+        "roof_type": "flat",
+        "overhang": 0.0
+      },
+      "name": "\u03a0\u03bb\u03ac\u03ba\u03b1 \u03b4\u03ce\u03bc\u03b1\u03c4\u03bf\u03c2 \u2014 \u0399\u03c3\u03cc\u03b3\u03b5\u03b9\u03bf",
+      "id": "s01-room_roof-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_floor",
+      "params": {
+        "scope": "storey",
+        "level_z": 3.0,
+        "thickness": 0.18,
+        "offset_z": 0.0
+      },
+      "name": "\u03a0\u03bb\u03ac\u03ba\u03b1 \u03b4\u03b1\u03c0\u03ad\u03b4\u03bf\u03c5 \u2014 Level 1",
+      "id": "s01-room_floor-3",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_ceiling",
+      "params": {
+        "room_signature": "room-158d5cbbe99b9f65",
+        "thickness": 0.15,
+        "offset_z": 2.5500000000000003,
+        "room_id": "s01-3-room-158d5cbbe99b9f65"
+      },
+      "name": "\u039f\u03c1\u03bf\u03c6\u03ae \u03c3\u03bf\u03c6\u03af\u03c4\u03b1\u03c2",
+      "id": "s01-attic-ceiling-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_ceiling",
+      "params": {
+        "room_signature": "room-1c21dd389b209e7b",
+        "thickness": 0.15,
+        "offset_z": 2.5500000000000003,
+        "room_id": "s01-3-room-1c21dd389b209e7b"
+      },
+      "name": "\u039f\u03c1\u03bf\u03c6\u03ae \u03c3\u03bf\u03c6\u03af\u03c4\u03b1\u03c2",
+      "id": "s01-attic-ceiling-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_ceiling",
+      "params": {
+        "room_signature": "room-a56f8a5b2aef1546",
+        "thickness": 0.15,
+        "offset_z": 2.5500000000000003,
+        "room_id": "s01-3-room-a56f8a5b2aef1546"
+      },
+      "name": "\u039f\u03c1\u03bf\u03c6\u03ae \u03c3\u03bf\u03c6\u03af\u03c4\u03b1\u03c2",
+      "id": "s01-attic-ceiling-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "room_ceiling",
+      "params": {
+        "room_signature": "room-c98711f636fbb131",
+        "thickness": 0.15,
+        "offset_z": 2.5500000000000003,
+        "room_id": "s01-3-room-c98711f636fbb131"
+      },
+      "name": "\u039f\u03c1\u03bf\u03c6\u03ae \u03c3\u03bf\u03c6\u03af\u03c4\u03b1\u03c2",
+      "id": "s01-attic-ceiling-3",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 7.7,
+        "y": 1.0,
+        "z": 0.0,
+        "rotation": 0.0,
+        "width": 2.1,
+        "depth": 0.9,
+        "height": 0.85,
+        "uniform": 1.0,
+        "asset": "a6b43b945fad7b6b8",
+        "source_asset_id": "a6b43b945fad7b6b8",
+        "source_size": [
+          2.1,
+          0.9,
+          0.85
+        ],
+        "material_id": "",
+        "surface_materials": {}
+      },
+      "name": "\u039a\u03b1\u03bd\u03b1\u03c0\u03ad\u03c2 \u03c4\u03c1\u03b9\u03b8\u03ad\u03c3\u03b9\u03bf\u03c2",
+      "id": "s01-library-0",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 7.4,
+        "y": 3.0,
+        "z": 0.0,
+        "rotation": 0.0,
+        "width": 1.4000000000000001,
+        "depth": 0.8,
+        "height": 0.75,
+        "uniform": 1.0,
+        "asset": "a528ce417973a22aa",
+        "source_asset_id": "a528ce417973a22aa",
+        "source_size": [
+          1.4000000000000001,
+          0.8,
+          0.75
+        ],
+        "material_id": "",
+        "surface_materials": {}
+      },
+      "name": "\u03a4\u03c1\u03b1\u03c0\u03ad\u03b6\u03b9 \u03c4\u03c1\u03b1\u03c0\u03b5\u03b6\u03b1\u03c1\u03af\u03b1\u03c2 4\u03b8\u03ad\u03c3\u03b9\u03bf",
+      "id": "s01-library-1",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 7.6,
+        "y": 1.5,
+        "z": 3.0,
+        "rotation": 0.0,
+        "width": 1.7,
+        "depth": 2.1,
+        "height": 1.1,
+        "uniform": 1.0,
+        "asset": "abc85ac0b53225c83",
+        "source_asset_id": "abc85ac0b53225c83",
+        "source_size": [
+          1.7,
+          2.1,
+          1.1
+        ],
+        "material_id": "",
+        "surface_materials": {}
+      },
+      "name": "\u0394\u03b9\u03c0\u03bb\u03cc \u03ba\u03c1\u03b5\u03b2\u03ac\u03c4\u03b9 160\u00d7200",
+      "id": "s01-library-2",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 2.8,
+        "y": 6.4,
+        "z": 3.0,
+        "rotation": 0.0,
+        "width": 1.0,
+        "depth": 2.1,
+        "height": 1.1,
+        "uniform": 1.0,
+        "asset": "a78ff4d66f256569a",
+        "source_asset_id": "a78ff4d66f256569a",
+        "source_size": [
+          1.0,
+          2.1,
+          1.1
+        ],
+        "material_id": "",
+        "surface_materials": {}
+      },
+      "name": "\u039c\u03bf\u03bd\u03cc \u03ba\u03c1\u03b5\u03b2\u03ac\u03c4\u03b9 90\u00d7200",
+      "id": "s01-library-3",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 6.0,
+        "y": 7.0,
+        "z": 0.0,
+        "rotation": 0.0,
+        "width": 0.36,
+        "depth": 0.66,
+        "height": 0.8,
+        "uniform": 1.0,
+        "asset": "a1f86d26b0bf5378e",
+        "source_asset_id": "a1f86d26b0bf5378e",
+        "source_size": [
+          0.36,
+          0.66,
+          0.8
+        ],
+        "material_id": "",
+        "surface_materials": {}
+      },
+      "name": "\u039b\u03b5\u03ba\u03ac\u03bd\u03b7 WC \u03bc\u03b5 \u03ba\u03b1\u03b6\u03b1\u03bd\u03ac\u03ba\u03b9",
+      "id": "s01-library-4",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 7.0,
+        "y": 7.0,
+        "z": 0.0,
+        "rotation": 0.0,
+        "width": 0.8,
+        "depth": 0.46,
+        "height": 1.03,
+        "uniform": 1.0,
+        "asset": "a0c1970dbea04dc56",
+        "source_asset_id": "a0c1970dbea04dc56",
+        "source_size": [
+          0.8,
+          0.46,
+          1.03
+        ],
+        "material_id": "",
+        "surface_materials": {}
+      },
+      "name": "\u039d\u03b9\u03c0\u03c4\u03ae\u03c1\u03b1\u03c2 \u03bc\u03b5 \u03ad\u03c0\u03b9\u03c0\u03bb\u03bf 80",
+      "id": "s01-library-5",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 8.0,
+        "y": 7.0,
+        "z": 0.0,
+        "rotation": 0.0,
+        "width": 0.9,
+        "depth": 0.9,
+        "height": 2.0,
+        "uniform": 1.0,
+        "asset": "a3decaa11db07056f",
+        "source_asset_id": "a3decaa11db07056f",
+        "source_size": [
+          0.9,
+          0.9,
+          2.0
+        ],
+        "material_id": "",
+        "surface_materials": {}
+      },
+      "name": "\u039d\u03c4\u03bf\u03c5\u03b6\u03b9\u03ad\u03c1\u03b1 90\u00d790",
+      "id": "s01-library-6",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 6.0,
+        "y": 7.0,
+        "z": 3.0,
+        "rotation": 0.0,
+        "width": 0.36,
+        "depth": 0.66,
+        "height": 0.8,
+        "uniform": 1.0,
+        "asset": "a1f86d26b0bf5378e",
+        "source_asset_id": "a1f86d26b0bf5378e",
+        "source_size": [
+          0.36,
+          0.66,
+          0.8
+        ],
+        "material_id": "",
+        "surface_materials": {}
+      },
+      "name": "\u039b\u03b5\u03ba\u03ac\u03bd\u03b7 WC \u03bc\u03b5 \u03ba\u03b1\u03b6\u03b1\u03bd\u03ac\u03ba\u03b9",
+      "id": "s01-library-7",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 7.0,
+        "y": 7.0,
+        "z": 3.0,
+        "rotation": 0.0,
+        "width": 0.8,
+        "depth": 0.46,
+        "height": 1.03,
+        "uniform": 1.0,
+        "asset": "a0c1970dbea04dc56",
+        "source_asset_id": "a0c1970dbea04dc56",
+        "source_size": [
+          0.8,
+          0.46,
+          1.03
+        ],
+        "material_id": "",
+        "surface_materials": {}
+      },
+      "name": "\u039d\u03b9\u03c0\u03c4\u03ae\u03c1\u03b1\u03c2 \u03bc\u03b5 \u03ad\u03c0\u03b9\u03c0\u03bb\u03bf 80",
+      "id": "s01-library-8",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "library_object",
+      "params": {
+        "x": 8.0,
+        "y": 7.0,
+        "z": 3.0,
+        "rotation": 0.0,
+        "width": 0.9,
+        "depth": 0.9,
+        "height": 2.0,
+        "uniform": 1.0,
+        "asset": "a3decaa11db07056f",
+        "source_asset_id": "a3decaa11db07056f",
+        "source_size": [
+          0.9,
+          0.9,
+          2.0
+        ],
+        "material_id": "",
+        "surface_materials": {}
+      },
+      "name": "\u039d\u03c4\u03bf\u03c5\u03b6\u03b9\u03ad\u03c1\u03b1 90\u00d790",
+      "id": "s01-library-9",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 2.9,
+        "width": 0.9,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "door L0",
+      "id": "s01-opening-0-0",
+      "parent_id": "s01-part-0-a",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 5.2,
+        "width": 0.8,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "door L0",
+      "id": "s01-opening-0-1",
+      "parent_id": "s01-part-0-a",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 1.2,
+        "width": 0.9,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "door L0",
+      "id": "s01-opening-0-2",
+      "parent_id": "s01-part-0-b",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 7.0,
+        "width": 0.8,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "door L0",
+      "id": "s01-opening-0-3",
+      "parent_id": "s01-part-0-b",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 1.4,
+        "width": 1.5,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "window L0",
+      "id": "s01-opening-0-4",
+      "parent_id": "s01-wall-0-1",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 6.4,
+        "width": 1.5,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "window L0",
+      "id": "s01-opening-0-5",
+      "parent_id": "s01-wall-0-2",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 6.5,
+        "width": 0.9,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "door L0",
+      "id": "s01-opening-0-6",
+      "parent_id": "s01-wall-0-0",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 2.9,
+        "width": 0.9,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "door L1",
+      "id": "s01-opening-1-0",
+      "parent_id": "s01-part-1-a",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 5.2,
+        "width": 0.8,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "door L1",
+      "id": "s01-opening-1-1",
+      "parent_id": "s01-part-1-a",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 1.2,
+        "width": 0.9,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "door L1",
+      "id": "s01-opening-1-2",
+      "parent_id": "s01-part-1-b",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 7.0,
+        "width": 0.8,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "door L1",
+      "id": "s01-opening-1-3",
+      "parent_id": "s01-part-1-b",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 1.4,
+        "width": 1.5,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "window L1",
+      "id": "s01-opening-1-4",
+      "parent_id": "s01-wall-1-1",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "window",
+      "params": {
+        "offset": 6.4,
+        "width": 1.5,
+        "height": 1.2,
+        "sill": 0.9
+      },
+      "name": "window L1",
+      "id": "s01-opening-1-5",
+      "parent_id": "s01-wall-1-2",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "door",
+      "params": {
+        "offset": 6.6,
+        "width": 1.8,
+        "height": 2.1,
+        "sill": 0.0
+      },
+      "name": "door L1",
+      "id": "s01-opening-1-6",
+      "parent_id": "s01-wall-1-0",
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    },
+    {
+      "kind": "structural_design",
+      "params": {
+        "foundation_type": "strips"
+      },
+      "name": "Foundation comparison",
+      "id": "s01-review-foundation-strips",
+      "parent_id": null,
+      "locked": false,
+      "visible": true,
+      "revision": 0
+    }
+  ],
+  "dependencies": {
+    "s01-part-0-a": [
+      "s01-opening-0-0",
+      "s01-opening-0-1"
+    ],
+    "s01-part-0-b": [
+      "s01-opening-0-2",
+      "s01-opening-0-3"
+    ],
+    "s01-wall-0-1": [
+      "s01-opening-0-4"
+    ],
+    "s01-wall-0-2": [
+      "s01-opening-0-5"
+    ],
+    "s01-wall-0-0": [
+      "s01-opening-0-6"
+    ],
+    "s01-part-1-a": [
+      "s01-opening-1-0",
+      "s01-opening-1-1"
+    ],
+    "s01-part-1-b": [
+      "s01-opening-1-2",
+      "s01-opening-1-3"
+    ],
+    "s01-wall-1-1": [
+      "s01-opening-1-4"
+    ],
+    "s01-wall-1-2": [
+      "s01-opening-1-5"
+    ],
+    "s01-wall-1-0": [
+      "s01-opening-1-6"
+    ]
+  },
+  "levels": {
+    "Ground": 0.0,
+    "Level 1": 3.0
+  },
+  "work_plane": {
+    "name": "XY",
+    "origin": [
+      0,
+      0,
+      0
+    ],
+    "u": [
+      1,
+      0,
+      0
+    ],
+    "v": [
+      0,
+      1,
+      0
+    ]
+  },
+  "materials": {},
+  "constructions": {},
+  "room_data": {
+    "s01-0-room-0cd0011e9d270492": {
+      "name": "\u039b\u03bf\u03c5\u03c4\u03c1\u03cc"
+    },
+    "s01-0-room-223608dac8bbbe97": {
+      "name": "\u039a\u03bf\u03c5\u03b6\u03af\u03bd\u03b1"
+    },
+    "s01-0-room-9c4580e003c57a32": {
+      "name": "\u039a\u03bb\u03b9\u03bc\u03b1\u03ba\u03bf\u03c3\u03c4\u03ac\u03c3\u03b9\u03bf"
+    },
+    "s01-0-room-c883d8fd119d1746": {
+      "name": "\u039a\u03b1\u03b8\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc"
+    },
+    "s01-3-room-158d5cbbe99b9f65": {
+      "name": "\u03a5\u03c0\u03bd\u03bf\u03b4\u03c9\u03bc\u03ac\u03c4\u03b9\u03bf 2"
+    },
+    "s01-3-room-1c21dd389b209e7b": {
+      "name": "\u03a5\u03c0\u03bd\u03bf\u03b4\u03c9\u03bc\u03ac\u03c4\u03b9\u03bf 1"
+    },
+    "s01-3-room-a56f8a5b2aef1546": {
+      "name": "\u039a\u03bb\u03b9\u03bc\u03b1\u03ba\u03bf\u03c3\u03c4\u03ac\u03c3\u03b9\u03bf"
+    },
+    "s01-3-room-c98711f636fbb131": {
+      "name": "\u039b\u03bf\u03c5\u03c4\u03c1\u03cc"
+    }
+  },
+  "room_bindings": {
+    "s01-0-room-0cd0011e9d270492": {
+      "signature": "room-0cd0011e9d270492",
+      "polygon": [
+        [
+          10.0,
+          4.0
+        ],
+        [
+          10.0,
+          8.0
+        ],
+        [
+          5.0,
+          8.0
+        ],
+        [
+          5.0,
+          4.0
+        ]
+      ],
+      "z": 0.0,
+      "status": "enclosed"
+    },
+    "s01-0-room-223608dac8bbbe97": {
+      "signature": "room-223608dac8bbbe97",
+      "polygon": [
+        [
+          5.0,
+          8.0
+        ],
+        [
+          0.0,
+          8.0
+        ],
+        [
+          0.0,
+          4.0
+        ],
+        [
+          5.0,
+          4.0
+        ]
+      ],
+      "z": 0.0,
+      "status": "enclosed"
+    },
+    "s01-0-room-9c4580e003c57a32": {
+      "signature": "room-9c4580e003c57a32",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          5.0,
+          0.0
+        ],
+        [
+          5.0,
+          4.0
+        ],
+        [
+          0.0,
+          4.0
+        ]
+      ],
+      "z": 0.0,
+      "status": "enclosed"
+    },
+    "s01-0-room-c883d8fd119d1746": {
+      "signature": "room-c883d8fd119d1746",
+      "polygon": [
+        [
+          5.0,
+          0.0
+        ],
+        [
+          10.0,
+          0.0
+        ],
+        [
+          10.0,
+          4.0
+        ],
+        [
+          5.0,
+          4.0
+        ]
+      ],
+      "z": 0.0,
+      "status": "enclosed"
+    },
+    "s01-3-room-158d5cbbe99b9f65": {
+      "signature": "room-158d5cbbe99b9f65",
+      "polygon": [
+        [
+          5.0,
+          8.0
+        ],
+        [
+          0.0,
+          8.0
+        ],
+        [
+          0.0,
+          4.0
+        ],
+        [
+          5.0,
+          4.0
+        ]
+      ],
+      "z": 3.0,
+      "status": "enclosed"
+    },
+    "s01-3-room-1c21dd389b209e7b": {
+      "signature": "room-1c21dd389b209e7b",
+      "polygon": [
+        [
+          5.0,
+          0.0
+        ],
+        [
+          10.0,
+          0.0
+        ],
+        [
+          10.0,
+          4.0
+        ],
+        [
+          5.0,
+          4.0
+        ]
+      ],
+      "z": 3.0,
+      "status": "enclosed"
+    },
+    "s01-3-room-a56f8a5b2aef1546": {
+      "signature": "room-a56f8a5b2aef1546",
+      "polygon": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          5.0,
+          0.0
+        ],
+        [
+          5.0,
+          4.0
+        ],
+        [
+          0.0,
+          4.0
+        ]
+      ],
+      "z": 3.0,
+      "status": "enclosed"
+    },
+    "s01-3-room-c98711f636fbb131": {
+      "signature": "room-c98711f636fbb131",
+      "polygon": [
+        [
+          10.0,
+          4.0
+        ],
+        [
+          10.0,
+          8.0
+        ],
+        [
+          5.0,
+          8.0
+        ],
+        [
+          5.0,
+          4.0
+        ]
+      ],
+      "z": 3.0,
+      "status": "enclosed"
+    }
+  },
+  "surface_modifiers": [],
+  "view_layers": {}
+}
