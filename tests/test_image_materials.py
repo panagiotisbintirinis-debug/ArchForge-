@@ -147,3 +147,55 @@ def test_import_photo_locks_native_aspect_ratio_by_default(monkeypatch, tmp_path
         assert dialog.image_height.value() == pytest.approx(2.0, abs=0.01)
     finally:
         dialog.close()
+
+
+def test_owner_flow_photo_becomes_a_material_on_a_wall_in_3d_and_survives_save(monkeypatch, tmp_path):
+    """Owner 28/10: «το ζητούμενο ήταν να μπορούμε να φτιάχνουμε υλικό από φωτογραφίες» — the whole path with the mouse:
+    Βιβλιοθήκη ▸ υλικό ▸ Ιδιότητες υλικού ▸ Εικόνα… ▸ πραγματικό πλάτος ▸ «Αποθήκευση και εφαρμογή στο επιλεγμένο»."""
+    import json
+    from PySide6.QtGui import QColor, QImage
+    from PySide6.QtWidgets import QApplication
+    from archforge.ui.main_window import MainWindow
+    from archforge.ui.material_properties import MaterialPropertiesDialog
+    from archforge.rendering.scene import build_pbr_scene_payload
+    from archforge.geometry.incremental import IncrementalEvaluationCache
+    from archforge.geometry.sculpt import SculptedPreviewBackend
+
+    monkeypatch.setenv('ARCHFORGE_DATA', str(tmp_path / 'data'))
+    app = QApplication.instance() or QApplication([])
+    photo = QImage(300, 150, QImage.Format.Format_RGB32); photo.fill(QColor('#8a6f52'))
+    path = tmp_path / 'petra.jpg'; assert photo.save(str(path), 'JPEG')
+    monkeypatch.setattr('PySide6.QtWidgets.QFileDialog.getOpenFileName', lambda *a, **k: (str(path), ''))
+    window = MainWindow()
+    try:
+        wall = Entity('wall', {'x1': 0, 'y1': 0, 'x2': 5, 'y2': 0, 'z': 0.0, 'height': 2.7, 'thickness': 0.2})
+        window.stack.execute(AddEntity(wall))
+        window.doc.select([wall.id])
+        menu = window._library_tree_menu(SimpleItem(('material', 'stone_karystos')))
+        assert any('εικόνα' in a.text() for a in menu.actions())                 # the entry says it takes a photo
+        dialog = MaterialPropertiesDialog(window, 'stone_karystos', window.doc)
+        dialog._choose_image()
+        dialog.image_width.setValue(2.0)                                         # 2 m wide → 1 m high (locked 2:1)
+        assert dialog.image_height.value() == pytest.approx(1.0, abs=0.01)
+        dialog.apply_button.click()
+        saved = window._edit_material_properties('stone_karystos', dialog=dialog)
+        assert saved and um.is_user_material(saved)
+        assert window.doc.get(wall.id).params.get('material_id') == saved
+        payload = build_pbr_scene_payload(IncrementalEvaluationCache(SculptedPreviewBackend()).sync(window.doc),
+                                          doc=window.doc)
+        assert payload.get('image_textures')                                     # the photo reaches the 3D
+        reopened = Document.from_dict(json.loads(json.dumps(window.doc.to_dict())))
+        assert reopened.materials[saved]['image_texture']['width_m'] == 2.0      # travels with the project file
+        window._undo()
+        assert window.doc.get(wall.id).params.get('material_id') != saved        # one undo takes it off the wall
+    finally:
+        window._mark_clean(); window.close(); app.processEvents()
+
+
+class SimpleItem:
+    """Stand-in for a library tree leaf (data() returns its action)."""
+    def __init__(self, action):
+        self.action = action
+
+    def data(self, *_):
+        return self.action
