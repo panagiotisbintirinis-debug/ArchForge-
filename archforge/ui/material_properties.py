@@ -42,7 +42,10 @@ def _image_aspect(data: str) -> float | None:
         return None
     try:
         image = QImage.fromData(base64.b64decode(data.partition(",")[2]), "JPEG")
-    except (ValueError, OSError):
+    except (ValueError, OSError) as exc:
+        from archforge.core.notices import not_computed
+        not_computed("materials.photo", "Υλικό από φωτογραφία: η εικόνα δεν διαβάστηκε, το κλείδωμα αναλογιών δεν "
+                     "ισχύει", exc=exc)
         return None
     if image.isNull() or image.height() <= 0:
         return None

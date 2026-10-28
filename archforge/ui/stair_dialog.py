@@ -49,7 +49,10 @@ class StairPreview(QWidget):
         w, h = self.width(), self.height()
         try:
             c = candidate_from_params(self.params)
-        except Exception:
+        except Exception as exc:                      # Α3: the reason in the preview, not a blank picture
+            p.setPen(QColor(170, 40, 40))
+            p.drawText(QRectF(12, 12, w - 24, h - 24), int(Qt.AlignmentFlag.AlignCenter) | int(Qt.TextFlag.TextWordWrap),
+                       f'Η σκάλα δεν σχεδιάζεται με αυτές τις τιμές:\n{exc}')
             return
         self._plan(p, c, QRectF(12, 24, w - 24, h * 0.45 - 30))
         self._section(p, c, QRectF(12, h * 0.45 + 24, w - 24, h * 0.55 - 36))
@@ -284,7 +287,9 @@ class StairDialog(QDialog):
             form.removeRow(0)
         try:
             roles = sorted(set(_stair_mesh(self.params, self.doc).triangle_surfaces))
-        except Exception:
+        except Exception as exc:                      # Α3: said in the form, not an empty editor
+            form.addRow(QLabel(f'Οι επιφάνειες της σκάλας δεν υπολογίστηκαν ({exc}) — τα υλικά ανά τμήμα δεν '
+                               'είναι διαθέσιμα με αυτές τις τιμές.'))
             roles = []
         chosen = dict(self.params.get('surface_materials') or {})
         for role in roles:

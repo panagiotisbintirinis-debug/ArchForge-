@@ -45,47 +45,23 @@
 **Η/Μ, φωτισμός (✓):** `mep/conduits.py:53` · `mep/electrical.py:176` · `mep/heating_layout.py:88` · `mep/lighting.py:66`
 · `ui/lighting_system.py:205` · `ui/lighting_panel.py:48` · `library/lighting.py:110` · `ui/plumbing_tab.py:132`.
 Μένει: `ui/lighting_mep_bridge.py:50` (μεταβατικό `ModuleNotFoundError`· το `mep/lighting.py` υπάρχει, δεν εκτελείται).
+**Κάτοψη, 3D (✓):** `core/plan_scene.py:544, 845` (και: αποτυχία δεν αποθηκεύεται πια ως «κανένας τοίχος»), `890` ·
+`core/interaction.py:638` (άγνωστοι χώροι: δεν μπαίνει στο έδαφος) · `core/layers.py:113` · `rendering/scene.py:579` ·
+`kinematics/authoring.py:72` · `ui/plan_view.py:34, 944`. Μένουν (κάθε κίνηση ποντικιού: κούμπωμα/επιλογή):
+`core/snapping.py:270`, `core/interaction.py:151`, `ui/plan_view.py:187`.
+**Βιβλιοθήκη, υλικά, Ιδιότητες (✓):** `library/assets.py:139` · `ui/library_instance_integration.py:62` ·
+`ui/material_library.py:100` · `ui/material_object_integration.py:19` (άγνωστο τμήμα: **το υλικό δεν εφαρμόζεται**
+σε όλο το αντικείμενο), `49` (η κάρτα γράφει «δεν διαβάστηκε», όχι «προεπιλογή»), `307` · `ui/material_properties.py:45`
+· `ui/light_properties.py:142, 161` (μήνυμα για μη αριθμό / εκτός ορίων) · `ui/object_preview.py:84` ·
+`ui/mouse_menus.py:473` · `ui/layout_assist.py:252` · `ui/stair_dialog.py:52` (η αιτία μέσα στην προεπισκόπηση),
+`287` (γραμμή στη φόρμα). Μένει: `ui/stair_dialog.py:86` (ζωγραφική· το λέει το `railings.py:567`).
+**Δέντρο έργου, βοηθός, ενημερώσεις (✓):** `ui/project_outline.py:51, 93, 118, 161, 378` ·
+`assistant/understanding.py:107` · `updates.py:39, 53` («ο έλεγχος απέτυχε» αντί για «έχεις την τελευταία έκδοση»).
 
-**Ανοιχτά:**
+**Όλα τα Β εξετάστηκαν (28/10).** Ό,τι σημειώνεται «μένει» έχει τον λόγο του δίπλα.
 
-Πρόταση: όχι 90 χωριστές διορθώσεις, αλλά **ένα κοινό κανάλι** «δεν υπολογίστηκε» (ποιο στοιχείο, γιατί) που το
-βλέπει ο χρήστης στην Ποιότητα / στο σημείο της εντολής, και μετά τα σημεία ένα-ένα, πρώτα όσα επηρεάζουν
-**ποσότητες, στατικά, στέγες και εισαγωγή σχεδίων**. Ο αριθμός μετά το σημείο = προτεραιότητα (1 πρώτα).
-
-**Ποσότητες / προσφορά (1):** `construction/shell.py:102` (εσωτερικός σοβάς → 0) · `construction/earthworks.py:77, 89`
-(μικρότερη εκσκαφή, λείπει θεμελίωση) · `quantities/takeoff.py:112` (λείπει πλάκα) · `output/formwork.py:59, 282`
-(ξυλότυπος χωρίς στοιχεία, «δεν υπάρχει» = «απέτυχε») · `construction/drywall.py:189`.
-
-**Στέγες, πλάκες, σκάλες, στατικά (1):** `architecture/roof_need.py:41, 122, 150` (μπορεί να προταθεί στέγη κάτω από
-όροφο) · `architecture/roof_clip.py:37` · `structure/timber_roof.py:420` · `architecture/storey_slabs.py:403, 477`
-(χώρος κλείνει χωρίς δάπεδο και εξήγηση) · `structure/slab_openings.py:50` · `architecture/stairs.py:402, 422, 462`
-(σύγκρουση σκάλας μπορεί να μη φανεί) · `geometry/fit_top.py:78, 127`.
-
-**Εισαγωγή σχεδίων / τοπογραφικό (1):** `project/underlay.py:43, 116` · `site/survey.py:58, 72, 130` ·
-`site/plateaus.py:85, 132` · `site/terrain.py:94` · `ui/building_from_underlay.py:134, 150` ·
-`ui/drawing_set_import.py:479, 483, 580` (κρατά μόνο την πρώτη περιοχή).
-
-**Ελέγχοι ποιότητας (1):** `scenarios/gate.py:213, 321` (γράφει «ελεύθερο» χωρίς να ελέγξει).
-
-**Τοίχοι, ανοίγματα, διαστάσεις (2):** `architecture/dimension_reference.py:49` · `architecture/dimensions.py:89, 199, 204`
-· `architecture/joinery.py:288` (φορά πόρτας) · `architecture/openings.py:113, 169` · `architecture/railings.py:567, 586`
-· `architecture/wall_edit.py:160, 365`.
-
-**Η/Μ, φωτισμός (2):** `mep/conduits.py:53` · `mep/electrical.py:176` · `mep/heating_layout.py:88` · `mep/lighting.py:66`
-· `ui/lighting_system.py:205` · `ui/lighting_panel.py:48` · `library/lighting.py:110` · `ui/lighting_mep_bridge.py:50`
-· `ui/plumbing_tab.py:132`.
-
-**Κάτοψη, 3D, επιλογή, κούμπωμα (2):** `core/plan_scene.py:544, 845, 890` (χάνονται γεμίσεις τοίχων / ετικέτες) ·
-`core/snapping.py:270` · `core/interaction.py:151, 638` · `core/layers.py:113` · `rendering/scene.py:579`
-(κούφωμα χωρίς πλαίσιο στο 3D) · `kinematics/authoring.py:72` · `ui/plan_view.py:34, 187, 944`.
-
-**Βιβλιοθήκη, υλικά, Ιδιότητες (3):** `library/assets.py:139` · `ui/library_instance_integration.py:62` ·
-`ui/material_library.py:100` · `ui/material_object_integration.py:19, 49, 307` · `ui/material_properties.py:45` ·
-`ui/light_properties.py:142, 161` · `ui/object_preview.py:84` · `ui/mouse_menus.py:473` · `ui/layout_assist.py:252`
-· `ui/stair_dialog.py:52, 86, 287`.
-
-**Δέντρο έργου, βοηθός, ενημερώσεις (3):** `ui/project_outline.py:51, 93, 118, 161, 378` ·
-`assistant/understanding.py:107` · `updates.py:39, 53` («έχεις την τελευταία έκδοση» ενώ ο έλεγχος απέτυχε).
+**Η αρχική ομαδοποίηση του Astra (για αναφορά):** ποσότητες · στέγες/πλάκες/σκάλες · εισαγωγή · πύλη (1) ·
+τοίχοι/ανοίγματα · Η/Μ · κάτοψη/3D (2) · βιβλιοθήκη/υλικά · δέντρο έργου/ενημερώσεις (3).
 
 ## Γ — αθώα (μένουν)
 

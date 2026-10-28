@@ -249,8 +249,9 @@ class LayoutAssist:
             view.controller.set_target(eid, None)
             try:
                 view.controller.pointer_down(PointerEvent(x0, y0))
-            except (ValueError, RuntimeError, KeyError):
+            except (ValueError, RuntimeError, KeyError) as exc:
                 view.controller.set_tool("select")
+                self.status(f"Μετακίνηση: δεν ξεκίνησε ({exc})", 6000)
                 return False
             view._mouse_down = True
             self._dragging = True

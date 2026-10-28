@@ -59,7 +59,10 @@ def source_size_for_instance(params) -> tuple[float, float, float] | None:
         return None
     try:
         values = tuple(float(v) for v in asset["size"])
-    except (KeyError, TypeError, ValueError):
+    except (KeyError, TypeError, ValueError) as exc:
+        from archforge.core.notices import not_computed
+        not_computed("library.size", f"«{asset_id}»: δεν είναι γνωστό το αρχικό μέγεθος, η επαναφορά μεγέθους δεν "
+                     "γίνεται", exc=exc)
         return None
     return values if len(values) == 3 and all(v > 0 for v in values) else None
 

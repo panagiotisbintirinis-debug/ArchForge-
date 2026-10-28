@@ -576,7 +576,10 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                 continue
             try:
                 parts = opening_fixture_parts(doc, entity)
-            except (KeyError, ValueError, TypeError):
+            except (KeyError, ValueError, TypeError) as exc:
+                from archforge.core.notices import not_computed
+                not_computed("3d.fixture", f"3D: το κούφωμα «{entity.name or entity.id}» φαίνεται χωρίς πλαίσιο/φύλλο",
+                             entity.id, exc)
                 continue
             typed = _is_typed_opening(entity)
             for key, verts, tris in parts:

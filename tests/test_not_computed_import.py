@@ -60,3 +60,15 @@ def test_mep_says_unreadable_rooms_instead_of_none(monkeypatch):
     with notices.collecting() as found:
         assert heating_layout.heated_rooms(Document(), 0.0) == []
     assert [i.code for i in found] == ['heating.rooms']
+
+
+def test_a_failed_update_check_is_not_up_to_date():
+    from archforge import updates
+
+    def offline(_url):
+        raise OSError('no network')
+    assert updates.available_update({"sha": "abc"}, fetch=offline) is None
+    assert 'GitHub' in updates.last_check_error and 'no network' in updates.last_check_error
+    same = lambda _url: {"target_commitish": "abc", "assets": [{"name": updates.ASSET, "browser_download_url": "u"}]}
+    assert updates.available_update({"sha": "abc"}, fetch=same) is None
+    assert updates.last_check_error is None              # a real answer: up to date

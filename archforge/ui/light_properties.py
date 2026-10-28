@@ -140,7 +140,10 @@ def _typed_beam(window, eid, text):
     try:
         value = float(str(text).replace("°", "").replace(",", ".").strip())
     except ValueError:
+        window.statusBar().showMessage(f"Γωνία δέσμης: «{text}» δεν είναι αριθμός — δεν άλλαξε", 6000)
         return
+    if not 1.0 <= value <= 180.0:
+        window.statusBar().showMessage(f"Γωνία δέσμης: {value:g}° εκτός ορίων 1–180° — δεν άλλαξε", 6000)
     if 1.0 <= value <= 180.0:
         window._set_entity_choice(eid, "beam_deg", value)
 
@@ -159,7 +162,10 @@ def _typed_kelvin(window, eid, text):
     try:
         value = float(str(text).replace("K", "").replace(",", ".").strip())
     except ValueError:
+        window.statusBar().showMessage(f"Θερμοκρασία χρώματος: «{text}» δεν είναι αριθμός — δεν άλλαξε", 6000)
         return
+    if not 1000.0 <= value <= 10000.0:
+        window.statusBar().showMessage(f"Θερμοκρασία χρώματος: {value:g} K εκτός ορίων 1000–10000 K — δεν άλλαξε", 6000)
     if 1000.0 <= value <= 10000.0:
         window._set_entity_choice(eid, "kelvin", value)
 

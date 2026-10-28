@@ -110,7 +110,10 @@ def entity_layer(kind, params=None):
         try:
             from archforge.library.assets import load_asset
             record = load_asset(str(params['asset'])) or {}
-        except Exception:
+        except Exception as exc:
+            from archforge.core.notices import not_computed
+            not_computed('layers.asset', f'Layers: το αντικείμενο βιβλιοθήκης «{params["asset"]}» δεν διαβάστηκε — '
+                         'μπαίνει στα Έπιπλα', exc=exc)
             record = {}
         if any(c in BATH_CATEGORIES for c in record.get('category', ())):
             return 'sanitary'

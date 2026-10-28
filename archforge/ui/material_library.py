@@ -97,8 +97,10 @@ def _assigned_material(entity, role: str) -> str:
             try:
                 from archforge.architecture.stair_options import role_material_id
                 return str(role_material_id(entity.params, role) or "")
-            except Exception:
-                pass
+            except Exception as exc:
+                from archforge.core.notices import not_computed
+                not_computed("materials.stair_part", f"Σκάλα: δεν διαβάστηκε το υλικό του τμήματος «{role}» — "
+                             "φαίνεται το υλικό όλης της σκάλας", entity.id, exc)
     return str(entity.params.get("material_id", "") or "")
 
 

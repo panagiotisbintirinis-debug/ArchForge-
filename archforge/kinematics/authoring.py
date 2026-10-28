@@ -69,7 +69,9 @@ def posed_corners(doc):
         return {}
     try:
         transforms = _mechanical_transforms(doc, {})
-    except ValueError:
+    except ValueError as exc:
+        from archforge.core.notices import not_computed
+        not_computed("kinematics.pose", "Μηχανισμός: μη έγκυρη κινηματική — εμφανίζεται η θέση ηρεμίας", exc=exc)
         return {eid: corners(e.params) for eid, e in parts.items()}
     out = {}
     for eid, e in parts.items():

@@ -29,6 +29,7 @@ class Issue:
 _collectors: List[List[Issue]] = []
 _recent = collections.deque(maxlen=200)    # (serial, Issue)
 _serial = 0
+_logged = set()                            # each distinct notice is logged once (a redraw may repeat it)
 
 
 def not_computed(code, message, entity_id=None, exc=None):
@@ -36,7 +37,9 @@ def not_computed(code, message, entity_id=None, exc=None):
     text = f'{message} ({type(exc).__name__}: {exc})' if exc is not None else str(message)
     issue = Issue('warning', str(code), text, None if entity_id is None else str(entity_id))
     global _serial
-    log.warning('not computed: %s — %s', issue.code, issue.message)
+    if issue not in _logged and len(_logged) < 10000:
+        _logged.add(issue)
+        log.warning('not computed: %s — %s', issue.code, issue.message)
     _serial += 1
     _recent.append((_serial, issue))
     for bucket in _collectors:

@@ -40,7 +40,10 @@ def check(window, asked):
 
 def _answer(window, rel, asked):
     if rel is None:
-        if asked:
+        if asked and updates.last_check_error:
+            QMessageBox.warning(window, "Ενημερώσεις", f"Ο έλεγχος για ενημερώσεις απέτυχε: {updates.last_check_error}.\n"
+                                "Δεν είναι γνωστό αν υπάρχει νεότερη έκδοση — δοκίμασε ξανά αργότερα.")
+        elif asked:
             build = updates.current_build() or {}
             QMessageBox.information(window, "Ενημερώσεις",
                                     f"Έχεις την τελευταία έκδοση ({build.get('sha', '')[:7]}).")
