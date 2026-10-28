@@ -948,8 +948,19 @@ class CommandStack:
         # A locked layer (Layers panel / environment) refuses changes to its entities.
         from .layers import check_command
         check_command(self.doc,c)
+    def _all_or_nothing(self,run):
+        """Λίστα εργασιών Α2 (28/10): whatever a command (or its undo/redo) changed before it failed is put back here,
+        for every command, also ones written later.  ``view_layers`` is what is shown, not the project: an undo never
+        touches it (``_restore_document_state``)."""
+        before=copy.deepcopy(self.doc.to_dict());selection=list(self.doc.selection)
+        try:
+            run()
+        except Exception:
+            if copy.deepcopy(self.doc.to_dict())!=before or list(self.doc.selection)!=selection:
+                _restore_document_state(self.doc,before,selection)
+            raise
     def execute(self,c):
-        self._check_layers(c);c.do(self.doc)
+        self._check_layers(c);self._all_or_nothing(lambda:c.do(self.doc))
         if getattr(c,'noop',False):return       # changed nothing: no empty undo step (audit F04)
         self.done.append(c);self.undone.clear();self._notify()
     def amend(self,c):
@@ -957,7 +968,7 @@ class CommandStack:
         if not self.done:
             return self.execute(c)
         self._check_layers(c)
-        c.do(self.doc)
+        self._all_or_nothing(lambda:c.do(self.doc))
         last=self.done.pop()
         self.done.append(CompositeCommand([last,c]))
         self.undone.clear();self._notify()
@@ -970,7 +981,9 @@ class CommandStack:
             self._notify()
     def undo(self):
         if not self.done:return
-        c=self.done.pop();c.undo(self.doc);self.undone.append(c);self._notify()
+        c=self.done[-1];self._all_or_nothing(lambda:c.undo(self.doc))   # a failed undo stays undoable
+        self.done.pop();self.undone.append(c);self._notify()
     def redo(self):
         if not self.undone:return
-        c=self.undone.pop();c.do(self.doc);self.done.append(c);self._notify()
+        c=self.undone[-1];self._all_or_nothing(lambda:c.do(self.doc))   # a failed redo stays redoable
+        self.undone.pop();self.done.append(c);self._notify()
