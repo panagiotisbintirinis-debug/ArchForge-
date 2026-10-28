@@ -25,8 +25,9 @@ develop) και για τα 12 SAME_PATCH με το αυστηρό κριτήρ�
 
 ## Αποτέλεσμα
 
-**117 branches σβήνονται με απόδειξη** (MERGED) · 12 SAME_PATCH μόνο αν το εγκρίνεις · 1 NO_NET_CHANGE και 16 KEEP
-μένουν · 14 PROTECTED.
+**116 branches σβήνονται με απόδειξη** (MERGED· κανένα όνομά τους δεν χρησιμοποιείται σε κώδικα, CI ή οδηγίες —
+ελέγχθηκε 28/10) · 12 SAME_PATCH μόνο αν το εγκρίνεις · 1 NO_NET_CHANGE και 16 KEEP
+μένουν · 15 PROTECTED.
 
 ## KEEP — πρόταση ανά branch (αποφασίζεις εσύ)
 
@@ -57,6 +58,10 @@ develop) και για τα 12 SAME_PATCH με το αυστηρό κριτήρ�
 **Παλιές σημειώσεις:** `claude/clever-einstein-8lalhs` (μία γραμμή HANDOFF «1679 passed»),
 `codex/residential-s01-quality-gate` (σημείωμα συντονισμού για το PR #128) → κλείνουν.
 
+**Κρατιέται, αν και MERGED:** `test/residential-scenario-suite` — το όνομά του ξεκινά τον έλεγχο ποιότητας σεναρίων
+(`.github/workflows/residential-scenarios.yml` τρέχει μόνο σε push σε αυτό). Αν σβηστεί, ο έλεγχος δεν τρέχει πια·
+απόφαση ιδιοκτήτη: κρατιέται, ή το workflow τρέχει στο develop και μετά σβήνεται.
+
 ## PROTECTED — ανοιχτά PR (από `docs/RELEASE_PLAN.md` §6)
 
 | PR | Branch | Τεστ του πάνω στο develop | Τι λείπει από το develop |
@@ -71,7 +76,7 @@ develop) και για τα 12 SAME_PATCH με το αυστηρό κριτήρ�
 
 ## Πλήρης πίνακας και εντολές διαγραφής
 
-Σύνολο 160 · MERGED 117 · SAME_PATCH 12 · NO_NET_CHANGE 1 · KEEP 16 · PROTECTED 14
+Σύνολο 160 · MERGED 116 · SAME_PATCH 12 · NO_NET_CHANGE 1 · KEEP 16 · PROTECTED 15
 
 | Κατάσταση | Branch | Τελευταίο commit | Δικά του commits (χωρίς ίδιο αντίγραφο στο develop) |
 |---|---|---|---|
@@ -101,9 +106,10 @@ develop) και για τα 12 SAME_PATCH με το αυστηρό κριτήρ�
 | PROTECTED | `codex/library-icons-material-transform` | 2026-10-14 `928f81e` | 1 Add visual library, component finishes, surface eyedropper and transform controls |
 | PROTECTED | `feature/material-browser-properties` | 2026-10-14 `bf97f2a` | 3 feat(materials): add visual material browser linked to object selection; feat(materials): wire material browser into ArchForge runtime; Expand material browser with properties integration and per-surface targets |
 | PROTECTED | `gpt/fix-empty-frame-storey` | 2026-10-14 `20dc9b2` | 0  |
+| PROTECTED | `test/residential-scenario-suite` | 2026-10-17 `4b18ae7` | 0  |
 | PROTECTED | `codex/s01-foundation-comparison` | 2026-10-18 `73b118a` | 3 Add visually inspected S01 foundation option comparison; Replace S01 commercial quote requirement with unpriced materials by work; Export surfaces and unpriced materials for all ten residential review files |
 | PROTECTED | `codex/s02-furnished-review` | 2026-10-18 `b8867a9` | 6 Add visually inspected S01 foundation option comparison; Replace S01 commercial quote requirement with unpriced materials by work; Export surfaces and unpriced materials for all ten residential review files … |
-| PROTECTED | `claude/wonderful-pasteur-ejxzix` | 2026-10-28 `0914c65` | 3 Εργαλειοθήκη για όλα τα AI και έλεγχος branches με απόδειξη (εργασίες 6–7); BRANCH_AUDIT μετά το merge του #163: 130/160 σβήνονται με απόδειξη; merge ee6d966 (δεν ελέγχεται με patch-id) |
+| PROTECTED | `claude/wonderful-pasteur-ejxzix` | 2026-10-28 `8d37dc6` | 11 Εργαλειοθήκη για όλα τα AI και έλεγχος branches με απόδειξη (εργασίες 6–7); BRANCH_AUDIT μετά το merge του #163: 130/160 σβήνονται με απόδειξη; branch_audit: αυτόματη λίστα διαγραφής μόνο MERGED (έλεγχος Astra 28/10) … |
 | PROTECTED | `develop` | 2026-10-28 `c298b5b` | 0  |
 | NO_NET_CHANGE | `gpt/issue-102-display-palette` | 2026-09-26 `c897ec6` | 2 feat(ui): add viewport display settings palette; chore: revert incomplete display palette spike |
 | SAME_PATCH | `feature/foundation-identity-regressions` | 2026-09-14 `294ef76` | 0  |
@@ -215,7 +221,6 @@ develop) και για τα 12 SAME_PATCH με το αυστηρό κριτήρ�
 | MERGED | `claude/practical-cannon-jebioi` | 2026-10-17 `d18431e` | 0  |
 | MERGED | `integration/plumbing-validated-on-develop` | 2026-10-17 `ae377f6` | 0  |
 | MERGED | `merge/plumbing-validated-2026-10-17` | 2026-10-17 `026302b` | 0  |
-| MERGED | `test/residential-scenario-suite` | 2026-10-17 `4b18ae7` | 0  |
 | MERGED | `fix/slab-edge-face-materials` | 2026-10-18 `b143710` | 0  |
 | MERGED | `claude/nifty-gates-yed5je` | 2026-10-21 `ec386c2` | 0  |
 | MERGED | `claude/affectionate-goodall-xnag99` | 2026-10-23 `7f13959` | 0  |
@@ -236,7 +241,7 @@ develop) και για τα 12 SAME_PATCH με το αυστηρό κριτήρ�
 | MERGED | `claude/move-atomic-undo` | 2026-10-28 `1aa68fd` | 0  |
 | MERGED | `claude/roof-under-upper-storey` | 2026-10-28 `a2d1e35` | 0  |
 
-Εντολή διαγραφής (117 branches, μόνο MERGED: κάθε commit τους είναι commit του develop):
+Εντολή διαγραφής (116 branches, μόνο MERGED: κάθε commit τους είναι commit του develop):
 
 ```
 git push origin --delete feature/automatic-house-intent
@@ -336,7 +341,6 @@ git push origin --delete claude/funny-ride-f05bva
 git push origin --delete claude/practical-cannon-jebioi
 git push origin --delete integration/plumbing-validated-on-develop
 git push origin --delete merge/plumbing-validated-2026-10-17
-git push origin --delete test/residential-scenario-suite
 git push origin --delete fix/slab-edge-face-materials
 git push origin --delete claude/nifty-gates-yed5je
 git push origin --delete claude/affectionate-goodall-xnag99
