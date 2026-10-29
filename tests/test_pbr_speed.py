@@ -49,14 +49,15 @@ def test_moving_frames_are_lighter_except_in_a_lighting_study():
     const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     const canvas = document.querySelector('canvas');
     const zoom = async () => {
-      // Software WebGL is slow (more so under load): keep the camera moving until frames have been drawn.
-      let lighter = false;
+      // Software WebGL is slow (more so under load): keep the camera moving (in and out, never against the zoom
+      // limit) until frames have been drawn; every drawn frame is logged by the page.
+      window.archforgeFrameLog = [];
       const start = window.archforgeFrames;
       for (let i = 0; i < 200 && window.archforgeFrames - start < 4; i++) {
-        canvas.dispatchEvent(new WheelEvent('wheel', {deltaY: 60, clientX: 400, clientY: 260, bubbles: true}));
+        canvas.dispatchEvent(new WheelEvent('wheel', {deltaY: i % 2 ? 60 : -60, clientX: 400, clientY: 260, bubbles: true}));
         await wait(60);
-        lighter = lighter || window.archforgeMovingFrame === true;
       }
+      const lighter = window.archforgeFrameLog.some((m) => m === true);
       const f = window.archforgeFrames;
       while (window.archforgeFrames - f < 2) await wait(50);
       return {lighter, atRest: window.archforgeMovingFrame};

@@ -224,7 +224,9 @@ def test_each_luminaire_controls_its_own_light_and_an_adjustable_spot_is_aimed()
     shown = _entity_light_spec(doc.get(spot.id), doc)
     aim = [t - q for t, q in zip(shown['target'], shown['position'])]   # same aim from its 3D height (under the walls' top)
     assert shown['kind'] == 'spot' and aim == pytest.approx([tx - x, ty - y, tz - z])
-    assert shown['angle_deg'] == 12.0 and shown['intensity'] == pytest.approx(350.0) and shown['enabled']
+    # Owner 29/10 (700 cd burnt rooms white): no lumen → the reference GU10 (370 lm, SOURCES.txt) in this 24° beam.
+    reference = 370.0 / (2 * math.pi * (1 - math.cos(math.radians(12.0))))
+    assert shown['angle_deg'] == 12.0 and shown['intensity'] == pytest.approx(reference * 0.5) and shown['enabled']
     # Wall washer is aimable too; a downlight / plafonnier is not.
     washer = _pt(stack, 'wall_washer', 1.0, 1.0)
     assert _entity_light_spec(doc.get(washer.id), doc)['kind'] == 'spot'

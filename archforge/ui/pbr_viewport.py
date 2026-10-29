@@ -324,6 +324,7 @@ window.setSun = function(elevation, azimuth) {
   }
   applySunAndSky();
   fitSunShadow();
+  if (typeof afUpdateLightVisibility === "function") afUpdateLightVisibility();   // «Αυτόματα»: lit after sunset
 };
 
 function applySunAndSky() {
@@ -2268,8 +2269,10 @@ function animate(now) {
   updateShadowsIfChanged();
   if (renderer.shadowMap.needsUpdate) window.archforgeShadowRedraws++;
   if (useComposer() && !moving) composer.render(); else renderer.render(scene, camera);
-  window.archforgeMovingFrame = moving;      // tests
+  window.archforgeMovingFrame = moving;      // tests: this frame, and the last frames' log
   window.archforgeFrames = (window.archforgeFrames || 0) + 1;
+  (window.archforgeFrameLog = window.archforgeFrameLog || []).push(moving);
+  if (window.archforgeFrameLog.length > 60) window.archforgeFrameLog.shift();
 }
 requestAnimationFrame(animate);
 </script>

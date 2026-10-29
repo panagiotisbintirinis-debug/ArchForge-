@@ -54,8 +54,9 @@ def test_project_lights_are_off_by_day_and_have_a_switch_in_the_sun_menu():
     install_rendering_quality_upgrade()
     install_lighting_system()
     html = pbr_viewport._PBR_HTML
-    # By default (auto) the lights' group is shown only in night mode; the mode and the lights both re-check it.
-    assert 'architecturalLightsSwitch === "auto" && architecturalLightingMode === "night"' in html
+    # By default (auto) the lights' group is shown at night, or after sunset (owner 29/10); the mode and the lights
+    # both re-check it.
+    assert 'architecturalLightsSwitch === "auto" && (architecturalLightingMode === "night" || sunDown)' in html
     assert html.count('afUpdateLightVisibility();') >= 2
     from archforge.ui.main_window import MainWindow
     w = MainWindow()

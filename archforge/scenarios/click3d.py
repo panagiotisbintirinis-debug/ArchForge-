@@ -25,11 +25,14 @@ def available():
     return bool(shutil.which('node')) and os.path.exists(_PLAYWRIGHT) and os.path.isdir(_BROWSERS)
 
 
-def run_in_page(doc, js, size=(800, 520), timeout=300):
+def run_in_page(doc, js, size=(800, 520), timeout=300, before=""):
     from archforge.geometry.incremental import IncrementalEvaluationCache
     from archforge.geometry.sculpt import SculptedPreviewBackend
+    # As ui/app.py: the page the user sees has the quality upgrade and the project's lights.
+    from archforge.ui.rendering_quality_upgrade import install_rendering_quality_upgrade
     from archforge.ui.lighting_system import install_lighting_system
-    install_lighting_system()                  # as ui/app.py: the page the user sees has the project's lights
+    install_rendering_quality_upgrade()
+    install_lighting_system()
     from archforge.ui.pbr_viewport import pbr_page_html, scene_payload
     payload = scene_payload(doc, IncrementalEvaluationCache(SculptedPreviewBackend()).sync(doc), False)
     with tempfile.TemporaryDirectory() as tmp:
