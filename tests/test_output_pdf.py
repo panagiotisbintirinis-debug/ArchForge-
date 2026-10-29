@@ -197,3 +197,13 @@ def test_each_expression_of_the_plan_gets_its_own_sheet():
     assert 'heating' not in sheets
     plain = Document(); _house(CommandStack(plain))
     assert [k for k, _i in storey_sheets(plain, 0.0)[0]] == ['arch']
+
+
+def test_furniture_without_a_symbol_is_printed_by_its_outline():
+    """A library object with a plan symbol prints the symbol; one without prints its outline — as the plan view
+    draws it (the outline is only a pick area when there is a symbol)."""
+    from archforge.core.plan_scene import Primitive2D
+    from archforge.core.plan_style import printable
+    outline = Primitive2D('polygon', ((0, 0), (1, 0), (1, 1)), entity_id='x', role='library-object')
+    assert printable(outline, 'library_object', has_symbol=False)
+    assert not printable(outline, 'library_object', has_symbol=True)

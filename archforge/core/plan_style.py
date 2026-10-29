@@ -26,13 +26,15 @@ CONTAINER_KINDS = ('room_floor', 'room_ceiling', 'room_foundation', 'room_roof',
                    'pitched_roof', 'ceiling_joists', 'terrain')
 
 
-def printable(p, entity_kind=None):
-    """True when the primitive is part of the drawing (not a working aid of the screen)."""
+def printable(p, entity_kind=None, has_symbol=False):
+    """True when the primitive is part of the drawing (not a working aid of the screen).
+
+    ``has_symbol``: the frame also draws a library symbol for this entity (then its footprint only picks)."""
     if p.role in SCREEN_ONLY or p.role.startswith(SCREEN_ONLY_PREFIXES):
         return False
     if p.kind == 'line' and p.role == 'model' and entity_kind == 'wall':
         return False                    # the wall's axis only picks; the cut region (wall-poche) is the wall
-    if p.role == 'library-object':
+    if p.role == 'library-object' and has_symbol:
         return False                    # footprint for picking; the symbol (library-symbol) is the drawing
     return True
 

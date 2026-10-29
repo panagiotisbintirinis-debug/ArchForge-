@@ -218,11 +218,12 @@ def _storey_frame(doc, z):
         frame = build_plan_frame(doc, layers=False)
     finally:
         doc.work_plane, doc.selection = old, selection
+    symbols = {q.entity_id for q in frame.primitives if q.role == "library-symbol"}
     out = []
     for prim in frame.primitives:
         e = doc.entities.get(prim.entity_id) if prim.entity_id else None
         kind = e.kind if e is not None else None
-        if printable(prim, kind):
+        if printable(prim, kind, has_symbol=prim.entity_id in symbols):
             out.append((prim, kind))
     return out
 

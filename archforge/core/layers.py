@@ -166,9 +166,11 @@ def _preset(workspace):
             states[key] = dict(OFF)
     elif workspace == 'mep':
         states['cameras'] = dict(OFF)
+        # The plan, the furniture included, faint underneath (owner 29/10: «όταν περνάμε Η/Μ δεν φαίνονται τα
+        # έπιπλα» — sockets and points are placed by the bed, the sofa, the desk).
         for key in ARCH_LAYERS + ('structure',):
             states[key] = dict(UNDER)
-        for key in ('furniture', 'foundation', 'structural_labels'):
+        for key in ('foundation', 'structural_labels'):
             states[key] = dict(OFF)
     return states
 
