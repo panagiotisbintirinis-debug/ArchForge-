@@ -130,3 +130,14 @@ def test_mouse_menu_sets_the_room_use_with_one_undo():
         assert 'name' not in w.doc.room_metadata(sig)
     finally:
         w._mark_clean(); w.close(); app.processEvents()
+
+
+def test_plan_room_label_has_net_width_and_depth_in_greek_format():
+    d=Document();rectangle(d)
+    sig=room_faces(d)[0].signature
+    d.set_room_metadata(sig,name='Κουζίνα',use='Μαγείρεμα')
+    labels=[p for p in build_plan_frame(d).primitives if p.role=='derived-room-label']
+    assert len(labels)==1
+    assert dict(labels[0].meta)['text'].splitlines()==[
+        'Κουζίνα — Μαγείρεμα', '10.97 m²', '3,85 × 2,85',
+    ]
