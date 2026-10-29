@@ -1759,6 +1759,12 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     return;
   }
 
+  if (activeTool === "paint_material" && event.button === 0) {
+    // «Πινέλο» υλικού: a click paints the face under the mouse; a drag still turns the camera.
+    paintPress = { x: event.clientX, y: event.clientY };
+    return;
+  }
+
   const hit = pickModel(event);
   if (!hit || !hit.face) return;
 
@@ -1799,6 +1805,20 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
   bridge.beginSculpt(JSON.stringify(payload));
   event.preventDefault();
   event.stopPropagation();
+}, true);
+
+let paintPress = null;
+renderer.domElement.addEventListener("pointerup", (event) => {
+  const press = paintPress;
+  paintPress = null;
+  if (!bridge || !press || activeTool !== "paint_material" || event.button !== 0) return;
+  if (Math.abs(event.clientX - press.x) + Math.abs(event.clientY - press.y) > 5) return;
+  const hit = pickForSelection(event);
+  const roles = hit ? (hit.object.userData.surfaceRoles || []) : [];
+  bridge.paintMaterial(JSON.stringify({
+    entity_id: hit ? (hit.object.userData.entityId || "") : "",
+    surface_role: hit ? (roles[hit.faceIndex] || "") : ""
+  }));
 }, true);
 
 renderer.domElement.addEventListener("dblclick", (event) => {
@@ -1900,6 +1920,7 @@ window.addEventListener("keydown", (event) => {
   }
   if (event.key === "Escape") {
     hideMarkingMenu();
+    if (activeTool === "paint_material" && bridge) bridge.endPaintMaterial();
     if (movingEntity && bridge) {
       movingEntity = false;
       pendingMovePoint = null;
@@ -2243,6 +2264,15 @@ class PBRInteractionBridge(QObject):
     def contextAction(self, entity_id: str, action_id: str) -> None:
         self.viewport.contextActionRequested.emit(str(entity_id), str(action_id))
 
+    @Slot(str)
+    def paintMaterial(self, payload_json: str) -> None:
+        """«Πινέλο» υλικού: the entity and face clicked (material_brush.paint_surface does the rest)."""
+        self.viewport.materialPaintRequested.emit(str(payload_json))
+
+    @Slot()
+    def endPaintMaterial(self) -> None:
+        self.viewport.materialPaintEnded.emit()
+
     @Slot(str, str)
     def placeOpening(self, kind: str, payload_json: str) -> None:
         self.viewport._place_opening_from_web(kind, payload_json)
@@ -2368,6 +2398,8 @@ class PBRViewport(QWidget):
 
     selectionChangedByView = Signal()
     contextActionRequested = Signal(str, str)
+    materialPaintRequested = Signal(str)     # «Πινέλο» υλικού: {"entity_id", "surface_role"} of a 3D click
+    materialPaintEnded = Signal()
     statusChanged = Signal(str)
 
     def __init__(self, doc, stack, parent=None, structural_only=False):

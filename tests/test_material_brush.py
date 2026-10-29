@@ -99,3 +99,66 @@ def test_brush_click_on_empty_space_or_unsupported_kind_changes_nothing(window):
     assert len(w.stack.done) == undo_before
     assert paint(w, wall.id, 2.0, -0.05) == 'interior'
     assert w.doc.get(wall.id).params['surface_materials'] == {'interior': 'wood_oak'}
+
+
+# --- 3D (owner 29/10: «πρέπει να δουλεύει στο 3Δ περισσότερο») -----------------------------------------------------
+
+def test_a_3d_click_paints_exactly_the_face_hit_where_the_object_keeps_one_finish_per_face():
+    from archforge.core.model import Document
+    from archforge.ui.material_brush import face_role
+    doc = Document()
+    wall, door = _wall(), Entity('door', {})
+    box = Entity('box', {'x': 0, 'y': 0, 'z': 0, 'width': 1, 'depth': 1, 'height': 1})
+    slab = Entity('floor', {})
+    assert face_role(doc, wall, 'exterior') == 'exterior'
+    assert face_role(doc, wall, 'top') == 'top'            # walls draw every face with its own finish
+    assert face_role(doc, slab, 'edge') == 'edge'
+    assert face_role(doc, door, 'leaf') == 'leaf'          # the browser's own parts (Φύλλο, Κάσα …)
+    assert face_role(doc, box, 'front') == ''              # a box has one finish: the whole object
+    assert face_role(doc, wall, '') == ''
+
+
+def test_3d_bridge_paints_the_clicked_face_one_undo_and_esc_ends_the_brush_in_both_views(window):
+    import json
+    from archforge.ui.material_brush import start
+    w = window
+    wall = _wall(); w.stack.execute(AddEntity(wall))
+    assert start(w, 'wood_oak')
+    assert w.plan_view.controller.tool == TOOL and w.pbr_view.active_tool == TOOL
+    done = len(w.stack.done)
+    bridge = w.pbr_view.bridge
+    if bridge is None:                                       # no WebEngine page here: the same slot object
+        from archforge.ui.pbr_viewport import PBRInteractionBridge
+        bridge = PBRInteractionBridge(w.pbr_view)
+    bridge.paintMaterial(json.dumps({'entity_id': wall.id, 'surface_role': 'top'}))
+    bridge.paintMaterial(json.dumps({'entity_id': wall.id, 'surface_role': 'interior'}))
+    bridge.paintMaterial(json.dumps({'entity_id': '', 'surface_role': ''}))      # empty sky: nothing
+    assert w.doc.get(wall.id).params['surface_materials'] == {'top': 'wood_oak', 'interior': 'wood_oak'}
+    assert len(w.stack.done) == done + 2
+    w.stack.undo()
+    assert w.doc.get(wall.id).params['surface_materials'] == {'top': 'wood_oak'}
+    bridge.endPaintMaterial()
+    assert w.plan_view.controller.tool == 'select' and w.pbr_view.active_tool == 'select'
+
+
+def test_another_tool_ends_the_brush_in_both_views(window):
+    from archforge.ui.material_brush import start
+    w = window
+    assert start(w, 'wood_oak')
+    w._set_active_tool('wall')
+    assert w.plan_view.controller.tool != TOOL and w.pbr_view.active_tool != TOOL
+
+
+def test_the_real_3d_page_sends_the_face_under_the_click():
+    """The page's own raycast (headless Chromium, software WebGL): clicks with the brush report entity + face."""
+    import json
+    from archforge.core.model import Document
+    from archforge.scenarios import click3d
+    if not click3d.available():
+        pytest.skip('χωρίς Node / Playwright / Chromium')
+    doc = Document()
+    wall = _wall(); doc.add(wall)
+    calls = click3d.clicks(doc, TOOL, cols=12, rows=8)
+    hits = {(json.loads(c[1])['entity_id'], json.loads(c[1])['surface_role']) for c in calls if c[0] == 'paintMaterial'}
+    assert (wall.id, 'exterior') in hits or (wall.id, 'interior') in hits
+    assert ('', '') in hits                                  # a click beside the wall paints nothing

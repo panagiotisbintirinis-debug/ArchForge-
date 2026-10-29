@@ -1,12 +1,31 @@
-"""«Πινέλο» υλικού (owner 28/10): one material, many clicks.
+"""«Πινέλο» υλικού (owner 28/10): one material, many clicks — in the 3D view first, in the plan too (owner 29/10:
+«πρέπει να δουλεύει στο 3Δ περισσότερο»).
 
-The button opens the Material Library to choose (or edit) a material; then every click on a wall or object in the
-plan paints it — one undo per click, on a wall only the face that was clicked — until Esc.  Each click goes through
-``material_library._apply_material``, the same command the browser's «Εφαρμογή υλικού» runs: no second material path.
+The button opens the Material Library to choose (or edit) a material; then every click paints what it hits — one
+undo per click — until Esc.  In 3D the exact face clicked (a wall's side or top, a door leaf, a cabinet front, a stair
+tread, a slab edge) gets the material; in the plan a wall gets the side on the clicked half, anything else all of it.
+Each click goes through ``material_library._apply_material``, the same command the browser's «Εφαρμογή υλικού» runs:
+no second material path.  It is not Sculpt: Sculpt changes the shape, the brush only the finish.
 """
 from __future__ import annotations
 
 TOOL = 'paint_material'
+
+# Kinds whose 3D picture is split per face (rendering/scene.py reads surface_materials[face] for every face of them):
+# a click on any of their faces paints only that face.
+PER_FACE_KINDS = frozenset({'wall', 'floor', 'room_floor', 'room_roof', 'room_ceiling'})
+
+
+def face_role(doc, entity, surface_role):
+    """The surface key a 3D click on ``surface_role`` paints: that face when the object keeps a finish per face, else
+    ``''`` (the whole object)."""
+    from archforge.ui.material_library import _targets
+    role = str(surface_role or '')
+    if not role:
+        return ''
+    if entity.kind in PER_FACE_KINDS or role in {t.key for t in _targets(entity, doc)}:
+        return role
+    return ''
 
 
 def wall_side_role(wall, x, y):
@@ -32,14 +51,46 @@ def start(window, material_id=None):
             return False
         material_id = dialog.selected_material_id
     window._brush_material_id = str(material_id)
-    window._start_site_tool(TOOL, f"Πινέλο «{_name(window, material_id)}»: κλικ σε τοίχο (η πλευρά που πατάς) ή "
-                                  "αντικείμενο — Esc για τέλος")
+    # Both views paint, whichever the human is looking at (no jump to the plan).
+    window.plan_view.controller.set_tool(TOOL)
+    pbr = getattr(window, 'pbr_view', None)
+    if pbr is not None:
+        pbr.set_tool(TOOL)
+    window.statusBar().showMessage(f"Πινέλο «{_name(window, material_id)}»: κλικ στην επιφάνεια που βάφεις (3D) ή "
+                                   "σε τοίχο / αντικείμενο στην κάτοψη — Esc για τέλος", 8000)
     return True
 
 
+def end(window, quiet=False):
+    """Esc in either view (or another tool): both views leave the brush."""
+    was = False
+    if getattr(window, 'plan_view', None) is not None and window.plan_view.controller.tool == TOOL:
+        window.plan_view.controller.set_tool('select'); was = True
+    pbr = getattr(window, 'pbr_view', None)
+    if pbr is not None and getattr(pbr, 'active_tool', None) == TOOL:
+        pbr.set_tool('select'); was = True
+    if was and not quiet:
+        window.statusBar().showMessage('Πινέλο: τέλος', 3000)
+
+
 def paint(window, entity_id, x, y):
-    """Paint what was clicked with the brush's material — one undo. Returns the role painted ('' = whole) or None."""
-    from archforge.ui.material_library import MATERIAL_KINDS, _apply_material
+    """Plan click: paint what was clicked — one undo. Returns the role painted ('' = whole) or None."""
+    entity = _paintable(window, entity_id)
+    if entity is None:
+        return None
+    return _paint(window, entity, wall_side_role(entity, x, y) if entity.kind == 'wall' else '')
+
+
+def paint_surface(window, entity_id, surface_role):
+    """3D click on the face ``surface_role`` of ``entity_id`` — one undo. Returns the role painted or None."""
+    entity = _paintable(window, entity_id)
+    if entity is None:
+        return None
+    return _paint(window, entity, face_role(window.doc, entity, surface_role))
+
+
+def _paintable(window, entity_id):
+    from archforge.ui.material_library import MATERIAL_KINDS
     material_id = getattr(window, '_brush_material_id', None)
     if not material_id:
         window.statusBar().showMessage('Πινέλο: δεν έχει επιλεγεί υλικό — πατήστε ξανά «Πινέλο»', 5000)
@@ -54,8 +105,13 @@ def paint(window, entity_id, x, y):
     if entity.locked:
         window.statusBar().showMessage(f'Πινέλο: «{entity.name or entity.kind}» είναι κλειδωμένο', 4000)
         return None
-    role = wall_side_role(entity, x, y) if entity.kind == 'wall' else ''
-    _apply_material(window, entity_id, role, material_id)
+    return entity
+
+
+def _paint(window, entity, role):
+    from archforge.ui.material_library import _apply_material
+    material_id = window._brush_material_id
+    _apply_material(window, entity.id, role, material_id)
     where = ''
     if role:
         from archforge.ui.material_library import _targets

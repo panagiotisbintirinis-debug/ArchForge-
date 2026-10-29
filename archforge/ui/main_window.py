@@ -60,6 +60,9 @@ class MainWindow(QMainWindow):
             view.statusChanged.connect(self.statusBar().showMessage)
             view.selectionChangedByView.connect(self._selection_from_view)
             view.contextActionRequested.connect(self._handle_object_context_action)
+            if hasattr(view, 'materialPaintRequested'):
+                view.materialPaintRequested.connect(self._paint_material_from_3d)
+                view.materialPaintEnded.connect(self._end_material_brush)
         self.plan_view.commandRequested.connect(self._handle_plan_command)
         self.plan_view.previewChanged.connect(self.pbr_view.set_stair_preview)
         self.plan_view.viewLineRequested.connect(self._apply_view_line)
@@ -205,6 +208,9 @@ class MainWindow(QMainWindow):
 
     def _set_active_tool(self, tool):
         tool = str(tool)
+        from archforge.ui.material_brush import TOOL as _BRUSH, end as _end_brush
+        if tool != _BRUSH:
+            _end_brush(self, quiet=True)      # the brush runs in both views: another tool ends it in both
         if tool in ('stair', 'ramp') and not self._ensure_upper_level_for(tool):
             return
         if tool == 'stair':
@@ -728,6 +734,8 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage('Το έδαφος διαγράφηκε (Ctrl+Z για αναίρεση)', 4000)
 
     def _start_site_tool(self, tool, message):
+        from archforge.ui.material_brush import end as _end_brush
+        _end_brush(self, quiet=True)
         self._pending_switch_link = None     # a new tool cancels «Προσθήκη διακόπτη» (it sets the link after this)
         central = getattr(self, '_central_tabs', None)
         simultaneous = getattr(self, '_simultaneous_action', None)
@@ -3032,6 +3040,17 @@ class MainWindow(QMainWindow):
             )
         except Exception as exc:
             QMessageBox.warning(self,'MEP Route',str(exc))
+
+    def _end_material_brush(self):
+        from archforge.ui.material_brush import end
+        end(self)
+
+    def _paint_material_from_3d(self, payload_json):
+        """«Πινέλο» υλικού: a click on a face in the 3D view (material_brush.py)."""
+        import json
+        from archforge.ui.material_brush import paint_surface
+        payload = json.loads(payload_json or '{}')
+        return paint_surface(self, str(payload.get('entity_id') or ''), str(payload.get('surface_role') or ''))
 
     def _open_selected_materials(self):
         if len(self.doc.selection) != 1:
