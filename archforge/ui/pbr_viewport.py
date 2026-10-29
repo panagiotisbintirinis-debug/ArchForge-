@@ -1860,7 +1860,9 @@ renderer.domElement.addEventListener("dblclick", (event) => {
   if (activeTool === "door" || activeTool === "window" || activeTool === "opening_rect" || activeTool === "opening_arch" || activeTool === "sculpt" || activeTool === "stair" || activeTool === "ramp" || activeTool === "move" || activeTool === "rotate" || activeTool === "wall") return;
   const hit = pickForSelection(event);
   if (!hit || !hit.face) return;
-  bridge.selectEntity(hit.object.userData.entityId || "");
+  // Double click = select and open its Ιδιότητες (owner 29/10: «δεν μπορώ να πιάσω το φωτιστικό στο 3Δ»).
+  if (bridge.openEntity) bridge.openEntity(hit.object.userData.entityId || "");
+  else bridge.selectEntity(hit.object.userData.entityId || "");
   event.preventDefault();
   event.stopPropagation();
 }, true);
@@ -2377,6 +2379,13 @@ class PBRInteractionBridge(QObject):
         self.viewport._select_entity_from_web(entity_id)
 
     @Slot(str)
+    def openEntity(self, entity_id: str) -> None:
+        """Double click in 3D: select and open Ιδιότητες (a luminaire's switch / dimmer are there)."""
+        self.viewport._select_entity_from_web(entity_id)
+        if str(entity_id) in self.viewport.doc.entities:
+            self.viewport.propertiesRequested.emit(str(entity_id))
+
+    @Slot(str)
     def indicateEntity(self, entity_id: str) -> None:
         """One click in 3D: what is under the mouse, in the status bar (not selected)."""
         doc = self.viewport.doc
@@ -2536,6 +2545,7 @@ class PBRViewport(QWidget):
 
     selectionChangedByView = Signal()
     contextActionRequested = Signal(str, str)
+    propertiesRequested = Signal(str)        # double click in 3D: open Ιδιότητες of this entity
     materialPaintRequested = Signal(str)     # «Πινέλο» υλικού: {"entity_id", "surface_role"} of a 3D click
     materialPaintEnded = Signal()
     statusChanged = Signal(str)

@@ -63,6 +63,8 @@ class MainWindow(QMainWindow):
             if hasattr(view, 'materialPaintRequested'):
                 view.materialPaintRequested.connect(self._paint_material_from_3d)
                 view.materialPaintEnded.connect(self._end_material_brush)
+            if hasattr(view, 'propertiesRequested'):
+                view.propertiesRequested.connect(self._show_properties)
         self.plan_view.commandRequested.connect(self._handle_plan_command)
         self.plan_view.previewChanged.connect(self.pbr_view.set_stair_preview)
         self.plan_view.viewLineRequested.connect(self._apply_view_line)
@@ -3040,6 +3042,14 @@ class MainWindow(QMainWindow):
             )
         except Exception as exc:
             QMessageBox.warning(self,'MEP Route',str(exc))
+
+    def _show_properties(self, entity_id=None):
+        """Ιδιότητες in view and up to date, even if the human had closed the panel (double click in 3D)."""
+        self.refresh_inspector()
+        dock = getattr(self, 'dock', None)
+        if dock is not None:
+            dock.show()
+            dock.raise_()
 
     def _end_material_brush(self):
         from archforge.ui.material_brush import end
