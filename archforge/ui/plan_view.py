@@ -14,12 +14,21 @@ from archforge.core.plan_scene import build_plan_frame, Primitive2D, Handle2D
 from archforge.ui.object_context_menu import object_context_actions
 
 class _OpenPathItem(QGraphicsPathItem):
-    """An open polyline (railing, run): picked near its line only — Qt's default shape also takes
-    the area the path would enclose, so a click inside a balcony picked its railing."""
+    """An open polyline (railing, run, section line): picked near its line only — Qt's default shape also takes
+    the area the path would enclose, so a click inside a balcony picked its railing.
+
+    The reach is 12 cm, but never less than PICK_PX pixels on screen: zoomed out, a thin line (a section line is
+    3,5 cm) was under one pixel and could not be picked at all (owner 29/10: «δεν μπορούσα να την επιλέξω»)."""
     REACH = 0.12
+    PICK_PX = 6.0
     def shape(self):
         from PySide6.QtGui import QPainterPathStroker
-        stroker = QPainterPathStroker(); stroker.setWidth(2 * self.REACH)
+        reach = self.REACH
+        views = self.scene().views() if self.scene() is not None else ()
+        if views:
+            scale = abs(views[0].transform().m11()) or 1.0
+            reach = max(reach, self.PICK_PX / scale)
+        stroker = QPainterPathStroker(); stroker.setWidth(2 * reach)
         return stroker.createStroke(self.path())
 
 
@@ -1037,143 +1046,17 @@ class PlanView(QGraphicsView):
         if p.role.startswith('camera'):
             from archforge.ui.camera_tool import draw_plan_primitive
             draw_plan_primitive(self,p);return
-        if p.role in ('section-line','section-arrow'):
-            # Section mark: red dash-dot cut line, filled arrows towards where the section looks.
-            sel=p.entity_id in (self.doc.selection or ());pen=QPen(QColor(200,40,40));pen.setWidthF(.06 if sel else .035)
-            if p.kind=='polygon':
-                from PySide6.QtGui import QPolygonF
-                item=self._scene.addPolygon(QPolygonF([QPointF(x,y) for x,y in p.points]),pen,QBrush(QColor(200,40,40)))
-            else:
-                if p.role=='section-line':pen.setStyle(Qt.PenStyle.DashDotLine)
-                (ax,ay),(bx,by)=p.points[0],p.points[-1];item=self._scene.addLine(ax,ay,bx,by,pen)
-            item.setZValue(25)
-            if p.entity_id:self._entity_items[item]=p.entity_id
-            return
-        preview=p.role=='preview';opening=p.role=='opening';room=p.role=='derived-room';terrain=p.role in ('terrain','plant')
-        # The storey below is drawn like structural context: faint grey.
-        context=p.role in ('structural-context','floor-underlay')
-        pen=QPen(
-            QColor(150,150,150,150)
-            if context else
-            (QColor(180,90,20) if opening else (QColor(40,150,70) if preview else (QColor(95,140,60) if terrain else QColor(45,55,65))))
-        )
-        pen.setWidthF(.022 if context else (.06 if opening else (.04 if preview else .035)));item=None
-        if opening and dict(p.meta).get('typed'):
-            # Typed joinery draws its own symbol; keep the pick line light.
-            pen=QPen(QColor(180,90,20,110));pen.setWidthF(.02)
-        if preview and dict(p.meta).get('fits') is False:pen=QPen(QColor(210,40,40));pen.setWidthF(.05)
-        if preview and str(dict(p.meta).get('semantic','')).startswith('stair-preview-'):
-            # Steps of the stair being placed: thin, so the treads read (red when it does not fit).
-            pen=QPen(QColor(210,40,40) if dict(p.meta).get('fits') is False else QColor(40,150,70));pen.setWidthF(.015)
-            if str(dict(p.meta)['semantic']).endswith(('hidden','walk-hidden')):pen.setStyle(Qt.PenStyle.DashLine)
-        if p.role=='library-symbol':pen=QPen(QColor(40,45,55));pen.setWidthF(.012)
-        if p.role in ('cabinet','cabinet-front'):pen=QPen(QColor(40,45,55));pen.setWidthF(.012)
-        if p.role in ('railing','railing-post'):pen=QPen(QColor(40,45,55));pen.setWidthF(.01)
-        if p.role in ('pipe-cold','pipe-hot'):
-            pen=QPen(QColor(31,111,209) if p.role=='pipe-cold' else QColor(209,48,31))
-            pen.setWidthF(.035 if dict(p.meta).get('diameter',16)>=20 else .02)
-        if p.role=='dimension':
-            # Dimensions (architecture/dimensions.py): blue, the ticks and extension lines thinner.
-            sel=p.entity_id in (self.doc.selection or ());pen=QPen(QColor(20,110,220) if sel else QColor(30,90,170))
-            pen.setWidthF((.008 if dict(p.meta).get('thin') else .012)*(2 if sel else 1))
-        if p.role in ('roof-outline','roof-ridge'):
-            pen=QPen(QColor(150,70,40));pen.setWidthF(.02 if p.role=='roof-outline' else .015)
-            pen.setStyle(Qt.PenStyle.DashLine if p.role=='roof-outline' else Qt.PenStyle.DashDotLine)
-        if p.role=='cable':
-            from archforge.mep.electrical import CABLE_COLORS
-            pen=QPen(QColor(CABLE_COLORS.get(dict(p.meta).get('group'),'#e07a00')));pen.setWidthF(.015)
-            pen.setStyle({'wall':Qt.PenStyle.SolidLine,'floor':Qt.PenStyle.DotLine}.get(dict(p.meta).get('run'),Qt.PenStyle.DashLine))
-        if p.role in ('lv-cable','lv-box'):
-            from archforge.mep.electrical import CABLE_COLORS
-            pen=QPen(QColor(CABLE_COLORS.get(dict(p.meta).get('system'),'#0e9aa7')));pen.setWidthF(.012 if p.role=='lv-cable' else .008)
-            if p.role=='lv-cable':pen.setStyle(Qt.PenStyle.DashDotLine)
-        if p.role=='led-strip':
-            pen=QPen(QColor(232,170,20));pen.setWidthF(.03);pen.setStyle(Qt.PenStyle.DashLine);pen.setCapStyle(Qt.PenCapStyle.FlatCap)
-        if p.role=='manifold':
-            pen=QPen(QColor(31,111,209) if dict(p.meta).get('system')=='cold' else QColor(209,48,31));pen.setWidthF(.012)
-        if p.role=='elec-box':
-            pen=QPen(QColor({'pull':'#c0262d','floor':'#0a8a5a'}.get(dict(p.meta).get('box'),'#3a3f48')));pen.setWidthF(.012)
-        if p.role=='electrical-point':pen=QPen(QColor(200,120,0));pen.setWidthF(.02)
-        if p.role=='plumbing-point':pen=QPen(QColor(31,90,160));pen.setWidthF(.02)
-        if p.role in ('heat-supply','heat-return'):
-            # Heating: supply red, return blue dashed, drawn at the owner's Ø.
-            pen=QPen(QColor(200,40,30) if p.role=='heat-supply' else QColor(30,80,200))
-            pen.setWidthF(max(.012,float(dict(p.meta).get('diameter',16))/1500.))
-            if p.role=='heat-return':pen.setStyle(Qt.PenStyle.DashLine)
-        if p.role in ('pool','pool-rim'):pen=QPen(QColor(20,120,170));pen.setWidthF(.03 if p.role=='pool-rim' else .015)
-        if p.role=='pool-zone':
-            # Electrical safety zones around the basin (HD 60364-7-702): dash-dot, zone 2 fainter.
-            pen=QPen(QColor(200,60,140) if dict(p.meta).get('zone')==1 else QColor(200,60,140,110));pen.setWidthF(.015)
-            pen.setStyle(Qt.PenStyle.DashDotLine)
-        if p.role=='pool-pipe':pen=QPen(QColor(70,70,70));pen.setWidthF(max(.015,float(dict(p.meta).get('diameter',50))/2500.))
-        if p.role=='pool-plant':pen=QPen(QColor(90,90,90));pen.setWidthF(.02);pen.setStyle(Qt.PenStyle.DashLine)
-        if p.role=='heat-loop':pen=QPen(QColor(225,110,40,200));pen.setWidthF(.012)
-        if p.role in ('heat-manifold','heat-fitting','heating-point'):pen=QPen(QColor(170,40,40));pen.setWidthF(.012)
-        if p.role=='duct':
-            # Overhead element (under the ceiling): dashed, drawn at its true Ø.
-            pen=QPen(QColor(105,115,128,200));pen.setWidthF(float(dict(p.meta).get('diameter',125))/1000.)
-            pen.setStyle(Qt.PenStyle.DashLine);pen.setCapStyle(Qt.PenCapStyle.FlatCap)
-        if p.role in ('drain','drain-node','drain-stack','drainage-point'):
-            pen=QPen(QColor(150,80,30));pen.setWidthF(max(.015,float(dict(p.meta).get('diameter',50))/2500.) if p.role=='drain' else .015)
-            if p.role=='drain' and dict(p.meta).get('kind')=='branch':pen.setStyle(Qt.PenStyle.DashLine)
-        if p.role=='wall-move-opening':
-            pen=QPen(QColor(180,90,20,170));pen.setWidthF(.07)
-        if p.role=='wall-move-arrow':
-            pen=QPen(QColor(20,110,220));pen.setWidthF(.025);pen.setStyle(Qt.PenStyle.DashLine)
-        if p.role=='align-guide':
-            # Where to stop for right angles: a thin dashed line to the corner it lines up with.
-            pen=QPen(QColor(20,110,220));pen.setCosmetic(True);pen.setWidthF(1.2);pen.setStyle(Qt.PenStyle.DashLine)
-        if p.role=='angle-arc':
-            # Corner mark: blue on a magnet (90/45/15), grey for a free angle.
-            pen=QPen(QColor(20,110,220) if dict(p.meta).get('magnet') else QColor(120,120,120));pen.setWidthF(.02)
-        if p.role=='plot-boundary':
-            # The plot's legal outline: dash-dot, like on the survey.
-            pen=QPen(QColor(170,40,40));pen.setWidthF(.04);pen.setStyle(Qt.PenStyle.DashDotLine)
-        if p.role=='contour':
-            # Contour lines: thin brown, every 1 m (or the chosen step) a little stronger.
-            z=float(dict(p.meta).get('z',0.));major=abs(z-round(z))<1e-6
-            pen=QPen(QColor(150,110,60,200 if major else 120));pen.setWidthF(.02 if major else .01)
-        if p.role in ('footing','tie-beam'):
-            # Below the floor: hidden lines.
-            pen=QPen(QColor(95,95,90));pen.setWidthF(.015);pen.setStyle(Qt.PenStyle.DashLine)
-        if p.role=='joist':
-            pen=QPen(QColor(150,105,45) if dict(p.meta).get('ok',True) else QColor(200,40,40));pen.setWidthF(.02);pen.setStyle(Qt.PenStyle.DashLine)
-        if p.role=='joists-area':pen=QPen(QColor(150,105,45,120));pen.setWidthF(.01)
-        if p.role in ('vent-terminal','ventilation-point'):pen=QPen(QColor(70,80,95));pen.setWidthF(.015)
-        if p.role in ('wall-layer','wall-insulation'):
-            pen=QPen(QColor(120,110,95) if p.role=='wall-layer' else QColor(200,150,40));pen.setWidthF(.008)
-            if p.role=='wall-insulation':pen.setStyle(Qt.PenStyle.DashLine)
-        if p.role in ('opening-symbol','opening-symbol-hidden'):
-            pen=QPen(QColor(40,45,55));pen.setWidthF(.018 if dict(p.meta).get('style')=='solid' else .01)
-            if p.role=='opening-symbol-hidden':pen.setStyle(Qt.PenStyle.DashLine)
-        if p.role in ('worktop','worktop-cutout','sink-symbol','hob-symbol','hood'):
-            # Derived parts of a cabinet run: worktop edge, cut-outs, sink bowl, hob zones; the hood is above (dashed).
-            pen=QPen(QColor(40,45,55) if p.role=='worktop' else QColor(70,80,95));pen.setWidthF(.016 if p.role=='worktop' else .009)
-            if p.role=='hood':pen.setStyle(Qt.PenStyle.DashLine)
-        if p.role=='cabinet-wall':
-            pen=QPen(QColor(70,80,95));pen.setWidthF(.01);pen.setStyle(Qt.PenStyle.DashLine)
-        if p.role=='library-object' and self._has_symbol(p.entity_id):
-            # Footprint stays for picking; the symbol carries the drawing.
-            pen=QPen(QColor(150,160,170,90));pen.setWidthF(.006)
-        if p.role in ('drywall-ceiling','drywall-ceiling-step'):
-            # Suspended ceiling: above the cut plane, dashed.
-            pen=QPen(QColor(70,110,150));pen.setWidthF(.016 if p.role=='drywall-ceiling' else .01);pen.setStyle(Qt.PenStyle.DashLine)
-        if p.role=='stair':pen=QPen(QColor(0,0,0,0));pen.setWidthF(.01)     # pick area only: the symbol is drawn below
-        if p.role.startswith('stair-'):
-            pen=QPen(QColor(45,55,65));pen.setWidthF({'stair-opening':.03,'stair-cut':.016,'stair-walk':.012,'stair-walk-hidden':.012}.get(p.role,.014))
-            if p.role in ('stair-hidden','stair-walk-hidden'):pen.setStyle(Qt.PenStyle.DashLine)
-        if p.role in ('slab-opening','slab-opening-cross'):
-            # Void in the slab: thin cross; dashed when the void is in the slab above (roof only).
-            pen=QPen(QColor(60,65,75));pen.setWidthF(.018 if p.role=='slab-opening' else .012)
-            if dict(p.meta).get('above'):pen.setStyle(Qt.PenStyle.DashLine)
-        wall_line=p.kind=='line' and p.role=='model' and bool(p.entity_id) and p.entity_id in self.doc.entities and self.doc.get(p.entity_id).kind=='wall'
-        if wall_line:
-            # The wall itself is drawn by the cut region (wall-poche); its axis line only picks, as wide as the wall.
-            sel=p.entity_id in (self.doc.selection or ())
-            shown=p.entity_id==getattr(self,'_indicated',None)       # one click: indicated, not selected
-            pen=QPen(QColor(20,110,220,110) if sel else (QColor(240,140,30,90) if shown else QColor(0,0,0,0)));pen.setWidthF(float(dict(p.meta).get('thickness',.2)))
-            pen.setCapStyle(Qt.PenCapStyle.FlatCap)
-        if p.role=='wall-poche':pen=QPen(QColor(40,45,55));pen.setWidthF(.02);pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
+        # How it looks comes from the one table the PDF prints with too (core/plan_style.py); only the
+        # screen states (selected, indicated) are added here.
+        from archforge.core.plan_style import label_style,style
+        from archforge.output.plan_qt import qbrush,qpen
+        if p.kind=='label':
+            self._draw_label(p,label_style(p));return
+        kind=self.doc.get(p.entity_id).kind if p.entity_id and p.entity_id in self.doc.entities else None
+        selected=bool(p.entity_id) and p.entity_id in (self.doc.selection or ())
+        indicated=bool(p.entity_id) and p.entity_id==getattr(self,'_indicated',None)
+        s=style(p,kind,has_symbol=p.role=='library-object' and self._has_symbol(p.entity_id),selected=selected,indicated=indicated)
+        pen=qpen(s);item=None
         if p.kind=='polygon' and dict(p.meta).get('islands'):
             # Slab with openings / several parts: one path, holes left empty.
             path=QPainterPath();path.setFillRule(Qt.FillRule.OddEvenFill)
@@ -1182,8 +1065,13 @@ class PlanView(QGraphicsView):
                     path.moveTo(QPointF(*loop[0]))
                     for q in loop[1:]:path.lineTo(QPointF(*q))
                     path.closeSubpath()
-            item=self._scene.addPath(path,pen,QBrush(QColor(205,200,190) if p.role=='wall-poche' else QColor(80,160,220,40)))
-        elif p.kind=='line':a,b=p.points;item=self._scene.addLine(a[0],a[1],b[0],b[1],pen)
+            item=self._scene.addPath(path,pen,qbrush(s))
+        elif p.role in ('section-line','section-arrow') and p.kind!='polygon':
+            # Thin, and must stay pickable at any zoom (Delete removes it): a line with a pick reach.
+            (ax,ay),(bx,by)=p.points[0],p.points[-1];path=QPainterPath(QPointF(ax,ay));path.lineTo(float(bx),float(by))
+            item=_OpenPathItem(path);item.setPen(pen);self._scene.addItem(item)
+        elif p.kind=='line':
+            (ax,ay),(bx,by)=p.points[0],p.points[-1];item=self._scene.addLine(ax,ay,bx,by,pen)
         elif p.kind=='polyline':
             if len(p.points)>=2:
                 path=QPainterPath(QPointF(p.points[0][0],p.points[0][1]))
@@ -1192,56 +1080,31 @@ class PlanView(QGraphicsView):
                 item=_OpenPathItem(path);item.setPen(pen);self._scene.addItem(item)
         elif p.kind=='polygon':
             from PySide6.QtGui import QPolygonF
-            brush=QBrush(
-                QColor(160,160,160,18)
-                if context else
-                (QColor(90,180,120,28) if room else (QColor(150,140,125,70) if p.role=='site-path' else (QColor(255,255,255,1) if p.role=='library-object' else (QColor(236,230,220,120) if p.role=='cabinet' else (QColor(0,0,0,0) if p.role in ('cabinet-wall','joists-area') else (QColor(70,110,150,14) if p.role=='drywall-ceiling' else (QColor(255,255,255,90) if p.role=='slab-opening' else (QColor(255,255,255,1) if p.role=='stair' else QColor(80,160,220,40)))))))))
-            )
-            room_pen=QPen(QColor(110,150,120));room_pen.setWidthF(.015)
-            item=self._scene.addPolygon(QPolygonF([QPointF(x,y) for x,y in p.points]),room_pen if room else pen,brush)
+            item=self._scene.addPolygon(QPolygonF([QPointF(x,y) for x,y in p.points]),pen,qbrush(s))
         elif p.kind=='ellipse':
-            cx,cy=p.points[0];item=self._scene.addEllipse(
-                cx-p.radius_x,cy-p.radius_y,2*p.radius_x,2*p.radius_y,pen,
-                QBrush(QColor(160,160,160,14) if context else QColor(170,120,210,30))
-            )
-        elif p.kind=='label':
-            meta=dict(p.meta);text=str(meta.get('text',''));cx,cy=p.points[0];item=self._scene.addText(text);item.setDefaultTextColor(QColor(55,80,65))
-            if p.role=='section-label':
-                f=item.font();f.setBold(True);f.setPointSizeF(f.pointSizeF()*1.4);item.setFont(f);item.setDefaultTextColor(QColor(200,40,40))
-            if p.role=='wall-move-label':
-                # Distance of a dragged wall: blue and bold, like the angle mark.
-                f=item.font();f.setBold(True);f.setPointSizeF(f.pointSizeF()*1.25);item.setFont(f)
-                item.setDefaultTextColor(QColor(210,40,40) if text.startswith('⚠') else QColor(20,110,220))
-            item.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations,True);item.setPos(cx,cy);item.setTransformOriginPoint(item.boundingRect().center());item.setScale(1.0);item.setZValue(8);
-            if p.role=='dimension-label':
-                # Along its dimension line, just above it (screen y is the plan's −y, so the angle turns over).
-                from PySide6.QtGui import QTransform
-                f=item.font();f.setPointSizeF(f.pointSizeF()*.9);item.setFont(f);item.setDefaultTextColor(QColor(30,90,170))
-                r=item.boundingRect();item.setTransform(QTransform().rotate(-float(meta.get('angle',0.))).translate(-r.width()/2,-r.height()+4))
-                if p.entity_id:self._entity_items[item]=p.entity_id
-                meta.pop('align',None)
-            if meta.get('align'):
-                # Placed label (plan_scene.place_labels): this point of the text box sits on the anchor.
-                from PySide6.QtGui import QTransform
-                hx,vy=meta['align'];r=item.boundingRect();item.setTransform(QTransform.fromTranslate(-hx*r.width(),-vy*r.height()))
-            if meta.get('min_scale'):
-                # Hidden while zoomed out past the scale where it would overlap another label.
-                self._scaled_labels.append((item,float(meta['min_scale'])));item.setVisible(self._label_scale()>=float(meta['min_scale']))
-            if dict(p.meta).get('layer_dim'):item.setOpacity(.3)
-            return
+            cx,cy=p.points[0];item=self._scene.addEllipse(cx-p.radius_x,cy-p.radius_y,2*p.radius_x,2*p.radius_y,pen,qbrush(s))
         if item is not None:
-            container=bool(p.entity_id) and p.entity_id in self.doc.entities and self.doc.get(p.entity_id).kind in self.CONTAINER_KINDS
-            item.setZValue(-30 if p.role=='contour' else -20 if context else (-10 if room else (10 if opening else (20 if preview else (-5 if container else (-1 if p.role=='wall-poche' else (1 if wall_line else 0)))))))
-            if p.entity_id and not preview:self._entity_items[item]=p.entity_id
-            if p.entity_id and p.entity_id==getattr(self,'_indicated',None) and not wall_line and hasattr(item,'setPen'):
-                ind=QPen(QColor(240,140,30));ind.setWidthF(.03);ind.setCosmetic(False);item.setPen(ind)
-            if preview and p.kind=='polygon' and dict(p.meta).get('fits') is False:item.setBrush(QBrush(QColor(210,40,40,45)))
-            if preview and p.kind=='polygon' and dict(p.meta).get('semantic')=='wall-body-preview':
-                # The wall being drawn looks like a wall: its cut fill, a green edge (not yet placed).
-                item.setBrush(QBrush(QColor(205,200,190,235)));edge=QPen(QColor(40,150,70));edge.setWidthF(.025)
-                edge.setJoinStyle(Qt.PenJoinStyle.MiterJoin);item.setPen(edge)
-            # Dim layer (Layers panel / environment): a faint reference under the work.
-            if dict(p.meta).get('layer_dim'):item.setOpacity(.28);item.setZValue(-30)
+            item.setZValue(s.z)
+            if s.opacity!=1.0:item.setOpacity(s.opacity)
+            if p.entity_id and p.role!='preview':self._entity_items[item]=p.entity_id
+    def _draw_label(self,p,s):
+        from archforge.output.plan_qt import qcolor
+        meta=dict(p.meta);text=str(meta.get('text',''));cx,cy=p.points[0];item=self._scene.addText(text);item.setDefaultTextColor(qcolor(s.text_color))
+        if s.bold or s.text_scale!=1.0:
+            f=item.font();f.setBold(s.bold);f.setPointSizeF(f.pointSizeF()*s.text_scale);item.setFont(f)
+        item.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations,True);item.setPos(cx,cy);item.setTransformOriginPoint(item.boundingRect().center());item.setScale(1.0);item.setZValue(s.z);
+        if p.role=='dimension-label':
+            # Along its dimension line, just above it (screen y is the plan's −y, so the angle turns over).
+            r=item.boundingRect();item.setTransform(QTransform().rotate(-float(meta.get('angle',0.))).translate(-r.width()/2,-r.height()+4))
+            if p.entity_id:self._entity_items[item]=p.entity_id
+            meta.pop('align',None)
+        if meta.get('align'):
+            # Placed label (plan_scene.place_labels): this point of the text box sits on the anchor.
+            hx,vy=meta['align'];r=item.boundingRect();item.setTransform(QTransform.fromTranslate(-hx*r.width(),-vy*r.height()))
+        if meta.get('min_scale'):
+            # Hidden while zoomed out past the scale where it would overlap another label.
+            self._scaled_labels.append((item,float(meta['min_scale'])));item.setVisible(self._label_scale()>=float(meta['min_scale']))
+        if s.opacity!=1.0:item.setOpacity(s.opacity)
     def _draw_rotate_dial(self,preview):
         # Live rotation: dial round the pivot, a ray at the new angle and the angle in degrees.
         hud=preview.hud;px,py=float(hud.get('pivot_x',0.)),float(hud.get('pivot_y',0.));a=float(hud.get('angle_deg',0.))

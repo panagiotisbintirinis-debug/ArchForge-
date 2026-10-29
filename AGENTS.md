@@ -154,3 +154,12 @@ scenarios. "Built without an exception" is never a pass. Reuse these instead of 
 Do not ask the human to choose routine implementation details. Escalate only when the answer would materially change product semantics, user-facing policy, safety, cost, or architecture direction and cannot be resolved from existing repository contracts.
 
 The goal of this file is to let agents continue productively without requiring the owner to type "continue" between tasks while keeping the human-first product definition stable.
+
+## Every check the user's way — in movement and in sight (owner rule, 29/10)
+1. Movement: a user task is checked through what the human touches — menu / button / key, mouse drags and clicks a
+   few pixels off the target at a realistic zoom — never through direct function calls or exact coordinates.
+2. Sight: the result is checked as the human sees it — the plan / 3D on screen, the PDF page as an image, the status
+   message — not only internal numbers.
+3. Existing direct-call tests stay (fast, precise) but do not prove a task works; every command also needs a user-way
+   check. Backlog: `scripts/toolbox/user_way_coverage.py`. Examples: `tests/test_section_line_user.py`,
+   `scripts/user_drive/wall_face_check.py`.

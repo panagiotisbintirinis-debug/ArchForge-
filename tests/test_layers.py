@@ -160,3 +160,10 @@ def test_window_environment_switch_and_locked_inspector():
         assert window._workspace_menu.actions() and window._layers_dock.objectName() == 'layers_panel'
     finally:
         window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_mep_environment_shows_the_furniture_faint():
+    """Owner 29/10: «όταν περνάμε Η/Μ δεν φαίνονται τα έπιπλα» — in Η/Μ the furniture is a faint, unpickable
+    reference like the rest of the plan (sockets go by the bed and the sofa)."""
+    for key in ('furniture', 'kitchen', 'sanitary', 'walls'):
+        assert L._preset('mep')[key] == L.UNDER, key

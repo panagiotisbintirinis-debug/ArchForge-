@@ -164,22 +164,18 @@ def test_cad_menu_toggles_and_the_tape_places_one_dimension_with_the_mouse(windo
 
 
 def test_pdf_prints_the_same_chains(tmp_path):
+    """The PDF prints the plan view's dimensions (its plan frame), not chains of its own."""
     from PySide6.QtWidgets import QApplication
     app = QApplication.instance() or QApplication([])
     from archforge.output import pdf
     doc = Document(); st = CommandStack(doc); _house(doc, st)
     st.execute(D.set_auto(doc, 0.0, exterior=True, interior=True))
-    calls = []
-    real = pdf._dimension
-    pdf._dimension = lambda sh, P1, P2, off_dir, off_mm, value, to_mm: (calls.append(round(value, 3)),
-                                                                          real(sh, P1, P2, off_dir, off_mm, value, to_mm))
-    try:
-        out = tmp_path / 'plan.pdf'
-        pdf.export_pdf(doc, str(out), include=("plans",))
-    finally:
-        pdf._dimension = real
+    labels = sorted(dict(p.meta)['text'] for p, _k in pdf.plan_frame(doc, 0.0) if p.role == 'dimension-label')
+    expected = [1.2, 1.525, 7.525, 10.25, 10.25, 8.25, 8.25, 3.75, 5.75, 7.75, 7.75]
+    assert labels == sorted(D.fmt(v) for v in expected)
+    out = tmp_path / 'plan.pdf'
+    pdf.export_pdf(doc, str(out), include=("plans",))
     assert out.exists() and out.stat().st_size > 1000
-    assert sorted(calls) == sorted([1.2, 1.525, 7.525, 10.25, 10.25, 8.25, 8.25, 3.75, 5.75, 7.75, 7.75])
 
 
 def test_a_room_face_split_where_walls_meet_it_from_behind_is_one_dimension():

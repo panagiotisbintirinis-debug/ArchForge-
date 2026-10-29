@@ -4546,9 +4546,36 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f'Τιμές: {len(prices)} είδη — Αρχείο → Εξαγωγή PDF για την προσφορά', 6000)
         return entity
 
-    def _export_pdf(self, path=None):
-        """Cover, a plan per storey with dimensions, the take-off and the quote — one PDF."""
-        from archforge.output.pdf import export_pdf
+    def _export_pdf(self, path=None, missing_dimensions=None):
+        """Cover, a plan per storey with dimensions, the take-off and the quote — one PDF.
+
+        Before printing, a storey whose plan has no dimensions is reported (owner 29/10: «ένα σχέδιο χωρίς
+        διαστάσεις δεν είναι σχέδιο»): add its exterior dimensions (the CAD ▸ Διαστάσεις command, one undo), print
+        anyway, or cancel.  ``missing_dimensions`` = 'add' / 'print' / 'cancel' answers without asking."""
+        from archforge.output.pdf import add_exterior_dimensions, export_pdf, level_name, undimensioned_storeys
+        missing = undimensioned_storeys(self.doc)
+        if missing and missing_dimensions is None:
+            if getattr(self, '_no_modal_dialogs', False):
+                missing_dimensions = 'print'
+            else:
+                names = ', '.join(level_name(s['name']) for s in missing)
+                box = QMessageBox(self)
+                box.setIcon(QMessageBox.Icon.Warning)
+                box.setWindowTitle('Εξαγωγή PDF')
+                box.setText(f'Χωρίς διαστάσεις: {names}.\nΈνα σχέδιο χωρίς διαστάσεις δεν είναι σχέδιο.')
+                box.setInformativeText('Να μπουν οι εξωτερικές διαστάσεις (CAD ▸ Διαστάσεις, αναιρείται);')
+                add = box.addButton('Βάλε διαστάσεις', QMessageBox.ButtonRole.AcceptRole)
+                anyway = box.addButton('Εκτύπωση χωρίς', QMessageBox.ButtonRole.DestructiveRole)
+                box.addButton('Άκυρο', QMessageBox.ButtonRole.RejectRole)
+                box.setDefaultButton(add)
+                box.exec()
+                missing_dimensions = 'add' if box.clickedButton() is add else ('print' if box.clickedButton() is anyway else 'cancel')
+        if missing and missing_dimensions == 'cancel':
+            self.statusBar().showMessage('PDF: ακυρώθηκε — άναψε τις διαστάσεις από CAD ▸ Διαστάσεις', 9000)
+            return None
+        if missing and missing_dimensions == 'add':
+            self.stack.execute(add_exterior_dimensions(self.doc, missing))
+            self._redraw_views(all_views=True)
         if path is None:
             path, _ = QFileDialog.getSaveFileName(self, 'Εξαγωγή PDF', 'ergo.pdf', 'PDF (*.pdf)')
             if not path:
@@ -4556,7 +4583,8 @@ class MainWindow(QMainWindow):
         if not path.lower().endswith('.pdf'):
             path += '.pdf'
         result = export_pdf(self.doc, path)
-        self.statusBar().showMessage(f"PDF: {result['pages']} σελίδες — {path}", 9000)
+        note = f" — χωρίς διαστάσεις: {', '.join(result['undimensioned'])}" if result.get('undimensioned') else ''
+        self.statusBar().showMessage(f"PDF: {result['pages']} σελίδες — {path}{note}", 9000)
         return result
 
     def _export_priced_lists(self, path=None, only=None, default='ylika.xlsx'):
