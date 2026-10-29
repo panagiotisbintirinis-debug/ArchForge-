@@ -1,7 +1,15 @@
 # Έλεγχος με το ποντίκι στα Windows — ό,τι μπήκε 29/10
 
-Από τον κώδικα (στον καθαρό φάκελο, π.χ. `ArchForge-clean`), μία εντολή ανά γραμμή στο PowerShell:
-`git fetch origin` · `git switch claude/amazing-knuth-knt437` · `git pull --ff-only` · `py run_app.py`.
+Από τον κώδικα, στο PowerShell, **μία εντολή τη φορά** (Enter, περιμένετε, μετά η επόμενη):
+
+```
+git stash push -m "palies allages ylikon 28-10"
+git fetch origin
+git switch claude/amazing-knuth-knt437
+git pull --ff-only
+py run_app.py
+```
+Η πρώτη βάζει στην άκρη (δεν σβήνει) τις παλιές τοπικές αλλαγές του `ArchForge-test`· επαναφορά: `git stash pop`.
 (Πακέτο .exe βγαίνει μόνο όταν υπάρχει PR — πείτε μου αν το θέλετε.)
 
 Σημειώστε ✓ ή ✗ (με μία φράση τι είδατε). Ό,τι βγει ✗ το διορθώνω πρώτο.
