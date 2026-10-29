@@ -17,7 +17,11 @@
 - Ακόμη με δικό τους σχέδιο: ξυλότυποι (`formwork.py`: `wall_pieces`, `_storey_walls` — εκεί πλέον μόνο ορατοί τοίχοι),
   τομές. Τοίχοι «Καθαίρεση» (φάση από 5/10, `11dfeed`): μένουν όπως είναι — ιδιοκτήτης: «σαν εργαλείο δεν θα το
   χρησιμοποιήσει κανείς».
-Τεστ: `test_output_pdf.py` (`test_the_pdf_plan_is_the_plan_view_drawing`, `test_pdf_leaves_off_what_the_plan_view_hides`),
+- **Πριν από την εκτύπωση (ιδιοκτήτης 29/10: «ένα σχέδιο χωρίς διαστάσεις δεν είναι σχέδιο»):** η Εξαγωγή PDF
+  λέει ποιοι όροφοι δεν έχουν καμία διάσταση (`pdf.undimensioned_storeys`, από το ίδιο το σχέδιο) και προτείνει
+  «Βάλε διαστάσεις» (= CAD ▸ Διαστάσεις ▸ εξωτερικές, μία αναίρεση) / «Εκτύπωση χωρίς» / «Άκυρο»· αν τυπωθεί χωρίς,
+  το γράφει η γραμμή κατάστασης.
+Τεστ: `test_output_pdf.py` (`test_a_storey_without_dimensions_is_reported_before_printing`, `test_the_pdf_plan_is_the_plan_view_drawing`, `test_pdf_leaves_off_what_the_plan_view_hides`),
 `test_dimensions.py::test_pdf_prints_the_same_chains`. Οι δοκιμές με `MainWindow` + διάλογο τιμών κλείνουν τη διεργασία
 στο headless container (και χωρίς την αλλαγή)· να τρέξουν σε Windows.
 

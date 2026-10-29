@@ -137,3 +137,37 @@ def test_pdf_leaves_off_what_the_plan_view_hides():
     window.visible = False
     pieces, holes = wall_pieces(doc, doc.get(ws[0].id), _storey_walls(doc, 0.0))
     assert len(pieces) == 3 and any(e.id == window.id for _a, _b, e, _f in holes)
+
+
+def test_a_storey_without_dimensions_is_reported_before_printing(tmp_path):
+    """Owner 29/10: «ένα σχέδιο χωρίς διαστάσεις δεν είναι σχέδιο» — the export says which storeys have none and can
+    add their exterior dimensions with the CAD ▸ Διαστάσεις command (one undo) before printing."""
+    from PySide6.QtWidgets import QApplication
+    from archforge.output.pdf import add_exterior_dimensions, export_pdf, undimensioned_storeys
+    from archforge.ui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    doc = Document(); st = CommandStack(doc); _house(st)
+    assert [s['z'] for s in undimensioned_storeys(doc)] == [0.0]
+    assert export_pdf(doc, tmp_path / 'a.pdf', include=('plans',))['undimensioned'] == ['Ισόγειο']
+
+    class Window:                                   # the export path of MainWindow, without its window
+        _no_modal_dialogs = True
+        def __init__(self):
+            self.doc, self.stack, self.messages = doc, st, []
+        def statusBar(self):
+            return self
+        def showMessage(self, text, _ms=0):
+            self.messages.append(text)
+        def _redraw_views(self, all_views=False):
+            pass
+    w = Window()
+    assert MainWindow._export_pdf(w, str(tmp_path / 'b'), missing_dimensions='cancel') is None
+    assert not (tmp_path / 'b.pdf').exists() and 'ακυρώθηκε' in w.messages[-1]
+    r = MainWindow._export_pdf(w, str(tmp_path / 'c'))                      # no dialogs: prints, and says so
+    assert r['undimensioned'] == ['Ισόγειο'] and 'χωρίς διαστάσεις: Ισόγειο' in w.messages[-1]
+    r = MainWindow._export_pdf(w, str(tmp_path / 'd'), missing_dimensions='add')
+    assert r['undimensioned'] == [] and not undimensioned_storeys(doc) and (tmp_path / 'd.pdf').exists()
+    st.undo()                                                               # one undo takes them away again
+    assert undimensioned_storeys(doc)
+    st.execute(add_exterior_dimensions(doc, undimensioned_storeys(doc)))
+    assert not undimensioned_storeys(doc)

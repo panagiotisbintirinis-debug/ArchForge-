@@ -212,6 +212,27 @@ def plan_frame(doc, z):
     return [item for _z, _i, item in sorted(zip(zs, range(len(out)), out), key=lambda t: (t[0], t[1]))]
 
 
+def plan_storeys(doc):
+    """The storeys that get a plan sheet (those with walls), as ``read_drawing`` gives them."""
+    from archforge.assistant.understanding import read_drawing
+    return [s for s in read_drawing(doc)["storeys"] if s["walls"]]
+
+
+def undimensioned_storeys(doc):
+    """Storeys whose plan has no dimension at all — owner 29/10: «ένα σχέδιο χωρίς διαστάσεις δεν είναι σχέδιο».
+
+    Read from the drawing itself (``plan_frame``), so it says exactly what would be printed."""
+    return [s for s in plan_storeys(doc)
+            if not any(p.role == "dimension" for p, _k in plan_frame(doc, float(s["z"])))]
+
+
+def add_exterior_dimensions(doc, storeys):
+    """The command that turns the automatic exterior dimensions on for ``storeys`` (CAD ▸ Διαστάσεις), one undo."""
+    from archforge.architecture.dimensions import set_auto
+    from archforge.core.commands import CompositeCommand
+    return CompositeCommand([set_auto(doc, float(s["z"]), exterior=True) for s in storeys], "Διαστάσεις για το PDF")
+
+
 LABEL_PT = 6.5          # pt of a plan label on paper (× its style's scale)
 
 
@@ -358,8 +379,7 @@ def _cover(sh, doc, project, client, date, storeys):
 
 
 def export_pdf(doc, path, project=None, client=None, include=("cover", "plans", "formwork", "takeoff", "quote"), only=None):
-    """Write the PDF; returns ``{"pages": n, "path": path, "scales": [...]}``."""
-    from archforge.assistant.understanding import read_drawing
+    """Write the PDF; returns ``{"pages": n, "path": path, "scales": [...], "undimensioned": [storey names]}``."""
     from archforge.quantities.quote import money, quote
     from archforge.quantities.takeoff import take_off
     q = quote(doc, only)
@@ -373,17 +393,18 @@ def export_pdf(doc, path, project=None, client=None, include=("cover", "plans", 
     painter = QPainter(writer)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
     sh = Sheet(painter, 300 / 25.4)
-    pages, scales = 0, []
+    pages, scales, undimensioned = 0, [], []
 
     def new_page():
         nonlocal pages
         if pages:
             writer.newPage()
         pages += 1
-    storeys = [s for s in read_drawing(doc)["storeys"] if s["walls"]]
+    storeys = plan_storeys(doc)
     if "cover" in include:
         new_page(); _cover(sh, doc, project, client, date, storeys)
     if "plans" in include:
+        undimensioned = [level_name(s["name"]) for s in undimensioned_storeys(doc)]
         for s in storeys:
             new_page(); scales.append(_plan_page(sh, doc, s, pages, project, date))
     if "formwork" in include:
@@ -446,4 +467,4 @@ def export_pdf(doc, path, project=None, client=None, include=("cover", "plans", 
                 sh.line(200, 192, 280, 192, width=.2)
                 sh.text(240, 196, "Υπογραφή / σφραγίδα", size=8, align="center", w=80, color=QColor(110, 110, 110))
     painter.end()
-    return {"pages": pages, "path": str(path), "scales": scales}
+    return {"pages": pages, "path": str(path), "scales": scales, "undimensioned": undimensioned}
