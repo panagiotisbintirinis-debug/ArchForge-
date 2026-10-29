@@ -1139,6 +1139,11 @@ class PlanView(QGraphicsView):
             # Contour lines: thin brown, every 1 m (or the chosen step) a little stronger.
             z=float(dict(p.meta).get('z',0.));major=abs(z-round(z))<1e-6
             pen=QPen(QColor(150,110,60,200 if major else 120));pen.setWidthF(.02 if major else .01)
+        if p.role=='sculpt-contour':
+            # Γλυπτική: faint contour lines of the sculpted ground (owner 29/10 «σχεδιαστικά αχνές γραμμές»).
+            pen=QPen(QColor(120,90,160,120));pen.setWidthF(.01)
+        if p.role=='sculpt-outline':
+            pen=QPen(QColor(120,90,160,150));pen.setWidthF(.012);pen.setStyle(Qt.PenStyle.DashLine)
         if p.role in ('footing','tie-beam'):
             # Below the floor: hidden lines.
             pen=QPen(QColor(95,95,90));pen.setWidthF(.015);pen.setStyle(Qt.PenStyle.DashLine)
@@ -1214,6 +1219,9 @@ class PlanView(QGraphicsView):
             meta=dict(p.meta);text=str(meta.get('text',''));cx,cy=p.points[0];item=self._scene.addText(text);item.setDefaultTextColor(QColor(55,80,65))
             if p.role=='section-label':
                 f=item.font();f.setBold(True);f.setPointSizeF(f.pointSizeF()*1.4);item.setFont(f);item.setDefaultTextColor(QColor(200,40,40))
+            if p.role=='sculpt-label':
+                # How much Γλυπτική raised / lowered (ground) or pushed out / in (wall).
+                f=item.font();f.setBold(True);item.setFont(f);item.setDefaultTextColor(QColor(110,70,160))
             if p.role=='wall-move-label':
                 # Distance of a dragged wall: blue and bold, like the angle mark.
                 f=item.font();f.setBold(True);f.setPointSizeF(f.pointSizeF()*1.25);item.setFont(f)
@@ -1237,7 +1245,7 @@ class PlanView(QGraphicsView):
             return
         if item is not None:
             container=bool(p.entity_id) and p.entity_id in self.doc.entities and self.doc.get(p.entity_id).kind in self.CONTAINER_KINDS
-            item.setZValue(-30 if p.role=='contour' else -20 if context else (-10 if room else (10 if opening else (20 if preview else (-5 if container else (-1 if p.role=='wall-poche' else (1 if wall_line else 0)))))))
+            item.setZValue(-30 if p.role in ('contour','sculpt-contour') else -20 if context else (-10 if room else (10 if opening else (20 if preview else (-5 if container else (-1 if p.role=='wall-poche' else (1 if wall_line else 0)))))))
             if p.entity_id and not preview:self._entity_items[item]=p.entity_id
             if p.entity_id and p.entity_id==getattr(self,'_indicated',None) and not wall_line and hasattr(item,'setPen'):
                 ind=QPen(QColor(240,140,30));ind.setWidthF(.03);ind.setCosmetic(False);item.setPen(ind)

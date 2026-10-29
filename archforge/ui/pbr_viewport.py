@@ -1800,6 +1800,21 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
   }
 
   const hit = pickModel(event);
+  if ((!hit || !hit.face) && activeTool === "sculpt" && event.button === 0) {
+    // Γλυπτική on the open ground of a project without a site terrain: the stroke creates it (terrain_sculpt.py).
+    const ground_point = pointOnHorizontalPlane(event, ground.position.z);
+    if (ground_point) {
+      sculpting = true;
+      sculptStartY = event.clientY;
+      controls.enabled = false;
+      if (renderer.domElement.setPointerCapture) renderer.domElement.setPointerCapture(event.pointerId);
+      bridge.beginSculpt(JSON.stringify({entity_id: "", surface_role: "ground",
+                                         point: [ground_point.x, ground_point.y, ground_point.z], normal: [0, 0, 1]}));
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    return;
+  }
   if (!hit || !hit.face) return;
 
   if (
@@ -2323,6 +2338,21 @@ def pbr_page_html() -> str:
     page = _PBR_HTML.replace("/*__ARCHFORGE_WALL_EDIT_3D__*/", wall_edit_3d_js() + js_3d() + camera_js(), 1)
     page = page.replace("/*__ARCHFORGE_LOOK__*/", pbr_look_js(), 1)
     return page.replace("/*__ARCHFORGE_THREE_BUNDLE__*/", bundle, 1)
+
+def _new_terrain_preview(doc, terrain_tx):
+    """Scene objects of the terrain a first ground stroke will add — drawn from a one-entity document, the real one
+    untouched until release."""
+    from archforge.core.model import Document
+    from archforge.geometry.incremental import IncrementalEvaluationCache
+    from archforge.geometry.sculpt import SculptedPreviewBackend
+    scratch = Document()
+    terrain = terrain_tx.new_terrain.clone()
+    terrain.params = terrain_tx.params()
+    scratch.add(terrain)
+    evaluation = IncrementalEvaluationCache(SculptedPreviewBackend()).sync(scratch)
+    payload = build_pbr_scene_payload(evaluation, (), mesh_overrides={terrain.id: terrain_tx.preview_mesh()}, doc=scratch)
+    return list(payload.get("objects") or ())
+
 
 def scene_changes(payload, sent):
     """Only what changed since the last push (owner 29/10): ``(payload, full)``.
@@ -2853,8 +2883,18 @@ class PBRViewport(QWidget):
     def _begin_sculpt_from_web(self, payload_json: str) -> None:
         if self.active_tool != "sculpt":
             return
+        self._terrain_tx = None
         try:
             payload = json.loads(payload_json)
+            eid = str(payload.get("entity_id") or "")
+            if not eid or (eid in self.doc.entities and self.doc.get(eid).kind == "terrain"):
+                # The ground (owner 29/10: «στο έδαφος δεν κάνει τίποτα»): a stroke in the site terrain itself.
+                from archforge.site.terrain_sculpt import TerrainStroke, LABELS
+                x, y = float(payload["point"][0]), float(payload["point"][1])
+                self._terrain_tx = TerrainStroke(self.doc, self.stack, x, y, self.sculpt_brush.radius, self.sculpt_op)
+                self.statusChanged.emit(f"Γλυπτική εδάφους ({LABELS[self.sculpt_op]}, Ø {2 * self.sculpt_brush.radius:.2f} m): "
+                                        "σύρε πάνω/κάτω για το πόσο, άφησε για να μείνει")
+                return
             hit = SurfaceHit(
                 str(payload["entity_id"]),
                 str(payload["surface_role"]),
@@ -2878,6 +2918,13 @@ class PBRViewport(QWidget):
             self.statusChanged.emit(f"Cannot sculpt PBR surface: {exc}")
 
     def _update_sculpt_from_web(self, amount: float) -> None:
+        terrain_tx = getattr(self, "_terrain_tx", None)
+        if terrain_tx is not None:
+            terrain_tx.update(amount)
+            self.redraw(force_full=False)
+            dz = terrain_tx.stroke()["dz"]
+            self.statusChanged.emit(f"Γλυπτική εδάφους: {dz:+.2f} m στο κέντρο")
+            return
         if self._sculpt_tx is None:
             return
         try:
@@ -2890,6 +2937,19 @@ class PBRViewport(QWidget):
             self.statusChanged.emit(f"PBR sculpt preview error: {exc}")
 
     def _finish_sculpt_from_web(self) -> None:
+        terrain_tx = getattr(self, "_terrain_tx", None)
+        if terrain_tx is not None:
+            self._terrain_tx = None
+            try:
+                if terrain_tx.amount > 0.001:
+                    dz = terrain_tx.commit()["dz"]
+                    self._evaluation_cache.clear()
+                    self.statusChanged.emit(f"Έδαφος {dz:+.2f} m — Ctrl+Z για αναίρεση")
+                self.selectionChangedByView.emit()
+            except Exception as exc:
+                self.statusChanged.emit(f"Γλυπτική εδάφους: δεν εφαρμόστηκε — {exc}")
+            self.redraw(force_full=False)
+            return
         if self._sculpt_tx is None:
             return
         tx = self._sculpt_tx
@@ -3674,6 +3734,12 @@ class PBRViewport(QWidget):
             return
         evaluation = self._evaluation_cache.sync(self.doc)
         overrides = None
+        terrain_tx = getattr(self, "_terrain_tx", None)
+        if terrain_tx is not None and terrain_tx.new_terrain is None:
+            try:
+                overrides = {terrain_tx.terrain_id: terrain_tx.preview_mesh()}
+            except Exception as exc:
+                self.statusChanged.emit(f"Γλυπτική εδάφους: προεπισκόπηση — {exc}")
         if self._sculpt_tx is not None:
             try:
                 overrides = {self._sculpt_tx.hit.owner_id: self._sculpt_tx.preview_mesh()}
@@ -3681,6 +3747,8 @@ class PBRViewport(QWidget):
                 self.statusChanged.emit(f"PBR sculpt preview error: {exc}")
         payload = scene_payload(self.doc, evaluation, self.structural_only, overrides,
                                 getattr(self, "hidden_layers", set()))
+        if terrain_tx is not None and terrain_tx.new_terrain is not None and terrain_tx.amount > 0:
+            payload["objects"] = list(payload["objects"]) + _new_terrain_preview(self.doc, terrain_tx)
         fit = "true" if force_full and self._sculpt_tx is None else "false"
         payload, full = scene_changes(payload, None if force_full else getattr(self, "_sent_scene", None))
         self._sent_scene = payload.pop("_sent")
