@@ -154,12 +154,12 @@ def organize_build_menu(window):
     wall_angle = QAction('Γωνία επιλεγμένου τοίχου…', window)
     wall_angle.triggered.connect(lambda _=False: room_box_tool.wall_angle(window))
     from PySide6.QtGui import QActionGroup
-    from archforge.architecture.wall_face import LABELS
+    from archforge.architecture.wall_face import LABELS, MENU_MODES
     face_menu = QMenu('Σχεδίαση τοίχου από', window)
     face_group = QActionGroup(face_menu)
     current = getattr(window.plan_view.controller, 'wall_face', 'auto')
-    for key in ('auto', 'axis', 'left', 'right'):
-        act = QAction(LABELS[key] + (' (F στη σχεδίαση)' if key == 'left' else ''), face_menu)
+    for key in MENU_MODES:
+        act = QAction(LABELS[key] + (' — F στη σχεδίαση = η άλλη' if key == 'left' else ''), face_menu)
         act.setCheckable(True); act.setChecked(key == current); face_group.addAction(act); face_menu.addAction(act)
         act.triggered.connect(lambda _=False, k=key: (setattr(window.plan_view.controller, 'wall_face', k),
                                                       window.statusBar().showMessage(f'Τοίχος από: {LABELS[k]}', 5000)))

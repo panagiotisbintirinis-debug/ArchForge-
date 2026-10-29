@@ -90,8 +90,10 @@ def test_partition_and_window_follow_the_moved_walls():
     assert _bbox_outer(doc) == pytest.approx((0.0, 0.0, 8.0, 6.0), abs=1e-6)
 
 
-def test_without_brief_walls_stay_on_their_axis():
+def test_without_brief_walls_are_drawn_by_their_outer_face():
+    """Owner 29/10: «από τον άξονα είναι τελείως λάθος» — without the project's details the line drawn (clockwise,
+    owner 24/10) is the outer face, as with «μετράμε εξωτερικά»."""
     doc = Document(); st = CommandStack(doc)
     ctrl = PointerController(doc, st)
-    _draw(ctrl, [(0, 0), (5, 0), (5, 5), (0, 5), (0, 0)])
-    assert _bbox_outer(doc)[0] == pytest.approx(-0.075)                              # axis drawing, 15 cm
+    _draw(ctrl, [(0, 0), (0, 5), (5, 5), (5, 0), (0, 0)])
+    assert _bbox_outer(doc)[0] == pytest.approx(0.0, abs=1e-6)                        # the drawn line is the face

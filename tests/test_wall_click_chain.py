@@ -20,6 +20,7 @@ def _click(ctrl, x, y):
 
 def _ctrl():
     d = Document(); stack = CommandStack(d); ctrl = PointerController(d, stack)
+    ctrl.wall_face = 'axis'                  # the click chain is tested on given axes, not the face drawing (Π11)
     ctrl.set_tool('wall')
     return d, stack, ctrl
 
@@ -76,6 +77,7 @@ def test_drag_still_draws_one_wall_and_no_chain():
 
 def test_chain_follows_the_brief_and_splits_on_a_tee():
     d, stack, ctrl = _ctrl()
+    ctrl.wall_face = 'auto'                  # this one follows the project's details
     stack.execute(AddEntity(Entity('project_brief', {'project_type': 'new', 'wall_system': 'stone_bearing',
                                                      'measure': 'exterior', 'floor_system': 'rc_slab'})))
     stack.execute(AddEntity(Entity('wall', {'x1': 0, 'y1': 0, 'x2': 6, 'y2': 0, 'z': 0, 'height': 2.7, 'thickness': .2})))
@@ -112,7 +114,8 @@ def test_hand_tremor_while_clicking_in_the_plan_view_draws_no_tiny_walls():
         click(x, y, j)
     lengths = sorted(round(((w.params['x2'] - w.params['x1']) ** 2 + (w.params['y2'] - w.params['y1']) ** 2) ** .5, 2)
                      for w in _walls(d))
-    assert lengths == [6.0, 6.0, 8.0, 8.0]
+    # Four walls, no 5–30 cm piece (drawn by the outer face since Π11: the axes are half a wall inside the outline).
+    assert len(lengths) == 4 and lengths[0] > 5.5 and lengths[2] > 7.5
     view.close()
 
 

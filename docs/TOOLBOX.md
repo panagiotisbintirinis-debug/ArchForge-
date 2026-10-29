@@ -32,6 +32,7 @@
 | Εργαλείο | Τι κάνει | Εκτέλεση |
 |---|---|---|
 | `scripts/user_drive/user.py` | Οδηγεί το ArchForge offscreen όπως ένας άνθρωπος: ribbon/μενού, κλικ στην κάτοψη, marking menu· μετρά βήματα, μαζεύει σημειώσεις τριβής (`U.notes`). | `from user import *` (δες `house.py`) |
+| `scripts/user_drive/wall_face_check.py` | Τοίχοι από παρειά και τύπος αργότερα (Π11): περίγραμμα με κλικ λίγα pixel δίπλα στις γωνίες, τύπος από τις Ιδιότητες, Ctrl+Z· οι εξωτερικές διαστάσεις δεν αλλάζουν. | `QT_QPA_PLATFORM=offscreen QTWEBENGINE_DISABLE_SANDBOX=1 QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu" python scripts/user_drive/wall_face_check.py` |
 | `scripts/user_drive/core_check.py` | Ο πυρήνας με το ποντίκι όπως σχεδιάζει ο ιδιοκτήτης (κλικ λίγα εκ. δίπλα στις γωνίες). | `QT_QPA_PLATFORM=offscreen python scripts/user_drive/core_check.py` |
 | `scripts/user_drive/walls_check.py` | Τοίχοι από την όψη, κλείσιμο περιγράμματος στις 90°, οδηγοί (24/10). | ίδιο |
 | `scripts/user_drive/house.py` | Σπίτι-διαδρομή (σκάλα, ανοίγματα πλάκας, μπαλκόνι) μέσα από το UI. | `python scripts/user_drive/house.py [βήμα]` |

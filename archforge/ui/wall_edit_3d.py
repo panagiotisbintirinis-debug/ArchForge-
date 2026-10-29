@@ -141,6 +141,7 @@ class Wall3DEditor:
             self.draw.pointer_down(ev)
             self.chain_start = tuple(self.draw.active.start)
             return self._draw_ghost(status="Τοίχος: κλικ = επόμενο σημείο · διπλό κλικ / δεξί κλικ / Esc = τέλος")
+        tx = self.draw.active
         try:
             result = self.draw.pointer_up(ev)
         except ValueError:
@@ -150,7 +151,9 @@ class Wall3DEditor:
         if not wid or wid not in self.doc.entities:
             return self._ghost()
         p = self.doc.get(wid).params
-        end = (float(p["x2"]), float(p["y2"]))
+        # Where the hand clicked: a wall drawn by its face lies half a wall off the line, so its axis end is not the
+        # corner — the next wall, the double click and the closing are read on the drawn line (as in the plan).
+        end = tuple(float(v) for v in tx.end[:2]) if tx is not None else (float(p["x2"]), float(p["y2"]))
         length = math.hypot(float(p["x2"]) - float(p["x1"]), float(p["y2"]) - float(p["y1"]))
         start = self.chain_start
         if start is not None and math.hypot(end[0] - start[0], end[1] - start[1]) <= 1e-6:
@@ -158,9 +161,11 @@ class Wall3DEditor:
             self.chain_start = None
             return self._ghost(committed=wid,
                                status=f"Τοίχος {metres(length)} — κλειστό περίγραμμα · Ctrl+Z = αναίρεση")
-        # The next wall starts where this one ended (corner).
+        # The next wall starts where this one ended (corner) — exactly there, as the plan's click chain does
+        # (viewport.pointer_up): no snap, which would pull it onto the previous wall's axis end half a wall away.
+        from archforge.core.snapping import SnapPoint
         a, b = self.doc.work_plane.project((end[0], end[1], self.floor_z))
-        self.draw.pointer_down(PointerEvent(a, b))
+        self.draw._begin_wall(SnapPoint(end[0], end[1], float(self.floor_z), 'endpoint', wid), a, b, False)
         return self._draw_ghost(committed=wid,
                                 status=f"Τοίχος {metres(length)} — συνέχισε · διπλό κλικ / δεξί κλικ / Esc = τέλος")
 

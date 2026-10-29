@@ -37,6 +37,7 @@ def test_a_second_room_uses_the_same_storey_floor_and_a_fence_keeps_the_ground()
     from archforge.architecture.storey_slabs import storey_faces
     doc = Document(); stack = CommandStack(doc)
     c = PointerController(doc, stack); c.auto_floors = True
+    c.wall_face = 'axis'                    # walls on given axes: the storey floor is tested here, not the wall tool
     _draw(c, [(0, 0), (6, 0), (6, 4), (0, 4), (0, 0)])
     c.cancel()
     _draw(c, [(6, 0), (9, 0), (9, 4), (6, 4)])

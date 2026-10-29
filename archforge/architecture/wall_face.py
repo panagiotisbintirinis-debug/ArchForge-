@@ -17,8 +17,10 @@ from __future__ import annotations
 import math
 
 SIDES = {'axis': 0, 'left': 1, 'right': -1}
-LABELS = {'auto': 'Αυτόματα (από τα Στοιχεία έργου)', 'axis': 'Άξονας τοίχου', 'left': 'Αριστερή παρειά',
-          'right': 'Δεξιά παρειά'}
+LABELS = {'auto': 'Αυτόματα (από τα Στοιχεία έργου· αλλιώς εξωτερική παρειά)', 'axis': 'Άξονας τοίχου',
+          'left': 'Εσωτερική παρειά (σώμα προς τα έξω)', 'right': 'Εξωτερική παρειά (σώμα προς τα μέσα)'}
+# The drawing modes offered (owner 29/10: never the axis — the axis stays only for walls drawn so before).
+MENU_MODES = ('auto', 'right', 'left')
 
 
 def offset_segment(a, b, side, thickness):

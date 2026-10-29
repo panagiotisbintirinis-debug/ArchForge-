@@ -531,7 +531,8 @@ class PlanView(QGraphicsView):
             if self.controller.active is not None:
                 pos=event.position()
                 press=getattr(self,'_press_pos',None)
-                if self.controller.tool=='wall' and press is not None and (pos-press).manhattanLength()<=self.CLICK_PX:
+                clicked=self.controller.tool=='wall' and press is not None and (pos-press).manhattanLength()<=self.CLICK_PX
+                if clicked:
                     # A click is a click on screen, whatever the zoom: hand tremor of a few pixels
                     # must not draw a 5 cm wall (Windows mice move a little while clicking).
                     pos=press
@@ -542,7 +543,7 @@ class PlanView(QGraphicsView):
                 stretched=self.controller.active.eid if type(self.controller.active).__name__=='ConnectedWallEndpointStretchTransaction' else None
                 chain=self._wall_chain_active()
                 try:
-                    self.controller.pointer_up(ev)
+                    self.controller.pointer_up(ev,click=clicked)
                     if getattr(self.controller,'last_warning',None):self.statusChanged.emit(self.controller.last_warning)
                     elif chain and not self._wall_chain_active():
                         # The outline closed (or a click twice on a corner): the walls are done — Επιλογή.

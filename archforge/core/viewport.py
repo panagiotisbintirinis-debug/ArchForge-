@@ -135,8 +135,9 @@ class PointerController:
         if mode!='auto':return SIDES[mode]
         from archforge.project.brief import get_brief
         brief=get_brief(self.doc)
-        measure=brief['measure'] if brief else None
-        if not measure:return 0
+        # Never on the axis (owner 29/10: «από τον άξονα είναι τελείως λάθος, ειδικά αν ο τοίχος είναι 50 εκ.»):
+        # without the project's details the outer face is drawn, as with «μετράμε εξωτερικά».
+        measure=(brief['measure'] if brief else None) or 'exterior'
         return auto_side(measure)                 # fixed side, like Revit's location line (wall_face.py)
     def _face_run_for(self,start):
         """The outline being drawn by faces when a wall starts at ``start`` (its last wall ends there), else empty —
@@ -422,14 +423,16 @@ class PointerController:
             values=dict(hud.values);values['distance']=(self.active.dx*self.active.dx+self.active.dy*self.active.dy)**.5
             self.preview=PreviewState('move',{'entities':copy.deepcopy(self.active.preview)},values,None)
         return self.preview
-    def pointer_up(self,ev,exact=None):
+    def pointer_up(self,ev,exact=None,click=False):
+        """``click``: the view saw a click (press → release within a few screen pixels), not a drag."""
         if self.active is None:return self.preview
         self.last_warning=None
         self.pointer_move(ev);committed_id=None
         if isinstance(self.active,WallDrawTransaction):
             tx=self.active
             import math
-            if exact is None and math.hypot(tx.end[0]-tx.start[0],tx.end[1]-tx.start[1])<tx.min_length:
+            short=math.hypot(tx.end[0]-tx.start[0],tx.end[1]-tx.start[1])<tx.min_length
+            if exact is None and (short or (click and self.wall_chain is None)):
                 if self.wall_chain is None:
                     # A click without a drag: click-click walls, one corner per click.
                     self.wall_chain={'first':tuple(tx.start),'count':0}
@@ -511,7 +514,7 @@ class PointerController:
             if prev.get('applied',True) and len(segs)>1:
                 pa=(float(self.doc.get(prev['id']).params['x1']),float(self.doc.get(prev['id']).params['y1']))
             c=intersect(pa,pb,na,nb) or na
-            changes={'x1':pa[0],'y1':pa[1],'x2':c[0],'y2':c[1]}
+            changes={'x1':pa[0],'y1':pa[1],'x2':c[0],'y2':c[1],'ref_side':-int(prev['side'])}
             if auto:changes['reference_applied']=True              # the brief's measure is done (no move at closing)
             self.stack.execute(UpdateEntity(prev['id'],changes))
             prev['applied']=True
@@ -539,8 +542,45 @@ class PointerController:
             self.stack.execute(UpdateEntity(committed,{'x2':c[0],'y2':c[1]}))
             self.stack.execute(UpdateEntity(f['id'],{'x1':c[0],'y1':c[1],'x2':float(fe['x2']),'y2':float(fe['y2'])}))
         segs.append({'a':a,'b':b,'side':side,'t':t,'id':committed})
+        if closing and auto:
+            self._face_outline_inwards(segs)
         return committed
+    def _face_outline_inwards(self,segs):
+        """A closed outline knows its inside (owner 29/10: «όταν κλείνει ένα σχέδιο πώς είναι δυνατόν να μην ξέρει ποιο
+        είναι το μέσα… αφού ονοματίζει το περίγραμμα, βάζει δάπεδο και στέγη»): the walls go to the side of the drawn
+        lines the measure asks for — inside for «εξωτερικά», outside for «εσωτερικά» — whichever way round it was drawn.
+        The drawn lines stay the faces; the corners meet again on the new axes (same undo step as the closing wall)."""
+        import math
+        from archforge.architecture.wall_face import intersect,offset_segment
+        from archforge.core.commands import UpdateEntity
+        from archforge.project.brief import get_brief
+        if len(segs)<3 or any(s.get('id') not in self.doc.entities for s in segs):return
+        pts=[tuple(s['a']) for s in segs]
+        area=sum(pts[i][0]*pts[(i+1)%len(pts)][1]-pts[(i+1)%len(pts)][0]*pts[i][1] for i in range(len(pts)))/2
+        if abs(area)<1e-9:return
+        brief=get_brief(self.doc)
+        measure=(brief['measure'] if brief else None) or 'exterior'
+        want=(1 if area>0 else -1)*(1 if measure!='interior' else -1)     # +1 = body on the left of the drawn line
+        if all(s['side']==want for s in segs):return
+        axes=[offset_segment(s['a'],s['b'],want,float(self.doc.get(s['id']).params['thickness'])) for s in segs]
+        n=len(segs)
+        corners=[intersect(*axes[i-1],*axes[i]) or axes[i][0] for i in range(n)]
+        for i,s in enumerate(segs):
+            c0,c1=corners[i],corners[(i+1)%n]
+            if math.dist(c0,c1)<1e-6:return
+            self.stack.execute(UpdateEntity(s['id'],{'x1':c0[0],'y1':c0[1],'x2':c1[0],'y2':c1[1],'ref_side':-want}))
+            s['side']=want
     def _commit_wall(self,exact=None):
+        """The wall in hand, with its corner, splits, floor and dimensions — all or nothing (A2): a step that fails
+        (e.g. «πολύ κοντός» after the previous wall's corner was already moved) leaves nothing behind."""
+        since=len(self.stack.done)
+        try:
+            return self._commit_wall_steps(exact)
+        except Exception:
+            while len(self.stack.done)>since:self.stack.undo()
+            self.stack.undone.clear()
+            raise
+    def _commit_wall_steps(self,exact=None):
         committed_id=None
         from archforge.project.brief import interior_wall_defaults,wall_is_interior
         interior=interior_wall_defaults(self.doc)

@@ -32,6 +32,7 @@ def _box(stack, x=6.0, y=4.0, t=0.2):
 def test_four_clicks_on_the_floor_draw_a_closed_room_one_undo_per_wall():
     doc = Document(); st = CommandStack(doc)
     ed = Wall3DEditor(doc, st)
+    ed.draw.wall_face = 'axis'               # the corners are checked on the axes here; the face: next test
     ev = lambda kind, x, y, **k: ed.handle_event(json.dumps({'type': kind, 'x': x, 'y': y, 'pxm': 0.01, **k}))
     g = ev('hover', 0.02, -0.03)
     assert g['marker']['pos'][:2] == pytest.approx([0.0, 0.0]) and not g['drawing']      # grid before the first click
@@ -259,3 +260,16 @@ def test_page_carries_the_wall_js_and_it_parses():
 def test_pbr_bridge_has_the_wall_slot():
     from archforge.ui.pbr_viewport import PBRInteractionBridge
     assert hasattr(PBRInteractionBridge, 'wallEvent')
+
+
+def test_drawn_by_the_outer_face_in_3d_a_double_click_ends_without_a_stray_wall():
+    """Since Π11 the 3D wall tool draws by the outer face too: the next wall starts on the clicked corner (not on the
+    previous axis end half a wall away), so the second click of a double click is no 7,5 cm wall and the previous
+    wall is not shortened (all or nothing)."""
+    doc = Document(); st = CommandStack(doc)
+    ed = Wall3DEditor(doc, st)
+    ed.click(0.0, 0.0); ed.hover(3.0, 0.0); ed.click(3.0, 0.0)
+    before = dict(_walls(doc)[0].params)
+    ed.click(3.0, 0.0)
+    walls = _walls(doc)
+    assert len(walls) == 1 and walls[0].params == before

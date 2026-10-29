@@ -158,7 +158,7 @@ def test_pointer_controller_rotation_preview_shift_disables_angle_snap():
 
 def test_pointer_controller_respects_offset_workplane_for_wall_start():
     from archforge.core.viewport import PointerController,PointerEvent
-    d=Document();d.work_plane=WorkPlane(origin=(10,20,3));s=CommandStack(d);c=PointerController(d,s);c.grid=None;c.set_tool('wall')
+    d=Document();d.work_plane=WorkPlane(origin=(10,20,3));s=CommandStack(d);c=PointerController(d,s);c.grid=None;c.wall_face='axis';c.set_tool('wall')   # axis: only the work plane is tested here
     c.pointer_down(PointerEvent(1,2));c.pointer_up(PointerEvent(5,2));e=next(iter(d.entities.values()));assert (e.params['x1'],e.params['y1'],e.params['z'])==(11,22,3)
 
 def test_plan_scene_builds_semantic_primitives_and_handles():
