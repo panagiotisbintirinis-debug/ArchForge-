@@ -171,3 +171,29 @@ def test_a_storey_without_dimensions_is_reported_before_printing(tmp_path):
     assert undimensioned_storeys(doc)
     st.execute(add_exterior_dimensions(doc, undimensioned_storeys(doc)))
     assert not undimensioned_storeys(doc)
+
+
+def test_each_expression_of_the_plan_gets_its_own_sheet():
+    """Owner 29/10: «κάθε layer έχει δική του έκφραση· αν τα βάλουμε όλα μαζί δεν θα βλέπεις τίποτα» — the plan
+    and every MEP trade on sheets of their own (the structure: the formwork), through the plan view's environments (core/layers.py);
+    a sheet only when the storey has something of its own."""
+    from archforge.core.layers import primitive_layer
+    from archforge.output.pdf import plan_storeys, storey_sheets
+    from archforge.project.persistence import load_project
+    doc = load_project('tests/residential_scenarios/S10_full_system_family_residence.archforge').doc
+    ground = plan_storeys(doc)[0]
+    sheets = dict(storey_sheets(doc, float(ground['z']))[0])
+    assert list(sheets) == ['arch', 'plumbing', 'electrical']             # the structure: the formwork sheets
+    assert {'plumbing', 'drainage'} <= {primitive_layer(doc, p) for p, _k in sheets['plumbing']}  # «Υδραυλικά»: both
+    layers = lambda key, dim=None: {primitive_layer(doc, p) for p, _k in sheets[key]
+                                    if dim is None or bool(dict(p.meta).get('layer_dim')) == dim}
+    mep = {'electrical', 'low_voltage', 'plumbing', 'drainage', 'heating', 'ventilation'}
+    assert not layers('arch') & mep                                       # the plan: no networks
+    assert layers('electrical') & mep == {'electrical'}                   # one network per sheet …
+    poche = lambda key: [dict(p.meta).get('layer_dim', False) for p, _k in sheets[key] if p.role == 'wall-poche']
+    assert poche('electrical') and all(poche('electrical'))               # … over a faint plan
+    assert poche('arch') and not any(poche('arch'))                       # the plan itself is not faint
+    # No heating on this storey → no heating sheet; a house without MEP prints only its plan.
+    assert 'heating' not in sheets
+    plain = Document(); _house(CommandStack(plain))
+    assert [k for k, _i in storey_sheets(plain, 0.0)[0]] == ['arch']

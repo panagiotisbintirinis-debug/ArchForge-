@@ -1,4 +1,4 @@
-"""PDF output: cover, a scaled plan per storey with dimensions, the take-off and the client quote.
+"""PDF output: cover, the plan sheets of every storey, the formwork, the take-off and the client quote.
 
 Drawn with Qt (QPdfWriter + QPainter) as vectors on A4 landscape, so it
 prints sharp at any size.  Plans:
@@ -7,6 +7,9 @@ prints sharp at any size.  Plans:
   with the same styles (core/plan_style.py) — walls, joinery, stairs, furniture, rooms, dimensions, MEP; what
   the plan view hides or switches off is not printed (owner 28/10: one drawing, the PDF only translates it);
   only the working aids of the screen (previews, guides, pick lines, cameras, the storey below) are left out;
+* one sheet per expression (``SHEETS``): the plan (environment Αρχιτεκτονικό), then plumbing (water + drainage),
+  electrical, low voltage, heating, ventilation — each its own network over a faint plan, and only when the storey
+  has it; the structure is the formwork sheets; every sheet of a storey at the same scale and place;
 * scale: the largest of 1:20 / 1:50 / 1:100 / 1:200 / 1:500 that fits the
   sheet, stated in the title block and as a scale bar; line widths are the
   plan's at 1:100 (0.035 m → 0.35 mm) whatever the scale.
@@ -187,18 +190,32 @@ def level_name(name):
     return f"{int(m.group(1)) - 1}ος όροφος" if m else LEVEL_NAMES.get(str(name), str(name))
 
 
-def plan_frame(doc, z):
-    """The plan view's drawing of storey ``z`` as printed: its frame with nothing selected, without the screen aids.
+# One sheet per «expression» of the plan (owner 29/10: «κάθε layer έχει δική του έκφραση· αν τα βάλουμε όλα μαζί δεν
+# θα βλέπεις τίποτα… υδραυλικά άλλο, ηλεκτρολογικά άλλο, κάτοψη άλλο, τομή άλλο, στατικά άλλο (ξυλότυπος)»): the
+# working environments of the plan view (core/layers.py), the MEP one split per trade.  The structure has its own
+# sheets — the formwork (output/formwork.py).
+# (key, title, environment, own layers — the sheet is printed only when the storey has something on them)
+SHEETS = (
+    ("arch", "Κάτοψη", "arch", None),
+    ("plumbing", "Υδραυλικά (ύδρευση – αποχέτευση)", "mep", ("plumbing", "drainage")),
+    ("electrical", "Ηλεκτρολογικά", "mep", ("electrical",)),
+    ("low_voltage", "Ασθενή (δίκτυο / TV / KNX)", "mep", ("low_voltage",)),
+    ("heating", "Θέρμανση", "mep", ("heating",)),
+    ("ventilation", "Εξαερισμός", "mep", ("ventilation",)),
+)
+SHEET = {key: (title, env, own) for key, title, env, own in SHEETS}
 
-    ``[(primitive, entity kind)]`` in the plan view's stacking order."""
+
+def _storey_frame(doc, z):
+    """The plan view's frame of storey ``z`` with nothing selected and no layer filtering, ``[(primitive, kind)]``."""
     from archforge.core.model import WorkPlane
     from archforge.core.plan_scene import build_plan_frame
-    from archforge.core.plan_style import label_style, printable, style
+    from archforge.core.plan_style import printable
     old, selection = doc.work_plane, doc.selection
     try:
         doc.work_plane = WorkPlane(name=old.name, origin=(old.origin[0], old.origin[1], float(z)), u=old.u, v=old.v)
         doc.selection = []
-        frame = build_plan_frame(doc)
+        frame = build_plan_frame(doc, layers=False)
     finally:
         doc.work_plane, doc.selection = old, selection
     out = []
@@ -207,9 +224,54 @@ def plan_frame(doc, z):
         kind = e.kind if e is not None else None
         if printable(prim, kind):
             out.append((prim, kind))
+    return out
+
+
+def sheet_layers(doc, sheet):
+    """Layer states of a sheet: its environment as the human set it up (core/layers.py), the MEP ones per network."""
+    from types import SimpleNamespace
+    from archforge.core.layers import MEP_LAYERS, layer_states
+    _title, env, own = SHEET[sheet]
+    view = dict(getattr(doc, "view_layers", None) or {})
+    states = layer_states(SimpleNamespace(view_layers={"workspace": env, "overrides": view.get("overrides", {})}))
+    if env == "mep":
+        for key in MEP_LAYERS:
+            if key not in own:
+                states[key] = dict(states[key], visible=False)
+    return states
+
+
+def plan_frame(doc, z, sheet="arch", _frame=None):
+    """What a sheet prints of storey ``z``: the plan view's drawing through that sheet's layers — hidden out, dim
+    faint — without the screen aids.  ``[(primitive, entity kind)]`` in the plan view's stacking order."""
+    from dataclasses import replace
+    from archforge.core.layers import primitive_layer
+    from archforge.core.plan_style import label_style, style
+    states = sheet_layers(doc, sheet)
+    out = []
+    for prim, kind in (_frame if _frame is not None else _storey_frame(doc, z)):
+        key = primitive_layer(doc, prim)
+        state = states.get(key) if key else None
+        if state is not None and not state["visible"]:
+            continue
+        if state is not None and state["dim"]:
+            prim = replace(prim, meta=tuple(prim.meta) + (("layer_dim", True),))
+        out.append((prim, kind))
     # Stable sort by the plan view's z: what lies on top on screen lies on top on paper.
     zs = [label_style(q).z if q.kind == "label" else style(q, k).z for q, k in out]
     return [item for _z, _i, item in sorted(zip(zs, range(len(out)), out), key=lambda t: (t[0], t[1]))]
+
+
+def storey_sheets(doc, z):
+    """``[(sheet key, items)]`` the storey prints: the plan always, the others only with something of their own."""
+    from archforge.core.layers import primitive_layer
+    frame = _storey_frame(doc, z)
+    out = []
+    for key, _title, _env, own in SHEETS:
+        items = plan_frame(doc, z, key, _frame=frame)
+        if own is None or any(primitive_layer(doc, p) in own for p, _k in items):
+            out.append((key, items))
+    return out, frame
 
 
 def plan_storeys(doc):
@@ -303,10 +365,11 @@ def paint_plan(sh, items, to_mm):
         sh.p.setBrush(Qt.BrushStyle.NoBrush)
 
 
-def _plan_page(sh, doc, storey, sheet_no, project, date):
+def _plan_page(sh, doc, storey, sheet_no, project, date, sheet="arch", items=None, frame=None):
     z = float(storey["z"])
-    items = plan_frame(doc, z)
-    pts = [q for prim, _k in items for q in prim.points] or [(0.0, 0.0)]
+    items = plan_frame(doc, z, sheet) if items is None else items
+    # Every sheet of a storey at the same scale and place (they overlay): extent of the whole storey.
+    pts = [q for prim, _k in (frame or items) for q in prim.points] or [(0.0, 0.0)]
     xs = [float(q[0]) for q in pts]; ys = [float(q[1]) for q in pts]
     x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
     margin = 0.6                                          # m around the drawing (its dimensions are in it)
@@ -318,11 +381,12 @@ def _plan_page(sh, doc, storey, sheet_no, project, date):
 
     def to_mm(x, y):
         return ox + (x - cx) * k, oy - (y - cy) * k
-    sh.text(12, 8, f"Κάτοψη — {level_name(storey['name'])} (+{z:.2f})", size=13, bold=True, w=200)
+    title = SHEET[sheet][0]
+    sh.text(12, 8, f"{title} — {level_name(storey['name'])} (+{z:.2f})", size=13, bold=True, w=230)
     paint_plan(sh, items, to_mm)
     _north(sh, 275, 30)
     _scale_bar(sh, 14, 190, scale)
-    _title_block(sh, f"Κάτοψη {level_name(storey['name'])}", scale, sheet_no, project, date)
+    _title_block(sh, f"{title} {level_name(storey['name'])}", scale, sheet_no, project, date)
     return scale
 
 
@@ -406,7 +470,9 @@ def export_pdf(doc, path, project=None, client=None, include=("cover", "plans", 
     if "plans" in include:
         undimensioned = [level_name(s["name"]) for s in undimensioned_storeys(doc)]
         for s in storeys:
-            new_page(); scales.append(_plan_page(sh, doc, s, pages, project, date))
+            sheets, frame = storey_sheets(doc, float(s["z"]))
+            for key, items in sheets:
+                new_page(); scales.append(_plan_page(sh, doc, s, pages, project, date, key, items, frame))
     if "formwork" in include:
         from archforge.output.formwork import draw_formwork
         scales += draw_formwork(sh, doc, new_page, project, date, lambda: pages)
