@@ -154,3 +154,8 @@ scenarios. "Built without an exception" is never a pass. Reuse these instead of 
 Do not ask the human to choose routine implementation details. Escalate only when the answer would materially change product semantics, user-facing policy, safety, cost, or architecture direction and cannot be resolved from existing repository contracts.
 
 The goal of this file is to let agents continue productively without requiring the owner to type "continue" between tasks while keeping the human-first product definition stable.
+
+## User tasks are checked the user's way only (owner rule, 29/10)
+A check of something the human does goes through what the human touches — menu / button / key, mouse drags and clicks
+a few pixels off the target at a realistic zoom — never through direct function calls or exact coordinates, even if it
+is slower. Example: `tests/test_section_line_user.py`; tools: `scripts/user_drive/`.

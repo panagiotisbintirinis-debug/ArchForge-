@@ -32,6 +32,7 @@
 | Εργαλείο | Τι κάνει | Εκτέλεση |
 |---|---|---|
 | `scripts/toolbox/plan_view_snapshot.py` | Καταγράφει πώς ζωγραφίζει η κάτοψη (πένα, γέμισμα, z, κείμενα ανά στοιχείο) σε κάθε όροφο αρχείων· `--diff` δύο καταγραφές. Απόδειξη ότι αλλαγή στον κώδικα σχεδίασης δεν άλλαξε την οθόνη. | `QT_QPA_PLATFORM=offscreen python scripts/toolbox/plan_view_snapshot.py before.json` · ξανά μετά · `… --diff before.json after.json` |
+| `tests/test_section_line_user.py` | **Πρότυπο ελέγχου «με τον τρόπο του χρήστη»** (κανόνας ιδιοκτήτη 29/10): μενού (`_menu_action`), σύρσιμο, κλικ σε καρτέλα, κλικ λίγα pixel δίπλα, Delete. Headless με 3D: `QTWEBENGINE_DISABLE_SANDBOX=1 QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu"`. | `pytest tests/test_section_line_user.py` |
 | `scripts/user_drive/user.py` | Οδηγεί το ArchForge offscreen όπως ένας άνθρωπος: ribbon/μενού, κλικ στην κάτοψη, marking menu· μετρά βήματα, μαζεύει σημειώσεις τριβής (`U.notes`). | `from user import *` (δες `house.py`) |
 | `scripts/user_drive/core_check.py` | Ο πυρήνας με το ποντίκι όπως σχεδιάζει ο ιδιοκτήτης (κλικ λίγα εκ. δίπλα στις γωνίες). | `QT_QPA_PLATFORM=offscreen python scripts/user_drive/core_check.py` |
 | `scripts/user_drive/walls_check.py` | Τοίχοι από την όψη, κλείσιμο περιγράμματος στις 90°, οδηγοί (24/10). | ίδιο |

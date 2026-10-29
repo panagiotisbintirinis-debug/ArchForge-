@@ -14,12 +14,21 @@ from archforge.core.plan_scene import build_plan_frame, Primitive2D, Handle2D
 from archforge.ui.object_context_menu import object_context_actions
 
 class _OpenPathItem(QGraphicsPathItem):
-    """An open polyline (railing, run): picked near its line only — Qt's default shape also takes
-    the area the path would enclose, so a click inside a balcony picked its railing."""
+    """An open polyline (railing, run, section line): picked near its line only — Qt's default shape also takes
+    the area the path would enclose, so a click inside a balcony picked its railing.
+
+    The reach is 12 cm, but never less than PICK_PX pixels on screen: zoomed out, a thin line (a section line is
+    3,5 cm) was under one pixel and could not be picked at all (owner 29/10: «δεν μπορούσα να την επιλέξω»)."""
     REACH = 0.12
+    PICK_PX = 6.0
     def shape(self):
         from PySide6.QtGui import QPainterPathStroker
-        stroker = QPainterPathStroker(); stroker.setWidth(2 * self.REACH)
+        reach = self.REACH
+        views = self.scene().views() if self.scene() is not None else ()
+        if views:
+            scale = abs(views[0].transform().m11()) or 1.0
+            reach = max(reach, self.PICK_PX / scale)
+        stroker = QPainterPathStroker(); stroker.setWidth(2 * reach)
         return stroker.createStroke(self.path())
 
 
@@ -1057,7 +1066,11 @@ class PlanView(QGraphicsView):
                     for q in loop[1:]:path.lineTo(QPointF(*q))
                     path.closeSubpath()
             item=self._scene.addPath(path,pen,qbrush(s))
-        elif p.kind=='line' or (p.role=='section-line' and p.kind!='polygon'):
+        elif p.role in ('section-line','section-arrow') and p.kind!='polygon':
+            # Thin, and must stay pickable at any zoom (Delete removes it): a line with a pick reach.
+            (ax,ay),(bx,by)=p.points[0],p.points[-1];path=QPainterPath(QPointF(ax,ay));path.lineTo(float(bx),float(by))
+            item=_OpenPathItem(path);item.setPen(pen);self._scene.addItem(item)
+        elif p.kind=='line':
             (ax,ay),(bx,by)=p.points[0],p.points[-1];item=self._scene.addLine(ax,ay,bx,by,pen)
         elif p.kind=='polyline':
             if len(p.points)>=2:
