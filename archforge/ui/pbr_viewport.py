@@ -2177,7 +2177,8 @@ for (const name of ["pointerdown", "pointermove", "pointerup", "wheel", "keydown
 // 1. Shadow cache: the sun's shadow map (4096²) depends on the model, the lights and the cut, never on the camera, so
 //    it is drawn again only when one of them changed — not on every frame of an orbit (−29 % per frame).
 // 2. Moving quality: while the camera moves, frames skip the contact shadows (GTAO) and draw at a lower resolution;
-//    the moment it stops, one full-quality frame. Same picture at rest. window.setInteractiveQuality(false) = off.
+//    the moment it stops, one full-quality frame. Same picture at rest. window.setInteractiveQuality(false) = off;
+//    never while the project's lights are on (lighting study: everything is shown, always).
 renderer.shadowMap.autoUpdate = false;
 let shadowKey = "";
 function shadowSignature() {
@@ -2222,7 +2223,10 @@ function animate(now) {
   if (walkMode && walkKeys.size) { lastCameraMove = performance.now(); wakeRender(10); }
   if (walkMode) controls.enabled = false;
   else controls.update();                    // damping goes on; a camera change wakes the drawing
-  const moving = interactiveQuality && performance.now() - lastCameraMove < 180;
+  // Lighting study (owner 29/10 «στη δοκιμή του φωτισμού πρέπει να τα βλέπουμε όλα»): with the project's lights on,
+  // every frame is full quality, moving or not.
+  const lightingStudy = window.__archforgeProjectLightsOn === true;
+  const moving = interactiveQuality && !lightingStudy && performance.now() - lastCameraMove < 180;
   if (!moving && movingFrame) wakeRender(2);   // it stopped: the full-quality frame
   const idle = renderFrames <= 0;
   if (idle && now - lastIdleRender < 500) return;
@@ -2233,6 +2237,7 @@ function animate(now) {
   updateShadowsIfChanged();
   if (renderer.shadowMap.needsUpdate) window.archforgeShadowRedraws++;
   if (useComposer() && !moving) composer.render(); else renderer.render(scene, camera);
+  window.archforgeMovingFrame = moving;      // tests
 }
 requestAnimationFrame(animate);
 </script>

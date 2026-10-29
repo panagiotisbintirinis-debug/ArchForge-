@@ -37,3 +37,30 @@ def test_camera_moves_do_not_redraw_shadows_but_a_model_change_does():
     assert result['afterCamera'] == result['before'], result
     assert result['afterModel'] > result['afterCamera'], result
     assert result['still'] > 1000
+
+
+def test_moving_frames_are_lighter_except_in_a_lighting_study():
+    """Owner 29/10: in one view the moving camera may draw a lighter frame; in the lighting study everything, always."""
+    if not click3d.available():
+        pytest.skip('χωρίς Node / Playwright / Chromium')
+    result = click3d.run_in_page(_doc(), """
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const canvas = document.querySelector('canvas');
+    const zoom = async () => {
+      let lighter = false;
+      for (let i = 0; i < 6; i++) {
+        canvas.dispatchEvent(new WheelEvent('wheel', {deltaY: 60, clientX: 400, clientY: 260, bubbles: true}));
+        await wait(60);
+        lighter = lighter || window.archforgeMovingFrame === true;
+      }
+      await wait(600);
+      return {lighter, atRest: window.archforgeMovingFrame};
+    };
+    await wait(1200);
+    const normal = await zoom();
+    window.setArchitecturalLights({project_lights: 'on', lights: []});
+    const study = await zoom();
+    return {normal, study};
+    """)
+    assert result['normal'] == {'lighter': True, 'atRest': False}, result
+    assert result['study'] == {'lighter': False, 'atRest': False}, result
