@@ -162,8 +162,11 @@ def _lighting_mode(window, mode):
 
 
 def _daylight(window, hour):
-    """A sun hour from the menu: back to daylight, then the sun at that hour."""
+    """A sun hour from the menu (Ήλιος & ουρανός, or a Στυλ with an hour): back to daylight, then the sun at that hour."""
     _lighting_mode(window, "day")
+    night = getattr(window, "_mockup_night_action", None)
+    if night is not None and night.isChecked():
+        night.setChecked(False)
     window.pbr_view.set_sun(hour)
 
 
@@ -669,7 +672,8 @@ def install_approved_mockup_shell(window):
     def style(technique,hour=False):
         def run():
             window._set_render_style_from_workspace(technique)
-            if hour is not False: window.pbr_view.set_sun(hour)
+            # A style with an hour is daylight: it leaves Νύχτα too (owner 29/10: «τώρα δεν φεύγει η νύχτα»).
+            if hour is not False: _daylight(window, hour)
             window._show_3d_view()
         return run
     style_specs=(

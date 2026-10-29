@@ -28,6 +28,12 @@ def test_night_is_in_the_sun_menu_and_an_hour_brings_the_day_back():
     noon = next(a for a in w._mockup_sun_menu.actions() if a.text().startswith('Μεσημέρι'))
     noon.trigger()
     assert w.pbr_view._architectural_lighting_mode == 'day'
+    # Owner 29/10 «τώρα δεν φεύγει η νύχτα»: a Στυλ with an hour (Ρεαλιστικό / Φυσικό φως / Βραδινό) leaves Νύχτα too.
+    for label in ('Ρεαλιστικό (μεσημέρι)', 'Φυσικό φως (απόγευμα)', 'Βραδινό (δειλινό)'):
+        night.trigger()
+        assert w.pbr_view._architectural_lighting_mode == 'night' and night.isChecked()
+        w._mockup_style_actions[label]()
+        assert w.pbr_view._architectural_lighting_mode == 'day' and not night.isChecked(), label
 
 
 def test_a_ceiling_light_sits_at_the_ceiling_and_walls_stop_it():
