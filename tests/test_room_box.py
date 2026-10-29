@@ -85,6 +85,7 @@ def test_same_as_drawing_the_walls_one_by_one(window):
     other = MainWindow()
     try:
         c = other.plan_view.controller
+        c.wall_face = 'axis'                 # the room's axes given point by point (the room box gives axes too)
         h = t / 2
         pts = [(-h, -h), (5 + h, -h), (5 + h, 4 + h), (-h, 4 + h)]
         for a, b in zip(pts, pts[1:] + pts[:1]):                             # the wall tool, wall by wall
