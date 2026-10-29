@@ -21,7 +21,7 @@ from user import *                                    # noqa: E402,F403
 from PySide6.QtTest import QTest                      # noqa: E402
 from PySide6.QtWidgets import QComboBox               # noqa: E402
 
-CORNERS = [(0.0, 0.0), (0.0, 8.0), (10.0, 8.0), (10.0, 0.0)]          # clockwise, as the owner draws (24/10)
+CORNERS = [(0.0, 0.0), (0.0, 8.0), (10.0, 8.0), (10.0, 0.0)]          # clockwise; run(reverse=True): the other way
 TYPE = 'stone_uninsulated'                            # «Πετροκτιστός 54 cm»
 
 
@@ -33,7 +33,9 @@ def outer_box(doc):
     return round(min(xs), 3), round(min(ys), 3), round(max(xs), 3), round(max(ys), 3)
 
 
-def run():
+def run(reverse=False):
+    """``reverse``: the outline the other way round — the same room must come out (owner 29/10)."""
+    corners = CORNERS[::-1] if reverse else CORNERS
     u = U(); auto_dialogs(u)
     fails = []
 
@@ -56,7 +58,7 @@ def run():
     u.see(5, 4)
     u.begin('1 · Περίγραμμα 10 × 8 με κλικ δίπλα στις γωνίες, κλείσιμο στο πρώτο')
     u.toolbar('Τοίχος')
-    for p in CORNERS + [CORNERS[0]]:
+    for p in corners + [corners[0]]:
         hand_click(*p)
     u.key(Qt.Key.Key_Escape); u.key(Qt.Key.Key_Escape)
     walls = [e for e in u.w.doc.entities.values() if e.kind == 'wall']
@@ -106,4 +108,4 @@ def run():
 
 
 if __name__ == '__main__':
-    sys.exit(1 if run() else 0)
+    sys.exit(1 if run() or run(reverse=True) else 0)

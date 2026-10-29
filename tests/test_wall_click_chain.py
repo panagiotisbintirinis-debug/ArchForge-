@@ -114,8 +114,8 @@ def test_hand_tremor_while_clicking_in_the_plan_view_draws_no_tiny_walls():
         click(x, y, j)
     lengths = sorted(round(((w.params['x2'] - w.params['x1']) ** 2 + (w.params['y2'] - w.params['y1']) ** 2) ** .5, 2)
                      for w in _walls(d))
-    # Four walls, no 5–30 cm piece (drawn by the outer face since Π11: the axes are the outline ± half a wall).
-    assert len(lengths) == 4 and lengths[0] > 5.9 and lengths[2] > 7.9
+    # Four walls, no 5–30 cm piece (drawn by the outer face since Π11: the axes are half a wall inside the outline).
+    assert len(lengths) == 4 and lengths[0] > 5.5 and lengths[2] > 7.5
     view.close()
 
 

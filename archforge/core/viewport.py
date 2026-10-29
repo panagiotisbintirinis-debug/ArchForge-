@@ -542,7 +542,34 @@ class PointerController:
             self.stack.execute(UpdateEntity(committed,{'x2':c[0],'y2':c[1]}))
             self.stack.execute(UpdateEntity(f['id'],{'x1':c[0],'y1':c[1],'x2':float(fe['x2']),'y2':float(fe['y2'])}))
         segs.append({'a':a,'b':b,'side':side,'t':t,'id':committed})
+        if closing and auto:
+            self._face_outline_inwards(segs)
         return committed
+    def _face_outline_inwards(self,segs):
+        """A closed outline knows its inside (owner 29/10: «όταν κλείνει ένα σχέδιο πώς είναι δυνατόν να μην ξέρει ποιο
+        είναι το μέσα… αφού ονοματίζει το περίγραμμα, βάζει δάπεδο και στέγη»): the walls go to the side of the drawn
+        lines the measure asks for — inside for «εξωτερικά», outside for «εσωτερικά» — whichever way round it was drawn.
+        The drawn lines stay the faces; the corners meet again on the new axes (same undo step as the closing wall)."""
+        import math
+        from archforge.architecture.wall_face import intersect,offset_segment
+        from archforge.core.commands import UpdateEntity
+        from archforge.project.brief import get_brief
+        if len(segs)<3 or any(s.get('id') not in self.doc.entities for s in segs):return
+        pts=[tuple(s['a']) for s in segs]
+        area=sum(pts[i][0]*pts[(i+1)%len(pts)][1]-pts[(i+1)%len(pts)][0]*pts[i][1] for i in range(len(pts)))/2
+        if abs(area)<1e-9:return
+        brief=get_brief(self.doc)
+        measure=(brief['measure'] if brief else None) or 'exterior'
+        want=(1 if area>0 else -1)*(1 if measure!='interior' else -1)     # +1 = body on the left of the drawn line
+        if all(s['side']==want for s in segs):return
+        axes=[offset_segment(s['a'],s['b'],want,float(self.doc.get(s['id']).params['thickness'])) for s in segs]
+        n=len(segs)
+        corners=[intersect(*axes[i-1],*axes[i]) or axes[i][0] for i in range(n)]
+        for i,s in enumerate(segs):
+            c0,c1=corners[i],corners[(i+1)%n]
+            if math.dist(c0,c1)<1e-6:return
+            self.stack.execute(UpdateEntity(s['id'],{'x1':c0[0],'y1':c0[1],'x2':c1[0],'y2':c1[1],'ref_side':-want}))
+            s['side']=want
     def _commit_wall(self,exact=None):
         """The wall in hand, with its corner, splits, floor and dimensions — all or nothing (A2): a step that fails
         (e.g. «πολύ κοντός» after the previous wall's corner was already moved) leaves nothing behind."""

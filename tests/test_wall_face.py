@@ -68,19 +68,16 @@ def test_measured_outside_the_drawn_lines_are_the_outer_faces(window):
     assert (min(xs), max(xs), min(ys), max(ys)) == pytest.approx((h, 10 - h, h, 8 - h), abs=1e-6)   # axes half in
 
 
-def test_counter_clockwise_the_body_stays_on_the_right_and_space_turns_it(window):
-    """Owner 24/10 (Revit's location line): the side never changes by itself; drawn the other way round the walls
-    lie outside the lines — F / Space before drawing puts them inside."""
+def test_counter_clockwise_the_same_room_comes_out(window):
+    """Owner 29/10: «όταν κλείνει ένα σχέδιο πώς είναι δυνατόν να μην ξέρει ποιο είναι το μέσα» — closing the outline,
+    the walls go inside the drawn outer faces whichever way round it was drawn (was 24/10: «δεν γυρίζει μόνο του»)."""
     _brief(window, 'exterior')
     _click_outline(window, RECT)                         # counter-clockwise
     x0, y0, x1, y1, n = _outline_box(window.doc)
-    t = float(next(e for e in window.doc.entities.values() if e.kind == 'wall').params['thickness'])
-    assert n == 4 and (x0, y0, x1, y1) == pytest.approx((-t, -t, 10 + t, 8 + t), abs=1e-6)
+    assert n == 4 and (x0, y0, x1, y1) == pytest.approx((0, 0, 10, 8), abs=1e-6)
     for _ in range(4):
         window.stack.undo()
-    c = window.plan_view.controller
-    c.set_tool('wall'); assert c.flip_wall_face() == 'left'
-    _click_outline(window, RECT)
+    _click_outline(window, RECT[::-1])                   # clockwise: the same room
     assert _outline_box(window.doc)[:4] == pytest.approx((0, 0, 10, 8), abs=1e-6)
 
 
@@ -92,16 +89,10 @@ def test_measured_inside_the_drawn_lines_are_the_inner_faces(window):
     assert (x0, y0, x1, y1) == pytest.approx((-t, -t, 10 + t, 8 + t), abs=1e-6)  # 10 × 8 inside
 
 
-def test_without_a_brief_the_line_is_the_outer_face_and_f_flips_it(window):
-    """Owner 29/10: «από τον άξονα είναι τελείως λάθος» — without the project's details the drawn line is the outer face,
-    as with «μετράμε εξωτερικά»: counter-clockwise the walls lie outside it (owner 24/10: the side never changes by
-    itself), F puts them inside."""
+def test_without_a_brief_the_line_is_the_outer_face(window):
+    """Owner 29/10: never on the axis — without the project's details the drawn lines are the outer faces, the walls
+    inside them, whichever way round."""
     _click_outline(window, RECT)                         # counter-clockwise
-    assert _outline_box(window.doc)[:4] == pytest.approx((-.15, -.15, 10.15, 8.15), abs=1e-6)  # never on the axis
-    window.stack.undo(); window.stack.undo(); window.stack.undo(); window.stack.undo()
-    c = window.plan_view.controller
-    assert c.flip_wall_face() == 'left'
-    _click_outline(window, RECT)                         # body on the left of a counter-clockwise outline: inside
     x0, y0, x1, y1, n = _outline_box(window.doc)
     assert n == 4 and (x0, y0, x1, y1) == pytest.approx((0, 0, 10, 8), abs=1e-6)
 
