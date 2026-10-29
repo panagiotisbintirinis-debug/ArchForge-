@@ -1250,13 +1250,39 @@ window.__forgetCameraMoved = () => { cameraMovedByHuman = false; };   // a new p
 // dragging anything else orbits — the building fills the view, there is no empty space to orbit from.
 let selectedIds = new Set();
 let pressInfo = null;
+// Only what changed (owner 29/10, «να στέλνονται μόνο τα αλλαγμένα»): every object carries a ``key``; a payload with
+// ``keep`` lists the keys whose meshes stay exactly as they are and brings only the new / changed objects.  Without
+// ``keep`` the whole scene is replaced (opening a project, the first push, render3d / tests).  A key that is not here
+// (the page and Python out of step) asks Python for the whole scene instead of drawing something wrong.
+let terrainItems = new Map();               // key -> terrain item: the ground level needs every terrain's vertices
 window.archforgeSetScene = function(payload, fit = true) {
   selectedIds = new Set((payload && payload.selected) || []);
-  disposeModel();
+  const keep = payload && Array.isArray(payload.keep) ? new Set(payload.keep) : null;
+  if (keep) {
+    const have = new Set(modelRoot.children.map((m) => m.userData.sceneKey));
+    for (const key of keep) {
+      if (!have.has(key)) {
+        if (bridge && bridge.requestFullScene) bridge.requestFullScene();
+        return;
+      }
+    }
+    for (const child of [...modelRoot.children]) {
+      if (keep.has(child.userData.sceneKey)) continue;
+      modelRoot.remove(child);
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) child.material.dispose();
+    }
+    for (const key of [...terrainItems.keys()]) if (!keep.has(key)) terrainItems.delete(key);
+  } else {
+    disposeModel();
+    terrainItems = new Map();
+  }
   const objects = (payload && payload.objects) || [];
   Object.assign(patternGeo, (payload && payload.patterns) || {});
   Object.assign(imageTextureSpecs, (payload && payload.image_textures) || {});
+  window.archforgeSceneBuilt = (window.archforgeSceneBuilt || 0) + objects.length;   // tests: meshes built so far
   for (const item of objects) {
+    if (item.kind === "terrain") terrainItems.set(item.key || ("terrain#" + terrainItems.size), item);
     const positions = [];
     for (const v of item.vertices) positions.push(v[0], v[1], v[2]);
     const indices = [];
@@ -1276,6 +1302,7 @@ window.archforgeSetScene = function(payload, fit = true) {
     mesh.userData.kind = item.kind || "";
     mesh.userData.surfaceRoles = item.surfaces || [];
     mesh.userData.renderPart = item.render_part || "";
+    mesh.userData.sceneKey = item.key || "";
     mesh.userData.castShadow = item.cast_shadow !== false;
     mesh.visible = meshShouldShow(mesh);
     mesh.material.clippingPlanes = clipPlanes();
@@ -1284,9 +1311,10 @@ window.archforgeSetScene = function(payload, fit = true) {
     modelRoot.add(mesh);
   }
   // The ground to the horizon meets a site terrain at its lowest top edge.
-  ground.position.z = groundLevel(objects);
+  const terrains = [...terrainItems.values()];
+  ground.position.z = groundLevel(terrains);
   ground.geometry.dispose();
-  ground.geometry = lookGroundGeometry(terrainExtent(objects));
+  ground.geometry = lookGroundGeometry(terrainExtent(terrains));
   fitSunShadow();
   applyTechnique();
   // Once the human has moved the camera, a scene update never refits it
@@ -2209,7 +2237,8 @@ let lastCameraMove = -1e9;
 let movingFrame = false;
 const MOVING_PIXEL_RATIO = 0.6;
 window.setInteractiveQuality = function(enabled) { interactiveQuality = !!enabled; wakeRender(2); };
-controls.addEventListener("change", () => { lastCameraMove = performance.now(); wakeRender(30); });
+let cameraChangedThisFrame = false;         // a slow GPU: the change happens inside this frame's controls.update()
+controls.addEventListener("change", () => { lastCameraMove = performance.now(); cameraChangedThisFrame = true; wakeRender(30); });
 function setMovingFrame(moving) {
   if (moving === movingFrame) return;
   movingFrame = moving;
@@ -2220,16 +2249,18 @@ function setMovingFrame(moving) {
 function animate(now) {
   requestAnimationFrame(animate);
   walkStep();
-  if (walkMode && walkKeys.size) { lastCameraMove = performance.now(); wakeRender(10); }
+  if (walkMode && walkKeys.size) { lastCameraMove = performance.now(); cameraChangedThisFrame = true; wakeRender(10); }
   if (walkMode) controls.enabled = false;
   else controls.update();                    // damping goes on; a camera change wakes the drawing
   // Lighting study (owner 29/10 «στη δοκιμή του φωτισμού πρέπει να τα βλέπουμε όλα»): with the project's lights on,
   // every frame is full quality, moving or not.
   const lightingStudy = window.__archforgeProjectLightsOn === true;
-  const moving = interactiveQuality && !lightingStudy && performance.now() - lastCameraMove < 180;
+  const moving = interactiveQuality && !lightingStudy
+    && (cameraChangedThisFrame || performance.now() - lastCameraMove < 180);
   if (!moving && movingFrame) wakeRender(2);   // it stopped: the full-quality frame
   const idle = renderFrames <= 0;
   if (idle && now - lastIdleRender < 500) return;
+  cameraChangedThisFrame = false;
   if (idle) lastIdleRender = now; else renderFrames--;
   // Haze ends before the far plane, so the ground never shows a cut edge.
   if (scene.fog) { scene.fog.far = Math.min(1400, camera.far * 0.9); scene.fog.near = scene.fog.far * 0.1; }
@@ -2238,6 +2269,7 @@ function animate(now) {
   if (renderer.shadowMap.needsUpdate) window.archforgeShadowRedraws++;
   if (useComposer() && !moving) composer.render(); else renderer.render(scene, camera);
   window.archforgeMovingFrame = moving;      // tests
+  window.archforgeFrames = (window.archforgeFrames || 0) + 1;
 }
 requestAnimationFrame(animate);
 </script>
@@ -2274,6 +2306,37 @@ def pbr_page_html() -> str:
     page = _PBR_HTML.replace("/*__ARCHFORGE_WALL_EDIT_3D__*/", wall_edit_3d_js() + js_3d() + camera_js(), 1)
     page = page.replace("/*__ARCHFORGE_LOOK__*/", pbr_look_js(), 1)
     return page.replace("/*__ARCHFORGE_THREE_BUNDLE__*/", bundle, 1)
+
+def scene_changes(payload, sent):
+    """Only what changed since the last push (owner 29/10): ``(payload, full)``.
+
+    Every object gets a ``key`` (its render part, or id / kind, numbered in order).  With ``sent`` (``{key: digest}``
+    of the previous push) the payload keeps only new / changed objects and lists the unchanged keys in ``keep``;
+    ``sent`` None → the whole scene (``full`` True).  ``payload["_sent"]`` is the map to remember for the next push.
+    Unchanged = the same JSON, so a moved, re-materialled or re-selected object is always sent again.
+    """
+    import hashlib
+    seen = {}
+    digests = {}
+    changed = []
+    for item in payload.get("objects") or ():
+        base = str(item.get("render_part") or item.get("id") or item.get("kind") or "object")
+        n = seen.get(base, 0)
+        seen[base] = n + 1
+        item["key"] = f"{base}#{n}"
+        digest = hashlib.blake2b(json.dumps(item, separators=(",", ":"), sort_keys=True).encode("utf-8"),
+                                 digest_size=16).hexdigest()
+        digests[item["key"]] = digest
+        if sent is None or sent.get(item["key"]) != digest:
+            changed.append(item)
+    out = dict(payload)
+    out["_sent"] = digests
+    if sent is None:
+        return out, True
+    out["objects"] = changed
+    out["keep"] = [key for key, digest in digests.items() if sent.get(key) == digest]
+    return out, False
+
 
 class PBRInteractionBridge(QObject):
     """WebGL pointer bridge into ArchForge's existing semantic sculpt transaction."""
@@ -2322,6 +2385,12 @@ class PBRInteractionBridge(QObject):
     def paintMaterial(self, payload_json: str) -> None:
         """«Πινέλο» υλικού: the entity and face clicked (material_brush.paint_surface does the rest)."""
         self.viewport.materialPaintRequested.emit(str(payload_json))
+
+    @Slot()
+    def requestFullScene(self) -> None:
+        """The page lost step with what Python sent (``keep`` named a mesh it does not have): send everything."""
+        self.viewport._sent_scene = None
+        self.viewport.redraw(force_full=False)
 
     @Slot()
     def endPaintMaterial(self) -> None:
@@ -2597,6 +2666,7 @@ class PBRViewport(QWidget):
             self.statusChanged.emit("PBR Preview HTML failed to load")
             return
         self.statusChanged.emit("3D έτοιμο")
+        self._sent_scene = None                 # a (re)loaded page has no meshes: the next push is the whole scene
         self.set_render_technique(self._technique)
         self.set_axes_visible(self._axes_visible)
         self.set_auto_rotate(self._auto_rotate)
@@ -3586,13 +3656,15 @@ class PBRViewport(QWidget):
         payload = scene_payload(self.doc, evaluation, self.structural_only, overrides,
                                 getattr(self, "hidden_layers", set()))
         fit = "true" if force_full and self._sculpt_tx is None else "false"
-        script = (
-            "window.__archforgePendingScene = "
-            + json.dumps(payload, separators=(",", ":"))
-            + "; if (window.archforgeSetScene) window.archforgeSetScene(window.__archforgePendingScene, "
-            + fit
-            + ");"
-        )
+        payload, full = scene_changes(payload, None if force_full else getattr(self, "_sent_scene", None))
+        self._sent_scene = payload.pop("_sent")
+        text = json.dumps(payload, separators=(",", ":"))
+        if full:     # kept for the page's first script run (a scene pushed before the page was ready)
+            script = ("window.__archforgePendingScene = " + text
+                      + "; if (window.archforgeSetScene) window.archforgeSetScene(window.__archforgePendingScene, "
+                      + fit + ");")
+        else:        # only what changed: meaningless without the meshes already in the page
+            script = "if (window.archforgeSetScene) window.archforgeSetScene(" + text + ", " + fit + ");"
         self.web_view.page().runJavaScript(script)
         if getattr(self, "_camera_preset", None) == "dollhouse":
             self._push_dollhouse_cut()          # follows the active storey
