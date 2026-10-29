@@ -170,6 +170,39 @@ def _daylight(window, hour):
     window.pbr_view.set_sun(hour)
 
 
+def _sculpt_button(window, parent):
+    """«Γλυπτική ▾»: click = on / off (the same action as C); ▾ = operation and brush size, the very controls the
+    right-click menu and the wheel change (window.sculpt_operation / window.sculpt_radius stay the one source)."""
+    from PySide6.QtWidgets import QDoubleSpinBox, QWidgetAction
+    from archforge.ui.marking_menu import SCULPT_OPS
+    from archforge.ui.workspace_layout import make_icon
+    button=QToolButton(parent); button.setText("Γλυπτική"); button.setIcon(make_icon("sculpt"))
+    button.setToolTip("Γλυπτική: πλάσε την επιφάνεια με το ποντίκι · ▾ εργασία και μέγεθος πινέλου")
+    button.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+    button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+    button.setCheckable(True); button.setChecked(window.sculpt_action.isChecked())
+    button.clicked.connect(lambda _=False: window.sculpt_action.toggle())
+    window.sculpt_action.toggled.connect(button.setChecked)
+    menu=QMenu(button); ops=QActionGroup(menu); ops.setExclusive(True); window._mockup_sculpt_ops={}
+    for key,label in SCULPT_OPS:
+        op=QAction(label,menu); op.setCheckable(True); op.setChecked(window.sculpt_operation.currentText()==key)
+        op.triggered.connect(lambda _=False,k=key: window.sculpt_operation.setCurrentText(k))
+        ops.addAction(op); menu.addAction(op); window._mockup_sculpt_ops[key]=op
+    window.sculpt_operation.currentTextChanged.connect(
+        lambda k: window._mockup_sculpt_ops[k].setChecked(True) if k in window._mockup_sculpt_ops else None)
+    menu.addSeparator()
+    size=QDoubleSpinBox(menu); size.setRange(window.sculpt_radius.minimum(),window.sculpt_radius.maximum())
+    size.setDecimals(2); size.setSingleStep(window.sculpt_radius.singleStep()); size.setSuffix(" m")
+    size.setPrefix("Πινέλο Ø "); size.setValue(window.sculpt_radius.value())
+    size.setToolTip("Μέγεθος πινέλου (και με τη ροδέλα ενώ πλάθεις)")
+    size.valueChanged.connect(window.sculpt_radius.setValue)
+    window.sculpt_radius.valueChanged.connect(lambda v: size.setValue(v) if abs(size.value()-v)>1e-9 else None)
+    holder=QWidgetAction(menu); holder.setDefaultWidget(size); menu.addAction(holder)
+    window._mockup_sculpt_size=size
+    button.setMenu(menu)
+    return button
+
+
 def install_approved_mockup_shell(window):
     """Use the supplied mockup structure, but mount the real ArchForge editors."""
     window.setWindowTitle("ArchForge"); window.resize(1536,1000); window.setStyleSheet(STYLE)
@@ -507,12 +540,12 @@ def install_approved_mockup_shell(window):
     button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup); button.setMenu(elements)
     button.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
     ribbon.addWidget(button); window._mockup_elements_button=button; window._mockup_circulation_button=button
-    for label,tool in (("Γλυπτική","sculpt"),("Υλικά","materials")):
-        a=QAction(make_icon(tool),label,window)
-        a.setToolTip("Γλυπτική: πλάσε την επιφάνεια με το ποντίκι (δεξί κλικ: εργασία, ροδέλα: πινέλο)" if tool=="sculpt" else "Υλικό στο επιλεγμένο αντικείμενο")
-        if tool=="sculpt": a.triggered.connect(lambda _=False: window.sculpt_action.toggle())
-        else: a.triggered.connect(window._open_selected_materials)
-        ribbon.addAction(a)
+    # Γλυπτική: the button turns it on / off; its ▾ holds the operation and the brush size (owner 29/10: «δεν βλέπω το
+    # κουμπί της ρύθμισης πουθενά» — they were only in the hidden legacy bar and the right-click menu).
+    window._mockup_sculpt_button=_sculpt_button(window,ribbon)
+    ribbon.addWidget(window._mockup_sculpt_button)
+    a=QAction(make_icon("materials"),"Υλικά",window); a.setToolTip("Υλικό στο επιλεγμένο αντικείμενο")
+    a.triggered.connect(window._open_selected_materials); ribbon.addAction(a)
     # «Πινέλο» υλικού (owner 28/10): choose in the Library, then every click paints — Esc ends (material_brush.py).
     brush=QAction(make_icon("brush"),"Πινέλο",window)
     brush.setToolTip("Πινέλο υλικού: διάλεξε υλικό, μετά κάθε κλικ σε τοίχο (η πλευρά που πατάς) ή αντικείμενο το βάφει · Esc = τέλος")
