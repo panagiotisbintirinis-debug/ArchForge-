@@ -92,9 +92,12 @@ def test_measured_inside_the_drawn_lines_are_the_inner_faces(window):
     assert (x0, y0, x1, y1) == pytest.approx((-t, -t, 10 + t, 8 + t), abs=1e-6)  # 10 × 8 inside
 
 
-def test_without_a_brief_the_line_is_the_axis_and_f_flips_it(window):
-    _click_outline(window, RECT)
-    assert _outline_box(window.doc)[:4] == pytest.approx((-.075, -.075, 10.075, 8.075), abs=.05)  # axis, as before
+def test_without_a_brief_the_line_is_the_outer_face_and_f_flips_it(window):
+    """Owner 29/10: «από τον άξονα είναι τελείως λάθος» — without the project's details the drawn line is the outer face,
+    as with «μετράμε εξωτερικά»: counter-clockwise the walls lie outside it (owner 24/10: the side never changes by
+    itself), F puts them inside."""
+    _click_outline(window, RECT)                         # counter-clockwise
+    assert _outline_box(window.doc)[:4] == pytest.approx((-.15, -.15, 10.15, 8.15), abs=1e-6)  # never on the axis
     window.stack.undo(); window.stack.undo(); window.stack.undo(); window.stack.undo()
     c = window.plan_view.controller
     assert c.flip_wall_face() == 'left'

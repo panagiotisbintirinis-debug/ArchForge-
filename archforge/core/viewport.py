@@ -544,6 +544,16 @@ class PointerController:
         segs.append({'a':a,'b':b,'side':side,'t':t,'id':committed})
         return committed
     def _commit_wall(self,exact=None):
+        """The wall in hand, with its corner, splits, floor and dimensions — all or nothing (A2): a step that fails
+        (e.g. «πολύ κοντός» after the previous wall's corner was already moved) leaves nothing behind."""
+        since=len(self.stack.done)
+        try:
+            return self._commit_wall_steps(exact)
+        except Exception:
+            while len(self.stack.done)>since:self.stack.undo()
+            self.stack.undone.clear()
+            raise
+    def _commit_wall_steps(self,exact=None):
         committed_id=None
         from archforge.project.brief import interior_wall_defaults,wall_is_interior
         interior=interior_wall_defaults(self.doc)

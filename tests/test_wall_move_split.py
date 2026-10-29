@@ -50,6 +50,7 @@ def _length(w):
 
 def _rect(stack=None):
     doc = Document(); stack = CommandStack(doc); ctrl = PointerController(doc, stack)
+    ctrl.wall_face = 'axis'                  # splitting / moving is tested on given axes, not the face drawing (Π11)
     _draw(ctrl, [(0, 0), (8, 0), (8, 6), (0, 6), (0, 0)])
     return doc, stack, ctrl
 
