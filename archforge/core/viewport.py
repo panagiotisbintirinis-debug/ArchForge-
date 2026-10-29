@@ -109,6 +109,15 @@ class PointerController:
         )
         self.active.source_reference_angle_deg=reference_angle
         self.active.wall_type=brief_type
+        # The wall tool's menu (owner 29/10: «το είδος του τοίχου στη δημιουργία»): a type chosen there wins over the brief.
+        choice=getattr(self,'wall_choice',None)
+        if choice=='glass':
+            from archforge.architecture.wall_types import GLASS_WALL
+            self.active.thickness=float(GLASS_WALL['thickness']);self.active.wall_type='generic'
+        elif choice:
+            from archforge.architecture.wall_types import total_thickness
+            self.active.wall_type=str(choice)
+            if total_thickness(choice)>0:self.active.thickness=float(total_thickness(choice))
         # The line drawn is a face of the wall (brief: exterior / interior dimensions).
         from archforge.project.brief import get_brief
         brief=get_brief(self.doc)
@@ -555,7 +564,12 @@ class PointerController:
         else:
             committed_id=self.active.commit((exact or {}).get('length'))
         face=bool(getattr(self.active,'face_side',0))
-        if committed_id and interior and committed_id in self.doc.entities and (
+        choice=getattr(self,'wall_choice',None)
+        if committed_id and choice=='glass' and committed_id in self.doc.entities:
+            from archforge.core.commands import UpdateEntity
+            from archforge.architecture.wall_types import GLASS_WALL
+            self.stack.amend(UpdateEntity(committed_id,{'material_id':GLASS_WALL['material_id'],'wall_kind':'glass'}))
+        if committed_id and interior and not choice and committed_id in self.doc.entities and (
                 getattr(self,'_face_partition',False) if face else wall_is_interior(faces_before,self.doc.get(committed_id).params)):
             # A wall inside a closed space is a partition: the brief's interior wall type — same undo step.
             from archforge.core.commands import UpdateEntity
