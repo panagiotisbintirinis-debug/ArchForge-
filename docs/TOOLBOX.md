@@ -37,7 +37,7 @@
 | `scripts/user_drive/house.py` | Σπίτι-διαδρομή (σκάλα, ανοίγματα πλάκας, μπαλκόνι) μέσα από το UI. | `python scripts/user_drive/house.py [βήμα]` |
 | `scripts/user_drive/scene3d.py` + `scripts/look_shot/` | Πραγματική σελίδα 3D (PBR) σε headless Chromium → PNG. **Οπτικός έλεγχος χωρίς Windows.** | δες docstring του `scene3d.py` (dump_page.py → shot.mjs) |
 | `archforge/scenarios/render3d.py` | `render(doc, png)`: εικόνα 3D από οποιοδήποτε Document, με presets `top` / `dollhouse`. | από Python |
-| `archforge/scenarios/click3d.py` + `scripts/toolbox/click_3d.mjs` | **Κλικ στην πραγματική σελίδα 3D χωρίς Qt/GPU**: φορτώνει `pbr_page_html` + `scene_payload(doc)` σε headless Chromium, ενεργοποιεί ένα εργαλείο, κάνει κλικ σε πλέγμα και επιστρέφει τι έστειλε η σελίδα στη γέφυρα (π.χ. `paintMaterial` με οντότητα + επιφάνεια). Το raycast είναι της ίδιας της σελίδας. | `clicks(doc, 'paint_material', cols, rows)` (τεστ: skip χωρίς Chromium) |
+| `archforge/scenarios/click3d.py` + `scripts/toolbox/page_3d.mjs` | **Η πραγματική σελίδα 3D χωρίς Qt/GPU** (headless Chromium, ψεύτικη γέφυρα): `run_in_page(doc, js)` τρέχει σενάριο στη σελίδα και επιστρέφει το αποτέλεσμα (μετρήσεις, μετρητές)· `clicks(doc, εργαλείο)` κάνει κλικ σε πλέγμα και επιστρέφει τι έστειλε η σελίδα στη γέφυρα. Χρόνοι σε λογισμικό WebGL: συγκρίνονται μόνο μεταξύ τους. | από Python (τεστ: skip χωρίς Chromium) |
 | `scripts/check_fixture_3d.py` | Windows runner: πραγματικό WebGL, διπλό κλικ, ρότορες, dimming. | desktop Qt (όχι offscreen) |
 
 ## Σενάρια και πύλη ποιότητας

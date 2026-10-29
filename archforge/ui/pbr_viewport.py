@@ -2146,6 +2146,8 @@ window.archforgeCaptureFrame = (width, height) => {
     renderer.setSize(width, height, false);
     composer.setSize(width, height);
   }
+  setMovingFrame(false);                     // a captured picture is always full quality
+  updateShadowsIfChanged();
   if (useComposer()) composer.render(); else renderer.render(scene, camera);
   const image = renderer.domElement.toDataURL("image/png");
   resize();
@@ -2171,19 +2173,66 @@ window.archforgeWakeRender = wakeRender;
 for (const name of ["pointerdown", "pointermove", "pointerup", "wheel", "keydown", "keyup", "resize", "focus"]) {
   window.addEventListener(name, () => wakeRender(60), {passive: true, capture: true});
 }
-controls.addEventListener("change", () => wakeRender(30));
+// Speed (owner 29/10 «τρόπος να επιταχύνουμε το 3Δ»), measured on the owner's two-storey house (docs/WORKLOG.md):
+// 1. Shadow cache: the sun's shadow map (4096²) depends on the model, the lights and the cut, never on the camera, so
+//    it is drawn again only when one of them changed — not on every frame of an orbit (−29 % per frame).
+// 2. Moving quality: while the camera moves, frames skip the contact shadows (GTAO) and draw at a lower resolution;
+//    the moment it stops, one full-quality frame. Same picture at rest. window.setInteractiveQuality(false) = off.
+renderer.shadowMap.autoUpdate = false;
+let shadowKey = "";
+function shadowSignature() {
+  let h = renderer.shadowMap.enabled ? 1 : 0, n = 0;
+  const mix = (v) => { h = (Math.imul(h, 31) + Math.round(Number(v) * 1000)) | 0; };
+  const mixMatrix = (m) => { for (let i = 0; i < 16; i++) mix(m.elements[i]); };
+  scene.traverse((o) => {
+    if (!o.visible) return;
+    if (o.isMesh && o.castShadow) { n++; mix(o.geometry.id); mixMatrix(o.matrixWorld); }
+    else if (o.isLight && o.castShadow) {
+      n++; mixMatrix(o.matrixWorld);
+      if (o.target) mixMatrix(o.target.matrixWorld);
+      mixMatrix(o.shadow.camera.projectionMatrix);
+    }
+  });
+  for (const p of clipPlanes()) { mix(p.constant); mix(p.normal.x); mix(p.normal.y); mix(p.normal.z); }
+  return h + ":" + n;
+}
+function updateShadowsIfChanged() {
+  if (!renderer.shadowMap.enabled) return;
+  scene.updateMatrixWorld();
+  const key = shadowSignature();
+  if (key !== shadowKey) { shadowKey = key; renderer.shadowMap.needsUpdate = true; }
+}
+window.archforgeShadowRedraws = 0;          // how many frames redrew the shadow map (tests, benchmarks)
+let interactiveQuality = true;
+let lastCameraMove = -1e9;
+let movingFrame = false;
+const MOVING_PIXEL_RATIO = 0.6;
+window.setInteractiveQuality = function(enabled) { interactiveQuality = !!enabled; wakeRender(2); };
+controls.addEventListener("change", () => { lastCameraMove = performance.now(); wakeRender(30); });
+function setMovingFrame(moving) {
+  if (moving === movingFrame) return;
+  movingFrame = moving;
+  const full = Math.min(window.devicePixelRatio || 1, 2);
+  renderer.setPixelRatio(moving ? full * MOVING_PIXEL_RATIO : full);
+  if (!moving) composer.setPixelRatio(full);
+}
 function animate(now) {
   requestAnimationFrame(animate);
   walkStep();
-  if (walkMode && walkKeys.size) wakeRender(10);
+  if (walkMode && walkKeys.size) { lastCameraMove = performance.now(); wakeRender(10); }
   if (walkMode) controls.enabled = false;
   else controls.update();                    // damping goes on; a camera change wakes the drawing
+  const moving = interactiveQuality && performance.now() - lastCameraMove < 180;
+  if (!moving && movingFrame) wakeRender(2);   // it stopped: the full-quality frame
   const idle = renderFrames <= 0;
   if (idle && now - lastIdleRender < 500) return;
   if (idle) lastIdleRender = now; else renderFrames--;
   // Haze ends before the far plane, so the ground never shows a cut edge.
   if (scene.fog) { scene.fog.far = Math.min(1400, camera.far * 0.9); scene.fog.near = scene.fog.far * 0.1; }
-  if (useComposer()) composer.render(); else renderer.render(scene, camera);
+  setMovingFrame(moving);
+  updateShadowsIfChanged();
+  if (renderer.shadowMap.needsUpdate) window.archforgeShadowRedraws++;
+  if (useComposer() && !moving) composer.render(); else renderer.render(scene, camera);
 }
 requestAnimationFrame(animate);
 </script>
