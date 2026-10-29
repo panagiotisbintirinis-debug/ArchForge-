@@ -47,13 +47,18 @@ class ProjectFileError(Exception):
 
 def atomic_write_text(path, text):
     """Write ``text`` to ``path`` so that the file is either the old or the new one, never half."""
+    atomic_write_bytes(path, text.encode('utf8'))
+
+
+def atomic_write_bytes(path, data):
+    """Write ``data`` (bytes) to ``path`` so that the file is either the old or the new one, never half."""
     path = os.path.abspath(os.fspath(path))
     directory = os.path.dirname(path)
     os.makedirs(directory, exist_ok=True)
     handle, tmp = tempfile.mkstemp(prefix='.' + os.path.basename(path) + '.', suffix='.tmp', dir=directory)
     try:
-        with os.fdopen(handle, 'w', encoding='utf8') as out:
-            out.write(text)
+        with os.fdopen(handle, 'wb') as out:
+            out.write(data)
             out.flush()
             os.fsync(out.fileno())
         if os.path.exists(path):

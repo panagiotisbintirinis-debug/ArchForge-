@@ -76,7 +76,7 @@
 |---|---|
 | `archforge/core/commands.py` | `CompositeCommand` (πολλές εντολές = μία αναίρεση, rollback αν αποτύχει μία) · `_restore_document_state` · `CommandStack.squash/amend`. |
 | `archforge/core/notices.py` | **«Δεν υπολογίστηκε»:** αντί για σιωπηλό `except: 0 / [] / None`, `not_computed(code, μήνυμα, στοιχείο, exc)`· ό,τι τρέχει ο χρήστης τα μαζεύει με `collecting()` και τα δείχνει δίπλα στο αποτέλεσμα· αλλιώς φαίνονται στη γραμμή κατάστασης (Α3). |
-| `archforge/project/persistence.py` | `atomic_write_text/json` (παλιό ή νέο αρχείο, ποτέ μισό) · **`read_user_json`**: κάθε αρχείο δεδομένων χρήστη (ρυθμίσεις, τιμές…) διαβάζεται με αυτό — κατεστραμμένο κρατιέται ως `.broken-…` πριν γραφτεί, ο χρήστης ειδοποιείται (Α3). |
+| `archforge/project/persistence.py` | `atomic_write_text/json/bytes` (παλιό ή νέο αρχείο, ποτέ μισό) · **`read_user_json`**: κάθε αρχείο δεδομένων χρήστη (ρυθμίσεις, τιμές…) διαβάζεται με αυτό — κατεστραμμένο κρατιέται ως `.broken-…` πριν γραφτεί, ο χρήστης ειδοποιείται (Α3). |
 | `archforge/core/interaction.py` | `next_name(doc, kind)`: ελληνικά αριθμημένα ονόματα. |
 | `archforge/architecture/joinery.py` | `inside_sign(doc, wall, opening)`: προς ποιο χώρο ανοίγει η πόρτα. |
 | `archforge/core/plan_scene.py` | `wall_poche` (τοίχοι με δύο όψεις) · `_declutter_labels` (ετικέτες Η/Μ χωρίς επικάλυψη). |

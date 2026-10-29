@@ -64,6 +64,9 @@ def _draw(name, p):
     elif name == "materials":
         for i, c in enumerate((QColor(214, 120, 70), QColor(120, 170, 90), QColor(90, 140, 210))):
             p.setBrush(c); p.drawRoundedRect(QRectF(8 + i * 10, 10 + i * 8, 28, 36), 4, 4)
+    elif name == "photo":
+        p.drawRoundedRect(QRectF(8, 20, 48, 34), 6, 6); p.drawRect(QRectF(22, 12, 20, 8))
+        p.setBrush(ACCENT); p.drawEllipse(QPointF(32, 37), 10, 10)
     elif name == "brush":
         p.setBrush(QColor(214, 120, 70)); p.drawRoundedRect(QRectF(10, 34, 26, 20), 4, 4)
         p.setBrush(Qt.BrushStyle.NoBrush); p.drawLine(QPointF(23, 34), QPointF(23, 26))

@@ -563,6 +563,12 @@ def install_approved_mockup_shell(window):
         a=QAction(make_icon(icon),label,window); a.setToolTip(tip)
         a.triggered.connect(lambda _=False,m=mode: window._set_pbr_camera(m)); camera.addAction(a)
         window._mockup_camera_actions[label]=a
+    # «Φωτογραφία» (owner 29/10): the 3D view as a PNG — instead of a screenshot of the whole screen (photo_3d.py).
+    photo=QAction(make_icon("photo"),"Φωτογραφία",window)
+    photo.setToolTip("Φωτογραφία του 3D όπως φαίνεται τώρα (ήλιος, φώτα, στυλ) σε αρχείο PNG, σε διπλή ανάλυση")
+    from archforge.ui.photo_3d import take_photo as _take_photo
+    photo.triggered.connect(lambda _=False: (window._show_3d_view(), _take_photo(window)))
+    camera.addSeparator(); camera.addAction(photo); window._mockup_photo_action=photo
     snap_bar=QToolBar("Κάνναβος & έλξη",window); snap_bar.setObjectName("snap_bar")
     grid=QCheckBox("Κάνναβος"); grid.setChecked(True); grid.setToolTip("Γραμμές κανάβου στην κάτοψη")
     grid.toggled.connect(window.plan_view.set_grid_visible); snap_bar.addWidget(grid)
