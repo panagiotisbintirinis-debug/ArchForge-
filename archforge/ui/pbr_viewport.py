@@ -2243,6 +2243,13 @@ let lastCameraMove = -1e9;
 let movingFrame = false;
 const MOVING_PIXEL_RATIO = 0.6;
 window.setInteractiveQuality = function(enabled) { interactiveQuality = !!enabled; wakeRender(2); };
+// The page itself never zooms (owner 29/10: «εμφανίζει ζουμ … όπου θέλει» — the whole 3D page grew): Ctrl+wheel and a
+// touchpad pinch (which the engine sends as Ctrl+wheel) and Ctrl +/−/0 are the browser's page zoom.  Blocked on the
+// whole page; the camera's own wheel zoom is untouched.
+window.addEventListener("wheel", (event) => { if (event.ctrlKey) event.preventDefault(); }, {passive: false, capture: true});
+window.addEventListener("keydown", (event) => {
+  if ((event.ctrlKey || event.metaKey) && ["+", "-", "=", "0", "_"].includes(event.key)) event.preventDefault();
+}, {capture: true});
 let cameraChangedThisFrame = false;         // a slow GPU: the change happens inside this frame's controls.update()
 controls.addEventListener("change", () => { lastCameraMove = performance.now(); cameraChangedThisFrame = true; wakeRender(30); });
 function setMovingFrame(moving) {
@@ -2674,6 +2681,7 @@ class PBRViewport(QWidget):
             self.statusChanged.emit("PBR Preview HTML failed to load")
             return
         self.statusChanged.emit("3D έτοιμο")
+        self.web_view.setZoomFactor(1.0)          # the 3D page never keeps a page zoom (owner 29/10)
         self._sent_scene = None                 # a (re)loaded page has no meshes: the next push is the whole scene
         self.set_render_technique(self._technique)
         self.set_axes_visible(self._axes_visible)

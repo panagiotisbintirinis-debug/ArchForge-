@@ -172,3 +172,22 @@ def test_the_picture_keeps_its_size_while_the_camera_moves():
     """)
     assert result['moved'], result
     assert result['smallest'] == result['full'] == result['page'], result
+
+
+def test_the_3d_page_itself_never_zooms():
+    """Owner 29/10 (Windows): «εμφανίζει ζουμ … όπου θέλει» — the whole 3D page grew (its label too): the browser
+    engine's page zoom (Ctrl+wheel, touchpad pinch).  The page blocks it; the camera still zooms."""
+    if not click3d.available():
+        pytest.skip('χωρίς Node / Playwright / Chromium')
+    result = click3d.run_in_page(_doc(), """
+    const canvas = document.querySelector('canvas');
+    const pinch = new WheelEvent('wheel', {deltaY: -120, ctrlKey: true, clientX: 400, clientY: 260, bubbles: true, cancelable: true});
+    canvas.dispatchEvent(pinch);
+    // Over anything else of the page (label, mouse menu, HUD) — where the camera controls do not listen.
+    const over = new WheelEvent('wheel', {deltaY: -120, ctrlKey: true, clientX: 30, clientY: 500, bubbles: true, cancelable: true});
+    const notBlocked = document.body.dispatchEvent(over);
+    const plain = new WheelEvent('wheel', {deltaY: -120, clientX: 400, clientY: 260, bubbles: true, cancelable: true});
+    canvas.dispatchEvent(plain);
+    return {pinchBlocked: !notBlocked};
+    """)
+    assert result['pinchBlocked'], result
