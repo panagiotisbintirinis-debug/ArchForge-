@@ -149,3 +149,26 @@ def test_the_real_page_builds_only_the_changed_meshes_and_asks_for_all_when_out_
     assert result['total'] >= 2
     assert result['builtOne'] == 1, result
     assert result['asked'] == ['requestFullScene'], result
+
+
+def test_the_picture_keeps_its_size_while_the_camera_moves():
+    """Owner 29/10 (Windows): «η εικόνα μικραίνει ανά διαστήματα με το που πατήσω το ποντίκι» — the lighter moving
+    frame drew a smaller canvas instead of the same picture at a lower resolution."""
+    if not click3d.available():
+        pytest.skip('χωρίς Node / Playwright / Chromium')
+    result = click3d.run_in_page(_doc(), """
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const canvas = document.querySelector('canvas');
+    const full = canvas.getBoundingClientRect().width;
+    window.archforgeFrameLog = [];
+    let smallest = full;
+    const start = window.archforgeFrames;
+    for (let i = 0; i < 200 && window.archforgeFrames - start < 4; i++) {
+      canvas.dispatchEvent(new WheelEvent('wheel', {deltaY: i % 2 ? 60 : -60, clientX: 400, clientY: 260, bubbles: true}));
+      await wait(60);
+      smallest = Math.min(smallest, canvas.getBoundingClientRect().width);
+    }
+    return {full, smallest, moved: window.archforgeFrameLog.some((m) => m === true), page: window.innerWidth};
+    """)
+    assert result['moved'], result
+    assert result['smallest'] == result['full'] == result['page'], result

@@ -269,6 +269,11 @@ renderer.toneMappingExposure = 0.95;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.localClippingEnabled = true;
 container.appendChild(renderer.domElement);
+// The canvas fills the view whatever its pixel count: the lighter moving frame (fewer pixels) is the same picture
+// stretched, never a smaller one (owner 29/10, Windows: «η εικόνα μικραίνει … με το που πατήσω το ποντίκι»).
+renderer.domElement.style.width = "100%";
+renderer.domElement.style.height = "100%";
+renderer.domElement.style.display = "block";
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
