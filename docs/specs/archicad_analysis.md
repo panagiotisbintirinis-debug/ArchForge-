@@ -95,3 +95,50 @@
 - Η μελέτη της Astra «ArchiCAD και καλύτερα» (28/10) να προστεθεί εδώ αν υπάρχει ακόμη.
 - Κάθε νέα ιδέα του ιδιοκτήτη για ανταγωνιστικά προγράμματα **μπαίνει σε αυτό το έγγραφο** (ή σε αντίστοιχο ανά
   πρόγραμμα), όχι μόνο στη συζήτηση.
+
+## Παράρτημα: λεπτομέρειες των στιγμιοτύπων (για να μη χρειαστούν ξανά οι εικόνες)
+
+Βίντεο «Learn ArchiCAD 29 in Under 30 Minutes» (David Tomic). Οι εικόνες δεν είναι στο repo (υλικό τρίτου)· ζητούνται
+από τον ιδιοκτήτη αν χρειαστούν.
+
+- **5:49 Τοίχος, σχεδίαση:** tracker δίπλα στον δείκτη: Distance, X / Y Coordinate, γωνία· Info Box: Layer «Wall –
+  External», Geometry Method, Reference Line «Inside Face», Structure «D802-1 250», Linked Stories «Not Linked / 0.
+  Ground Floor», Bottom and Top 1200 / 0, Wall Thickness (γκρίζο), Wall Slant Angles 90°.
+- **6:21 Τοίχοι:** τεθλασμένοι / λοξοί τοίχοι με διαγράμμιση σύνθεσης στην κάτοψη.
+- **8:26 / 9:57 Τοίχος στο 3D και κλειστό περίγραμμα:** σύνθετη τομή (τούβλο) ορατή στην άκρη· tracker «Distance 0,
+  Angle 90°» στη γωνία.
+- **9:47 Ρυθμίσεις τοίχου:** Geometry and Positioning (Top Link, Home Story, to Project Zero, Reference Line + offset,
+  σύνθεση, γεωμετρία ευθύς / καμπύλος / τραπέζιο / πολύγωνο, κλίση) · Profile Offset Modifiers · Floor Plan and Section
+  (Show on Stories «Home Story Only», Floor Plan Display «Projected with Overhead», Show Projection «Entire Element»,
+  Cut Surfaces) · Model (Override Surfaces ανά πλευρά, End Surfaces, Align Texture to Wall Edges, **Junction Order**,
+  **Relation to Zones «Zone Boundary»**) · Structural Analytical Parameters (Structural Function, Rule-based
+  modifications: Ignore small openings, Stretch & Cutback, Offset) · Classification and Properties.
+- **9:52 Μενού Window ▸ Palettes:** ~50 παλέτες (Toolbox, Info Box, Navigator, Organizer, Drawing Manager, Issue
+  Manager, Change Manager, Design Options, Renovation, Trace & Reference, Keynotes, Attributes, Profile Manager,
+  IFC Project Manager, Energy Model Review, MEP System Browser, Duct Size / Hydronics Optimizer, Element Information,
+  Coordinates, Control Box, Quick Layers, AI Assistant, AI Visualizer …).
+- **11:40 Πλάκα:** Home Story «-1. Footings», to Project Zero, **Reference Plane** (πάνω / μέσο / κάτω), λίστα
+  συνθέσεων με πάχος (π.χ. «CG01-1: 100mm | Nil | Uninsul + Vapour» 103 mm, «… Tile | Insul R1.0» 163 mm), Outlines
+  «Small Dashed», Override Surfaces ανά πλευρά, Structural Analytical, Classification, Renovation status.
+- **13:33 Βιβλιοθήκη παραθύρων:** δέντρο (Basic, Bay and Bow, Empty Window Openings, Historic, Single / Double Hung,
+  Sliding, Special, Storefronts, ανά χώρα DACH / JPN / SWE / USA) με εικόνες (Triple with Middle / Side Transoms,
+  Variable Double Sash, Vertical Multi-Sash, Window with Sidelight)· Fixtures and Fittings: **Casing** έξω / μέσα,
+  **Ganging** (ζεύξη), **Sill**, **Board**, **Sunshade**, **Custom Corner** δεξιά / αριστερά.
+- **14:27 Παράθυρο:** Preview and Positioning (πλάτος, ύψος, Anchors, «Sill to Story 0», «Reveal to Wall Core −10»,
+  Flip) · Nominal Sizes and Tolerance: **1. Wallhole / 2. Reveal / 3. Unit Dimensions** + ανοχή· δέντρο σελίδων:
+  Shape, Window Settings and Opening (Frame and Sash, Frame Width, Sash Options, Handle, Natural Ventilation, Opening
+  Type and Angle, Model Attributes), Wall Opening (Reveal, Wall Closure, Wall Inset, Masonry Arch), Fixtures and
+  Fittings, Floor Plan and Section (Symbolic, γραμμή / πένα συμβόλου 0,13 mm, Cut Line Pen 0,18 mm, Cut Fill),
+  Dimension Marker, Classification.
+- **18:07 Πόρτα:** Opening Type «Side Hung», **2D Opening Angle 90° / 3D Opening Angle 0°**, βιβλιοθήκη εσωτερικών
+  θυρών με εικόνες (Rebate, Manhattan, Square Bend Frame, Cavity Slider).
+- **19:18 Στέγη:** Home Story, to Project Zero, Pitch 23°, **Roof Levels** (πίνακας κλίση / ύψος για πολλαπλά επίπεδα),
+  Eaves Overhang Offset 550, **Curve Resolution** (by arc / by circle), «Skylights and Openings treat segments as
+  curves», Floor Plan Display «Contours Only», Override Surfaces (τρεις επιφάνειες), **Trimming Body «Contours down»**,
+  Structural Analytical, ID and Categories, Design Options, Renovation.
+- **Σε όλα:** δεξιά το **View Map** — Proposed Dwelling ▸ Plans ▸ Existing / Demolition / Proposed (Design Stage) ▸
+  Site Plan 1:200, Footings 1:100, Ground / First Floor 1:100, Roof Plan 1:100 · Proposed (Construction Stage) ·
+  Resources (Site & Landscaping, Pen Sets, Cabinetry 2D Details …) · Objects (ανά χώρο: Kitchen, Living, Dining,
+  Laundry, Walk-in Robe, Bathroom, Bedrooms).
+- **Σχόλια YouTube (Χ):** πολλές οθόνες· συνδρομή χωρίς ιδιοκτησία και 1000+ δικά τους αντικείμενα· παραμετρικά
+  κουφώματα με ελεύθερο σχήμα (τοξωτός φεγγίτης, τριγωνικό φύλλο)· «that's it?»· διακλάδωση αποχέτευσης με εξαρτήματα.
