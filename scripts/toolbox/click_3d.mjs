@@ -16,16 +16,17 @@ const exe = fs.readdirSync(pw).filter(d => /^chromium-\d+$/.test(d)).sort().reve
   .map(d => [`${pw}/${d}/chrome-linux64/chrome`, `${pw}/${d}/chrome-linux/chrome`]).flat().find(f => fs.existsSync(f));
 const browser = await chromium.launch({ executablePath: exe,
   args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
-const page = await browser.newPage({ viewport: { width: 1000, height: 640 } });
+const page = await browser.newPage({ viewport: { width: 800, height: 520 } });
 page.on('pageerror', e => console.error('pageerror:', e.message));
 // A stand-in for Qt's QWebChannel: every bridge method call is recorded.
 await page.addInitScript(() => {
   window.__calls = [];
   const bridge = new Proxy({}, { get: (_t, name) => (...args) => { window.__calls.push([String(name), ...args]); } });
   window.qt = { webChannelTransport: {} };
-  window.QWebChannel = function (_transport, ready) { ready({ objects: { renderBridge: bridge } }); };
+  // Asynchronous, as Qt's: the page's own `let bridge` exists by the time the callback runs.
+  window.QWebChannel = function (_transport, ready) { setTimeout(() => ready({ objects: { renderBridge: bridge } }), 0); };
 });
-await page.setContent(fs.readFileSync(pageHtml, 'utf8'));
+await page.goto('file://' + pageHtml);       // setContent would skip the init script above
 await page.waitForFunction(() => !!window.archforgeSetScene, null, { timeout: 60000 });
 const payload = JSON.parse(fs.readFileSync(sceneJson, 'utf8'));
 await page.evaluate(([p, pr, t]) => {
@@ -35,15 +36,19 @@ await page.evaluate(([p, pr, t]) => {
 }, [payload, preset, tool]);
 await page.waitForTimeout(1500);
 await page.evaluate(() => { window.__calls = []; });
-const canvas = await page.$('canvas');
-const box = await canvas.boundingBox();
-for (let r = 1; r <= Number(rows); r++) {
-  for (let c = 1; c <= Number(cols); c++) {
-    const x = box.x + box.width * c / (Number(cols) + 1), y = box.y + box.height * r / (Number(rows) + 1);
-    await page.mouse.move(x, y);
-    await page.mouse.down();
-    await page.mouse.up();
+// The pointer events go to the canvas inside the page (the same listeners and raycast as a real mouse): Playwright's
+// own mouse waits for a rendered frame per event — minutes with software WebGL.
+await page.evaluate(([cols, rows]) => {
+  const canvas = document.querySelector('canvas');
+  const box = canvas.getBoundingClientRect();
+  for (let r = 1; r <= rows; r++) {
+    for (let c = 1; c <= cols; c++) {
+      const at = { clientX: box.left + box.width * c / (cols + 1), clientY: box.top + box.height * r / (rows + 1),
+                   button: 0, buttons: 1, pointerId: 1, isPrimary: true, bubbles: true, cancelable: true };
+      canvas.dispatchEvent(new PointerEvent('pointerdown', at));
+      canvas.dispatchEvent(new PointerEvent('pointerup', { ...at, buttons: 0 }));
+    }
   }
-}
+}, [Number(cols), Number(rows)]);
 console.log(JSON.stringify({ calls: await page.evaluate(() => window.__calls) }));
 await browser.close();
