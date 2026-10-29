@@ -39,6 +39,14 @@ from archforge.ui.pattern_swatch import material_swatch
 # ---------------------------------------------------------------------------
 # Surface targets
 
+# Kinds that carry a material (``material_id`` / ``surface_materials``): the dialogs and the brush accept these.
+MATERIAL_KINDS = frozenset({
+    'wall', 'floor', 'room_floor', 'room_roof', 'room_ceiling',
+    'room_foundation', 'box', 'pod', 'stair', 'ramp',
+    'structural_column', 'structural_beam',
+    'mechanical_part', 'mesh', 'library_object', 'cabinet', 'door', 'window',
+})
+
 @dataclass(frozen=True)
 class SurfaceTarget:
     key: str
@@ -204,8 +212,10 @@ class MaterialSphere(QWidget):
 
 class MaterialLibraryDialog(QDialog):
     def __init__(self, main_window, entity_id: str | None = None, part_role: str | None = None,
-                 legacy_opener=None, initial_material_id: str | None = None):
+                 legacy_opener=None, initial_material_id: str | None = None, brush: bool = False):
         super().__init__(main_window)
+        # brush (material_brush.py): choose a material here, then each click in the plan paints with it.
+        self.brush = bool(brush)
         self.main_window = main_window
         self.entity_id = str(entity_id) if entity_id is not None else ""
         self.entity = main_window.doc.get(self.entity_id) if self.entity_id else None
@@ -316,7 +326,10 @@ class MaterialLibraryDialog(QDialog):
         self.target = QComboBox()
         targets = _targets(self.entity, getattr(self.main_window, 'doc', None)) if self.entity is not None else ()
         for target in targets: self.target.addItem(target.label, target.key)
-        if self.entity is None:
+        if self.entity is None and self.brush:
+            self.target.addItem("Κλικ στην κάτοψη · στον τοίχο η πλευρά που πατάς", "")
+            self.target.setEnabled(False)
+        elif self.entity is None:
             self.target.addItem("Επιλέξτε πρώτα αντικείμενο", "")
             self.target.setEnabled(False)
         if part_role:
@@ -349,9 +362,10 @@ class MaterialLibraryDialog(QDialog):
         self.right_scroll.setWidget(right_content)
         rl.addWidget(self.right_scroll, 1)
 
-        self.apply = QPushButton("Εφαρμογή υλικού"); self.apply.setObjectName("apply"); self.apply.setEnabled(False)
+        self.apply = QPushButton("Πινέλο με αυτό το υλικό" if self.brush else "Εφαρμογή υλικού")
+        self.apply.setObjectName("apply"); self.apply.setEnabled(False)
         rl.addWidget(self.apply)
-        close = QPushButton("Κλείσιμο"); close.clicked.connect(self.accept); rl.addWidget(close)
+        close = QPushButton("Κλείσιμο"); close.clicked.connect(self.reject if self.brush else self.accept); rl.addWidget(close)
         body.addWidget(right, 3)
 
         self.categories.currentTextChanged.connect(self._refill)
@@ -415,7 +429,7 @@ class MaterialLibraryDialog(QDialog):
         self.roughness.setEnabled(True)
         self.sphere.set_material(self.selected_material_id, self.main_window.doc)
         self._preview_controls()
-        self.apply.setEnabled(self.entity is not None)
+        self.apply.setEnabled(self.entity is not None or self.brush)
         self.save_properties_button.setEnabled(True)
         from archforge.ui.material_properties import MaterialPropertiesDialog
         editor = MaterialPropertiesDialog(self, self.selected_material_id, self.main_window.doc, embedded=True)
@@ -478,6 +492,9 @@ class MaterialLibraryDialog(QDialog):
         self.sphere.update()
 
     def _refresh_current(self, *_args):
+        if self.entity is None and self.brush:
+            self.current.setText("Μετά: κλικ σε τοίχους και αντικείμενα · μία αναίρεση ανά κλικ · Esc για τέλος")
+            return
         if self.entity is None:
             self.current.setText("Επιλέξτε αντικείμενο για εφαρμογή · οι ιδιότητες αποθηκεύονται κανονικά")
             return
@@ -488,6 +505,9 @@ class MaterialLibraryDialog(QDialog):
         self.current.setText(f"Τώρα — {target}: {spec.get('name', current_id) if spec else 'προεπιλογή αντικειμένου'}")
 
     def _apply(self):
+        if self.brush:
+            if self.selected_material_id: self.accept()
+            return
         if not self.selected_material_id or self.entity is None: return
         role = str(self.target.currentData() or "")
         _apply_material(self.main_window, self.entity_id, role, self.selected_material_id)

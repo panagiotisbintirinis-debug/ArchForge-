@@ -3044,13 +3044,8 @@ class MainWindow(QMainWindow):
         if entity_id not in self.doc.entities:
             return
         entity = self.doc.get(entity_id)
-        supported = {
-            'wall', 'floor', 'room_floor', 'room_roof', 'room_ceiling',
-            'room_foundation', 'box', 'pod', 'stair', 'ramp',
-            'structural_column', 'structural_beam',
-            'mechanical_part', 'mesh', 'library_object', 'cabinet', 'door', 'window',
-        }
-        if entity.kind not in supported:
+        from archforge.ui.material_library import MATERIAL_KINDS
+        if entity.kind not in MATERIAL_KINDS:
             self.statusBar().showMessage(
                 f'Δεν υπάρχουν ακόμη υλικά για {entity.kind}',
                 3000,

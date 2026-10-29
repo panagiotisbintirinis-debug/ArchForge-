@@ -510,6 +510,12 @@ def install_approved_mockup_shell(window):
         if tool=="sculpt": a.triggered.connect(lambda _=False: window.sculpt_action.toggle())
         else: a.triggered.connect(window._open_selected_materials)
         ribbon.addAction(a)
+    # «Πινέλο» υλικού (owner 28/10): choose in the Library, then every click paints — Esc ends (material_brush.py).
+    brush=QAction(make_icon("brush"),"Πινέλο",window)
+    brush.setToolTip("Πινέλο υλικού: διάλεξε υλικό, μετά κάθε κλικ σε τοίχο (η πλευρά που πατάς) ή αντικείμενο το βάφει · Esc = τέλος")
+    from archforge.ui.material_brush import start as _start_brush
+    brush.triggered.connect(lambda _=False: _start_brush(window))
+    ribbon.addAction(brush); window._mockup_brush_action=brush
     # Reuse the proven Sculpt controls from the original toolbar. Hiding the
     # legacy toolbar must not hide access to brush operation/radius.
     # Reuse the isolated semantic Kitchen command already owned by MainWindow.

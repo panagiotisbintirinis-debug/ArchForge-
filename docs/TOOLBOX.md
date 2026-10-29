@@ -80,6 +80,7 @@
 | `archforge/architecture/joinery.py` | `inside_sign(doc, wall, opening)`: προς ποιο χώρο ανοίγει η πόρτα. |
 | `archforge/core/plan_scene.py` | `wall_poche` (τοίχοι με δύο όψεις) · `_declutter_labels` (ετικέτες Η/Μ χωρίς επικάλυψη). |
 | `archforge/quantities/price_book.py` | Κοινός τιμοκατάλογος (τιμές έργου υπερισχύουν· ποτέ επινοημένη τιμή) · `quote()['by_trade']`. |
+| `archforge/ui/material_library.py` | `MATERIAL_KINDS` (ποια είδη παίρνουν υλικό) · `_apply_material(window, id, role, material)` = **η** εντολή υλικού (browser, πινέλο) · `_targets` (πλευρές/τμήματα). |
 | `tests/conftest.py` | Απομονωμένος τιμοκατάλογος και κλείσιμο παραθύρων σε κάθε τεστ. |
 
 ## Περιβάλλον cloud

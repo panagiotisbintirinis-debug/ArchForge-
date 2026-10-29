@@ -150,7 +150,7 @@ class PlanView(QGraphicsView):
         self.doc=doc;self.stack=stack;self.controller=PointerController(doc,stack)
         if getattr(self,'_grid_step',None):self.controller.grid=self.controller.construction_grid=self._grid_step
         self.redraw()
-    TOOL_LABELS={'select':'Επιλογή','wall':'Τοίχος','door':'Πόρτα','window':'Παράθυρο','opening_rect':'Άνοιγμα','stair':'Σκάλα',
+    TOOL_LABELS={'paint_material':'Πινέλο υλικού','select':'Επιλογή','wall':'Τοίχος','door':'Πόρτα','window':'Παράθυρο','opening_rect':'Άνοιγμα','stair':'Σκάλα',
                  'ramp':'Ράμπα','structural_column':'Κολόνα','structural_beam':'Δοκός','component':'Τοποθέτηση','move':'Μετακίνηση',
                  'rotate':'Περιστροφή','stretch':'Τέντωμα'}
     def set_tool(self,tool):self.controller.set_tool(tool);self._active_handle=None;self._railing_draft=None;self._slab_draft=None;self.statusChanged.emit(f'Εργαλείο: {self.TOOL_LABELS.get(tool,tool)}');self.redraw()
@@ -392,6 +392,12 @@ class PlanView(QGraphicsView):
         if self._railing_tool():self._railing_press(event);event.accept();return
         if self._slab_tool():
             ev=self._scene_to_plane(event.position().toPoint());self._slab_draft_get().down(ev.a,ev.b);self._mouse_down=True
+            self.redraw();event.accept();return
+        if self.controller.tool=='paint_material' and getattr(self,'marking_menu_window',None) is not None:
+            # «Πινέλο» υλικού (material_brush.py): the object under the click is painted, on a wall the clicked face.
+            from archforge.ui.material_brush import paint
+            ev=self._scene_to_plane(event.position().toPoint());x,y=self.controller._plan_xy(ev)
+            paint(self.marking_menu_window,self._entity_items.get(self.itemAt(event.position().toPoint())),x,y)
             self.redraw();event.accept();return
         if self.controller.tool not in self.SITE_LINE_TOOLS and (self.controller.tool in self.SITE_POINT_TOOLS or str(self.controller.tool).startswith(('plumb_','elec_','vent_','heat_','assist_','drain_','roofroom_','railingstair_','drywallroom'))):
             ev=self._scene_to_plane(event.position().toPoint())
