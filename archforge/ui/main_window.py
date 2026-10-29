@@ -1594,16 +1594,16 @@ class MainWindow(QMainWindow):
         return roof
 
     def _set_wall_type(self, entity_id, wall_type):
-        """Apply a wall assembly: sets the type and the matching total thickness."""
-        from archforge.architecture.wall_types import total_thickness
+        """Apply a wall assembly: the type and its total thickness, the measured face kept (wall_types.type_change)."""
+        from archforge.architecture.wall_types import type_change
         entity = self.doc.get(entity_id)
         if entity.params.get('wall_type', 'generic') == wall_type:
             return
-        changes = {'wall_type': str(wall_type)}
-        thickness = total_thickness(wall_type)
-        if thickness > 0:
-            changes['thickness'] = thickness
-        self.stack.execute(UpdateEntity(entity_id, changes))
+        try:
+            self.stack.execute(type_change(self.doc, entity_id, wall_type))
+        except ValueError as exc:
+            self.statusBar().showMessage(f'Τύπος τοίχου: {exc}', 8000)
+            return
         self._redraw_views(all_views=True)
         from PySide6.QtCore import QTimer
         QTimer.singleShot(0, self.refresh_inspector)   # rebuild the form outside the combo's signal

@@ -181,8 +181,11 @@ def _touches(e, a, b, half):
     return -0.02 <= gap <= TOUCH
 
 
-def plan_move(doc, wid, distance):
+def plan_move(doc, wid, distance, only=False):
     """What changes when wall ``wid`` moves ``distance`` m along ``wall_normal``.
+
+    ``only``: this wall alone, not its collinear run, and a parallel wall joined to it keeps its ends (a new wall
+    type grows the wall on one side; the walls in line with it stay — wall_types.type_change).
 
     Returns ``{'walls': {id: {x1,y1,x2,y2}}, 'openings': {id: offset}, 'objects': {id: {x,y}}, 'run': [...]}``
     or raises ValueError (Greek, for the status bar) when the move would break something.
@@ -193,7 +196,7 @@ def plan_move(doc, wid, distance):
     z = float(w.params.get('z', 0.0))
     nx, ny = wall_normal(w.params)
     dx, dy = nx * float(distance), ny * float(distance)
-    run = straight_run(doc, wid)
+    run = [wid] if only else straight_run(doc, wid)
     others = [o for o in _walls(doc, z) if o.id not in run]
     for rid in run:
         if str(doc.get(rid).params.get('phase', 'new')) == 'existing':
@@ -237,6 +240,8 @@ def plan_move(doc, wid, distance):
             if not attached:
                 continue
             hit = _line_hit(*old[o.id], *moved_line)
+            if hit is None and only:
+                continue                                    # in line with it: keeps its end
             ends[k] = hit if hit is not None else (q[0] + dx, q[1] + dy)
             changed = True
         if changed:
@@ -281,16 +286,17 @@ def plan_move(doc, wid, distance):
 class MoveWall(Command):
     """Move a wall perpendicular to its axis with everything joined to it (one undo step)."""
 
-    def __init__(self, wall_id, distance):
+    def __init__(self, wall_id, distance, only=False):
         self.wall_id = str(wall_id)
         self.distance = float(distance)
+        self.only = bool(only)
         self.plan = None
         self.before_state = None
         self.before_selection = None
 
     def do(self, doc):
         if self.plan is None:
-            self.plan = plan_move(doc, self.wall_id, self.distance)
+            self.plan = plan_move(doc, self.wall_id, self.distance, self.only)
             self.before_state = copy.deepcopy(doc.to_dict())
             self.before_selection = list(doc.selection)
         try:

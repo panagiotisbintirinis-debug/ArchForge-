@@ -2,7 +2,9 @@
 
 Layers are listed from the exterior face (wall side A, the +normal side of
 the wall line) to the interior face.  Choosing a type sets the wall's
-thickness to the sum of its layers; the wall's centre line stays put.
+thickness to the sum of its layers and keeps **the face its dimensions are
+measured on** where it is (``type_change``, owner 29/10): the wall grows on
+the other side, the walls joined at its corners follow.
 
 The U-value shown is INDICATIVE only: the EN ISO 6946 sum of layer
 resistances d/λ plus surface resistances Rsi = 0.13, Rse = 0.04 m²K/W, using
@@ -106,3 +108,57 @@ def layer_lines(params, wall_type, sign=1):
         insulation = ls[k][4] or ls[k + 1][4]
         out.append(([(x1 + nx * offset, y1 + ny * offset), (x2 + nx * offset, y2 + ny * offset)], insulation))
     return out
+
+
+def measured_face(doc, wall):
+    """Unit normal from the wall's axis towards the face its dimensions are measured on, or None (the axis).
+
+    The face the hand drew (``ref_side``: +1 left of x1y1→x2y2, −1 right); for walls drawn before it was kept, an
+    outer wall measures on the face the project's details name (outside unless «μετράμε εσωτερικά»); a partition
+    inside the building has no measured face."""
+    p = wall.params
+    ax, ay, bx, by = (float(p[k]) for k in ("x1", "y1", "x2", "y2"))
+    L = math.hypot(bx - ax, by - ay)
+    if L < 1e-9:
+        return None
+    left = (-(by - ay) / L, (bx - ax) / L)
+    side = p.get("ref_side")
+    if side in (1, -1):
+        return (left[0] * side, left[1] * side)
+    from archforge.mep.ventilation import exterior_walls
+    from archforge.project.brief import get_brief
+    for w, (nx, ny) in exterior_walls(doc, float(p.get("z", 0.0))):
+        if w.id == wall.id:
+            brief = get_brief(doc)
+            sign = -1.0 if brief and brief.get("measure") == "interior" else 1.0
+            return (nx * sign, ny * sign)
+    return None
+
+
+def type_change(doc, wall_id, wall_type):
+    """The command that gives a wall a type (one undo): its thickness from the layers, **the measured face kept where
+    it is** — the wall grows / shrinks on the other side and the walls joined at its corners follow (owner 29/10:
+    «του δίνεις τον τύπο, το σχέδιο προσαρμόζεται χωρίς να αλλάξουν οι διαστάσεις»)."""
+    from archforge.architecture.wall_edit import MoveWall, wall_normal
+    from archforge.core.commands import CompositeCommand, UpdateEntity
+    wall = doc.get(wall_id)
+    changes = {"wall_type": str(wall_type)}
+    t_old = float(wall.params.get("thickness", 0.2))
+    t_new = total_thickness(wall_type) if layers(wall_type) else t_old
+    commands = []
+    face = measured_face(doc, wall)
+    if abs(t_new - t_old) > 1e-9:
+        changes["thickness"] = t_new
+    if face is not None:
+        p = wall.params
+        L = math.hypot(float(p["x2"]) - float(p["x1"]), float(p["y2"]) - float(p["y1"]))
+        left = (-(float(p["y2"]) - float(p["y1"])) / L, (float(p["x2"]) - float(p["x1"])) / L)
+        changes["ref_side"] = 1 if face[0] * left[0] + face[1] * left[1] > 0 else -1
+        n = wall_normal(p)
+        distance = (face[0] * n[0] + face[1] * n[1]) * (t_old - t_new) / 2
+        commands.append(UpdateEntity(wall_id, changes))
+        if abs(distance) > 1e-9:
+            commands.append(MoveWall(wall_id, distance, only=True))
+    else:
+        commands.append(UpdateEntity(wall_id, changes))
+    return CompositeCommand(commands, "Τύπος τοίχου")

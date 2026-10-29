@@ -571,6 +571,9 @@ class WallDrawTransaction:
         params={'x1':sx,'y1':sy,'x2':ex,'y2':ey,'z':self.z,'height':self.height,'thickness':self.thickness}
         if getattr(self,'wall_type',None):params['wall_type']=self.wall_type
         if getattr(self,'reference',None) in ('exterior','interior'):params['reference']=self.reference
+        # Drawn by a face (wall_face.py): which face of the axis a→b the hand drew (+1 = left of a→b, −1 = right), so a
+        # later wall type keeps that face where it was (owner 29/10: «χωρίς να αλλάξουν οι διαστάσεις»).
+        if getattr(self,'face_side',0):params['ref_side']=-int(self.face_side)
         e=Entity('wall',params,name=next_name(self.doc,'wall'))
         # Closing onto another wall just short of its end: the loose piece beyond is cut, the corner is clean.
         meet=getattr(self,'meet',None) if exact_length is None and not getattr(self,'face_side',0) else None

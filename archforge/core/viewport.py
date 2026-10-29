@@ -135,8 +135,9 @@ class PointerController:
         if mode!='auto':return SIDES[mode]
         from archforge.project.brief import get_brief
         brief=get_brief(self.doc)
-        measure=brief['measure'] if brief else None
-        if not measure:return 0
+        # Never on the axis (owner 29/10: «από τον άξονα είναι τελείως λάθος, ειδικά αν ο τοίχος είναι 50 εκ.»):
+        # without the project's details the outer face is drawn, as with «μετράμε εξωτερικά».
+        measure=(brief['measure'] if brief else None) or 'exterior'
         return auto_side(measure)                 # fixed side, like Revit's location line (wall_face.py)
     def _face_run_for(self,start):
         """The outline being drawn by faces when a wall starts at ``start`` (its last wall ends there), else empty —
@@ -422,14 +423,16 @@ class PointerController:
             values=dict(hud.values);values['distance']=(self.active.dx*self.active.dx+self.active.dy*self.active.dy)**.5
             self.preview=PreviewState('move',{'entities':copy.deepcopy(self.active.preview)},values,None)
         return self.preview
-    def pointer_up(self,ev,exact=None):
+    def pointer_up(self,ev,exact=None,click=False):
+        """``click``: the view saw a click (press → release within a few screen pixels), not a drag."""
         if self.active is None:return self.preview
         self.last_warning=None
         self.pointer_move(ev);committed_id=None
         if isinstance(self.active,WallDrawTransaction):
             tx=self.active
             import math
-            if exact is None and math.hypot(tx.end[0]-tx.start[0],tx.end[1]-tx.start[1])<tx.min_length:
+            short=math.hypot(tx.end[0]-tx.start[0],tx.end[1]-tx.start[1])<tx.min_length
+            if exact is None and (short or (click and self.wall_chain is None)):
                 if self.wall_chain is None:
                     # A click without a drag: click-click walls, one corner per click.
                     self.wall_chain={'first':tuple(tx.start),'count':0}
@@ -511,7 +514,7 @@ class PointerController:
             if prev.get('applied',True) and len(segs)>1:
                 pa=(float(self.doc.get(prev['id']).params['x1']),float(self.doc.get(prev['id']).params['y1']))
             c=intersect(pa,pb,na,nb) or na
-            changes={'x1':pa[0],'y1':pa[1],'x2':c[0],'y2':c[1]}
+            changes={'x1':pa[0],'y1':pa[1],'x2':c[0],'y2':c[1],'ref_side':-int(prev['side'])}
             if auto:changes['reference_applied']=True              # the brief's measure is done (no move at closing)
             self.stack.execute(UpdateEntity(prev['id'],changes))
             prev['applied']=True
