@@ -75,7 +75,7 @@ def target(entity):
 
 # Plan primitive roles (core/plan_scene.py) → DXF layer; the first matching prefix wins.
 PLAN_LAYERS = (
-    ("wall", "A-WALL"), ("model", "A-WALL-CNTR"), ("opening-symbol", "A-DOOR"), ("opening", "A-DOOR"),
+    ("wall-layer-fill", "A-WALL-PATT"), ("wall", "A-WALL"), ("model", "A-WALL-CNTR"), ("opening-symbol", "A-DOOR"), ("opening", "A-DOOR"),
     ("dimension-label", "A-ANNO-DIMS"), ("dimension", "A-ANNO-DIMS"),
     ("derived-room-label", "A-AREA-IDEN"), ("derived-room", "A-AREA"), ("room-", "A-FLOR"),
     ("structural-column", "S-COLS"), ("structural-beam", "S-BEAM"), ("joist", "S-FRAM"), ("joists-area", "S-FRAM"),
@@ -85,6 +85,14 @@ PLAN_LAYERS = (
     ("heat", "M-HOTW"), ("elec", "E-POWR"), ("light", "E-LITE"), ("plumb", "P-FIXT"), ("drain", "P-SANR"),
     ("vent", "M-EXHS"), ("underlay", None), ("floor-underlay", None), ("camera", None), ("lower-storey", None), ("handle", None),
 )
+
+
+# DXF hatch pattern of a wall layer by its material's ``hatch`` key (construction/building_materials.py):
+# DESIGN_DEFAULT, names from the standard acad/ISO pattern set that ezdxf ships.
+LAYER_PATTERNS = {"plaster": ("AR-SAND", 0.02), "gypsum": ("DOTS", 0.02), "brick": ("ANSI31", 0.02),
+                  "stone": ("ANSI33", 0.03), "concrete": ("AR-CONC", 0.005), "masonry": ("ANSI32", 0.02),
+                  "insulation_soft": ("INSUL", 0.01), "insulation_rigid": ("ANSI37", 0.02),
+                  "wood_cement": ("ANSI38", 0.02)}
 
 
 def plan_layer(role):

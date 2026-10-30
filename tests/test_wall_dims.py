@@ -68,7 +68,7 @@ def test_click_selects_the_wall_with_its_distances_then_press_and_drag_moves_it(
     tool = w._wall_dims
     assert tool.moving is None
     view.redraw()
-    assert sorted(item.toPlainText().strip() for item, _side in tool._labels) == ['3,75', '5,75', '8,00']
+    assert sorted(item.toPlainText().strip() for item, _side in tool._labels) == ['375', '575', '800']  # cm (owner 30/10)
     n_before = len(w.stack.done)
     QTest.mousePress(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, at(6.0, 3.0))
     for x in (6.1, 6.3, 6.5):
@@ -90,8 +90,9 @@ def test_one_click_on_a_distance_types_the_value(window, monkeypatch):
     view.fitInView(QRectF(-1, -1, 12, 10))
     w.doc.select([ids['mid']]); view.redraw()
     tool = w._wall_dims
-    item = next(i for i, side in tool._labels if i.toPlainText().strip() == '3,75')
-    monkeypatch.setattr(QInputDialog, 'getDouble', staticmethod(lambda *a, **k: (3.0, True)))
+    # Owner 30/10: distances in cm («όλοι δουλεύουν σε εκατοστά»): 3,75 m reads «375», typed in cm.
+    item = next(i for i, side in tool._labels if i.toPlainText().strip() == '375')
+    monkeypatch.setattr(QInputDialog, 'getDouble', staticmethod(lambda *a, **k: (300.0, True)))
     pos = view.mapFromScene(item.pos())                         # the label's top-left, then into the text
     pos.setX(pos.x() + 12); pos.setY(pos.y() + 8)
     QTest.mouseClick(view.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, pos)

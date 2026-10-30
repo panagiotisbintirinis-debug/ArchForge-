@@ -9,6 +9,16 @@ def _isolated_price_book(tmp_path, monkeypatch):
     monkeypatch.setattr(price_book, "path", lambda: tmp_path / "price_book.json")
 
 
+@pytest.fixture(autouse=True)
+def _default_units(monkeypatch):
+    """Length units (core/units.py) as a fresh install: cm on screen, m in IFC — not this machine's settings."""
+    from archforge.core import units
+    monkeypatch.setattr(units, "_settings", lambda: {})
+    units.reset_cache()
+    yield
+    units.reset_cache()
+
+
 @pytest.fixture(autouse=True, scope="module")
 def _release_windows():
     """Windows a test file opened are deleted when the file ends.

@@ -257,11 +257,26 @@ def report(rows, where, groups):
     return "\n".join(out)
 
 
+def as_tree(rows):
+    """``{home menu: {section: [command, …]}}`` — every command once, for mockups and tests of the new map."""
+    tree = {}
+    for p in rows:
+        h = home(p)
+        top, _, section = h.partition(" / ")
+        tree.setdefault(top, {}).setdefault(section or "", []).append(leaf(p))
+    return tree
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--markdown")
+    ap.add_argument("--json", help="write the new map as {menu: {section: [commands]}}")
     args = ap.parse_args()
-    text = report(*collect())
+    collected = collect()
+    if args.json:
+        import json
+        open(args.json, "w", encoding="utf-8").write(json.dumps(as_tree(collected[0]), ensure_ascii=False, indent=1))
+    text = report(*collected)
     if args.markdown:
         open(args.markdown, "w", encoding="utf-8").write(text)
     print(text)

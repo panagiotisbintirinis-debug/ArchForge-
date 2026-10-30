@@ -61,6 +61,7 @@ def settings(doc):
               if code.startswith("desc:") and (v["material"] is not None or v["labour"] is not None)}
     return {"prices": prices, "trade_prices": book, "client": str(p.get("client", "")), "project": str(p.get("project", "")),
             "vat": float(p.get("vat", DEFAULT_VAT)), "notes": str(p.get("notes", "")),
+            "margin": float(p.get("margin", 0.0)),          # % on the priced items (owner 30/10), the user's own
             "validity_days": int(p.get("validity_days", 30))}
 
 
@@ -123,9 +124,11 @@ def quote(doc, only=None):
     material = round(sum(r["material"] for r in rows if r["material"] is not None), 2)
     labour = round(sum(r["labour"] for r in rows if r["labour"] is not None), 2)
     missing = sum(1 for r in rows if r["amount"] is None)
-    vat_amount = round(subtotal * s["vat"] / 100, 2)
+    margin_amount = round(subtotal * s["margin"] / 100, 2)          # «περιθώριο» on the priced items, before VAT
+    vat_amount = round((subtotal + margin_amount) * s["vat"] / 100, 2)
     return {"sections": sections, "by_trade": by_trade, "subtotal": subtotal, "material": material, "labour": labour, "vat": s["vat"],
-            "vat_amount": vat_amount, "total": round(subtotal + vat_amount, 2), "missing": missing,
+            "margin": s["margin"], "margin_amount": margin_amount,
+            "vat_amount": vat_amount, "total": round(subtotal + margin_amount + vat_amount, 2), "missing": missing,
             "incomplete": sum(1 for r in rows if r["amount"] is not None and not r["complete"]),
             "not_computed": [i.message for i in not_computed],
             "owner_view": owner, "client": s["client"], "project": s["project"], "notes": s["notes"],

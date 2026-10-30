@@ -13,6 +13,14 @@ from archforge.core.viewport import PointerController, PointerEvent
 from archforge.core.plan_scene import build_plan_frame, Primitive2D, Handle2D
 from archforge.ui.object_context_menu import object_context_actions
 
+
+# Plan hatch of a wall layer by its material's ``hatch`` key (construction/building_materials.py) — DESIGN_DEFAULT.
+_PATTERN_SCALE=QTransform.fromScale(.008,.008)
+LAYER_HATCH={'plaster':Qt.BrushStyle.Dense7Pattern,'gypsum':Qt.BrushStyle.Dense6Pattern,'brick':Qt.BrushStyle.BDiagPattern,
+             'stone':Qt.BrushStyle.DiagCrossPattern,'concrete':Qt.BrushStyle.Dense5Pattern,'masonry':Qt.BrushStyle.FDiagPattern,
+             'insulation_soft':Qt.BrushStyle.CrossPattern,'insulation_rigid':Qt.BrushStyle.HorPattern,
+             'wood_cement':Qt.BrushStyle.VerPattern}
+
 class _OpenPathItem(QGraphicsPathItem):
     """An open polyline (railing, run): picked near its line only — Qt's default shape also takes
     the area the path would enclose, so a click inside a balcony picked its railing."""
@@ -90,6 +98,7 @@ class PlanView(QGraphicsView):
     VIEW_LINE_TOOLS={'view_section':'section','view_camera':'camera'}
     # Single-click site tools: (tool, x, y) handled by the main window.
     sitePointRequested=Signal(str,float,float)
+    layerPicked=Signal(str,float,float,QPointF)     # click on a layer of the selected wall (layer_pick.py): id, x, y, global pos
     SITE_POINT_TOOLS=('terrain_point','plot_point','room_box','room_place','room_resize','plant_tree','plant_shrub','library_place','underlay_calibrate','pool_place','dome_place','mech_part_place')
     # Drag tools for site strips: (tool, x1, y1, x2, y2).
     siteLineRequested=Signal(str,float,float,float,float)
@@ -440,6 +449,7 @@ class PlanView(QGraphicsView):
             # on empty space clears the selection.
             eid=self._entity_items.get(hit)
             ctrl=bool(event.modifiers()&Qt.KeyboardModifier.ControlModifier)
+            was_selected=bool(eid) and list(self.doc.selection or ())==[eid]
             if eid and ctrl:self.doc.select([eid],add=True);self.selectionChangedByView.emit()
             elif eid and eid not in (self.doc.selection or ()):
                 self.doc.select([eid]);self.controller.set_target(eid,None);self.selectionChangedByView.emit()
@@ -449,6 +459,8 @@ class PlanView(QGraphicsView):
             # Pressing on a selected wall's body: a drag moves it perpendicular to its axis (wall_edit.py).
             ev=self._scene_to_plane(event.position().toPoint())
             self._wall_press=(eid,ev.a,ev.b,event.position()) if selected and self.doc.get(eid).kind=='wall' and not ctrl else None
+            # A click (no drag) on a wall that was already selected picks the layer under it (owner 30/10).
+            self._layer_press=(eid,ev.a,ev.b,event.position()) if was_selected and self.doc.get(eid).kind=='wall' and not ctrl else None
             # Pressing on a selected object's body: a drag moves it (with snapping), like a handle.
             from archforge.core.object_ops import USER_PLACED_KINDS
             self._body_press=(eid,event.position()) if selected and self.doc.get(eid).kind in USER_PLACED_KINDS and not self.doc.get(eid).locked and not ctrl else None
@@ -505,7 +517,7 @@ class PlanView(QGraphicsView):
         if self._mouse_down and press and self.controller.active is None and (event.position()-press[3]).manhattanLength()>6:
             try:self.controller.begin_wall_move(press[0],press[1],press[2])
             except ValueError as exc:self.statusChanged.emit(str(exc))
-            self._wall_press=None
+            self._wall_press=None;self._layer_press=None
         if (self._mouse_down or self._wall_chain_active()) and self.controller.active is not None:
             ev=self._scene_to_plane(event.position().toPoint())
             ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
@@ -540,6 +552,11 @@ class PlanView(QGraphicsView):
         if event.button()==Qt.MouseButton.LeftButton and self._mouse_down and getattr(self,'_view_drag',None):
             self._mouse_down=False;ev=self._scene_to_plane(event.position().toPoint())
             self.end_view_line(ev.a,ev.b);event.accept();return
+        layer=getattr(self,'_layer_press',None);self._layer_press=None
+        if event.button()==Qt.MouseButton.LeftButton and layer and self.controller.active is None and (event.position()-layer[3]).manhattanLength()<=self.CLICK_PX:
+            self._mouse_down=False;self._wall_press=None;self._body_press=None
+            self.layerPicked.emit(layer[0],float(layer[1]),float(layer[2]),self.mapToGlobal(event.position().toPoint()).toPointF())
+            event.accept();return
         if event.button()==Qt.MouseButton.LeftButton and self._mouse_down:
             self._mouse_down=False;self._wall_press=None;self._body_press=None
             if self.controller.active is None and getattr(self,'_restore_select',False):
@@ -1016,6 +1033,7 @@ class PlanView(QGraphicsView):
         if getattr(self,'corner_tool',None) is not None:self.corner_tool.paint(self)   # Γωνία (corner_tool.py)
         if getattr(self,'dims_tool',None) is not None:self.dims_tool.paint(self)   # dimensions of a selected wall (wall_dims_tool.py)
         if getattr(self,'survey_tool',None) is not None:self.survey_tool.paint(self)   # corner numbers (survey_dialog.py)
+        if getattr(self,'layer_highlight',None) is not None:self.layer_highlight.paint(self)   # picked wall layer (layer_pick.py)
         if self.carry is not None:self.carry.paint(self)
         if self.controller.preview.kind=='rotate' and self.controller.active is not None:self._draw_rotate_dial(self.controller.preview)
         draft=getattr(self,'plot_draft',None)
@@ -1204,7 +1222,14 @@ class PlanView(QGraphicsView):
                     path.moveTo(QPointF(*loop[0]))
                     for q in loop[1:]:path.lineTo(QPointF(*q))
                     path.closeSubpath()
-            item=self._scene.addPath(path,pen,QBrush(QColor(205,200,190) if p.role=='wall-poche' else QColor(80,160,220,40)))
+            if p.role=='wall-layer-fill':
+                # One layer of the wall assembly, hatched by its material (wall_layer_plan.py) over the cut fill.
+                style=LAYER_HATCH.get(str(dict(p.meta).get('hatch')),Qt.BrushStyle.Dense6Pattern)
+                brush=QBrush(QColor(str(dict(p.meta).get('colour','#808080'))).darker(170),style)
+                brush.setTransform(_PATTERN_SCALE)                           # pattern at drawing size (~6 cm), not pixels
+                item=self._scene.addPath(path,QPen(Qt.PenStyle.NoPen),brush)
+            else:
+                item=self._scene.addPath(path,pen,QBrush(QColor(205,200,190) if p.role=='wall-poche' else QColor(80,160,220,40)))
         elif p.kind=='line':a,b=p.points;item=self._scene.addLine(a[0],a[1],b[0],b[1],pen)
         elif p.kind=='polyline':
             if len(p.points)>=2:
@@ -1258,9 +1283,9 @@ class PlanView(QGraphicsView):
             return
         if item is not None:
             container=bool(p.entity_id) and p.entity_id in self.doc.entities and self.doc.get(p.entity_id).kind in self.CONTAINER_KINDS
-            item.setZValue(-30 if p.role in ('contour','sculpt-contour') else -20 if context else (-10 if room else (10 if opening else (20 if preview else (-5 if container else (-1 if p.role=='wall-poche' else (1 if wall_line else 0)))))))
+            item.setZValue(-30 if p.role in ('contour','sculpt-contour') else -20 if context else (-10 if room else (10 if opening else (20 if preview else (-5 if container else (-1 if p.role=='wall-poche' else (-.9 if p.role=='wall-layer-fill' else (1 if wall_line else 0))))))))
             if p.entity_id and not preview:self._entity_items[item]=p.entity_id
-            if p.entity_id and p.entity_id==getattr(self,'_indicated',None) and not wall_line and hasattr(item,'setPen'):
+            if p.entity_id and p.entity_id==getattr(self,'_indicated',None) and not wall_line and p.role!='wall-layer-fill' and hasattr(item,'setPen'):
                 ind=QPen(QColor(240,140,30));ind.setWidthF(.03);ind.setCosmetic(False);item.setPen(ind)
             if preview and p.kind=='polygon' and dict(p.meta).get('fits') is False:item.setBrush(QBrush(QColor(210,40,40,45)))
             if preview and p.kind=='polygon' and dict(p.meta).get('semantic')=='wall-body-preview':

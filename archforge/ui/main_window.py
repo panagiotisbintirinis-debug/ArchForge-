@@ -28,6 +28,10 @@ from .approved_mockup_shell import install_approved_mockup_shell
 from . import slab_tools
 
 
+
+# Site tools placed by one click that also take a click on the 3D ground with «Ταυτόχρονα 2D + 3D» (HANDOFF 30/10).
+SITE_POINT_TOOLS_3D = ('plant_tree', 'plant_shrub', 'pool_place', 'terrain_point', 'library_place', 'dome_place')
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -69,6 +73,11 @@ class MainWindow(QMainWindow):
         self.plan_view.previewChanged.connect(self.pbr_view.set_stair_preview)
         self.plan_view.viewLineRequested.connect(self._apply_view_line)
         self.plan_view.sitePointRequested.connect(self._place_site_point)
+        self.pbr_view.sitePointRequested.connect(self._place_site_point_3d)
+        from archforge.ui import layer_pick
+        self.plan_view.layer_pick = None
+        self.plan_view.layer_highlight = layer_pick.Highlight(self)
+        self.plan_view.layerPicked.connect(lambda eid, x, y, at: layer_pick.pick(self, eid, x, y, at.toPoint()))
         self.plan_view.siteLineRequested.connect(self._place_site_line)
         self.plan_view.railingRequested.connect(self._place_railing)
         self.plan_view.slabOpeningRequested.connect(lambda pts: slab_tools.place_opening(self, pts))
@@ -95,6 +104,8 @@ class MainWindow(QMainWindow):
         install_cabinet_run(self)        # «Γραμμή ντουλαπιών» (kitchen/cabinet_run.py)
         from archforge.ui import shortcuts
         shortcuts.install(self)          # editable keyboard shortcuts (Επεξεργασία → Συντομεύσεις πληκτρολογίου…)
+        from archforge.ui import units_dialog
+        units_dialog.install(self)       # Επεξεργασία → Μονάδες μέτρησης… (cm on screen, IFC m / mm)
         from archforge.ui import camera_tool
         camera_tool.install(self)        # Κάμερες: tool, list, «Επιστροφή στην κάμερα» (CAM1)
         from archforge.ui import terrain_tools
@@ -752,7 +763,18 @@ class MainWindow(QMainWindow):
             central.setCurrentIndex(0)
         self.view = self.plan_view
         self.plan_view.controller.set_tool(tool)
-        self.statusBar().showMessage(message, 8000)
+        both = simultaneous is not None and simultaneous.isChecked()
+        self.pbr_view.set_site_point_tool(tool if both and tool in SITE_POINT_TOOLS_3D else None)
+        self.statusBar().showMessage(message + (' · ή κλικ στο έδαφος στο 3D' if both and tool in SITE_POINT_TOOLS_3D else ''),
+                                     8000)
+
+    def _place_site_point_3d(self, tool, x, y):
+        """A site point tool's click on the 3D ground: the same placement as a click in the plan, while the plan
+        still has that tool (a tool changed or ended meanwhile puts the 3D back to orbit, nothing placed)."""
+        if self.plan_view.controller.tool != tool:
+            self.pbr_view.set_site_point_tool(None)
+            return
+        self._place_site_point(tool, x, y)
 
     def _place_site_line(self, tool, x1, y1, x2, y2):
         if tool == 'elec_led_strip':
@@ -1618,7 +1640,7 @@ class MainWindow(QMainWindow):
         if entity.params.get('wall_type', 'generic') == wall_type:
             return
         changes = {'wall_type': str(wall_type)}
-        thickness = total_thickness(wall_type)
+        thickness = total_thickness(wall_type, self.doc)
         if thickness > 0:
             changes['thickness'] = thickness
         from archforge.architecture.curved_wall import spread_command
@@ -2433,23 +2455,17 @@ class MainWindow(QMainWindow):
             from archforge.ui.curved_wall_tool import inspector_rows
             inspector_rows(self, entity)
         if entity.kind == 'wall':
-            from archforge.architecture.wall_types import WALL_TYPES, indicative_u, layers
+            from archforge.architecture.wall_types import wall_types
             combo = QComboBox()
-            for key, (label, _layers) in WALL_TYPES.items():
+            for key, (label, _layers) in wall_types(self.doc).items():
                 combo.addItem(label, key)
             current_type = params.get('wall_type', 'generic')
             combo.setCurrentIndex(max(0, combo.findData(current_type)))
             combo.currentIndexChanged.connect(
                 lambda _i, widget=combo, entity_id=eid: self._set_wall_type(entity_id, widget.currentData()))
             self.form.addRow('Τύπος τοίχου', combo)
-            build_up = layers(current_type)
-            if build_up:
-                text = '<br>'.join(f'{name} {d * 100:g} cm' for name, d, _l, _c, _i in build_up)
-                u = indicative_u(current_type)
-                text += f'<br><i>U ≈ {u:.2f} W/m²K — ενδεικτικό (τυπικά λ, EN ISO 6946), όχι μελέτη ΚΕΝΑΚ</i>'
-                label = QLabel(text)
-                label.setWordWrap(True)
-                self.form.addRow('Στρώσεις (έξω→μέσα)', label)
+            from archforge.ui.wall_layers_panel import add_rows as wall_layer_rows
+            wall_layer_rows(self, eid)
         if entity.kind == 'railing':
             from archforge.ui.railing_panel import add_railing_rows
             add_railing_rows(self, eid)
@@ -3764,73 +3780,8 @@ class MainWindow(QMainWindow):
         label.setText('Κάτοψη - ' + level_label(name))
 
     def _build_assistant_panel(self):
-        """Βοηθός: live proposals from rules and solvers over the whole Document (no AI, no network)."""
-        panel = QWidget(self)
-        layout = QVBoxLayout(panel)
-        layout.setContentsMargins(6, 6, 6, 6)
-        layout.addWidget(QLabel('<b>ΒΟΗΘΟΣ</b> — προτάσεις από κανόνες & υπολογισμούς, εφαρμογή μόνο με έγκρισή σου'))
-        self.assistant_list = QListWidget(panel)
-        self.assistant_list.currentRowChanged.connect(self._show_assistant_detail)
-        layout.addWidget(self.assistant_list, 2)
-        self.assistant_detail = QLabel(panel)
-        self.assistant_detail.setWordWrap(True)
-        layout.addWidget(self.assistant_detail)
-        row = QHBoxLayout()
-        self.assistant_apply = QPushButton('Εφαρμογή', panel)
-        self.assistant_apply.clicked.connect(self._apply_assistant_proposal)
-        self.assistant_dismiss = QPushButton('Αγνόηση', panel)
-        self.assistant_dismiss.clicked.connect(self._dismiss_assistant_proposal)
-        row.addWidget(self.assistant_apply)
-        row.addWidget(self.assistant_dismiss)
-        layout.addLayout(row)
-        tools = QGroupBox('Εργαλεία υπολογισμού', panel)
-        tools_layout = QVBoxLayout(tools)
-        joists = QPushButton('Διανομή δοκίδων ταβανιού (κλικ σε χώρο)', tools)
-        joists.clicked.connect(lambda: self._start_site_tool(
-            'assist_joists', 'Κλικ μέσα σε χώρο της κάτοψης: οι δοκίδες μοιράζονται και διαστασιολογούνται — Esc για τέλος'))
-        tools_layout.addWidget(joists)
-        self.assistant_joists_button = joists
-        layout.addWidget(tools)
-        target_box = QGroupBox('Στόχος', panel)
-        target_layout = QVBoxLayout(target_box)
-        pick_row = QHBoxLayout()
-        self.assistant_pick = QPushButton('📍 Δείξε στην κάτοψη', target_box)
-        self.assistant_pick.clicked.connect(lambda: self._start_site_tool(
-            'assist_point', 'Κλικ εκεί που θέλεις να επέμβει ο Βοηθός — Esc για τέλος'))
-        self.assistant_from_selection = QPushButton('Στόχος = επιλογή (2D/3D)', target_box)
-        self.assistant_from_selection.clicked.connect(self._assistant_target_from_selection)
-        clear = QPushButton('✕', target_box)
-        clear.setMaximumWidth(32)
-        clear.clicked.connect(lambda: self._set_assistant_target(None))
-        pick_row.addWidget(self.assistant_pick)
-        pick_row.addWidget(self.assistant_from_selection)
-        pick_row.addWidget(clear)
-        target_layout.addLayout(pick_row)
-        self.assistant_target_label = QLabel('Κανένας στόχος — οι προτάσεις αφορούν όλο το έργο', target_box)
-        self.assistant_target_label.setWordWrap(True)
-        target_layout.addWidget(self.assistant_target_label)
-        self.assistant_actions = QListWidget(target_box)
-        self.assistant_actions.setMaximumHeight(120)
-        self.assistant_actions.itemDoubleClicked.connect(lambda item: self._run_assistant_action(self.assistant_actions.row(item)))
-        target_layout.addWidget(self.assistant_actions)
-        ask_row = QHBoxLayout()
-        self.assistant_text = QLineEdit(target_box)
-        self.assistant_text.setPlaceholderText('Τι θέλεις εδώ; π.χ. «βάλε εξαερισμό», «μεγάλωσε τη δοκό»')
-        self.assistant_text.returnPressed.connect(self._assistant_ask)
-        ask = QPushButton('Εκτέλεση', target_box)
-        ask.clicked.connect(self._assistant_ask)
-        ask_row.addWidget(self.assistant_text)
-        ask_row.addWidget(ask)
-        target_layout.addLayout(ask_row)
-        self.assistant_reply = QLabel(target_box)
-        self.assistant_reply.setWordWrap(True)
-        target_layout.addWidget(self.assistant_reply)
-        layout.addWidget(target_box)
-        self._assistant_target = None
-        self._assistant_target_actions = []
-        self._assistant_proposals = []
-        self._assistant_dismissed = set()
-        return panel
+        from archforge.ui.assistant_panel import build
+        return build(self)
 
     def _propose_frame(self):
         """Columns and beams from the walls (one undo), then the structural analysis."""
@@ -4032,11 +3983,15 @@ class MainWindow(QMainWindow):
         return action
 
     def _assistant_ask(self):
-        """Typed request for the pointed target, matched to the available actions (keywords, no AI)."""
+        """Typed request: optional Ollama, otherwise the existing deterministic target actions."""
         from archforge.assistant.target import match
         text = self.assistant_text.text().strip()
         if not text:
             return None
+        from archforge.ui.ollama_assistant import enabled, ask
+        self.assistant_reply.add_message("ΕΣΥ", text)
+        if enabled(self):
+            return ask(self, text)
         if self._assistant_target is None:
             self.assistant_reply.setText('Δείξε πρώτα πού (📍 ή «Στόχος = επιλογή»), ώστε να ξέρω σε τι αναφέρεσαι.')
             return None
@@ -4084,6 +4039,10 @@ class MainWindow(QMainWindow):
         self.assistant_actions.clear()
         for a in self._assistant_target_actions:
             self.assistant_actions.addItem(f"▶ {a.label}" + (f" — {a.info}" if a.info else ''))
+        from archforge.ui.ollama_assistant import pending_proposal
+        ollama_proposal = pending_proposal(self)
+        if ollama_proposal is not None and ollama_proposal.key not in self._assistant_dismissed:
+            self._assistant_proposals.insert(0, ollama_proposal)
         icons = {'warning': '⚠', 'hint': '💡', 'info': 'ℹ'}
         self.assistant_list.blockSignals(True)
         self.assistant_list.clear()
@@ -4109,6 +4068,9 @@ class MainWindow(QMainWindow):
         p = self._current_assistant_proposal()
         if p is None or not p.actionable:
             return
+        if p.key.startswith('ollama:'):
+            from archforge.ui.ollama_assistant import apply_proposal
+            return apply_proposal(self, p)
         if p.run == 'brief':
             self._edit_project_brief()
             self._refresh_assistant()
@@ -4478,41 +4440,12 @@ class MainWindow(QMainWindow):
         return result
 
     def _show_takeoff(self):
-        """Quantity take-off per room (paint, tiles, skirting, demolition) with CSV export."""
-        from PySide6.QtWidgets import QTextBrowser
-        from archforge.quantities.takeoff import COLUMNS, take_off, to_csv
-        result = take_off(self.doc)
-        rows = ''.join('<tr>' + ''.join(f'<td>{r[k]}</td>' for k, _l in COLUMNS) + '</tr>' for r in result['rooms'])
-        t, d = result['totals'], result['demolition']
-        html = ('<h2>Επιμέτρηση εργασιών</h2><table border=1 cellspacing=0 cellpadding=3><tr>'
-                + ''.join(f'<th>{label}</th>' for _k, label in COLUMNS) + '</tr>' + rows
-                + '<tr><td><b>Σύνολο</b></td><td></td>' + ''.join(f'<td><b>{t.get(k, "")}</b></td>' for k, _l in COLUMNS[2:]) + '</tr></table>'
-                + f"<h3>Καθαιρέσεις / διανοίξεις</h3><p>Τοίχοι σε καθαίρεση: {d['count']} — {d['walls_m2']} m², {d['walls_m3']} m³<br>"
-                + f"Νέα ανοίγματα σε υφιστάμενους τοίχους: {d['openings_to_cut']} — {d['openings_to_cut_m2']} m²</p>"
-                + f"<p><i>{result['provenance']}</i></p>")
-        dialog = QDialog(self)
-        dialog.setWindowTitle('Επιμέτρηση εργασιών')
-        dialog.resize(1100, 600)
-        layout = QVBoxLayout(dialog)
-        browser = QTextBrowser(dialog)
-        browser.setHtml(html)
-        layout.addWidget(browser)
-        export = QPushButton('Αποθήκευση CSV (για τιμολόγηση)…', dialog)
-
-        def save_csv():
-            path, _ = QFileDialog.getSaveFileName(self, 'Επιμέτρηση CSV', 'epimetrisi.csv', 'CSV (*.csv)')
-            if path:
-                with open(path, 'w', encoding='utf-8-sig') as f:
-                    f.write(to_csv(result))
-        export.clicked.connect(save_csv)
-        layout.addWidget(export)
-        priced = QPushButton('Λίστα υλικών με τιμές (Excel)…', dialog)
-        priced.clicked.connect(lambda: self._export_priced_lists())
-        layout.addWidget(priced)
-        self._takeoff_view = browser
-        if not getattr(self, '_no_modal_dialogs', False):
-            dialog.exec()
-        return result
+        """Επιμέτρηση εργασιών: the per-room take-off and every measured list, ticked by choice, with prices and margin
+        (ui/takeoff_view.py)."""
+        from archforge.quantities.takeoff import take_off
+        from archforge.ui import takeoff_view
+        takeoff_view.show(self)
+        return take_off(self.doc)
 
     def _edit_prices(self):
         """Prices, client and VAT for the quote (one undoable change); every measured item is listed."""
@@ -4526,9 +4459,10 @@ class MainWindow(QMainWindow):
         form = QFormLayout(dialog)
         client = QLineEdit(s['client'], dialog); project = QLineEdit(s['project'], dialog)
         vat = QDoubleSpinBox(dialog); vat.setRange(0, 50); vat.setValue(s['vat']); vat.setSuffix(' %')
+        margin = QDoubleSpinBox(dialog); margin.setRange(0, 200); margin.setDecimals(1); margin.setValue(s['margin']); margin.setSuffix(' %')
         validity = QSpinBox(dialog); validity.setRange(1, 365); validity.setValue(s['validity_days']); validity.setSuffix(' ημέρες')
         notes = QPlainTextEdit(s['notes'], dialog); notes.setFixedHeight(54)
-        form.addRow('Πελάτης', client); form.addRow('Έργο', project); form.addRow('ΦΠΑ', vat)
+        form.addRow('Πελάτης', client); form.addRow('Έργο', project); form.addRow('Περιθώριο', margin); form.addRow('ΦΠΑ', vat)
         form.addRow('Ισχύς προσφοράς', validity); form.addRow('Σημειώσεις', notes)
         from archforge.quantities.quote import row_meta
         rows = [row_meta(row) for _n, _t, items, _no in all_lists(self.doc) for row in items]
@@ -4551,13 +4485,13 @@ class MainWindow(QMainWindow):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel, dialog)
         buttons.accepted.connect(dialog.accept); buttons.rejected.connect(dialog.reject)
         form.addRow(buttons)
-        self._prices_dialog = (dialog, table, client, project, vat, validity, notes)
+        self._prices_dialog = (dialog, table, client, project, vat, validity, notes, margin)
         if getattr(self, '_no_modal_dialogs', False) or dialog.exec() == QDialog.DialogCode.Accepted:
             return self._apply_prices_dialog()
         return None
 
     def _apply_prices_dialog(self):
-        dialog, table, client, project, vat, validity, notes = self._prices_dialog
+        dialog, table, client, project, vat, validity, notes, margin = self._prices_dialog
         from archforge.quantities.quote import price_entity, settings
         current = price_entity(self.doc)
         trade = dict((current.params.get('trade_prices') or {}) if current else {})
@@ -4584,7 +4518,7 @@ class MainWindow(QMainWindow):
         # The table contains the resolved shared book. Its edit replaces older
         # canonical entries too, rather than leaving contradictory duplicates.
         params = {'prices': legacy, 'trade_prices': trade, 'entries': {}, 'client': client.text().strip(), 'project': project.text().strip(),
-                  'vat': float(vat.value()), 'validity_days': int(validity.value()), 'notes': notes.toPlainText().strip()}
+                  'vat': float(vat.value()), 'margin': float(margin.value()), 'validity_days': int(validity.value()), 'notes': notes.toPlainText().strip()}
         entity = price_entity(self.doc)
         if entity is None:
             entity = Entity('price_list', params, name='Τιμές & προσφορά')

@@ -591,7 +591,8 @@ def install_layout2(window):
     toolbar_custom.install(window)              # right click on a group: its buttons, add a command, icon size
     from archforge.ui import mouse_menus
     mouse_menus.install(window)                 # Εργαλεία ▸ Μενού ποντικιού: the right-click menu per task, by the human
-    from archforge.ui.workspace_layout import LAYOUT_VERSION, persistence_enabled, restore_layout
+    from archforge.ui.workspace_layout import LAYOUT_VERSION, guard_work_area, persistence_enabled, restore_layout
+    guard_work_area(window)                     # the plan / 3D keeps its room whatever the panels do
     # The default captured before this regrouping is stale: take it again (same version as the saved one).
     window._default_layout_state = window.saveState(LAYOUT_VERSION)
     window._workspace_bars = tuple(getattr(window, "_tool_groups", {}).values()) + tuple(

@@ -89,6 +89,61 @@ def plan_symbol(params, letter="Α"):
     return {"line": (a, b), "arrows": arrows, "labels": labels}
 
 
+def _line_intervals(polygon, origin, along):
+    """[(u0, u1)] where the line origin + along·u runs inside ``polygon`` (plan)."""
+    hits = []
+    n = len(polygon)
+    for i in range(n):
+        p, q = polygon[i], polygon[(i + 1) % n]
+        ex, ey = q[0] - p[0], q[1] - p[1]
+        den = along[0] * ey - along[1] * ex
+        if abs(den) < 1e-12:
+            continue
+        wx, wy = p[0] - origin[0], p[1] - origin[1]
+        u = (wx * ey - wy * ex) / den
+        t = (wx * along[1] - wy * along[0]) / den
+        if -1e-9 <= t < 1 - 1e-9:
+            hits.append(u)
+    hits.sort()
+    return [(hits[i], hits[i + 1]) for i in range(0, len(hits) - 1, 2) if hits[i + 1] - hits[i] > 1e-6]
+
+
+def _clip_u(loop, u0, u1):
+    """The part of a (u, z) loop between two verticals (Sutherland–Hodgman on the strip)."""
+    def cut(pts, keep, edge):
+        out = []
+        for i, p in enumerate(pts):
+            q = pts[(i + 1) % len(pts)]
+            if keep(p):
+                out.append(p)
+            if keep(p) != keep(q):
+                t = (edge - p[0]) / (q[0] - p[0])
+                out.append((edge, p[1] + (q[1] - p[1]) * t))
+        return out
+    pts = cut(list(loop), lambda p: p[0] >= u0, u0)
+    return cut(pts, lambda p: p[0] <= u1, u1) if pts else []
+
+
+def wall_layer_cuts(doc, cuts, origin, along):
+    """The cut walls' layers (spec §3 step 4): ``[{"id", "material", "hatch", "colour", "insulation", "points"}]`` —
+    each layer band of the plan (``wall_layer_plan``) where the section line crosses it, over the wall's cut."""
+    from archforge.architecture.wall_layer_plan import wall_bands
+    out = []
+    for c in cuts:
+        w = doc.entities.get(c["id"])
+        if c["kind"] != "wall" or w is None:
+            continue
+        for band in wall_bands(doc, w):
+            for outer, _holes in band["islands"]:
+                for u0, u1 in _line_intervals(outer, origin, along):
+                    for loop in c["loops"]:
+                        pts = _clip_u(loop, u0, u1)
+                        if len(pts) >= 3:
+                            out.append({"id": c["id"], "material": band["material"], "hatch": band["hatch"],
+                                        "colour": band["colour"], "insulation": band["insulation"], "points": pts})
+    return out
+
+
 def _clip_polygon(points, depths):
     """Part of a 3D polygon on the looked-at side (depth ≥ 0), with its depths."""
     out, out_d = [], []
@@ -233,7 +288,8 @@ def cut_section(doc, params, evaluation=None, depth=None):
     """The section drawing on ``params`` (a section_line's x1, y1, x2, y2, flip).
 
     Returns ``{"cuts": [{"id", "kind", "style", "loops", "chains"}],
-    "faces": [{"points", "depth", "fill", "edges"}] (far to near), "levels": [...],
+    "faces": [{"points", "depth", "fill", "edges"}] (far to near), "levels": [...], "layers": the cut walls'
+    layers (``wall_layer_cuts``),
     "bounds": (u0, z0, u1, z1), "length": line length}``.
     """
     (ox, oy), (ux, uy), (nx, ny), length = frame(params)
@@ -328,5 +384,5 @@ def cut_section(doc, params, evaluation=None, depth=None):
     if u0 == math.inf:
         u0, z0, u1, z1 = 0.0, 0.0, length, 3.0
     return {"cuts": cuts, "faces": faces, "levels": levels(doc), "terrain_marks": sorted(terrain_marks),
-            "pools": pool_cuts(doc, params),
+            "pools": pool_cuts(doc, params), "layers": wall_layer_cuts(doc, cuts, (ox, oy), (ux, uy)),
             "bounds": (u0, z0, u1, z1), "length": length}

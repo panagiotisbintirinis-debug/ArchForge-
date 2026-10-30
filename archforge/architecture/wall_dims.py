@@ -77,8 +77,9 @@ def offset_for(doc, eid, side, clear):
 
 
 def fmt(v):
-    """«3,45» — metres with two decimals and a Greek comma."""
-    return f"{v:.2f}".replace(".", ",")
+    """A length in the unit the human chose (``core/units``: cm by default — «345»; m «3,45»; mm «3450»)."""
+    from archforge.core.units import fmt_length
+    return fmt_length(v)
 
 
 # ------------------------------------------------------------------ any object: its clearances to the walls

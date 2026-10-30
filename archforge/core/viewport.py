@@ -117,7 +117,7 @@ class PointerController:
         elif choice:
             from archforge.architecture.wall_types import total_thickness
             self.active.wall_type=str(choice)
-            if total_thickness(choice)>0:self.active.thickness=float(total_thickness(choice))
+            if total_thickness(choice,self.doc)>0:self.active.thickness=float(total_thickness(choice,self.doc))
         # The line drawn is a face of the wall (brief: exterior / interior dimensions).
         from archforge.project.brief import get_brief
         brief=get_brief(self.doc)

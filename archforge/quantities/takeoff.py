@@ -124,6 +124,17 @@ def slab_quantities(doc):
     return out
 
 
+def _floor_material(doc, signature):
+    """Name of the finish on the room's floor slab (the material painted on it), or ''."""
+    from archforge.rendering.materials import material_name
+    for e in doc.entities.values():
+        if e.kind == "room_floor" and str(e.params.get("room_signature")) == str(signature):
+            p = e.params
+            mid = (p.get("surface_materials") or {}).get("top") or p.get("material_id")
+            return material_name(mid, doc) if mid else ""
+    return ""
+
+
 def take_off(doc):
     """``{"rooms": [...], "demolition": {...}, "totals": {...}, "provenance": str}``."""
     from archforge.assistant.understanding import read_drawing
@@ -152,8 +163,9 @@ def take_off(doc):
             walls = max(0.0, perim * h - openings)
             wet = r["use"] in ("bathroom", "wc")
             wall_tiles = max(0.0, perim * min(h, WET_TILE_HEIGHT) - below) if wet else 0.0
-            finish = str((doc.room_metadata(r["signature"]) or {}).get("floor_finish", "")).lower()
-            wood = any(k in finish for k in ("ξύλ", "ξυλ", "wood", "parquet", "πάρκε", "παρκε"))
+            floor_material = _floor_material(doc, r["signature"])
+            finish = str((doc.room_metadata(r["signature"]) or {}).get("floor_finish", "") or floor_material).lower()
+            wood = any(k in finish for k in ("ξύλ", "ξυλ", "wood", "parquet", "πάρκε", "παρκε", "δρυς", "καρυδιά"))
             rooms.append({
                 "storey": storey["name"], "name": r["name"], "use": r["use"], "height_m": round(h, 2),
                 "floor_m2": round(floor, 2), "perimeter_m": round(perim, 2), "ceiling_m2": round(ceiling, 2),
@@ -161,6 +173,7 @@ def take_off(doc):
                 "paint_walls_m2": round(walls - wall_tiles, 2), "paint_ceiling_m2": round(ceiling, 2),
                 "floor_tiles_m2": 0.0 if wood else round(floor, 2), "wood_floor_m2": round(floor, 2) if wood else 0.0,
                 "wall_tiles_m2": round(wall_tiles, 2), "skirting_m": 0.0 if wet else round(max(0.0, perim - door_w), 2),
+                "floor_finish": str((doc.room_metadata(r["signature"]) or {}).get("floor_finish", "") or floor_material),
             })
     demo = {"walls_m2": 0.0, "walls_m3": 0.0, "count": 0, "openings_to_cut": 0, "openings_to_cut_m2": 0.0}
     for e in doc.entities.values():
