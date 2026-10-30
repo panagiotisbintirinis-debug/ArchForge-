@@ -127,7 +127,7 @@ def surfaces(doc):
             gross = length * float(p.get("height", 0.0))
             holes = sum(float(o.params.get("width", 0.0)) * float(o.params.get("height", 0.0)) for o in doc.entities.values()
                         if o.kind in ("door", "window", "opening") and o.parent_id == wid)
-            ins = [l for l in layers(p.get("wall_type", "generic")) if l[4]]
+            ins = [l for l in layers(p.get("wall_type", "generic"), doc) if l[4]]
             entry = _entry("exterior_wall", wid, f"Τοίχος {length:.2f} m".replace(".", ","), name, max(0.0, gross - holes))
             if ins:
                 entry.update(thermal=ins[0][0], thickness=sum(l[1] for l in ins), source="element")

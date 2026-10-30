@@ -82,8 +82,8 @@ def wall_defaults(doc, choice=None):
     elif choice:
         from archforge.architecture.wall_types import total_thickness
         wall_type = str(choice)
-        if total_thickness(choice) > 0:
-            thickness = float(total_thickness(choice))
+        if total_thickness(choice, doc) > 0:
+            thickness = float(total_thickness(choice, doc))
     return {"height": float(height), "thickness": float(thickness), **({"wall_type": wall_type} if wall_type else {}),
             **extra}
 

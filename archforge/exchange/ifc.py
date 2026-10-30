@@ -95,13 +95,13 @@ class _Writer:
 
     # ------------------------------------------------------------------ materials
     def layer_set(self, wall_type, thickness):
-        from archforge.architecture.wall_types import WALL_TYPES, layers
+        from archforge.architecture.wall_types import label as type_label, layers
         key = (str(wall_type), round(float(thickness), 4))
         if key in self.materials:
             return self.materials[key]
-        label = WALL_TYPES.get(str(wall_type), (str(wall_type), []))[0]
+        label = type_label(wall_type, self.doc)
         mset = self.run("material.add_material_set", name=f"{label} {thickness * 100:.0f} cm", set_type="IfcMaterialLayerSet")
-        rows = layers(wall_type) or [("Τοιχοποιία", float(thickness), None, None, None)]
+        rows = layers(wall_type, self.doc) or [("Τοιχοποιία", float(thickness), None, None, None)]
         for row in rows:
             mat = self.material(str(row[0]))
             layer = self.run("material.add_layer", layer_set=mset, material=mat)
@@ -172,7 +172,7 @@ def export_ifc(doc, path, project_name="ArchForge"):
     """Write ``path`` (IFC4).  Returns a summary: counts per IFC class, storeys, spaces, what was left out."""
     w = _Writer(doc, project_name)
     bodies = _bodies(doc)
-    from archforge.architecture.wall_types import WALL_TYPES, indicative_u
+    from archforge.architecture.wall_types import indicative_u, label as type_label
     left_out = {}
     exterior = _exterior_ids(doc)
     for e in sorted(doc.entities.values(), key=lambda e: (e.kind, e.id)):
@@ -198,7 +198,7 @@ def export_ifc(doc, path, project_name="ArchForge"):
             w.pset(el, "Pset_WallCommon", {"LoadBearing": bool(p.get("load_bearing", False)),
                                             "IsExternal": e.id in exterior,
                                             "ThermalTransmittance": round(u, 3) if u else None,
-                                            "Reference": WALL_TYPES.get(str(wall_type), (str(wall_type),))[0]})
+                                            "Reference": type_label(wall_type, doc)})
             for o in _openings(doc, e):
                 verts, tris, (ow, oh, sill) = _opening_box(e, o)
                 hole = w.element("IfcOpeningElement", f"Άνοιγμα {o.name or ''}".strip(), "OPENING", None,

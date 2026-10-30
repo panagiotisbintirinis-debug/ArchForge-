@@ -207,6 +207,20 @@ def _wall_button(window, parent):
         if key=="generic":continue
         thick=total_thickness(key)
         types.addAction(add(key,f"{label}" + (f" · {thick * 100:.1f} cm" if thick>0 else "")))
+
+    def project_types_too():
+        # The project's own assemblies (wall_assemblies.py) appear under the built-in ones when the menu opens.
+        from archforge.architecture.wall_types import is_project_type, project_types
+        current=project_types(window.doc)
+        for key in [k for k in window._mockup_wall_choices if k and is_project_type(k) and k not in current]:
+            act=window._mockup_wall_choices.pop(key); types.removeAction(act); group.removeAction(act)
+        for key,(label,layers) in current.items():
+            thick=total_thickness(key,window.doc); text=f"★ {label} · {thick * 100:.1f} cm"
+            if key in window._mockup_wall_choices:
+                window._mockup_wall_choices[key].setText(text)
+            else:
+                types.addAction(add(key,text))
+    types.aboutToShow.connect(project_types_too)
     button.setMenu(menu)
     return button
 

@@ -1618,7 +1618,7 @@ class MainWindow(QMainWindow):
         if entity.params.get('wall_type', 'generic') == wall_type:
             return
         changes = {'wall_type': str(wall_type)}
-        thickness = total_thickness(wall_type)
+        thickness = total_thickness(wall_type, self.doc)
         if thickness > 0:
             changes['thickness'] = thickness
         from archforge.architecture.curved_wall import spread_command
@@ -2433,9 +2433,9 @@ class MainWindow(QMainWindow):
             from archforge.ui.curved_wall_tool import inspector_rows
             inspector_rows(self, entity)
         if entity.kind == 'wall':
-            from archforge.architecture.wall_types import WALL_TYPES, indicative_u, layers
+            from archforge.architecture.wall_types import indicative_u, layers, wall_types
             combo = QComboBox()
-            for key, (label, _layers) in WALL_TYPES.items():
+            for key, (label, _layers) in wall_types(self.doc).items():
                 combo.addItem(label, key)
             current_type = params.get('wall_type', 'generic')
             combo.setCurrentIndex(max(0, combo.findData(current_type)))

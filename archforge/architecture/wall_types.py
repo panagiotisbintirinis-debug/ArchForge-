@@ -12,29 +12,39 @@ sheet's λ.  It ignores thermal bridges, studs and moisture, so it is not a
 verified energy calculation (e.g. KENAK).
 """
 import math
+import re
 
 RSI, RSE = 0.13, 0.04
+# The project's own assemblies (spec §3 step 2): ``doc.constructions["walltype:proj_…"]`` =
+# ``{"label", "layers": [{"material", "thickness", "role"}]}`` (``architecture/wall_assemblies.py`` edits them).
+PROJECT_PREFIX = "proj_"
+CONSTRUCTION_PREFIX = "walltype:"
+_PROJECT_KEY = re.compile(r"proj_[0-9a-z_]+")
 
 
 class Layer(tuple):
     """``(name, thickness m, λ W/mK, colour, insulation?)`` of one layer, plus the building-material id it is made of
     (``construction/building_materials.py``) — every reader that unpacks the five fields keeps working."""
 
-    def __new__(cls, material_id, thickness, doc=None):
+    def __new__(cls, material_id, thickness, doc=None, role=None):
         from archforge.construction.building_materials import material
         m = material(material_id, doc)
         if m is None:
             raise KeyError(f"unknown building material {material_id}")
         self = super().__new__(cls, (m.name, float(thickness), m.conductivity, m.colour, m.insulation))
         self.material_id = m.id
+        self.role = str(role or m.role)          # structure / insulation / finish / board (building_materials.ROLES)
         return self
 
     def __reduce__(self):
-        return (Layer, (self.material_id, self[1]))
+        return (Layer, (self.material_id, self[1], None, self.role))
 
     def with_doc(self, doc):
         """The same layer with the project's data-sheet values (λ) of its material."""
-        return Layer(self.material_id, self[1], doc)
+        return Layer(self.material_id, self[1], doc, self.role)
+
+    def spec(self):
+        return {"material": self.material_id, "thickness": self[1], "role": self.role}
 
 
 _PLASTER = Layer("cement_plaster", 0.02)
@@ -82,8 +92,48 @@ WALL_TYPES.update(_icf_layers())
 GLASS_WALL = {"thickness": 0.05, "material_id": "glass_clear", "label": "Γυάλινος τοίχος (διάφανος)"}
 
 
+def is_project_type(wall_type):
+    return bool(_PROJECT_KEY.fullmatch(str(wall_type)))
+
+
+def is_valid_key(wall_type):
+    """A built-in type, or a project type key (resolved with the project's ``doc``)."""
+    return str(wall_type) in WALL_TYPES or is_project_type(wall_type)
+
+
+def project_types(doc):
+    """``{key: (label, [Layer])}`` the project defines (an unreadable entry is left out)."""
+    out = {}
+    for k, v in sorted((getattr(doc, "constructions", None) or {}).items()):
+        key = str(k)[len(CONSTRUCTION_PREFIX):]
+        if not str(k).startswith(CONSTRUCTION_PREFIX) or not is_project_type(key) or not isinstance(v, dict):
+            continue
+        try:
+            ls = [Layer(r["material"], float(r["thickness"]), doc, r.get("role")) for r in v.get("layers") or ()]
+        except (KeyError, TypeError, ValueError):
+            continue
+        out[key] = (str(v.get("label") or key), ls)
+    return out
+
+
+def wall_types(doc=None):
+    """Built-in types, then the project's own ones."""
+    out = dict(WALL_TYPES)
+    if doc is not None:
+        out.update(project_types(doc))
+    return out
+
+
+def label(wall_type, doc=None):
+    entry = wall_types(doc).get(str(wall_type))
+    return entry[0] if entry else str(wall_type)
+
+
 def layers(wall_type, doc=None):
-    """The type's layers, exterior first; with ``doc`` the project's data-sheet λ of each material applies."""
+    """The type's layers, exterior first; with ``doc`` the project's own types and the data-sheet λ of each material
+    apply.  A project type without its ``doc`` (or missing from it) has no layers, like ``generic``."""
+    if is_project_type(wall_type):
+        return list(project_types(doc).get(str(wall_type), (None, []))[1]) if doc is not None else []
     entry = WALL_TYPES.get(str(wall_type))
     out = list(entry[1]) if entry and entry[1] else []
     return [layer.with_doc(doc) for layer in out] if doc is not None else out
@@ -92,11 +142,11 @@ def layers(wall_type, doc=None):
 def layer_materials(wall_type, doc=None):
     """``[(building material, thickness m)]`` of the type, exterior first."""
     from archforge.construction.building_materials import material
-    return [(material(layer.material_id, doc), layer[1]) for layer in layers(wall_type)]
+    return [(material(layer.material_id, doc), layer[1]) for layer in layers(wall_type, doc)]
 
 
-def total_thickness(wall_type):
-    return sum(layer[1] for layer in layers(wall_type))
+def total_thickness(wall_type, doc=None):
+    return sum(layer[1] for layer in layers(wall_type, doc))
 
 
 def indicative_u(wall_type, doc=None):
@@ -113,18 +163,18 @@ def indicative_u(wall_type, doc=None):
     return 1.0 / r
 
 
-def face_colors(wall_type, sign=1):
+def face_colors(wall_type, sign=1, doc=None):
     """(side A colour, side B colour) of the finishing layers; ``sign`` −1 = side B faces outside
     (``wall_face.outside_sign``): the assembly's exterior layer is on side B."""
-    ls = layers(wall_type)
+    ls = layers(wall_type, doc)
     if not ls:
         return None
     return (ls[0][3], ls[-1][3]) if sign >= 0 else (ls[-1][3], ls[0][3])
 
 
-def layer_lines(params, wall_type, sign=1):
+def layer_lines(params, wall_type, sign=1, doc=None):
     """Plan lines at internal layer boundaries: ``[(points, is_insulation_boundary)]`` (``sign`` as ``face_colors``)."""
-    ls = layers(wall_type)
+    ls = layers(wall_type, doc)
     if sign < 0:
         ls = list(reversed(ls))                   # the exterior layers on side B
     if len(ls) < 2:

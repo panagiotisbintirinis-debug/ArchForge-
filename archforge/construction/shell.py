@@ -43,7 +43,7 @@ def _openings_area(doc, wall_id):
 
 def masonry_list(doc):
     """m² of wall per wall type (one face, net of openings); bricks only with the user's pieces/m²."""
-    from archforge.architecture.wall_types import WALL_TYPES
+    from archforge.architecture.wall_types import label
     per = {}
     for w in doc.entities.values():
         if w.kind != "wall":
@@ -57,7 +57,7 @@ def masonry_list(doc):
     pieces = _spec(doc)
     rows = []
     for kind, area in sorted(per.items()):
-        name = WALL_TYPES.get(kind, (kind,))[0]
+        name = label(kind, doc)
         label = "Τοιχοποιία — τύπος δεν ορίστηκε" if kind == "generic" else f"Τοιχοποιία {name}"
         rows.append((label, "m²", round(area, 2), _meta(f"masonry.{kind}", "Εμβαδόν τοίχων αυτού του τύπου από το σχέδιο, "
                                                                           "μείον πόρτες και παράθυρα.")))

@@ -137,10 +137,10 @@ def _stair_layout(v):
 
 
 def _wall_type(v):
-    from archforge.architecture.wall_types import WALL_TYPES
+    from archforge.architecture.wall_types import WALL_TYPES, is_valid_key
     v = str(v)
-    if v not in WALL_TYPES:
-        raise ValueError(f'wall type must be one of {", ".join(WALL_TYPES)}')
+    if not is_valid_key(v):
+        raise ValueError(f'wall type must be one of {", ".join(WALL_TYPES)} or a project type proj_…')
     return v
 
 
