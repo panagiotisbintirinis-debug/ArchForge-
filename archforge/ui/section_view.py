@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (QGraphicsItem, QGraphicsScene, QGraphicsTextItem,
 
 from archforge.core.commands import AddEntity, UpdateEntity
 from archforge.core.model import Entity
+from archforge.ui.plan_view import LAYER_HATCH      # one hatch per material in plan and section
 
 INK = QColor(25, 28, 34)
 CUT_FILL = {"concrete": (QColor(120, 124, 130), Qt.BrushStyle.SolidPattern),
@@ -73,6 +74,18 @@ class _Drawing(QGraphicsItem):
             painter.setPen(heavy if cut["style"] != "joinery" else edge); painter.drawPath(path)
             for chain in cut["chains"]:
                 painter.drawPolyline(QPolygonF([QPointF(*q) for q in chain]))
+        # A cut wall's layers, hatched by material over its fill (section_cut.wall_layer_cuts).
+        thin = QPen(INK); thin.setCosmetic(True); thin.setWidthF(0.8)
+        for layer in self.data.get("layers", ()):
+            poly = QPolygonF([QPointF(u, z) for u, z in layer["points"]])
+            painter.setPen(Qt.PenStyle.NoPen); painter.setBrush(QColor(layer["colour"]).lighter(115)); painter.drawPolygon(poly)
+            hatch = QBrush(QColor(layer["colour"]).darker(190), LAYER_HATCH.get(layer["hatch"], Qt.BrushStyle.Dense6Pattern))
+            hatch.setTransform(painter.worldTransform().inverted()[0])
+            painter.setBrush(hatch); painter.drawPolygon(poly)
+            edge_pen = QPen(thin)
+            if layer["insulation"]:
+                edge_pen.setStyle(Qt.PenStyle.DashLine)
+            painter.setBrush(Qt.BrushStyle.NoBrush); painter.setPen(edge_pen); painter.drawPolygon(poly)
 
 
 class SectionView(QGraphicsView):

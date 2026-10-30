@@ -992,10 +992,15 @@ def build_plan_frame(doc,preview=None,layers=True):
             for part in (room_slab_geometry(doc,doc.get(eid)) or {}).get('parts',())[1:]:
                 f.primitives.append(Primitive2D('polygon',tuple(part),entity_id=eid,role=p.role,meta=p.meta))
         if p and doc.get(eid).kind=='wall' and doc.get(eid).params.get('wall_type','generic')!='generic':
-            # Layer boundaries of the wall assembly; insulation drawn dashed.
-            from archforge.architecture.wall_types import layer_lines
-            from archforge.architecture.wall_face import outside_sign
-            for pts,insulation in layer_lines(doc.get(eid).params,doc.get(eid).params['wall_type'],outside_sign(doc,eid),doc):
+            # Each layer of the wall assembly hatched by its material, mitred at corners, cut at openings (spec §3
+            # step 4); the boundaries between layers on top, insulation dashed.
+            from archforge.architecture.wall_layer_plan import boundaries,wall_bands
+            for band in wall_bands(doc,doc.get(eid)):
+                for outer,holes in band['islands']:
+                    f.primitives.append(Primitive2D('polygon',tuple(outer),entity_id=eid,role='wall-layer-fill',
+                        meta=(('islands',((tuple(outer),tuple(tuple(h) for h in holes)),)),('hatch',band['hatch']),
+                              ('colour',band['colour']),('material',band['material']))))
+            for pts,insulation in boundaries(doc,doc.get(eid)):
                 f.primitives.append(Primitive2D('polyline',tuple(pts),entity_id=eid,role='wall-insulation' if insulation else 'wall-layer'))
         if p and doc.get(eid).kind=='pitched_roof':
             from archforge.structure.timber_roof import members
