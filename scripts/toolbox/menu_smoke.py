@@ -42,8 +42,6 @@ def _patch_dialogs():
     QMessageBox.about = staticmethod(lambda *a, **k: None)          # «Σχετικά με» waited for OK forever
     QMessageBox.aboutQt = staticmethod(lambda *a, **k: None)
     QMessageBox.exec = lambda self, *a, **k: int(QMessageBox.StandardButton.Cancel)
-    QMessageBox.about = staticmethod(lambda *a, **k: None)
-    QMessageBox.aboutQt = staticmethod(lambda *a, **k: None)
 
 
 def _leaves(menu, path=()):
