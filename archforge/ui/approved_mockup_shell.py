@@ -749,6 +749,8 @@ def install_approved_mockup_shell(window):
     window.tabifyDockWidget(window.dock,assistant_dock)
     window.dock.raise_()
     window._assistant_dock=assistant_dock
+    from archforge.ui.assistant_panel import install_launcher
+    install_launcher(window,assistant_dock)
     # One task-dependent mouse menu in the plan and in the 3D views.
     for view in (window.plan_view,window.pbr_view,window.structural_view):
         view.marking_menu_window=window

@@ -3721,73 +3721,8 @@ class MainWindow(QMainWindow):
         label.setText('Κάτοψη - ' + level_label(name))
 
     def _build_assistant_panel(self):
-        """Βοηθός: live proposals from rules and solvers over the whole Document (no AI, no network)."""
-        panel = QWidget(self)
-        layout = QVBoxLayout(panel)
-        layout.setContentsMargins(6, 6, 6, 6)
-        layout.addWidget(QLabel('<b>ΒΟΗΘΟΣ</b> — προτάσεις από κανόνες & υπολογισμούς, εφαρμογή μόνο με έγκρισή σου'))
-        self.assistant_list = QListWidget(panel)
-        self.assistant_list.currentRowChanged.connect(self._show_assistant_detail)
-        layout.addWidget(self.assistant_list, 2)
-        self.assistant_detail = QLabel(panel)
-        self.assistant_detail.setWordWrap(True)
-        layout.addWidget(self.assistant_detail)
-        row = QHBoxLayout()
-        self.assistant_apply = QPushButton('Εφαρμογή', panel)
-        self.assistant_apply.clicked.connect(self._apply_assistant_proposal)
-        self.assistant_dismiss = QPushButton('Αγνόηση', panel)
-        self.assistant_dismiss.clicked.connect(self._dismiss_assistant_proposal)
-        row.addWidget(self.assistant_apply)
-        row.addWidget(self.assistant_dismiss)
-        layout.addLayout(row)
-        tools = QGroupBox('Εργαλεία υπολογισμού', panel)
-        tools_layout = QVBoxLayout(tools)
-        joists = QPushButton('Διανομή δοκίδων ταβανιού (κλικ σε χώρο)', tools)
-        joists.clicked.connect(lambda: self._start_site_tool(
-            'assist_joists', 'Κλικ μέσα σε χώρο της κάτοψης: οι δοκίδες μοιράζονται και διαστασιολογούνται — Esc για τέλος'))
-        tools_layout.addWidget(joists)
-        self.assistant_joists_button = joists
-        layout.addWidget(tools)
-        target_box = QGroupBox('Στόχος', panel)
-        target_layout = QVBoxLayout(target_box)
-        pick_row = QHBoxLayout()
-        self.assistant_pick = QPushButton('📍 Δείξε στην κάτοψη', target_box)
-        self.assistant_pick.clicked.connect(lambda: self._start_site_tool(
-            'assist_point', 'Κλικ εκεί που θέλεις να επέμβει ο Βοηθός — Esc για τέλος'))
-        self.assistant_from_selection = QPushButton('Στόχος = επιλογή (2D/3D)', target_box)
-        self.assistant_from_selection.clicked.connect(self._assistant_target_from_selection)
-        clear = QPushButton('✕', target_box)
-        clear.setMaximumWidth(32)
-        clear.clicked.connect(lambda: self._set_assistant_target(None))
-        pick_row.addWidget(self.assistant_pick)
-        pick_row.addWidget(self.assistant_from_selection)
-        pick_row.addWidget(clear)
-        target_layout.addLayout(pick_row)
-        self.assistant_target_label = QLabel('Κανένας στόχος — οι προτάσεις αφορούν όλο το έργο', target_box)
-        self.assistant_target_label.setWordWrap(True)
-        target_layout.addWidget(self.assistant_target_label)
-        self.assistant_actions = QListWidget(target_box)
-        self.assistant_actions.setMaximumHeight(120)
-        self.assistant_actions.itemDoubleClicked.connect(lambda item: self._run_assistant_action(self.assistant_actions.row(item)))
-        target_layout.addWidget(self.assistant_actions)
-        ask_row = QHBoxLayout()
-        self.assistant_text = QLineEdit(target_box)
-        self.assistant_text.setPlaceholderText('Τι θέλεις εδώ; π.χ. «βάλε εξαερισμό», «μεγάλωσε τη δοκό»')
-        self.assistant_text.returnPressed.connect(self._assistant_ask)
-        ask = QPushButton('Εκτέλεση', target_box)
-        ask.clicked.connect(self._assistant_ask)
-        ask_row.addWidget(self.assistant_text)
-        ask_row.addWidget(ask)
-        target_layout.addLayout(ask_row)
-        self.assistant_reply = QLabel(target_box)
-        self.assistant_reply.setWordWrap(True)
-        target_layout.addWidget(self.assistant_reply)
-        layout.addWidget(target_box)
-        self._assistant_target = None
-        self._assistant_target_actions = []
-        self._assistant_proposals = []
-        self._assistant_dismissed = set()
-        return panel
+        from archforge.ui.assistant_panel import build
+        return build(self)
 
     def _propose_frame(self):
         """Columns and beams from the walls (one undo), then the structural analysis."""
@@ -3995,7 +3930,8 @@ class MainWindow(QMainWindow):
         if not text:
             return None
         from archforge.ui.ollama_assistant import enabled, ask
-        if enabled():
+        self.assistant_reply.add_message("ΕΣΥ", text)
+        if enabled(self):
             return ask(self, text)
         if self._assistant_target is None:
             self.assistant_reply.setText('Δείξε πρώτα πού (📍 ή «Στόχος = επιλογή»), ώστε να ξέρω σε τι αναφέρεσαι.')

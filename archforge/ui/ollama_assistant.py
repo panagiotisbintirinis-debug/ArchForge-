@@ -15,14 +15,15 @@ class _Signals(QObject):
 
 
 class _Question(QRunnable):
-    def __init__(self, context, question, history):
+    def __init__(self, context, question, history, model=None):
         super().__init__()
         self.context, self.question, self.history = context, question, history
+        self.model = model
         self.signals = _Signals()
 
     def run(self):
         try:
-            answer = ProjectAssistant(OllamaClient()).ask(self.context, self.question, self.history)
+            answer = ProjectAssistant(OllamaClient(model=self.model)).ask(self.context, self.question, self.history)
             self.signals.finished.emit(answer, '')
         except OllamaError as exc:
             self.signals.finished.emit(None, str(exc))
@@ -65,7 +66,8 @@ class Controller(QObject):
             self.history.clear()
         self.pending = None
         self._document = window.doc
-        self._job = _Question(context, text, list(self.history))
+        self._job = _Question(context, text, list(self.history), window.assistant_model.currentText().strip() or None)
+        window.assistant_send.setEnabled(False)
         self._job.signals.finished.connect(self._finished, Qt.ConnectionType.QueuedConnection)
         window.assistant_reply.setText('Ollama: εξετάζω το έργο…' + (' Νέο πλαίσιο: το έργο άλλαξε.' if changed else ''))
         window._refresh_assistant()
@@ -76,6 +78,7 @@ class Controller(QObject):
         job = self._job
         self._job = None
         window = self.window
+        window.assistant_send.setEnabled(True)
         if self._document is not window.doc or not job.context.current(window.doc):
             self.pending = None
             window.assistant_reply.setText('Το έργο άλλαξε όσο απαντούσε το Ollama. Η παλιά απάντηση απορρίφθηκε· ξαναστείλε την ερώτηση.')
@@ -95,6 +98,8 @@ class Controller(QObject):
         if window.assistant_text.text().strip() == job.question:
             window.assistant_text.clear()
         window._refresh_assistant()
+        if self.pending:
+            window.assistant_pages.setTabText(1, "Προτάσεις • νέα")
 
     def proposal(self):
         if self.pending:
@@ -105,7 +110,9 @@ class Controller(QObject):
         return None
 
 
-def enabled():
+def enabled(window=None):
+    if window is not None and hasattr(window, "assistant_provider"):
+        return window.assistant_provider.currentIndex() == 1
     return os.getenv('ARCHFORGE_AI_PROVIDER', '').strip().lower() == 'ollama'
 
 

@@ -172,7 +172,8 @@ def test_existing_panel_async_ask_apply_undo_and_stale_reply(monkeypatch):
     from archforge.orchestration.ollama import Answer
     app = QApplication.instance() or QApplication([])
     window = MainWindow()
-    monkeypatch.setenv('ARCHFORGE_AI_PROVIDER', 'ollama')
+    # Owner requested in-panel activation; exercise the real provider selector.
+    window.assistant_provider.setCurrentIndex(1)
     release = threading.Event(); entered = threading.Event()
     try:
         from archforge.core.commands import AddEntity
@@ -219,4 +220,42 @@ def test_existing_panel_async_ask_apply_undo_and_stale_reply(monkeypatch):
         from PySide6.QtCore import QThreadPool
         QThreadPool.globalInstance().waitForDone(6000)
         app.processEvents()
+        window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_launcher_restores_panel_and_connection_selector(monkeypatch):
+    import time
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QApplication
+    from archforge.ui.main_window import MainWindow
+    from archforge.ui.assistant_panel import OllamaClient
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    try:
+        window.show(); app.processEvents()
+        window._assistant_dock.hide(); app.processEvents()
+        QTest.mouseClick(window.assistant_launcher, Qt.MouseButton.LeftButton)
+        app.processEvents()
+        assert window._assistant_dock.isVisible()
+        assert window.assistant_pages.tabText(0) == 'Συνομιλία'
+        assert window.assistant_tools_layout.count() == 2
+        window._layout_assist.start('kitchen')
+        assert window.assistant_pages.currentWidget() is window.assistant_arrangement_page
+        QTest.mouseClick(window.assistant_launcher, Qt.MouseButton.LeftButton)
+        assert window.assistant_pages.currentIndex() == 0
+        monkeypatch.setattr(OllamaClient, 'models', lambda self: ['fixture-a', 'fixture-b'])
+        QTest.mouseClick(window.assistant_connect, Qt.MouseButton.LeftButton)
+        deadline = time.monotonic() + 3
+        while window._assistant_connection_controller.job is not None and time.monotonic() < deadline:
+            app.processEvents(); time.sleep(.01)
+        assert window.assistant_model.count() == 2
+        assert window.assistant_model.currentIndex() == -1  # User chooses; no guessed model.
+        assert window.assistant_provider.currentIndex() == 1
+        assert '2 μοντέλα' in window.assistant_connection.text()
+        window.assistant_reply.add_message('ΕΣΥ', '<script>literal text</script>')
+        window.assistant_reply.setText('Δεύτερη απάντηση')
+        assert '<script>literal text</script>' in window.assistant_reply.toPlainText()
+        assert 'Δεύτερη απάντηση' in window.assistant_reply.toPlainText()
+    finally:
         window._mark_clean(); window.close(); app.processEvents()

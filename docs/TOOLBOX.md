@@ -94,3 +94,5 @@
 | Εργαλείο | Τι κάνει | Χρήση |
 |---|---|---|
 | `archforge/orchestration/ollama.py` + `archforge/ui/ollama_assistant.py` | Ollama: όλο το Document με σελιδοποίηση, πραγματικό μητρώο Ιδιοτήτων/TOOLBOX, εκκρεμής πρόταση μέσω της κοινής εντολής με Undo. Δεν αλλάζει έργο πριν από Εφαρμογή. | `docs/OLLAMA.md` · `tests/test_ollama_adapter.py` |
+
+| `archforge/ui/assistant_panel.py` | Κοινό πάνελ βοηθού, launcher, ασύγχρονη σύνδεση/επιλογή μοντέλου, συνομιλία και καρτέλες εργαλείων. | `docs/OLLAMA.md` · `tests/test_ollama_adapter.py` |
