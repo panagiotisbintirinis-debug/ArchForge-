@@ -331,6 +331,7 @@ def organize_main_menus(window):
 
 # ------------------------------------------------------------------ the work menus (owner 30/10: «ναι στο 4»)
 WORK_MENUS = ("Έργο", "Επεξεργασία", "Κατασκευή", "Εγκαταστάσεις", "Διαμόρφωση", "Σχέδια", "Προβολή", "⚙ Ρυθμίσεις")
+BAR = ("__first_row__", "")      # home of the commands always at hand (Κάνναβος · Έλξη · Βοηθός)
 # Old menus without a namesake: where a reference to them (a group's title button …) points now — (menu, section).
 SUCCESSORS = {"Αρχείο": ("Έργο", ""), "CAD": ("Σχέδια", ""), "Βιβλιοθήκη": ("Διαμόρφωση", "Βιβλιοθήκη"),
               "Εργαλεία": ("Διαμόρφωση", ""), "Βοήθεια": ("⚙ Ρυθμίσεις", "")}
@@ -414,6 +415,8 @@ def organize_work_menus(window):
     menus, sections, placed, old_paths, old_cpaths, old_menus, keep, dynamic = {}, {}, set(), {}, {}, {}, [], []
     old_tops = {_key(t): m for t, m in tops}
     window._work_mirrors = []
+    quick_row = getattr(window, "_top_row", None) is not None
+    window._quick_actions, window._quick_paths = [], {}
 
     def top_menu(name):
         if name not in menus:
@@ -440,6 +443,8 @@ def organize_work_menus(window):
 
     def where(path):
         h = home(SEP_TEXT.join(path))
+        if h.startswith("Γραμμή εργασίας (") and "πάντα ορατό" not in h and quick_row:
+            return BAR                                         # always at hand in the first row
         return None if h == UNPLACED else _target(h)
 
     size, counted = {}, []                                     # commands per section, each command once
@@ -464,7 +469,13 @@ def organize_work_menus(window):
                 if id(a) in placed:
                     continue                                   # one home per command
                 t = where(p) or (_key(path[0]), "")
-                section_menu(*t).addAction(a)
+                if t == BAR:
+                    from archforge.ui.layout2 import add_quick_action
+                    add_quick_action(window, a)
+                    window._quick_actions.append(a)
+                    window._quick_paths[SEP.join(cp)] = a          # saved buttons / mouse menus still find it
+                else:
+                    section_menu(*t).addAction(a)
                 placed.add(id(a)); old_paths[id(a)] = p; old_cpaths[id(a)] = cp
                 continue
             leaves = _leaf_paths(sub, p)
@@ -482,8 +493,8 @@ def organize_work_menus(window):
                 for x in sub.actions():
                     placed.add(id(x)); keep.append(x)
                 continue
-            if len(homes) != 1 or None in homes:
-                move(sub, p, cp)                               # split between homes
+            if len(homes) != 1 or None in homes or BAR in homes:
+                move(sub, p, cp)                               # split between homes (or to the first row)
                 counts = {h: sum(1 for lp, _la in leaves if where(lp) == h) for h in homes if h and h[1]}
                 if counts and not sub.icon().isNull():
                     most = section_menu(*max(counts, key=counts.get))

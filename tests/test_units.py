@@ -59,7 +59,7 @@ def test_the_dialog_changes_the_plan_dimensions(tmp_path, monkeypatch):
     app = QApplication.instance() or QApplication([])
     w = MainWindow()
     try:
-        assert w._units_action in w._mockup_menus['Επεξεργασία'].actions()
+        assert w._units_action in w._work_sections[('⚙ Ρυθμίσεις', 'Γενικά')].actions()   # mockup v4
         assert fmt(3.45) == '345'
         dlg = units_dialog.open_dialog(w)
         dlg.display.setCurrentIndex(dlg.display.findData('m'))

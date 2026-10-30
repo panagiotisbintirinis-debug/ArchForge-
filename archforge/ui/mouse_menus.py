@@ -160,6 +160,9 @@ def _entries(window, items, live):
 def _find_action(window, path):
     from archforge.ui.main_menus import resolve_path
     from archforge.ui.toolbar_custom import SEP
+    quick = (getattr(window, "_quick_paths", None) or {}).get(path)
+    if quick is not None:
+        return quick                             # now a button of the first row (Κάνναβος · Έλξη · Βοηθός)
     path = resolve_path(window, path)            # a path saved before the work menus (owner 30/10)
     parts = path.split(SEP)
     actions = window.menuBar().actions()

@@ -21,7 +21,9 @@ def test_first_row_has_name_quick_buttons_and_the_menus_on_the_right(window):
     row = window.menuWidget()
     assert row is window._top_row and window.menuBar() is window._top_menu_bar
     assert window._top_menu_bar.parentWidget() is row
-    assert [b.defaultAction() for b in window._quick_buttons] == [window.save_action, window.undo_action, window.redo_action]
+    quick = [b.defaultAction() for b in window._quick_buttons]
+    assert quick[:3] == [window.save_action, window.undo_action, window.redo_action]
+    assert quick[3:] == window._quick_actions                  # mockup v4: Κάνναβος · Έλξη · Βοηθός after them
     # menus at the right end of the row, the name at the left
     assert window._top_menu_bar.geometry().right() > row.width() - 40
     assert window._project_name_label.geometry().left() < 200
