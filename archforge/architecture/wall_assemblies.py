@@ -99,3 +99,20 @@ def own_type_command(doc, wall_id, rows, name=None):
     total = round(sum(r["thickness"] for r in rows), 4)
     return key, CompositeCommand([create, spread_command(doc, wall_id, {"wall_type": key, "thickness": total})],
                                  label="Δική του σύνθεση")
+
+
+def default_scope(doc, wall_id):
+    """Where a layer change made in a wall's properties goes by default: a project type → all its walls; a built-in
+    type → this wall's own copy (the built-in ones never change)."""
+    wall_type = str(doc.get(wall_id).params.get("wall_type", "generic"))
+    return "type" if is_project_type(wall_type) and wall_type in project_types(doc) else "wall"
+
+
+def layer_change_command(doc, wall_id, rows, scope=None):
+    """The command for new ``rows`` typed in a wall's properties: ``scope`` "type" = every wall of its (project) type,
+    "wall" = this wall only (its own type)."""
+    scope = scope or default_scope(doc, wall_id)
+    wall_type = str(doc.get(wall_id).params.get("wall_type", "generic"))
+    if scope == "type":
+        return edit_type_command(doc, wall_type, rows=rows)
+    return own_type_command(doc, wall_id, rows)[1]

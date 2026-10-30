@@ -2433,7 +2433,7 @@ class MainWindow(QMainWindow):
             from archforge.ui.curved_wall_tool import inspector_rows
             inspector_rows(self, entity)
         if entity.kind == 'wall':
-            from archforge.architecture.wall_types import indicative_u, layers, wall_types
+            from archforge.architecture.wall_types import wall_types
             combo = QComboBox()
             for key, (label, _layers) in wall_types(self.doc).items():
                 combo.addItem(label, key)
@@ -2442,14 +2442,8 @@ class MainWindow(QMainWindow):
             combo.currentIndexChanged.connect(
                 lambda _i, widget=combo, entity_id=eid: self._set_wall_type(entity_id, widget.currentData()))
             self.form.addRow('Τύπος τοίχου', combo)
-            build_up = layers(current_type, self.doc)
-            if build_up:
-                text = '<br>'.join(f'{name} {d * 100:g} cm' for name, d, _l, _c, _i in build_up)
-                u = indicative_u(current_type, self.doc)
-                text += f'<br><i>U ≈ {u:.2f} W/m²K — ενδεικτικό (τυπικά λ, EN ISO 6946), όχι μελέτη ΚΕΝΑΚ</i>'
-                label = QLabel(text)
-                label.setWordWrap(True)
-                self.form.addRow('Στρώσεις (έξω→μέσα)', label)
+            from archforge.ui.wall_layers_panel import add_rows as wall_layer_rows
+            wall_layer_rows(self, eid)
         if entity.kind == 'railing':
             from archforge.ui.railing_panel import add_railing_rows
             add_railing_rows(self, eid)

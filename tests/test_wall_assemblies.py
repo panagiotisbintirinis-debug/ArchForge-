@@ -120,3 +120,18 @@ def test_the_wall_menu_lists_the_projects_types_when_it_opens():
         assert key not in w._mockup_wall_choices
     finally:
         w.hide()
+
+
+def test_a_change_in_the_walls_properties_goes_where_the_scope_says():
+    doc, stack = _doc()
+    a = _wall(stack, 0.0, "brick_partition", 0.13)
+    assert wa.default_scope(doc, a) == "wall"
+    stack.execute(wa.layer_change_command(doc, a, ROWS))          # built-in → its own copy
+    key = doc.get(a).params["wall_type"]
+    b = _wall(stack, 3.0, key, 0.32)
+    assert wa.default_scope(doc, a) == "type"
+    rows = wa.layer_specs(doc, key)[:3]
+    stack.execute(wa.layer_change_command(doc, a, rows))          # project type → both walls
+    assert [doc.get(a).params["thickness"], doc.get(b).params["thickness"]] == pytest.approx([0.21, 0.21])
+    stack.execute(wa.layer_change_command(doc, b, ROWS, scope="wall"))
+    assert doc.get(b).params["wall_type"] != key and doc.get(a).params["wall_type"] == key
