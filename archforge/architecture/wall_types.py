@@ -5,33 +5,56 @@ the wall line) to the interior face.  Choosing a type sets the wall's
 thickness to the sum of its layers; the wall's centre line stays put.
 
 The U-value shown is INDICATIVE only: the EN ISO 6946 sum of layer
-resistances d/λ plus surface resistances Rsi = 0.13, Rse = 0.04 m²K/W, using
-typical λ values listed here.  It ignores thermal bridges, studs, moisture
-and product data, so it is not a verified energy calculation (e.g. KENAK).
+resistances d/λ plus surface resistances Rsi = 0.13, Rse = 0.04 m²K/W.  Each
+layer is made of a building material (``construction/building_materials.py``)
+whose λ is a typical, unverified value unless the project entered the data
+sheet's λ.  It ignores thermal bridges, studs and moisture, so it is not a
+verified energy calculation (e.g. KENAK).
 """
 import math
 
 RSI, RSE = 0.13, 0.04
 
-# name, thickness (m), λ (W/mK, typical), colour, insulation?
-_PLASTER = ("Σοβάς", 0.02, 0.87, "#ece6da", False)
-_GYPSUM = ("Γυψοσανίδα", 0.0125, 0.25, "#f1efea", False)
-_BRICK = ("Οπτόπλινθος διάτρητος", 0.09, 0.47, "#b5653b", False)
-_STONE = ("Λιθοδομή", 0.50, 1.70, "#9b8f7d", False)
-_CONCRETE = ("Οπλισμένο σκυρόδεμα", 0.25, 2.30, "#a3a3a0", False)
-_BEARING_MASONRY = ("Φέρουσα τοιχοποιία", 0.25, 0.80, "#a8704a", False)
+
+class Layer(tuple):
+    """``(name, thickness m, λ W/mK, colour, insulation?)`` of one layer, plus the building-material id it is made of
+    (``construction/building_materials.py``) — every reader that unpacks the five fields keeps working."""
+
+    def __new__(cls, material_id, thickness, doc=None):
+        from archforge.construction.building_materials import material
+        m = material(material_id, doc)
+        if m is None:
+            raise KeyError(f"unknown building material {material_id}")
+        self = super().__new__(cls, (m.name, float(thickness), m.conductivity, m.colour, m.insulation))
+        self.material_id = m.id
+        return self
+
+    def __reduce__(self):
+        return (Layer, (self.material_id, self[1]))
+
+    def with_doc(self, doc):
+        """The same layer with the project's data-sheet values (λ) of its material."""
+        return Layer(self.material_id, self[1], doc)
+
+
+_PLASTER = Layer("cement_plaster", 0.02)
+_GYPSUM = Layer("gypsum_board", 0.0125)
+_BRICK = Layer("hollow_brick", 0.09)
+_STONE = Layer("stone_masonry", 0.50)
+_CONCRETE = Layer("reinforced_concrete", 0.25)
+_BEARING_MASONRY = Layer("bearing_masonry", 0.25)
 
 
 def _wool(d):
-    return ("Ορυκτοβάμβακας", d, 0.037, "#e8d38a", True)
+    return Layer("mineral_wool", d)
 
 
 def _xps(d):
-    return ("Εξηλασμένη πολυστερίνη (XPS)", d, 0.034, "#9cc3d9", True)
+    return Layer("xps", d)
 
 
 def _eps(d):
-    return ("Διογκωμένη πολυστερίνη (EPS)", d, 0.036, "#e9eef0", True)
+    return Layer("eps", d)
 
 
 WALL_TYPES = {
@@ -59,22 +82,31 @@ WALL_TYPES.update(_icf_layers())
 GLASS_WALL = {"thickness": 0.05, "material_id": "glass_clear", "label": "Γυάλινος τοίχος (διάφανος)"}
 
 
-def layers(wall_type):
+def layers(wall_type, doc=None):
+    """The type's layers, exterior first; with ``doc`` the project's data-sheet λ of each material applies."""
     entry = WALL_TYPES.get(str(wall_type))
-    return list(entry[1]) if entry and entry[1] else []
+    out = list(entry[1]) if entry and entry[1] else []
+    return [layer.with_doc(doc) for layer in out] if doc is not None else out
+
+
+def layer_materials(wall_type, doc=None):
+    """``[(building material, thickness m)]`` of the type, exterior first."""
+    from archforge.construction.building_materials import material
+    return [(material(layer.material_id, doc), layer[1]) for layer in layers(wall_type)]
 
 
 def total_thickness(wall_type):
     return sum(layer[1] for layer in layers(wall_type))
 
 
-def indicative_u(wall_type):
-    """Indicative U (W/m²K) from typical λ values, or None for generic walls (a block's published U when known)."""
+def indicative_u(wall_type, doc=None):
+    """Indicative U (W/m²K) from the layers' λ (the project's data-sheet values with ``doc``), or None for generic
+    walls (a block's published U when known)."""
     from archforge.construction.isotex import BLOCKS, code_of_wall_type
     code = code_of_wall_type(wall_type)
     if code and BLOCKS[code][6] is not None:
         return BLOCKS[code][6]
-    ls = layers(wall_type)
+    ls = layers(wall_type, doc)
     if not ls:
         return None
     r = RSI + RSE + sum(d / lam for _n, d, lam, _c, _i in ls)

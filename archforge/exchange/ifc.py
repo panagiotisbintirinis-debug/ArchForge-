@@ -194,7 +194,7 @@ def export_ifc(doc, path, project_name="ArchForge"):
         if e.kind == "wall":
             wall_type = p.get("wall_type", "generic")
             w.run("material.assign_material", products=[el], material=w.layer_set(wall_type, float(p["thickness"])))
-            u = indicative_u(wall_type)
+            u = indicative_u(wall_type, doc)
             w.pset(el, "Pset_WallCommon", {"LoadBearing": bool(p.get("load_bearing", False)),
                                             "IsExternal": e.id in exterior,
                                             "ThermalTransmittance": round(u, 3) if u else None,
