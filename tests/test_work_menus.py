@@ -86,3 +86,21 @@ def test_old_paths_still_find_the_command(window):
             assert cat[old] is cat[new]
         checked += 1
     assert checked > 100
+
+
+def test_grid_snap_and_assistant_are_always_at_hand_in_the_first_row(window):
+    """Mockup v4 step 3 (first part): Κάνναβος · Έλξη · Βοηθός are buttons of the first row, not menu entries."""
+    from archforge.ui.mouse_menus import _find_action
+    from archforge.ui.toolbar_custom import catalog
+    quick = window._quick_actions
+    assert {a.text() for a in quick} >= {'Κάνναβος', 'Βοηθός (πάνελ)'} and any(a.text().startswith('Έλξη') for a in quick)
+    in_menus = [a for _top, m in _bar(window) for _p, a in _leaves(m)]
+    assert not any(a in in_menus for a in quick)                                  # one home: the row
+    shown = [b.defaultAction() for b in window._quick_buttons]
+    assert all(a in shown for a in quick) and window.undo_action in shown
+    grid = next(a for a in quick if a.text() == 'Κάνναβος')
+    grid.trigger(); assert not window._mockup_grid_check.isChecked()               # same command as before
+    cat = catalog(window)
+    for old, a in window._quick_paths.items():                                     # saved paths still find it
+        assert cat[old] is a and _find_action(window, old) is a
+    assert 'Μονάδες μέτρησης…' in [a.text() for a in window._work_sections[('⚙ Ρυθμίσεις', 'Γενικά')].actions()]

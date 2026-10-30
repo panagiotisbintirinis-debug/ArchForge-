@@ -105,7 +105,7 @@ def test_moved_entries_still_run(window):
     column = next(a for a in _leaves(_top(window)['Κατασκευή']) if a.text() == 'Κολώνα')
     column.trigger()
     assert window.plan_view.controller.tool == 'structural_column'
-    grid = next(a for a in _leaves(_top(window)['Επεξεργασία']) if a.text() == 'Κάνναβος')   # always at hand (step 3)
+    grid = next(a for a in window._quick_actions if a.text() == 'Κάνναβος')       # a button of the first row (v4)
     grid.trigger()
     assert not window._mockup_grid_check.isChecked()
     assert window.sculpt_action in _leaves(_top(window)['Διαμόρφωση'])

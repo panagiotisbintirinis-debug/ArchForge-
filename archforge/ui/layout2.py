@@ -101,6 +101,14 @@ def _icon(kind, size=32):
     elif kind == "object":
         p.drawRect(QRectF(6, 9, 20, 16)); p.drawLine(QPointF(6, 9), QPointF(11, 4)); p.drawLine(QPointF(26, 9), QPointF(31, 4))
         p.drawLine(QPointF(11, 4), QPointF(31, 4))
+    elif kind == "grid":
+        for v in (6, 13, 20, 27):
+            p.drawLine(QPointF(v, 5), QPointF(v, 28)); p.drawLine(QPointF(5, v), QPointF(28, v))
+    elif kind == "snap":
+        p.drawEllipse(QRectF(9, 9, 14, 14)); p.drawLine(QPointF(16, 3), QPointF(16, 29)); p.drawLine(QPointF(3, 16), QPointF(29, 16))
+    elif kind == "assistant":
+        p.drawPolygon(QPolygonF([QPointF(16, 3), QPointF(19, 13), QPointF(29, 16), QPointF(19, 19), QPointF(16, 29),
+                                 QPointF(13, 19), QPointF(3, 16), QPointF(13, 13)]))
     elif kind == "gear":
         p.drawEllipse(QRectF(10, 10, 12, 12))
         for k in range(8):
@@ -151,6 +159,30 @@ def _install_top_row(window):
     show_name()
     window._top_row, window._top_menu_bar, window._quick_buttons, window._project_name_label = row, bar, quick, project
     return row
+
+
+def add_quick_action(window, action):
+    """A command always at hand in the first row (mockup v4: Κάνναβος · Έλξη · Βοηθός), before the menus; a
+    checkable one shows its state.  Returns the button, or None when the row is not there."""
+    row = getattr(window, "_top_row", None)
+    if row is None:
+        return None
+    h = row.layout()
+    sep = next((h.itemAt(i).widget() for i in range(h.count())
+                if type(h.itemAt(i).widget()) is QFrame), None)       # the line, not a QLabel (also a QFrame)
+    if action.icon().isNull():                          # small icons, the name in the tooltip (mockup v4)
+        text = action.text()
+        kind = "grid" if text.startswith("Κάνναβος") else "snap" if text.startswith("Έλξη") else \
+            "assistant" if text.startswith("Βοηθός") else None
+        if kind is not None:
+            action.setIcon(_icon(kind))
+    b = QToolButton(); b.setObjectName("quick"); b.setDefaultAction(action); b.setAutoRaise(True)
+    b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly if not action.icon().isNull()
+                         else Qt.ToolButtonStyle.ToolButtonTextOnly)
+    b.setIconSize(QSize(18, 18))
+    h.insertWidget(h.indexOf(sep) if sep is not None else h.count(), b)
+    window._quick_buttons.append(b)
+    return b
 
 
 # --------------------------------------------------------------------------- 2. tool groups
