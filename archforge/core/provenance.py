@@ -81,6 +81,7 @@ def _load():
     import archforge.mep.practice  # noqa: F401
     import archforge.mep.knx  # noqa: F401
     import archforge.structure.rules  # noqa: F401
+    import archforge.construction.icf  # noqa: F401
 
 
 # Standards references themselves (status of the documents the code cites).

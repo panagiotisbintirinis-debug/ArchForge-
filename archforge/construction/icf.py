@@ -48,6 +48,43 @@ PROVENANCE = ("Αναγωγή ICF: τεμάχιο 120×40 (2,08 τεμ./m²), κ
               "οπλισμός, πρέκια και σενάζ στη στατική μελέτη. Επιβεβαίωση με το φυλλάδιο του τεμαχίου — προς έλεγχο μηχανικού")
 WALL_TYPE_PREFIX = "icf_"
 
+# Status of every rule above (owner 15/10: no rule passes as checked because it is in the code — core/provenance.py).
+# Audit 30/10: the two sites named in SOURCE could not be opened from the cloud and no published 1200×400 data sheet
+# was found, so nothing here is VERIFIED; the take-off stays «προς επιβεβαίωση με το φυλλάδιο».
+from archforge.core.provenance import (DESIGN_DEFAULT, ENGINEER_REVIEW, MANUFACTURER_DATA,  # noqa: E402
+                                       UNVERIFIED, Rule, register)
+
+RULES = register(
+    Rule("icf.block_size", "Ευθύ τεμάχιο 1,20 × 0,40 m → 2,08 τεμ./m², σειρές = ⌈ύψος / 0,40⌉", DESIGN_DEFAULT,
+         note="Συνηθισμένο ευρωπαϊκό μέγεθος κατά τον κώδικα (icf-structures.co.uk) — δεν ανοίχτηκε· άλλοι κατασκευαστές "
+              "έχουν 1,22 × 0,41 (48″ × 16″) ή 1,00 × 0,25. Αλλάζει με το φυλλάδιο του τεμαχίου που παραγγέλνεται."),
+    Rule("icf.corner_block", "Γωνιακό 90° (≈0,80 + 0,40 m) ένα ανά γωνία ανά σειρά· γωνία = δύο τοίχοι ICF στις 60°–120°· "
+         "κάθε γωνιακό αντικαθιστά ≈1 ευθύ", DESIGN_DEFAULT,
+         note="Κανόνας αναγωγής του προγράμματος· οι γωνίες 45° και τα Τ γίνονται με κομμένα ευθέα (χωρίς ειδικό τεμάχιο)."),
+    Rule("icf.waste", "Φύρα ευθέων 5 % (κοπές σε άκρα, λαμπάδες, τελευταία σειρά)", DESIGN_DEFAULT),
+    Rule("icf.closures", "Κλεισίματα = περίμετρος κουφωμάτων + ύψος κάθε ελεύθερου άκρου (m)", DESIGN_DEFAULT,
+         note="Τελικά τεμάχια ή ξυλότυπος κατά το σύστημα — ο τρόπος ορίζεται από τον κατασκευαστή."),
+    Rule("icf.concrete_published", "Σκυρόδεμα πλήρωσης 140 l/m² (πυρήνας 15) και 190 l/m² (πυρήνας 20)", UNVERIFIED,
+         note="Ο κώδικας το αποδίδει στο althermicf.com «ICF Block Specification» — η σελίδα δεν ανοίχτηκε (30/10, δίκτυο). "
+              "Γεωμετρικά: πυρήνας × (1 − όγκος συνδέσμων) ≈ 0,94 × πυρήνας, συμβατό. Να μπει από το φυλλάδιο."),
+    Rule("icf.concrete_estimate", "Όπου δεν υπάρχει τιμή φυλλαδίου: σκυρόδεμα = πυρήνας × 0,94 m³/m² (με αστερίσκο)",
+         UNVERIFIED, note="Λόγος από τις δύο τιμές του icf.concrete_published — εκτίμηση, όχι στοιχείο κατασκευαστή."),
+    Rule("icf.concrete_sheet", "Τιμή σκυροδέματος l/m² ανά τύπο τεμαχίου", MANUFACTURER_DATA,
+         note="Τη δίνει το φυλλάδιο του συγκεκριμένου τεμαχίου· μέχρι τότε ισχύουν οι δύο παραπάνω."),
+    Rule("icf.eps_layers", "Στρώσεις τοίχου ICF: EPS λ 0,036 W/mK × 2 όψεις + πυρήνας σκυροδέματος λ 2,30 W/mK", UNVERIFIED,
+         note="Τυπικές τιμές (EPS 0,031–0,038 κατά πυκνότητα· οπλισμένο σκυρόδεμα 2,3 κατά EN ISO 10456) — το U είναι "
+              "ενδεικτικό, όχι μελέτη ΚΕΝΑΚ· το λ του EPS από το φυλλάδιο."),
+    Rule("icf.reinforcement", "Οπλισμός (κατακόρυφος/οριζόντιος), πρέκια, σενάζ: δεν μετρώνται — από τη στατική μελέτη",
+         ENGINEER_REVIEW),
+    Rule("icf.load_bearing", "Τοίχοι ICF στα Στοιχεία έργου = φέρων οργανισμός: το πρόγραμμα δεν προτείνει κολόνες",
+         ENGINEER_REVIEW, note="Επιλογή σχεδιασμού που ισχύει μόνο αν το επιβεβαιώσει ο στατικός (πάχος πυρήνα, οπλισμός, "
+                               "ύψος, ανοίγματα)."),
+    Rule("icf.bracing", "Σύστημα ευθυγράμμισης / αντιστήριξης: μετριέται σε m τοίχου (ενοικίαση)", DESIGN_DEFAULT),
+    Rule("icf.curved", "Καμπύλος τοίχος ICF: ευθέα τεμάχια μετρημένα στο συνολικό εμβαδόν του τόξου (μία στρογγύλευση) "
+         "και τα μέτρα του τόξου χωριστά", DESIGN_DEFAULT,
+         note="Σε μικρή ακτίνα χρειάζονται κομμένα ή ειδικά καμπύλα τεμάχια — κατά τον κατασκευαστή."),
+)
+
 # code: label, EPS per face (m), concrete core (m), concrete l/m² (None = estimate from the core)
 BLOCKS = {
     "15/65": ("ICF EPS 2×6,5 — πυρήνας 15", 0.065, 0.15, None),
@@ -162,13 +199,30 @@ def count_wall(doc, wall, joint=None):
     corner_blocks = joint["corners"] * courses
     closures = sum(2 * (w + min(h, height)) for w, h, _s in openings) + joint["free_ends"] * height
     litres, estimated = concrete_per_m2(code)
-    straight = max(0, math.ceil((net * BLOCKS_PER_M2 - corner_blocks) * (1 + WASTE) - 1e-9))
+    raw = max(0.0, (net * BLOCKS_PER_M2 - corner_blocks) * (1 + WASTE))
+    straight = math.ceil(raw - 1e-9)
     return {"wall": wall.id, "name": wall.name or wall.id[:6], "z": round(float(p.get("z", 0.0)), 2), "code": code,
             "length_m": round(length, 2), "height_m": round(height, 2), "courses": courses,
             "gross_m2": round(gross, 2), "openings_m2": round(holes, 2), "net_m2": round(net, 2),
             "blocks": straight, "corners": joint["corners"], "corner_blocks": corner_blocks,
             "free_ends": joint["free_ends"], "closures_m": round(closures, 2),
-            "concrete_m3": round(net * litres / 1000, 2), "concrete_estimated": estimated}
+            "concrete_m3": round(net * litres / 1000, 2), "concrete_estimated": estimated, "blocks_raw": raw,
+            "curve": (p.get("curve") or {}).get("id")}
+
+
+def _round_arcs(walls, rows):
+    """A curved wall is many short pieces: its straight blocks are rounded once for the whole arc (rule icf.curved),
+    not once per piece — 15 pieces rounded up one by one would order up to 15 blocks too many."""
+    arcs = {}
+    for r in rows:
+        if r.get("curve"):
+            arcs.setdefault(r["curve"], []).append(r)
+    for pieces in arcs.values():
+        total = math.ceil(sum(r["blocks_raw"] for r in pieces) - 1e-9)
+        given = 0
+        for r in pieces[:-1]:
+            r["blocks"] = math.floor(r["blocks_raw"] + 1e-9); given += r["blocks"]
+        pieces[-1]["blocks"] = max(0, total - given)
 
 
 def take_off_icf(doc):
@@ -176,6 +230,7 @@ def take_off_icf(doc):
     icf = _icf_walls(doc)
     js = joints(doc, icf)
     walls = [count_wall(doc, w, js[w.id]) for w in icf]
+    _round_arcs(icf, walls)
     by_code, by_storey = {}, {}
     keys = ("net_m2", "blocks", "corner_blocks", "closures_m", "concrete_m3", "length_m")
     for r in walls:
@@ -185,6 +240,7 @@ def take_off_icf(doc):
             for k in keys:
                 b[k] = round(b[k] + r[k], 2)
     totals = {"walls": len(walls), **{k: round(sum(r[k] for r in walls), 2) for k in keys}}
+    totals["curved_m"] = round(sum(r["length_m"] for r in walls if r.get("curve")), 2)
     return {"walls": walls, "by_code": by_code, "by_storey": by_storey, "totals": totals,
             "estimated": sorted({r["code"] for r in walls if r["concrete_estimated"]}), "provenance": PROVENANCE,
             "source": SOURCE}
@@ -203,6 +259,7 @@ def icf_list(doc):
              ("Σκυρόδεμα πλήρωσης πυρήνα" + (" (μέρος κατ' εκτίμηση)" if r["estimated"] else ""), "m³", t["concrete_m3"]),
              ("Οπλισμός τοιχωμάτων (κατακόρυφος/οριζόντιος) — από τη στατική μελέτη", "kg", None),
              ("Πρέκια / σενάζ — από τη στατική μελέτη", "m", None),
+             ("Καμπύλα τμήματα τοίχων ICF — κοπή ή ειδικά καμπύλα τεμάχια κατά τον κατασκευαστή", "m", t["curved_m"]),
              ("Σύστημα ευθυγράμμισης / αντιστήριξης (ενοικίαση)", "m", t["length_m"]),
              ("Εργασία τοποθέτησης τεμαχίων ICF", "m²", t["net_m2"]),
              ("Εργασία σκυροδέτησης πλήρωσης", "m³", t["concrete_m3"])]
@@ -236,4 +293,12 @@ def icf_html(result):
             "<th>Γωνιακά</th><th>Κλεισίματα m</th><th>Σκυρόδεμα m³</th></tr>" + rows + "</table>" + note +
             f"<p>Κλεισίματα: {t['closures_m']} m · ευθυγράμμιση/αντιστήριξη: {t['length_m']} m τοίχου · "
             "σύνδεσμοι (webs) ενσωματωμένοι στο τεμάχιο.</p>"
-            f"<p><i>{PROVENANCE}<br>Πηγή: {SOURCE}</i></p>")
+            f"<p><i>{PROVENANCE}<br>Πηγή: {SOURCE}</i></p>" + rules_html())
+
+
+def rules_html():
+    """The ICF rules with their status (core/provenance.py) — what is checked, what is ours, what needs the engineer."""
+    from archforge.core.provenance import STATUS_LABELS
+    rows = "".join(f"<tr><td>{STATUS_LABELS[r.status]}</td><td>{r.statement}</td><td>{r.note}</td></tr>" for r in RULES)
+    return ("<h3>Κανόνες της αναγωγής και η κατάστασή τους</h3><table border=1 cellspacing=0 cellpadding=3>"
+            "<tr><th>Κατάσταση</th><th>Κανόνας</th><th>Σημείωση</th></tr>" + rows + "</table>")
