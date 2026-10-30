@@ -42,6 +42,8 @@ def _patch_dialogs():
     QMessageBox.about = staticmethod(lambda *a, **k: None)          # «Σχετικά με» waited for OK forever
     QMessageBox.aboutQt = staticmethod(lambda *a, **k: None)
     QMessageBox.exec = lambda self, *a, **k: int(QMessageBox.StandardButton.Cancel)
+    QMessageBox.about = staticmethod(lambda *a, **k: None)
+    QMessageBox.aboutQt = staticmethod(lambda *a, **k: None)
 
 
 def _leaves(menu, path=()):
@@ -53,6 +55,17 @@ def _leaves(menu, path=()):
             yield from _leaves(action.menu(), path + (text,))
         elif text:
             yield path + (text,), action
+
+
+LOG = os.environ.get("MENU_SMOKE_LOG")
+
+
+def _log(label, error):
+    """Each result as it comes (a later hang loses nothing): one JSON line per command."""
+    if LOG:
+        with open(LOG, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"label": label, "error": error.strip().splitlines()[-1][:300] if error else ""},
+                                ensure_ascii=False) + "\n")
 
 
 def run(project=None):
@@ -95,6 +108,7 @@ def run(project=None):
                 action.trigger(); app.processEvents()
             except Exception:                                   # noqa: BLE001 — a command must never raise
                 errors.append(traceback.format_exc()[-600:])
+            _log(label, errors[-1] if len(errors) > before_err else "")
             if len(errors) > before_err:
                 rows.append((label, "BROKEN", errors[-1].strip().splitlines()[-1][:200]))
             elif w.statusBar().currentMessage() == status_before and len(w.stack.done) == undo_before:
