@@ -70,3 +70,25 @@ def test_inspector_wall_type_sets_type_and_thickness_with_undo():
         assert window.doc.get(wall.id).params['thickness'] == pytest.approx(0.2)
     finally:
         window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_wall_layers_show_in_3d_where_the_wall_is_cut():
+    """The top, the ends and the reveals of openings show each layer's colour (owner 30/10: layers in 3D)."""
+    from archforge.architecture.wall_types import layer_bands
+    from archforge.geometry.incremental import IncrementalEvaluationCache
+    from archforge.geometry.sculpt import SculptedPreviewBackend
+    from archforge.rendering.scene import build_pbr_scene_payload
+    t = total_thickness('brick_double_insulated')
+    doc = Document(); wall = _wall(wall_type='brick_double_insulated', thickness=t); doc.add(wall)
+    bands = layer_bands(wall.params, 'brick_double_insulated')
+    assert len(bands) == 5 and bands[0][0] == pytest.approx(t / 2) and bands[-1][1] == pytest.approx(-t / 2)
+    objs = build_pbr_scene_payload(IncrementalEvaluationCache(SculptedPreviewBackend()).sync(doc), [], doc=doc)['objects']
+    parts = {o['render_part'].split(':')[1]: o for o in objs if o['id'] == wall.id}
+    for k, (hi, lo, colour) in enumerate(bands):
+        part = parts[f'__layer_{k}__']
+        assert part['material']['color'] == colour and set(part['surfaces']) >= {'top'}
+        for tri in part['triangles']:                      # every piece lies inside its layer (wall along +x: d = y)
+            ys = [part['vertices'][i][1] for i in tri]
+            assert all(lo - 1e-6 <= y <= hi + 1e-6 for y in ys)
+    assert '__type_exterior__' in parts and '__type_interior__' in parts     # the faces keep their finish
+    assert layer_bands(wall.params, 'generic') == []

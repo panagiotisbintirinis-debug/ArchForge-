@@ -172,6 +172,25 @@ def face_colors(wall_type, sign=1, doc=None):
     return (ls[0][3], ls[-1][3]) if sign >= 0 else (ls[-1][3], ls[0][3])
 
 
+def layer_bands(params, wall_type, sign=1, doc=None):
+    """Each layer across the wall as ``[(offset_hi, offset_lo, colour)]``, side A (+normal) first: offsets along the
+    wall's normal from its centre line, scaled to its actual thickness (``sign`` as ``face_colors``).  The 3D shows
+    them where the wall is cut (top, ends, reveals); empty when the wall has fewer than two layers."""
+    ls = layers(wall_type, doc)
+    if sign < 0:
+        ls = list(reversed(ls))
+    t = float(params.get("thickness", 0.0))
+    total = sum(layer[1] for layer in ls)
+    if len(ls) < 2 or total <= 0 or t <= 0:
+        return []
+    out, hi = [], t / 2
+    for layer in ls:
+        lo = hi - layer[1] * t / total
+        out.append((hi, lo, layer[3]))
+        hi = lo
+    return out
+
+
 def layer_lines(params, wall_type, sign=1, doc=None):
     """Plan lines at internal layer boundaries: ``[(points, is_insulation_boundary)]`` (``sign`` as ``face_colors``)."""
     ls = layers(wall_type, doc)
