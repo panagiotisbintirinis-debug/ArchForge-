@@ -2932,8 +2932,9 @@ class MainWindow(QMainWindow):
     def _handle_object_context_action(self, entity_id, action_id):
         entity_id = str(entity_id)
         action_id = str(action_id)
-        if action_id.startswith('mm:'):
-            # Task actions of the mouse menu (from the 3D view).
+        if action_id.startswith(('mm:', 'menu:')):
+            # Task actions of the mouse menu (from the 3D view), and menu-bar commands the human put in it
+            # (mouse_menus.py: «Έδαφος ▸ Πισίνα» chosen in 3D did nothing, owner 29–30/10).
             from archforge.ui.marking_menu import run
             run(self, 'pbr', entity_id or None, action_id)
             return
