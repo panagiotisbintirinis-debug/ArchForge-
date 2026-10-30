@@ -90,6 +90,8 @@
 ## Περιβάλλον cloud
 
 - Πλήρης σειρά τεστ: `QTWEBENGINE_DISABLE_SANDBOX=1 QT_QPA_PLATFORM=offscreen python -m pytest -q` (~10 λεπτά).
-- Αν τα Qt τεστ πέφτουν με `libEGL.so.1: cannot open shared object file`: `apt-get install -y libegl1 libgl1 libxkbcommon0`.
+- Αν τα Qt τεστ πέφτουν με `libEGL.so.1: cannot open shared object file`: `apt-get install -y libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3`
+  (αν δεν βρει πακέτα: πρώτα `apt-get update`).
   Είναι θέμα του container, όχι του κώδικα· μην το δηλώσεις ως αποτυχία του branch.
 - `pip install -r requirements.txt pytest` (το pytest δεν είναι στο requirements).
+- Πιο γρήγορα, παράλληλα: `pip install pytest-xdist` και `… python -m pytest -q -n 8` (30/10: 2273 τεστ σε ~11 λεπτά).
