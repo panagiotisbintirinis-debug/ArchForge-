@@ -28,6 +28,10 @@ from .approved_mockup_shell import install_approved_mockup_shell
 from . import slab_tools
 
 
+
+# Site tools placed by one click that also take a click on the 3D ground with «Ταυτόχρονα 2D + 3D» (HANDOFF 30/10).
+SITE_POINT_TOOLS_3D = ('plant_tree', 'plant_shrub', 'pool_place', 'terrain_point', 'library_place', 'dome_place')
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -69,6 +73,7 @@ class MainWindow(QMainWindow):
         self.plan_view.previewChanged.connect(self.pbr_view.set_stair_preview)
         self.plan_view.viewLineRequested.connect(self._apply_view_line)
         self.plan_view.sitePointRequested.connect(self._place_site_point)
+        self.pbr_view.sitePointRequested.connect(self._place_site_point_3d)
         self.plan_view.siteLineRequested.connect(self._place_site_line)
         self.plan_view.railingRequested.connect(self._place_railing)
         self.plan_view.slabOpeningRequested.connect(lambda pts: slab_tools.place_opening(self, pts))
@@ -752,7 +757,18 @@ class MainWindow(QMainWindow):
             central.setCurrentIndex(0)
         self.view = self.plan_view
         self.plan_view.controller.set_tool(tool)
-        self.statusBar().showMessage(message, 8000)
+        both = simultaneous is not None and simultaneous.isChecked()
+        self.pbr_view.set_site_point_tool(tool if both and tool in SITE_POINT_TOOLS_3D else None)
+        self.statusBar().showMessage(message + (' · ή κλικ στο έδαφος στο 3D' if both and tool in SITE_POINT_TOOLS_3D else ''),
+                                     8000)
+
+    def _place_site_point_3d(self, tool, x, y):
+        """A site point tool's click on the 3D ground: the same placement as a click in the plan, while the plan
+        still has that tool (a tool changed or ended meanwhile puts the 3D back to orbit, nothing placed)."""
+        if self.plan_view.controller.tool != tool:
+            self.pbr_view.set_site_point_tool(None)
+            return
+        self._place_site_point(tool, x, y)
 
     def _place_site_line(self, tool, x1, y1, x2, y2):
         if tool == 'elec_led_strip':

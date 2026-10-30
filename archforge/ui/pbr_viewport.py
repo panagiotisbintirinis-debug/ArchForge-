@@ -1556,6 +1556,34 @@ function pointOnHorizontalPlane(event, z) {
 
 /*__ARCHFORGE_WALL_EDIT_3D__*/
 
+// Point tools of the site (tree, shrub, pool, height point …) chosen with «Ταυτόχρονα 2D + 3D»: a click (not a
+// drag — the left drag still orbits) on the ground in 3D places it as a click in the plan does, through the same
+// Python path (MainWindow._place_site_point).  The point: the terrain under the cursor, else the work plane.
+let sitePress = null;
+function sitePoint(event) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  const mouse = new THREE.Vector2(
+    ((event.clientX - rect.left) / rect.width) * 2 - 1,
+    -((event.clientY - rect.top) / rect.height) * 2 + 1
+  );
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(mouse, camera);
+  const ground = raycaster.intersectObjects(modelRoot.children, false)
+    .find((h) => h.object.visible && h.face && (h.object.userData.kind || "") === "terrain");
+  return ground ? ground.point : pointOnHorizontalPlane(event, workPlaneZ);
+}
+renderer.domElement.addEventListener("pointerdown", (event) => {
+  sitePress = (String(activeTool).startsWith("site:") && event.button === 0) ? [event.clientX, event.clientY] : null;
+});
+renderer.domElement.addEventListener("pointerup", (event) => {
+  if (!bridge || !sitePress || !String(activeTool).startsWith("site:") || event.button !== 0) return;
+  const moved = Math.hypot(event.clientX - sitePress[0], event.clientY - sitePress[1]);
+  sitePress = null;
+  if (moved > 5) return;
+  const point = sitePoint(event);
+  if (point) bridge.placeSitePoint(String(activeTool).slice(5), Number(point.x), Number(point.y));
+});
+
 renderer.domElement.addEventListener("pointerdown", (event) => {
   if (!bridge) return;
   if (event.button !== 2) hideMarkingMenu();
@@ -2454,6 +2482,10 @@ class PBRInteractionBridge(QObject):
     def placeOpening(self, kind: str, payload_json: str) -> None:
         self.viewport._place_opening_from_web(kind, payload_json)
 
+    @Slot(str, float, float)
+    def placeSitePoint(self, tool: str, x: float, y: float) -> None:
+        self.viewport.sitePointRequested.emit(str(tool), float(x), float(y))
+
     @Slot(float, float)
     def placeStructuralColumn(self, x: float, y: float) -> None:
         self.viewport._place_structural_column_from_web(x, y)
@@ -2579,6 +2611,7 @@ class PBRViewport(QWidget):
     materialPaintRequested = Signal(str)     # «Πινέλο» υλικού: {"entity_id", "surface_role"} of a 3D click
     materialPaintEnded = Signal()
     statusChanged = Signal(str)
+    sitePointRequested = Signal(str, float, float)   # a site point tool's click on the 3D ground (x, y in the plan)
 
     def __init__(self, doc, stack, parent=None, structural_only=False):
         super().__init__(parent)
@@ -2758,6 +2791,10 @@ class PBRViewport(QWidget):
             )
             self.web_view.page().runJavaScript(script)
         self.statusChanged.emit("Έλξη ενεργή" if self._snap_enabled else "Έλξη ανενεργή — ελεύθερη σχεδίαση")
+
+    def set_site_point_tool(self, tool) -> None:
+        """«Ταυτόχρονα 2D + 3D»: a site point tool of the plan also takes a click on the 3D ground (None = off)."""
+        self.set_tool(f"site:{tool}" if tool else "orbit")
 
     def set_tool(self, tool: str) -> None:
         # Leaving Stair/Ramp drops a half-placed one, so its HUD and ghost never stay behind.
