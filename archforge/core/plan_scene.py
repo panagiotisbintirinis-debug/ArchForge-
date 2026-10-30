@@ -888,8 +888,12 @@ def build_plan_frame(doc,preview=None,layers=True):
             name=data.get('name') or f'Χώρος {index}';use=data.get('use','')
             # Owner 17/10: the label shows the net area between the wall faces (as the take-off), not the axes.
             from archforge.quantities.takeoff import _area,net_polygon
-            net=abs(_area(net_polygon(doc,face.polygon,float(doc.work_plane.origin[2]))))
+            from archforge.architecture.dimensions import fmt
+            net_outline=net_polygon(doc,face.polygon,float(doc.work_plane.origin[2]))
+            net=abs(_area(net_outline))
+            xs=[p[0] for p in net_outline];ys=[p[1] for p in net_outline]
             label=name+(f' — {use}' if use and use!=name else '')+f'\n{net:.2f} m²'
+            label+=f'\n{fmt(max(xs)-min(xs))} × {fmt(max(ys)-min(ys))}'
             meta=(('semantic','derived-room'),('signature',face.signature),('wall_ids',face.wall_ids),('area',m['area']),('net_area',net),('perimeter',m['perimeter']),('name',name),('use',use))
             f.primitives.append(Primitive2D('polygon',tuple(face.polygon),role='derived-room',meta=meta))
             cx,cy=m['centroid'];f.primitives.append(Primitive2D('label',((cx,cy),),role='derived-room-label',meta=(('signature',face.signature),('text',label))))
