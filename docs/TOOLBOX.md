@@ -95,3 +95,11 @@
 - Αν τα Qt τεστ πέφτουν με `libEGL.so.1: cannot open shared object file`: `apt-get install -y libegl1 libgl1 libxkbcommon0`.
   Είναι θέμα του container, όχι του κώδικα· μην το δηλώσεις ως αποτυχία του branch.
 - `pip install -r requirements.txt pytest` (το pytest δεν είναι στο requirements).
+
+## Προαιρετικός τοπικός βοηθός
+
+| Εργαλείο | Τι κάνει | Χρήση |
+|---|---|---|
+| `archforge/orchestration/ollama.py` + `archforge/ui/ollama_assistant.py` | Ollama: όλο το Document με σελιδοποίηση, πραγματικό μητρώο Ιδιοτήτων/TOOLBOX, εκκρεμής πρόταση μέσω της κοινής εντολής με Undo. Δεν αλλάζει έργο πριν από Εφαρμογή. | `docs/OLLAMA.md` · `tests/test_ollama_adapter.py` |
+
+| `archforge/ui/assistant_panel.py` | Κοινό πάνελ βοηθού, launcher, ασύγχρονη σύνδεση/επιλογή μοντέλου, συνομιλία και καρτέλες εργαλείων. | `docs/OLLAMA.md` · `tests/test_ollama_adapter.py` |

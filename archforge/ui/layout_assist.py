@@ -74,6 +74,8 @@ class LayoutAssist:
         dock = getattr(self.w, "_assistant_dock", None)
         if dock is not None:
             dock.show(); dock.raise_()
+            if hasattr(self.w, "assistant_arrangement_page"):
+                self.w.assistant_pages.setCurrentWidget(self.w.assistant_arrangement_page)
         if xy is not None:
             self.propose_at(*xy)
         self._sync_panel()
@@ -512,7 +514,7 @@ def install_layout_assist(window):
     window.plan_view.overlay_tool = assist
     dock = getattr(window, "_assistant_dock", None)
     if dock is not None and dock.widget() is not None and dock.widget().layout() is not None:
-        dock.widget().layout().insertWidget(1, assist.build_panel(dock.widget()))
+        getattr(window, "assistant_tools_layout", dock.widget().layout()).addWidget(assist.build_panel(dock.widget()))
     menus = getattr(window, "_mockup_menus", {}) or {}
     menu = menus.get("Κουζίνα")
     if menu is not None:
