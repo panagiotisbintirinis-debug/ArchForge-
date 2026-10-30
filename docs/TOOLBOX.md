@@ -92,3 +92,9 @@
 - Αν τα Qt τεστ πέφτουν με `libEGL.so.1: cannot open shared object file`: `apt-get install -y libegl1 libgl1 libxkbcommon0`.
   Είναι θέμα του container, όχι του κώδικα· μην το δηλώσεις ως αποτυχία του branch.
 - `pip install -r requirements.txt pytest` (το pytest δεν είναι στο requirements).
+
+## Κατοικία αναφοράς mockup
+
+| Εργαλείο | Τι κάνει | Χρήση |
+|---|---|---|
+| `archforge/scenarios/s11_mockup_villa.py` | Διώροφη κατοικία από το 3D mockup, με διαστάσεις εκτιμημένες από έπιπλα βιβλιοθήκης, μπαλκόνια, πισίνα, πέργκολα, αυλή. Χρησιμοποιεί builder/common και τα εργαλεία UI. | `python scripts/build_scenarios.py 11` · παραδοχές στο S11_REPORT.md |
