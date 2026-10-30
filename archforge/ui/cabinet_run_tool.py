@@ -63,6 +63,9 @@ class CabinetRunTool:
         self.active = True
         self._reset()
         self.w._start_site_tool(TOOL, HINT)
+        if hasattr(self.w, "assistant_arrangement_page"):
+            self.w._assistant_dock.show(); self.w._assistant_dock.raise_()
+            self.w.assistant_pages.setCurrentWidget(self.w.assistant_arrangement_page)
         self._sync_panel()
         self.w.plan_view.redraw()
 
@@ -512,7 +515,7 @@ def install_cabinet_run(window):
     window._cabinet_run = tool
     dock = getattr(window, "_assistant_dock", None)
     if dock is not None and dock.widget() is not None and dock.widget().layout() is not None:
-        dock.widget().layout().insertWidget(2, tool.build_panel(dock.widget()))
+        getattr(window, "assistant_tools_layout", dock.widget().layout()).addWidget(tool.build_panel(dock.widget()))
     menus = getattr(window, "_mockup_menus", {}) or {}
     menu = menus.get("Κουζίνα")
     if menu is not None:

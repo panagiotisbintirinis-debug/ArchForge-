@@ -162,3 +162,16 @@ def test_export_commands_in_the_file_menu(tmp_path):
         assert export_ifc(w) is None                                         # no dialog in tests: nothing written
     finally:
         w._mark_clean(); w.close(); app.processEvents()
+
+
+def test_ifc_is_written_in_metres_and_reads_at_true_size(ifc_file, doc):
+    # Before 30/10 the file said millimetres while the values were metres: 1000× too small in ArchiCAD / Revit.
+    import ifcopenshell.geom
+    import ifcopenshell.util.unit
+    f, _s = ifc_file
+    assert ifcopenshell.util.unit.calculate_unit_scale(f) == 1.0
+    wall = next(w for w in f.by_type('IfcWall'))
+    s = ifcopenshell.geom.settings(); s.set(s.USE_WORLD_COORDS, True)
+    v = ifcopenshell.geom.create_shape(s, wall).geometry.verts
+    src = doc.get(wall.Tag)
+    assert max(v[2::3]) - min(v[2::3]) == pytest.approx(float(src.params['height']), abs=0.05) or src.params.get('curve')

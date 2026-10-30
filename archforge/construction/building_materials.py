@@ -1,30 +1,40 @@
-"""Building materials («υλικά δόμησης»): one registry for what a wall layer is made of.
+"""Building materials («Υλικά δόμησης»): the one registry the wall layers point to (owner 30/10).
 
-Spec ``docs/specs/menu_relations_and_wall_layers.md`` §3 step 1.  A wall layer
-points at an id here (``wall_types.layer``) instead of carrying its own name,
-λ and colour, so the plan hatch, the section, the quantities, the U-value and
-the IFC material all read one entry.
+Spec: ``docs/specs/menu_relations_and_wall_layers.md`` §3 step 1.  A wall layer names a material id from here;
+the material carries what the layer needs beyond its thickness:
 
-Each entry: name, category, λ (W/mK), density (kg/m³), section hatch, the
-appearance material (``rendering/materials.py`` id, the look of an exposed
-face; None = never seen, e.g. insulation inside the wall), colour of the layer
-in plan and insulation flag.  No price: prices live only in the common price
-book (``quantities/price_book.py``), entered by the user.
+* ``name``, ``category``, ``colour`` (plan/section fill) and ``hatch`` (section pattern key, DESIGN_DEFAULT);
+* ``conductivity`` λ (W/mK) with its own provenance status (``core/provenance.py``);
+* ``density`` (kg/m³): **none built in** — only what the user enters from a data sheet;
+* ``insulation`` and ``role`` (``structure`` / ``insulation`` / ``finish`` / ``board``), the layer's default role;
+* ``appearance``: the 3D/PBR material (``rendering/materials.py``) the layer looks like when it is a face, or None
+  when the layer is never seen (insulation inside the wall);
+* ``price_code``: the code in the price book (``quantities/price_book.py``, per m³).  No price is built in.
 
-Values are typical, not product data: λ and density are UNVERIFIED (common
-EN ISO 10456 / manufacturer-range figures, not cross-checked; the data sheet
-of the product used wins).
+The built-in λ values are the *typical* values the program used since the wall types were written: none is
+cross-checked against a source in force, so every one is registered ``UNVERIFIED`` (Isotex: from the maker's
+published data, still «προς έλεγχο»).  They give an indicative U only.
 
-Ids are stable (saved projects will store them) and never renamed.
+A project may override a material's λ / density with the value from the data sheet of the product it uses:
+``doc.materials["bmat:<id>"] = {"conductivity": .., "density": .., "source": ..}`` (``set_properties_command``,
+one undo).  Such a value is ``MANUFACTURER_DATA`` — the user's entry, with the source the user typed.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from typing import Any, Dict, Optional
 
-from archforge.core.provenance import DESIGN_DEFAULT, UNVERIFIED, Rule, register
+from archforge.core.commands import Command, SetMaterial
+from archforge.core.provenance import MANUFACTURER_DATA, UNVERIFIED, Rule, register
 
-# Section hatches the plan / section / DXF will draw (step 4); names only for now.
-HATCHES = ("plaster", "gypsum", "brick", "masonry", "stone", "concrete", "insulation", "wood_cement", "solid")
+PROJECT_PREFIX = "bmat:"
+ROLES = {"structure": "Φέρουσα / πυρήνας", "insulation": "Μόνωση", "finish": "Τελείωμα", "board": "Πλάκα / επένδυση"}
+HATCHES = ("plaster", "gypsum", "brick", "stone", "concrete", "masonry", "insulation_soft", "insulation_rigid",
+           "wood_cement")
+
+_TYPICAL = "Τυπική τιμή λ που χρησιμοποιούσε το πρόγραμμα· δεν διασταυρώθηκε με ισχύουσα πηγή"
+_CHECK = "Για επαλήθευση: ΤΟΤΕΕ 20701-2 (πίνακες λ) ή φύλλο του προϊόντος που θα μπει."
+_ISOTEX = ("Από δημοσιευμένα στοιχεία Isotex (construction/isotex.py SOURCE)· επιβεβαίωση με το τρέχον φυλλάδιο")
 
 
 @dataclass(frozen=True)
@@ -32,87 +42,112 @@ class BuildingMaterial:
     id: str
     name: str
     category: str
-    conductivity: float          # λ, W/mK (typical)
-    density: float | None        # kg/m³ (typical)
+    colour: str
     hatch: str
-    appearance: str | None       # rendering material id of an exposed face
-    color: str                   # layer colour in plan / face colour when exposed
+    role: str
     insulation: bool = False
-    status: str = UNVERIFIED
+    conductivity: float | None = None      # λ, W/mK
+    conductivity_status: str = UNVERIFIED
+    conductivity_source: str = ""
+    density: float | None = None           # kg/m³ — from the user's data sheet only
+    appearance: str | None = None          # rendering/materials.py id
+    note: str = ""
+
+    @property
+    def price_code(self):
+        return f"bmat.{self.id}"
 
 
-BUILDING_MATERIALS: dict[str, BuildingMaterial] = {}
+def _m(id_, name, category, colour, hatch, role, lam, appearance=None, insulation=False, source=_TYPICAL, note=_CHECK):
+    return BuildingMaterial(id_, name, category, colour, hatch, role, insulation, lam, UNVERIFIED, source,
+                            appearance=appearance, note=note)
 
 
-def _add(category, rows):
-    for mid, (name, lam, rho, hatch, look, color, *ins) in rows.items():
-        BUILDING_MATERIALS[mid] = BuildingMaterial(mid, name, category, lam, rho, hatch, look, color, bool(ins and ins[0]))
+MATERIALS: dict[str, BuildingMaterial] = {m.id: m for m in (
+    # λ values exactly as the wall types used them before the registry (no U changes silently).
+    _m("cement_plaster", "Σοβάς", "Κονιάματα", "#ece6da", "plaster", "finish", 0.87, "plaster_white"),
+    _m("gypsum_board", "Γυψοσανίδα", "Ξηρά δόμηση", "#f1efea", "gypsum", "board", 0.25, "paint_white_matt"),
+    _m("hollow_brick", "Οπτόπλινθος διάτρητος", "Τοιχοποιία", "#b5653b", "brick", "structure", 0.47, "brick_exposed"),
+    _m("stone_masonry", "Λιθοδομή", "Τοιχοποιία", "#9b8f7d", "stone", "structure", 1.70, "stone_cladding"),
+    _m("reinforced_concrete", "Οπλισμένο σκυρόδεμα", "Σκυρόδεμα", "#a3a3a0", "concrete", "structure", 2.30,
+       "concrete_rough"),
+    _m("bearing_masonry", "Φέρουσα τοιχοποιία", "Τοιχοποιία", "#a8704a", "masonry", "structure", 0.80, "brick_old"),
+    _m("mineral_wool", "Ορυκτοβάμβακας", "Μονώσεις", "#e8d38a", "insulation_soft", "insulation", 0.037, insulation=True),
+    _m("xps", "Εξηλασμένη πολυστερίνη (XPS)", "Μονώσεις", "#9cc3d9", "insulation_rigid", "insulation", 0.034,
+       insulation=True),
+    _m("eps", "Διογκωμένη πολυστερίνη (EPS)", "Μονώσεις", "#e9eef0", "insulation_rigid", "insulation", 0.036,
+       insulation=True),
+    _m("isotex_wood_cement", "Ξυλότσιμεντο Isotex", "Δομικά συστήματα", "#b9a98c", "wood_cement", "structure", 0.11,
+       source=_ISOTEX),
+    _m("isotex_graphite_eps", "EPS γραφίτη (Neopor®)", "Δομικά συστήματα", "#6f7780", "insulation_rigid", "insulation",
+       0.031, insulation=True, source=_ISOTEX),
+    _m("infill_concrete", "Σκυρόδεμα πλήρωσης", "Σκυρόδεμα", "#a3a3a0", "concrete", "structure", 2.30),
+    _m("icf_eps", "EPS καλουπιού ICF", "Δομικά συστήματα", "#e9eef0", "insulation_rigid", "insulation", 0.036,
+       insulation=True),
+    _m("icf_core_concrete", "Σκυρόδεμα πυρήνα ICF", "Σκυρόδεμα", "#a3a3a0", "concrete", "structure", 2.30),
+)}
+
+register(*(Rule(f"materials.{m.id}.conductivity",
+                f"λ {m.name} = {m.conductivity:g} W/mK για το ενδεικτικό U των συνθέσεων τοίχου",
+                m.conductivity_status, note=f"{m.conductivity_source}. {m.note}".strip())
+           for m in MATERIALS.values() if m.conductivity is not None))
 
 
-# id: (name, λ, density, hatch, appearance, colour[, insulation])
-_add("Κονιάματα & επενδύσεις", {
-    "plaster_lime_cement": ("Σοβάς", 0.87, 1800, "plaster", "plaster_white", "#ece6da"),
-    "gypsum_board": ("Γυψοσανίδα", 0.25, 900, "gypsum", "paint_white_matt", "#f1efea"),
-})
-_add("Τοιχοποιίες", {
-    "brick_perforated": ("Οπτόπλινθος διάτρητος", 0.47, 1000, "brick", "brick_exposed", "#b5653b"),
-    "stone_masonry": ("Λιθοδομή", 1.70, 2200, "stone", "stone_pelion", "#9b8f7d"),
-    "bearing_masonry": ("Φέρουσα τοιχοποιία", 0.80, 1600, "masonry", "brick_old", "#a8704a"),
-    "wood_cement_isotex": ("Ξυλότσιμεντο Isotex", 0.11, None, "wood_cement", None, "#b9a98c"),
-})
-_add("Σκυρόδεμα", {
-    "concrete_reinforced": ("Οπλισμένο σκυρόδεμα", 2.30, 2400, "concrete", "concrete_smooth", "#a3a3a0"),
-    "concrete_core_icf": ("Σκυρόδεμα πυρήνα ICF", 2.30, 2400, "concrete", "concrete_rough", "#a3a3a0"),
-    "concrete_infill_isotex": ("Σκυρόδεμα πλήρωσης", 2.30, 2400, "concrete", "concrete_rough", "#a3a3a0"),
-})
-_add("Θερμομονώσεις", {
-    "mineral_wool": ("Ορυκτοβάμβακας", 0.037, 40, "insulation", None, "#e8d38a", True),
-    "xps": ("Εξηλασμένη πολυστερίνη (XPS)", 0.034, 35, "insulation", None, "#9cc3d9", True),
-    "eps": ("Διογκωμένη πολυστερίνη (EPS)", 0.036, 20, "insulation", None, "#e9eef0", True),
-    "eps_icf_form": ("EPS καλουπιού ICF", 0.036, None, "insulation", None, "#e9eef0", True),
-    "eps_graphite": ("EPS γραφίτη (Neopor®)", 0.031, None, "insulation", None, "#6f7780", True),
-})
+def overrides(doc):
+    """``{id: {"conductivity", "density", "source"}}`` the project holds (other ``doc.materials`` keys ignored)."""
+    raw = getattr(doc, "materials", None) or {}
+    return {k[len(PROJECT_PREFIX):]: dict(v) for k, v in raw.items()
+            if str(k).startswith(PROJECT_PREFIX) and isinstance(v, dict)}
 
 
-class Layer(tuple):
-    """A wall layer: the 5-tuple ``(name, thickness, λ, colour, insulation)`` callers unpack, plus ``material_id``."""
-
-    material_id: str
-
-    def __new__(cls, material_id, thickness):
-        m = BUILDING_MATERIALS[material_id]
-        row = super().__new__(cls, (m.name, float(thickness), m.conductivity, m.color, m.insulation))
-        row.material_id = material_id
-        return row
-
-    def __reduce__(self):
-        return (Layer, (self.material_id, self[1]))
-
-
-def layer(material_id, thickness):
-    """A wall layer of ``thickness`` m of a registry material (KeyError for an unknown id)."""
-    return Layer(material_id, thickness)
+def material(material_id, doc=None):
+    """The material with the project's data-sheet values applied, or None for an unknown id."""
+    base = MATERIALS.get(str(material_id))
+    if base is None:
+        return None
+    o = overrides(doc).get(base.id)
+    if not o:
+        return base
+    changes = {}
+    if o.get("conductivity") is not None:
+        changes.update(conductivity=float(o["conductivity"]), conductivity_status=MANUFACTURER_DATA,
+                       conductivity_source=str(o.get("source") or "Φύλλο προϊόντος (εισαγωγή χρήστη)"))
+    if o.get("density") is not None:
+        changes["density"] = float(o["density"])
+    return replace(base, **changes) if changes else base
 
 
-def building_material(material_id):
-    return BUILDING_MATERIALS.get(str(material_id))
+def by_category():
+    out = {}
+    for m in MATERIALS.values():
+        out.setdefault(m.category, []).append(m)
+    return out
 
 
-def building_material_rules():
-    return _RULES
+def set_properties_command(doc, material_id, *, conductivity=None, density=None, source=""):
+    """``SetMaterial`` that stores the project's data-sheet values for one material (one undo); ``None`` clears a
+    value, all ``None`` returns the material to the built-in values."""
+    if str(material_id) not in MATERIALS:
+        raise ValueError(f"άγνωστο υλικό δόμησης: {material_id}")
+    for label, v in (("λ", conductivity), ("πυκνότητα", density)):
+        if v is not None and not float(v) > 0:
+            raise ValueError(f"{label} πρέπει να είναι θετικό")
+    key = PROJECT_PREFIX + str(material_id)
+    if conductivity is None and density is None:
+        return ClearBuildingMaterial(key)
+    return SetMaterial(key, {"conductivity": None if conductivity is None else float(conductivity),
+                             "density": None if density is None else float(density), "source": str(source or "")})
 
 
-_RULES = register(
-    Rule("building_materials.conductivity",
-         "λ υλικών δόμησης (σοβάς 0,87 · γυψοσανίδα 0,25 · οπτόπλινθος 0,47 · λιθοδομή 1,70 · σκυρόδεμα 2,30 · "
-         "ορυκτοβάμβακας 0,037 · XPS 0,034 · EPS 0,036 · EPS γραφίτη 0,031 · ξυλότσιμεντο 0,11 W/mK)", UNVERIFIED,
-         note="Τυπικές τιμές (EN ISO 10456 / εύρος κατασκευαστών) — δεν διασταυρώθηκαν· το U είναι ενδεικτικό, όχι "
-              "μελέτη ΚΕΝΑΚ· το λ του προϊόντος από το φυλλάδιο υπερισχύει."),
-    Rule("building_materials.density",
-         "Πυκνότητα υλικών δόμησης για βάρη/ποσότητες (σκυρόδεμα 2400 · λιθοδομή 2200 · σοβάς 1800 · οπτόπλινθος 1000 "
-         "kg/m³ …· κενό = άγνωστο)", UNVERIFIED,
-         note="Τυπικές τιμές, όχι από φυλλάδιο· δεν χρησιμοποιούνται σε στατικό υπολογισμό."),
-    Rule("building_materials.hatch_and_look",
-         "Διαγράμμιση τομής και υλικό εμφάνισης ανά υλικό δόμησης", DESIGN_DEFAULT,
-         note="Επιλογή του προγράμματος για την παρουσίαση· αλλάζει χωρίς τεχνική συνέπεια."),
-)
+@dataclass
+class ClearBuildingMaterial(Command):
+    """Drops the project's data-sheet values of one material (back to the built-in ones)."""
+    key: str
+    before: Optional[Dict[str, Any]] = None
+
+    def do(self, doc):
+        self.before = doc.materials.pop(self.key, None)
+
+    def undo(self, doc):
+        if self.before is not None:
+            doc.materials[self.key] = self.before

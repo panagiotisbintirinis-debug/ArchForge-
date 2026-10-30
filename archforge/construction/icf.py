@@ -117,11 +117,11 @@ def thickness(code):
 
 def wall_type_layers():
     """Wall assemblies for ``architecture.wall_types``: EPS, concrete core, EPS."""
-    from archforge.construction.building_materials import layer
+    from archforge.architecture.wall_types import Layer
     out = {}
     for code, (label, eps, core, _l) in BLOCKS.items():
-        e = layer("eps_icf_form", eps)
-        out[wall_type_of(code)] = (label, [e, layer("concrete_core_icf", core), e])
+        e = Layer("icf_eps", eps)
+        out[wall_type_of(code)] = (label, [e, Layer("icf_core_concrete", core), e])
     return out
 
 

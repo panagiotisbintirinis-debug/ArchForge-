@@ -137,10 +137,10 @@ def _stair_layout(v):
 
 
 def _wall_type(v):
-    from archforge.architecture.wall_types import WALL_TYPES
+    from archforge.architecture.wall_types import WALL_TYPES, is_valid_key
     v = str(v)
-    if v not in WALL_TYPES:
-        raise ValueError(f'wall type must be one of {", ".join(WALL_TYPES)}')
+    if not is_valid_key(v):
+        raise ValueError(f'wall type must be one of {", ".join(WALL_TYPES)} or a project type proj_…')
     return v
 
 
@@ -916,7 +916,7 @@ SCHEMAS = {
     'plumbing_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _plumbing_type, 'pipe_system': _pipe_system},
     'ceiling_joists': {'points': _polygon, 'z': _finite, 'spacing': _joist_spacing, 'usage': _joist_usage,
                        'direction': _joist_direction},
-    'price_list': {'vat': _nonnegative, 'trade_prices': _trade_prices},
+    'price_list': {'vat': _nonnegative, 'margin': _nonnegative, 'trade_prices': _trade_prices},
     'drainage_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _drain_type, 'rain_area': _nonnegative},
     'pool': {'x': _finite, 'y': _finite, 'z': _finite, 'rotation': _finite, 'length': _positive, 'width': _positive,
              'depth_shallow': _positive, 'depth_deep': _positive, 'wall': _positive, 'floor': _positive, 'coping': _nonnegative,

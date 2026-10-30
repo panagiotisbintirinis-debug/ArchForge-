@@ -1,4 +1,5 @@
-"""Αρχείο ▸ Εξαγωγή ▸ «IFC για μηχανικούς» / «DXF κατόψεις ανά όροφο» (the translator, archforge/exchange)."""
+"""Αρχείο ▸ Εξαγωγή ▸ «IFC για μηχανικούς» / «DXF κατόψεις ανά όροφο» and Αρχείο ▸ Εισαγωγή ▸ «IFC» (the translator,
+archforge/exchange)."""
 from __future__ import annotations
 
 import os
@@ -58,6 +59,38 @@ def export_dxf(window, path=None):
     window.statusBar().showMessage(f"DXF: {len(result['files'])} αρχεία (ένα ανά όροφο) — "
                                    f"{os.path.dirname(result['files'][0]) or '.'}", 12000)
     return result
+
+
+def import_ifc(window, path=None):
+    """Storeys, walls with their build-up and the doors / windows in them from an IFC file — one undo step."""
+    from archforge.exchange.ifc_import import import_ifc as read_into
+    if path is None and not getattr(window, "_no_modal_dialogs", False):
+        from PySide6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getOpenFileName(window, "Εισαγωγή IFC", "", "IFC (*.ifc)")
+    if not path:
+        return None
+    try:
+        result = read_into(window.doc, window.stack, path)
+    except Exception as exc:                                            # noqa: BLE001 — told, nothing added
+        window.statusBar().showMessage(f"IFC: δεν διαβάστηκε — {exc}", 10000)
+        return None
+    window._redraw_views(all_views=True)
+    rest = ", ".join(f"{n} {cls[3:]}" for cls, n in sorted(result["not_imported"].items()))
+    window.statusBar().showMessage(
+        f"IFC: {result['walls']} τοίχοι · {result['openings']} κουφώματα · {result['storeys']} όροφοι"
+        + (f" · {result['new_types']} νέες συνθέσεις" if result["new_types"] else "")
+        + (f" — δεν εισήχθησαν: {rest}" if rest else "") + " · Ctrl+Z για αναίρεση", 15000)
+    return result
+
+
+def import_action(window):
+    if getattr(window, "_import_ifc_action", None) is None:
+        a = QAction("IFC (τοίχοι, κουφώματα, όροφοι)…", window)
+        a.setToolTip("Από ArchiCAD, Revit ή άλλο πρόγραμμα: όροφοι, τοίχοι με τη σύνθεσή τους, πόρτες και παράθυρα "
+                     "στα ανοίγματά τους — μία αναίρεση· ό,τι άλλο λέγεται, δεν χάνεται σιωπηλά")
+        a.triggered.connect(lambda _=False: import_ifc(window))
+        window._import_ifc_action = a
+    return window._import_ifc_action
 
 
 def actions(window):

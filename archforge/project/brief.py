@@ -127,7 +127,7 @@ def wall_defaults(doc):
     if brief["wall_system"] == "custom":
         return "generic", float(brief.get("wall_system_thickness") or 0.15)
     _label, wall_type, thickness, _bearing = WALL_SYSTEMS[brief["wall_system"]]
-    return wall_type, round(total_thickness(wall_type), 4) if wall_type else thickness
+    return wall_type, round(total_thickness(wall_type, doc), 4) if wall_type else thickness
 
 
 def interior_wall_defaults(doc):

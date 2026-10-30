@@ -3,8 +3,8 @@
 Not a heating study (EN 12831-1 / ΚΕΝΑΚ): an indication from what the model has, shown with every assumption.
 
 * Transmission through **exterior walls**: net area (length × height − openings) × U × ΔT, U from the wall's
-  layers (``wall_types.indicative_u``, EN ISO 6946 with typical λ).  A wall without a build-up has no U: it is
-  listed under «δεν μετρήθηκαν», never guessed.
+  layers (``wall_types.indicative_u``, EN ISO 6946 with the materials' λ: typical, or the project's data sheet).
+  A wall without a build-up has no U: it is listed under «δεν μετρήθηκαν», never guessed.
 * **Openings**: area × U of the openings — only when the project gives one (``u_openings``); else not counted, said.
 * **Ventilation**: 0.34 Wh/(m³K) (ρ·c of air) × air changes per hour × room volume × ΔT.
 * Roof, floor and thermal bridges are not counted yet — said on the result.
@@ -82,7 +82,7 @@ def heat_load(doc, season="winter"):
                         for o in doc.entities.values()
                         if o.kind in ("door", "window", "opening") and o.parent_id == w.id)
             opening_area += holes
-            u = indicative_u(p.get("wall_type", "generic"))
+            u = indicative_u(p.get("wall_type", "generic"), doc)
             if u is None:
                 u = a["heat_u_walls"]                # the project's one value for walls without a build-up
             if u is None:

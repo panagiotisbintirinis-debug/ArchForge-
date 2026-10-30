@@ -52,13 +52,13 @@ def test_dragging_an_object_shows_how_far_it_moved_and_its_distances(window):
     view = window.plan_view
     view.redraw()
     texts = lambda: {i.toPlainText().strip() for i in view.scene().items() if isinstance(i, QGraphicsTextItem)}
-    assert {'0,60', '3,60', '2,60'} <= texts()                     # selected: its distances to the walls
+    assert {'60', '360', '260'} <= texts()  # selected: its distances (cm, owner 30/10)
     c = view.controller
     c.set_tool('move'); c.set_target(cab.id, None)
     c.pointer_down(PointerEvent(1.0, 1.0)); c.pointer_move(PointerEvent(1.2, 1.0))
     view.redraw()
     t = texts()
-    assert 'Μετακίνηση 20 cm' in t and '0,80' in t and '3,40' in t     # live while dragging
+    assert 'Μετακίνηση 20 cm' in t and '80' in t and '340' in t     # live while dragging (cm, owner 30/10)
     c.cancel()
 
 

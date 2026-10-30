@@ -54,7 +54,17 @@ def write_storey(doc, name, z, path):
         attrs = {"layer": _layer(dxf, layer)}
         pts = [(float(a), float(b)) for a, b in p.points]
         meta = dict(p.meta)
-        if p.kind == "line" and len(pts) >= 2:
+        if p.role == "wall-layer-fill":
+            # One wall layer hatched by its material (wall_layer_plan.py), the same bands as the plan.
+            from archforge.exchange.mapping import LAYER_PATTERNS
+            name, scale = LAYER_PATTERNS.get(str(meta.get("hatch")), ("ANSI31", 0.02))
+            hatch = msp.add_hatch(color=8, dxfattribs=attrs)
+            hatch.set_pattern_fill(name, scale=scale)
+            for outer, holes in meta.get("islands") or ((pts, ()),):
+                hatch.paths.add_polyline_path([tuple(q) for q in outer], is_closed=True)
+                for h in holes:
+                    hatch.paths.add_polyline_path([tuple(q) for q in h], is_closed=True)
+        elif p.kind == "line" and len(pts) >= 2:
             msp.add_line(pts[0], pts[1], dxfattribs=attrs)
         elif p.kind in ("polyline", "polygon") and len(pts) >= 2:
             closed = p.kind == "polygon"
