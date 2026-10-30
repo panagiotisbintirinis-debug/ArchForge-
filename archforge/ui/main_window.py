@@ -730,7 +730,12 @@ class MainWindow(QMainWindow):
         if terrain is None:
             self.statusBar().showMessage('Δεν υπάρχει έδαφος', 3000)
             return
-        self.stack.execute(DeleteEntities([terrain.id]))
+        from archforge.core.layers import LayerLockedError
+        try:
+            self.stack.execute(DeleteEntities([terrain.id]))
+        except LayerLockedError as exc:          # menu_smoke 30/10: a locked layer raised with nothing on screen
+            self.statusBar().showMessage(f'Το έδαφος δεν διαγράφηκε: {exc}', 8000)
+            return
         self._redraw_views(all_views=True)
         self.refresh_inspector()
         self.statusBar().showMessage('Το έδαφος διαγράφηκε (Ctrl+Z για αναίρεση)', 4000)
@@ -4418,7 +4423,12 @@ class MainWindow(QMainWindow):
                and self.doc.get(i).params.get('phase', 'new') != phase]
         if not ids:
             return 0
-        self.stack.execute(CompositeCommand([UpdateEntity(i, {'phase': phase}) for i in ids], 'Φάση'))
+        from archforge.core.layers import LayerLockedError
+        try:
+            self.stack.execute(CompositeCommand([UpdateEntity(i, {'phase': phase}) for i in ids], 'Φάση'))
+        except LayerLockedError as exc:          # menu_smoke 30/10: all or nothing, and say why
+            self.statusBar().showMessage(f'Η φάση δεν άλλαξε: {exc}', 8000)
+            return 0
         self._redraw_views(all_views=True)
         from archforge.project.brief import PHASES
         self.statusBar().showMessage(f'{len(ids)} στοιχεία → {PHASES[phase]}', 5000)
