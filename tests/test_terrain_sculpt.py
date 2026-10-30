@@ -148,3 +148,14 @@ def test_contours_stop_at_the_edge_of_the_ground():
     params = {'x0': 0, 'y0': 0, 'x1': 10, 'y1': 10, 'elevation': 0.0, 'strokes': [{'x': 9.5, 'y': 5, 'radius': 2, 'dz': 0.8}]}
     segments = stroke_contours(params)
     assert segments and all(0 <= x <= 10 and 0 <= y <= 10 for _z, seg in segments for x, y in seg)
+
+
+def test_a_surface_that_cannot_be_sculpted_says_so_in_words():
+    view, doc, stack, _sent = _view()
+    roof = Entity('site_path', {'x1': 0.0, 'y1': -3.0, 'x2': 6.0, 'y2': -3.0, 'z': 0.0, 'style': 'path', 'width': 1.0,
+                                'thickness': 0.1})
+    stack.execute(AddEntity(roof))
+    messages = []
+    view.statusChanged.connect(messages.append)
+    view._begin_sculpt_from_web(json.dumps({'entity_id': roof.id, 'surface_role': 'top', 'point': [3, 2, 2.9], 'normal': [0, 0, 1]}))
+    assert messages and 'δεν πλάθεται' in messages[-1] and 'έδαφος' in messages[-1], messages

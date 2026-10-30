@@ -2915,7 +2915,19 @@ class PBRViewport(QWidget):
             )
         except Exception as exc:
             self._sculpt_tx = None
-            self.statusChanged.emit(f"Cannot sculpt PBR surface: {exc}")
+            if "not deformable" in str(exc):
+                # Owner 29/10 (a terrace): say in words what can be sculpted instead of the internal reason.
+                from archforge.ui.project_outline import KIND_LABELS
+                payload_kind = ""
+                try:
+                    eid = str(json.loads(payload_json).get("entity_id") or "")
+                    payload_kind = self.doc.get(eid).kind if eid in self.doc.entities else ""
+                except Exception:
+                    payload_kind = ""
+                what = KIND_LABELS.get(payload_kind, payload_kind) or "αυτή η επιφάνεια"
+                self.statusChanged.emit(f"Γλυπτική: «{what}» δεν πλάθεται — πλάθονται τοίχοι, όγκοι, έπιπλα και το έδαφος")
+            else:
+                self.statusChanged.emit(f"Γλυπτική: δεν ξεκίνησε — {exc}")
 
     def _update_sculpt_from_web(self, amount: float) -> None:
         terrain_tx = getattr(self, "_terrain_tx", None)
