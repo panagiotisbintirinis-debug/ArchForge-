@@ -68,6 +68,37 @@ def masonry_list(doc):
     return rows
 
 
+def layer_material_list(doc):
+    """Per building material of the wall layers (spec §3 step 5): m² of layer (wall face net of openings, once per
+    layer) and m³ (× the layer's thickness, scaled to the wall's own thickness).  Priced by the code
+    ``bmat.<id>`` (m³) / ``bmat.<id>.m2`` from the user's price book — never a built-in price."""
+    from archforge.construction.building_materials import material
+    from archforge.architecture.wall_types import layers
+    area, volume = {}, {}
+    for w in doc.entities.values():
+        if w.kind != "wall" or str(w.params.get("phase", "new")) == "demolish":
+            continue
+        p = w.params
+        ls = layers(p.get("wall_type", "generic"), doc)
+        if not ls:
+            continue
+        length = math.hypot(float(p["x2"]) - float(p["x1"]), float(p["y2"]) - float(p["y1"]))
+        face = max(0.0, length * float(p.get("height", 0.0)) - _openings_area(doc, w.id))
+        total = sum(l[1] for l in ls)
+        scale = float(p.get("thickness", total)) / total if total > 0 else 1.0
+        for layer in ls:
+            area[layer.material_id] = area.get(layer.material_id, 0.0) + face
+            volume[layer.material_id] = volume.get(layer.material_id, 0.0) + face * layer[1] * scale
+    rows = []
+    for mid in sorted(area, key=lambda k: material(k, doc).name):
+        m = material(mid, doc)
+        why = "Όψη τοίχων με αυτή τη στρώση, μείον ανοίγματα"
+        rows.append((f"{m.name} — επιφάνεια στρώσης", "m²", round(area[mid], 2), _meta(f"{m.price_code}.m2", why + ".")))
+        rows.append((f"{m.name} — όγκος στρώσης", "m³", round(volume[mid], 3),
+                     _meta(m.price_code, why + " × πάχος στρώσης.")))
+    return rows
+
+
 def slab_concrete_list(doc):
     """m³ of concrete of the per-room / per-storey slabs in the model: area × thickness."""
     from archforge.ui.project_outline import slab_info

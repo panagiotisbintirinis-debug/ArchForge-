@@ -80,3 +80,17 @@ def test_overrides_live_beside_appearance_materials_without_mixing():
     stack.execute(bm.set_properties_command(doc, 'xps', conductivity=0.029))
     assert project_materials(doc) == {}
     assert bm.overrides(doc) == {'xps': {'conductivity': 0.029, 'density': None, 'source': ''}}
+
+
+def test_quantities_per_layer_material_with_no_built_in_price():
+    from archforge.construction.shell import layer_material_list
+    from archforge.quantities.materials import all_lists
+    doc, stack = _house()                                   # 4 m × 2.7 m, double brick with 5 cm XPS
+    rows = {(d, u): (q, m) for d, u, q, m in layer_material_list(doc)}
+    q, meta = rows[('Εξηλασμένη πολυστερίνη (XPS) — όγκος στρώσης', 'm³')]
+    assert q == pytest.approx(4 * 2.7 * 0.05, abs=1e-3) and meta['code'] == 'bmat.xps'
+    assert rows[('Οπτόπλινθος διάτρητος — επιφάνεια στρώσης', 'm²')][0] == pytest.approx(2 * 4 * 2.7)
+    sheet = next(s for s in all_lists(doc) if s[0] == 'Στρώσεις')
+    from archforge.quantities.quote import quote
+    priced = [r for _t, sec in quote(doc)['sections'] for r in sec if str(r['code']).startswith('bmat.')]
+    assert priced and all(r['amount'] is None for r in priced) and sheet[2]
