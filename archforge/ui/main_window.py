@@ -4485,13 +4485,13 @@ class MainWindow(QMainWindow):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel, dialog)
         buttons.accepted.connect(dialog.accept); buttons.rejected.connect(dialog.reject)
         form.addRow(buttons)
-        self._prices_dialog = (dialog, table, client, project, vat, validity, notes)
+        self._prices_dialog = (dialog, table, client, project, vat, validity, notes, margin)
         if getattr(self, '_no_modal_dialogs', False) or dialog.exec() == QDialog.DialogCode.Accepted:
             return self._apply_prices_dialog()
         return None
 
     def _apply_prices_dialog(self):
-        dialog, table, client, project, vat, validity, notes = self._prices_dialog
+        dialog, table, client, project, vat, validity, notes, margin = self._prices_dialog
         from archforge.quantities.quote import price_entity, settings
         current = price_entity(self.doc)
         trade = dict((current.params.get('trade_prices') or {}) if current else {})
