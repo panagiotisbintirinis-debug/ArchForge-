@@ -135,16 +135,12 @@ def info(doc, entity):
 
 def reshape_command(doc, curve_id, r=None, n=None):
     """The arc rebuilt with another radius (ends kept, same side) and/or number of pieces — one undo step.
-    ValueError if a door / window sits on it (it would be lost with its piece)."""
+    Doors / windows on it keep their place along the arc (same fraction of its length, same ids) on the piece
+    that now holds it; ValueError when one no longer fits in its piece (say which and why)."""
     from archforge.core.commands import AddEntities, CompositeCommand, DeleteEntities
     walls = members(doc, curve_id)
     if not walls:
         raise ValueError("Καμπύλος τοίχος: δεν βρέθηκε")
-    ids = {w.id for w in walls}
-    hosted = [e for e in doc.entities.values() if e.kind in ("door", "window", "opening")
-              and str(e.params.get("host_id") or e.params.get("wall_id") or "") in ids]
-    if hosted:
-        raise ValueError("Καμπύλος τοίχος: έχει κουφώματα — αφαίρεσέ τα πρώτα για να αλλάξει το τόξο")
     c = dict(walls[0].params["curve"])
     cx, cy, r0, t0, sweep = (float(c[k]) for k in ("cx", "cy", "r", "t0", "sweep"))
     arc = (cx, cy, r0, t0, sweep)
@@ -158,7 +154,39 @@ def reshape_command(doc, curve_id, r=None, n=None):
     base = {k: v for k, v in walls[0].params.items() if k not in ("x1", "y1", "x2", "y2", "curve")}
     name = str(walls[0].name or "").split(" (καμπύλος")[0] or None
     new = make_walls(doc, arc, n or int(c["n"]), base, curve_id=c["id"], name=name)
-    return CompositeCommand([DeleteEntities([w.id for w in walls]), AddEntities(new)], "Καμπύλος τοίχος"), new
+    moved = rehosted_openings(doc, walls, new)
+    return CompositeCommand([DeleteEntities([w.id for w in walls]), AddEntities(new + moved)], "Καμπύλος τοίχος"), new
+
+
+def _chord(w):
+    p = w.params
+    return math.hypot(float(p["x2"]) - float(p["x1"]), float(p["y2"]) - float(p["y1"]))
+
+
+def rehosted_openings(doc, old_walls, new_walls):
+    """Copies of the doors / windows of ``old_walls`` on ``new_walls`` at the same fraction of the arc (the piece
+    holding their centre; nudged inside it when they would cross its end).  Deleting the old pieces takes the
+    originals with them; the copies keep their ids, so one undo brings everything back."""
+    index = {w.id: k for k, w in enumerate(old_walls)}
+    n_old, n_new = len(old_walls), len(new_walls)
+    out = []
+    for e in sorted(doc.entities.values(), key=lambda e: e.id):
+        if e.kind not in ("door", "window", "opening") or e.parent_id not in index:
+            continue
+        old = old_walls[index[e.parent_id]]
+        f = (index[e.parent_id] + float(e.params.get("offset", 0.0)) / max(_chord(old), 1e-9)) / n_old
+        k = min(n_new - 1, max(0, int(f * n_new)))
+        host = new_walls[k]
+        length, half = _chord(host), float(e.params.get("width", 0.0)) / 2
+        if 2 * half > length + 1e-9:
+            raise ValueError(f"Καμπύλος τοίχος: «{e.name or e.kind}» πλάτους {2 * half:.2f} m δεν χωράει σε τμήμα "
+                             f"{length:.2f} m — λιγότερα τμήματα ή μεγαλύτερη ακτίνα")
+        offset = min(max((f * n_new - k) * length, half), length - half)
+        copy = e.clone()
+        copy.parent_id = host.id
+        copy.params = {**e.params, "offset": round(offset, 6)}
+        out.append(copy)
+    return out
 
 
 SHARED = ("height", "thickness", "z", "wall_type", "material_id", "wall_kind", "load_bearing", "reference")

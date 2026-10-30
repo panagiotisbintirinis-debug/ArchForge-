@@ -113,3 +113,31 @@ def test_three_clicks_in_the_plan_from_the_wall_menu(tmp_path):
         tool.stop()
     finally:
         w._mark_clean(); w.close(); app.processEvents()
+
+
+def test_doors_and_windows_stay_on_the_arc_when_it_is_reshaped():
+    # Before 30/10 the check looked for host_id/wall_id, never matched, and deleting the pieces took the
+    # window with them: it vanished silently on a new radius.
+    doc = Document(); stack = CommandStack(doc)
+    command, walls = cw.create_command(doc, (0, 0), (8, 0), (4, 3), n=8)
+    stack.execute(command)
+    piece = walls[5]
+    from archforge.core.commands import AddEntity
+    from archforge.core.model import Entity
+    win = Entity('window', {'offset': 0.7, 'width': 0.5, 'height': 1.2, 'sill': 0.9}, parent_id=piece.id)
+    stack.execute(AddEntity(win))
+    def centre(e):
+        h = doc.get(e.parent_id).params
+        c = math.dist((h['x1'], h['y1']), (h['x2'], h['y2']))
+        t = e.params['offset'] / c
+        return (h['x1'] + (h['x2'] - h['x1']) * t, h['y1'] + (h['y2'] - h['y1']) * t)
+    before = centre(doc.get(win.id))
+    reshape, new = cw.reshape_command(doc, piece.params['curve']['id'], n=16)
+    stack.execute(reshape)
+    w = doc.get(win.id)
+    assert w is not None and w.parent_id in {x.id for x in new}
+    assert math.dist(centre(w), before) <= 0.25 + 0.02          # same place, at most nudged inside its piece
+    stack.undo()
+    assert doc.get(win.id).parent_id == piece.id
+    with pytest.raises(ValueError, match='δεν χωράει'):
+        cw.reshape_command(doc, piece.params['curve']['id'], n=96)
