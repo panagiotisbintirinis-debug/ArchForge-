@@ -180,11 +180,24 @@ def save_layout(window, settings=None):
     settings.sync()
 
 
+# The work area (plan / 3D) never goes below this (owner 30/10, a panel over the whole window: «γιατί τα μενού
+# πρέπει να καλύπτουν όλη την οθόνη;»).  Qt lays docks out round the central widget's minimum size, so no
+# dragged, docked or restored panel can swallow it.  DESIGN_DEFAULT: fits 1280 px with both side panels.
+MIN_WORK_AREA = (480, 320)
+
+
+def guard_work_area(window):
+    central = window.centralWidget()
+    if central is not None:
+        central.setMinimumSize(*MIN_WORK_AREA)
+
+
 def restore_layout(window, settings=None):
     """Put bars/panels where the human left them; False when nothing (or an older layout) is saved."""
     settings = settings or layout_settings()
     state = settings.value("window/state")
     geometry = settings.value("window/geometry")
+    guard_work_area(window)
     if geometry is not None:
         window.restoreGeometry(geometry)
     return bool(state is not None and window.restoreState(state, LAYOUT_VERSION))
@@ -217,6 +230,7 @@ def install_workspace_layout(window, bars, panels):
         dock.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
     window._workspace_bars = tuple(bars)
     window._workspace_panels = tuple(panels)
+    guard_work_area(window)
     window._default_layout_state = window.saveState(LAYOUT_VERSION)
     reset = QAction("Επαναφορά διάταξης", window)
     reset.setToolTip("Γραμμές εργαλείων και πάνελ πίσω στη θέση τους")
