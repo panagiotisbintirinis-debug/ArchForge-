@@ -56,8 +56,8 @@ def test_menu_place_two_domes_partition_follows_a_move():
     app, w = _window()
     try:
         assert [a.text() for a in w._dome_menu.actions()][0].startswith('Θόλος')
-        walls = next(a.menu() for a in w._build_menu.actions() if a.text().startswith('Τοίχοι'))
-        assert w._dome_menu.menuAction() in walls.actions()
+        shell = w._work_sections[('Κατασκευή', 'Κέλυφος')]                 # mockup v4: Κατασκευή ▸ Κέλυφος
+        assert w._dome_menu.menuAction() in shell.actions()
         spec = {'kind': 'dome', 'diameter': 6.0, 'depth': 6.0, 'height': 3.2, 'shell': 0.018}
         dome_tool.start(w, 'dome', spec)
         assert w.plan_view.controller.tool == 'dome_place'
