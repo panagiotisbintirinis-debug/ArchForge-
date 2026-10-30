@@ -101,6 +101,49 @@ _STRUCTURAL_CONSTRUCTION_MATERIAL = {
 ROOF_LAYER_ROLES = ("boarding", "vapour_barrier", "insulation", "membrane")
 
 
+def _split_by_layers(vertices, tri, params, bands):
+    """Cut one wall triangle at the layer boundaries: ``[(layer index, (i, j, k))]``, new points appended to
+    ``vertices``.  The offset of a point is its distance from the wall's centre line along the normal (plan x, y)."""
+    import math
+    x1, y1, x2, y2 = (float(params[k]) for k in ("x1", "y1", "x2", "y2"))
+    length = math.hypot(x2 - x1, y2 - y1)
+    if length < 1e-9:
+        return [(None, tri)]
+    nx, ny = -(y2 - y1) / length, (x2 - x1) / length
+
+    def offset(p):
+        return (p[0] - x1) * nx + (p[1] - y1) * ny
+
+    poly = [vertices[i] for i in tri]
+    ds = [offset(p) for p in poly]
+    if max(ds) - min(ds) < 1e-6:                       # lies in one layer: no cut
+        mid = sum(ds) / 3
+        k = next((k for k, (hi, lo, _c) in enumerate(bands) if lo - 1e-6 <= mid <= hi + 1e-6), None)
+        return [(k, tri)]
+
+    def clip(points, level, keep_above):
+        out = []
+        for a, b in zip(points, points[1:] + points[:1]):
+            da, db = offset(a) - level, offset(b) - level
+            ina, inb = (da >= 0) == keep_above or da == 0, (db >= 0) == keep_above or db == 0
+            if ina:
+                out.append(a)
+            if (da > 0) != (db > 0) and da != 0 and db != 0:
+                t = da / (da - db)
+                out.append([a[m] + (b[m] - a[m]) * t for m in range(3)])
+        return out
+
+    pieces = []
+    for k, (hi, lo, _c) in enumerate(bands):
+        part = clip(clip(poly, hi, False), lo, True)
+        if len(part) < 3:
+            continue
+        base = len(vertices)
+        vertices.extend([float(c) for c in p] for p in part)
+        pieces += [(k, (base, base + m, base + m + 1)) for m in range(1, len(part) - 1)]
+    return pieces or [(None, tri)]
+
+
 def _surface_material_id(entity, surface_role: str | None = None):
     if entity is None:
         return None
@@ -314,16 +357,26 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
             from archforge.architecture.wall_face import outside_sign
             type_colors = face_colors(entity.params.get("wall_type", "generic"),
                                       outside_sign(doc, entity.id) if doc is not None else 1, doc)
-            groups = {}
+            from archforge.architecture.wall_types import layer_bands
+            bands = layer_bands(entity.params, entity.params.get("wall_type", "generic"),
+                                outside_sign(doc, entity.id) if doc is not None else 1, doc)
+            groups, band_colors = {}, {}
             for tri, role in zip(mesh.triangles, mesh.triangle_surfaces):
                 role = str(role)
                 material_id = _surface_material_id(entity, role)
-                key = str(material_id) if material_id else "__default__"
-                if not material_id and role in ("exterior", "interior") and type_colors:
-                    key = f"__type_{role}__"   # finishing layer of the wall assembly
-                group = groups.setdefault(key, {"triangles": [], "surfaces": [], "role": role})
-                group["triangles"].append([int(tri[0]), int(tri[1]), int(tri[2])])
-                group["surfaces"].append(role)
+                pieces = [(None, tri)]
+                if bands and not material_id and role not in ("exterior", "interior", "bottom"):
+                    pieces = _split_by_layers(vertices, tri, entity.params, bands)   # the layers where it is cut
+                for band, piece in pieces:
+                    key = str(material_id) if material_id else "__default__"
+                    if band is not None:
+                        key = f"__layer_{band}__"
+                        band_colors[key] = bands[band][2]
+                    elif not material_id and role in ("exterior", "interior") and type_colors:
+                        key = f"__type_{role}__"   # finishing layer of the wall assembly
+                    group = groups.setdefault(key, {"triangles": [], "surfaces": [], "role": role})
+                    group["triangles"].append([int(piece[0]), int(piece[1]), int(piece[2])])
+                    group["surfaces"].append(role)
             for key, group in groups.items():
                 representative_role = group["role"]
                 material = _material(
@@ -335,6 +388,8 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                 )
                 if key.startswith("__type_") and body.entity_id not in selected:
                     material["color"] = type_colors[0] if representative_role == "exterior" else type_colors[1]
+                if key in band_colors and body.entity_id not in selected:
+                    material["color"] = band_colors[key]
                 objects.append(
                     {
                         "id": str(body.entity_id),
