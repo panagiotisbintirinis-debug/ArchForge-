@@ -101,6 +101,11 @@ def catalog(window):
     for top in window.menuBar().actions():
         if top.menu() is not None:
             walk(top.menu(), (top.text().replace("&&", "&"),))
+    for old, new in (getattr(window, "_menu_aliases", None) or {}).items():   # paths saved before the work menus
+        if new in out:
+            out.setdefault(old, out[new])
+            if new in icons:
+                icons.setdefault(old, icons[new])
     window._catalog_icons = icons
     return out
 

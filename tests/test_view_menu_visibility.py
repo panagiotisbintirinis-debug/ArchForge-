@@ -17,11 +17,11 @@ def test_mockup_menus_carry_real_file_edit_and_view_commands():
     window.show()
     app.processEvents()
 
-    menus = window._mockup_menus
-    file_actions = menus['Αρχείο'].actions()
+    menus, sections = window._work_menus, window._work_sections                   # mockup v4 (owner 30/10)
+    file_actions = sections[('Έργο', 'Αρχείο')].actions()
     for action in (window.new_action, window.open_action, window.save_action):
         assert action in file_actions
-    assert window.export_stl_action in window._file_export_menu.actions()      # Αρχείο ▸ Εξαγωγή
+    assert window.export_stl_action in sections[('Σχέδια', 'Εξαγωγή')].actions()
     edit_actions = menus['Επεξεργασία'].actions()
     for action in (window.undo_action, window.redo_action, window.delete_action):
         assert action in edit_actions
@@ -32,7 +32,7 @@ def test_mockup_menus_carry_real_file_edit_and_view_commands():
         assert action in window.actions()
 
     assert window.view_menu is menus['Προβολή']
-    labels = {action.text() for action in window.view_menu.actions()}
+    labels = {action.text() for action in sections[('⚙ Ρυθμίσεις', 'Περιβάλλον')].actions()}
     assert {'Γραμμή κατάστασης', 'Πάνελ'} <= labels
 
 

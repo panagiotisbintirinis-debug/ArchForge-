@@ -1,4 +1,5 @@
-"""Owner (2026-10-14): «συμπύκνωσε σε υπομενού πρώτα τις κατασκευές» (Home Designer's Build menu as reference)."""
+"""Owner (2026-10-14): «συμπύκνωσε σε υπομενού πρώτα τις κατασκευές»; since 30/10 (owner «ναι στο 4») «Κατασκευή» is
+the work menu of mockup v4: shell, openings, railings, slabs, stairs, roof, structure — short, by kind of element."""
 import os
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
@@ -37,17 +38,15 @@ def _build(window):
 def test_build_menu_is_short_submenus_by_kind_with_icons(window):
     top = [a for a in _build(window).actions() if not a.isSeparator()]
     titles = [a.text().replace('&&', '&') for a in top]
-    assert len(top) <= 16
-    for expected in ('Κουφώματα', 'Κάγκελα & μπαλκόνια', 'Πέργκολα', 'Δάπεδα & πλάκες', 'Στέγη', 'Σκάλα / Ράμπα',
-                     'Ντουλάπια / κουζίνα', 'Όροφοι', 'Επιμετρήσεις & τιμές', 'Ανακαίνιση (φάσεις)'):
-        assert expected in titles, (expected, titles)
-    assert titles.index('Κουφώματα') < titles.index('Στέγη') < titles.index('Επιμετρήσεις & τιμές')
-    assert all(not a.icon().isNull() for a in top if a.menu() is not None)
+    assert titles == ['Κέλυφος', 'Ανοίγματα', 'Κάγκελα', 'Πλάκες', 'Σκάλα·Ράμπα', 'Στέγη', 'Φέρων οργανισμός']
+    assert all(a.menu() is not None and not a.icon().isNull() for a in top)
+    # Storeys, phases, quantities and kitchens have their own work menus now (Έργο, Σχέδια, Διαμόρφωση).
+    assert not {'Όροφοι', 'Επιμετρήσεις & τιμές', 'Ανακαίνιση (φάσεις)', 'Ντουλάπια / κουζίνα'} & set(titles)
 
 
 def test_nothing_was_lost_from_the_build_menu(window):
-    """Every command that was in «Κατασκευή» before the regrouping is still reachable from it."""
-    leaves = {a.text().replace('&&', '&') for a in _leaves(_build(window))}
+    """Every command that was in «Κατασκευή» before the regroupings is still reachable from the menu bar."""
+    leaves = {a.text().replace('&&', '&') for t in window.menuBar().actions() if t.menu() for a in _leaves(t.menu())}
     for text in ('Υπόγειο', 'Επιμέτρηση εργασιών (ανά χώρο)…', 'Τεμάχια Isotex (αναγωγή)…', 'Λίστα υλικών με τιμές (Excel)…',
                  'Εξαγωγή PDF (κατόψεις, επιμέτρηση, προσφορά)…', 'Οπή πλάκας / αίθριο (σχεδίαση)', 'Μπαλκόνι (σχεδίαση)',
                  'Τεμάχια ICF (αναγωγή)…', 'Γυψοσανίδες — υλικά (αναγωγή)…', 'Σε χώρο (κλικ στον χώρο)', 'Δημιουργία εδάφους',

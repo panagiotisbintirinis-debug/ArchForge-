@@ -119,7 +119,7 @@ def test_menu_entry_opens_the_editor(window, monkeypatch):
     from archforge.ui import mouse_menus
     opened = []
     monkeypatch.setattr(mouse_menus.MouseMenuEditor, 'exec', lambda self: opened.append(self.task()) or 0)
-    assert window._mouse_menu_action in window._tools_menu.actions()
+    assert window._mouse_menu_action in window._work_sections[('⚙ Ρυθμίσεις', 'Περιβάλλον')].actions()   # mockup v4
     window._mouse_menu_action.trigger()
     assert opened == ['empty']
 
