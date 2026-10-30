@@ -8,12 +8,12 @@ the IFC material all read one entry.
 Each entry: name, category, λ (W/mK), density (kg/m³), section hatch, the
 appearance material (``rendering/materials.py`` id, the look of an exposed
 face; None = never seen, e.g. insulation inside the wall), colour of the layer
-in plan, insulation flag, and cost.
+in plan and insulation flag.  No price: prices live only in the common price
+book (``quantities/price_book.py``), entered by the user.
 
 Values are typical, not product data: λ and density are UNVERIFIED (common
 EN ISO 10456 / manufacturer-range figures, not cross-checked; the data sheet
-of the product used wins).  ``cost`` is always None here: a price is the
-user's, never a hidden value of the program.
+of the product used wins).
 
 Ids are stable (saved projects will store them) and never renamed.
 """
@@ -38,7 +38,6 @@ class BuildingMaterial:
     appearance: str | None       # rendering material id of an exposed face
     color: str                   # layer colour in plan / face colour when exposed
     insulation: bool = False
-    cost: float | None = None    # €/m³, entered by the user
     status: str = UNVERIFIED
 
 
@@ -116,7 +115,4 @@ _RULES = register(
     Rule("building_materials.hatch_and_look",
          "Διαγράμμιση τομής και υλικό εμφάνισης ανά υλικό δόμησης", DESIGN_DEFAULT,
          note="Επιλογή του προγράμματος για την παρουσίαση· αλλάζει χωρίς τεχνική συνέπεια."),
-    Rule("building_materials.cost",
-         "Κόστος υλικού δόμησης: κενό — το συμπληρώνει ο χρήστης", DESIGN_DEFAULT,
-         note="Καμία κρυφή τιμή κόστους από το πρόγραμμα."),
 )

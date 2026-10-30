@@ -23,7 +23,7 @@ def test_registry_entries_are_complete_and_honest():
         assert m.conductivity > 0 and (m.density is None or m.density > 0)
         assert m.hatch in HATCHES
         assert m.appearance is None or m.appearance in MATERIAL_PRESETS
-        assert m.cost is None                                   # a price is the user's, never ours
+        assert not hasattr(m, "cost")                           # prices only in quantities/price_book.py
         assert m.status in (UNVERIFIED, DESIGN_DEFAULT)         # typical values, nothing verified
         assert m.status != VERIFIED
 
