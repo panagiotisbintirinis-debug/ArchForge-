@@ -287,6 +287,16 @@ class PlanView(QGraphicsView):
         if event.button()==Qt.MouseButton.LeftButton:
             # Double click = selection (owner 23/10): the object, its handles and its Ιδιότητες.
             hit=self.itemAt(event.position().toPoint());eid=self._entity_items.get(hit)
+            window=getattr(self,'marking_menu_window',None)
+            labels=getattr(self,'_room_label_items',{})
+            signature=next((labels[i] for i in self.items(event.position().toPoint()) if i in labels),None)   # under a slab too
+            if signature is None and not eid and window is not None:
+                # Owner 30/10: «το 2Δ να μου δίνει περιθώριο να ονομάσω το χώρο» — inside a room where nothing else is.
+                from archforge.ui.room_panel import room_at
+                q=self._scene_to_plane(event.position().toPoint());signature=room_at(self.doc,*self.controller._plan_xy(q))
+            if signature is not None and window is not None:
+                from archforge.ui.room_panel import rename_room
+                rename_room(window,signature);event.accept();return
             if eid and eid in self.doc.entities:
                 self.doc.select([eid],add=bool(event.modifiers()&Qt.KeyboardModifier.ControlModifier));self.controller.set_target(eid,None)
                 self._indicated=None;self.selectionChangedByView.emit();self.redraw()
@@ -857,7 +867,7 @@ class PlanView(QGraphicsView):
         for item,min_scale in getattr(self,'_scaled_labels',()):item.setVisible(scale>=min_scale)
     def redraw(self):
         self._scaled_labels=[]
-        self._scene.clear();self._handle_items.clear();self._entity_items.clear();self._draw_grid();self._draw_underlays();frame=build_plan_frame(self.doc,self.controller.preview,layers=not self.structural_only);self._frame=frame
+        self._scene.clear();self._handle_items.clear();self._entity_items.clear();self._room_label_items={};self._draw_grid();self._draw_underlays();frame=build_plan_frame(self.doc,self.controller.preview,layers=not self.structural_only);self._frame=frame
         if self.structural_only:
             structural_ids={
                 eid for eid,e in self.doc.entities.items()
@@ -1226,6 +1236,8 @@ class PlanView(QGraphicsView):
                 # Distance of a dragged wall: blue and bold, like the angle mark.
                 f=item.font();f.setBold(True);f.setPointSizeF(f.pointSizeF()*1.25);item.setFont(f)
                 item.setDefaultTextColor(QColor(210,40,40) if text.startswith('⚠') else QColor(20,110,220))
+            if p.role=='derived-room-label' and meta.get('signature'):
+                self._room_label_items[item]=meta['signature']       # double click on it: the room's name
             item.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations,True);item.setPos(cx,cy);item.setTransformOriginPoint(item.boundingRect().center());item.setScale(1.0);item.setZValue(8);
             if p.role=='dimension-label':
                 # Along its dimension line, just above it (screen y is the plan's −y, so the angle turns over).

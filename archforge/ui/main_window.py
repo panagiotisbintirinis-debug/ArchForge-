@@ -1210,6 +1210,7 @@ class MainWindow(QMainWindow):
         # Read the node before switching storey: the switch rebuilds the tree and deletes ``item``.
         level = item.data(0, Qt.ItemDataRole.UserRole + 1)
         ids = self._tree_item_ids(item)
+        self._inspected_room = item.data(0, Qt.ItemDataRole.UserRole + 2) or None   # a room: Ιδιότητες show it
         if level:
             self._activate_level_by_name(level)
         if not ids:
@@ -1218,7 +1219,7 @@ class MainWindow(QMainWindow):
         self.refresh_inspector()
         self._redraw_views(all_views=True)
         dock = getattr(self, 'dock', None)
-        if dock is not None and len(ids) == 1:
+        if dock is not None and (len(ids) == 1 or self._inspected_room):
             dock.show(); dock.raise_()                     # the properties of the element, next to the tree
         self.statusBar().showMessage(f'Επιλογή: {len(ids)} στοιχεία — Delete για διαγραφή, δεξί κλικ για επιλογές', 5000)
 
@@ -2150,6 +2151,11 @@ class MainWindow(QMainWindow):
             inspector_lock(self)        # locked layer: properties shown, not editable
         self._clear_form()
         self._sync_tree_selection()
+        from archforge.ui.room_panel import add_room_rows, is_room_selection
+        room = is_room_selection(self)
+        if room:
+            add_room_rows(self, room)          # a room chosen in the tree / named in the plan (owner 30/10)
+            return
         if len(self.doc.selection) != 1:
             count = len(self.doc.selection)
             self.form.addRow(QLabel('Καμία επιλογή' if not count else f'{count} επιλεγμένα'))
