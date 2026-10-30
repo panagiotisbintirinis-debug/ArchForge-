@@ -104,6 +104,8 @@ class MainWindow(QMainWindow):
         install_cabinet_run(self)        # «Γραμμή ντουλαπιών» (kitchen/cabinet_run.py)
         from archforge.ui import shortcuts
         shortcuts.install(self)          # editable keyboard shortcuts (Επεξεργασία → Συντομεύσεις πληκτρολογίου…)
+        from archforge.ui import units_dialog
+        units_dialog.install(self)       # Επεξεργασία → Μονάδες μέτρησης… (cm on screen, IFC m / mm)
         from archforge.ui import camera_tool
         camera_tool.install(self)        # Κάμερες: tool, list, «Επιστροφή στην κάμερα» (CAM1)
         from archforge.ui import terrain_tools

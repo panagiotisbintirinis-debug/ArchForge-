@@ -91,11 +91,15 @@ class WallDimsTool:
         now = next((x["clear"] for x in dims["sides"] if x["side"] == side), None)
         if now is None:
             return False
+        from archforge.core.units import LENGTH_UNITS, display_unit
+        unit = display_unit()                          # typed in the unit the plan shows (core/units)
+        _label, k, decimals = LENGTH_UNITS[unit]
         value, ok = QInputDialog.getDouble(self.w, "Απόσταση από τον απέναντι τοίχο",
-                                           "Καθαρή απόσταση (m) — ο τοίχος μετακινείται, οι ενωμένοι τεντώνουν:",
-                                           round(now, 2), 0.05, 100.0, 2)
+                                           f"Καθαρή απόσταση ({unit}) — ο τοίχος μετακινείται, οι ενωμένοι τεντώνουν:",
+                                           round(now * k, decimals), 0.05 * k, 100.0 * k, decimals)
         if not ok:
             return False
+        value = value / k
         try:
             off = offset_for(self.doc, eid, side, value)
         except ValueError as exc:

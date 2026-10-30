@@ -12,7 +12,7 @@ stairs leave as they are drawn.  On top of the body, the relations a BIM program
 * rooms become ``IfcSpace`` (name, use, net floor area as the take-off measures it), extruded to the storey height;
 * each element has the ``ArchForge`` property set (kind, id, name, wall type, phase) so it can come back.
 
-Units: metre.  Origin: the project origin (0, 0, 0) of ArchForge.  Read-only for the Document.
+Units: metre, or millimetre with ``unit="mm"`` (``core/units.ifc_unit``).  Origin: the project origin (0, 0, 0) of ArchForge.  Read-only for the Document.
 """
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ SCHEMA = "IFC4"
 
 
 class _Writer:
-    def __init__(self, doc, project_name):
+    def __init__(self, doc, project_name, unit="m"):
         import ifcopenshell
         import ifcopenshell.api
         import ifcopenshell.guid
@@ -34,9 +34,14 @@ class _Writer:
         self.f = ifcopenshell.file(schema=SCHEMA)
         f = self.f
         self.project = self.run("root.create_entity", ifc_class="IfcProject", name=project_name or "ArchForge")
-        # Metres (the default of assign_unit is millimetres: the values written in metres read 1000× too small).
-        self.run("unit.assign_unit", units=[self.run("unit.add_si_unit", unit_type=t)
-                                            for t in ("LENGTHUNIT", "AREAUNIT", "VOLUMEUNIT", "PLANEANGLEUNIT")])
+        # Length unit of the file (core/units.ifc_unit: m, or mm as many ArchiCAD / Revit templates); every length
+        # written goes through ``self.k``.  Areas / volumes stay m² / m³.  (Before 30/10 the file said mm with values
+        # in metres: 1000× too small elsewhere.)
+        self.k = 1000.0 if unit == "mm" else 1.0
+        length = self.run("unit.add_si_unit", unit_type="LENGTHUNIT", prefix="MILLI") if unit == "mm" \
+            else self.run("unit.add_si_unit", unit_type="LENGTHUNIT")
+        self.run("unit.assign_unit", units=[length] + [self.run("unit.add_si_unit", unit_type=t)
+                                                       for t in ("AREAUNIT", "VOLUMEUNIT", "PLANEANGLEUNIT")])
         model = self.run("context.add_context", context_type="Model")
         self.body = self.run("context.add_context", context_type="Model", context_identifier="Body",
                              target_view="MODEL_VIEW", parent=model)
@@ -53,7 +58,7 @@ class _Writer:
         self.storeys = {}
         for name, z in storeys(doc):
             s = self.run("root.create_entity", ifc_class="IfcBuildingStorey", name=storey_label(name))
-            s.Elevation = float(z); s.LongName = str(name); s.ObjectPlacement = self.placement
+            s.Elevation = float(z) * self.k; s.LongName = str(name); s.ObjectPlacement = self.placement
             self.run("aggregate.assign_object", products=[s], relating_object=self.building)
             self.storeys[name] = s
         self.contained = {name: [] for name in self.storeys}
@@ -66,24 +71,26 @@ class _Writer:
     # ------------------------------------------------------------------ geometry
     def mesh_shape(self, vertices, triangles):
         f = self.f
-        pts = f.createIfcCartesianPointList3D([tuple(float(c) for c in v) for v in vertices])
+        pts = f.createIfcCartesianPointList3D([tuple(float(c) * self.k for c in v) for v in vertices])
         faces = f.createIfcTriangulatedFaceSet(pts, None, True, [tuple(int(i) + 1 for i in t) for t in triangles])
         rep = f.createIfcShapeRepresentation(self.body, "Body", "Tessellation", [faces])
         return f.createIfcProductDefinitionShape(None, None, [rep])
 
     def prism_shape(self, polygon, z, height):
         f = self.f
-        pts = [f.createIfcCartesianPoint((float(x), float(y))) for x, y in polygon]
+        pts = [f.createIfcCartesianPoint((float(x) * self.k, float(y) * self.k)) for x, y in polygon]
         profile = f.createIfcArbitraryClosedProfileDef("AREA", None, f.createIfcPolyline(pts + [pts[0]]))
-        where = f.createIfcAxis2Placement3D(f.createIfcCartesianPoint((0.0, 0.0, float(z))))
-        solid = f.createIfcExtrudedAreaSolid(profile, where, f.createIfcDirection((0.0, 0.0, 1.0)), float(height))
+        where = f.createIfcAxis2Placement3D(f.createIfcCartesianPoint((0.0, 0.0, float(z) * self.k)))
+        solid = f.createIfcExtrudedAreaSolid(profile, where, f.createIfcDirection((0.0, 0.0, 1.0)), float(height) * self.k)
         rep = f.createIfcShapeRepresentation(self.body, "Body", "SweptSolid", [solid])
         return f.createIfcProductDefinitionShape(None, None, [rep])
 
     def element(self, ifc_class, name, predefined=None, storey=None, shape=None):
         e = self.run("root.create_entity", ifc_class=ifc_class, name=name, predefined_type=predefined) if predefined \
             else self.run("root.create_entity", ifc_class=ifc_class, name=name)
-        e.ObjectPlacement = self.placement
+        # Its own placement (at the origin): one shared placement became a cycle once an opening was made relative
+        # to its wall (feature.add_feature) — IfcOpenShell then crashed reading the file.
+        e.ObjectPlacement = self.f.createIfcLocalPlacement(None, self.origin)
         if shape is not None:
             e.Representation = shape
         if storey is not None:
@@ -109,7 +116,7 @@ class _Writer:
         for row in rows:
             mat = self.material(str(row[0]))
             layer = self.run("material.add_layer", layer_set=mset, material=mat)
-            layer.LayerThickness = float(row[1])
+            layer.LayerThickness = float(row[1]) * self.k
         self.materials[key] = mset
         return mset
 
@@ -172,9 +179,10 @@ def _exterior_ids(doc):
     return out
 
 
-def export_ifc(doc, path, project_name="ArchForge"):
+def export_ifc(doc, path, project_name="ArchForge", unit=None):
     """Write ``path`` (IFC4).  Returns a summary: counts per IFC class, storeys, spaces, what was left out."""
-    w = _Writer(doc, project_name)
+    from archforge.core.units import ifc_unit
+    w = _Writer(doc, project_name, unit or ifc_unit())
     bodies = _bodies(doc)
     from archforge.architecture.wall_types import indicative_u, label as type_label
     left_out = {}
@@ -197,7 +205,7 @@ def export_ifc(doc, path, project_name="ArchForge"):
                                   if isinstance(p.get("curve"), dict) else None})
         if e.kind == "wall":
             # The wall's axis as BIM programs read it (and as ifc_import takes it back): the plan line, at the base.
-            axis = w.run("geometry.add_axis_representation", context=w.axis,
+            axis = w.run("geometry.add_axis_representation", context=w.axis,      # takes metres, converts itself
                          axis=((float(p["x1"]), float(p["y1"])), (float(p["x2"]), float(p["y2"]))))
             el.Representation.Representations = (axis,) + tuple(el.Representation.Representations)
             wall_type = p.get("wall_type", "generic")
@@ -218,7 +226,7 @@ def export_ifc(doc, path, project_name="ArchForge"):
                 pv, pt, _s = _opening_box(e, o, panel=0.06)
                 leaf = w.element(kind, o.name or ("Πόρτα" if o.kind == "door" else "Παράθυρο"),
                                  "DOOR" if o.kind == "door" else "WINDOW", storey, w.mesh_shape(pv, pt))
-                leaf.OverallWidth, leaf.OverallHeight, leaf.Tag = float(ow), float(oh), o.id
+                leaf.OverallWidth, leaf.OverallHeight, leaf.Tag = float(ow) * w.k, float(oh) * w.k, o.id
                 w.run("feature.add_filling", opening=hole, element=leaf)
                 w.pset(leaf, "ArchForge", {"Kind": o.kind, "Id": o.id, "Sill": round(sill, 3), "HostWall": e.id})
         if e.kind in ("structural_column", "structural_beam"):
@@ -229,7 +237,7 @@ def export_ifc(doc, path, project_name="ArchForge"):
         if products:
             w.run("spatial.assign_container", products=products, relating_structure=w.storeys[name])
     w.f.write(str(path))
-    return {"file": str(path), "schema": SCHEMA, "storeys": [storey_label(n) for n, _z in storeys(doc)],
+    return {"file": str(path), "schema": SCHEMA, "unit": "mm" if w.k == 1000.0 else "m", "storeys": [storey_label(n) for n, _z in storeys(doc)],
             "counts": dict(sorted(w.counts.items())), "spaces": spaces, "left_out": left_out,
             "date": datetime.date.today().isoformat()}
 
@@ -253,7 +261,7 @@ def _spaces(doc, w):
             sp.LongName = data.get("use") or label
             w.run("aggregate.assign_object", products=[sp], relating_object=w.storeys[name])
             qto = w.run("pset.add_qto", product=sp, name="Qto_SpaceBaseQuantities")
-            w.run("pset.edit_qto", qto=qto, properties={"NetFloorArea": round(area, 2), "Height": round(height, 2)})
+            w.run("pset.edit_qto", qto=qto, properties={"NetFloorArea": round(area, 2), "Height": round(height * w.k, 2)})
             w.pset(sp, "ArchForge", {"Signature": face.signature, "Use": data.get("use")})
             out.append({"storey": storey_label(name), "name": label, "area_m2": round(area, 2)})
     return out
