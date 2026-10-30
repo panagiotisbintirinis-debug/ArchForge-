@@ -259,6 +259,16 @@ def _sub(menu, title):
     return None
 
 
+def _with_menu(button, source):
+    """The group's button keeps its click and gets ``source``'s ▾ menu (the Τοίχος / Γλυπτική choices built with the
+    ribbon in approved_mockup_shell.py — one menu, not a copy)."""
+    menu = source.menu() if source is not None else None
+    if button is not None and menu is not None:
+        button.setMenu(menu)
+        button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+    return button
+
+
 def _install_groups(window):
     from archforge.ui.workspace_layout import make_icon
     menus = getattr(window, "_main_menus", {})
@@ -271,7 +281,9 @@ def _install_groups(window):
     groups["select"] = select
 
     construct = ToolGroup(window, "build", "Κατασκευή", build)
-    construct.add(keys.get("tool.wall"), icon=make_icon("wall"), text="Τοίχος")
+    wall = construct.add(keys.get("tool.wall"), icon=make_icon("wall"), text="Τοίχος")
+    _with_menu(wall, getattr(window, "_mockup_wall_button", None))      # «Τοίχος ▾»: είδος, γυάλινος (owner 29/10)
+    window._layout2_wall_button = wall
     for title, icon, text in (("Κουφώματα", "joinery", None), ("Σκάλα / Ράμπα", "stair", "Σκάλα"),
                               ("Δάπεδα & πλάκες", "slab", "Πλάκα"), ("Στέγη", "roof", None)):
         sub = _sub(build, title)
@@ -298,9 +310,14 @@ def _install_groups(window):
     lib.add(mats)
     sculpt = QAction(make_icon("sculpt"), "Γλυπτική", window)
     sculpt.setToolTip("Γλυπτική: πλάσε την επιφάνεια με το ποντίκι (δεξί κλικ: εργασία, ροδέλα: πινέλο)")
-    sculpt.triggered.connect(lambda: window.sculpt_action.toggle())
+    sculpt.setCheckable(True)
+    sculpt.triggered.connect(lambda _=False: window.sculpt_action.toggle())
+    window.sculpt_action.toggled.connect(sculpt.setChecked)
     window._layout2_sculpt_action = sculpt
-    lib.add(sculpt)
+    window._layout2_sculpt_button = _with_menu(lib.add(sculpt), getattr(window, "_mockup_sculpt_button", None))
+    brush = getattr(window, "_mockup_brush_action", None)        # «Πινέλο» υλικού (owner 28/10)
+    if brush is not None:
+        window._layout2_brush_button = lib.add(brush)
     groups["library"] = lib
 
     storeys = _sub(build, "Όροφοι")
