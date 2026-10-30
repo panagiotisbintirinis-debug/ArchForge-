@@ -86,15 +86,18 @@
 | `archforge/architecture/joinery.py` | `inside_sign(doc, wall, opening)`: προς ποιο χώρο ανοίγει η πόρτα. |
 | `archforge/core/plan_scene.py` | `wall_poche` (τοίχοι με δύο όψεις) · `_declutter_labels` (ετικέτες Η/Μ χωρίς επικάλυψη). |
 | `archforge/quantities/price_book.py` | Κοινός τιμοκατάλογος (τιμές έργου υπερισχύουν· ποτέ επινοημένη τιμή) · `quote()['by_trade']`. |
+| `archforge/ui/menu_map.py` · `main_menus.organize_work_menus` | **Πού μένει κάθε εντολή** (`RULES`: παλιά διαδρομή → μενού εργασίας / ενότητα) και το βήμα που χτίζει τα μενού από αυτόν. `resolve_path(window, παλιά διαδρομή)` · `old_menu_path(action)`. Νέα εντολή σε νέα θέση = μία γραμμή στο `RULES`. |
 | `archforge/ui/material_library.py` | `MATERIAL_KINDS` (ποια είδη παίρνουν υλικό) · `_apply_material(window, id, role, material)` = **η** εντολή υλικού (browser, πινέλο) · `_targets` (πλευρές/τμήματα). |
 | `tests/conftest.py` | Απομονωμένος τιμοκατάλογος και κλείσιμο παραθύρων σε κάθε τεστ. |
 
 ## Περιβάλλον cloud
 
 - Πλήρης σειρά τεστ: `QTWEBENGINE_DISABLE_SANDBOX=1 QT_QPA_PLATFORM=offscreen python -m pytest -q` (~10 λεπτά).
-- Αν τα Qt τεστ πέφτουν με `libEGL.so.1: cannot open shared object file`: `apt-get install -y libegl1 libgl1 libxkbcommon0`.
+- Αν τα Qt τεστ πέφτουν με `libEGL.so.1: cannot open shared object file`: `apt-get install -y libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3`
+  (αν δεν βρει πακέτα: πρώτα `apt-get update`).
   Είναι θέμα του container, όχι του κώδικα· μην το δηλώσεις ως αποτυχία του branch.
 - `pip install -r requirements.txt pytest` (το pytest δεν είναι στο requirements).
+- Πιο γρήγορα, παράλληλα: `pip install pytest-xdist` και `… python -m pytest -q -n 8` (30/10: ~2300 τεστ σε ~11 λεπτά).
 
 ## Προαιρετικός τοπικός βοηθός
 

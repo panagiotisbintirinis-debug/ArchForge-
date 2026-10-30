@@ -16,9 +16,9 @@ def test_open_sample_from_the_file_menu(monkeypatch, tmp_path):
         samples = os.path.normpath(window.samples_dir())
         names = sorted(n for n in os.listdir(samples) if n[:1] == 'S' and n.endswith('.archforge'))
         assert len(names) == 10
-        file_menu = next(a.menu() for a in window.menuBar().actions() if a.text().replace('&', '') == 'Αρχείο')
+        file_menu = window._work_sections[('Έργο', 'Αρχείο')]
         assert window.open_sample_action in file_menu.actions()
-        assert window.check_updates_action in file_menu.actions()      # Αρχείο ▸ Έλεγχος για ενημερώσεις…
+        assert window.check_updates_action in window._work_sections[('⚙ Ρυθμίσεις', 'Γενικά')].actions()
         seen = {}
 
         def pick(_parent, _title, folder, _filter):

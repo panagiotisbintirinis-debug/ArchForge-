@@ -44,9 +44,9 @@ def test_every_bar_and_panel_moves_floats_and_closes_and_the_bottom_strip_is_gon
         f = dock.features()
         assert f & QDockWidget.DockWidgetFeature.DockWidgetMovable and f & QDockWidget.DockWidgetFeature.DockWidgetFloatable
         assert f & QDockWidget.DockWidgetFeature.DockWidgetClosable
-    # Προβολή → Γραμμές εργαλείων lists every bar; Επαναφορά διάταξης is there.
+    # ⚙ Ρυθμίσεις → Περιβάλλον → Γραμμές εργαλείων lists every bar; Επαναφορά διάταξης is there.
     assert [a.text() for a in window._toolbars_menu.actions()][:4] == ['Επιλογή', 'Κατασκευή', 'Βιβλιοθήκη', 'Όροφος']
-    assert window._reset_layout_action in window.view_menu.actions()
+    assert window._reset_layout_action in window._work_sections[('⚙ Ρυθμίσεις', 'Περιβάλλον')].actions()
     # Κλείδωμα θέσης freezes all of them.
     window._toolbars_lock_action.setChecked(True)
     assert not any(b.isMovable() for b in window._workspace_bars)
@@ -105,8 +105,8 @@ def test_greek_on_screen_while_ids_stay():
               if window.form.itemAt(i).widget() is not None and hasattr(window.form.itemAt(i).widget(), 'text')]
     assert 'Τύπος' in labels and 'Τοίχος' in labels and 'Type' not in labels
     menus = [a.text() for a in window.menuBar().actions()]
-    from archforge.ui.main_menus import MAIN_MENUS
-    assert menus == list(MAIN_MENUS) and 'Sculpt' not in menus and 'AI' not in menus
+    from archforge.ui.main_menus import WORK_MENUS
+    assert menus == list(WORK_MENUS) and 'Sculpt' not in menus and 'AI' not in menus
     _close(app, window)
 
 

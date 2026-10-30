@@ -605,10 +605,12 @@ class CameraManager:
             a.triggered.connect(lambda _=False, i=e.id: self.activate(i))
         if menu.actions():
             menu.addSeparator()
-        for text, run in (("Νέα κάμερα στην κάτοψη", lambda: start_place(w)),
-                          ("Από εδώ που κοιτάζω τώρα", self.save_current),
-                          ("Επιστροφή στην κάμερα", self.back),
-                          ("Εξαγωγή εικόνας…", lambda: self.export_image())):
+        entries = [("Νέα κάμερα στην κάτοψη", lambda: start_place(w)),
+                   ("Από εδώ που κοιτάζω τώρα", self.save_current),
+                   ("Επιστροφή στην κάμερα", self.back)]
+        if getattr(w, "_work_menus", None) is None:      # in the work menus its one home is Σχέδια ▸ Εξαγωγή
+            entries.append(("Εξαγωγή εικόνας…", lambda: self.export_image()))
+        for text, run in entries:
             menu.addAction(text).triggered.connect(lambda _=False, r=run: r())
         if self.dock is not None:
             menu.addSeparator()

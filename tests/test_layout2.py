@@ -90,7 +90,7 @@ def test_common_palette_bottom_right_draggable_and_configurable(window):
     hide_move.setChecked(False)
     assert 'edit.move' not in palette.shown()
     palette.toggle_action.setChecked(False); assert palette.isHidden()
-    panels = next(a.menu() for a in window.view_menu.actions() if a.text() == 'Πάνελ')
+    panels = next(a.menu() for a in window._work_sections[('⚙ Ρυθμίσεις', 'Περιβάλλον')].actions() if a.text() == 'Πάνελ')
     assert palette.toggle_action in panels.actions()
     palette.toggle_action.setChecked(True); assert palette.isVisible()
 

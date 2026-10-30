@@ -10,6 +10,7 @@ the end of its menu — no command is ever lost.  Owner decisions: Έδαφος 
 """
 from __future__ import annotations
 
+from PySide6.QtCore import QEvent, QObject
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMenu
 
@@ -326,3 +327,310 @@ def organize_main_menus(window):
     legacy["Σχεδίαση"] = cad
     window._mockup_menus = legacy
     return window._main_menus
+
+
+# ------------------------------------------------------------------ the work menus (owner 30/10: «ναι στο 4»)
+WORK_MENUS = ("Έργο", "Επεξεργασία", "Κατασκευή", "Εγκαταστάσεις", "Διαμόρφωση", "Σχέδια", "Προβολή", "⚙ Ρυθμίσεις")
+# Old menus without a namesake: where a reference to them (a group's title button …) points now — (menu, section).
+SUCCESSORS = {"Αρχείο": ("Έργο", ""), "CAD": ("Σχέδια", ""), "Βιβλιοθήκη": ("Διαμόρφωση", "Βιβλιοθήκη"),
+              "Εργαλεία": ("Διαμόρφωση", ""), "Βοήθεια": ("⚙ Ρυθμίσεις", "")}
+SEP_TEXT = " / "
+
+
+OLD_PATH = "archforge_old_menu_path"
+
+
+def old_menu_path(action):
+    """The path a command had before the work menus (``" / "``-joined, as ``menu_map.RULES``), or None."""
+    value = action.property(OLD_PATH)
+    return str(value) if value else None
+
+
+def _key(text):
+    """A menu text as the map writes it (``menu_smoke._leaves``: no mnemonic «&»)."""
+    return text.replace("&&", "&").replace("&", "")
+
+
+def _target(home):
+    """``(menu, section)`` of a home of ``menu_map.RULES`` in the bar (section "" = directly in the menu).
+
+    Only the first section level becomes a submenu (as in mockup v4); the object menu and the always-visible bar
+    do not exist yet in this look, so their commands stay in Επεξεργασία until the new look (step 3)."""
+    if home.startswith(("Αντικείμενο", "Γραμμή εργασίας")):
+        return "Επεξεργασία", ""
+    if home.startswith("Προβολή ▾"):
+        rest = home[len("Προβολή ▾"):].lstrip(" /")
+        return "Προβολή", "" if rest.startswith("(") else rest.split(SEP_TEXT)[0]
+    top, _, section = home.partition(SEP_TEXT)
+    return top, section.split(SEP_TEXT)[0]
+
+
+def _dynamic(menu):
+    """A menu filled when it opens (Κάμερες, κουζίνα …) moves whole: its actions are made again each time."""
+    from PySide6.QtCore import SIGNAL
+    try:
+        return menu.receivers(SIGNAL("aboutToShow()")) > 0
+    except (TypeError, RuntimeError):
+        return False
+
+
+def _leaf_paths(menu, path):
+    out = []
+    for a in menu.actions():
+        if a.isSeparator() or not a.text():
+            continue
+        p = path + (_key(a.text()),)
+        if a.menu() is not None:
+            out += _leaf_paths(a.menu(), p)
+        else:
+            out.append((p, a))
+    return out
+
+
+def organize_work_menus(window):
+    """Give every command of the bar its home in the work menus (``menu_map.RULES``), last of all installers.
+
+    The work menus and their sections are new QMenus holding the *same* QAction objects (shortcuts, check state,
+    triggers unchanged); no old menu is renamed, emptied or given foreign commands, because the tool-group buttons
+    and the hidden ribbon share them.  Inside a section:
+
+    * a submenu whose commands all go there and make at least half of it is the section's own category («Υδραυλικά
+      σημεία» → Ύδρευση): its commands are listed directly in the section, and a command added to it later appears
+      there too (``_Mirror``);
+    * a smaller one stays whole behind ▸ with its own name («Περιβάλλων χώρος ▸ Πέργκολα», «Στέγη ▸ Με
+      κεραμίδια»), as do menus filled when they open (the same object keeps refilling itself; one already named as
+      its section is the section).
+
+    A command found twice gets one home (the first).  The old menus left the bar; references to them in
+    ``window._…`` attributes and in tool-group title buttons now mean the work menu that replaced them
+    (``SUCCESSORS`` for those without a namesake).  ``window._menu_aliases`` maps each old path
+    (``toolbar_custom.SEP``-joined) to the new one, so buttons and mouse menus saved with old paths still find their
+    command."""
+    from archforge.ui.menu_map import UNPLACED, home
+    from archforge.ui.toolbar_custom import SEP
+    bar = window.menuBar()
+    tops = [(a.text(), a.menu()) for a in bar.actions() if a.menu() is not None]
+    # Keyed by id(): ``keep`` holds every wrapper for the whole run, so an id cannot be freed and reused meanwhile.
+    menus, sections, placed, old_paths, old_cpaths, old_menus, keep, dynamic = {}, {}, set(), {}, {}, {}, [], []
+    old_tops = {_key(t): m for t, m in tops}
+    window._work_mirrors = []
+
+    def top_menu(name):
+        if name not in menus:
+            menus[name] = QMenu(name, window)
+            old = old_tops.get(name)
+            if old is not None:                                # same name: same tear-off (📌), icon
+                menus[name].setTearOffEnabled(old.isTearOffEnabled())
+                menus[name].setIcon(old.icon())
+        return menus[name]
+
+    def section_menu(top, section, use=None):
+        if not section:
+            return top_menu(top)
+        key = (top, section)
+        if key not in sections:
+            if use is not None:
+                sections[key] = use
+                top_menu(top).addMenu(use)
+            else:
+                parent = top_menu(top)
+                sections[key] = QMenu(section.replace("&", "&&"), parent)   # explicit parent: the wrapper stays valid
+                parent.addMenu(sections[key])
+        return sections[key]
+
+    def where(path):
+        h = home(SEP_TEXT.join(path))
+        return None if h == UNPLACED else _target(h)
+
+    size, counted = {}, []                                     # commands per section, each command once
+    for text, menu in tops:
+        for lp, la in _leaf_paths(menu, (_key(text),)):
+            if not any(la is c for c in counted):
+                counted.append(la)
+                size[where(lp)] = size.get(where(lp), 0) + 1
+
+    def mirror(source, target, fallback_path):
+        window._work_mirrors.append(_Mirror(source, target, fallback_path))
+
+    def move(menu, path, cpath):
+        for a in list(menu.actions()):
+            if a.isSeparator() or not a.text():
+                continue
+            p = path + (_key(a.text()),)
+            cp = cpath + (a.text().replace("&&", "&"),)
+            sub = a.menu()
+            keep.append(a)
+            if sub is None:
+                if id(a) in placed:
+                    continue                                   # one home per command
+                t = where(p) or (_key(path[0]), "")
+                section_menu(*t).addAction(a)
+                placed.add(id(a)); old_paths[id(a)] = p; old_cpaths[id(a)] = cp
+                continue
+            leaves = _leaf_paths(sub, p)
+            keep.append(sub); keep.extend(la for _lp, la in leaves)
+            homes = {where(lp) for lp, _ in leaves}
+            old_menus[id(sub)] = cp
+            if _dynamic(sub) or not leaves:
+                dynamic.append(sub)
+                t = where(p + ("",)) or where(p) or (_key(path[0]), "")
+                same = t[1] and _key(sub.title()).split(" (")[0] == t[1].split(" (")[0]
+                if same and t not in sections:
+                    section_menu(*t, use=sub)                  # it already is the section
+                else:
+                    section_menu(*t).addMenu(sub)
+                for x in sub.actions():
+                    placed.add(id(x)); keep.append(x)
+                continue
+            if len(homes) != 1 or None in homes:
+                move(sub, p, cp)                               # split between homes
+                counts = {h: sum(1 for lp, _la in leaves if where(lp) == h) for h in homes if h and h[1]}
+                if counts and not sub.icon().isNull():
+                    most = section_menu(*max(counts, key=counts.get))
+                    if most.icon().isNull():
+                        most.setIcon(sub.icon())               # the section that took most of it shows its icon
+                continue
+            t = homes.pop()
+            if any(id(la) in placed for _lp, la in leaves) or not t[1] or 2 * len(leaves) < size.get(t, 0):
+                if any(id(la) in placed for _lp, la in leaves):
+                    move(sub, p, cp)                           # holds a command that already has its home
+                    continue
+                section_menu(*t).addMenu(sub)                  # whole, behind ▸, with its own name
+                if section_menu(*t).icon().isNull() and t[1]:
+                    section_menu(*t).setIcon(sub.icon())
+            else:
+                target = section_menu(*t)                      # the section's own category: listed directly
+                if target.actions():
+                    target.addSeparator()
+                for x in sub.actions():
+                    target.addAction(x)
+                if target.icon().isNull():
+                    target.setIcon(sub.icon())
+                mirror(sub, target, p)
+            for lp, la in leaves:
+                placed.add(id(la)); old_paths.setdefault(id(la), lp)
+            for cp2, la in _leaf_paths_sep(sub, cp):
+                old_cpaths.setdefault(id(la), cp2)
+
+    for text, menu in tops:
+        move(menu, (_key(text),), (text.replace("&&", "&"),))
+    for a in list(bar.actions()):
+        bar.removeAction(a)                                    # not clear(): that would delete the old menus
+    order = list(WORK_MENUS) + [n for n in menus if n not in WORK_MENUS]
+    for name in order:
+        if name in menus and menus[name].actions():
+            for sec in menus[name].actions():
+                if sec.menu() is not None and sec.menu() in sections.values():
+                    _tidy(sec.menu())
+            _tidy(menus[name])
+            bar.addMenu(menus[name])
+    window._work_menus = {n: menus[n] for n in order if n in menus}
+    window._work_sections = sections
+    for sub in dynamic:
+        if _dynamic(sub):
+            sub.aboutToShow.emit()                             # refill once, now that the work menus exist
+    # References to an old menu (window.view_menu, a group's title button …) mean the work menu that replaced it;
+    # a command added to an old menu later appears at the end of that work menu.
+    replaced = {}
+    for text, menu in tops:
+        name = _key(text)
+        target = menus.get(name)
+        if target is None and name in SUCCESSORS:
+            top, section = SUCCESSORS[name]
+            target = sections.get((top, section)) or menus.get(top)
+        if target is not None:
+            replaced[id(menu)] = target
+            mirror(menu, target, (name,))
+    _repoint(window, replaced)
+    # Old path → new path (only where it changed), for saved buttons / mouse menus.
+    aliases = {}
+    for new_path, a in _leaf_paths_sep(bar):
+        old = old_cpaths.get(id(a))
+        if old is not None and old != new_path:
+            aliases.setdefault(SEP.join(old), SEP.join(new_path))
+    # … and for submenus that moved whole (mouse menus can hold a whole submenu).
+    for new_path, sub in _menu_paths(bar):
+        old = old_menus.get(id(sub))
+        if old is not None and old != new_path:
+            aliases.setdefault(SEP.join(old), SEP.join(new_path))
+    window._menu_aliases = aliases
+    for _n, a in _leaf_paths_sep(bar):                     # the old path on the command itself (tool_map.py)
+        if id(a) in old_paths:
+            a.setProperty(OLD_PATH, SEP_TEXT.join(old_paths[id(a)]))
+    return window._work_menus
+
+
+class _Mirror(QObject):
+    """A command added to an old menu after the regrouping (e.g. «Υδραυλικά — λεπτομέρειες», added by a later
+    installer) also appears in the work menu or section that replaced it."""
+
+    def __init__(self, source, target, path):
+        super().__init__(source)
+        self.target, self.path = target, path
+        source.installEventFilter(self)
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.ActionAdded:
+            a = event.action()
+            if a not in self.target.actions():
+                self.target.addAction(a)
+                a.setProperty(OLD_PATH, SEP_TEXT.join(self.path + (_key(a.text()),)))
+        return False
+
+
+def _repoint(window, poured):
+    from PySide6.QtWidgets import QToolButton
+    for button in window.findChildren(QToolButton):
+        if button.menu() is not None and id(button.menu()) in poured:
+            button.setMenu(poured[id(button.menu())])
+    for name, value in list(vars(window).items()):
+        if isinstance(value, QMenu) and id(value) in poured:
+            setattr(window, name, poured[id(value)])
+        elif isinstance(value, dict) and name.endswith("menus"):
+            for k, v in list(value.items()):
+                if isinstance(v, QMenu) and id(v) in poured:
+                    value[k] = poured[id(v)]
+
+
+def _menu_paths(bar):
+    """``[(path tuple, QMenu)]`` of every submenu of the bar (catalog spelling)."""
+    out = []
+
+    def walk(menu, path):
+        for a in menu.actions():
+            if a.menu() is not None and a.text():
+                p = path + (a.text().replace("&&", "&"),)
+                out.append((p, a.menu()))
+                walk(a.menu(), p)
+    for top in bar.actions():
+        if top.menu() is not None:
+            walk(top.menu(), (top.text().replace("&&", "&"),))
+    return out
+
+
+def resolve_path(window, path):
+    """A menu path saved before the work menus (buttons, mouse menus) → where that command is now."""
+    return (getattr(window, "_menu_aliases", None) or {}).get(path, path)
+
+
+def _leaf_paths_sep(bar, path=None):
+    """``[(path tuple as the catalog writes it — «&&» → «&», a)]`` of every leaf of a bar (or of a menu under
+    ``path``)."""
+    out = []
+
+    def walk(menu, path):
+        for a in menu.actions():
+            if a.isSeparator() or not a.text():
+                continue
+            p = path + (a.text().replace("&&", "&"),)
+            if a.menu() is not None:
+                walk(a.menu(), p)
+            else:
+                out.append((p, a))
+    if path is not None:
+        walk(bar, tuple(path))
+        return out
+    for top in bar.actions():
+        if top.menu() is not None:
+            walk(top.menu(), (top.text().replace("&&", "&"),))
+    return out

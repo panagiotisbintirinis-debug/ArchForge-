@@ -158,7 +158,9 @@ def _entries(window, items, live):
 
 
 def _find_action(window, path):
+    from archforge.ui.main_menus import resolve_path
     from archforge.ui.toolbar_custom import SEP
+    path = resolve_path(window, path)            # a path saved before the work menus (owner 30/10)
     parts = path.split(SEP)
     actions = window.menuBar().actions()
     found = None
@@ -176,7 +178,9 @@ def _find_action(window, path):
 
 
 def _menu_children(window, path):
+    from archforge.ui.main_menus import resolve_path
     from archforge.ui.toolbar_custom import SEP
+    path = resolve_path(window, path)
     a = _find_action(window, path)
     if a is None or a.menu() is None:
         return []

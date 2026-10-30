@@ -152,7 +152,7 @@ def test_esc_drops_the_draft_and_the_menu_has_the_tools(window):
     for a in window.menuBar().actions():
         if a.menu() is not None:
             walk(a.menu())
-    assert 'Δωμάτιο (ορθογώνιο)' in texts and 'Δωμάτιο με διαστάσεις…' in texts and 'Τοίχοι & δωμάτια' in texts
+    assert 'Δωμάτιο (ορθογώνιο)' in texts and 'Δωμάτιο με διαστάσεις…' in texts and 'Κέλυφος' in texts   # Κατασκευή ▸ Κέλυφος
 
 
 def test_a_room_next_door_follows_the_faces_and_lines_up(window):
