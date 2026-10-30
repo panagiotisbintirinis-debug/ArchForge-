@@ -44,6 +44,24 @@ PHOTOMETRY = DEFAULT_DIRECTION            # the luminaire types
 BEAM_PRESETS = (10.0, 24.0, 36.0, 60.0)   # owner's list (15/10): 10° / 24° / 36° / 60° or custom
 DIRECTIONS = ("down", "up", "wall", "both")
 # Fittings with an adjustable head: their beam is aimed (tilt from the vertical, compass bearing); the rest are fixed.
+# A luminaire without data-sheet lumen is still drawn in 3D with the flux of the reference lamps the shipped 3D
+# fixtures use (library/content/lights/SOURCES.txt, checked 25/10/2026): Philips A60 929001243082 = 806 lm (point),
+# Philips GU10 929001218199 = 370 lm (spot).  DESIGN_DEFAULT for the picture only — never a result, never the
+# luminaire's data (it stays «χωρίς φωτομετρικά»).  Owner 29/10: the old 700 cd (~8 800 lm) burnt rooms white.
+REFERENCE_LUMEN = {"point": 806.0, "spot": 370.0}
+
+
+def reference_intensity(kind, half_angle_deg=None):
+    """Candela of the reference lamp for a ``point`` / ``spot`` drawn without data-sheet lumen, or None."""
+    flux = REFERENCE_LUMEN.get(str(kind))
+    if flux is None:
+        return None
+    if kind == "spot":
+        half = math.radians(max(1.0, min(89.0, float(half_angle_deg if half_angle_deg is not None else 18.0))))
+        return flux / (2 * math.pi * (1 - math.cos(half)))
+    return flux / (4 * math.pi)
+
+
 AIMABLE = ("spot", "wall_washer")
 AIM_REACH = 2.0            # length of the aim line to the renderer's target point (m) — direction only, not a range
 COVE_SET_BACK = 0.05       # strip this far in front of the upstand, on the low band (placement, not a rating)

@@ -122,3 +122,16 @@ def test_menu_entry_opens_the_editor(window, monkeypatch):
     assert window._mouse_menu_action in window._tools_menu.actions()
     window._mouse_menu_action.trigger()
     assert opened == ['empty']
+
+
+def test_a_menu_command_in_my_menu_runs_from_the_3d_view_too(window):
+    """Owner 29–30/10: «Πισίνα δεν δουλεύει στο ποντίκι» — the pool put in the mouse menu did nothing when chosen in
+    the 3D view (the page sends the choice as a context action; only ``mm:`` ids were carried out, ``menu:`` lost)."""
+    from archforge.ui.mouse_menus import _find_action, item_of_path, set_task
+    path = 'Κατασκευή / Έδαφος & περιβάλλον / Πισίνα'
+    assert _find_action(window, path) is not None
+    set_task(window, 'empty', [item_of_path(path, _find_action(window, path))])
+    window.pbr_view.contextActionRequested.emit('', 'menu:' + path)   # as the 3D page's bridge.contextAction does
+    assert window.plan_view.controller.tool == 'pool_place'
+    window._place_site_point('pool_place', 3.0, 3.0)
+    assert [e.kind for e in window.doc.entities.values()].count('pool') == 1

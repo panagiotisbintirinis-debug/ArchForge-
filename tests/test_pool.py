@@ -1,4 +1,5 @@
 """Pool tool (owner 17/10, scenario 9): basin, quantities, pipe velocity, HD 60364-7-702 zones, plan/3D/quote."""
+import math
 import os
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
@@ -237,3 +238,92 @@ def test_the_pool_shape_drawn_by_hand_in_the_plan():
         assert not tool.apply([(0, 0), (1, 0)], 0.0)                     # two corners: told, nothing changed
     finally:
         w._mark_clean(); w.close(); app.processEvents()
+
+
+def test_fillet_rounds_only_the_curved_corners():
+    from archforge.site.pool import fillet
+    sq = [(0, 0), (4, 0), (4, 4), (0, 4)]
+    out = fillet(sq, [0.0, 1.0, 0.0, 0.0])
+    assert (0.0, 0.0) in out and (0.0, 4.0) in out and (4.0, 4.0) in out and (4.0, 0.0) not in out
+    area = abs(sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(out, out[1:] + out[:1]))) / 2
+    assert area == pytest.approx(16 - (1 - math.pi / 4), rel=0.01)
+
+
+def _clicks(w, points, double_last=False):
+    """Left clicks in the real plan view at plan points (as the human does)."""
+    from PySide6.QtCore import QPointF, Qt
+    from PySide6.QtGui import QMouseEvent
+    pv = w.plan_view
+    for x, y in points:
+        pos = QPointF(pv.mapFromScene(x, y))
+        for t, b in ((QMouseEvent.Type.MouseButtonPress, Qt.MouseButton.LeftButton),
+                     (QMouseEvent.Type.MouseButtonRelease, Qt.MouseButton.NoButton)):
+            e = QMouseEvent(t, pos, pv.viewport().mapToGlobal(pos), Qt.MouseButton.LeftButton, b, Qt.KeyboardModifier.NoModifier)
+            (pv.mousePressEvent if t == QMouseEvent.Type.MouseButtonPress else pv.mouseReleaseEvent)(e)
+
+
+@pytest.fixture
+def window():
+    from PySide6.QtWidgets import QApplication
+    from archforge.ui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    w = MainWindow(); w.resize(1400, 900); w.show(); app.processEvents()
+    w._no_modal_dialogs = True
+    w.plan_view.controller.snap_enabled = False
+    yield w
+    w._mark_clean(); w.close(); app.processEvents()
+
+
+def test_the_shape_tool_shows_itself_and_draws_curves_with_clicks(window):
+    """Owner 30/10: «αναφέρει σχεδίασε την πισίνα, καμπύλες κτλ αλλά δεν σου εμφανίζει σχεδιαστικό μέσα»."""
+    from archforge.site.pool import area
+    w = window
+    w._place_site_point('pool_place', 0.0, 0.0)
+    (pool,) = [e for e in w.doc.entities.values() if e.kind == 'pool']
+    central = getattr(w, '_central_tabs', None)
+    if central is not None:
+        central.setCurrentIndex(1)                                    # working in 3D
+    tool = w._pool_shape_tool
+    tool.start(pool.id)
+    if central is not None:
+        assert central.currentIndex() == 0                            # the plan comes to the front
+    assert tool.bar is not None and tool.bar.isVisible()              # the drawing bar is on the plan
+    _clicks(w, [(-4, -2), (4, -2)])
+    tool.set_curve(True); tool.set_radius(1.5)                        # the next two corners curved
+    _clicks(w, [(4, 2), (-4, 2)])
+    assert tool.radii[:2] == [0.0, 0.0] and tool.radii[2:] == pytest.approx([1.5, 1.5])
+    tool.undo_point(); _clicks(w, [(-4, 2)])                          # Backspace / «↶ Σημείο»
+    assert len(tool.points) == 4
+    undo_before = len(w.stack.done)
+    _clicks(w, [(-4, -2)])                                            # click on the first corner = done
+    assert not tool.bar.isVisible() and tool.pool_id is None
+    p = w.doc.get(pool.id).params
+    assert len(p['outline']) > 4                                      # the curves are in the shape
+    assert area(p) == pytest.approx(8 * 4 - 2 * (1 - math.pi / 4) * 1.5 ** 2, rel=0.01)
+    assert len(w.stack.done) == undo_before + 1                       # one undo
+
+
+def test_a_new_pool_drawn_by_its_shape_and_the_pools_mouse_menu(window):
+    from archforge.ui.marking_menu import build_menu, run
+    from archforge.ui.mouse_menus import _find_action
+    w = window
+    assert _find_action(w, 'Κατασκευή / Έδαφος & περιβάλλον / Πισίνα με σχεδίαση σχήματος (γωνίες, καμπύλες)') is not None
+    tool = w._pool_shape_tool
+    tool.start(None)
+    _clicks(w, [(10, 0), (16, 0), (16, 3), (10, 3)])
+    tool._finish()
+    pools = [e for e in w.doc.entities.values() if e.kind == 'pool']
+    assert len(pools) == 1 and pools[0].params['length'] == pytest.approx(6) and pools[0].params['width'] == pytest.approx(3)
+    assert pools[0].params['x'] == pytest.approx(13) and pools[0].params['y'] == pytest.approx(1.5)
+    assert any(e.params.get('point_type') == 'pool_supply' for e in w.doc.entities.values())
+    w.stack.undo()                                                    # pool and its supply: one undo
+    assert not [e for e in w.doc.entities.values() if e.kind in ('pool',) or e.params.get('point_type') == 'pool_supply']
+    w.stack.redo()
+    pid = [e.id for e in w.doc.entities.values() if e.kind == 'pool'][0]
+    ids = [e['id'] for e in build_menu(w, 'plan', pid)['entries']]
+    flat = ids + [c['id'] for e in build_menu(w, 'plan', pid)['entries'] for c in e.get('children', ())]
+    assert 'mm:pool:shape' in flat and 'mm:pool:section' in flat
+    run(w, 'plan', pid, 'mm:pool:shape')
+    assert tool.pool_id == pid and tool.bar.isVisible()
+    tool.cancel()
+    assert tool.pool_id is None and not tool.bar.isVisible()

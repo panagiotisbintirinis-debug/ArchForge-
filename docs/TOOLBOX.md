@@ -37,6 +37,9 @@
 | `scripts/user_drive/house.py` | Σπίτι-διαδρομή (σκάλα, ανοίγματα πλάκας, μπαλκόνι) μέσα από το UI. | `python scripts/user_drive/house.py [βήμα]` |
 | `scripts/user_drive/scene3d.py` + `scripts/look_shot/` | Πραγματική σελίδα 3D (PBR) σε headless Chromium → PNG. **Οπτικός έλεγχος χωρίς Windows.** | δες docstring του `scene3d.py` (dump_page.py → shot.mjs) |
 | `archforge/scenarios/render3d.py` | `render(doc, png)`: εικόνα 3D από οποιοδήποτε Document, με presets `top` / `dollhouse`. | από Python |
+| `archforge/scenarios/click3d.py` + `scripts/toolbox/page_3d.mjs` | **Η πραγματική σελίδα 3D χωρίς Qt/GPU** (headless Chromium, ψεύτικη γέφυρα): `run_in_page(doc, js)` τρέχει σενάριο στη σελίδα και επιστρέφει το αποτέλεσμα (μετρήσεις, μετρητές)· `clicks(doc, εργαλείο)` κάνει κλικ σε πλέγμα και επιστρέφει τι έστειλε η σελίδα στη γέφυρα. Χρόνοι σε λογισμικό WebGL: συγκρίνονται μόνο μεταξύ τους. | από Python (τεστ: skip χωρίς Chromium) |
+| `scripts/toolbox/tool_map.py` | **Χάρτης εργαλείων**: κάθε εντολή → σημερινή θέση → προτεινόμενη θέση στη νέα οργάνωση (Έργο · Κατασκευή · Εγκαταστάσεις · Διαμόρφωση · Σχέδια · Προβολή ▾ · ⚙ Ρυθμίσεις · μενού αντικειμένου), διπλές θέσεις, μενού Τοίχου ανεπτυγμένο. Οι θέσεις είναι ο πίνακας `RULES` (για συζήτηση). | `QTWEBENGINE_DISABLE_SANDBOX=1 QT_QPA_PLATFORM=offscreen python scripts/toolbox/tool_map.py --markdown docs/ui/TOOL_MAP.md` |
+| `scripts/toolbox/menu_smoke.py` | **Πατά κάθε εντολή** των μενού και των ορατών ομάδων εργαλείων με ένα έργο (προεπιλογή «…111»), με τα παράθυρα διαλόγου να απαντούν «Άκυρο»· βγάζει BROKEN (σφάλμα) / QUIET (τίποτα δεν φάνηκε) / DISABLED, και εργαλεία κάτοψης χωρίς μενού. Δεν αποθηκεύει τίποτα. | `QTWEBENGINE_DISABLE_SANDBOX=1 QT_QPA_PLATFORM=offscreen python scripts/toolbox/menu_smoke.py --markdown out.md` |
 | `scripts/check_fixture_3d.py` | Windows runner: πραγματικό WebGL, διπλό κλικ, ρότορες, dimming. | desktop Qt (όχι offscreen) |
 
 ## Σενάρια και πύλη ποιότητας
@@ -75,11 +78,12 @@
 |---|---|
 | `archforge/core/commands.py` | `CompositeCommand` (πολλές εντολές = μία αναίρεση, rollback αν αποτύχει μία) · `_restore_document_state` · `CommandStack.squash/amend`. |
 | `archforge/core/notices.py` | **«Δεν υπολογίστηκε»:** αντί για σιωπηλό `except: 0 / [] / None`, `not_computed(code, μήνυμα, στοιχείο, exc)`· ό,τι τρέχει ο χρήστης τα μαζεύει με `collecting()` και τα δείχνει δίπλα στο αποτέλεσμα· αλλιώς φαίνονται στη γραμμή κατάστασης (Α3). |
-| `archforge/project/persistence.py` | `atomic_write_text/json` (παλιό ή νέο αρχείο, ποτέ μισό) · **`read_user_json`**: κάθε αρχείο δεδομένων χρήστη (ρυθμίσεις, τιμές…) διαβάζεται με αυτό — κατεστραμμένο κρατιέται ως `.broken-…` πριν γραφτεί, ο χρήστης ειδοποιείται (Α3). |
+| `archforge/project/persistence.py` | `atomic_write_text/json/bytes` (παλιό ή νέο αρχείο, ποτέ μισό) · **`read_user_json`**: κάθε αρχείο δεδομένων χρήστη (ρυθμίσεις, τιμές…) διαβάζεται με αυτό — κατεστραμμένο κρατιέται ως `.broken-…` πριν γραφτεί, ο χρήστης ειδοποιείται (Α3). |
 | `archforge/core/interaction.py` | `next_name(doc, kind)`: ελληνικά αριθμημένα ονόματα. |
 | `archforge/architecture/joinery.py` | `inside_sign(doc, wall, opening)`: προς ποιο χώρο ανοίγει η πόρτα. |
 | `archforge/core/plan_scene.py` | `wall_poche` (τοίχοι με δύο όψεις) · `_declutter_labels` (ετικέτες Η/Μ χωρίς επικάλυψη). |
 | `archforge/quantities/price_book.py` | Κοινός τιμοκατάλογος (τιμές έργου υπερισχύουν· ποτέ επινοημένη τιμή) · `quote()['by_trade']`. |
+| `archforge/ui/material_library.py` | `MATERIAL_KINDS` (ποια είδη παίρνουν υλικό) · `_apply_material(window, id, role, material)` = **η** εντολή υλικού (browser, πινέλο) · `_targets` (πλευρές/τμήματα). |
 | `tests/conftest.py` | Απομονωμένος τιμοκατάλογος και κλείσιμο παραθύρων σε κάθε τεστ. |
 
 ## Περιβάλλον cloud

@@ -53,6 +53,12 @@ from archforge.construction.icf import wall_type_layers as _icf_layers  # noqa: 
 WALL_TYPES.update(_icf_layers())
 
 
+# «Γυάλινος τοίχος» from the wall tool's menu (owner 29/10): an ordinary wall with the clear glass material, so it is
+# see-through in 3D and counted as glass.  Thickness = DESIGN_DEFAULT (a glass pane in its profile), changeable in
+# Ιδιότητες; no U-value or structural claim is made for it.
+GLASS_WALL = {"thickness": 0.05, "material_id": "glass_clear", "label": "Γυάλινος τοίχος (διάφανος)"}
+
+
 def layers(wall_type):
     entry = WALL_TYPES.get(str(wall_type))
     return list(entry[1]) if entry and entry[1] else []

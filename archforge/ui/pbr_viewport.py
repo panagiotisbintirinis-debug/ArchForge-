@@ -269,6 +269,11 @@ renderer.toneMappingExposure = 0.95;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.localClippingEnabled = true;
 container.appendChild(renderer.domElement);
+// The canvas fills the view whatever its pixel count: the lighter moving frame (fewer pixels) is the same picture
+// stretched, never a smaller one (owner 29/10, Windows: «η εικόνα μικραίνει … με το που πατήσω το ποντίκι»).
+renderer.domElement.style.width = "100%";
+renderer.domElement.style.height = "100%";
+renderer.domElement.style.display = "block";
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
@@ -324,6 +329,7 @@ window.setSun = function(elevation, azimuth) {
   }
   applySunAndSky();
   fitSunShadow();
+  if (typeof afUpdateLightVisibility === "function") afUpdateLightVisibility();   // «Αυτόματα»: lit after sunset
 };
 
 function applySunAndSky() {
@@ -1250,13 +1256,39 @@ window.__forgetCameraMoved = () => { cameraMovedByHuman = false; };   // a new p
 // dragging anything else orbits — the building fills the view, there is no empty space to orbit from.
 let selectedIds = new Set();
 let pressInfo = null;
+// Only what changed (owner 29/10, «να στέλνονται μόνο τα αλλαγμένα»): every object carries a ``key``; a payload with
+// ``keep`` lists the keys whose meshes stay exactly as they are and brings only the new / changed objects.  Without
+// ``keep`` the whole scene is replaced (opening a project, the first push, render3d / tests).  A key that is not here
+// (the page and Python out of step) asks Python for the whole scene instead of drawing something wrong.
+let terrainItems = new Map();               // key -> terrain item: the ground level needs every terrain's vertices
 window.archforgeSetScene = function(payload, fit = true) {
   selectedIds = new Set((payload && payload.selected) || []);
-  disposeModel();
+  const keep = payload && Array.isArray(payload.keep) ? new Set(payload.keep) : null;
+  if (keep) {
+    const have = new Set(modelRoot.children.map((m) => m.userData.sceneKey));
+    for (const key of keep) {
+      if (!have.has(key)) {
+        if (bridge && bridge.requestFullScene) bridge.requestFullScene();
+        return;
+      }
+    }
+    for (const child of [...modelRoot.children]) {
+      if (keep.has(child.userData.sceneKey)) continue;
+      modelRoot.remove(child);
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) child.material.dispose();
+    }
+    for (const key of [...terrainItems.keys()]) if (!keep.has(key)) terrainItems.delete(key);
+  } else {
+    disposeModel();
+    terrainItems = new Map();
+  }
   const objects = (payload && payload.objects) || [];
   Object.assign(patternGeo, (payload && payload.patterns) || {});
   Object.assign(imageTextureSpecs, (payload && payload.image_textures) || {});
+  window.archforgeSceneBuilt = (window.archforgeSceneBuilt || 0) + objects.length;   // tests: meshes built so far
   for (const item of objects) {
+    if (item.kind === "terrain") terrainItems.set(item.key || ("terrain#" + terrainItems.size), item);
     const positions = [];
     for (const v of item.vertices) positions.push(v[0], v[1], v[2]);
     const indices = [];
@@ -1276,6 +1308,7 @@ window.archforgeSetScene = function(payload, fit = true) {
     mesh.userData.kind = item.kind || "";
     mesh.userData.surfaceRoles = item.surfaces || [];
     mesh.userData.renderPart = item.render_part || "";
+    mesh.userData.sceneKey = item.key || "";
     mesh.userData.castShadow = item.cast_shadow !== false;
     mesh.visible = meshShouldShow(mesh);
     mesh.material.clippingPlanes = clipPlanes();
@@ -1284,9 +1317,10 @@ window.archforgeSetScene = function(payload, fit = true) {
     modelRoot.add(mesh);
   }
   // The ground to the horizon meets a site terrain at its lowest top edge.
-  ground.position.z = groundLevel(objects);
+  const terrains = [...terrainItems.values()];
+  ground.position.z = groundLevel(terrains);
   ground.geometry.dispose();
-  ground.geometry = lookGroundGeometry(terrainExtent(objects));
+  ground.geometry = lookGroundGeometry(terrainExtent(terrains));
   fitSunShadow();
   applyTechnique();
   // Once the human has moved the camera, a scene update never refits it
@@ -1759,7 +1793,28 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     return;
   }
 
+  if (activeTool === "paint_material" && event.button === 0) {
+    // «Πινέλο» υλικού: a click paints the face under the mouse; a drag still turns the camera.
+    paintPress = { x: event.clientX, y: event.clientY };
+    return;
+  }
+
   const hit = pickModel(event);
+  if ((!hit || !hit.face) && activeTool === "sculpt" && event.button === 0) {
+    // Γλυπτική on the open ground of a project without a site terrain: the stroke creates it (terrain_sculpt.py).
+    const ground_point = pointOnHorizontalPlane(event, ground.position.z);
+    if (ground_point) {
+      sculpting = true;
+      sculptStartY = event.clientY;
+      controls.enabled = false;
+      if (renderer.domElement.setPointerCapture) renderer.domElement.setPointerCapture(event.pointerId);
+      bridge.beginSculpt(JSON.stringify({entity_id: "", surface_role: "ground",
+                                         point: [ground_point.x, ground_point.y, ground_point.z], normal: [0, 0, 1]}));
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    return;
+  }
   if (!hit || !hit.face) return;
 
   if (
@@ -1801,12 +1856,28 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
   event.stopPropagation();
 }, true);
 
+let paintPress = null;
+renderer.domElement.addEventListener("pointerup", (event) => {
+  const press = paintPress;
+  paintPress = null;
+  if (!bridge || !press || activeTool !== "paint_material" || event.button !== 0) return;
+  if (Math.abs(event.clientX - press.x) + Math.abs(event.clientY - press.y) > 5) return;
+  const hit = pickForSelection(event);
+  const roles = hit ? (hit.object.userData.surfaceRoles || []) : [];
+  bridge.paintMaterial(JSON.stringify({
+    entity_id: hit ? (hit.object.userData.entityId || "") : "",
+    surface_role: hit ? (roles[hit.faceIndex] || "") : ""
+  }));
+}, true);
+
 renderer.domElement.addEventListener("dblclick", (event) => {
   if (!bridge || sculpting || stairing || ramping || movingEntity || rotatingEntity) return;
   if (activeTool === "door" || activeTool === "window" || activeTool === "opening_rect" || activeTool === "opening_arch" || activeTool === "sculpt" || activeTool === "stair" || activeTool === "ramp" || activeTool === "move" || activeTool === "rotate" || activeTool === "wall") return;
   const hit = pickForSelection(event);
   if (!hit || !hit.face) return;
-  bridge.selectEntity(hit.object.userData.entityId || "");
+  // Double click = select and open its Ιδιότητες (owner 29/10: «δεν μπορώ να πιάσω το φωτιστικό στο 3Δ»).
+  if (bridge.openEntity) bridge.openEntity(hit.object.userData.entityId || "");
+  else bridge.selectEntity(hit.object.userData.entityId || "");
   event.preventDefault();
   event.stopPropagation();
 }, true);
@@ -1900,6 +1971,7 @@ window.addEventListener("keydown", (event) => {
   }
   if (event.key === "Escape") {
     hideMarkingMenu();
+    if (activeTool === "paint_material" && bridge) bridge.endPaintMaterial();
     if (movingEntity && bridge) {
       movingEntity = false;
       pendingMovePoint = null;
@@ -2125,6 +2197,8 @@ window.archforgeCaptureFrame = (width, height) => {
     renderer.setSize(width, height, false);
     composer.setSize(width, height);
   }
+  setMovingFrame(false);                     // a captured picture is always full quality
+  updateShadowsIfChanged();
   if (useComposer()) composer.render(); else renderer.render(scene, camera);
   const image = renderer.domElement.toDataURL("image/png");
   resize();
@@ -2150,19 +2224,84 @@ window.archforgeWakeRender = wakeRender;
 for (const name of ["pointerdown", "pointermove", "pointerup", "wheel", "keydown", "keyup", "resize", "focus"]) {
   window.addEventListener(name, () => wakeRender(60), {passive: true, capture: true});
 }
-controls.addEventListener("change", () => wakeRender(30));
+// Speed (owner 29/10 «τρόπος να επιταχύνουμε το 3Δ»), measured on the owner's two-storey house (docs/WORKLOG.md):
+// 1. Shadow cache: the sun's shadow map (4096²) depends on the model, the lights and the cut, never on the camera, so
+//    it is drawn again only when one of them changed — not on every frame of an orbit (−29 % per frame).
+// 2. Moving quality: while the camera moves, frames skip the contact shadows (GTAO) and draw at a lower resolution;
+//    the moment it stops, one full-quality frame. Same picture at rest. window.setInteractiveQuality(false) = off;
+//    never while the project's lights are on (lighting study: everything is shown, always).
+renderer.shadowMap.autoUpdate = false;
+let shadowKey = "";
+function shadowSignature() {
+  let h = renderer.shadowMap.enabled ? 1 : 0, n = 0;
+  const mix = (v) => { h = (Math.imul(h, 31) + Math.round(Number(v) * 1000)) | 0; };
+  const mixMatrix = (m) => { for (let i = 0; i < 16; i++) mix(m.elements[i]); };
+  scene.traverse((o) => {
+    if (!o.visible) return;
+    if (o.isMesh && o.castShadow) { n++; mix(o.geometry.id); mixMatrix(o.matrixWorld); }
+    else if (o.isLight && o.castShadow) {
+      n++; mixMatrix(o.matrixWorld);
+      if (o.target) mixMatrix(o.target.matrixWorld);
+      mixMatrix(o.shadow.camera.projectionMatrix);
+    }
+  });
+  for (const p of clipPlanes()) { mix(p.constant); mix(p.normal.x); mix(p.normal.y); mix(p.normal.z); }
+  return h + ":" + n;
+}
+function updateShadowsIfChanged() {
+  if (!renderer.shadowMap.enabled) return;
+  scene.updateMatrixWorld();
+  const key = shadowSignature();
+  if (key !== shadowKey) { shadowKey = key; renderer.shadowMap.needsUpdate = true; }
+}
+window.archforgeShadowRedraws = 0;          // how many frames redrew the shadow map (tests, benchmarks)
+let interactiveQuality = true;
+let lastCameraMove = -1e9;
+let movingFrame = false;
+const MOVING_PIXEL_RATIO = 0.6;
+window.setInteractiveQuality = function(enabled) { interactiveQuality = !!enabled; wakeRender(2); };
+// The page itself never zooms (owner 29/10: «εμφανίζει ζουμ … όπου θέλει» — the whole 3D page grew): Ctrl+wheel and a
+// touchpad pinch (which the engine sends as Ctrl+wheel) and Ctrl +/−/0 are the browser's page zoom.  Blocked on the
+// whole page; the camera's own wheel zoom is untouched.
+window.addEventListener("wheel", (event) => { if (event.ctrlKey) event.preventDefault(); }, {passive: false, capture: true});
+window.addEventListener("keydown", (event) => {
+  if ((event.ctrlKey || event.metaKey) && ["+", "-", "=", "0", "_"].includes(event.key)) event.preventDefault();
+}, {capture: true});
+let cameraChangedThisFrame = false;         // a slow GPU: the change happens inside this frame's controls.update()
+controls.addEventListener("change", () => { lastCameraMove = performance.now(); cameraChangedThisFrame = true; wakeRender(30); });
+function setMovingFrame(moving) {
+  if (moving === movingFrame) return;
+  movingFrame = moving;
+  const full = Math.min(window.devicePixelRatio || 1, 2);
+  renderer.setPixelRatio(moving ? full * MOVING_PIXEL_RATIO : full);
+  if (!moving) composer.setPixelRatio(full);
+}
 function animate(now) {
   requestAnimationFrame(animate);
   walkStep();
-  if (walkMode && walkKeys.size) wakeRender(10);
+  if (walkMode && walkKeys.size) { lastCameraMove = performance.now(); cameraChangedThisFrame = true; wakeRender(10); }
   if (walkMode) controls.enabled = false;
   else controls.update();                    // damping goes on; a camera change wakes the drawing
+  // Lighting study (owner 29/10 «στη δοκιμή του φωτισμού πρέπει να τα βλέπουμε όλα»): with the project's lights on,
+  // every frame is full quality, moving or not.
+  const lightingStudy = window.__archforgeProjectLightsOn === true;
+  const moving = interactiveQuality && !lightingStudy
+    && (cameraChangedThisFrame || performance.now() - lastCameraMove < 180);
+  if (!moving && movingFrame) wakeRender(2);   // it stopped: the full-quality frame
   const idle = renderFrames <= 0;
   if (idle && now - lastIdleRender < 500) return;
+  cameraChangedThisFrame = false;
   if (idle) lastIdleRender = now; else renderFrames--;
   // Haze ends before the far plane, so the ground never shows a cut edge.
   if (scene.fog) { scene.fog.far = Math.min(1400, camera.far * 0.9); scene.fog.near = scene.fog.far * 0.1; }
-  if (useComposer()) composer.render(); else renderer.render(scene, camera);
+  setMovingFrame(moving);
+  updateShadowsIfChanged();
+  if (renderer.shadowMap.needsUpdate) window.archforgeShadowRedraws++;
+  if (useComposer() && !moving) composer.render(); else renderer.render(scene, camera);
+  window.archforgeMovingFrame = moving;      // tests: this frame, and the last frames' log
+  window.archforgeFrames = (window.archforgeFrames || 0) + 1;
+  (window.archforgeFrameLog = window.archforgeFrameLog || []).push(moving);
+  if (window.archforgeFrameLog.length > 60) window.archforgeFrameLog.shift();
 }
 requestAnimationFrame(animate);
 </script>
@@ -2200,6 +2339,52 @@ def pbr_page_html() -> str:
     page = page.replace("/*__ARCHFORGE_LOOK__*/", pbr_look_js(), 1)
     return page.replace("/*__ARCHFORGE_THREE_BUNDLE__*/", bundle, 1)
 
+def _new_terrain_preview(doc, terrain_tx):
+    """Scene objects of the terrain a first ground stroke will add — drawn from a one-entity document, the real one
+    untouched until release."""
+    from archforge.core.model import Document
+    from archforge.geometry.incremental import IncrementalEvaluationCache
+    from archforge.geometry.sculpt import SculptedPreviewBackend
+    scratch = Document()
+    terrain = terrain_tx.new_terrain.clone()
+    terrain.params = terrain_tx.params()
+    scratch.add(terrain)
+    evaluation = IncrementalEvaluationCache(SculptedPreviewBackend()).sync(scratch)
+    payload = build_pbr_scene_payload(evaluation, (), mesh_overrides={terrain.id: terrain_tx.preview_mesh()}, doc=scratch)
+    return list(payload.get("objects") or ())
+
+
+def scene_changes(payload, sent):
+    """Only what changed since the last push (owner 29/10): ``(payload, full)``.
+
+    Every object gets a ``key`` (its render part, or id / kind, numbered in order).  With ``sent`` (``{key: digest}``
+    of the previous push) the payload keeps only new / changed objects and lists the unchanged keys in ``keep``;
+    ``sent`` None → the whole scene (``full`` True).  ``payload["_sent"]`` is the map to remember for the next push.
+    Unchanged = the same JSON, so a moved, re-materialled or re-selected object is always sent again.
+    """
+    import hashlib
+    seen = {}
+    digests = {}
+    changed = []
+    for item in payload.get("objects") or ():
+        base = str(item.get("render_part") or item.get("id") or item.get("kind") or "object")
+        n = seen.get(base, 0)
+        seen[base] = n + 1
+        item["key"] = f"{base}#{n}"
+        digest = hashlib.blake2b(json.dumps(item, separators=(",", ":"), sort_keys=True).encode("utf-8"),
+                                 digest_size=16).hexdigest()
+        digests[item["key"]] = digest
+        if sent is None or sent.get(item["key"]) != digest:
+            changed.append(item)
+    out = dict(payload)
+    out["_sent"] = digests
+    if sent is None:
+        return out, True
+    out["objects"] = changed
+    out["keep"] = [key for key, digest in digests.items() if sent.get(key) == digest]
+    return out, False
+
+
 class PBRInteractionBridge(QObject):
     """WebGL pointer bridge into ArchForge's existing semantic sculpt transaction."""
 
@@ -2224,6 +2409,13 @@ class PBRInteractionBridge(QObject):
         self.viewport._select_entity_from_web(entity_id)
 
     @Slot(str)
+    def openEntity(self, entity_id: str) -> None:
+        """Double click in 3D: select and open Ιδιότητες (a luminaire's switch / dimmer are there)."""
+        self.viewport._select_entity_from_web(entity_id)
+        if str(entity_id) in self.viewport.doc.entities:
+            self.viewport.propertiesRequested.emit(str(entity_id))
+
+    @Slot(str)
     def indicateEntity(self, entity_id: str) -> None:
         """One click in 3D: what is under the mouse, in the status bar (not selected)."""
         doc = self.viewport.doc
@@ -2242,6 +2434,21 @@ class PBRInteractionBridge(QObject):
     @Slot(str, str)
     def contextAction(self, entity_id: str, action_id: str) -> None:
         self.viewport.contextActionRequested.emit(str(entity_id), str(action_id))
+
+    @Slot(str)
+    def paintMaterial(self, payload_json: str) -> None:
+        """«Πινέλο» υλικού: the entity and face clicked (material_brush.paint_surface does the rest)."""
+        self.viewport.materialPaintRequested.emit(str(payload_json))
+
+    @Slot()
+    def requestFullScene(self) -> None:
+        """The page lost step with what Python sent (``keep`` named a mesh it does not have): send everything."""
+        self.viewport._sent_scene = None
+        self.viewport.redraw(force_full=False)
+
+    @Slot()
+    def endPaintMaterial(self) -> None:
+        self.viewport.materialPaintEnded.emit()
 
     @Slot(str, str)
     def placeOpening(self, kind: str, payload_json: str) -> None:
@@ -2368,6 +2575,9 @@ class PBRViewport(QWidget):
 
     selectionChangedByView = Signal()
     contextActionRequested = Signal(str, str)
+    propertiesRequested = Signal(str)        # double click in 3D: open Ιδιότητες of this entity
+    materialPaintRequested = Signal(str)     # «Πινέλο» υλικού: {"entity_id", "surface_role"} of a 3D click
+    materialPaintEnded = Signal()
     statusChanged = Signal(str)
 
     def __init__(self, doc, stack, parent=None, structural_only=False):
@@ -2511,6 +2721,8 @@ class PBRViewport(QWidget):
             self.statusChanged.emit("PBR Preview HTML failed to load")
             return
         self.statusChanged.emit("3D έτοιμο")
+        self.web_view.setZoomFactor(1.0)          # the 3D page never keeps a page zoom (owner 29/10)
+        self._sent_scene = None                 # a (re)loaded page has no meshes: the next push is the whole scene
         self.set_render_technique(self._technique)
         self.set_axes_visible(self._axes_visible)
         self.set_auto_rotate(self._auto_rotate)
@@ -2671,8 +2883,18 @@ class PBRViewport(QWidget):
     def _begin_sculpt_from_web(self, payload_json: str) -> None:
         if self.active_tool != "sculpt":
             return
+        self._terrain_tx = None
         try:
             payload = json.loads(payload_json)
+            eid = str(payload.get("entity_id") or "")
+            if not eid or (eid in self.doc.entities and self.doc.get(eid).kind == "terrain"):
+                # The ground (owner 29/10: «στο έδαφος δεν κάνει τίποτα»): a stroke in the site terrain itself.
+                from archforge.site.terrain_sculpt import TerrainStroke, LABELS
+                x, y = float(payload["point"][0]), float(payload["point"][1])
+                self._terrain_tx = TerrainStroke(self.doc, self.stack, x, y, self.sculpt_brush.radius, self.sculpt_op)
+                self.statusChanged.emit(f"Γλυπτική εδάφους ({LABELS[self.sculpt_op]}, Ø {2 * self.sculpt_brush.radius:.2f} m): "
+                                        "σύρε πάνω/κάτω για το πόσο, άφησε για να μείνει")
+                return
             hit = SurfaceHit(
                 str(payload["entity_id"]),
                 str(payload["surface_role"]),
@@ -2693,9 +2915,28 @@ class PBRViewport(QWidget):
             )
         except Exception as exc:
             self._sculpt_tx = None
-            self.statusChanged.emit(f"Cannot sculpt PBR surface: {exc}")
+            if "not deformable" in str(exc):
+                # Owner 29/10 (a terrace): say in words what can be sculpted instead of the internal reason.
+                from archforge.ui.project_outline import KIND_LABELS
+                payload_kind = ""
+                try:
+                    eid = str(json.loads(payload_json).get("entity_id") or "")
+                    payload_kind = self.doc.get(eid).kind if eid in self.doc.entities else ""
+                except Exception:
+                    payload_kind = ""
+                what = KIND_LABELS.get(payload_kind, payload_kind) or "αυτή η επιφάνεια"
+                self.statusChanged.emit(f"Γλυπτική: «{what}» δεν πλάθεται — πλάθονται τοίχοι, όγκοι, έπιπλα και το έδαφος")
+            else:
+                self.statusChanged.emit(f"Γλυπτική: δεν ξεκίνησε — {exc}")
 
     def _update_sculpt_from_web(self, amount: float) -> None:
+        terrain_tx = getattr(self, "_terrain_tx", None)
+        if terrain_tx is not None:
+            terrain_tx.update(amount)
+            self.redraw(force_full=False)
+            dz = terrain_tx.stroke()["dz"]
+            self.statusChanged.emit(f"Γλυπτική εδάφους: {dz:+.2f} m στο κέντρο")
+            return
         if self._sculpt_tx is None:
             return
         try:
@@ -2708,6 +2949,19 @@ class PBRViewport(QWidget):
             self.statusChanged.emit(f"PBR sculpt preview error: {exc}")
 
     def _finish_sculpt_from_web(self) -> None:
+        terrain_tx = getattr(self, "_terrain_tx", None)
+        if terrain_tx is not None:
+            self._terrain_tx = None
+            try:
+                if terrain_tx.amount > 0.001:
+                    dz = terrain_tx.commit()["dz"]
+                    self._evaluation_cache.clear()
+                    self.statusChanged.emit(f"Έδαφος {dz:+.2f} m — Ctrl+Z για αναίρεση")
+                self.selectionChangedByView.emit()
+            except Exception as exc:
+                self.statusChanged.emit(f"Γλυπτική εδάφους: δεν εφαρμόστηκε — {exc}")
+            self.redraw(force_full=False)
+            return
         if self._sculpt_tx is None:
             return
         tx = self._sculpt_tx
@@ -3492,6 +3746,12 @@ class PBRViewport(QWidget):
             return
         evaluation = self._evaluation_cache.sync(self.doc)
         overrides = None
+        terrain_tx = getattr(self, "_terrain_tx", None)
+        if terrain_tx is not None and terrain_tx.new_terrain is None:
+            try:
+                overrides = {terrain_tx.terrain_id: terrain_tx.preview_mesh()}
+            except Exception as exc:
+                self.statusChanged.emit(f"Γλυπτική εδάφους: προεπισκόπηση — {exc}")
         if self._sculpt_tx is not None:
             try:
                 overrides = {self._sculpt_tx.hit.owner_id: self._sculpt_tx.preview_mesh()}
@@ -3499,14 +3759,18 @@ class PBRViewport(QWidget):
                 self.statusChanged.emit(f"PBR sculpt preview error: {exc}")
         payload = scene_payload(self.doc, evaluation, self.structural_only, overrides,
                                 getattr(self, "hidden_layers", set()))
+        if terrain_tx is not None and terrain_tx.new_terrain is not None and terrain_tx.amount > 0:
+            payload["objects"] = list(payload["objects"]) + _new_terrain_preview(self.doc, terrain_tx)
         fit = "true" if force_full and self._sculpt_tx is None else "false"
-        script = (
-            "window.__archforgePendingScene = "
-            + json.dumps(payload, separators=(",", ":"))
-            + "; if (window.archforgeSetScene) window.archforgeSetScene(window.__archforgePendingScene, "
-            + fit
-            + ");"
-        )
+        payload, full = scene_changes(payload, None if force_full else getattr(self, "_sent_scene", None))
+        self._sent_scene = payload.pop("_sent")
+        text = json.dumps(payload, separators=(",", ":"))
+        if full:     # kept for the page's first script run (a scene pushed before the page was ready)
+            script = ("window.__archforgePendingScene = " + text
+                      + "; if (window.archforgeSetScene) window.archforgeSetScene(window.__archforgePendingScene, "
+                      + fit + ");")
+        else:        # only what changed: meaningless without the meshes already in the page
+            script = "if (window.archforgeSetScene) window.archforgeSetScene(" + text + ", " + fit + ");"
         self.web_view.page().runJavaScript(script)
         if getattr(self, "_camera_preset", None) == "dollhouse":
             self._push_dollhouse_cut()          # follows the active storey
