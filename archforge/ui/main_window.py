@@ -3989,11 +3989,14 @@ class MainWindow(QMainWindow):
         return action
 
     def _assistant_ask(self):
-        """Typed request for the pointed target, matched to the available actions (keywords, no AI)."""
+        """Typed request: optional Ollama, otherwise the existing deterministic target actions."""
         from archforge.assistant.target import match
         text = self.assistant_text.text().strip()
         if not text:
             return None
+        from archforge.ui.ollama_assistant import enabled, ask
+        if enabled():
+            return ask(self, text)
         if self._assistant_target is None:
             self.assistant_reply.setText('Δείξε πρώτα πού (📍 ή «Στόχος = επιλογή»), ώστε να ξέρω σε τι αναφέρεσαι.')
             return None
@@ -4041,6 +4044,10 @@ class MainWindow(QMainWindow):
         self.assistant_actions.clear()
         for a in self._assistant_target_actions:
             self.assistant_actions.addItem(f"▶ {a.label}" + (f" — {a.info}" if a.info else ''))
+        from archforge.ui.ollama_assistant import pending_proposal
+        ollama_proposal = pending_proposal(self)
+        if ollama_proposal is not None and ollama_proposal.key not in self._assistant_dismissed:
+            self._assistant_proposals.insert(0, ollama_proposal)
         icons = {'warning': '⚠', 'hint': '💡', 'info': 'ℹ'}
         self.assistant_list.blockSignals(True)
         self.assistant_list.clear()
@@ -4066,6 +4073,9 @@ class MainWindow(QMainWindow):
         p = self._current_assistant_proposal()
         if p is None or not p.actionable:
             return
+        if p.key.startswith('ollama:'):
+            from archforge.ui.ollama_assistant import apply_proposal
+            return apply_proposal(self, p)
         if p.run == 'brief':
             self._edit_project_brief()
             self._refresh_assistant()
