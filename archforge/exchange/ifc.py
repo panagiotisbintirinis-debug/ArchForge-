@@ -6,7 +6,7 @@ element of the Document is written with the class of ``mapping.KINDS`` and its o
 shows (``geometry.mesh``), as an ``IfcTriangulatedFaceSet`` in project coordinates, so curved walls, sculpt, roofs and
 stairs leave as they are drawn.  On top of the body, the relations a BIM program needs:
 
-* walls carry their **layer set** (wall_types: material and thickness of each layer), ``Pset_WallCommon``
+* walls carry their axis (``Axis`` representation, the plan line) and their **layer set** (wall_types: material and thickness of each layer), ``Pset_WallCommon``
   (LoadBearing, IsExternal, an indicative U), and every door / window as an ``IfcOpeningElement`` voiding the wall
   (``IfcRelVoidsElement``) filled by an ``IfcDoor`` / ``IfcWindow`` (``IfcRelFillsElement``) with its sizes;
 * rooms become ``IfcSpace`` (name, use, net floor area as the take-off measures it), extruded to the storey height;
@@ -34,10 +34,14 @@ class _Writer:
         self.f = ifcopenshell.file(schema=SCHEMA)
         f = self.f
         self.project = self.run("root.create_entity", ifc_class="IfcProject", name=project_name or "ArchForge")
-        self.run("unit.assign_unit")                                   # SI metres, m², m³ by default
+        # Metres (the default of assign_unit is millimetres: the values written in metres read 1000× too small).
+        self.run("unit.assign_unit", units=[self.run("unit.add_si_unit", unit_type=t)
+                                            for t in ("LENGTHUNIT", "AREAUNIT", "VOLUMEUNIT", "PLANEANGLEUNIT")])
         model = self.run("context.add_context", context_type="Model")
         self.body = self.run("context.add_context", context_type="Model", context_identifier="Body",
                              target_view="MODEL_VIEW", parent=model)
+        self.axis = self.run("context.add_context", context_type="Model", context_identifier="Axis",
+                             target_view="GRAPH_VIEW", parent=model)
         self.site = self.run("root.create_entity", ifc_class="IfcSite", name="Οικόπεδο")
         self.building = self.run("root.create_entity", ifc_class="IfcBuilding", name=project_name or "Κτίριο")
         self.run("aggregate.assign_object", products=[self.site], relating_object=self.project)
@@ -192,6 +196,10 @@ def export_ifc(doc, path, project_name="ArchForge"):
                                   "WallType": p.get("wall_type"), "CurveId": (p.get("curve") or {}).get("id")
                                   if isinstance(p.get("curve"), dict) else None})
         if e.kind == "wall":
+            # The wall's axis as BIM programs read it (and as ifc_import takes it back): the plan line, at the base.
+            axis = w.run("geometry.add_axis_representation", context=w.axis,
+                         axis=((float(p["x1"]), float(p["y1"])), (float(p["x2"]), float(p["y2"]))))
+            el.Representation.Representations = (axis,) + tuple(el.Representation.Representations)
             wall_type = p.get("wall_type", "generic")
             w.run("material.assign_material", products=[el], material=w.layer_set(wall_type, float(p["thickness"])))
             u = indicative_u(wall_type, doc)

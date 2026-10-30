@@ -41,8 +41,8 @@ def layer_specs(doc, wall_type):
     return [layer.spec() for layer in layers(wall_type, doc)]
 
 
-def next_key(doc):
-    used = set(project_types(doc)) | {str(k)[len(CONSTRUCTION_PREFIX):] for k in (doc.constructions or {})}
+def next_key(doc, taken=()):
+    used = set(project_types(doc)) | {str(k)[len(CONSTRUCTION_PREFIX):] for k in (doc.constructions or {})} | set(taken)
     n = 1
     while f"{PROJECT_PREFIX}{n}" in used:
         n += 1
@@ -60,11 +60,11 @@ def _thickness_follows(doc, wall_type, rows):
     return UpdateEntities(changes) if changes else None
 
 
-def new_type_command(doc, name, rows):
-    """``(key, command)``: a new project type."""
+def new_type_command(doc, name, rows, taken=()):
+    """``(key, command)``: a new project type (``taken``: keys already given to commands not yet run)."""
     rows = clean_layers(rows)
     name = str(name).strip() or "Νέα σύνθεση"
-    key = next_key(doc)
+    key = next_key(doc, taken)
     return key, SetConstruction(CONSTRUCTION_PREFIX + key, {"label": name, "layers": rows})
 
 
