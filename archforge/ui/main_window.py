@@ -2280,7 +2280,7 @@ class MainWindow(QMainWindow):
             cut = QPushButton('Τομή πισίνας (υψόμετρα χείλους, νερού, πυθμένα)')
             cut.clicked.connect(lambda _=False, entity_id=eid: __import__('archforge.ui.section_view', fromlist=['x']).pool_section(self, entity_id))
             self.form.addRow(cut)
-            draw = QPushButton('Σχεδίασε το σχήμα (γωνίες + στρογγύλεμα)…')
+            draw = QPushButton('Σχεδίασε το σχήμα στην κάτοψη (γωνίες, καμπύλες)…')
             draw.clicked.connect(lambda _=False, entity_id=eid: self._pool_shape_tool.start(entity_id))
             self.form.addRow(draw)
             if params.get('outline'):

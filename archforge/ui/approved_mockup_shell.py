@@ -298,6 +298,8 @@ def install_approved_mockup_shell(window):
         (None,None),
         ("Πισίνα",lambda: window._start_site_tool(
             "pool_place","Κλικ στο κέντρο της πισίνας — διαστάσεις, βάθη, τύπος και εξοπλισμός στις Ιδιότητες, Esc για τέλος")),
+        # Owner 30/10: the pool drawn as it is wanted — corners and curves clicked in the plan (ui/pool_shape.py).
+        ("Πισίνα με σχεδίαση σχήματος (γωνίες, καμπύλες)",lambda: window._pool_shape_tool.start(None)),
         (None,None),
         ("Μονοπάτι",lambda: window._start_site_tool("path_path","Σύρε στην κάτοψη από την αρχή ως το τέλος — Esc για τέλος")),
         ("Πεζοδρόμιο",lambda: window._start_site_tool("path_sidewalk","Σύρε στην κάτοψη από την αρχή ως το τέλος — Esc για τέλος")),

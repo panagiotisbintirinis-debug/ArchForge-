@@ -99,14 +99,20 @@ def outline(p, grow=0.0):
 
 def fillet(points, radius, tolerance=0.02):
     """Plan corners rounded with ``radius`` (each limited to what its two edges allow), arcs as short chords within
-    ``tolerance`` — a spa's round end is two 90° corners rounded by half its width."""
+    ``tolerance`` — a spa's round end is two 90° corners rounded by half its width.  ``radius`` is one number for
+    every corner or one per corner (0 = that corner stays sharp: the plan tool's Γωνία / Καμπύλη)."""
     pts = [tuple(map(float, q)) for q in points]
     n = len(pts)
-    if radius <= 0 or n < 3:
+    radii = [float(r) for r in radius] if isinstance(radius, (list, tuple)) else [float(radius)] * n
+    radii = (radii + [0.0] * n)[:n]
+    if n < 3 or max(radii) <= 0:
         return pts
     out = []
     for i in range(n):
         a, b, c = pts[i - 1], pts[i], pts[(i + 1) % n]
+        radius = radii[i]
+        if radius <= 0:
+            out.append(b); continue
         u = (a[0] - b[0], a[1] - b[1]); v = (c[0] - b[0], c[1] - b[1])
         lu, lv = math.hypot(*u), math.hypot(*v)
         if lu < 1e-9 or lv < 1e-9:

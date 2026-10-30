@@ -39,6 +39,8 @@ def _patch_dialogs():
     QColorDialog.getColor = staticmethod(lambda *a, **k: __import__("PySide6.QtGui", fromlist=["QColor"]).QColor())
     for name in ("information", "warning", "critical", "question"):
         setattr(QMessageBox, name, staticmethod(lambda *a, **k: QMessageBox.StandardButton.Cancel))
+    QMessageBox.about = staticmethod(lambda *a, **k: None)          # «Σχετικά με» waited for OK forever
+    QMessageBox.aboutQt = staticmethod(lambda *a, **k: None)
     QMessageBox.exec = lambda self, *a, **k: int(QMessageBox.StandardButton.Cancel)
 
 
