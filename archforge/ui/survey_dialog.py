@@ -68,7 +68,7 @@ class SurveyDialog(QDialog):
         r = self.table.rowCount(); self.table.insertRow(r)
         a, b = min(i, j), max(i, j)
         self.table.setItem(r, 0, QTableWidgetItem(self._label(i, j)))
-        self.table.setItem(r, 1, QTableWidgetItem(fmt_length(self.drawn[(a, b)], "m"))   # metres, as the measured column)
+        self.table.setItem(r, 1, QTableWidgetItem(fmt_length(self.drawn[(a, b)], "m")))   # metres, as the measured column
         spin = QDoubleSpinBox(self); spin.setDecimals(3); spin.setRange(0.0, 1000.0); spin.setSingleStep(0.01)
         spin.setSpecialValueText("—")                           # 0 = not measured
         if value is not None:

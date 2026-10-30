@@ -67,3 +67,23 @@ def test_the_dialog_changes_the_plan_dimensions(tmp_path, monkeypatch):
         assert units.display_unit() == 'm' and fmt(3.45) == '3,45'
     finally:
         w._mark_clean(); w.close(); app.processEvents()
+
+
+def test_the_survey_dialog_shows_drawn_lengths_in_metres_like_its_measured_column():
+    # A typo here (30/10) passed every test and failed only compileall: the dialog was never opened by a test.
+    from PySide6.QtWidgets import QApplication
+    from archforge.core.commands import AddEntity
+    from archforge.core.model import Entity
+    from archforge.ui.main_window import MainWindow
+    from archforge.ui.survey_dialog import open_survey
+    app = QApplication.instance() or QApplication([])
+    w = MainWindow()
+    try:
+        for a, b in [((0, 0), (4, 0)), ((4, 0), (4, 3)), ((4, 3), (0, 3)), ((0, 3), (0, 0))]:
+            w.stack.execute(AddEntity(Entity('wall', {'x1': a[0], 'y1': a[1], 'x2': b[0], 'y2': b[1], 'z': 0.0,
+                                                      'height': 2.7, 'thickness': 0.2})))
+        dlg = open_survey(w, (2.0, 1.5))
+        texts = {dlg.table.item(r, 1).text() for r in range(dlg.table.rowCount())}
+        assert texts and all(',' in t for t in texts)                        # «4,00» m, not «400» cm
+    finally:
+        w._mark_clean(); w.close(); app.processEvents()
