@@ -243,3 +243,35 @@ def test_window_tools_place_one_undo_and_menus():
         del n
     finally:
         window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_icf_rules_carry_their_status_and_none_passes_as_verified():
+    """Audit 30/10 (owner: «έλεγχος κανόνων ICF»): every ICF rule in the registry, honest about its status."""
+    from archforge.core.provenance import ENGINEER_REVIEW, VERIFIED, rule, rules
+    from archforge.construction.icf import icf_html, take_off_icf
+    found = rules('icf.')
+    assert len(found) >= 10 and all(r.status != VERIFIED for r in found)
+    assert rule('icf.reinforcement').status == ENGINEER_REVIEW and rule('icf.load_bearing').status == ENGINEER_REVIEW
+    from archforge.core.model import Document
+    html = icf_html(take_off_icf(Document()))
+    assert 'Δεν υπάρχουν τοίχοι ICF' in html                                # empty project: no table
+
+
+def test_a_curved_icf_wall_is_rounded_once_for_the_whole_arc():
+    import math
+    from archforge.architecture import curved_wall as cw
+    from archforge.construction.icf import BLOCKS_PER_M2, WASTE, icf_html, icf_list, take_off_icf, wall_type_of
+    from archforge.core.commands import CommandStack
+    from archforge.core.model import Document
+    doc = Document(); stack = CommandStack(doc)
+    command, walls = cw.create_command(doc, (0, 0), (8, 0), (4, 3), n=16)
+    stack.execute(command)
+    stack.execute(cw.spread_command(doc, walls[0].id, {'wall_type': wall_type_of('20/75'), 'thickness': 0.35}))
+    r = take_off_icf(doc)
+    net = sum(row['net_m2'] for row in r['walls'])
+    expected = math.ceil(sum(row['blocks_raw'] for row in r['walls']) - 1e-9)
+    assert r['totals']['blocks'] == expected                                   # one rounding, not sixteen
+    assert expected <= math.ceil(net * BLOCKS_PER_M2 * (1 + WASTE)) + 1
+    assert r['totals']['curved_m'] > 8
+    assert any(name.startswith('Καμπύλα τμήματα') for name, _u, _q in icf_list(doc))
+    assert 'Κανόνες της αναγωγής' in icf_html(r) and 'Θέλει μελέτη μηχανικού' in icf_html(r)

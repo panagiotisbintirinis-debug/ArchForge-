@@ -397,6 +397,7 @@ def route_cables(doc):
     if panel is None:
         return {**design, "runs": runs, "boxes": boxes, "switch_runs": []}
     px, py = float(panel.params["x"]), float(panel.params["y"])
+    panel_floor = _floor_of(doc, float(panel.params["z"]))
     for circuit in design["circuits"]:
         members = [points[i] for i in circuit["points"]]
         floor = _floor_of(doc, float(members[0].params["z"]))
@@ -404,13 +405,34 @@ def route_cables(doc):
         split = {"wall": [], "floor": [], "ceiling": []}
         for e in members:
             split[routing_of(doc, e)].append(e)
+        # Another storey than the panel's (owner 29/10: «οι σωληνώσεις στον αέρα — να ακολουθήσει το κτίριο»): from the
+        # panel inside its own storey's walls to a riser in a wall both storeys share, up inside it; the storey's runs
+        # start at the riser — never at the panel's plan position, which may lie outside that storey.
+        riser = None
+        if abs(floor - panel_floor) > 1e-4:
+            riser = _riser(doc, panel_floor, floor, px, py)
+        if riser is not None:
+            low_z = run_z(doc, panel_floor, "wall")
+            low = _Grid(doc, panel_floor, [(px, py), riser])
+            low.mode = "wall"
+            path = low.route(low.cell(*riser), {low.cell(px, py)})
+            chain = [low.point(c) for c in path]
+            for a, b in zip(chain, chain[1:]):
+                runs.append(((a[0], a[1], low_z), (b[0], b[1], low_z), group, cid))
+            boxes.extend(_pull_boxes(chain, low_z, cid))
+            pp = low.point(low.cell(px, py))
+            runs.append(((pp[0], pp[1], mount_z(doc, panel.params)), (pp[0], pp[1], low_z), group, cid))
+            rx, ry = low.point(low.cell(*riser))
+            top = max(run_z(doc, floor, mode) for mode, chosen in split.items() if chosen)
+            runs.append(((rx, ry, low_z), (rx, ry, top), group, cid))
         for mode, chosen in split.items():
             if not chosen:
                 continue
             z = run_z(doc, floor, mode)
-            grid = _Grid(doc, floor, [(float(e.params["x"]), float(e.params["y"])) for e in chosen] + [(px, py)])
+            sx, sy = (rx, ry) if riser is not None else (px, py)
+            grid = _Grid(doc, floor, [(float(e.params["x"]), float(e.params["y"])) for e in chosen] + [(sx, sy)])
             grid.mode = "wall" if mode == "wall" else "floor"
-            source = grid.cell(px, py)
+            source = grid.cell(sx, sy)
             targets = {e.id: target_cell(grid, e, mode) for e in chosen}
             paths, _loads, parent = _grow(grid, source, targets)
             seen = set()
@@ -429,7 +451,10 @@ def route_cables(doc):
                     c = p_
                 boxes.extend(_pull_boxes(chain, z, cid))
             pp = grid.point(source)
-            runs.append(((pp[0], pp[1], mount_z(doc, panel.params)), (pp[0], pp[1], z), group, cid))
+            if riser is None:
+                runs.append(((pp[0], pp[1], mount_z(doc, panel.params)), (pp[0], pp[1], z), group, cid))
+            elif abs(pp[0] - rx) > 1e-6 or abs(pp[1] - ry) > 1e-6:      # the two grids round the riser apart
+                runs.append(((rx, ry, z), (pp[0], pp[1], z), group, cid))
             for e in chosen:
                 terminal, box = device_legs(doc, e, mode, grid.point(targets[e.id]), z)
                 boxes.append((*box, cid))
@@ -444,6 +469,35 @@ def route_cables(doc):
     design["report"]["cable_m"] = round(sum(math.dist(a, b) for a, b, _g, _c in runs), 1)
     design["report"]["boxes"] = {k: sum(1 for b in boxes if b[3] == k) for k in ("junction", "floor", "pull")}
     return {**design, "runs": runs, "boxes": boxes, "switch_runs": switch_legs}
+
+
+def _riser(doc, lower, upper, px, py):
+    """Plan point of the vertical run between storeys ``lower`` and ``upper``: on a wall of both (stacked walls),
+    nearest the panel; else on the upper storey's walls nearest the panel; None without walls up there."""
+    def walls_at(z):
+        return [w for w in doc.entities.values() if w.kind == "wall" and abs(float(w.params.get("z", 0.0)) - z) < 0.05]
+    up, down = walls_at(upper), walls_at(lower)
+    if not up:
+        return None
+    candidates = []
+    for w in up:
+        p = w.params
+        x1, y1, x2, y2 = (float(p[k]) for k in ("x1", "y1", "x2", "y2"))
+        steps = max(1, int(math.hypot(x2 - x1, y2 - y1) / CELL))
+        candidates += [(x1 + (x2 - x1) * k / steps, y1 + (y2 - y1) * k / steps) for k in range(steps + 1)]
+
+    def on_lower(q):
+        return any(_dist_to_segment(w, *q) <= float(w.params.get("thickness", 0.2)) / 2 + 1e-6 for w in down)
+    stacked = [q for q in candidates if on_lower(q)]
+    return min(stacked or candidates, key=lambda q: (math.hypot(q[0] - px, q[1] - py), q))
+
+
+def _dist_to_segment(w, x, y):
+    p = w.params
+    x1, y1, x2, y2 = (float(p[k]) for k in ("x1", "y1", "x2", "y2"))
+    dx, dy = x2 - x1, y2 - y1
+    t = max(0.0, min(1.0, ((x - x1) * dx + (y - y1) * dy) / ((dx * dx + dy * dy) or 1.0)))
+    return math.hypot(x - x1 - t * dx, y - y1 - t * dy)
 
 
 def conduit_summary(runs, circuits):

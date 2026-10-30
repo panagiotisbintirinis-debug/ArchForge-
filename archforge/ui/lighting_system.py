@@ -99,8 +99,11 @@ function afStripLights(spec) {
 let architecturalLightsSwitch = "auto";
 let architecturalGlowLevels = {};
 function afUpdateLightVisibility() {
+  // «Αυτόματα» = at night, or whenever the project's sun is below the horizon (owner 29/10: «Βραδινό» after sunset
+  // showed no light at all).
+  const sunDown = typeof sunState !== "undefined" && !!sunState && Number(sunState.elevation) <= 0;
   archLightRoot.visible = architecturalLightsSwitch === "on" ||
-      (architecturalLightsSwitch === "auto" && architecturalLightingMode === "night");
+      (architecturalLightsSwitch === "auto" && (architecturalLightingMode === "night" || sunDown));
   window.__archforgeProjectLightsOn = archLightRoot.visible;
   // Lamp glass follows the very same project switch as the emitted light.
   // Keep the instance's base value so on/off never compounds the dimmer.
@@ -152,7 +155,7 @@ window.setArchitecturalLightingMode = function(mode) {
 '''
 
 
-PROJECT_LIGHTS = {"auto": "αυτόματα (μόνο τη νύχτα)", "on": "πάντα αναμμένα", "off": "σβηστά"}
+PROJECT_LIGHTS = {"auto": "αυτόματα (νύχτα ή μετά τη δύση)", "on": "πάντα αναμμένα", "off": "σβηστά"}
 
 
 def _replace_one_of(text: str, candidates: tuple[str, ...], new: str, label: str) -> str:
@@ -249,7 +252,11 @@ def _entity_light_spec(entity, doc=None):
     # the visible output without silently rewriting the electrical design load.
     # Per luminaire (Ιδιότητες, mep/lighting.py): the dimmer slider «dim_level», «Αναμμένο», lumen → candela, the
     # beam and the aim of an adjustable head.  ``dimming`` there is the driver protocol (text), not a level.
-    intensity = float(p.get("intensity", p.get("render_intensity", 700.0)))
+    from archforge.mep.lighting import reference_intensity
+    half_angle = (float(p["beam_deg"]) / 2 if "beam_deg" in p
+                  else float(p.get("angle_deg", p.get("beam_angle_deg", 35.0))))
+    reference = reference_intensity(light_kind, half_angle) if electrical_point_type else None
+    intensity = float(p.get("intensity", p.get("render_intensity", reference if reference is not None else 700.0)))
     level = p.get("dim_level", p.get("dimmer", p.get("dimming", 1.0)))
     try:
         dimmer = max(0.0, min(1.0, float(level)))
@@ -388,6 +395,16 @@ def install_lighting_system() -> None:
             "if(window.setArchitecturalLights)window.setArchitecturalLights(" + payload + ");"
         )
 
+    def _night_without_lights(self):
+        """At night with not one luminaire lit, say why instead of a dark picture with no explanation (owner 29/10)."""
+        if str(self._architectural_lighting_mode) != "night":
+            return
+        if getattr(self, "_project_lights", "auto") == "off":
+            self.statusChanged.emit("Νύχτα: «Φώτα του έργου: σβηστά» — Ήλιος & ουρανός ▸ Φώτα του έργου")
+        elif not any(spec.get("enabled", True) for spec in self._lighting_payload()["lights"]):
+            self.statusChanged.emit("Νύχτα: κανένα αναμμένο φωτιστικό στο έργο — Ηλεκτρολογικά ▸ φωτιστικά, ή "
+                                    "Φώτα του έργου: ρύθμιση ανά χώρο")
+
     def set_lighting_mode(self, mode: str) -> None:
         mode = str(mode).lower()
         if mode not in {"day", "afternoon", "night"}:
@@ -398,6 +415,7 @@ def install_lighting_system() -> None:
         self._push_architectural_lights()
         labels = {"day": "Ημέρα", "afternoon": "Απόγευμα", "night": "Νύχτα"}
         self.statusChanged.emit("Φωτισμός: " + labels[mode])
+        self._night_without_lights()
 
     def set_project_lights(self, mode: str) -> None:
         """The project's luminaires in 3D: «auto» = only at night, «on» = always, «off» = never (each one's own
@@ -408,6 +426,7 @@ def install_lighting_system() -> None:
         self._project_lights = mode
         self._push_architectural_lights()
         self.statusChanged.emit("Φώτα του έργου: " + PROJECT_LIGHTS[mode])
+        self._night_without_lights()
 
     def _on_load_finished(self, ok: bool) -> None:
         original_on_load(self, ok)
@@ -425,6 +444,7 @@ def install_lighting_system() -> None:
     cls.preview_fixture_control = preview_fixture_control
     cls.clear_fixture_control_preview = clear_fixture_control_preview
     cls._push_architectural_lights = _push_architectural_lights
+    cls._night_without_lights = _night_without_lights
     cls.set_lighting_mode = set_lighting_mode
     cls.set_project_lights = set_project_lights
     cls._on_load_finished = _on_load_finished

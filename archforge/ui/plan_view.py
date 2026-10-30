@@ -150,7 +150,7 @@ class PlanView(QGraphicsView):
         self.doc=doc;self.stack=stack;self.controller=PointerController(doc,stack)
         if getattr(self,'_grid_step',None):self.controller.grid=self.controller.construction_grid=self._grid_step
         self.redraw()
-    TOOL_LABELS={'select':'Επιλογή','wall':'Τοίχος','door':'Πόρτα','window':'Παράθυρο','opening_rect':'Άνοιγμα','stair':'Σκάλα',
+    TOOL_LABELS={'paint_material':'Πινέλο υλικού','select':'Επιλογή','wall':'Τοίχος','door':'Πόρτα','window':'Παράθυρο','opening_rect':'Άνοιγμα','stair':'Σκάλα',
                  'ramp':'Ράμπα','structural_column':'Κολόνα','structural_beam':'Δοκός','component':'Τοποθέτηση','move':'Μετακίνηση',
                  'rotate':'Περιστροφή','stretch':'Τέντωμα'}
     def set_tool(self,tool):self.controller.set_tool(tool);self._active_handle=None;self._railing_draft=None;self._slab_draft=None;self.statusChanged.emit(f'Εργαλείο: {self.TOOL_LABELS.get(tool,tool)}');self.redraw()
@@ -240,7 +240,7 @@ class PlanView(QGraphicsView):
     def _overlay(self,kind,event):
         # Overlay tool (the assistant's kitchen/bath guide lines, fixture drag): gets the mouse first.
         # The camera tool (ui/camera_tool.py: place / move / turn a camera) comes first.
-        return any(tool is not None and bool(tool.handle(self,kind,event)) for tool in (getattr(self,'corner_tool',None),getattr(self,'tape_tool',None),getattr(self,'pool_tool',None),getattr(self,'terrain_tool',None),getattr(self,'camera_tool',None),getattr(self,'overlay_tool',None),getattr(self,'dims_tool',None)))
+        return any(tool is not None and bool(tool.handle(self,kind,event)) for tool in (getattr(self,'corner_tool',None),getattr(self,'tape_tool',None),getattr(self,'pool_tool',None),getattr(self,'curved_wall_tool',None),getattr(self,'terrain_tool',None),getattr(self,'camera_tool',None),getattr(self,'overlay_tool',None),getattr(self,'dims_tool',None)))
     CLICK_PX=8   # press → release within this many screen pixels is a click, not a drag
     def _wall_chain_active(self):
         return getattr(self.controller,'wall_chain',None) is not None and self.controller.active is not None
@@ -287,6 +287,16 @@ class PlanView(QGraphicsView):
         if event.button()==Qt.MouseButton.LeftButton:
             # Double click = selection (owner 23/10): the object, its handles and its Ιδιότητες.
             hit=self.itemAt(event.position().toPoint());eid=self._entity_items.get(hit)
+            window=getattr(self,'marking_menu_window',None)
+            labels=getattr(self,'_room_label_items',{})
+            signature=next((labels[i] for i in self.items(event.position().toPoint()) if i in labels),None)   # under a slab too
+            if signature is None and not eid and window is not None:
+                # Owner 30/10: «το 2Δ να μου δίνει περιθώριο να ονομάσω το χώρο» — inside a room where nothing else is.
+                from archforge.ui.room_panel import room_at
+                q=self._scene_to_plane(event.position().toPoint());signature=room_at(self.doc,*self.controller._plan_xy(q))
+            if signature is not None and window is not None:
+                from archforge.ui.room_panel import rename_room
+                rename_room(window,signature);event.accept();return
             if eid and eid in self.doc.entities:
                 self.doc.select([eid],add=bool(event.modifiers()&Qt.KeyboardModifier.ControlModifier));self.controller.set_target(eid,None)
                 self._indicated=None;self.selectionChangedByView.emit();self.redraw()
@@ -392,6 +402,12 @@ class PlanView(QGraphicsView):
         if self._railing_tool():self._railing_press(event);event.accept();return
         if self._slab_tool():
             ev=self._scene_to_plane(event.position().toPoint());self._slab_draft_get().down(ev.a,ev.b);self._mouse_down=True
+            self.redraw();event.accept();return
+        if self.controller.tool=='paint_material' and getattr(self,'marking_menu_window',None) is not None:
+            # «Πινέλο» υλικού (material_brush.py): the object under the click is painted, on a wall the clicked face.
+            from archforge.ui.material_brush import paint
+            ev=self._scene_to_plane(event.position().toPoint());x,y=self.controller._plan_xy(ev)
+            paint(self.marking_menu_window,self._entity_items.get(self.itemAt(event.position().toPoint())),x,y)
             self.redraw();event.accept();return
         if self.controller.tool not in self.SITE_LINE_TOOLS and (self.controller.tool in self.SITE_POINT_TOOLS or str(self.controller.tool).startswith(('plumb_','elec_','vent_','heat_','assist_','drain_','roofroom_','railingstair_','drywallroom'))):
             ev=self._scene_to_plane(event.position().toPoint())
@@ -851,7 +867,7 @@ class PlanView(QGraphicsView):
         for item,min_scale in getattr(self,'_scaled_labels',()):item.setVisible(scale>=min_scale)
     def redraw(self):
         self._scaled_labels=[]
-        self._scene.clear();self._handle_items.clear();self._entity_items.clear();self._draw_grid();self._draw_underlays();frame=build_plan_frame(self.doc,self.controller.preview,layers=not self.structural_only);self._frame=frame
+        self._scene.clear();self._handle_items.clear();self._entity_items.clear();self._room_label_items={};self._draw_grid();self._draw_underlays();frame=build_plan_frame(self.doc,self.controller.preview,layers=not self.structural_only);self._frame=frame
         if self.structural_only:
             structural_ids={
                 eid for eid,e in self.doc.entities.items()
@@ -994,6 +1010,7 @@ class PlanView(QGraphicsView):
         if overlay is not None:overlay.paint(self)
         if getattr(self,'terrain_tool',None) is not None:self.terrain_tool.paint(self)
         if getattr(self,'pool_tool',None) is not None:self.pool_tool.paint(self)
+        if getattr(self,'curved_wall_tool',None) is not None:self.curved_wall_tool.paint(self)
         if getattr(self,'camera_tool',None) is not None:self.camera_tool.paint(self)
         if getattr(self,'tape_tool',None) is not None:self.tape_tool.paint(self)   # Μεζούρα (dimension_tool.py)
         if getattr(self,'corner_tool',None) is not None:self.corner_tool.paint(self)   # Γωνία (corner_tool.py)
@@ -1133,6 +1150,11 @@ class PlanView(QGraphicsView):
             # Contour lines: thin brown, every 1 m (or the chosen step) a little stronger.
             z=float(dict(p.meta).get('z',0.));major=abs(z-round(z))<1e-6
             pen=QPen(QColor(150,110,60,200 if major else 120));pen.setWidthF(.02 if major else .01)
+        if p.role=='sculpt-contour':
+            # Γλυπτική: faint contour lines of the sculpted ground (owner 29/10 «σχεδιαστικά αχνές γραμμές»).
+            pen=QPen(QColor(120,90,160,120));pen.setWidthF(.01)
+        if p.role=='sculpt-outline':
+            pen=QPen(QColor(120,90,160,150));pen.setWidthF(.012);pen.setStyle(Qt.PenStyle.DashLine)
         if p.role in ('footing','tie-beam'):
             # Below the floor: hidden lines.
             pen=QPen(QColor(95,95,90));pen.setWidthF(.015);pen.setStyle(Qt.PenStyle.DashLine)
@@ -1208,10 +1230,15 @@ class PlanView(QGraphicsView):
             meta=dict(p.meta);text=str(meta.get('text',''));cx,cy=p.points[0];item=self._scene.addText(text);item.setDefaultTextColor(QColor(55,80,65))
             if p.role=='section-label':
                 f=item.font();f.setBold(True);f.setPointSizeF(f.pointSizeF()*1.4);item.setFont(f);item.setDefaultTextColor(QColor(200,40,40))
+            if p.role=='sculpt-label':
+                # How much Γλυπτική raised / lowered (ground) or pushed out / in (wall).
+                f=item.font();f.setBold(True);item.setFont(f);item.setDefaultTextColor(QColor(110,70,160))
             if p.role=='wall-move-label':
                 # Distance of a dragged wall: blue and bold, like the angle mark.
                 f=item.font();f.setBold(True);f.setPointSizeF(f.pointSizeF()*1.25);item.setFont(f)
                 item.setDefaultTextColor(QColor(210,40,40) if text.startswith('⚠') else QColor(20,110,220))
+            if p.role=='derived-room-label' and meta.get('signature'):
+                self._room_label_items[item]=meta['signature']       # double click on it: the room's name
             item.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations,True);item.setPos(cx,cy);item.setTransformOriginPoint(item.boundingRect().center());item.setScale(1.0);item.setZValue(8);
             if p.role=='dimension-label':
                 # Along its dimension line, just above it (screen y is the plan's −y, so the angle turns over).
@@ -1231,7 +1258,7 @@ class PlanView(QGraphicsView):
             return
         if item is not None:
             container=bool(p.entity_id) and p.entity_id in self.doc.entities and self.doc.get(p.entity_id).kind in self.CONTAINER_KINDS
-            item.setZValue(-30 if p.role=='contour' else -20 if context else (-10 if room else (10 if opening else (20 if preview else (-5 if container else (-1 if p.role=='wall-poche' else (1 if wall_line else 0)))))))
+            item.setZValue(-30 if p.role in ('contour','sculpt-contour') else -20 if context else (-10 if room else (10 if opening else (20 if preview else (-5 if container else (-1 if p.role=='wall-poche' else (1 if wall_line else 0)))))))
             if p.entity_id and not preview:self._entity_items[item]=p.entity_id
             if p.entity_id and p.entity_id==getattr(self,'_indicated',None) and not wall_line and hasattr(item,'setPen'):
                 ind=QPen(QColor(240,140,30));ind.setWidthF(.03);ind.setCosmetic(False);item.setPen(ind)

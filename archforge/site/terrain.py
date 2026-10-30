@@ -13,6 +13,9 @@ The terrain is an authoritative Document entity (``kind='terrain'``):
   that hold them — the ground steps at a retaining wall, slopes through a gap between two levels
 - ``regions``: closed elevation shapes, constant inside their perimeter,
   blending into the surrounding field over their ``transition`` distance
+- ``strokes``: sculpt strokes ``[{"x", "y", "radius", "dz", "sharp"}, ...]`` (owner 29/10: Γλυπτική on the ground):
+  each raises (``dz`` > 0) or lowers the ground by ``dz`` at its centre, fading smoothly to 0 at ``radius``;
+  added on top of everything above, in order, so plan contours, sections and 3D read the same ground
 
 The base field is ``elevation + slope_x% * (x - x0) + slope_y% * (y - y0)``.
 The preview samples this deterministic field; closed building footprints
@@ -154,6 +157,34 @@ def _walled_heights(params, xs, ys, walls, zones=()):
     return h, weight
 
 
+def stroke_falloff(distance: float, radius: float, sharp: bool = False) -> float:
+    """1 at the centre → 0 at ``radius``, smooth (cosine); ``sharp`` = squared (a crease)."""
+    if radius <= 0 or distance >= radius:
+        return 0.0
+    w = 0.5 * (1.0 + math.cos(math.pi * distance / radius))
+    return w * w if sharp else w
+
+
+def stroke_offset(params: Dict, x: float, y: float) -> float:
+    """Height the sculpt ``strokes`` add at (x, y)."""
+    total = 0.0
+    for s in params.get('strokes') or ():
+        r = float(s.get('radius', 0.0))
+        d = math.hypot(float(x) - float(s['x']), float(y) - float(s['y']))
+        if d < r:
+            total += float(s.get('dz', 0.0)) * stroke_falloff(d, r, bool(s.get('sharp')))
+    return total
+
+
+def stroke_extent(params: Dict):
+    """Plan box (x0, y0, x1, y1) of all strokes, or None."""
+    strokes = params.get('strokes') or ()
+    if not strokes:
+        return None
+    return (min(float(s['x']) - float(s['radius']) for s in strokes), min(float(s['y']) - float(s['radius']) for s in strokes),
+            max(float(s['x']) + float(s['radius']) for s in strokes), max(float(s['y']) + float(s['radius']) for s in strokes))
+
+
 def terrain_heights(params: Dict, xy, walls=None, floors=None):
     """``terrain_height`` at many points at once (the 3D grid); ``walls``: what holds the ground (``barriers``);
     ``floors``: green roofs ``[(outline, lowest)]`` the ground covers (``green_roofs``)."""
@@ -164,7 +195,7 @@ def terrain_heights(params: Dict, xy, walls=None, floors=None):
         xs = np.array([p[0] for p in xy], float); ys = np.array([p[1] for p in xy], float)
         h, w = _walled_heights(params, xs, ys, walls or [], [outline for outline, _lowest in floors or ()])
         base = [float(wi * hi + (1.0 - wi) * b) for b, hi, wi in zip(base, h, w)]
-    out = [blended_height(params, float(x), float(y), b) for (x, y), b in zip(xy, base)]
+    out = [blended_height(params, float(x), float(y), b) + stroke_offset(params, x, y) for (x, y), b in zip(xy, base)]
     if floors:
         from archforge.geometry.regions import point_in_polygon
         for k, (x, y) in enumerate(xy):
@@ -179,7 +210,7 @@ def terrain_height(params: Dict, x: float, y: float, walls=None, floors=None) ->
     from .elevation_regions import blended_height
     if params.get('levels') or floors:
         return terrain_heights(params, [(float(x), float(y))], walls or [], floors)[0]
-    return blended_height(params, float(x), float(y), _point_height(params,x,y))
+    return blended_height(params, float(x), float(y), _point_height(params,x,y)) + stroke_offset(params, x, y)
 
 
 def terrain_contains(params: Dict, x: float, y: float) -> bool:
@@ -215,6 +246,12 @@ def default_terrain_params(doc, margin: float = DEFAULT_MARGIN) -> Dict:
     }
 
 
+def _stroke_cell(params: Dict, cell: float) -> float:
+    """Fine enough for the smallest stroke to show its shape (4 cells across its radius), never below 0.15 m."""
+    radii = [float(s.get('radius', 0.0)) for s in params.get('strokes') or () if float(s.get('radius', 0.0)) > 0]
+    return max(0.15, min([cell] + [r / 4.0 for r in radii]))
+
+
 def terrain_mesh(params: Dict, cell: float | None = None, exclusions=(), walls=None, floors=None):
     """Closed ground solid: graded top grid, flat bottom, four sides (``walls`` holding the ground, ``floors`` the
     green roofs it covers)."""
@@ -224,7 +261,7 @@ def terrain_mesh(params: Dict, cell: float | None = None, exclusions=(), walls=N
     if x1 - x0 <= 1e-6 or y1 - y0 <= 1e-6:
         raise ValueError('terrain extent must be positive')
     if cell is None:
-        cell = 0.5 if params.get('points') else 1.0
+        cell = _stroke_cell(params, 0.5 if params.get('points') else 1.0)
     nx = max(1, min(120, int(math.ceil((x1 - x0) / cell))))
     ny = max(1, min(120, int(math.ceil((y1 - y0) / cell))))
     lowest = min(
@@ -314,7 +351,7 @@ def _region_mesh(params, cell, exclusions, walls=None, floors=None):
     from archforge.geometry.regions import region, region_loops, group_loops, winding, triangulate_with_holes
     x0,y0,x1,y1=(float(params[k]) for k in ('x0','y0','x1','y1'))
     if x1<=x0 or y1<=y0: raise ValueError('terrain extent must be positive')
-    cell=.5 if cell is None else max(.1,float(cell))
+    cell=_stroke_cell(params,.5) if cell is None else max(.1,float(cell))
     nx=max(1,min(120,math.ceil((x1-x0)/cell))); ny=max(1,min(120,math.ceil((y1-y0)/cell)))
     # Union once, so overlapping wall footprints cannot create duplicate cut edges.
     cuts=[outer for outer,holes in region(exclusions)] if exclusions else []

@@ -799,6 +799,7 @@ def _axis_candidates(a,b,offset,first_side=1):
     return tuple(out)
 
 _CONTOURS={'key':None,'value':[]}
+_SCULPT_CONTOURS={'key':None,'value':[]}
 
 
 _POCHE={'key':None,'value':[]}
@@ -916,6 +917,17 @@ def build_plan_frame(doc,preview=None,layers=True):
                 _CONTOURS['key'],_CONTOURS['value']=key,contours(e.params)
             for level,segment in _CONTOURS['value']:
                 f.primitives.append(Primitive2D('polyline',tuple(segment),role='contour',meta=(('z',level),)))
+        if e.params.get('strokes'):
+            # Γλυπτική on the ground (site/sculpt_plan.py): faint contours of what was sculpted, and how much.
+            from archforge.site import sculpt_plan
+            key=('strokes',e.id,repr(e.params.get('strokes')),repr(sorted((k,v) for k,v in e.params.items() if k!='strokes')))
+            if _SCULPT_CONTOURS.get('key')!=key:
+                _SCULPT_CONTOURS['key'],_SCULPT_CONTOURS['value']=key,sculpt_plan.stroke_contours(e.params)
+            for level,segment in _SCULPT_CONTOURS['value']:
+                f.primitives.append(Primitive2D('polyline',tuple(segment),role='sculpt-contour',meta=(('z',level),)))
+            for center,text,radius in sculpt_plan.stroke_labels(e.params):
+                f.primitives.append(Primitive2D('polyline',sculpt_plan.circle(center,radius),entity_id=eid,role='sculpt-outline'))
+                f.primitives.append(Primitive2D('label',(center,),role='sculpt-label',meta=(('text',text),)))
         survey=len(e.params.get('points') or ())>40
         for px,py,pz in e.params.get('points') or ():
             if survey:
@@ -923,6 +935,15 @@ def build_plan_frame(doc,preview=None,layers=True):
             f.primitives.append(Primitive2D('ellipse',((float(px),float(py)),),.12,.12,0.,eid,'terrain'))
             f.primitives.append(Primitive2D('label',((float(px)+.15,float(py)+.15),),role='terrain-label',
                                             meta=(('text',f'{float(pz):+.2f}'),)))
+    for owner_id in list(getattr(doc,'_modifiers_by_owner',{}) or {}):
+        # Γλυπτική on a wall (site/sculpt_plan.py): the brush's reach, faint, and how far it pushed out / in.
+        if owner_id not in doc.entities:continue
+        e=doc.get(owner_id)
+        if e.kind!='wall' or not e.visible or not _entity_on_active_level(doc,e):continue
+        from archforge.site import sculpt_plan
+        for center,text,radius in sculpt_plan.wall_sculpt_marks(doc,owner_id):
+            if radius>0:f.primitives.append(Primitive2D('polyline',sculpt_plan.circle(center,radius),entity_id=owner_id,role='sculpt-outline'))
+            f.primitives.append(Primitive2D('label',(center,),role='sculpt-label',meta=(('text',text),)))
     for eid in doc.entities:
         # FLOOR PLAN shows the active storey only; a stair/ramp touching it
         # (e.g. the flight down from an upper storey) stays visible.

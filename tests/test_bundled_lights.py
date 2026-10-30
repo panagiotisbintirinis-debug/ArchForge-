@@ -144,3 +144,34 @@ def test_open_popup_tracks_undo_and_external_property_edits(tmp_path, monkeypatc
         assert w.doc.get(e.id).params['light_enabled'] == 1
     finally:
         w._mark_clean(); w.close(); app.processEvents()
+
+
+def test_double_click_on_a_luminaire_in_3d_opens_its_properties_even_with_the_panel_closed(tmp_path, monkeypatch):
+    """Owner 29/10: «δεν μπορώ να πιάσω το φωτιστικό στο 3Δ — πώς θα ελέγξω το αποτέλεσμα»: the click selected it, but
+    with Ιδιότητες closed nothing showed its switch and dimmer."""
+    from PySide6.QtWidgets import QApplication
+    from archforge.ui.main_window import MainWindow
+    from archforge.ui.pbr_viewport import PBRInteractionBridge
+    from archforge.library.bundled_lights import seed_lights
+    from archforge.ui.library_instance_integration import library_instance_params
+    from archforge.core.commands import AddEntity
+    from archforge.core.model import Entity
+    monkeypatch.setenv('ARCHFORGE_DATA', str(tmp_path))
+    assets._CACHE.clear()
+    app = QApplication.instance() or QApplication([])
+    w = MainWindow()
+    try:
+        w.show()
+        record = assets.load_asset(seed_lights()[0])
+        lamp = Entity('library_object', library_instance_params(record, x=0, y=0, z=2))
+        w.stack.execute(AddEntity(lamp))
+        w.dock.hide()
+        PBRInteractionBridge(w.pbr_view).openEntity(lamp.id)
+        app.processEvents()
+        assert w.doc.selection == [lamp.id]
+        assert w.dock.isVisible()
+        labels = [w.form.itemAt(i, w.form.ItemRole.LabelRole).widget().text() for i in range(w.form.rowCount())
+                  if w.form.itemAt(i, w.form.ItemRole.LabelRole) and w.form.itemAt(i, w.form.ItemRole.LabelRole).widget()]
+        assert 'Αναμμένο' in labels and 'Φωτεινότητα' in labels, labels    # its switch and dimmer are there
+    finally:
+        w._mark_clean(); w.close(); app.processEvents()

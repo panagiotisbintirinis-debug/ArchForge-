@@ -162,9 +162,86 @@ def _lighting_mode(window, mode):
 
 
 def _daylight(window, hour):
-    """A sun hour from the menu: back to daylight, then the sun at that hour."""
+    """A sun hour from the menu (Ήλιος & ουρανός, or a Στυλ with an hour): back to daylight, then the sun at that hour."""
     _lighting_mode(window, "day")
+    night = getattr(window, "_mockup_night_action", None)
+    if night is not None and night.isChecked():
+        night.setChecked(False)
     window.pbr_view.set_sun(hour)
+
+
+def _wall_button(window, parent):
+    """«Τοίχος ▾» (owner 29/10: «στο κουμπί τοίχος να ανοίγει ένα μενού για καμπύλο, διάφανο, αλλά και το είδος του
+    τοίχου» — ArchiCAD's wall settings: geometry method and composite, docs/specs/archicad_analysis.md 9:47).
+    Click = draw walls as before; ▾ = what the next walls are: by the project brief, a wall type (its layers and
+    thickness), or glass.  The choice stays until changed; Ιδιότητες still change each wall afterwards."""
+    from archforge.ui.workspace_layout import make_icon
+    from archforge.architecture.wall_types import WALL_TYPES, GLASS_WALL, total_thickness
+    tip="Κλικ στις γωνίες (ή σύρε) · διπλό κλικ / Enter = τέλος · Shift = ελεύθερη γωνία · Esc = ακύρωση · ▾ είδος τοίχου"
+    button=QToolButton(parent); button.setText("Τοίχος"); button.setIcon(make_icon("wall")); button.setToolTip(tip)
+    button.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+    button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+    button.clicked.connect(lambda _=False: window._set_active_tool("wall"))
+    menu=QMenu(button); group=QActionGroup(menu); group.setExclusive(True); window._mockup_wall_choices={}
+
+    def choose(key, label):
+        window.plan_view.controller.wall_choice=key
+        window._set_active_tool("wall")
+        window.statusBar().showMessage(f"Τοίχος: {label} — κλικ στις γωνίες · Esc = τέλος", 8000)
+
+    def add(key, label):
+        act=QAction(label,menu); act.setCheckable(True); act.setChecked(key is None)
+        act.triggered.connect(lambda _=False,k=key,l=label: choose(k,l))
+        group.addAction(act); window._mockup_wall_choices[key]=act
+        return act
+    menu.addAction(add(None,"Ευθύς — είδος από τα Στοιχεία έργου"))
+    menu.addAction(add("glass",f"{GLASS_WALL['label']} · {GLASS_WALL['thickness'] * 100:g} cm"))
+    # Owner 30/10 «ξεκίνησε τον καμπύλο τοίχο»: three clicks (start, end, a point on the arc), ui/curved_wall_tool.py.
+    curved=QAction("Καμπύλος τοίχος (αρχή, τέλος, σημείο τόξου)",menu)
+    curved.setToolTip("Τρία κλικ στην κάτοψη: αρχή, τέλος, ένα σημείο του τόξου — ακτίνα και τμήματα αλλάζουν στις Ιδιότητες")
+    curved.triggered.connect(lambda _=False: window._curved_wall_tool.start()); menu.addAction(curved)
+    window._mockup_wall_curved=curved
+    menu.addSeparator()
+    types=QMenu("Είδος τοίχου (σύνθεση)",menu); menu.addMenu(types); window._mockup_wall_types_menu=types
+    for key,(label,layers) in WALL_TYPES.items():
+        if key=="generic":continue
+        thick=total_thickness(key)
+        types.addAction(add(key,f"{label}" + (f" · {thick * 100:.1f} cm" if thick>0 else "")))
+    button.setMenu(menu)
+    return button
+
+
+def _sculpt_button(window, parent):
+    """«Γλυπτική ▾»: click = on / off (the same action as C); ▾ = operation and brush size, the very controls the
+    right-click menu and the wheel change (window.sculpt_operation / window.sculpt_radius stay the one source)."""
+    from PySide6.QtWidgets import QDoubleSpinBox, QWidgetAction
+    from archforge.ui.marking_menu import SCULPT_OPS
+    from archforge.ui.workspace_layout import make_icon
+    button=QToolButton(parent); button.setText("Γλυπτική"); button.setIcon(make_icon("sculpt"))
+    button.setToolTip("Γλυπτική: πλάσε την επιφάνεια με το ποντίκι · ▾ εργασία και μέγεθος πινέλου")
+    button.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+    button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+    button.setCheckable(True); button.setChecked(window.sculpt_action.isChecked())
+    button.clicked.connect(lambda _=False: window.sculpt_action.toggle())
+    window.sculpt_action.toggled.connect(button.setChecked)
+    menu=QMenu(button); ops=QActionGroup(menu); ops.setExclusive(True); window._mockup_sculpt_ops={}
+    for key,label in SCULPT_OPS:
+        op=QAction(label,menu); op.setCheckable(True); op.setChecked(window.sculpt_operation.currentText()==key)
+        op.triggered.connect(lambda _=False,k=key: window.sculpt_operation.setCurrentText(k))
+        ops.addAction(op); menu.addAction(op); window._mockup_sculpt_ops[key]=op
+    window.sculpt_operation.currentTextChanged.connect(
+        lambda k: window._mockup_sculpt_ops[k].setChecked(True) if k in window._mockup_sculpt_ops else None)
+    menu.addSeparator()
+    size=QDoubleSpinBox(menu); size.setRange(window.sculpt_radius.minimum(),window.sculpt_radius.maximum())
+    size.setDecimals(2); size.setSingleStep(window.sculpt_radius.singleStep()); size.setSuffix(" m")
+    size.setPrefix("Πινέλο Ø "); size.setValue(window.sculpt_radius.value())
+    size.setToolTip("Μέγεθος πινέλου (και με τη ροδέλα ενώ πλάθεις)")
+    size.valueChanged.connect(window.sculpt_radius.setValue)
+    window.sculpt_radius.valueChanged.connect(lambda v: size.setValue(v) if abs(size.value()-v)>1e-9 else None)
+    holder=QWidgetAction(menu); holder.setDefaultWidget(size); menu.addAction(holder)
+    window._mockup_sculpt_size=size
+    button.setMenu(menu)
+    return button
 
 
 def install_approved_mockup_shell(window):
@@ -223,6 +300,8 @@ def install_approved_mockup_shell(window):
         (None,None),
         ("Πισίνα",lambda: window._start_site_tool(
             "pool_place","Κλικ στο κέντρο της πισίνας — διαστάσεις, βάθη, τύπος και εξοπλισμός στις Ιδιότητες, Esc για τέλος")),
+        # Owner 30/10: the pool drawn as it is wanted — corners and curves clicked in the plan (ui/pool_shape.py).
+        ("Πισίνα με σχεδίαση σχήματος (γωνίες, καμπύλες)",lambda: window._pool_shape_tool.start(None)),
         (None,None),
         ("Μονοπάτι",lambda: window._start_site_tool("path_path","Σύρε στην κάτοψη από την αρχή ως το τέλος — Esc για τέλος")),
         ("Πεζοδρόμιο",lambda: window._start_site_tool("path_sidewalk","Σύρε στην κάτοψη από την αρχή ως το τέλος — Esc για τέλος")),
@@ -449,9 +528,9 @@ def install_approved_mockup_shell(window):
 
     def tool_action(text,tool,parent):
         a=QAction(text,parent); a.triggered.connect(lambda _=False,t=tool: window._set_active_tool(t)); return a
-    for label,tool,icon,tip in (("Επιλογή","select","select","Κλικ σε αντικείμενο: επιλογή · σύρε τις λαβές για αλλαγή"),
-                                ("Τοίχος","wall","wall","Κλικ στις γωνίες (ή σύρε) · διπλό κλικ / Enter = τέλος · Shift = ελεύθερη γωνία · Esc = ακύρωση")):
-        a=tool_action(label,tool,window); a.setIcon(make_icon(icon)); a.setToolTip(tip); ribbon.addAction(a)
+    a=tool_action("Επιλογή","select",window); a.setIcon(make_icon("select"))
+    a.setToolTip("Κλικ σε αντικείμενο: επιλογή · σύρε τις λαβές για αλλαγή"); ribbon.addAction(a)
+    window._mockup_wall_button=_wall_button(window,ribbon); ribbon.addWidget(window._mockup_wall_button)
     # One menu for what goes into / along the walls: doors, windows, openings, stairs, kitchen, structure.
     elements=QMenu("Στοιχεία",window); window._mockup_elements_menu=elements
     for text,tool in (("Πόρτα","door"),("Παράθυρο","window"),("Άνοιγμα","opening_rect")):
@@ -504,12 +583,18 @@ def install_approved_mockup_shell(window):
     button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup); button.setMenu(elements)
     button.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
     ribbon.addWidget(button); window._mockup_elements_button=button; window._mockup_circulation_button=button
-    for label,tool in (("Γλυπτική","sculpt"),("Υλικά","materials")):
-        a=QAction(make_icon(tool),label,window)
-        a.setToolTip("Γλυπτική: πλάσε την επιφάνεια με το ποντίκι (δεξί κλικ: εργασία, ροδέλα: πινέλο)" if tool=="sculpt" else "Υλικό στο επιλεγμένο αντικείμενο")
-        if tool=="sculpt": a.triggered.connect(lambda _=False: window.sculpt_action.toggle())
-        else: a.triggered.connect(window._open_selected_materials)
-        ribbon.addAction(a)
+    # Γλυπτική: the button turns it on / off; its ▾ holds the operation and the brush size (owner 29/10: «δεν βλέπω το
+    # κουμπί της ρύθμισης πουθενά» — they were only in the hidden legacy bar and the right-click menu).
+    window._mockup_sculpt_button=_sculpt_button(window,ribbon)
+    ribbon.addWidget(window._mockup_sculpt_button)
+    a=QAction(make_icon("materials"),"Υλικά",window); a.setToolTip("Υλικό στο επιλεγμένο αντικείμενο")
+    a.triggered.connect(window._open_selected_materials); ribbon.addAction(a)
+    # «Πινέλο» υλικού (owner 28/10): choose in the Library, then every click paints — Esc ends (material_brush.py).
+    brush=QAction(make_icon("brush"),"Πινέλο",window)
+    brush.setToolTip("Πινέλο υλικού: διάλεξε υλικό, μετά κάθε κλικ σε τοίχο (η πλευρά που πατάς) ή αντικείμενο το βάφει · Esc = τέλος")
+    from archforge.ui.material_brush import start as _start_brush
+    brush.triggered.connect(lambda _=False: _start_brush(window))
+    ribbon.addAction(brush); window._mockup_brush_action=brush
     # Reuse the proven Sculpt controls from the original toolbar. Hiding the
     # legacy toolbar must not hide access to brush operation/radius.
     # Reuse the isolated semantic Kitchen command already owned by MainWindow.
@@ -557,6 +642,12 @@ def install_approved_mockup_shell(window):
         a=QAction(make_icon(icon),label,window); a.setToolTip(tip)
         a.triggered.connect(lambda _=False,m=mode: window._set_pbr_camera(m)); camera.addAction(a)
         window._mockup_camera_actions[label]=a
+    # «Φωτογραφία» (owner 29/10): the 3D view as a PNG — instead of a screenshot of the whole screen (photo_3d.py).
+    photo=QAction(make_icon("photo"),"Φωτογραφία",window)
+    photo.setToolTip("Φωτογραφία του 3D όπως φαίνεται τώρα (ήλιος, φώτα, στυλ) σε αρχείο PNG, σε διπλή ανάλυση")
+    from archforge.ui.photo_3d import take_photo as _take_photo
+    photo.triggered.connect(lambda _=False: (window._show_3d_view(), _take_photo(window)))
+    camera.addSeparator(); camera.addAction(photo); window._mockup_photo_action=photo
     snap_bar=QToolBar("Κάνναβος & έλξη",window); snap_bar.setObjectName("snap_bar")
     grid=QCheckBox("Κάνναβος"); grid.setChecked(True); grid.setToolTip("Γραμμές κανάβου στην κάτοψη")
     grid.toggled.connect(window.plan_view.set_grid_visible); snap_bar.addWidget(grid)
@@ -657,7 +748,8 @@ def install_approved_mockup_shell(window):
     def style(technique,hour=False):
         def run():
             window._set_render_style_from_workspace(technique)
-            if hour is not False: window.pbr_view.set_sun(hour)
+            # A style with an hour is daylight: it leaves Νύχτα too (owner 29/10: «τώρα δεν φεύγει η νύχτα»).
+            if hour is not False: _daylight(window, hour)
             window._show_3d_view()
         return run
     style_specs=(

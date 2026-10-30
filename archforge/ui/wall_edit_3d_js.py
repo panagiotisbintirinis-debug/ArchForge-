@@ -176,6 +176,8 @@ window.__archforgeFloorToScreen = function(x, y, z) {
 
 // The rendered frame as PNG (screenshots where the GPU surface cannot be grabbed).
 window.__archforgeCanvasPng = function() {
+  setMovingFrame(false);                     // a captured picture is always full quality
+  updateShadowsIfChanged();
   if (useComposer()) composer.render(); else renderer.render(scene, camera);
   return renderer.domElement.toDataURL("image/png");
 };

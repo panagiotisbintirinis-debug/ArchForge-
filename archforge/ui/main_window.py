@@ -60,6 +60,11 @@ class MainWindow(QMainWindow):
             view.statusChanged.connect(self.statusBar().showMessage)
             view.selectionChangedByView.connect(self._selection_from_view)
             view.contextActionRequested.connect(self._handle_object_context_action)
+            if hasattr(view, 'materialPaintRequested'):
+                view.materialPaintRequested.connect(self._paint_material_from_3d)
+                view.materialPaintEnded.connect(self._end_material_brush)
+            if hasattr(view, 'propertiesRequested'):
+                view.propertiesRequested.connect(self._show_properties)
         self.plan_view.commandRequested.connect(self._handle_plan_command)
         self.plan_view.previewChanged.connect(self.pbr_view.set_stair_preview)
         self.plan_view.viewLineRequested.connect(self._apply_view_line)
@@ -96,6 +101,8 @@ class MainWindow(QMainWindow):
         terrain_tools.install(self)
         from archforge.ui import pool_shape
         pool_shape.install(self)
+        from archforge.ui import curved_wall_tool
+        curved_wall_tool.install(self)
         from archforge.ui import start_page
         start_page.install(self)        # Αρχείο ▸ Αρχική σελίδα (the page itself opens with the program: app.py)
         # Floors come by themselves when walls close a space (owner 14/10), fences excepted.
@@ -205,6 +212,9 @@ class MainWindow(QMainWindow):
 
     def _set_active_tool(self, tool):
         tool = str(tool)
+        from archforge.ui.material_brush import TOOL as _BRUSH, end as _end_brush
+        if tool != _BRUSH:
+            _end_brush(self, quiet=True)      # the brush runs in both views: another tool ends it in both
         if tool in ('stair', 'ramp') and not self._ensure_upper_level_for(tool):
             return
         if tool == 'stair':
@@ -722,12 +732,19 @@ class MainWindow(QMainWindow):
         if terrain is None:
             self.statusBar().showMessage('Δεν υπάρχει έδαφος', 3000)
             return
-        self.stack.execute(DeleteEntities([terrain.id]))
+        from archforge.core.layers import LayerLockedError
+        try:
+            self.stack.execute(DeleteEntities([terrain.id]))
+        except LayerLockedError as exc:          # menu_smoke 30/10: a locked layer raised with nothing on screen
+            self.statusBar().showMessage(f'Το έδαφος δεν διαγράφηκε: {exc}', 8000)
+            return
         self._redraw_views(all_views=True)
         self.refresh_inspector()
         self.statusBar().showMessage('Το έδαφος διαγράφηκε (Ctrl+Z για αναίρεση)', 4000)
 
     def _start_site_tool(self, tool, message):
+        from archforge.ui.material_brush import end as _end_brush
+        _end_brush(self, quiet=True)
         self._pending_switch_link = None     # a new tool cancels «Προσθήκη διακόπτη» (it sets the link after this)
         central = getattr(self, '_central_tabs', None)
         simultaneous = getattr(self, '_simultaneous_action', None)
@@ -1200,6 +1217,7 @@ class MainWindow(QMainWindow):
         # Read the node before switching storey: the switch rebuilds the tree and deletes ``item``.
         level = item.data(0, Qt.ItemDataRole.UserRole + 1)
         ids = self._tree_item_ids(item)
+        self._inspected_room = item.data(0, Qt.ItemDataRole.UserRole + 2) or None   # a room: Ιδιότητες show it
         if level:
             self._activate_level_by_name(level)
         if not ids:
@@ -1208,7 +1226,7 @@ class MainWindow(QMainWindow):
         self.refresh_inspector()
         self._redraw_views(all_views=True)
         dock = getattr(self, 'dock', None)
-        if dock is not None and len(ids) == 1:
+        if dock is not None and (len(ids) == 1 or self._inspected_room):
             dock.show(); dock.raise_()                     # the properties of the element, next to the tree
         self.statusBar().showMessage(f'Επιλογή: {len(ids)} στοιχεία — Delete για διαγραφή, δεξί κλικ για επιλογές', 5000)
 
@@ -1603,7 +1621,8 @@ class MainWindow(QMainWindow):
         thickness = total_thickness(wall_type)
         if thickness > 0:
             changes['thickness'] = thickness
-        self.stack.execute(UpdateEntity(entity_id, changes))
+        from archforge.architecture.curved_wall import spread_command
+        self.stack.execute(spread_command(self.doc, entity_id, changes))
         self._redraw_views(all_views=True)
         from PySide6.QtCore import QTimer
         QTimer.singleShot(0, self.refresh_inspector)   # rebuild the form outside the combo's signal
@@ -2140,6 +2159,11 @@ class MainWindow(QMainWindow):
             inspector_lock(self)        # locked layer: properties shown, not editable
         self._clear_form()
         self._sync_tree_selection()
+        from archforge.ui.room_panel import add_room_rows, is_room_selection
+        room = is_room_selection(self)
+        if room:
+            add_room_rows(self, room)          # a room chosen in the tree / named in the plan (owner 30/10)
+            return
         if len(self.doc.selection) != 1:
             count = len(self.doc.selection)
             self.form.addRow(QLabel('Καμία επιλογή' if not count else f'{count} επιλεγμένα'))
@@ -2264,7 +2288,7 @@ class MainWindow(QMainWindow):
             cut = QPushButton('Τομή πισίνας (υψόμετρα χείλους, νερού, πυθμένα)')
             cut.clicked.connect(lambda _=False, entity_id=eid: __import__('archforge.ui.section_view', fromlist=['x']).pool_section(self, entity_id))
             self.form.addRow(cut)
-            draw = QPushButton('Σχεδίασε το σχήμα (γωνίες + στρογγύλεμα)…')
+            draw = QPushButton('Σχεδίασε το σχήμα στην κάτοψη (γωνίες, καμπύλες)…')
             draw.clicked.connect(lambda _=False, entity_id=eid: self._pool_shape_tool.start(entity_id))
             self.form.addRow(draw)
             if params.get('outline'):
@@ -2405,6 +2429,9 @@ class MainWindow(QMainWindow):
                            f"<br><i>{report['provenance']}</i>")
             label.setWordWrap(True)
             self.form.addRow('Στατική προδιάσταση', label)
+        if entity.kind == 'wall' and params.get('curve'):
+            from archforge.ui.curved_wall_tool import inspector_rows
+            inspector_rows(self, entity)
         if entity.kind == 'wall':
             from archforge.architecture.wall_types import WALL_TYPES, indicative_u, layers
             combo = QComboBox()
@@ -2570,7 +2597,8 @@ class MainWindow(QMainWindow):
                     changes['lower_z'] = lower_z
                     changes['run_length'] = rise / (slope / 100.0)
 
-            self.stack.execute(UpdateEntity(eid, changes))
+            from archforge.architecture.curved_wall import spread_command
+            self.stack.execute(spread_command(self.doc, eid, changes))     # a curved wall's pieces change together
             self._redraw_views(all_views=True)
             self.refresh_inspector()
         except Exception as exc:
@@ -2916,8 +2944,9 @@ class MainWindow(QMainWindow):
     def _handle_object_context_action(self, entity_id, action_id):
         entity_id = str(entity_id)
         action_id = str(action_id)
-        if action_id.startswith('mm:'):
-            # Task actions of the mouse menu (from the 3D view).
+        if action_id.startswith(('mm:', 'menu:')):
+            # Task actions of the mouse menu (from the 3D view), and menu-bar commands the human put in it
+            # (mouse_menus.py: «Έδαφος ▸ Πισίνα» chosen in 3D did nothing, owner 29–30/10).
             from archforge.ui.marking_menu import run
             run(self, 'pbr', entity_id or None, action_id)
             return
@@ -3033,6 +3062,25 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             QMessageBox.warning(self,'MEP Route',str(exc))
 
+    def _show_properties(self, entity_id=None):
+        """Ιδιότητες in view and up to date, even if the human had closed the panel (double click in 3D)."""
+        self.refresh_inspector()
+        dock = getattr(self, 'dock', None)
+        if dock is not None:
+            dock.show()
+            dock.raise_()
+
+    def _end_material_brush(self):
+        from archforge.ui.material_brush import end
+        end(self)
+
+    def _paint_material_from_3d(self, payload_json):
+        """«Πινέλο» υλικού: a click on a face in the 3D view (material_brush.py)."""
+        import json
+        from archforge.ui.material_brush import paint_surface
+        payload = json.loads(payload_json or '{}')
+        return paint_surface(self, str(payload.get('entity_id') or ''), str(payload.get('surface_role') or ''))
+
     def _open_selected_materials(self):
         if len(self.doc.selection) != 1:
             self.statusBar().showMessage('Select one object before choosing a material', 3000)
@@ -3044,13 +3092,8 @@ class MainWindow(QMainWindow):
         if entity_id not in self.doc.entities:
             return
         entity = self.doc.get(entity_id)
-        supported = {
-            'wall', 'floor', 'room_floor', 'room_roof', 'room_ceiling',
-            'room_foundation', 'box', 'pod', 'stair', 'ramp',
-            'structural_column', 'structural_beam',
-            'mechanical_part', 'mesh', 'library_object', 'cabinet', 'door', 'window',
-        }
-        if entity.kind not in supported:
+        from archforge.ui.material_library import MATERIAL_KINDS
+        if entity.kind not in MATERIAL_KINDS:
             self.statusBar().showMessage(
                 f'Δεν υπάρχουν ακόμη υλικά για {entity.kind}',
                 3000,
@@ -4388,7 +4431,12 @@ class MainWindow(QMainWindow):
                and self.doc.get(i).params.get('phase', 'new') != phase]
         if not ids:
             return 0
-        self.stack.execute(CompositeCommand([UpdateEntity(i, {'phase': phase}) for i in ids], 'Φάση'))
+        from archforge.core.layers import LayerLockedError
+        try:
+            self.stack.execute(CompositeCommand([UpdateEntity(i, {'phase': phase}) for i in ids], 'Φάση'))
+        except LayerLockedError as exc:          # menu_smoke 30/10: all or nothing, and say why
+            self.statusBar().showMessage(f'Η φάση δεν άλλαξε: {exc}', 8000)
+            return 0
         self._redraw_views(all_views=True)
         from archforge.project.brief import PHASES
         self.statusBar().showMessage(f'{len(ids)} στοιχεία → {PHASES[phase]}', 5000)

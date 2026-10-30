@@ -231,6 +231,12 @@ def _build_menu(window, view, entity_id=None, xy=None):
             # Radial: one click from the member to its own statics (actions, bars, re-check, undo).
             entries.insert(1, _e("mm:member_statics", "Στατικά μέλους…"))
             entries.append(_e("mm:analyze", "Στατική ανάλυση", "panel"))
+        if entity.kind == "pool":
+            # Owner 30/10: the pool's own drawing tools on its menu, not only behind Ιδιότητες.
+            entries.insert(1, _e("mm:pool:shape", "Σχήμα πισίνας (σχεδίαση)"))
+            entries.append(_e("mm:pool:section", "Τομή πισίνας", "panel"))
+            if entity.params.get("outline"):
+                entries.append(_e("mm:pool:rect", "Ξανά ορθογώνια", "panel"))
         if entity.kind == "slab_opening":
             entries.insert(1, _e("mm:slab:railing", "Κάγκελο γύρω από την οπή"))
         if entity.kind in ("cabinet", "library_object"):
@@ -279,7 +285,8 @@ def _build_menu(window, view, entity_id=None, xy=None):
     if view == "plan":
         # Owner 15/10: no fixed Γ / Π shapes — the kitchen is drawn freely and the cabinets follow the line.
         kitchen.insert(0, _e("mm:krun:start", "Σχεδίασε κουζίνα (ελεύθερα)…"))
-    rare = [_e("mm:menu:stair", "Σκάλα", children=_stair_entries()),
+    rare = [_e("mm:curvedwall:start", "Καμπύλος τοίχος"),
+            _e("mm:menu:stair", "Σκάλα", children=_stair_entries()),
             _e("mm:menu:kitchen", "Κουζίνα", children=kitchen),
             _e("mm:menu:structure", "Δομικά", children=_structure_entries())]
     if view == "plan":
@@ -518,6 +525,16 @@ def run(window, view, entity_id, action_id, plan_xy=None):
     elif group == "stairdlg" and entity_id:
         from archforge.ui.stair_dialog import open_stair_dialog
         open_stair_dialog(window, entity_id)
+    elif group == "curvedwall":
+        window._curved_wall_tool.start()
+    elif group == "pool" and entity_id:
+        if arg == "shape":
+            window._pool_shape_tool.start(entity_id)
+        elif arg == "section":
+            from archforge.ui.section_view import pool_section
+            pool_section(window, entity_id)
+        elif arg == "rect":
+            window._set_entity_choice(entity_id, "outline", [])
     elif group == "member_statics" and entity_id:
         window._show_member_statics(entity_id)
     elif group == "undo":
