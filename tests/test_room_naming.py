@@ -78,3 +78,22 @@ def test_choosing_the_room_in_the_tree_selects_its_walls_and_shows_the_room(wind
     name.setText('Υπνοδωμάτιο 1'); name.editingFinished.emit()
     assert w.doc.room_metadata(sig)['name'] == 'Υπνοδωμάτιο 1'
     assert w.dock.findChild(QComboBox, 'roomUse') is not None
+
+
+def test_commands_on_a_locked_layer_say_so_instead_of_failing_silently(window):
+    """menu_smoke 30/10: «Διαγραφή εδάφους» and «Όλα = Υφιστάμενα» raised LayerLockedError with nothing on screen."""
+    from archforge.core import layers
+    from archforge.site.terrain import default_terrain_params
+    w = window
+    w.stack.execute(AddEntity(Entity('terrain', default_terrain_params(w.doc), name='Έδαφος')))
+    layers.set_workspace(w.doc, 'mep')
+    for key in ('walls', 'site', 'terrain'):
+        try:
+            layers.set_layer_state(w.doc, key, locked=True)
+        except (KeyError, ValueError):
+            pass
+    done = len(w.stack.done)
+    w._delete_terrain()
+    w._set_phase(list(w.doc.entities), 'existing')
+    assert len(w.stack.done) == done
+    assert 'δεν' in w.statusBar().currentMessage()
