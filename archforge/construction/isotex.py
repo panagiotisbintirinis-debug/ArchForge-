@@ -71,13 +71,14 @@ def code_of_wall_type(wall_type):
 
 def wall_type_layers():
     """Wall assemblies for ``architecture.wall_types``: wood-cement shells, graphite EPS, concrete core."""
+    from archforge.construction.building_materials import layer
     out = {}
     for code, (label, total, eps, core, _l, _kg, _u) in BLOCKS.items():
         shell = round((total - eps - core) / 2, 4)
-        layers = [("Ξυλότσιμεντο Isotex", shell, 0.11, "#b9a98c", False)]
+        layers = [layer("wood_cement_isotex", shell)]
         if eps > 0:
-            layers.append(("EPS γραφίτη (Neopor®)", eps, 0.031, "#6f7780", True))
-        layers += [("Σκυρόδεμα πλήρωσης", core, 2.30, "#a3a3a0", False), ("Ξυλότσιμεντο Isotex", shell, 0.11, "#b9a98c", False)]
+            layers.append(layer("eps_graphite", eps))
+        layers += [layer("concrete_infill_isotex", core), layer("wood_cement_isotex", shell)]
         out[wall_type_of(code)] = (label, layers)
     return out
 

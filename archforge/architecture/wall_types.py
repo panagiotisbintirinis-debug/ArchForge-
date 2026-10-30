@@ -13,25 +13,28 @@ import math
 
 RSI, RSE = 0.13, 0.04
 
-# name, thickness (m), λ (W/mK, typical), colour, insulation?
-_PLASTER = ("Σοβάς", 0.02, 0.87, "#ece6da", False)
-_GYPSUM = ("Γυψοσανίδα", 0.0125, 0.25, "#f1efea", False)
-_BRICK = ("Οπτόπλινθος διάτρητος", 0.09, 0.47, "#b5653b", False)
-_STONE = ("Λιθοδομή", 0.50, 1.70, "#9b8f7d", False)
-_CONCRETE = ("Οπλισμένο σκυρόδεμα", 0.25, 2.30, "#a3a3a0", False)
-_BEARING_MASONRY = ("Φέρουσα τοιχοποιία", 0.25, 0.80, "#a8704a", False)
+# Layers point at the building materials registry (construction/building_materials.py): name, λ, colour and
+# insulation flag come from there; a layer is still the 5-tuple (name, thickness, λ, colour, insulation).
+from archforge.construction.building_materials import layer  # noqa: E402
+
+_PLASTER = layer("plaster_lime_cement", 0.02)
+_GYPSUM = layer("gypsum_board", 0.0125)
+_BRICK = layer("brick_perforated", 0.09)
+_STONE = layer("stone_masonry", 0.50)
+_CONCRETE = layer("concrete_reinforced", 0.25)
+_BEARING_MASONRY = layer("bearing_masonry", 0.25)
 
 
 def _wool(d):
-    return ("Ορυκτοβάμβακας", d, 0.037, "#e8d38a", True)
+    return layer("mineral_wool", d)
 
 
 def _xps(d):
-    return ("Εξηλασμένη πολυστερίνη (XPS)", d, 0.034, "#9cc3d9", True)
+    return layer("xps", d)
 
 
 def _eps(d):
-    return ("Διογκωμένη πολυστερίνη (EPS)", d, 0.036, "#e9eef0", True)
+    return layer("eps", d)
 
 
 WALL_TYPES = {
@@ -62,6 +65,11 @@ GLASS_WALL = {"thickness": 0.05, "material_id": "glass_clear", "label": "Γυά�
 def layers(wall_type):
     entry = WALL_TYPES.get(str(wall_type))
     return list(entry[1]) if entry and entry[1] else []
+
+
+def layer_materials(wall_type):
+    """Building material ids of the layers, exterior first (``construction.building_materials``)."""
+    return [row.material_id for row in layers(wall_type)]
 
 
 def total_thickness(wall_type):

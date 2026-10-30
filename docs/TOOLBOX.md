@@ -62,6 +62,7 @@
 | `archforge/library/content/lights/` · `bundled_lights.py` · `lighting.py` | Τα 16 φωτεινά μοντέλα (GLB, emitters, εικονίδια) και η εγκατάστασή τους. | `content/lights/catalog.json` |
 | `archforge/mep/lighting.py` | Φωτιστικό = κατασκευή + ηλεκτρικό + φως. | |
 | `archforge/rendering/materials.py` · `archforge/organic/materials.py` | Υλικά 3D (PBR) και υλικά Bio-Spectre. | Εκεί, όχι μέσα σε λειτουργία |
+| `archforge/construction/building_materials.py` | Υλικά δόμησης στρώσεων τοίχου (λ, πυκνότητα, διαγράμμιση, εμφάνιση)· `layer(id, πάχος)`. | Νέα στρώση = id από εδώ |
 | `archforge/architecture/wall_types.py` | Τύποι τοίχων με στρώσεις (πάχος, εμφάνιση). | |
 | `archforge/construction/` (`insulation.py`, `drywall.py`, `isotex.py`, `icf.py`, `shell.py`, `earthworks.py`) | Δομικά συστήματα και οι ποσότητές τους. | |
 | `archforge/architecture/joinery.py` | Κουφώματα: τύποι πόρτας και παραθύρου. | |
