@@ -90,21 +90,23 @@ def _end_point(axis, at_b, rule, offset):
 
 
 def offsets(doc, w):
-    """``[(layer, outer offset, inner offset)]`` of a layered wall (offsets from the axis along its normal), else []."""
+    """``[(layer, outer offset, inner offset, index)]`` of a layered wall (offsets from the axis along its normal;
+    ``index`` = the layer's place in its type, exterior first), else []."""
     from archforge.architecture.wall_face import outside_sign
     from archforge.architecture.wall_types import layers
     ls = layers(w.params.get("wall_type", "generic"), doc)
     if not ls:
         return []
+    order = list(range(len(ls)))
     if outside_sign(doc, w.id) < 0:
-        ls = list(reversed(ls))
+        order.reverse()
     t = float(w.params.get("thickness", 0.2))
     total = sum(l[1] for l in ls)
     scale = t / total if total > 0 else 1.0
     out, o = [], t / 2
-    for layer in ls:
-        out.append((layer, o, o - layer[1] * scale))
-        o -= layer[1] * scale
+    for i in order:
+        out.append((ls[i], o, o - ls[i][1] * scale, i))
+        o -= ls[i][1] * scale
     return out
 
 
@@ -133,7 +135,8 @@ def _same_storey(doc, w):
 
 
 def wall_bands(doc, w, walls=None):
-    """``[{"layer", "material", "hatch", "colour", "insulation", "islands": [(outer, holes)]}]`` exterior first."""
+    """``[{"layer", "index", "material", "hatch", "colour", "insulation", "islands": [(outer, holes)]}]``, side A
+    first (``index``: the layer's place in its type)."""
     from archforge.construction.building_materials import material
     from archforge.geometry.regions import region
     axis = _axis(w)
@@ -144,12 +147,12 @@ def wall_bands(doc, w, walls=None):
     ra, rb = _end_rule(w, axis, False, walls), _end_rule(w, axis, True, walls)
     cuts = _cuts(doc, w)
     out = []
-    for layer, o1, o2 in rows:
+    for layer, o1, o2, index in rows:
         poly = [_end_point(axis, False, ra, o1), _end_point(axis, True, rb, o1),
                 _end_point(axis, True, rb, o2), _end_point(axis, False, ra, o2)]
         islands = region([poly], cuts, tolerance=1e-6) if cuts else [(poly, [])]
         m = material(layer.material_id, doc)
-        out.append({"layer": layer, "material": m.id, "hatch": m.hatch, "colour": m.colour,
+        out.append({"layer": layer, "index": index, "material": m.id, "hatch": m.hatch, "colour": m.colour,
                     "insulation": m.insulation, "islands": islands})
     return out
 

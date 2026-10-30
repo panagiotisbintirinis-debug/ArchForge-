@@ -74,6 +74,10 @@ class MainWindow(QMainWindow):
         self.plan_view.viewLineRequested.connect(self._apply_view_line)
         self.plan_view.sitePointRequested.connect(self._place_site_point)
         self.pbr_view.sitePointRequested.connect(self._place_site_point_3d)
+        from archforge.ui import layer_pick
+        self.plan_view.layer_pick = None
+        self.plan_view.layer_highlight = layer_pick.Highlight(self)
+        self.plan_view.layerPicked.connect(lambda eid, x, y, at: layer_pick.pick(self, eid, x, y, at.toPoint()))
         self.plan_view.siteLineRequested.connect(self._place_site_line)
         self.plan_view.railingRequested.connect(self._place_railing)
         self.plan_view.slabOpeningRequested.connect(lambda pts: slab_tools.place_opening(self, pts))

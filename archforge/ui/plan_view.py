@@ -98,6 +98,7 @@ class PlanView(QGraphicsView):
     VIEW_LINE_TOOLS={'view_section':'section','view_camera':'camera'}
     # Single-click site tools: (tool, x, y) handled by the main window.
     sitePointRequested=Signal(str,float,float)
+    layerPicked=Signal(str,float,float,QPointF)     # click on a layer of the selected wall (layer_pick.py): id, x, y, global pos
     SITE_POINT_TOOLS=('terrain_point','plot_point','room_box','room_place','room_resize','plant_tree','plant_shrub','library_place','underlay_calibrate','pool_place','dome_place','mech_part_place')
     # Drag tools for site strips: (tool, x1, y1, x2, y2).
     siteLineRequested=Signal(str,float,float,float,float)
@@ -448,6 +449,7 @@ class PlanView(QGraphicsView):
             # on empty space clears the selection.
             eid=self._entity_items.get(hit)
             ctrl=bool(event.modifiers()&Qt.KeyboardModifier.ControlModifier)
+            was_selected=bool(eid) and list(self.doc.selection or ())==[eid]
             if eid and ctrl:self.doc.select([eid],add=True);self.selectionChangedByView.emit()
             elif eid and eid not in (self.doc.selection or ()):
                 self.doc.select([eid]);self.controller.set_target(eid,None);self.selectionChangedByView.emit()
@@ -457,6 +459,8 @@ class PlanView(QGraphicsView):
             # Pressing on a selected wall's body: a drag moves it perpendicular to its axis (wall_edit.py).
             ev=self._scene_to_plane(event.position().toPoint())
             self._wall_press=(eid,ev.a,ev.b,event.position()) if selected and self.doc.get(eid).kind=='wall' and not ctrl else None
+            # A click (no drag) on a wall that was already selected picks the layer under it (owner 30/10).
+            self._layer_press=(eid,ev.a,ev.b,event.position()) if was_selected and self.doc.get(eid).kind=='wall' and not ctrl else None
             # Pressing on a selected object's body: a drag moves it (with snapping), like a handle.
             from archforge.core.object_ops import USER_PLACED_KINDS
             self._body_press=(eid,event.position()) if selected and self.doc.get(eid).kind in USER_PLACED_KINDS and not self.doc.get(eid).locked and not ctrl else None
@@ -513,7 +517,7 @@ class PlanView(QGraphicsView):
         if self._mouse_down and press and self.controller.active is None and (event.position()-press[3]).manhattanLength()>6:
             try:self.controller.begin_wall_move(press[0],press[1],press[2])
             except ValueError as exc:self.statusChanged.emit(str(exc))
-            self._wall_press=None
+            self._wall_press=None;self._layer_press=None
         if (self._mouse_down or self._wall_chain_active()) and self.controller.active is not None:
             ev=self._scene_to_plane(event.position().toPoint())
             ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
@@ -548,6 +552,11 @@ class PlanView(QGraphicsView):
         if event.button()==Qt.MouseButton.LeftButton and self._mouse_down and getattr(self,'_view_drag',None):
             self._mouse_down=False;ev=self._scene_to_plane(event.position().toPoint())
             self.end_view_line(ev.a,ev.b);event.accept();return
+        layer=getattr(self,'_layer_press',None);self._layer_press=None
+        if event.button()==Qt.MouseButton.LeftButton and layer and self.controller.active is None and (event.position()-layer[3]).manhattanLength()<=self.CLICK_PX:
+            self._mouse_down=False;self._wall_press=None;self._body_press=None
+            self.layerPicked.emit(layer[0],float(layer[1]),float(layer[2]),self.mapToGlobal(event.position().toPoint()).toPointF())
+            event.accept();return
         if event.button()==Qt.MouseButton.LeftButton and self._mouse_down:
             self._mouse_down=False;self._wall_press=None;self._body_press=None
             if self.controller.active is None and getattr(self,'_restore_select',False):
@@ -1024,6 +1033,7 @@ class PlanView(QGraphicsView):
         if getattr(self,'corner_tool',None) is not None:self.corner_tool.paint(self)   # Γωνία (corner_tool.py)
         if getattr(self,'dims_tool',None) is not None:self.dims_tool.paint(self)   # dimensions of a selected wall (wall_dims_tool.py)
         if getattr(self,'survey_tool',None) is not None:self.survey_tool.paint(self)   # corner numbers (survey_dialog.py)
+        if getattr(self,'layer_highlight',None) is not None:self.layer_highlight.paint(self)   # picked wall layer (layer_pick.py)
         if self.carry is not None:self.carry.paint(self)
         if self.controller.preview.kind=='rotate' and self.controller.active is not None:self._draw_rotate_dial(self.controller.preview)
         draft=getattr(self,'plot_draft',None)

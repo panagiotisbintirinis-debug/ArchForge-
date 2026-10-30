@@ -104,7 +104,13 @@ def _layer_row(window, rows, i, apply):
     role.currentIndexChanged.connect(lambda _i: changed(role=role.currentData()))
     info.clicked.connect(lambda: material_dialog(window, r["material"]))
     drop.clicked.connect(lambda: apply([x for k, x in enumerate(rows) if k != i]))
-    window._wall_layer_rows.append({"material": mat, "thickness": thick, "role": role, "info": info, "drop": drop})
+    from archforge.ui.layer_pick import current
+    picked = current(window) == (window.doc.selection[0] if window.doc.selection else None, i)
+    if picked:                                         # the layer picked in the plan (layer_pick.py)
+        box.setStyleSheet("QWidget#picked { background: rgba(240, 140, 30, 60); border-radius: 4px; }")
+        box.setObjectName("picked")
+    window._wall_layer_rows.append({"material": mat, "thickness": thick, "role": role, "info": info, "drop": drop,
+                                    "picked": picked})
     return box
 
 
