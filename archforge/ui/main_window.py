@@ -101,6 +101,8 @@ class MainWindow(QMainWindow):
         terrain_tools.install(self)
         from archforge.ui import pool_shape
         pool_shape.install(self)
+        from archforge.ui import curved_wall_tool
+        curved_wall_tool.install(self)
         from archforge.ui import start_page
         start_page.install(self)        # Αρχείο ▸ Αρχική σελίδα (the page itself opens with the program: app.py)
         # Floors come by themselves when walls close a space (owner 14/10), fences excepted.
@@ -1614,7 +1616,8 @@ class MainWindow(QMainWindow):
         thickness = total_thickness(wall_type)
         if thickness > 0:
             changes['thickness'] = thickness
-        self.stack.execute(UpdateEntity(entity_id, changes))
+        from archforge.architecture.curved_wall import spread_command
+        self.stack.execute(spread_command(self.doc, entity_id, changes))
         self._redraw_views(all_views=True)
         from PySide6.QtCore import QTimer
         QTimer.singleShot(0, self.refresh_inspector)   # rebuild the form outside the combo's signal
@@ -2421,6 +2424,9 @@ class MainWindow(QMainWindow):
                            f"<br><i>{report['provenance']}</i>")
             label.setWordWrap(True)
             self.form.addRow('Στατική προδιάσταση', label)
+        if entity.kind == 'wall' and params.get('curve'):
+            from archforge.ui.curved_wall_tool import inspector_rows
+            inspector_rows(self, entity)
         if entity.kind == 'wall':
             from archforge.architecture.wall_types import WALL_TYPES, indicative_u, layers
             combo = QComboBox()
@@ -2586,7 +2592,8 @@ class MainWindow(QMainWindow):
                     changes['lower_z'] = lower_z
                     changes['run_length'] = rise / (slope / 100.0)
 
-            self.stack.execute(UpdateEntity(eid, changes))
+            from archforge.architecture.curved_wall import spread_command
+            self.stack.execute(spread_command(self.doc, eid, changes))     # a curved wall's pieces change together
             self._redraw_views(all_views=True)
             self.refresh_inspector()
         except Exception as exc:

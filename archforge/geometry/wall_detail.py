@@ -7,6 +7,15 @@ Vec3=Tuple[float,float,float]
 Tri=Tuple[int,int,int]
 
 
+def _on_radius(q,u,end,centre):
+    """Where the face line through ``q`` (direction ``u``) meets the radius through the wall's ``end``."""
+    rx,ry=end[0]-centre[0],end[1]-centre[1]
+    den=u[0]*ry-u[1]*rx
+    if abs(den)<1e-12:return q
+    s=((end[0]-q[0])*ry-(end[1]-q[1])*rx)/den
+    return (q[0]+u[0]*s,q[1]+u[1]*s)
+
+
 def _plain_wall_geometry(p,target_step:float):
     x1,y1,z,x2,y2=map(float,(p['x1'],p['y1'],p['z'],p['x2'],p['y2']))
     h,t=float(p['height']),float(p['thickness'])
@@ -16,15 +25,27 @@ def _plain_wall_geometry(p,target_step:float):
     step=max(float(target_step),0.05)
     nu=max(1,int(math.ceil(L/step)));nv=max(1,int(math.ceil(h/step)))
     ux,uy=dx/L,dy/L;nx,ny=-uy,ux
+    # Faces' ends: square, or — between two pieces of a curved wall — cut along the radius, so the pieces share
+    # their corners and the arc reads as one wall (architecture/curved_wall.py).
+    e0=(x1+nx*t/2,y1+ny*t/2);e1=(x2+nx*t/2,y2+ny*t/2);i0=(x1-nx*t/2,y1-ny*t/2);i1=(x2-nx*t/2,y2-ny*t/2)
+    c=p.get('curve') if isinstance(p.get('curve'),dict) else None
+    cap0=cap1=True
+    if c:
+        k,n=int(c.get('piece',0)),int(c.get('n',1));cxc,cyc=float(c['cx']),float(c['cy'])
+        if k>0:e0,i0=_on_radius(e0,(ux,uy),(x1,y1),(cxc,cyc)),_on_radius(i0,(ux,uy),(x1,y1),(cxc,cyc))
+        if k<n-1:e1,i1=_on_radius(e1,(ux,uy),(x2,y2),(cxc,cyc)),_on_radius(i1,(ux,uy),(x2,y2),(cxc,cyc))
+        # The ends shared with the next piece are inside the arc: no face there (with one the 3D view's smooth
+        # normals darken every joint — owner 30/10 rendering showed ribs).
+        cap0,cap1=k<=0,k>=n-1
     verts:List[Vec3]=[]
     ext=[[None]*(nu+1) for _ in range(nv+1)]
     inn=[[None]*(nu+1) for _ in range(nv+1)]
     for j in range(nv+1):
         zz=z+h*j/nv
         for i in range(nu+1):
-            s=L*i/nu;cx,cy=x1+ux*s,y1+uy*s
-            ext[j][i]=len(verts);verts.append((cx+nx*t/2,cy+ny*t/2,zz))
-            inn[j][i]=len(verts);verts.append((cx-nx*t/2,cy-ny*t/2,zz))
+            f=i/nu
+            ext[j][i]=len(verts);verts.append((e0[0]+(e1[0]-e0[0])*f,e0[1]+(e1[1]-e0[1])*f,zz))
+            inn[j][i]=len(verts);verts.append((i0[0]+(i1[0]-i0[0])*f,i0[1]+(i1[1]-i0[1])*f,zz))
     tris:List[Tri]=[];roles=[]
     def add(a,b,c,d,role,reverse=False):
         if reverse: tris.extend(((a,c,b),(a,d,c)))
@@ -38,8 +59,8 @@ def _plain_wall_geometry(p,target_step:float):
         add(ext[nv][i],ext[nv][i+1],inn[nv][i+1],inn[nv][i],'top',True)
         add(inn[0][i],inn[0][i+1],ext[0][i+1],ext[0][i],'bottom',True)
     for j in range(nv):
-        add(ext[j][0],inn[j][0],inn[j+1][0],ext[j+1][0],'start',False)
-        add(inn[j][nu],ext[j][nu],ext[j+1][nu],inn[j+1][nu],'end',False)
+        if cap0:add(ext[j][0],inn[j][0],inn[j+1][0],ext[j+1][0],'start',False)
+        if cap1:add(inn[j][nu],ext[j][nu],ext[j+1][nu],inn[j+1][nu],'end',False)
     return tuple(verts),tuple(tris),tuple(roles)
 
 

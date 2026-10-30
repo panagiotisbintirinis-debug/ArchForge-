@@ -33,7 +33,7 @@ def test_the_wall_button_draws_and_its_menu_lists_the_types(window):
     assert w.plan_view.controller.tool == 'wall'
     keys = set(w._mockup_wall_choices)
     assert {None, 'glass'} <= keys and set(WALL_TYPES) - {'generic'} <= keys
-    assert not w._mockup_wall_curved.isEnabled()          # said plainly: not yet
+    assert w._mockup_wall_curved.isEnabled()              # 30/10: curved wall works (test_curved_wall.py)
 
 
 def test_a_type_chosen_in_the_menu_is_the_new_walls_type_and_thickness(window):

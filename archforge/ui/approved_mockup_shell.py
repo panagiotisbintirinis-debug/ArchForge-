@@ -196,8 +196,10 @@ def _wall_button(window, parent):
         return act
     menu.addAction(add(None,"Ευθύς — είδος από τα Στοιχεία έργου"))
     menu.addAction(add("glass",f"{GLASS_WALL['label']} · {GLASS_WALL['thickness'] * 100:g} cm"))
-    curved=QAction("Καμπύλος τοίχος — επόμενο βήμα",menu); curved.setEnabled(False)
-    curved.setToolTip("Σε εξέλιξη: καμπύλος τοίχος με κουφώματα, ποσότητες και κάτοψη"); menu.addAction(curved)
+    # Owner 30/10 «ξεκίνησε τον καμπύλο τοίχο»: three clicks (start, end, a point on the arc), ui/curved_wall_tool.py.
+    curved=QAction("Καμπύλος τοίχος (αρχή, τέλος, σημείο τόξου)",menu)
+    curved.setToolTip("Τρία κλικ στην κάτοψη: αρχή, τέλος, ένα σημείο του τόξου — ακτίνα και τμήματα αλλάζουν στις Ιδιότητες")
+    curved.triggered.connect(lambda _=False: window._curved_wall_tool.start()); menu.addAction(curved)
     window._mockup_wall_curved=curved
     menu.addSeparator()
     types=QMenu("Είδος τοίχου (σύνθεση)",menu); menu.addMenu(types); window._mockup_wall_types_menu=types

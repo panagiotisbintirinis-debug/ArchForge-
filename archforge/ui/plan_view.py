@@ -240,7 +240,7 @@ class PlanView(QGraphicsView):
     def _overlay(self,kind,event):
         # Overlay tool (the assistant's kitchen/bath guide lines, fixture drag): gets the mouse first.
         # The camera tool (ui/camera_tool.py: place / move / turn a camera) comes first.
-        return any(tool is not None and bool(tool.handle(self,kind,event)) for tool in (getattr(self,'corner_tool',None),getattr(self,'tape_tool',None),getattr(self,'pool_tool',None),getattr(self,'terrain_tool',None),getattr(self,'camera_tool',None),getattr(self,'overlay_tool',None),getattr(self,'dims_tool',None)))
+        return any(tool is not None and bool(tool.handle(self,kind,event)) for tool in (getattr(self,'corner_tool',None),getattr(self,'tape_tool',None),getattr(self,'pool_tool',None),getattr(self,'curved_wall_tool',None),getattr(self,'terrain_tool',None),getattr(self,'camera_tool',None),getattr(self,'overlay_tool',None),getattr(self,'dims_tool',None)))
     CLICK_PX=8   # press → release within this many screen pixels is a click, not a drag
     def _wall_chain_active(self):
         return getattr(self.controller,'wall_chain',None) is not None and self.controller.active is not None
@@ -1010,6 +1010,7 @@ class PlanView(QGraphicsView):
         if overlay is not None:overlay.paint(self)
         if getattr(self,'terrain_tool',None) is not None:self.terrain_tool.paint(self)
         if getattr(self,'pool_tool',None) is not None:self.pool_tool.paint(self)
+        if getattr(self,'curved_wall_tool',None) is not None:self.curved_wall_tool.paint(self)
         if getattr(self,'camera_tool',None) is not None:self.camera_tool.paint(self)
         if getattr(self,'tape_tool',None) is not None:self.tape_tool.paint(self)   # Μεζούρα (dimension_tool.py)
         if getattr(self,'corner_tool',None) is not None:self.corner_tool.paint(self)   # Γωνία (corner_tool.py)

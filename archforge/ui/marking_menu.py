@@ -285,7 +285,8 @@ def _build_menu(window, view, entity_id=None, xy=None):
     if view == "plan":
         # Owner 15/10: no fixed Γ / Π shapes — the kitchen is drawn freely and the cabinets follow the line.
         kitchen.insert(0, _e("mm:krun:start", "Σχεδίασε κουζίνα (ελεύθερα)…"))
-    rare = [_e("mm:menu:stair", "Σκάλα", children=_stair_entries()),
+    rare = [_e("mm:curvedwall:start", "Καμπύλος τοίχος"),
+            _e("mm:menu:stair", "Σκάλα", children=_stair_entries()),
             _e("mm:menu:kitchen", "Κουζίνα", children=kitchen),
             _e("mm:menu:structure", "Δομικά", children=_structure_entries())]
     if view == "plan":
@@ -524,6 +525,8 @@ def run(window, view, entity_id, action_id, plan_xy=None):
     elif group == "stairdlg" and entity_id:
         from archforge.ui.stair_dialog import open_stair_dialog
         open_stair_dialog(window, entity_id)
+    elif group == "curvedwall":
+        window._curved_wall_tool.start()
     elif group == "pool" and entity_id:
         if arg == "shape":
             window._pool_shape_tool.start(entity_id)
