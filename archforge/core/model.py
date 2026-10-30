@@ -916,7 +916,7 @@ SCHEMAS = {
     'plumbing_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _plumbing_type, 'pipe_system': _pipe_system},
     'ceiling_joists': {'points': _polygon, 'z': _finite, 'spacing': _joist_spacing, 'usage': _joist_usage,
                        'direction': _joist_direction},
-    'price_list': {'vat': _nonnegative, 'trade_prices': _trade_prices},
+    'price_list': {'vat': _nonnegative, 'margin': _nonnegative, 'trade_prices': _trade_prices},
     'drainage_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _drain_type, 'rain_area': _nonnegative},
     'pool': {'x': _finite, 'y': _finite, 'z': _finite, 'rotation': _finite, 'length': _positive, 'width': _positive,
              'depth_shallow': _positive, 'depth_deep': _positive, 'wall': _positive, 'floor': _positive, 'coping': _nonnegative,

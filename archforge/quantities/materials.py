@@ -29,11 +29,39 @@ def takeoff_list(doc):
     from archforge.quantities.takeoff import take_off
     r = take_off(doc)
     t, d = r["totals"], r["demolition"]
+    # Floor tiles per finish (owner 30/10: «εάν είναι διαφορετικό το πλακάκι στο δωμάτιο δείχνει άλλα τετραγωνικά»):
+    # one line — and one price code — per tile, rooms without a finish together.
+    tiles = {}
+    for room in r["rooms"]:
+        if room["floor_tiles_m2"]:
+            key = room.get("floor_finish") or ""
+            tiles[key] = tiles.get(key, 0.0) + room["floor_tiles_m2"]
+    tile_rows = [((f"Πλακάκια δαπέδου — {k}" if k else "Πλακάκια δαπέδου"), "m²", round(v, 2))
+                 for k, v in sorted(tiles.items())]
     rows = [("Βαφή τοίχων", "m²", t["paint_walls_m2"]), ("Βαφή οροφών", "m²", t["paint_ceiling_m2"]),
-            ("Πλακάκια δαπέδου", "m²", t["floor_tiles_m2"]), ("Πλακάκια τοίχου (υγρά)", "m²", t["wall_tiles_m2"]),
+            *tile_rows, ("Πλακάκια τοίχου (υγρά)", "m²", t["wall_tiles_m2"]),
             ("Ξύλινο δάπεδο", "m²", t["wood_floor_m2"]), ("Σοβατεπί", "m", t["skirting_m"]),
             ("Καθαίρεση τοίχων", "m³", d["walls_m3"]), ("Διάνοιξη ανοιγμάτων σε υφιστάμενους τοίχους", "τεμ.", d["openings_to_cut"])]
     return [row for row in rows if row[2]]
+
+
+def stair_list(doc):
+    """Per stair (owner 30/10 «να βγαίνουν και οι σκάλες»): steps, tread and riser faces (m²) for the cladding, from
+    its own parameters — landings and the structure are not measured here (the stair's study / the slab list)."""
+    rows = []
+    for e in sorted((x for x in doc.entities.values() if x.kind == "stair"), key=lambda x: x.name or x.id):
+        p = e.params
+        n = int(p.get("riser_count", 0) or 0)
+        w, tread, rise = float(p.get("width", 0.0)), float(p.get("tread_depth", 0.0)), float(p.get("riser_height", 0.0))
+        if n <= 0 or w <= 0:
+            continue
+        name = e.name or "Σκάλα"
+        why = {"code": "stair", "why": "Από τις παραμέτρους της σκάλας: ρίχτια × πλάτος (× βάθος πατήματος / ύψος ρίχτι).",
+               "status": "DESIGN_DEFAULT", "source": "quantities/materials.stair_list"}
+        rows.append((f"{name}: σκαλοπάτια ({p.get('layout', '')}, πλάτος {w * 100:.0f} cm)", "τεμ.", n, {**why, "code": why["code"] + ".steps"}))
+        rows.append((f"{name}: επένδυση πατημάτων", "m²", round((n - 1) * w * tread, 2), {**why, "code": why["code"] + ".treads"}))
+        rows.append((f"{name}: επένδυση ρίχτια", "m²", round(n * w * rise, 2), {**why, "code": why["code"] + ".risers"}))
+    return rows
 
 
 def drainage_list(doc):
@@ -385,6 +413,8 @@ def all_lists(doc):
             ("Κεραμοσκεπή", "Κεραμοσκεπή — επιφάνεια κλίσης ανά τύπο κεραμιδιού", _shell("roof_list", doc),
              ("Κεραμίδια σε τεμάχια μόνο με τα τεμ./m² του προϊόντος.",)),
             ("Κουφώματα", "Κουφώματα — ανά τύπο, φινίρισμα και μέγεθος", _shell("joinery_list", doc), ()),
+            ("Σκάλες", "Σκάλες — σκαλοπάτια, επένδυση πατημάτων και ρίχτια", stair_list(doc),
+             ("Πλατύσκαλα, φέρων και κάγκελο: στατική μελέτη / λίστα «Κάγκελα».",)),
             ("Μονώσεις", "Θερμομονώσεις και στεγανώσεις ανά επιφάνεια", insulation_list(doc),
              ("Εμβαδά από το σχέδιο· υλικό, πάχος και σύστημα όπως επιλέχθηκαν (καρτέλα «Μονώσεις»)· "
               "ενεργειακή μελέτη από μηχανικό.",)),

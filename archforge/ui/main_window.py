@@ -4440,41 +4440,12 @@ class MainWindow(QMainWindow):
         return result
 
     def _show_takeoff(self):
-        """Quantity take-off per room (paint, tiles, skirting, demolition) with CSV export."""
-        from PySide6.QtWidgets import QTextBrowser
-        from archforge.quantities.takeoff import COLUMNS, take_off, to_csv
-        result = take_off(self.doc)
-        rows = ''.join('<tr>' + ''.join(f'<td>{r[k]}</td>' for k, _l in COLUMNS) + '</tr>' for r in result['rooms'])
-        t, d = result['totals'], result['demolition']
-        html = ('<h2>Επιμέτρηση εργασιών</h2><table border=1 cellspacing=0 cellpadding=3><tr>'
-                + ''.join(f'<th>{label}</th>' for _k, label in COLUMNS) + '</tr>' + rows
-                + '<tr><td><b>Σύνολο</b></td><td></td>' + ''.join(f'<td><b>{t.get(k, "")}</b></td>' for k, _l in COLUMNS[2:]) + '</tr></table>'
-                + f"<h3>Καθαιρέσεις / διανοίξεις</h3><p>Τοίχοι σε καθαίρεση: {d['count']} — {d['walls_m2']} m², {d['walls_m3']} m³<br>"
-                + f"Νέα ανοίγματα σε υφιστάμενους τοίχους: {d['openings_to_cut']} — {d['openings_to_cut_m2']} m²</p>"
-                + f"<p><i>{result['provenance']}</i></p>")
-        dialog = QDialog(self)
-        dialog.setWindowTitle('Επιμέτρηση εργασιών')
-        dialog.resize(1100, 600)
-        layout = QVBoxLayout(dialog)
-        browser = QTextBrowser(dialog)
-        browser.setHtml(html)
-        layout.addWidget(browser)
-        export = QPushButton('Αποθήκευση CSV (για τιμολόγηση)…', dialog)
-
-        def save_csv():
-            path, _ = QFileDialog.getSaveFileName(self, 'Επιμέτρηση CSV', 'epimetrisi.csv', 'CSV (*.csv)')
-            if path:
-                with open(path, 'w', encoding='utf-8-sig') as f:
-                    f.write(to_csv(result))
-        export.clicked.connect(save_csv)
-        layout.addWidget(export)
-        priced = QPushButton('Λίστα υλικών με τιμές (Excel)…', dialog)
-        priced.clicked.connect(lambda: self._export_priced_lists())
-        layout.addWidget(priced)
-        self._takeoff_view = browser
-        if not getattr(self, '_no_modal_dialogs', False):
-            dialog.exec()
-        return result
+        """Επιμέτρηση εργασιών: the per-room take-off and every measured list, ticked by choice, with prices and margin
+        (ui/takeoff_view.py)."""
+        from archforge.quantities.takeoff import take_off
+        from archforge.ui import takeoff_view
+        takeoff_view.show(self)
+        return take_off(self.doc)
 
     def _edit_prices(self):
         """Prices, client and VAT for the quote (one undoable change); every measured item is listed."""
@@ -4488,9 +4459,10 @@ class MainWindow(QMainWindow):
         form = QFormLayout(dialog)
         client = QLineEdit(s['client'], dialog); project = QLineEdit(s['project'], dialog)
         vat = QDoubleSpinBox(dialog); vat.setRange(0, 50); vat.setValue(s['vat']); vat.setSuffix(' %')
+        margin = QDoubleSpinBox(dialog); margin.setRange(0, 200); margin.setDecimals(1); margin.setValue(s['margin']); margin.setSuffix(' %')
         validity = QSpinBox(dialog); validity.setRange(1, 365); validity.setValue(s['validity_days']); validity.setSuffix(' ημέρες')
         notes = QPlainTextEdit(s['notes'], dialog); notes.setFixedHeight(54)
-        form.addRow('Πελάτης', client); form.addRow('Έργο', project); form.addRow('ΦΠΑ', vat)
+        form.addRow('Πελάτης', client); form.addRow('Έργο', project); form.addRow('Περιθώριο', margin); form.addRow('ΦΠΑ', vat)
         form.addRow('Ισχύς προσφοράς', validity); form.addRow('Σημειώσεις', notes)
         from archforge.quantities.quote import row_meta
         rows = [row_meta(row) for _n, _t, items, _no in all_lists(self.doc) for row in items]
@@ -4546,7 +4518,7 @@ class MainWindow(QMainWindow):
         # The table contains the resolved shared book. Its edit replaces older
         # canonical entries too, rather than leaving contradictory duplicates.
         params = {'prices': legacy, 'trade_prices': trade, 'entries': {}, 'client': client.text().strip(), 'project': project.text().strip(),
-                  'vat': float(vat.value()), 'validity_days': int(validity.value()), 'notes': notes.toPlainText().strip()}
+                  'vat': float(vat.value()), 'margin': float(margin.value()), 'validity_days': int(validity.value()), 'notes': notes.toPlainText().strip()}
         entity = price_entity(self.doc)
         if entity is None:
             entity = Entity('price_list', params, name='Τιμές & προσφορά')
