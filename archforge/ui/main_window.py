@@ -142,6 +142,10 @@ class MainWindow(QMainWindow):
         corner_tool.install(self)        # Επεξεργασία ▸ Γωνία: two walls meet in a corner (Revit Trim/Extend)
         from archforge.ui.main_menus import organize_work_menus
         organize_work_menus(self)        # the work menus of mockup v4 (owner 30/10): last, moves every command home
+        from archforge.ui import storey_settings
+        storey_settings.install(self)    # one reversible editor for level Z and independent room clear height
+        from archforge.ui import task_icons
+        task_icons.install(self)         # drawings on the original QActions + editable compact starter row
         from archforge.ui import control_center
         control_center.install(self)     # user-owned menu surfaces and mouse-button commands, same QAction identities
         self._refresh_library_panel()

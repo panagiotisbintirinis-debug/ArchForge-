@@ -42,6 +42,7 @@ def test_modes_share_original_action_and_keep_original_menu():
         menus = control_center.PersonalMenus(window)
         for mode in ("popup", "docked", "floating"):
             cfg["mode"] = mode
+            cfg["show_labels"] = False
             menus.apply()
             bar, launcher = menus.surfaces["example"]
             if mode == "popup":
@@ -49,10 +50,12 @@ def test_modes_share_original_action_and_keep_original_menu():
             elif mode == "docked":
                 assert bar.actions()[0] is action
                 assert bar.iconSize().width() == 28
+                assert bar.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonIconOnly
             else:
                 assert bar.isFloating()
                 contents = bar.widget().widget()
                 assert contents.layout().itemAt(0).widget().defaultAction() is action
+                assert contents.layout().itemAt(0).widget().toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonIconOnly
             action.trigger()
             assert window.menuBar().actions()[0].menu().actions()[0] is action
         assert fired == ["wall"] * 3
