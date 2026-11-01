@@ -1,5 +1,7 @@
 # ArchForge Product Principles
 
+> **Consolidated authority:** These principles remain normative, but `ARCHFORGE_MASTER_CONTEXT.md` is the single consolidated product-direction document. Where older wording here can be read in more than one way, interpret it consistently with the Master Context.
+
 ArchForge is being developed as a future-facing, saleable architectural and engineering design system. The repository being public does not reduce the quality bar. Every subsystem should be designed as if it must later support a commercial desktop product.
 
 ## Product mission
