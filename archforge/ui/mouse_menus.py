@@ -124,7 +124,10 @@ def item_of_path(path, action=None):
 def custom_entries(window, task, default_entries):
     """The human's menu for ``task`` as marking-menu entries, or None (built-in menu)."""
     items = saved(window).get(task)
-    if not items:
+    # [] is intentional: «Άδειασμα» disables the ring for this task without
+    # removing any command from the application's central menu/registry.
+    # Only an absent customisation means "use the original ring".
+    if items is None:
         return None
     live = {e["id"]: e for e in flatten(default_entries)}
     return _entries(window, items, live)

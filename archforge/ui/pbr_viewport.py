@@ -1584,6 +1584,53 @@ renderer.domElement.addEventListener("pointerup", (event) => {
   if (point) bridge.placeSitePoint(String(activeTool).slice(5), Number(point.x), Number(point.y));
 });
 
+// User-defined *click* actions in the 3D canvas.  The same Python QAction is
+// triggered through the bridge; no alternate model/undo path is introduced.
+// In drawing, sculpt, stair and other transient tools the original pointer
+// handling is untouched.  A mapped button cannot also orbit/pan by dragging.
+let afButtonActions = {};
+let afButtonPress = null;
+window.afSetMouseButtons = function(bindings) {
+  afButtonActions = bindings && typeof bindings === "object" ? bindings : {};
+  afButtonPress = null;
+  controls.enabled = true;
+};
+renderer.domElement.addEventListener("pointerdown", (event) => {
+  if (!bridge || (activeTool !== "select" && activeTool !== "orbit") || walkMode) return;
+  const path = afButtonActions[String(event.button)];
+  if (!path) return;
+  afButtonPress = {button: event.button, x: event.clientX, y: event.clientY, path};
+  controls.enabled = false;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+}, true);
+renderer.domElement.addEventListener("pointermove", (event) => {
+  if (!afButtonPress) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+}, true);
+renderer.domElement.addEventListener("pointerup", (event) => {
+  if (!afButtonPress || event.button !== afButtonPress.button) return;
+  const press = afButtonPress;
+  afButtonPress = null;
+  controls.enabled = true;
+  if (Math.hypot(event.clientX - press.x, event.clientY - press.y) <= 6)
+    bridge.runControlAction(press.path);
+  event.preventDefault();
+  event.stopImmediatePropagation();
+}, true);
+renderer.domElement.addEventListener("contextmenu", (event) => {
+  if (!afButtonActions["2"] || (activeTool !== "select" && activeTool !== "orbit")) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+}, true);
+window.addEventListener("pointerup", () => {
+  if (afButtonPress) { afButtonPress = null; controls.enabled = true; }
+});
+window.addEventListener("blur", () => {
+  if (afButtonPress) { afButtonPress = null; controls.enabled = true; }
+});
+
 renderer.domElement.addEventListener("pointerdown", (event) => {
   if (!bridge) return;
   if (event.button !== 2) hideMarkingMenu();
@@ -2421,6 +2468,14 @@ class PBRInteractionBridge(QObject):
         self.viewport = viewport
 
     @Slot(str)
+    def runControlAction(self, path: str) -> None:
+        """A customised 3D mouse click uses the normal menu QAction/command stack."""
+        window = getattr(self.viewport, "marking_menu_window", None)
+        if window is not None:
+            from archforge.ui.mouse_menus import run_menu_path
+            run_menu_path(window, str(path))
+
+    @Slot(str)
     def beginSculpt(self, payload_json: str) -> None:
         self.viewport._begin_sculpt_from_web(payload_json)
 
@@ -2762,6 +2817,10 @@ class PBRViewport(QWidget):
             self.statusChanged.emit("PBR Preview HTML failed to load")
             return
         self.statusChanged.emit("3D έτοιμο")
+        from archforge.ui.control_center import push_3d_bindings
+        window = getattr(self, "marking_menu_window", None)
+        if window is not None:
+            push_3d_bindings(window)
         self.web_view.setZoomFactor(1.0)          # the 3D page never keeps a page zoom (owner 29/10)
         self._sent_scene = None                 # a (re)loaded page has no meshes: the next push is the whole scene
         self.set_render_technique(self._technique)

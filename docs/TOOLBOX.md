@@ -91,6 +91,7 @@
 | `archforge/core/plan_scene.py` | `wall_poche` (τοίχοι με δύο όψεις) · `_declutter_labels` (ετικέτες Η/Μ χωρίς επικάλυψη). |
 | `archforge/quantities/price_book.py` | Κοινός τιμοκατάλογος (τιμές έργου υπερισχύουν· ποτέ επινοημένη τιμή) · `quote()['by_trade']`. |
 | `archforge/ui/menu_map.py` · `main_menus.organize_work_menus` | **Πού μένει κάθε εντολή** (`RULES`: παλιά διαδρομή → μενού εργασίας / ενότητα) και το βήμα που χτίζει τα μενού από αυτόν. `resolve_path(window, παλιά διαδρομή)` · `old_menu_path(action)`. Νέα εντολή σε νέα θέση = μία γραμμή στο `RULES`. |
+| `archforge/ui/control_center.py` · `toolbar_custom` · `mouse_menus` | **Διαχείριση από τον χρήστη:** προσωπικές σταθερές / αναδυόμενες / ιπτάμενες παλέτες με τις υπάρχουσες `QAction` (χωρίς αντιγραφή εντολής), προαιρετικές αντιστοιχίσεις κλικ ποντικιού 2D/3D, μεγέθη, αποθήκευση και εξαγωγή/εισαγωγή προφίλ. `control_center.install(window)` μετά την οργάνωση μενού · `push_3d_bindings(window)` μετά τη φόρτωση WebGL. Οι αρχικές εντολές μένουν διαθέσιμες. |
 | `archforge/ui/material_library.py` | `MATERIAL_KINDS` (ποια είδη παίρνουν υλικό) · `_apply_material(window, id, role, material)` = **η** εντολή υλικού (browser, πινέλο) · `_targets` (πλευρές/τμήματα). |
 | `tests/conftest.py` | Απομονωμένος τιμοκατάλογος και κλείσιμο παραθύρων σε κάθε τεστ. |
 

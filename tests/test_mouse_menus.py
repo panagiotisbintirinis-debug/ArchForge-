@@ -71,6 +71,19 @@ def test_more_than_eight_become_two_rings(window):
     assert len(menu.buttons) == 12 and menu._disc[2] > menu.RADIUS * 1.5      # outer ring, bigger disc
 
 
+def test_empty_mouse_task_really_disables_only_its_menu(window):
+    from archforge.ui.marking_menu import build_menu
+    from archforge.ui.mouse_menus import reset_task, set_task
+    initial = build_menu(window, 'plan')
+    assert initial['entries']
+    set_task(window, 'empty', [])
+    empty = build_menu(window, 'plan')
+    assert empty['custom'] is True and empty['entries'] == []
+    assert window.shortcuts.actions['tool.wall'] is not None
+    reset_task(window, 'empty')
+    assert build_menu(window, 'plan')['entries']
+
+
 def test_editor_drag_in_drag_out_reset(window):
     from archforge.ui.mouse_menus import MouseMenuEditor, item_of_path, saved, _find_action
     d = MouseMenuEditor(window, 'object:wall')
