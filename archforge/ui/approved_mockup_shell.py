@@ -183,6 +183,7 @@ def _wall_button(window, parent):
     button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
     button.clicked.connect(lambda _=False: window._set_active_tool("wall"))
     menu=QMenu(button); group=QActionGroup(menu); group.setExclusive(True); window._mockup_wall_choices={}
+    window._mockup_wall_detail_actions={}; window._mockup_wall_type_menus={}
 
     def choose(key, label):
         window.plan_view.controller.wall_choice=key
@@ -203,23 +204,40 @@ def _wall_button(window, parent):
     window._mockup_wall_curved=curved
     menu.addSeparator()
     types=QMenu("Είδος τοίχου (σύνθεση)",menu); menu.addMenu(types); window._mockup_wall_types_menu=types
+    create=types.addAction("＋ Νέα σύνθεση από τη βιβλιοθήκη…")
+    create.triggered.connect(lambda: window._open_wall_type_details("generic"))
+    types.addSeparator()
+
+    def add_type(key,label_text):
+        # The existing draw action remains a single click inside this submenu;
+        # its sibling opens the *same* editor as a placed wall's Properties.
+        sub=QMenu(label_text,types)
+        types.addMenu(sub)
+        window._mockup_wall_type_menus[key]=sub
+        sub.addAction(add(key,"Σχεδίαση με αυτόν τον τύπο"))
+        details=sub.addAction("Λεπτομέρειες και στρώσεις…")
+        details.triggered.connect(lambda _=False,k=key: window._open_wall_type_details(k))
+        window._mockup_wall_detail_actions[key]=details
+
     for key,(label,layers) in WALL_TYPES.items():
         if key=="generic":continue
         thick=total_thickness(key)
-        types.addAction(add(key,f"{label}" + (f" · {thick * 100:.1f} cm" if thick>0 else "")))
+        add_type(key,f"{label}" + (f" · {thick * 100:.1f} cm" if thick>0 else ""))
 
     def project_types_too():
         # The project's own assemblies (wall_assemblies.py) appear under the built-in ones when the menu opens.
         from archforge.architecture.wall_types import is_project_type, project_types
         current=project_types(window.doc)
         for key in [k for k in window._mockup_wall_choices if k and is_project_type(k) and k not in current]:
-            act=window._mockup_wall_choices.pop(key); types.removeAction(act); group.removeAction(act)
+            act=window._mockup_wall_choices.pop(key); group.removeAction(act)
+            sub=window._mockup_wall_type_menus.pop(key); types.removeAction(sub.menuAction())
+            window._mockup_wall_detail_actions.pop(key,None)
         for key,(label,layers) in current.items():
             thick=total_thickness(key,window.doc); text=f"★ {label} · {thick * 100:.1f} cm"
             if key in window._mockup_wall_choices:
-                window._mockup_wall_choices[key].setText(text)
+                window._mockup_wall_type_menus[key].setTitle(text)
             else:
-                types.addAction(add(key,text))
+                add_type(key,text)
     types.aboutToShow.connect(project_types_too)
     button.setMenu(menu)
     return button

@@ -296,10 +296,10 @@ def _interior_walls(doc):
 
 def _isotex(doc):
     """I-1: Isotex walls drawn — the pieces they need (take-off), shown on «Εφαρμογή»."""
-    if not any(e.kind == "wall" and str(e.params.get("wall_type", "")).startswith("isotex_") for e in doc.entities.values()):
-        return []
     from archforge.construction.isotex import take_off_isotex
     r = take_off_isotex(doc)
+    if not r["walls"]:
+        return []
     t = r["totals"]
     detail = ", ".join(f"{c}: {v['blocks']} τεμ." for c, v in r["by_code"].items())
     return [Proposal("I-1", "info", f"Isotex: {t['blocks']} τεμάχια, {t['concrete_m3']} m³ σκυρόδεμα",

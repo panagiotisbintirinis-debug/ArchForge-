@@ -1651,6 +1651,13 @@ class MainWindow(QMainWindow):
         from PySide6.QtCore import QTimer
         QTimer.singleShot(0, self.refresh_inspector)   # rebuild the form outside the combo's signal
 
+    def _open_wall_type_details(self, wall_type="generic", wall_id=None):
+        """One construction/library editor for the Wall menu and a placed wall."""
+        from archforge.ui.wall_details_dialog import WallDetailsDialog
+        dialog = WallDetailsDialog(self, wall_type, wall_id=wall_id)
+        dialog.exec()
+        return dialog.result_key
+
     def _seed_core_library(self):
         """Build the shipped core library into the local store (first run only)."""
         from archforge.library.catalog import seed_core_library
@@ -2660,6 +2667,25 @@ class MainWindow(QMainWindow):
         name_editor = QLineEdit(entity.name or '', dialog)
         form.addRow('Όνομα', name_editor)
 
+        if entity.kind == 'wall':
+            from archforge.architecture.wall_types import label as wall_type_label
+            current_type = str(entity.params.get('wall_type', 'generic'))
+            type_name = QLabel(wall_type_label(current_type, self.doc), dialog)
+            form.addRow('Τύπος τοίχου', type_name)
+            from archforge.ui.wall_layers_panel import summary as wall_summary
+            detail = QLabel(wall_summary(self.doc, current_type) or 'Χωρίς ορισμένη σύνθεση', dialog)
+            detail.setWordWrap(True)
+            form.addRow('Στρώσεις', detail)
+            details_button = QPushButton('Λεπτομέρειες / υλικά / στρώσεις…', dialog)
+            details_button.setObjectName('wallDetailsButton')
+            def open_wall_details(_=False, k=current_type, wid=entity_id):
+                # Close the geometry form first: otherwise its stale thickness
+                # could overwrite the assembly total on a later OK click.
+                dialog.reject()
+                self._open_wall_type_details(k, wall_id=wid)
+            details_button.clicked.connect(open_wall_details)
+            form.addRow('', details_button)
+
         current = property_values(entity)
         editors = {}
         shape_editor = None
@@ -2745,6 +2771,13 @@ class MainWindow(QMainWindow):
             spin.setSingleStep(float(spec.get('step', 0.05)))
             spin.setValue(float(current[spec['id']]))
             spin.setSuffix(f" {spec.get('unit', '')}" if spec.get('unit') else '')
+            if entity.kind == 'wall' and spec['id'] == 'thickness':
+                from archforge.architecture.wall_types import total_thickness
+                assembled = total_thickness(entity.params.get('wall_type', 'generic'), self.doc)
+                if assembled > 0:
+                    spin.setValue(assembled)
+                    spin.setEnabled(False)
+                    spin.setToolTip('Το πάχος προκύπτει από τις στρώσεις· αλλαγή από «Λεπτομέρειες / υλικά / στρώσεις».')
             form.addRow(spec['label'], spin)
             editors[spec['id']] = spin
 

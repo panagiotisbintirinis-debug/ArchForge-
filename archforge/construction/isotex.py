@@ -62,7 +62,10 @@ def wall_type_of(code):
     return WALL_TYPE_PREFIX + code.lower().replace(" ", "_").replace("/", "_")
 
 
-def code_of_wall_type(wall_type):
+def code_of_wall_type(wall_type, doc=None):
+    if doc is not None:
+        from archforge.architecture.wall_assemblies import validated_base_type
+        wall_type = validated_base_type(doc, wall_type) or wall_type
     for code in BLOCKS:
         if wall_type_of(code) == str(wall_type):
             return code
@@ -103,7 +106,7 @@ def _wall_openings(doc, wall):
 
 def count_wall(doc, wall):
     """Pieces and concrete for one Isotex wall, or None when the wall is not Isotex."""
-    code = code_of_wall_type(wall.params.get("wall_type"))
+    code = code_of_wall_type(wall.params.get("wall_type"), doc)
     if code is None:
         return None
     p = wall.params

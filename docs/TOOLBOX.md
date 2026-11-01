@@ -65,6 +65,7 @@
 | `archforge/mep/lighting.py` | Φωτιστικό = κατασκευή + ηλεκτρικό + φως. | |
 | `archforge/rendering/materials.py` · `archforge/organic/materials.py` | Υλικά 3D (PBR) και υλικά Bio-Spectre. | Εκεί, όχι μέσα σε λειτουργία |
 | `archforge/architecture/wall_types.py` | Τύποι τοίχων με στρώσεις (πάχος, εμφάνιση). | |
+| `archforge/ui/wall_details_dialog.py` | Κοινός επεξεργαστής τύπου/στρώσεων από Τοίχος ▾ και Ιδιότητες επιλεγμένου τοίχου: μενού υλικών ανά κατηγορία, έξω/μέσα, πάχη από χρήστη, εφαρμογή μέσω `wall_assemblies`/CommandStack. | `WallDetailsDialog(window, type, wall_id=None)` |
 | `archforge/construction/building_materials.py` | **Υλικά δόμησης** (ένα μητρώο): όνομα, κατηγορία, λ με κατάσταση provenance, πυκνότητα (μόνο από φύλλο), ρόλος, διαγράμμιση, σύνδεση με υλικό εμφάνισης, κωδικός τιμοκαταλόγου `bmat.<id>`. Κάθε στρώση τοίχου (`wall_types.Layer`) δείχνει id από εδώ· τιμές φύλλου του έργου με `set_properties_command` (μία αναίρεση). | Νέο υλικό εδώ, με κατάσταση λ |
 | `archforge/architecture/wall_assemblies.py` · `wall_layer_plan.py` | Συνθέσεις του έργου (νέα / αντίγραφο / αλλαγή → όλοι οι τοίχοι / δική του) · κάθε στρώση ως λωρίδα με φάλτσο, Τ, ανοίγματα — για κάτοψη, τομή, DXF, επιλογή στρώσης (`ui/layer_pick.py`). | Νέα σύνθεση με τις εντολές, όχι στο `WALL_TYPES` |
 | `archforge/construction/` (`insulation.py`, `drywall.py`, `isotex.py`, `icf.py`, `shell.py`, `earthworks.py`) | Δομικά συστήματα και οι ποσότητές τους. | |
