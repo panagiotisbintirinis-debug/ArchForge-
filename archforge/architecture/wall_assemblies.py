@@ -60,12 +60,49 @@ def _thickness_follows(doc, wall_type, rows):
     return UpdateEntities(changes) if changes else None
 
 
-def new_type_command(doc, name, rows, taken=()):
+def validated_base_type(doc, wall_type):
+    """A project's construction retains a built-in product identity only when its core is untouched.
+
+    Extra finishing layers may surround the core.  Changing a material, its
+    thickness or the order *inside* the original core removes that identity;
+    a modified assembly must not be counted as an unchanged Isotex block.
+    """
+    from archforge.architecture.wall_types import WALL_TYPES
+    if not is_project_type(wall_type):
+        return wall_type if str(wall_type) in WALL_TYPES and layer_specs(doc, wall_type) else None
+    construction = (doc.constructions or {}).get(CONSTRUCTION_PREFIX + str(wall_type), {})
+    candidate = str(construction.get("base_type") or "")
+    if candidate not in WALL_TYPES:
+        return None
+    built_in = layer_specs(doc, candidate)
+    if not built_in:
+        return None
+    try:
+        core = clean_layers(built_in)
+        rows = clean_layers(construction.get("layers"))
+    except (ValueError, TypeError, AttributeError, KeyError):
+        return None  # malformed project data never gains a manufacturer's identity
+    return candidate if any(rows[i:i + len(core)] == core for i in range(len(rows) - len(core) + 1)) else None
+
+
+def _construction_properties(doc, name, rows, base_type=None):
+    specs = clean_layers(rows)
+    result = {"label": str(name).strip() or "Νέα σύνθεση", "layers": specs}
+    from archforge.architecture.wall_types import WALL_TYPES
+    base = str(base_type or "")
+    if base in WALL_TYPES:
+        built_in = layer_specs(doc, base)
+        core = clean_layers(built_in) if built_in else []
+        if core and any(specs[i:i + len(core)] == core for i in range(len(specs) - len(core) + 1)):
+            result["base_type"] = base
+    return result
+
+
+def new_type_command(doc, name, rows, taken=(), base_type=None):
     """``(key, command)``: a new project type (``taken``: keys already given to commands not yet run)."""
-    rows = clean_layers(rows)
-    name = str(name).strip() or "Νέα σύνθεση"
+    props = _construction_properties(doc, name, rows, base_type)
     key = next_key(doc, taken)
-    return key, SetConstruction(CONSTRUCTION_PREFIX + key, {"label": name, "layers": rows})
+    return key, SetConstruction(CONSTRUCTION_PREFIX + key, props)
 
 
 def copy_type_command(doc, wall_type, name=None):
@@ -73,7 +110,8 @@ def copy_type_command(doc, wall_type, name=None):
     rows = layer_specs(doc, wall_type)
     if not rows:
         raise ValueError("ο γενικός τοίχος δεν έχει στρώσεις να αντιγραφούν")
-    return new_type_command(doc, name or f"{label(wall_type, doc)} — αντίγραφο", rows)
+    return new_type_command(doc, name or f"{label(wall_type, doc)} — αντίγραφο", rows,
+                            base_type=validated_base_type(doc, wall_type))
 
 
 def edit_type_command(doc, wall_type, *, name=None, rows=None):
@@ -82,7 +120,8 @@ def edit_type_command(doc, wall_type, *, name=None, rows=None):
         raise ValueError("οι έτοιμες συνθέσεις δεν αλλάζουν: κάνε αντίγραφο και άλλαξε εκείνο")
     current = doc.constructions[CONSTRUCTION_PREFIX + wall_type]
     rows = clean_layers(rows) if rows is not None else [dict(r) for r in current["layers"]]
-    props = {"label": str(name).strip() if name else current.get("label", wall_type), "layers": rows}
+    props = _construction_properties(doc, str(name).strip() if name else current.get("label", wall_type), rows,
+                                     base_type=validated_base_type(doc, wall_type))
     return CompositeCommand([SetConstruction(CONSTRUCTION_PREFIX + wall_type, props),
                              _thickness_follows(doc, wall_type, rows)], label="Αλλαγή σύνθεσης")
 
@@ -95,7 +134,8 @@ def own_type_command(doc, wall_id, rows, name=None):
         raise ValueError("διάλεξε τοίχο")
     rows = clean_layers(rows)
     base = str(wall.params.get("wall_type", "generic"))
-    key, create = new_type_command(doc, name or f"{label(base, doc)} — {wall.name or 'τοίχος'}", rows)
+    key, create = new_type_command(doc, name or f"{label(base, doc)} — {wall.name or 'τοίχος'}", rows,
+                                   base_type=validated_base_type(doc, base))
     total = round(sum(r["thickness"] for r in rows), 4)
     return key, CompositeCommand([create, spread_command(doc, wall_id, {"wall_type": key, "thickness": total})],
                                  label="Δική του σύνθεση")
