@@ -21,7 +21,8 @@ from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtWidgets import QMenu, QToolButton
 
 ICON_SIZES = (("Μικρά", 16), ("Μεσαία", 20), ("Μεγάλα", 26))
-DEFAULTS = {"icon_size": 20, "text": True, "hidden": {}, "added": {}, "palette_cols": 5}
+DEFAULTS = {"icon_size": 20, "text": True, "hidden": {}, "added": {}, "palette_cols": 5,
+            "personal_menus": [], "mouse_buttons": {}}
 SEP = " / "
 
 
@@ -66,10 +67,12 @@ def load(window, settings=None):
 
 
 def reset(window, settings=None):
-    mouse = prefs(window).get("mouse")
+    # A reset of *toolbar buttons* must never silently erase the user's
+    # separately saved mouse task menus, physical bindings or personal menus.
+    independent = {k: json.loads(json.dumps(prefs(window)[k])) for k in
+                   ("mouse", "personal_menus", "mouse_buttons") if k in prefs(window)}
     window._ui_prefs = json.loads(json.dumps(DEFAULTS))
-    if mouse:
-        window._ui_prefs["mouse"] = mouse          # the mouse menus have their own «Επαναφορά» (per task)
+    window._ui_prefs.update(independent)
     for target in _targets(window):
         for key in list(target.custom_buttons):
             target.remove_custom(key)
