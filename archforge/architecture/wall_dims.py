@@ -71,8 +71,7 @@ def offset_for(doc, eid, side, clear):
     now = next((x["clear"] for x in (dims or {}).get("sides", ()) if x["side"] == side), None)
     if now is None:
         raise ValueError("δεν υπάρχει απέναντι τοίχος σε αυτή την πλευρά")
-    if clear <= 0:
-        raise ValueError("η απόσταση πρέπει να είναι θετική")
+    # A deliberate 0 or signed overlap is a user edit, not a geometry veto.
     return side * (now - float(clear))
 
 

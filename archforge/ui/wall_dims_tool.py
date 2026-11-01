@@ -69,7 +69,8 @@ class WallDimsTool:
         if eid is None or offset is None or abs(offset) < 1e-9:
             return False
         try:
-            self.w.stack.execute(MoveWall(eid, float(offset)))
+            command=MoveWall(eid, float(offset))
+            self.w.stack.execute(command)
         except ValueError as exc:
             self.w.statusBar().showMessage(f"⚠ {exc}", 6000)
             return False
@@ -77,6 +78,7 @@ class WallDimsTool:
         self.w._redraw_views(all_views=True)
         self.w.refresh_inspector()
         self.w.statusBar().showMessage(f"Ο τοίχος μετακινήθηκε {offset * 100:+.0f} cm · Ctrl+Z = αναίρεση", 6000)
+        self.w.plan_view.show_wall_warnings(command.plan.get('warnings',()))
         return True
 
     def cancel(self):
@@ -91,16 +93,15 @@ class WallDimsTool:
         now = next((x["clear"] for x in dims["sides"] if x["side"] == side), None)
         if now is None:
             return False
-        from archforge.core.units import LENGTH_UNITS, display_unit
-        unit = display_unit()                          # typed in the unit the plan shows (core/units)
-        _label, k, decimals = LENGTH_UNITS[unit]
-        value, ok = QInputDialog.getDouble(self.w, "Απόσταση από τον απέναντι τοίχο",
-                                           f"Καθαρή απόσταση ({unit}) — ο τοίχος μετακινείται, οι ενωμένοι τεντώνουν:",
-                                           round(now * k, decimals), 0.05 * k, 100.0 * k, decimals)
+        from archforge.core.units import parse_edit_length
+        initial = f'{now:.6f}'.rstrip('0').rstrip('.').replace('.', ',')
+        value, ok = QInputDialog.getText(self.w, "Απόσταση από τον απέναντι τοίχο",
+                                         'Καθαρή απόσταση — γράψε 4 (μέτρα), 400 cm ή 4000 mm:',
+                                         text=initial)
         if not ok:
             return False
-        value = value / k
         try:
+            value = parse_edit_length(value, default='m')
             off = offset_for(self.doc, eid, side, value)
         except ValueError as exc:
             self.w.statusBar().showMessage(f"⚠ {exc}", 6000)

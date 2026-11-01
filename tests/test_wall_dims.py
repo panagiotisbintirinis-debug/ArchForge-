@@ -92,7 +92,7 @@ def test_one_click_on_a_distance_types_the_value(window, monkeypatch):
     tool = w._wall_dims
     # Owner 30/10: distances in cm («όλοι δουλεύουν σε εκατοστά»): 3,75 m reads «375», typed in cm.
     item = next(i for i, side in tool._labels if i.toPlainText().strip() == '375')
-    monkeypatch.setattr(QInputDialog, 'getDouble', staticmethod(lambda *a, **k: (300.0, True)))
+    monkeypatch.setattr(QInputDialog, 'getText', staticmethod(lambda *a, **k: ('3', True)))
     pos = view.mapFromScene(item.pos())                         # the label's top-left, then into the text
     pos.setX(pos.x() + 12); pos.setY(pos.y() + 8)
     QTest.mouseClick(view.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, pos)

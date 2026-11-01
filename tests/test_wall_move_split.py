@@ -245,21 +245,42 @@ def test_move_is_one_undo_step_and_undo_restores_exactly():
     assert _snapshot(doc) == after
 
 
-def test_move_refused_when_it_would_crush_a_wall_or_drop_an_opening():
+def test_move_never_blocks_on_collapsed_neighbour_or_stranded_opening():
     doc, stack, ctrl = _rect()
     east = _wall_at(doc, (8, 0), (8, 6)); south = _wall_at(doc, (0, 0), (8, 0))
     stack.execute(AddEntity(Entity('window', {'offset': 6.5, 'width': 1.2, 'height': 1.2, 'sill': 0.9}, parent_id=south.id)))
-    with pytest.raises(ValueError):
-        plan_move(doc, east.id, -9.0)
-    with pytest.raises(ValueError, match='χωράει'):
-        plan_move(doc, east.id, -1.0)                    # the window would hang past the shorter south wall
+    original_south = dict(south.params)
+    too_far = plan_move(doc, east.id, -9.0)
+    assert too_far['warnings'] and south.id in {w['wall_id'] for w in too_far['warnings']}
+    stack.execute(MoveWall(east.id, -9.0))
+    assert _ends(doc.get(east.id)) == ((-1.0, 0.0), (-1.0, 6.0))
+    assert doc.get(south.id).params == original_south  # retain valid wall and opening instead of destroying either
+    stack.undo()
+    assert _ends(doc.get(east.id)) == ((8.0, 0.0), (8.0, 6.0))
+
+    # The old implementation rejected this because the window would not fit in the shortened south wall.
+    plan = plan_move(doc, east.id, -1.0)
+    assert south.id in {w['wall_id'] for w in plan['warnings']}
+    stack.execute(MoveWall(east.id, -1.0))
+    assert _ends(doc.get(east.id)) == ((7.0, 0.0), (7.0, 6.0))
+    assert doc.get(south.id).params == original_south
 
 
-def test_existing_wall_in_renovation_does_not_move():
+def test_existing_wall_in_renovation_can_be_explicitly_moved_with_a_warning():
     doc, stack, ctrl = _rect()
     east = _wall_at(doc, (8, 0), (8, 6))
     stack.execute(UpdateEntity(east.id, {'phase': 'existing'}))
-    with pytest.raises(ValueError, match='υφιστάμενος'):
+    command = MoveWall(east.id, 0.3)
+    stack.execute(command)
+    assert _ends(doc.get(east.id)) == ((8.3, 0.0), (8.3, 6.0))
+    assert any(w['wall_id'] == east.id and 'υφιστάμενος' in w['reason'] for w in command.plan['warnings'])
+
+
+def test_explicitly_locked_wall_still_respects_the_user_lock():
+    doc, stack, ctrl = _rect()
+    east = _wall_at(doc, (8, 0), (8, 6))
+    east.locked = True
+    with pytest.raises(ValueError, match='κλειδωμένος'):
         stack.execute(MoveWall(east.id, 0.3))
 
 

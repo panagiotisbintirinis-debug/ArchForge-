@@ -15,13 +15,15 @@ def direction_words(params):
 def move_by(window, eid, centimetres):
     from archforge.architecture.wall_edit import MoveWall
     try:
-        window.stack.execute(MoveWall(eid, float(centimetres) / 100.0))
+        command=MoveWall(eid, float(centimetres) / 100.0)
+        window.stack.execute(command)
     except ValueError as exc:
         window.statusBar().showMessage(f'⚠ {exc}', 6000)
         return False
     window._redraw_views(all_views=True)
     window.refresh_inspector()
     window.statusBar().showMessage(f'Ο τοίχος μετακινήθηκε {float(centimetres):+.0f} cm (μαζί ό,τι είναι πάνω του) · Ctrl+Z = αναίρεση', 5000)
+    window.plan_view.show_wall_warnings(command.plan.get('warnings',()))
     return True
 
 

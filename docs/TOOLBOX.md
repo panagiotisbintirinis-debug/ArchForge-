@@ -34,6 +34,8 @@
 | `scripts/user_drive/user.py` | Οδηγεί το ArchForge offscreen όπως ένας άνθρωπος: ribbon/μενού, κλικ στην κάτοψη, marking menu· μετρά βήματα, μαζεύει σημειώσεις τριβής (`U.notes`). | `from user import *` (δες `house.py`) |
 | `scripts/user_drive/core_check.py` | Ο πυρήνας με το ποντίκι όπως σχεδιάζει ο ιδιοκτήτης (κλικ λίγα εκ. δίπλα στις γωνίες). | `QT_QPA_PLATFORM=offscreen python scripts/user_drive/core_check.py` |
 | `scripts/user_drive/walls_check.py` | Τοίχοι από την όψη, κλείσιμο περιγράμματος στις 90°, οδηγοί (24/10). | ίδιο |
+| `archforge/architecture/wall_edit.py` · `wall_dims.py` | Η κοινή `MoveWall` για τοίχους και τις καθαρές αποστάσεις τους: διατηρεί έγκυρους γείτονες που δεν μπορούν να τεντώσουν, επιστρέφει `warnings` με `wall_id`, μία αναίρεση. | `plan_move` / `MoveWall` / `offset_for` |
+| `archforge/core/units.py` | `parse_edit_length`: ακριβής είσοδος `4` (m), `400 cm`, `4000 mm`, ανεξάρτητη από τη μονάδα σχεδίου, χωρίς επινοημένο μετατροπέα στην οθόνη. | `parse_edit_length(text, default='m')` |
 | `scripts/user_drive/house.py` | Σπίτι-διαδρομή (σκάλα, ανοίγματα πλάκας, μπαλκόνι) μέσα από το UI. | `python scripts/user_drive/house.py [βήμα]` |
 | `scripts/user_drive/scene3d.py` + `scripts/look_shot/` | Πραγματική σελίδα 3D (PBR) σε headless Chromium → PNG. **Οπτικός έλεγχος χωρίς Windows.** | δες docstring του `scene3d.py` (dump_page.py → shot.mjs) |
 | `archforge/scenarios/render3d.py` | `render(doc, png)`: εικόνα 3D από οποιοδήποτε Document, με presets `top` / `dollhouse`. | από Python |

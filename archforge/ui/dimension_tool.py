@@ -99,12 +99,15 @@ class TapeTool:
             return False
         d = best[1]
         from PySide6.QtWidgets import QInputDialog
-        value, ok = QInputDialog.getDouble(self.w, "Διάσταση", "Μήκος (m) — ο τοίχος στην άκρη της ακολουθεί:",
-                                           round(float(d["value"]), 3), 0.01, 1000.0, 3)
+        from archforge.core.units import parse_edit_length
+        initial = f'{float(d["value"]):.6f}'.rstrip('0').rstrip('.').replace('.', ',')
+        value, ok = QInputDialog.getText(self.w, "Διάσταση",
+                                         'Μήκος — γράψε 4 (μέτρα), 400 cm ή 4000 mm:', text=initial)
         view._long_press = None
         if not ok:
             return True
         try:
+            value = parse_edit_length(value, default='m')
             wid, command = D.drive(doc, z, d, value)
             self.w.stack.execute(command)
         except ValueError as exc:
@@ -114,6 +117,7 @@ class TapeTool:
         self.w._redraw_views(all_views=True)
         self.w.refresh_inspector()
         self.w.statusBar().showMessage(f"Διάσταση {D.fmt(value)} · ο τοίχος ακολούθησε · Ctrl+Z = αναίρεση", 6000)
+        self.w.plan_view.show_wall_warnings(command.plan.get('warnings',()))
         return True
 
     def _measure(self, view, kind, event):

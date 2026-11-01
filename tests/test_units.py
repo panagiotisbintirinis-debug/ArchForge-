@@ -13,6 +13,17 @@ def test_lengths_read_as_drawn_in_each_unit():
     assert units.fmt_length(3.455, 'cm') == '345,5' and units.fmt_length(0.6) == '60'      # cm by default
 
 
+def test_numeric_wall_distance_accepts_explicit_units_and_bare_metres():
+    # A bare 4 must not silently mean 4 mm just because the plan currently displays mm.
+    assert units.parse_edit_length('4', default='m') == pytest.approx(4.0)
+    assert units.parse_edit_length('4 m', default='mm') == pytest.approx(4.0)
+    assert units.parse_edit_length('400cm', default='mm') == pytest.approx(4.0)
+    assert units.parse_edit_length('4000 mm', default='cm') == pytest.approx(4.0)
+    assert units.parse_edit_length('4,25', default='m') == pytest.approx(4.25)
+    with pytest.raises(ValueError):
+        units.parse_edit_length('4 foo', default='m')
+
+
 def test_the_choice_is_kept_as_a_program_setting(tmp_path, monkeypatch):
     monkeypatch.setenv('ARCHFORGE_DATA', str(tmp_path))
     from archforge.ui import autosave

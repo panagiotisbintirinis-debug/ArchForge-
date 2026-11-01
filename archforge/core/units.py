@@ -9,6 +9,7 @@ The model stays in metres; only what is shown and written for others changes:
 Program settings (``settings.json`` of the user data folder, like the keyboard shortcuts), not project data.
 """
 from __future__ import annotations
+import re
 
 LENGTH_UNITS = {"mm": ("χιλιοστά (mm)", 1000.0, 0), "cm": ("εκατοστά (cm)", 100.0, 1), "m": ("μέτρα (m)", 1.0, 2)}
 IFC_UNITS = {"m": "μέτρα", "mm": "χιλιοστά"}
@@ -71,3 +72,19 @@ def fmt_length(metres, unit=None):
 
 def suffix(unit=None):
     return {"mm": "mm", "cm": "cm", "m": "m"}[unit or display_unit()]
+
+
+def parse_edit_length(text, default='m'):
+    """Parse exact human input, including an optional unit suffix, into metres.
+
+    In a numeric edit dialog a bare ``4`` explicitly means four metres,
+    regardless of how the plan happens to display its dimension labels.
+    An explicit ``mm`` / ``cm`` / ``m`` suffix always wins.
+    """
+    match = re.fullmatch(r'\s*([+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+))\s*(mm|cm|m)?\s*', str(text), re.I)
+    if not match:
+        raise ValueError('γράψε μια απόσταση, π.χ. 4, 400 cm ή 4000 mm')
+    unit = (match.group(2) or default).lower()
+    if unit not in LENGTH_UNITS:
+        raise ValueError('άγνωστη μονάδα μήκους')
+    return float(match.group(1).replace(',', '.')) / LENGTH_UNITS[unit][1]
