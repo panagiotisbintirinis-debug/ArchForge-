@@ -2662,7 +2662,15 @@ class PBRViewport(QWidget):
 
     def activate(self) -> None:
         """Lazily create the WebEngine surface only when the user opens this view."""
-        if self.web_view is not None or QWebEngineView is None:
+        if self.web_view is not None:
+            # Edits made while the plan was active redraw only the plan.  A
+            # WebEngine page opened before those edits still holds its old
+            # scene (possibly just the empty ground) until we refresh it.
+            # Keep the incremental scene diff and the user's orbit/zoom; when
+            # the previous scene was empty, fit the first actual building.
+            self.redraw(force_full=not bool(getattr(self, "_sent_scene", None)))
+            return
+        if QWebEngineView is None:
             return
         self._placeholder.hide()
         self.web_view = QWebEngineView(self)
