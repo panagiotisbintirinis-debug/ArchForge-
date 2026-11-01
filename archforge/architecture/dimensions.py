@@ -422,8 +422,8 @@ def drive(doc, z, d, value):
     wall at ``a`` moves instead.  ValueError when neither end is a wall face."""
     from archforge.architecture.wall_edit import MoveWall, wall_normal
     value = float(value)
-    if value < MIN_LENGTH / 5:
-        raise ValueError("η διάσταση πρέπει να είναι μεγαλύτερη από 1 cm")
+    if value < 0:
+        raise ValueError("η διάσταση δεν μπορεί να είναι αρνητικό μήκος")
     a, b = d["a"], d["b"]
     now = math.dist(a, b)
     if now < 1e-9:

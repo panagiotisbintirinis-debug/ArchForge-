@@ -229,6 +229,26 @@ class PlanView(QGraphicsView):
         self.controller.set_target(eid,None)
         self.selectionChangedByView.emit()
         return eid is not None
+    def show_wall_warnings(self, warnings):
+        """Briefly identify connections left intact but detached by a free move."""
+        entries=tuple(w for w in warnings if w.get('wall_id') in self.doc.entities)
+        if not entries:return False
+        self._wall_warnings=entries
+        token=object();self._wall_warning_token=token
+        self.redraw()
+        descriptions=[]
+        for warning in entries[:3]:
+            wall=self.doc.get(warning['wall_id']);p=wall.params
+            mx=(float(p['x1'])+float(p['x2']))/2;my=(float(p['y1'])+float(p['y2']))/2
+            descriptions.append(f'τοίχος X {mx:.2f}, Y {my:.2f}: {warning["reason"]}')
+        extra=f' (+{len(entries)-3} ακόμη)' if len(entries)>3 else ''
+        self.statusChanged.emit('⚠ Η μετακίνηση έγινε. Έλεγξε: '+' · '.join(descriptions)+extra)
+        from PySide6.QtCore import QTimer
+        def clear():
+            if getattr(self,'_wall_warning_token',None) is token:
+                self._wall_warnings=();self.redraw()
+        QTimer.singleShot(9000,clear)
+        return True
     def _acquire_stretch_target(self,hit):
         eid=self._entity_items.get(hit)
         self.doc.select([eid] if eid else [])
@@ -572,6 +592,7 @@ class PlanView(QGraphicsView):
                 ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
                 ev.ctrl=bool(event.modifiers()&Qt.KeyboardModifier.ControlModifier)
                 moved_wall=getattr(self.controller.active,'distance',None) if self.controller.preview.kind=='wall-move' else None
+                move_warnings=list(getattr(self.controller.active,'plan',{}).get('warnings',())) if moved_wall is not None else []
                 stretched=self.controller.active.eid if type(self.controller.active).__name__=='ConnectedWallEndpointStretchTransaction' else None
                 chain=self._wall_chain_active()
                 try:
@@ -594,6 +615,7 @@ class PlanView(QGraphicsView):
                     self.selectionChangedByView.emit()
                     if self.controller.preview.kind!='wall-move' and abs(moved_wall)>1e-9:
                         self.statusChanged.emit(f'Ο τοίχος μετακινήθηκε {moved_wall*100:+.0f} cm — μαζί οι ενωμένοι τοίχοι, πόρτες/παράθυρα και ό,τι ακουμπά πάνω του · Ctrl+Z = αναίρεση')
+                    self.show_wall_warnings(move_warnings)
                 return
         super().mouseReleaseEvent(event)
     def focusNextPrevChild(self,next):
@@ -1034,6 +1056,16 @@ class PlanView(QGraphicsView):
         if getattr(self,'dims_tool',None) is not None:self.dims_tool.paint(self)   # dimensions of a selected wall (wall_dims_tool.py)
         if getattr(self,'survey_tool',None) is not None:self.survey_tool.paint(self)   # corner numbers (survey_dialog.py)
         if getattr(self,'layer_highlight',None) is not None:self.layer_highlight.paint(self)   # picked wall layer (layer_pick.py)
+        if getattr(self,'_wall_warnings',None):
+            # A warning is not a veto.  Mark the exact wall in red for nine seconds;
+            # make the mark pick the same entity rather than intercepting selection.
+            pen=QPen(QColor(210,45,35));pen.setWidthF(.11);pen.setStyle(Qt.PenStyle.DashLine)
+            for warning in self._wall_warnings:
+                eid=warning.get('wall_id')
+                if eid not in self.doc.entities:continue
+                p=self.doc.get(eid).params
+                item=self._scene.addLine(float(p['x1']),float(p['y1']),float(p['x2']),float(p['y2']),pen)
+                item.setZValue(58);self._entity_items[item]=eid
         if self.carry is not None:self.carry.paint(self)
         if self.controller.preview.kind=='rotate' and self.controller.active is not None:self._draw_rotate_dial(self.controller.preview)
         draft=getattr(self,'plot_draft',None)

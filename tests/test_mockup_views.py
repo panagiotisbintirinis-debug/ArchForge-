@@ -164,7 +164,8 @@ def test_rendering_menu_sets_sun_and_sky(monkeypatch):
     assert labels[:5] == ['Πρωί (09:00)', 'Μεσημέρι (11:00)', 'Απόγευμα (17:00)', 'Δειλινό (19:00)', 'Χωρίς ουρανό (στούντιο)']
     next(a for a in window._mockup_sun_menu.actions() if a.text() == 'Πρωί (09:00)').trigger()
     el, az = window.pbr_view.sun_angles()
-    assert el > 20 and 60 < az < 130
+    # The 09:00 sun is lower in winter (e.g. below 20° in November).
+    assert el > 0 and 60 < az < 130
     next(a for a in window._mockup_sun_menu.actions() if a.text() == 'Χωρίς ουρανό (στούντιο)').trigger()
     assert window.pbr_view.sun_angles() is None
     monkeypatch.setattr(QInputDialog, 'getDouble', lambda *a, **k: (12.0, True))

@@ -185,7 +185,9 @@ def plan_move(doc, wid, distance):
     """What changes when wall ``wid`` moves ``distance`` m along ``wall_normal``.
 
     Returns ``{'walls': {id: {x1,y1,x2,y2}}, 'openings': {id: offset}, 'objects': {id: {x,y}}, 'run': [...]}``
-    or raises ValueError (Greek, for the status bar) when the move would break something.
+    Geometry that cannot follow the moved wall stays intact and is reported in
+    ``warnings``.  An explicit user move must not be cancelled merely because a
+    neighbour would become too short, reverse direction, or lose an opening.
     """
     w = doc.get(wid)
     if w.kind != 'wall':
@@ -195,9 +197,10 @@ def plan_move(doc, wid, distance):
     dx, dy = nx * float(distance), ny * float(distance)
     run = straight_run(doc, wid)
     others = [o for o in _walls(doc, z) if o.id not in run]
+    warnings = []
     for rid in run:
         if str(doc.get(rid).params.get('phase', 'new')) == 'existing':
-            raise ValueError('υφιστάμενος τοίχος (ανακαίνιση): δεν μετακινείται — σήμανέ τον «Καθαίρεση» και σχεδίασε νέο')
+            warnings.append({'wall_id': rid, 'reason': 'υφιστάμενος τοίχος (ανακαίνιση): μετακινήθηκε με εντολή χρήστη'})
         if doc.get(rid).locked:
             raise ValueError('ο τοίχος είναι κλειδωμένος')
     old = {o.id: _ends(o.params) for o in [doc.get(r) for r in run] + others}
@@ -241,8 +244,52 @@ def plan_move(doc, wid, distance):
             changed = True
         if changed:
             if str(o.params.get('phase', 'new')) == 'existing':
-                raise ValueError('ο τοίχος είναι ενωμένος με υφιστάμενο τοίχο (ανακαίνιση), που δεν αλλάζει μήκος')
-            new[o.id] = ends
+                warnings.append({'wall_id': o.id, 'reason': 'υφιστάμενος συνδεδεμένος τοίχος: έμεινε στη θέση του'})
+            elif o.locked:
+                warnings.append({'wall_id': o.id, 'reason': 'κλειδωμένος συνδεδεμένος τοίχος: έμεινε στη θέση του'})
+            else:
+                new[o.id] = ends
+
+    def invalid_change(eid, ends):
+        """Reason a proposed stretch cannot preserve a valid semantic wall."""
+        oa, ob = old[eid]
+        na, nb = ends
+        L0 = math.dist(oa, ob)
+        L1 = math.dist(na, nb)
+        if L0 <= 1e-9:
+            return 'μηδενικό αρχικό μήκος'
+        ux, uy = (ob[0] - oa[0]) / L0, (ob[1] - oa[1]) / L0
+        if L1 < MIN_PIECE or ((nb[0] - na[0]) * ux + (nb[1] - na[1]) * uy) <= 0:
+            return 'θα μηδενιζόταν ή θα αντιστρεφόταν'
+        along = (na[0] - oa[0] - (dx if eid in run else 0.0)) * ux + (na[1] - oa[1] - (dy if eid in run else 0.0)) * uy
+        for op in _openings(doc, eid):
+            off = float(op.params['offset']) - along
+            half = float(op.params['width']) / 2
+            if off - half < -1e-9 or off + half > L1 + 1e-9:
+                return f'{_label(op)} δεν θα χωρούσε στο νέο μήκος'
+        return None
+
+    # The dragged straight run remains one continuous run.  When its endpoint
+    # attachment cannot follow, move the whole run rigidly instead of blocking
+    # the user's gesture or creating a degenerate wall.
+    invalid_run = [(rid, invalid_change(rid, new[rid])) for rid in run]
+    if any(reason for _rid, reason in invalid_run):
+        for rid in run:
+            new[rid] = [(px + dx, py + dy) for px, py in old[rid]]
+        for rid, reason in invalid_run:
+            if reason:
+                warnings.append({'wall_id': rid, 'reason': f'η σύνδεση δεν ακολούθησε: {reason}'})
+
+    # A joined neighbour is never deleted, reversed or silently made too
+    # short.  If it cannot stretch, retain it and visibly report the detached
+    # connection.  Its hosted openings keep their semantic host and offsets.
+    for eid in tuple(new):
+        if eid in run:
+            continue
+        reason = invalid_change(eid, new[eid])
+        if reason:
+            del new[eid]
+            warnings.append({'wall_id': eid, 'reason': f'δεν ακολούθησε τη μετακίνηση: {reason}'})
 
     walls, openings = {}, {}
     for eid, (na, nb) in new.items():
@@ -250,16 +297,12 @@ def plan_move(doc, wid, distance):
         L0 = math.dist(oa, ob)
         L1 = math.dist(na, nb)
         ux, uy = (ob[0] - oa[0]) / L0, (ob[1] - oa[1]) / L0
-        if L1 < MIN_PIECE or ((nb[0] - na[0]) * ux + (nb[1] - na[1]) * uy) <= 0:
-            raise ValueError('η μετακίνηση μηδενίζει έναν συνδεδεμένο τοίχο — μικρότερη απόσταση')
         walls[eid] = {'x1': na[0], 'y1': na[1], 'x2': nb[0], 'y2': nb[1]}
         # Doors and windows keep their place on the wall (moved ones ride with it).
         along = (na[0] - oa[0] - (dx if eid in run else 0.0)) * ux + (na[1] - oa[1] - (dy if eid in run else 0.0)) * uy
         for op in _openings(doc, eid):
             off = float(op.params['offset']) - along
             half = float(op.params['width']) / 2
-            if off - half < -1e-9 or off + half > L1 + 1e-9:
-                raise ValueError(f'{_label(op)} δεν χωράει πια στον τοίχο που κονταίνει — μικρότερη απόσταση ή μετακίνησέ το πρώτα')
             if abs(along) > 1e-12:
                 openings[op.id] = off
 
@@ -275,7 +318,7 @@ def plan_move(doc, wid, distance):
             if _touches(e, ra, rb, float(doc.get(rid).params['thickness']) / 2):
                 objects[e.id] = {'x': float(e.params['x']) + dx, 'y': float(e.params['y']) + dy}
                 break
-    return {'walls': walls, 'openings': openings, 'objects': objects, 'run': run}
+    return {'walls': walls, 'openings': openings, 'objects': objects, 'run': run, 'warnings': warnings}
 
 
 class MoveWall(Command):
@@ -327,7 +370,7 @@ class WallMoveTransaction:
         self.normal = wall_normal(doc.get(eid).params)
         self.step = float(step)
         self.distance = 0.0
-        self.plan = {'walls': {}, 'openings': {}, 'objects': {}, 'run': [self.eid]}
+        self.plan = {'walls': {}, 'openings': {}, 'objects': {}, 'run': [self.eid], 'warnings': []}
         self.problem = None
         self.cancelled = False
 
@@ -372,7 +415,8 @@ class WallMoveTransaction:
         n = self.normal
         to = (mid[0] + n[0] * self.distance, mid[1] + n[1] * self.distance)
         return {'walls': walls, 'openings': openings, 'objects': objects, 'from': mid, 'to': to,
-                'distance': self.distance, 'problem': self.problem}
+                'distance': self.distance, 'problem': self.problem,
+                'warnings': list(self.plan.get('warnings', ()))}
 
     def commit(self):
         if self.cancelled:
