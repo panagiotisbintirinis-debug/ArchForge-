@@ -154,6 +154,46 @@ def _draw(name, p):
     elif name == "camera":
         p.drawRoundedRect(QRectF(4, 10, 18, 13), 2, 2)
         p.drawPolygon(QPolygonF([P(22, 14), P(29, 10), P(29, 23), P(22, 19)]))
+    elif name == "level":
+        p.setPen(_pen(ACCENT)); p.drawLine(P(4, 26), P(28, 26))
+        p.drawLine(P(4, 14), P(28, 14)); p.setPen(_pen(INK))
+        p.drawLine(P(16, 24), P(16, 17)); p.drawLine(P(12, 21), P(16, 17)); p.drawLine(P(20, 21), P(16, 17))
+        p.drawLine(P(26, 4), P(26, 11)); p.drawLine(P(22, 8), P(26, 4)); p.drawLine(P(30, 8), P(26, 4))
+    elif name == "plant":
+        p.setPen(_pen(WOOD, 2.8)); p.drawLine(P(16, 15), P(16, 29))
+        p.setBrush(QColor(88, 157, 95)); p.setPen(_pen(QColor(58, 120, 72), 1.6))
+        p.drawEllipse(QRectF(8, 5, 16, 15)); p.drawEllipse(QRectF(4, 12, 12, 10))
+        p.drawEllipse(QRectF(17, 12, 12, 10))
+    elif name == "water":
+        p.setPen(_pen(ACCENT, 1.8)); p.setBrush(QColor(193, 225, 254))
+        p.drawPolygon(QPolygonF([P(16, 3), P(8, 18), P(8, 23), P(12, 28), P(20, 28), P(24, 23), P(24, 18)]))
+        p.drawArc(QRectF(11, 15, 10, 10), 180 * 16, 90 * 16)
+    elif name == "power":
+        p.drawRoundedRect(QRectF(6, 5, 20, 23), 4, 4)
+        p.setPen(_pen(ACCENT, 2.8)); p.drawLine(P(12, 11), P(12, 18)); p.drawLine(P(20, 11), P(20, 18))
+        p.drawArc(QRectF(11, 18, 10, 7), 180 * 16, 180 * 16)
+    elif name == "pool":
+        p.setPen(_pen(ACCENT, 2)); p.drawRoundedRect(QRectF(4, 5, 24, 22), 2, 2)
+        for y in (13, 19):
+            p.drawPolyline(QPolygonF([P(7, y), P(12, y - 2), P(17, y), P(22, y - 2), P(26, y)]))
+    elif name == "road":
+        p.drawLine(P(10, 3), P(6, 29)); p.drawLine(P(22, 3), P(26, 29))
+        p.setPen(_pen(ACCENT, 1.8))
+        for y in (4, 12, 20):
+            p.drawLine(P(16, y), P(16, y + 4))
+    elif name == "lighting":
+        p.setPen(_pen(ACCENT)); p.drawEllipse(P(16, 12), 7, 7)
+        p.setPen(_pen()); p.drawLine(P(12, 21), P(20, 21)); p.drawLine(P(13, 25), P(19, 25))
+        for x1, y1, x2, y2 in ((16, 1, 16, 3), (3, 12, 6, 12), (26, 12, 29, 12),
+                                (6, 3, 9, 6), (26, 3, 23, 6)):
+            p.drawLine(P(x1, y1), P(x2, y2))
+    elif name in ("save", "undo"):
+        if name == "save":
+            p.drawRoundedRect(QRectF(5, 5, 22, 22), 2, 2)
+            p.drawRect(QRectF(10, 5, 12, 8)); p.setPen(_pen(ACCENT)); p.drawRect(QRectF(10, 19, 12, 8))
+        else:
+            p.setPen(_pen(ACCENT, 2.6)); p.drawArc(QRectF(8, 8, 20, 17), 280 * 16, 220 * 16)
+            p.drawLine(P(8, 9), P(8, 18)); p.drawLine(P(8, 9), P(17, 9))
     else:
         p.drawEllipse(P(16, 16), 9, 9)
 

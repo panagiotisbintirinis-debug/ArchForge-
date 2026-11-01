@@ -22,7 +22,7 @@ from PySide6.QtWidgets import QMenu, QToolButton
 
 ICON_SIZES = (("Μικρά", 16), ("Μεσαία", 20), ("Μεγάλα", 26))
 DEFAULTS = {"icon_size": 20, "text": True, "hidden": {}, "added": {}, "palette_cols": 5,
-            "personal_menus": [], "mouse_buttons": {}}
+            "personal_menus": [], "mouse_buttons": {}, "task_icons_seeded": False}
 SEP = " / "
 
 
@@ -70,7 +70,7 @@ def reset(window, settings=None):
     # A reset of *toolbar buttons* must never silently erase the user's
     # separately saved mouse task menus, physical bindings or personal menus.
     independent = {k: json.loads(json.dumps(prefs(window)[k])) for k in
-                   ("mouse", "personal_menus", "mouse_buttons") if k in prefs(window)}
+                   ("mouse", "personal_menus", "mouse_buttons", "task_icons_seeded") if k in prefs(window)}
     window._ui_prefs = json.loads(json.dumps(DEFAULTS))
     window._ui_prefs.update(independent)
     for target in _targets(window):

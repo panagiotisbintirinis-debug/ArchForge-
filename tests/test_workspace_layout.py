@@ -34,8 +34,12 @@ def _close(app, window):
 def test_every_bar_and_panel_moves_floats_and_closes_and_the_bottom_strip_is_gone():
     app, window = _window()
     bars = [b for b in window.findChildren(QToolBar) if b.isVisible()]
-    # Διάταξη 2 (owner 14/10): one row of tool groups; view settings sit on the drawing, not on a bar.
-    assert {b.windowTitle() for b in bars} == {'Επιλογή', 'Κατασκευή', 'Βιβλιοθήκη', 'Όροφος', 'Περιβάλλον'}
+    # The five original groups must remain; the optional, user-owned task icon
+    # row is now also a toolbar (without replacing or duplicating any group).
+    original_titles = {'Επιλογή', 'Κατασκευή', 'Βιβλιοθήκη', 'Όροφος', 'Περιβάλλον'}
+    assert original_titles <= {b.windowTitle() for b in bars}
+    assert all(b.objectName().startswith('personal_menu_') for b in bars
+               if b.windowTitle() not in original_titles)
     for bar in bars:
         assert bar.isMovable() and bar.isFloatable() and bar.allowedAreas() == Qt.ToolBarArea.AllToolBarAreas
     names = {d.objectName() for d in window.findChildren(QDockWidget)}

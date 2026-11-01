@@ -12,8 +12,8 @@ from uuid import uuid4
 from PySide6.QtCore import QEvent, QObject, QSize, QTimer, Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
-    QComboBox, QDialog, QDockWidget, QFileDialog, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
-    QListWidget, QMessageBox, QPushButton, QScrollArea, QSpinBox, QTabWidget,
+    QCheckBox, QComboBox, QDialog, QDockWidget, QFileDialog, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
+    QListWidget, QListWidgetItem, QMessageBox, QPushButton, QScrollArea, QSpinBox, QTabWidget,
     QToolBar, QToolButton, QVBoxLayout, QWidget,
 )
 
@@ -214,6 +214,8 @@ class PersonalMenus:
                 launcher.setParent(None)
                 launcher.deleteLater()
             if isinstance(bar, QToolBar):
+                if bar.property("personal_row_break"):
+                    self.window.removeToolBarBreak(bar)
                 self.window.removeToolBar(bar)
             elif isinstance(bar, QDockWidget):
                 if isinstance(bar, _FloatingMenu):
@@ -279,11 +281,12 @@ class PersonalMenus:
                 grid = QGridLayout(contents)
                 grid.setContentsMargins(6, 6, 6, 6)
                 columns = max(1, min(6, (width - 20) // max(84, size * 3)))
+                labels = bool(config.get("show_labels", True))
                 for index, path in enumerate(paths):
                     button = QToolButton(contents)
                     button.setDefaultAction(actions[path])
                     button.setIconSize(QSize(size, size))
-                    button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+                    button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon if labels else Qt.ToolButtonStyle.ToolButtonIconOnly)
                     grid.addWidget(button, index // columns, index % columns)
                 grid.setRowStretch((len(paths) + columns - 1) // columns, 1)
                 scroll = QScrollArea(bar)
@@ -303,10 +306,21 @@ class PersonalMenus:
                 bar.setMovable(True)
                 bar.setFloatable(True)
                 bar.setIconSize(QSize(size, size))
-                bar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+                bar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon if config.get("show_labels", True)
+                                       else Qt.ToolButtonStyle.ToolButtonIconOnly)
                 for path in paths:
                     bar.addAction(actions[path])
+                if not config.get("show_labels", True):
+                    for action in bar.actions():
+                        button = bar.widgetForAction(action)
+                        if button is not None:
+                            button.setToolTip(action.text())
                 self.window.addToolBar(Qt.ToolBarArea.TopToolBarArea, bar)
+                # The starter row is an actual second toolbar row, so the
+                # approved 1280px workspace never grows horizontally to fit it.
+                if ident == "starter_task_icons":
+                    self.window.insertToolBarBreak(bar)
+                    bar.setProperty("personal_row_break", True)
                 bar.show()
             self.surfaces[ident] = (bar, launcher)
 
@@ -346,6 +360,8 @@ class ControlCenter(QDialog):
         center.addWidget(QLabel("Μέγεθος εικονιδίων (px)"))
         self.size = QSpinBox(); self.size.setRange(16, 48); self.size.setSingleStep(4)
         center.addWidget(self.size)
+        self.show_labels = QCheckBox("Εμφάνιση ονόματος κάτω από τα εικονίδια")
+        center.addWidget(self.show_labels)
         center.addWidget(QLabel("Πλάτος / ύψος μενού (px)"))
         dimensions = QHBoxLayout(); center.addLayout(dimensions)
         self.width = QSpinBox(); self.width.setRange(120, 900); self.width.setSingleStep(20)
@@ -370,6 +386,7 @@ class ControlCenter(QDialog):
         self.name.editingFinished.connect(self._save_group)
         self.mode.currentIndexChanged.connect(self._save_group)
         self.size.valueChanged.connect(self._save_group)
+        self.show_labels.toggled.connect(self._save_group)
         self.width.valueChanged.connect(self._save_group)
         self.height.valueChanged.connect(self._save_group)
         mouse_page = QWidget(); tabs.addTab(mouse_page, "Κουμπιά ποντικιού")
@@ -445,28 +462,36 @@ class ControlCenter(QDialog):
     def _fill_catalog(self, *_):
         text = self.search.text().strip().lower()
         self.catalog.clear()
-        for path in sorted(_catalog(self.window)):
+        actions = _catalog(self.window)
+        for path in sorted(actions):
             if text in path.lower():
-                self.catalog.addItem(path)
+                item = QListWidgetItem(actions[path].icon(), path)
+                self.catalog.addItem(item)
 
     def _load_group(self, *_):
         conf = self._current()
-        for widget in (self.name, self.mode, self.size, self.width, self.height):
+        for widget in (self.name, self.mode, self.size, self.show_labels, self.width, self.height):
             widget.blockSignals(True)
         self.name.setEnabled(conf is not None)
         self.mode.setEnabled(conf is not None)
         self.size.setEnabled(conf is not None)
+        self.show_labels.setEnabled(conf is not None)
         self.width.setEnabled(conf is not None)
         self.height.setEnabled(conf is not None)
         self.name.setText(str(conf.get("title", "")) if conf else "")
         self.mode.setCurrentIndex(max(0, self.mode.findData(conf.get("mode", "docked")))) if conf else None
         self.size.setValue(int(conf.get("size", 24))) if conf else None
+        self.show_labels.setChecked(bool(conf.get("show_labels", True)) if conf else True)
         self.width.setValue(int(conf.get("width", 280))) if conf else None
         self.height.setValue(int(conf.get("height", 180))) if conf else None
         self.commands.clear()
         if conf:
-            self.commands.addItems(conf.get("commands", []))
-        for widget in (self.name, self.mode, self.size, self.width, self.height):
+            actions = _catalog(self.window)
+            for path in conf.get("commands", []):
+                resolved = _resolve_saved_path(self.window, path, actions)
+                item = QListWidgetItem(actions[resolved].icon(), path) if resolved else QListWidgetItem(path)
+                self.commands.addItem(item)
+        for widget in (self.name, self.mode, self.size, self.show_labels, self.width, self.height):
             widget.blockSignals(False)
 
     def _commit(self):
@@ -479,7 +504,7 @@ class ControlCenter(QDialog):
             return
         self.window._personal_menus.capture_positions()
         _menus(self.window).append({"id": uuid4().hex, "title": "Δικό μου μενού", "mode": "popup", "size": 24,
-                                    "width": 280, "height": 180, "commands": []})
+                                    "width": 280, "height": 180, "show_labels": True, "commands": []})
         self._fill_groups(len(_menus(self.window)) - 1)
         self._commit()
 
@@ -498,7 +523,7 @@ class ControlCenter(QDialog):
             return
         self.window._personal_menus.capture_positions()
         conf.update(title=self.name.text().strip() or "Δικό μου μενού",
-                    mode=self.mode.currentData(), size=self.size.value(),
+                    mode=self.mode.currentData(), size=self.size.value(), show_labels=self.show_labels.isChecked(),
                     width=self.width.value(), height=self.height.value())
         self.groups.currentItem().setText(conf["title"])
         self._commit()
@@ -595,6 +620,7 @@ class ControlCenter(QDialog):
                 conf = {"id": uuid4().hex, "title": str(raw.get("title") or "Δικό μου μενού")[:80],
                               "mode": raw.get("mode") if raw.get("mode") in ("docked", "popup", "floating") else "popup",
                               "size": max(16, min(48, int(raw.get("size", 24)))),
+                              "show_labels": bool(raw.get("show_labels", True)),
                               "width": max(120, min(900, int(raw.get("width", 280)))),
                               "height": max(80, min(750, int(raw.get("height", 180)))),
                               "commands": [p for p in raw.get("commands", [])[:MAX_COMMANDS]
