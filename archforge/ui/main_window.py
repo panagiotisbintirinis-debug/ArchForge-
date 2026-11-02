@@ -4235,7 +4235,32 @@ class MainWindow(QMainWindow):
     def _mark_clean(self):
         self._clean_state = copy.deepcopy(self._authoritative_state())
 
+    def _has_unfinished_editor_work(self):
+        """Transient plan geometry is visible but not yet in the saved Document."""
+        plan = getattr(self, 'plan_view', None)
+        if plan is None:
+            return False
+        if hasattr(plan, '_tool_idle'):
+            return not plan._tool_idle()
+        controller = getattr(plan, 'controller', None)
+        if controller is not None and getattr(controller, 'active', None) is not None:
+            return True
+        return any(getattr(plan, attr, None) is not None for attr in
+                   ('_slab_draft', '_railing_draft', 'plot_draft'))
+
+    def _warn_unfinished_editor_work(self):
+        message = ('Υπάρχει σχεδίαση ή μετακίνηση που δεν έχει ολοκληρωθεί και δεν έχει ακόμη '
+                   'καταχωριστεί στο έργο.\n\n'
+                   'Ολοκλήρωσέ την πρώτα (π.χ. Enter ή διπλό κλικ για τους τοίχους), '
+                   'έπειτα πάτησε ξανά Αποθήκευση.\n'
+                   'Το προηγούμενο αρχείο και η ανάκτηση δεν έχουν διαγραφεί.')
+        self.statusBar().showMessage('⚠ Ολοκλήρωσε την ενεργή σχεδίαση πριν αποθηκεύσεις', 8000)
+        QMessageBox.warning(self, 'Ενεργή σχεδίαση — δεν έγινε αποθήκευση', message)
+
     def _confirm_destructive_action(self):
+        if self._has_unfinished_editor_work():
+            self._warn_unfinished_editor_work()
+            return False
         if not self._is_dirty():
             return True
         choice = QMessageBox.warning(
@@ -4617,6 +4642,9 @@ class MainWindow(QMainWindow):
         return result
 
     def save(self):
+        if self._has_unfinished_editor_work():
+            self._warn_unfinished_editor_work()
+            return False
         path = self.current_path
         if not path:
             path, _ = QFileDialog.getSaveFileName(self, 'Save ArchForge Project', '', 'ArchForge Project (*.archforge)')

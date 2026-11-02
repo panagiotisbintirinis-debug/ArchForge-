@@ -4,8 +4,8 @@ from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QEvent, QPointF, QSettings, Qt
-from PySide6.QtGui import QAction, QMouseEvent
+from PySide6.QtCore import QEvent, QPoint, QPointF, QSettings, Qt
+from PySide6.QtGui import QAction, QMouseEvent, QWheelEvent
 from PySide6.QtWidgets import QApplication, QGraphicsView, QHBoxLayout, QMainWindow, QMenuBar, QWidget
 
 from archforge.ui import control_center, toolbar_custom
@@ -129,6 +129,9 @@ def test_3d_webgl_buttons_use_the_existing_menu_command():
         assert window.menuBar().actions()[0].menu().actions()[0] is action
         html = pbr_page_html()
         assert "afSetMouseButtons" in html and "bridge.runControlAction(press.path)" in html
+        assert 'String(event.button) + "_double"' in html
+        assert '"wheel_up" : "wheel_down"' in html
+        assert 'passive: false' in html
 
         class Page:
             def __init__(self):
@@ -139,9 +142,12 @@ def test_3d_webgl_buttons_use_the_existing_menu_command():
         page = Page()
         window.pbr_view = SimpleNamespace(web_view=SimpleNamespace(page=lambda: page))
         window.structural_view = SimpleNamespace(web_view=SimpleNamespace(page=lambda: page))
-        window._ui_prefs["mouse_buttons"] = {"3d": {"right": "Κατασκευή / Τοίχος"}}
+        window._ui_prefs["mouse_buttons"] = {"3d": {"right": "Κατασκευή / Τοίχος",
+                                                       "right_double": "Κατασκευή / Τοίχος",
+                                                       "wheel_down": "Κατασκευή / Τοίχος"}}
         control_center.push_3d_bindings(window)
         assert len(page.scripts) == 2 and '"2":' in page.scripts[0]
+        assert '"2_double":' in page.scripts[0] and '"wheel_down":' in page.scripts[0]
     finally:
         window.close()
         app.processEvents()
@@ -197,6 +203,96 @@ def test_mouse_button_assignment_dispatches_same_action_only_in_select_mode():
         assert not manager.eventFilter(pane, event(QEvent.Type.MouseButtonPress))
         assert fired == ["wall"]
         assert window.menuBar().actions()[0].menu().actions()[0] is action
+    finally:
+        window.close()
+        app.processEvents()
+
+
+def test_independent_double_click_wheel_and_saved_bindings(tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QFileDialog
+    app, window, action, fired = sample_window()
+    try:
+        view = QGraphicsView(window)
+        view.controller = SimpleNamespace(tool="select", active=None)
+        window.plan_view = view
+        window._ui_prefs["mouse_buttons"] = {"plan": {
+            "left_double": "Κατασκευή / Τοίχος", "wheel_up": "Κατασκευή / Τοίχος"}}
+        manager = control_center.MouseButtonDispatcher(window)
+        pane = view.viewport()
+
+        def click(kind):
+            return QMouseEvent(kind, QPointF(25, 25), QPointF(25, 25), QPointF(25, 25),
+                               Qt.MouseButton.LeftButton,
+                               Qt.MouseButton.LeftButton if kind != QEvent.Type.MouseButtonRelease
+                               else Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
+
+        assert not manager.eventFilter(pane, click(QEvent.Type.MouseButtonPress))
+        assert not manager.eventFilter(pane, click(QEvent.Type.MouseButtonRelease))
+        assert fired == []
+        assert manager.eventFilter(pane, click(QEvent.Type.MouseButtonDblClick))
+        assert manager.eventFilter(pane, click(QEvent.Type.MouseButtonRelease))
+        assert fired == ["wall"]
+        wheel = QWheelEvent(QPointF(20, 20), QPointF(20, 20), QPoint(), QPoint(0, 120),
+                            Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier,
+                            Qt.ScrollPhase.NoScrollPhase, False)
+        assert manager.eventFilter(pane, wheel)
+        assert manager.eventFilter(pane, wheel)
+        assert fired == ["wall", "wall"]  # burst executes only once
+        down = QWheelEvent(QPointF(20, 20), QPointF(20, 20), QPoint(), QPoint(0, -120),
+                           Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier,
+                           Qt.ScrollPhase.NoScrollPhase, False)
+        assert not manager.eventFilter(pane, down)  # native zoom remains
+        view.controller.tool = "wall"
+        assert not manager.eventFilter(pane, wheel)
+        view.controller.tool = "select"
+        window._personal_menus = control_center.PersonalMenus(window)
+        dialog = control_center.ControlCenter(window)
+        for key in ("left", "left_double", "right_double", "wheel_up", "wheel_down"):
+            assert ("plan", key) in dialog.bindings and ("3d", key) in dialog.bindings
+        dialog._bind("3d", "wheel_down", "Κατασκευή / Τοίχος")
+        path = str(tmp_path / "controls.json")
+        monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a: (path, "JSON (*.json)"))
+        monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *a: (path, "JSON (*.json)"))
+        dialog._export()
+        window._ui_prefs["mouse_buttons"] = {}
+        dialog._import()
+        assert window._ui_prefs["mouse_buttons"]["plan"]["left_double"] == "Κατασκευή / Τοίχος"
+        assert window._ui_prefs["mouse_buttons"]["3d"]["wheel_down"] == "Κατασκευή / Τοίχος"
+        dialog.accept()
+        assert window.menuBar().actions()[0].menu().actions()[0] is action
+    finally:
+        window.close()
+        app.processEvents()
+
+
+def test_mapped_single_and_double_do_not_both_fire():
+    app, window, _action, fired = sample_window()
+    try:
+        view = QGraphicsView(window)
+        view.controller = SimpleNamespace(tool="select", active=None)
+        window.plan_view = view
+        window._ui_prefs["mouse_buttons"] = {"plan": {
+            "left": "Κατασκευή / Τοίχος", "left_double": "Κατασκευή / Τοίχος"}}
+        manager = control_center.MouseButtonDispatcher(window)
+        pane = view.viewport()
+
+        def click(kind):
+            return QMouseEvent(kind, QPointF(25, 25), QPointF(25, 25), QPointF(25, 25),
+                               Qt.MouseButton.LeftButton,
+                               Qt.MouseButton.LeftButton if kind != QEvent.Type.MouseButtonRelease
+                               else Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
+
+        assert manager.eventFilter(pane, click(QEvent.Type.MouseButtonPress))
+        assert manager.eventFilter(pane, click(QEvent.Type.MouseButtonRelease))
+        assert fired == []
+        assert manager.eventFilter(pane, click(QEvent.Type.MouseButtonDblClick))
+        assert manager.eventFilter(pane, click(QEvent.Type.MouseButtonRelease))
+        assert fired == ["wall"] and manager._click_timers == {}
+        assert manager.eventFilter(pane, click(QEvent.Type.MouseButtonPress))
+        assert manager.eventFilter(pane, click(QEvent.Type.MouseButtonRelease))
+        for timer in list(manager._click_timers.values()):
+            timer.timeout.emit()
+        assert fired == ["wall", "wall"]
     finally:
         window.close()
         app.processEvents()

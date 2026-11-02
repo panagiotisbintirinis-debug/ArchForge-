@@ -94,6 +94,45 @@ def test_save_and_close_remove_recovery_and_keep_backups(data_dir):
     assert not os.path.exists(window.autosave.path + '.lock')
 
 
+def test_save_cannot_drop_active_wall_preview_or_overwrite_previous_file(data_dir, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+    window = _window()
+    path = str(data_dir / 'ΝΙΑΛΛ.archforge')
+    window.current_path = path
+    window.stack.execute(AddEntity(_wall(3.0)))
+    assert window.save()
+    before = open(path, 'rb').read()
+    window.stack.execute(AddEntity(_wall(5.0)))
+    assert window.autosave.save_now(wait=True)
+    notices = []
+    monkeypatch.setattr(QMessageBox, 'warning', lambda *args, **kwargs: notices.append(args[2]) or QMessageBox.StandardButton.Ok)
+    window.plan_view.controller.active = object()
+    window.save_action.trigger()
+    assert len(notices) == 1
+    assert not window.save()
+    assert open(path, 'rb').read() == before
+    assert os.path.exists(window.autosave.path)
+    assert not window._confirm_destructive_action()
+    assert len(notices) >= 3
+    window.plan_view.controller.active = None
+    assert window.save()
+    assert len(persistence.load_project(path).doc.entities) == 2
+    window.close()
+
+
+def test_work_menu_reveals_project_tree_without_mutating_document(data_dir):
+    window = _window()
+    original = window.doc.to_dict()
+    dock = next(d for d in window._approved_docks if d.objectName() == 'approved_project_library')
+    assert window._project_tree_action in window._work_menus['Έργο'].actions()
+    dock.hide()
+    window._project_tree_action.trigger()
+    assert not dock.isHidden()
+    assert window.project_tree.parentWidget().currentWidget() is window.project_tree
+    assert window.doc.to_dict() == original
+    window.close()
+
+
 def _crashed_session(data_dir, project_path):
     """A window that autosaved and then died without closing (lock released by the OS)."""
     window = _window()
