@@ -1590,9 +1590,14 @@ renderer.domElement.addEventListener("pointerup", (event) => {
 // handling is untouched.  A mapped button cannot also orbit/pan by dragging.
 let afButtonActions = {};
 let afButtonPress = null;
+let afSingleClickTimers = {};
+let afLastCommandWheel = -Infinity;
 window.afSetMouseButtons = function(bindings) {
   afButtonActions = bindings && typeof bindings === "object" ? bindings : {};
   afButtonPress = null;
+  Object.values(afSingleClickTimers).forEach(clearTimeout);
+  afSingleClickTimers = {};
+  afLastCommandWheel = -Infinity;
   controls.enabled = true;
 };
 renderer.domElement.addEventListener("pointerdown", (event) => {
@@ -1614,13 +1619,37 @@ renderer.domElement.addEventListener("pointerup", (event) => {
   const press = afButtonPress;
   afButtonPress = null;
   controls.enabled = true;
-  if (Math.hypot(event.clientX - press.x, event.clientY - press.y) <= 6)
-    bridge.runControlAction(press.path);
+  if (Math.hypot(event.clientX - press.x, event.clientY - press.y) <= 6) {
+    if (afButtonActions[String(event.button) + "_double"]) {
+      const key = String(event.button);
+      if (afSingleClickTimers[key]) clearTimeout(afSingleClickTimers[key]);
+      afSingleClickTimers[key] = setTimeout(() => {
+        delete afSingleClickTimers[key];
+        if (activeTool === "select" || activeTool === "orbit") bridge.runControlAction(press.path);
+      }, 450);
+    } else {
+      bridge.runControlAction(press.path);
+    }
+  }
   event.preventDefault();
   event.stopImmediatePropagation();
 }, true);
+renderer.domElement.addEventListener("wheel", (event) => {
+  if (!bridge || (activeTool !== "select" && activeTool !== "orbit") || walkMode || event.ctrlKey) return;
+  const delta = event.deltaY;
+  const path = afButtonActions[delta < 0 ? "wheel_up" : "wheel_down"];
+  if (!delta || !path) return;
+  const now = performance.now();
+  if (now - afLastCommandWheel >= 150) {
+    afLastCommandWheel = now;
+    bridge.runControlAction(path);
+  }
+  event.preventDefault();
+  event.stopImmediatePropagation();
+}, {capture: true, passive: false});
 renderer.domElement.addEventListener("contextmenu", (event) => {
-  if (!afButtonActions["2"] || (activeTool !== "select" && activeTool !== "orbit")) return;
+  if ((!afButtonActions["2"] && !afButtonActions["2_double"]) ||
+      (activeTool !== "select" && activeTool !== "orbit")) return;
   event.preventDefault();
   event.stopImmediatePropagation();
 }, true);
@@ -1629,6 +1658,8 @@ window.addEventListener("pointerup", () => {
 });
 window.addEventListener("blur", () => {
   if (afButtonPress) { afButtonPress = null; controls.enabled = true; }
+  Object.values(afSingleClickTimers).forEach(clearTimeout);
+  afSingleClickTimers = {};
 });
 
 renderer.domElement.addEventListener("pointerdown", (event) => {
@@ -1946,6 +1977,8 @@ renderer.domElement.addEventListener("pointerup", (event) => {
 }, true);
 
 renderer.domElement.addEventListener("dblclick", (event) => {
+  if (afButtonActions[String(event.button) + "_double"] &&
+      (activeTool === "select" || activeTool === "orbit")) return;
   if (!bridge || sculpting || stairing || ramping || movingEntity || rotatingEntity) return;
   if (activeTool === "door" || activeTool === "window" || activeTool === "opening_rect" || activeTool === "opening_arch" || activeTool === "sculpt" || activeTool === "stair" || activeTool === "ramp" || activeTool === "move" || activeTool === "rotate" || activeTool === "wall") return;
   const hit = pickForSelection(event);
@@ -1955,6 +1988,18 @@ renderer.domElement.addEventListener("dblclick", (event) => {
   else bridge.selectEntity(hit.object.userData.entityId || "");
   event.preventDefault();
   event.stopPropagation();
+}, true);
+
+renderer.domElement.addEventListener("dblclick", (event) => {
+  if (!bridge || (activeTool !== "select" && activeTool !== "orbit") || walkMode) return;
+  const path = afButtonActions[String(event.button) + "_double"];
+  if (!path) return;
+  const key = String(event.button);
+  if (afSingleClickTimers[key]) clearTimeout(afSingleClickTimers[key]);
+  delete afSingleClickTimers[key];
+  bridge.runControlAction(path);
+  event.preventDefault();
+  event.stopImmediatePropagation();
 }, true);
 
 renderer.domElement.addEventListener("contextmenu", (event) => {

@@ -7,12 +7,13 @@ marking menus.  The original work menus remain a complete recovery path.
 from __future__ import annotations
 
 import json
+import time
 from uuid import uuid4
 
 from PySide6.QtCore import QEvent, QObject, QSize, QTimer, Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QDialog, QDockWidget, QFileDialog, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
+    QApplication, QCheckBox, QComboBox, QDialog, QDockWidget, QFileDialog, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
     QListWidget, QListWidgetItem, QMessageBox, QPushButton, QScrollArea, QSpinBox, QTabWidget,
     QToolBar, QToolButton, QVBoxLayout, QWidget,
 )
@@ -25,6 +26,10 @@ BUTTONS = (("Αριστερό", Qt.MouseButton.LeftButton, "left"),
            ("Δεξί", Qt.MouseButton.RightButton, "right"),
            ("Πίσω (πλευρικό)", Qt.MouseButton.BackButton, "back"),
            ("Εμπρός (πλευρικό)", Qt.MouseButton.ForwardButton, "forward"))
+GESTURES = tuple((f"{title} — μονό κλικ", key) for title, _button, key in BUTTONS) + \
+           tuple((f"{title} — διπλό κλικ", key + "_double") for title, _button, key in BUTTONS) + \
+           (("Ροδέλα — προς τα πάνω", "wheel_up"), ("Ροδέλα — προς τα κάτω", "wheel_down"))
+GESTURE_KEYS = frozenset(key for _title, key in GESTURES)
 MAX_CUSTOM_MENUS = 20
 MAX_COMMANDS = 40
 
@@ -77,16 +82,21 @@ def _persist(window):
 
 
 def push_3d_bindings(window):
-    """Deliver user click assignments to both authoritative 3D WebGL views."""
+    """Deliver independent click, double-click and wheel assignments to both 3D views."""
     context = _buttons(window).get("3d", {})
     if not isinstance(context, dict):
         context = {}
     codes = {"left": "0", "middle": "1", "right": "2", "back": "3", "forward": "4"}
     payload = {}
     for key, code in codes.items():
+        for gesture, wire_key in ((key, code), (key + "_double", code + "_double")):
+            value = context.get(gesture)
+            if isinstance(value, str) and value:
+                payload[wire_key] = value
+    for key in ("wheel_up", "wheel_down"):
         value = context.get(key)
         if isinstance(value, str) and value:
-            payload[code] = value
+            payload[key] = value
     script = "if (window.afSetMouseButtons) window.afSetMouseButtons(" + json.dumps(payload) + ");"
     for name in ("pbr_view", "structural_view"):
         view = getattr(window, name, None)
@@ -124,7 +134,7 @@ class _FloatingMenu(QDockWidget):
 
 
 class MouseButtonDispatcher(QObject):
-    """Optional click-only assignments; untouched gestures use the native editor.
+    """Independent opt-in mouse gestures; untouched gestures use the native editor.
 
     A mapped click is emitted on release, so a drag cannot accidentally run a
     command.  It is active only while the Select tool is idle; drawing, sculpt,
@@ -136,6 +146,9 @@ class MouseButtonDispatcher(QObject):
         self.window = window
         self.views = {}
         self.pending = {}
+        self._click_timers = {}
+        self._skip_release = {}
+        self._last_wheel = {}
         self.suppress_context = set()
         self.available_paths = set(_catalog(window)) if _buttons(window) else set()
         for view, context in ((getattr(window, "plan_view", None), "plan"),
@@ -145,6 +158,45 @@ class MouseButtonDispatcher(QObject):
                 viewport = view.viewport()
                 self.views[viewport] = context
                 viewport.installEventFilter(self)
+
+    def _idle_select(self):
+        plan = getattr(self.window, "plan_view", None)
+        if plan is None or str(plan.controller.tool) != "select" or plan.controller.active is not None:
+            return False
+        sculpt = getattr(self.window, "sculpt_action", None)
+        return sculpt is None or not sculpt.isChecked()
+
+    def _run(self, path):
+        if path not in self.available_paths:
+            self.available_paths = set(_catalog(self.window))
+            if _resolve_saved_path(self.window, path) is None:
+                return False
+        from archforge.ui.mouse_menus import run_menu_path
+        return run_menu_path(self.window, path)
+
+    def _cancel_single(self, watched, button):
+        timer = self._click_timers.pop((watched, button), None)
+        if timer is not None:
+            timer.stop()
+            timer.deleteLater()
+
+    def _schedule_single(self, watched, button, path):
+        self._cancel_single(watched, button)
+        timer = QTimer(self)
+        timer.setSingleShot(True)
+        timer.setInterval(max(1, QApplication.doubleClickInterval()))
+
+        def fire():
+            slot = (watched, button)
+            if self._click_timers.get(slot) is timer:
+                self._click_timers.pop(slot, None)
+                if self._idle_select():
+                    self._run(path)
+            timer.deleteLater()
+
+        timer.timeout.connect(fire)
+        self._click_timers[(watched, button)] = timer
+        timer.start()
 
     def eventFilter(self, watched, event):
         # Qt can invoke event filters while QObject.__init__ is still running.
@@ -156,9 +208,50 @@ class MouseButtonDispatcher(QObject):
             self.suppress_context.discard(watched)
             event.accept()
             return True
+        if t == QEvent.Type.Wheel:
+            if not self._idle_select() or event.modifiers() != Qt.KeyboardModifier.NoModifier:
+                return False
+            delta = event.angleDelta().y() or event.pixelDelta().y()
+            if not delta:
+                return False
+            binding = _buttons(self.window).get(context, {})
+            path = binding.get("wheel_up" if delta > 0 else "wheel_down", "") if isinstance(binding, dict) else ""
+            if not path:
+                return False
+            slot = (watched, delta > 0)
+            now = time.monotonic()
+            if now - self._last_wheel.get(slot, float('-inf')) < 0.15:
+                event.accept()
+                return True
+            if not self._run(path):
+                return False
+            self._last_wheel[slot] = now
+            event.accept()
+            return True
         if t not in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonDblClick,
                      QEvent.Type.MouseMove, QEvent.Type.MouseButtonRelease):
             return False
+        if t == QEvent.Type.MouseButtonRelease and self._skip_release.get(watched) == event.button():
+            self._skip_release.pop(watched, None)
+            event.accept()
+            return True
+        if t == QEvent.Type.MouseButtonDblClick:
+            if not self._idle_select():
+                return False
+            binding = _buttons(self.window).get(context, {})
+            double = next((key + "_double" for _title, button, key in BUTTONS if button == event.button()), None)
+            path = binding.get(double, "") if double and isinstance(binding, dict) else ""
+            if not path:
+                return False
+            self._cancel_single(watched, event.button())
+            self.pending.pop(watched, None)
+            if not self._run(path):
+                return False
+            self._skip_release[watched] = event.button()
+            if event.button() == Qt.MouseButton.RightButton:
+                self.suppress_context.add(watched)
+            event.accept()
+            return True
         if t == QEvent.Type.MouseMove and watched in self.pending:
             # While a user-assigned click is pending, do not rotate or draw.
             event.accept()
@@ -167,18 +260,18 @@ class MouseButtonDispatcher(QObject):
             button, start, path = self.pending.pop(watched)
             if event.button() == button:
                 distance = (event.position() - start).manhattanLength()
-                if distance <= 8:
-                    from archforge.ui.mouse_menus import run_menu_path
-                    run_menu_path(self.window, path)
+                if distance <= 8 and self._idle_select():
+                    key = next((name for _title, b, name in BUTTONS if b == button), None)
+                    binding = _buttons(self.window).get(context, {})
+                    if key and isinstance(binding, dict) and binding.get(key + "_double"):
+                        self._schedule_single(watched, button, path)
+                    else:
+                        self._run(path)
                 event.accept()
                 return True
         if t != QEvent.Type.MouseButtonPress:
             return False
-        plan = getattr(self.window, "plan_view", None)
-        if plan is None or str(plan.controller.tool) != "select" or plan.controller.active is not None:
-            return False
-        sculpt = getattr(self.window, "sculpt_action", None)
-        if sculpt is not None and sculpt.isChecked():
+        if not self._idle_select():
             return False
         for _title, qt_button, key in BUTTONS:
             if event.button() != qt_button:
@@ -187,10 +280,8 @@ class MouseButtonDispatcher(QObject):
             path = context_bindings.get(key, "") if isinstance(context_bindings, dict) else ""
             if not path:
                 return False
-            if path not in self.available_paths:
-                self.available_paths = set(_catalog(self.window))
-                if _resolve_saved_path(self.window, path) is None:
-                    return False
+            if path not in self.available_paths and _resolve_saved_path(self.window, path) is None:
+                return False
             self.pending[watched] = (qt_button, event.position(), path)
             if qt_button == Qt.MouseButton.RightButton:
                 self.suppress_context.add(watched)
@@ -391,16 +482,24 @@ class ControlCenter(QDialog):
         self.height.valueChanged.connect(self._save_group)
         mouse_page = QWidget(); tabs.addTab(mouse_page, "Κουμπιά ποντικιού")
         mouse = QVBoxLayout(mouse_page)
-        mouse.addWidget(QLabel("Προαιρετική εντολή με κλικ (2D / 3D). Χωρίς ανάθεση, όλα τα κλικ και οι κινήσεις παραμένουν όπως είναι.\n"
-                               "Η ανάθεση αντικαθιστά και το σύρσιμο του αντίστοιχου κουμπιού.\n"
-                               "Ισχύει μόνο στην Επιλογή, ώστε να μη διακόπτει σχεδίαση ή Sculpt."))
+        mouse.addWidget(QLabel("Ξεχωριστή ανάθεση για μονό, διπλό κλικ και πάνω / κάτω της ροδέλας (2D και 3D).\n"
+                               "Χωρίς ανάθεση ισχύει η αρχική λειτουργία. Αν αναθέσεις μονό κλικ, το σύρσιμο του κουμπιού\n"
+                               "δεν εκτελείται. Οι αναθέσεις ισχύουν στην Επιλογή, όχι κατά τη σχεδίαση ή τη Γλυπτική."))
+        mouse_scroll = QScrollArea(mouse_page)
+        mouse_scroll.setWidgetResizable(True)
+        mouse.addWidget(mouse_scroll, 1)
+        mouse_content = QWidget()
+        mouse_scroll.setWidget(mouse_content)
+        mouse_rows = QVBoxLayout(mouse_content)
         self.bindings = {}
         available = sorted(_catalog(window))
         for context, caption in (("plan", "Κάτοψη 2D"), ("3d", "Προβολές 3D / Φέρων")):
-            mouse.addWidget(QLabel("<b>" + caption + "</b>"))
-            for title, _button, key in BUTTONS:
-                line = QHBoxLayout(); mouse.addLayout(line)
-                line.addWidget(QLabel(title))
+            mouse_rows.addWidget(QLabel("<b>" + caption + "</b>"))
+            for title, key in GESTURES:
+                line = QHBoxLayout(); mouse_rows.addLayout(line)
+                title_label = QLabel(title)
+                title_label.setMinimumWidth(230)
+                line.addWidget(title_label)
                 combo = QComboBox(); combo.addItem("Αρχική λειτουργία", "")
                 for path in available:
                     combo.addItem(path, path)
@@ -411,7 +510,7 @@ class ControlCenter(QDialog):
                 combo.currentIndexChanged.connect(lambda _i, c=context, b=key, w=combo: self._bind(c, b, w.currentData()))
                 line.addWidget(combo, 1)
                 self.bindings[(context, key)] = combo
-        mouse.addStretch(1)
+        mouse_rows.addStretch(1)
         existing = QWidget(); tabs.addTab(existing, "Υπάρχοντα εργαλεία")
         other = QVBoxLayout(existing)
         other.addWidget(QLabel("Οι υπάρχουσες ρυθμίσεις παραμένουν διαθέσιμες, με την ίδια συμπεριφορά."))
@@ -633,7 +732,7 @@ class ControlCenter(QDialog):
                 raw = data["mouse_buttons"].get(context, {})
                 if isinstance(raw, dict):
                     buttons[context] = {key: value for key, value in raw.items()
-                                        if key in {b[2] for b in BUTTONS}
+                                        if key in GESTURE_KEYS
                                         and _resolve_saved_path(self.window, value, valid) is not None}
             toolbar_custom.prefs(self.window)["personal_menus"] = menus
             toolbar_custom.prefs(self.window)["mouse_buttons"] = buttons
@@ -683,4 +782,24 @@ def install(window):
         section.addSeparator()
         section.addAction(action)
     window._control_center_action = action
+    project_dock = next((d for d in getattr(window, '_approved_docks', ())
+                         if d.objectName() == 'approved_project_library'), None)
+    project_menu = getattr(window, '_work_menus', {}).get('Έργο')
+    if project_dock is not None and project_menu is not None:
+        def reveal_tree():
+            project_dock.show()
+            project_dock.raise_()
+            tree = window.project_tree
+            parent = tree.parentWidget()
+            while parent is not None and not isinstance(parent, QTabWidget):
+                parent = parent.parentWidget()
+            if parent is not None:
+                parent.setCurrentWidget(tree)
+            tree.setFocus()
+
+        tree_action = QAction('Δέντρο έργου / εργασιών — εμφάνιση', window)
+        tree_action.triggered.connect(reveal_tree)
+        project_menu.addSeparator()
+        project_menu.addAction(tree_action)
+        window._project_tree_action = tree_action
     return action
