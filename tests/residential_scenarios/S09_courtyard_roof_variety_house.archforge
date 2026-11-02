@@ -557,7 +557,14 @@
         ],
         "z": 3.0,
         "closed": 0,
-        "height": 1.05
+        "height": 1.05,
+        "railing_type": "balusters",
+        "handrail": "square",
+        "handrail_size": 0.045,
+        "post_spacing": 1.2,
+        "gap": 0.1,
+        "base_height": 0.0,
+        "metal": "iron"
       },
       "name": "Balcony railing L1",
       "id": "s09-rail-1",
