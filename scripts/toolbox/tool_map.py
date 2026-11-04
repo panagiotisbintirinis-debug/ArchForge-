@@ -75,6 +75,7 @@ def collect(project=None):
             rows.append(p)
             LEAF[p] = path[-1]                      # a name may hold « / » itself (DXF / σημεία X Y Z)
             where.setdefault(id(action), []).append(p)
+    COMMANDS[:] = command_rows(w)
     groups = []
     for key, group in getattr(w, "_tool_groups", {}).items():
         for text, button in group.labelled_buttons():
@@ -156,6 +157,64 @@ def report(rows, where, groups):
     return "\n".join(out)
 
 
+COMMANDS = []
+
+
+def command_rows(w):
+    """Every command of the menu bar and of the first row, as the program shows it today: menu, section, name, what
+    it does (the hover card's text, ui/command_help.py), shortcut, and its icon as a PNG data URI."""
+    import base64
+    from PySide6.QtCore import QBuffer, QByteArray, QIODevice
+    from archforge.ui.command_help import describe
+    out, keep = [], []
+
+    def icon_uri(action):
+        if action.icon().isNull():
+            return ""
+        raw = QByteArray(); buf = QBuffer(raw); buf.open(QIODevice.OpenModeFlag.WriteOnly)
+        action.icon().pixmap(40, 40).save(buf, "PNG"); buf.close()
+        return "data:image/png;base64," + base64.b64encode(bytes(raw)).decode("ascii")
+
+    def walk(menu, path):
+        if not menu.actions():
+            menu.aboutToShow.emit()
+        for a in menu.actions():
+            if a.isSeparator() or not a.text():
+                continue
+            keep.append(a)
+            name = a.text().replace("&&", "&")
+            if a.menu() is not None:
+                walk(a.menu(), path + [name])
+            else:
+                out.append({"menu": path[0], "section": " ▸ ".join(path[1:]), "name": name, "help": describe(a),
+                            "shortcut": a.shortcut().toString(), "icon": icon_uri(a), "checkable": a.isCheckable()})
+    for top in w.menuBar().actions():
+        if top.menu() is not None:
+            walk(top.menu(), [top.text().replace("&&", "&")])
+    for a in getattr(w, "_quick_actions", ()):
+        out.append({"menu": "Πάντα ορατά", "section": "Πρώτη γραμμή", "name": a.text(), "help": describe(a),
+                    "shortcut": a.shortcut().toString(), "icon": icon_uri(a), "checkable": a.isCheckable()})
+    return out
+
+
+def commands_markdown(rows):
+    """``docs/ui/COMMANDS.md``: every command, grouped by menu and section."""
+    out = ["# Όλες οι εντολές του ArchForge", "",
+           f"{len(rows)} εντολές · {sum(bool(r['icon']) for r in rows)} με εικονίδιο · "
+           f"{sum(bool(r['help']) for r in rows)} με εξήγηση. Βγαίνει από το πρόγραμμα: "
+           "`python scripts/toolbox/tool_map.py --commands docs/ui/COMMANDS.md` (η εξήγηση = η κάρτα του ποντικιού).", ""]
+    menu = section = None
+    for r in rows:
+        if r["menu"] != menu:
+            menu, section = r["menu"], None
+            out += ["", f"## {menu}", ""]
+        if r["section"] != section:
+            section = r["section"]
+            out += ["", f"### {section or '(στο μενού)'}", "", "| Εντολή | Τι κάνει | Συντόμευση |", "|---|---|---|"]
+        out.append(f"| {r['name']} | {r['help'] or '—'} | {r['shortcut'] or ''} |")
+    return "\n".join(out) + "\n"
+
+
 def as_tree(rows):
     """``{home menu: {section: [command, …]}}`` — every command once, for mockups and tests of the new map."""
     tree = {}
@@ -170,11 +229,18 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--markdown")
     ap.add_argument("--json", help="write the new map as {menu: {section: [commands]}}")
+    ap.add_argument("--commands", help="write every command with what it does (docs/ui/COMMANDS.md)")
+    ap.add_argument("--commands-json", help="the same as JSON, with each icon as a PNG data URI (for pages)")
     args = ap.parse_args()
     collected = collect()
     if args.json:
         import json
         open(args.json, "w", encoding="utf-8").write(json.dumps(as_tree(collected[0]), ensure_ascii=False, indent=1))
+    if args.commands:
+        open(args.commands, "w", encoding="utf-8").write(commands_markdown(COMMANDS))
+    if args.commands_json:
+        import json
+        open(args.commands_json, "w", encoding="utf-8").write(json.dumps(COMMANDS, ensure_ascii=False))
     text = report(*collected)
     if args.markdown:
         open(args.markdown, "w", encoding="utf-8").write(text)
