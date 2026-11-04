@@ -21,26 +21,30 @@ import math
 AIR_HEAT = 0.34          # Wh/(m³·K): density × specific heat of air (physics, not a design choice)
 
 # Owner 28/10, DESIGN_DEFAULT: changed per project («περιθώριο αλλαγής»).
-ASSUMPTIONS = {
-    "heat_theta_int": (20.0, "°C", "Θερμοκρασία μέσα (άνεση)"),
-    "heat_theta_ext_winter": (12.0, "°C", "Θερμοκρασία έξω, χειμώνας"),
-    "heat_theta_ext_summer": (28.0, "°C", "Θερμοκρασία έξω, καλοκαίρι"),
-    "heat_air_changes": (0.5, "1/h", "Αλλαγές αέρα την ώρα"),
+from archforge.mep.design_climate import FIELDS as _CLIMATE
+
+# Temperatures and air changes: the project's design values (mep/design_climate.py, 04/11 — a preset with its source or
+# the user's own; nothing fixed). U values: on the heat source / connection point, as before.
+ASSUMPTIONS = {key: (default, unit, label) for key, (default, unit, label, _src) in _CLIMATE.items()}
+ASSUMPTIONS.update({
     "heat_u_openings": (None, "W/m²K", "U κουφωμάτων (από τον κατασκευαστή)"),
     "heat_u_walls": (None, "W/m²K", "U εξωτερικών τοίχων χωρίς σύνθεση"),
-}
-PROVENANCE = "DESIGN_DEFAULT — υπόθεση ιδιοκτήτη 28/10, αλλάζει ανά έργο· όχι μελέτη θέρμανσης (EN 12831-1 / ΚΕΝΑΚ)"
+})
+PROVENANCE = ("DESIGN_DEFAULT — θερμοκρασίες σχεδιασμού του έργου (αλλάζουν ανά έργο, Εγκαταστάσεις › Θέρμανση › "
+              "Θερμοκρασίες σχεδιασμού…)· όχι μελέτη θέρμανσης (EN 12831-1 / ΚΕΝΑΚ)")
 
 
 def assumptions(doc):
     """``{key: value}``: the values on the project's heat source / connection point, else the owner's defaults."""
+    from archforge.mep.design_climate import values
     from archforge.mep.heating_layout import source_of
     e = source_of(doc)
     stored = dict(e.params) if e is not None else {}
-    out = {}
+    out = dict(values(doc))                     # temperatures / air changes: the project's design values
     for key, (default, _unit, _label) in ASSUMPTIONS.items():
-        value = stored.get(key, default)
-        out[key] = None if value is None else float(value)
+        if key not in out:
+            value = stored.get(key, default)
+            out[key] = None if value is None else float(value)
     return out
 
 
@@ -110,7 +114,9 @@ def heat_load(doc, season="winter"):
     not_counted += ["οροφή / στέγη", "δάπεδο", "θερμογέφυρες"]
     parts = [("Εξωτερικοί τοίχοι", walls_w), ("Κουφώματα", openings_w), ("Αερισμός", vent_w)]
     watts = walls_w + openings_w + vent_w
+    from archforge.mep.design_climate import source_text
     return {"watts": round(watts), "kw": round(watts / 1000.0, 1), "delta_t": dt, "season": season,
+            "climate_source": source_text(doc),
             "volume_m3": round(volume, 1), "parts": [(n, round(v)) for n, v in parts],
             "not_counted": not_counted, "assumptions": a, "provenance": PROVENANCE}
 
@@ -125,7 +131,8 @@ def summary(result):
     outside = a["heat_theta_ext_winter"] if result["season"] == "winter" else a["heat_theta_ext_summer"]
     g = lambda v: f"{v:g}".replace(".", ",")
     return (f"Ενδεικτική ισχύς θέρμανσης ≈ {_gr(result['kw'])} kW (μέσα {g(a['heat_theta_int'])} °C, έξω {g(outside)} °C, "
-            f"ΔT {g(result['delta_t'])} K, {g(a['heat_air_changes'])} αλλαγές αέρα/ώρα) — υπόθεση, όχι μελέτη· "
+            f"ΔT {g(result['delta_t'])} K, {g(a['heat_air_changes'])} αλλαγές αέρα/ώρα· έξω: {result.get('climate_source', '')}) — "
+            f"υπόθεση, όχι μελέτη· οι θερμοκρασίες αλλάζουν: Θέρμανση › Θερμοκρασίες σχεδιασμού… · "
             f"δεν μετρήθηκαν: {'; '.join(result['not_counted'])}")
 
 

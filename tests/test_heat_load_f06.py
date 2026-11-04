@@ -28,19 +28,20 @@ def _box(wall_type='brick_double_insulated', window=True):
     return doc, stack
 
 
-def test_the_power_is_the_sum_of_walls_and_air_with_the_owner_assumptions():
+def test_the_power_is_the_sum_of_walls_and_air_with_the_project_design_values():
     from archforge.architecture.wall_types import indicative_u
     doc, _ = _box()
     r = H.heat_load(doc)
     u = indicative_u('brick_double_insulated')
-    dt = 20.0 - 12.0
+    dt = 20.0 - 0.0                     # default 04/11: design day Αθήνα · ζώνη Β, 0 °C (mep/design_climate.py)
     walls = (2 * (6 + 5) * 3.0 - 1.0) * u * dt                     # exterior wall faces on the axes, minus the window
     parts = dict(r['parts'])
     assert parts['Εξωτερικοί τοίχοι'] == pytest.approx(walls, abs=1)
     assert parts['Κουφώματα'] == 0                                  # no U given: not counted, said
     assert any('κουφώματα 1,0 m²' in n for n in r['not_counted'])
     assert parts['Αερισμός'] == pytest.approx(H.AIR_HEAT * 0.5 * r['volume_m3'] * dt, abs=1)
-    assert r['delta_t'] == 8.0 and 'υπόθεση, όχι μελέτη' in H.summary(r)
+    assert r['delta_t'] == 20.0 and 'υπόθεση, όχι μελέτη' in H.summary(r)
+    assert 'Αθήνα' in H.summary(r) and 'αλλάζουν' in H.summary(r)       # where the value comes from, and that it changes
     assert {'οροφή / στέγη', 'δάπεδο', 'θερμογέφυρες'} <= set(r['not_counted'])
 
 

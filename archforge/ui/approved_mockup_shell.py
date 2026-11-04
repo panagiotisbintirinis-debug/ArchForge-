@@ -466,6 +466,10 @@ def install_approved_mockup_shell(window):
     board=QAction("Πίνακας συλλεκτών θέρμανσης…",window)
     board.triggered.connect(lambda: __import__("archforge.ui.heating_board",fromlist=["show"]).show(window))
     heating.addAction(board)
+    # Θερμοκρασίες σχεδιασμού του έργου (04/11): όλες αλλάζουν, με την πηγή τους (mep/design_climate.py).
+    climate=QAction("Θερμοκρασίες σχεδιασμού…",window)
+    climate.triggered.connect(lambda: __import__("archforge.ui.design_climate_dialog",fromlist=["show"]).show(window))
+    heating.addAction(climate); window._design_climate_action=climate
     supplies=QAction("Παροχές ρεύματος θέρμανσης (αυτόματα)",window); supplies.triggered.connect(lambda: window._heating_supplies())
     heating.addAction(supplies); heating.addSeparator()
     for key,label in HEAT.items():
