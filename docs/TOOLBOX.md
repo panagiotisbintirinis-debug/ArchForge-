@@ -31,6 +31,7 @@
 
 | Εργαλείο | Τι κάνει | Εκτέλεση |
 |---|---|---|
+| `archforge/site/terrain_profiles.py` · `ui/terrain_profile.py` | Υψομετρικό προφίλ στις υπάρχουσες γραμμές τομής, προστασία source σημείων/σταθμών, χειρισμός design σημείων με ποντίκι/αριθμούς/μέση κλίση, ίδιο terrain και CommandStack. `docs/specs/terrain_elevation_profiles.md` για όρια/συμβόλαιο. | Στο παράθυρο Τομής: `Elevation profile…` · `tests/test_terrain_profiles.py` · API `profile` / `edit_control` / `edit_grade` / `remove_control` |
 | `scripts/user_drive/user.py` | Οδηγεί το ArchForge offscreen όπως ένας άνθρωπος: ribbon/μενού, κλικ στην κάτοψη, marking menu· μετρά βήματα, μαζεύει σημειώσεις τριβής (`U.notes`). | `from user import *` (δες `house.py`) |
 | `scripts/user_drive/core_check.py` | Ο πυρήνας με το ποντίκι όπως σχεδιάζει ο ιδιοκτήτης (κλικ λίγα εκ. δίπλα στις γωνίες). | `QT_QPA_PLATFORM=offscreen python scripts/user_drive/core_check.py` |
 | `scripts/user_drive/walls_check.py` | Τοίχοι από την όψη, κλείσιμο περιγράμματος στις 90°, οδηγοί (24/10). | ίδιο |
