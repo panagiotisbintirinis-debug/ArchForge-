@@ -148,6 +148,8 @@ class MainWindow(QMainWindow):
         task_icons.install(self)         # drawings on the original QActions + editable compact starter row
         from archforge.ui import control_center
         control_center.install(self)     # user-owned menu surfaces and mouse-button commands, same QAction identities
+        from archforge.ui.language import install_language_menu
+        install_language_menu(self)      # stable localization keys; the mockup's menu organization stays authoritative
         self._refresh_library_panel()
         if not os.environ.get('PYTEST_CURRENT_TEST'):
             # First run builds the shipped core library in the background.

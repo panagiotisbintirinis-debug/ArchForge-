@@ -27,6 +27,8 @@ jobs:
         run: python -m pytest -q -o faulthandler_timeout=300
       - name: Compile source
         run: python -m compileall -q archforge tests
+      - name: Validate language catalogs (structure and placeholders, not full UI coverage)
+        run: python scripts/toolbox/localization_audit.py
 
   agent-orchestration-tests:
     runs-on: ubuntu-latest
