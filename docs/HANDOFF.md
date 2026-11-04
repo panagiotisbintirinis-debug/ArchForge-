@@ -25,6 +25,8 @@
   πρόγραμμα, έξι προτάσεις. Καμία γραμμή κώδικα· περιμένει τον ιδιοκτήτη.
 - **Γλώσσα:** ο ιδιοκτήτης έδωσε στο GPT (04/11) να φτιάξει μεταφραστή όλου του προγράμματος στα αγγλικά. Πριν
   προστεθούν πολλά νέα κείμενα στο UI: δες πού καταλήγει ο μεταφραστής, ώστε τα κείμενα να μπαίνουν από ένα σημείο.
+- `tests/test_structural_graph.py` («κλείνει τη διεργασία» στις σημειώσεις από 29/10): το τελευταίο του τεστ έφτιαχνε
+  `MainWindow` χωρίς `QApplication` → το Qt τερμάτιζε το pytest. Διορθώθηκε (04/11), 13/13· δεν χρειάζεται πια εξαίρεση.
 - Τρέξιμο ελέγχων στο cloud: `apt-get install libegl1 libgl1 libxkbcommon0 libnss3 …` (χωρίς αυτά το PySide6 δεν
   φορτώνει), μετά `QTWEBENGINE_DISABLE_SANDBOX=1 QT_QPA_PLATFORM=offscreen python scripts/toolbox/menu_smoke.py
   --markdown docs/MENU_SMOKE_<ημ>.md` (φορτώνει το `tests/data/owner_111_two_storey.archforge`, ~2 λεπτά).
