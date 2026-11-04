@@ -162,7 +162,8 @@ class PlanView(QGraphicsView):
     TOOL_LABELS={'paint_material':'Πινέλο υλικού','select':'Επιλογή','wall':'Τοίχος','door':'Πόρτα','window':'Παράθυρο','opening_rect':'Άνοιγμα','stair':'Σκάλα',
                  'ramp':'Ράμπα','structural_column':'Κολόνα','structural_beam':'Δοκός','component':'Τοποθέτηση','move':'Μετακίνηση',
                  'rotate':'Περιστροφή','stretch':'Τέντωμα'}
-    def set_tool(self,tool):self.controller.set_tool(tool);self._active_handle=None;self._railing_draft=None;self._slab_draft=None;self.statusChanged.emit(f'Εργαλείο: {self.TOOL_LABELS.get(tool,tool)}');self.redraw()
+    TOOL_HINTS={'wall':'Τοίχος: κλικ στο πρώτο σημείο · μετά κλικ στην επόμενη γωνία ή γράψε μήκος (4,20 · 420 cm) + Enter · Tab = γωνία · F = πλευρά'}
+    def set_tool(self,tool):self.controller.set_tool(tool);self._active_handle=None;self._railing_draft=None;self._slab_draft=None;self._typed=None;self.statusChanged.emit(self.TOOL_HINTS.get(tool) or f'Εργαλείο: {self.TOOL_LABELS.get(tool,tool)}');self.redraw()
     # Grid lines on/off and the grid/snap step (Κάνναβος & έλξη bar): view state, not Document.
     def set_grid_visible(self,on):self._show_grid=bool(on);self.redraw()
     # Owner 22/10: «υποτίθεται ότι είχαμε αυτόματο σναπ … και εργαλείο να ρυθμίσουμε την απόσταση».  The snap
@@ -602,7 +603,7 @@ class PlanView(QGraphicsView):
                         # The outline closed (or a click twice on a corner): the walls are done — Επιλογή.
                         self.to_select('Τοίχοι: το περίγραμμα έκλεισε · Επιλογή · Ctrl+Z = αναίρεση του τελευταίου τοίχου')
                     elif self._wall_chain_active():
-                        self.statusChanged.emit('Τοίχος: κλικ στην επόμενη γωνία · κλικ στο πρώτο σημείο = κλείσιμο · διπλό κλικ / δεξί κλικ / Enter = τέλος · Esc = ακύρωση')
+                        self.statusChanged.emit('Τοίχος: κλικ στην επόμενη γωνία ή γράψε μήκος + Enter (Tab = γωνία) · κλικ στο πρώτο σημείο = κλείσιμο · διπλό κλικ / δεξί κλικ / Enter = τέλος · Esc = ακύρωση')
                 except ValueError as exc:self.statusChanged.emit(str(exc));self.controller.cancel()
                 self._active_handle=None
                 if getattr(self,'_restore_select',False):
@@ -622,6 +623,7 @@ class PlanView(QGraphicsView):
         # Tab cycles Stair/Ramp options instead of moving keyboard focus.
         if self.controller.tool in ('stair','ramp') and self.controller.active is not None:return False
         if str(self.controller.tool).startswith('layout_'):return False     # Tab = next layout variant
+        if self.controller.tool=='wall' and self._wall_chain_active():return False   # Tab = μήκος ↔ γωνία (typed_length)
         return super().focusNextPrevChild(next)
     def finish_plot(self):
         draft=getattr(self,'plot_draft',None) or []
@@ -640,6 +642,9 @@ class PlanView(QGraphicsView):
         # Drawing with any tool: Delete is the plan's own (what is under the mouse first), not the window's «delete selection».
         if event.type()==QEvent.Type.ShortcutOverride and event.key()==Qt.Key.Key_Delete and str(self.controller.tool)!='select':
             event.accept();return True
+        if event.type()==QEvent.Type.ShortcutOverride:
+            from archforge.ui import typed_length
+            if typed_length.wants_key(self,event):event.accept();return True
         return super().event(event)
     def keyPressEvent(self,event):
         if self.carry is not None and event.key() in (Qt.Key.Key_Escape,Qt.Key.Key_R):
@@ -647,6 +652,8 @@ class PlanView(QGraphicsView):
             else:self.carry=None;self.statusChanged.emit('Σύρσιμο ακυρώθηκε')
             self.redraw();event.accept();return
         if self._overlay('key',event):event.accept();return
+        from archforge.ui import typed_length
+        if typed_length.handle_key(self,event):event.accept();return   # μήκος / γωνία με το πληκτρολόγιο (Σ1, 04/11)
         if event.key()==Qt.Key.Key_Delete and str(self.controller.tool)!='select' and getattr(self,'marking_menu_window',None) is not None:
             # Owner 23/10 «το Delete να δουλεύει παντού»: while drawing, Delete removes what the mouse points at;
             # nothing there → the last wall drawn (owner 15/10) in the wall tool, else the selection.
