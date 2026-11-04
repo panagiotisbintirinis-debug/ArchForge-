@@ -162,3 +162,39 @@ def test_the_real_3d_page_sends_the_face_under_the_click():
     hits = {(json.loads(c[1])['entity_id'], json.loads(c[1])['surface_role']) for c in calls if c[0] == 'paintMaterial'}
     assert (wall.id, 'exterior') in hits or (wall.id, 'interior') in hits
     assert ('', '') in hits                                  # a click beside the wall paints nothing
+
+
+def test_eyedropper_takes_a_3d_face_material_then_paints_other_walls(window):
+    """Owner 04/11: «παίρνεις δείγμα υλικού από το 3Δ και το επιβάλλεις και σε άλλους τοίχους»."""
+    import json
+    from archforge.ui.material_brush import sample, start_pick
+    w = window
+    source = _wall(surface_materials={'exterior': 'stone_pelion'}); w.stack.execute(AddEntity(source))
+    other = _wall(y1=3.0, y2=3.0); w.stack.execute(AddEntity(other))
+    third = _wall(y1=6.0, y2=6.0); w.stack.execute(AddEntity(third))
+    dropper = w._eyedropper_action
+    assert dropper in w._work_sections[('Διαμόρφωση', 'Υλικά')].actions() and not dropper.icon().isNull()
+    assert w._mockup_brush_action in w._work_sections[('Διαμόρφωση', 'Υλικά')].actions()
+    dropper.trigger()
+    assert w.plan_view.controller.tool == TOOL and w.pbr_view.active_tool == TOOL
+    done = len(w.stack.done)
+    bridge = w.pbr_view.bridge
+    if bridge is None:
+        from archforge.ui.pbr_viewport import PBRInteractionBridge
+        bridge = PBRInteractionBridge(w.pbr_view)
+    bridge.paintMaterial(json.dumps({'entity_id': other.id, 'surface_role': 'top'}))     # nothing there: no pick
+    assert w._brush_picking and len(w.stack.done) == done
+    bridge.paintMaterial(json.dumps({'entity_id': source.id, 'surface_role': 'exterior'}))   # the sample
+    assert w._brush_material_id == 'stone_pelion' and len(w.stack.done) == done              # the pick changes nothing
+    bridge.paintMaterial(json.dumps({'entity_id': other.id, 'surface_role': 'exterior'}))
+    assert paint(w, third.id, 2.0, 6.05) == 'exterior'                                      # in the plan too
+    assert w.doc.get(other.id).params['surface_materials'] == {'exterior': 'stone_pelion'}
+    assert w.doc.get(third.id).params['surface_materials'] == {'exterior': 'stone_pelion'}
+    assert len(w.stack.done) == done + 2
+    w.stack.undo()
+    assert not w.doc.get(third.id).params.get('surface_materials')
+    # A wall with a build-up and no material of its own gives its finishing layer's look.
+    typed = _wall(y1=9.0, y2=9.0, wall_type='brick_double_insulated', thickness=0.27); w.stack.execute(AddEntity(typed))
+    assert sample(w, w.doc.get(typed.id), 'exterior') is not None
+    start_pick(w)
+    assert paint(w, typed.id, 2.0, 9.05) is None and w._brush_material_id == sample(w, w.doc.get(typed.id), 'exterior')

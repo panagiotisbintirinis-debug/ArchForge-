@@ -6,6 +6,10 @@ undo per click — until Esc.  In 3D the exact face clicked (a wall's side or to
 tread, a slab edge) gets the material; in the plan a wall gets the side on the clicked half, anything else all of it.
 Each click goes through ``material_library._apply_material``, the same command the browser's «Εφαρμογή υλικού» runs:
 no second material path.  It is not Sculpt: Sculpt changes the shape, the brush only the finish.
+
+«Σταγονόμετρο» (owner 04/11: «παίρνεις δείγμα υλικού από το 3Δ και το επιβάλλεις και σε άλλους τοίχους»): the
+same tool, but the first click *takes* the material of the face it hits (its own material, or the finishing layer
+of the wall's build-up) and loads it into the brush; every later click paints it.  Nothing is changed by the pick.
 """
 from __future__ import annotations
 
@@ -40,6 +44,57 @@ def wall_side_role(wall, x, y):
     return 'exterior' if (x - mx) * ax + (y - my) * ay >= 0 else 'interior'
 
 
+def start_pick(window):
+    """«Σταγονόμετρο»: the next click (3D face or plan object) takes its material; then the brush paints with it."""
+    window._brush_picking = True
+    window._brush_material_id = None
+    window.plan_view.controller.set_tool(TOOL)
+    pbr = getattr(window, 'pbr_view', None)
+    if pbr is not None:
+        pbr.set_tool(TOOL)
+    window.statusBar().showMessage("Σταγονόμετρο: κλικ στην επιφάνεια που έχει το υλικό που θέλεις (3D ή κάτοψη) — "
+                                   "μετά κάθε κλικ βάφει με αυτό · Esc για τέλος", 10000)
+    return True
+
+
+def sample(window, entity, role):
+    """The material a face shows: its own (per face, then the whole object's), else on a wall the finishing layer of
+    its build-up on that side (construction/building_materials.py ``appearance``).  None when it has none."""
+    p = entity.params
+    surfaces = p.get('surface_materials') or {}
+    if role and isinstance(surfaces, dict) and surfaces.get(role):
+        return str(surfaces[role])
+    if p.get('material_id'):
+        return str(p['material_id'])
+    if entity.kind == 'wall' and role in ('exterior', 'interior'):
+        from archforge.architecture.wall_face import outside_sign
+        from archforge.architecture.wall_types import layer_materials
+        mats = layer_materials(p.get('wall_type', 'generic'), window.doc)
+        if mats:
+            outer_first = outside_sign(window.doc, entity.id) >= 0
+            mat = mats[0][0] if (role == 'exterior') == outer_first else mats[-1][0]
+            return getattr(mat, 'appearance', None)
+    return None
+
+
+def _pick(window, entity_id, role_of):
+    """The pick click: load the brush with the clicked face's material. Returns the material id or None."""
+    if not entity_id or entity_id not in window.doc.entities:
+        window.statusBar().showMessage('Σταγονόμετρο: κλικ πάνω σε τοίχο ή αντικείμενο — Esc για τέλος', 4000)
+        return None
+    entity = window.doc.get(entity_id)
+    material_id = sample(window, entity, role_of(entity))
+    if not material_id:
+        window.statusBar().showMessage(f'Σταγονόμετρο: «{entity.name or entity.kind}» δεν έχει υλικό εδώ — '
+                                       'κλικ σε άλλη επιφάνεια', 5000)
+        return None
+    window._brush_picking = False
+    window._brush_material_id = material_id
+    window.statusBar().showMessage(f"Σταγονόμετρο: πήρες «{_name(window, material_id)}» — κλικ σε όποιους τοίχους / "
+                                   "επιφάνειες θέλεις να το βάλεις · Esc για τέλος", 8000)
+    return material_id
+
+
 def start(window, material_id=None):
     """Choose the material in the Library (or take ``material_id``), then the plan paints on click. False = cancelled."""
     if material_id is None:
@@ -51,6 +106,7 @@ def start(window, material_id=None):
             return False
         material_id = dialog.selected_material_id
     window._brush_material_id = str(material_id)
+    window._brush_picking = False
     # Both views paint, whichever the human is looking at (no jump to the plan).
     window.plan_view.controller.set_tool(TOOL)
     pbr = getattr(window, 'pbr_view', None)
@@ -75,6 +131,9 @@ def end(window, quiet=False):
 
 def paint(window, entity_id, x, y):
     """Plan click: paint what was clicked — one undo. Returns the role painted ('' = whole) or None."""
+    if getattr(window, '_brush_picking', False):
+        _pick(window, entity_id, lambda e: wall_side_role(e, x, y) if e.kind == 'wall' else '')
+        return None
     entity = _paintable(window, entity_id)
     if entity is None:
         return None
@@ -83,6 +142,9 @@ def paint(window, entity_id, x, y):
 
 def paint_surface(window, entity_id, surface_role):
     """3D click on the face ``surface_role`` of ``entity_id`` — one undo. Returns the role painted or None."""
+    if getattr(window, '_brush_picking', False):
+        _pick(window, entity_id, lambda e: str(surface_role or ''))
+        return None
     entity = _paintable(window, entity_id)
     if entity is None:
         return None

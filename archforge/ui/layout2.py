@@ -350,6 +350,9 @@ def _install_groups(window):
     brush = getattr(window, "_mockup_brush_action", None)        # «Πινέλο» υλικού (owner 28/10)
     if brush is not None:
         window._layout2_brush_button = lib.add(brush)
+    dropper = getattr(window, "_eyedropper_action", None)       # «Σταγονόμετρο»: sample a face, then the brush
+    if dropper is not None:
+        window._layout2_dropper_button = lib.add(dropper)
     groups["library"] = lib
 
     storeys = _sub(build, "Όροφοι")

@@ -97,6 +97,12 @@ def _draw(name, p):
         for x in (8, 16, 24):
             p.drawLine(P(x, 6), P(x, 12))
         p.setPen(_pen(ACCENT, 2.4)); p.drawLine(P(4, 13), P(28, 13))
+    elif name == "dropper":
+        # Eyedropper: a pipette, its drop the sampled colour.
+        p.setPen(_pen(INK, 2.2)); p.drawLine(P(10, 22), P(22, 10))
+        p.setBrush(QColor(200, 210, 224)); p.drawRoundedRect(QRectF(20, 4, 8, 8), 2, 2)
+        p.setBrush(ACCENT); p.setPen(_pen(ACCENT, 1.2))
+        p.drawPolygon(QPolygonF([P(7, 22), P(10, 26), P(7, 30), P(4, 26)]))
     elif name == "more":
         p.setBrush(INK)
         for x in (8, 16, 24):

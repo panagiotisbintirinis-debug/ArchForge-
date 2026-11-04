@@ -239,6 +239,18 @@ def organize_main_menus(window):
         if not mats.actions() and hasattr(window, "_open_selected_materials"):
             mats.addAction(_action(window, "Υλικό στο επιλεγμένο…", window._open_selected_materials))
         mats.setTitle("Υλικά")
+        # Πινέλο and Σταγονόμετρο (material_brush.py): one material on many surfaces — chosen, or sampled from one.
+        from archforge.ui import material_brush
+        brush = getattr(window, "_mockup_brush_action", None)
+        if brush is not None:
+            mats.addAction(brush)
+        dropper = _action(window, "Σταγονόμετρο (δείγμα υλικού → πινέλο)", lambda: material_brush.start_pick(window),
+                          "Κλικ σε επιφάνεια στο 3D ή στην κάτοψη: παίρνει το υλικό της · μετά κάθε κλικ το βάζει "
+                          "σε άλλους τοίχους / επιφάνειες (μία αναίρεση ανά κλικ) · Esc = τέλος")
+        from archforge.ui.menu_icons import icon as _drawn
+        dropper.setIcon(_drawn("dropper"))
+        mats.addAction(dropper)
+        window._eyedropper_action = dropper
         library.addMenu(mats)
         window._library_materials_menu = mats
         _tidy(library)
