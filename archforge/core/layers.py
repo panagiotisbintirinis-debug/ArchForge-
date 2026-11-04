@@ -41,6 +41,8 @@ LAYERS = {
     'ventilation': 'Εξαερισμοί',
     'heating': 'Θέρμανση',
     'dimensions': 'Διαστάσεις',
+    'drafting': 'Γραμμές σχεδίασης (CAD)',
+    'notes': 'Σημειώσεις',
     'site': 'Οικόπεδο / έδαφος',
     'underlay': 'Υπόβαθρο κάτω ορόφου',
     'cameras': 'Κάμερες',
@@ -69,6 +71,7 @@ KIND_LAYERS = {
     'terrain': 'site', 'plant': 'site', 'site_path': 'site', 'pool': 'site',
     'camera': 'cameras',
     'dimension': 'dimensions', 'auto_dimensions': 'dimensions',
+    'cad_line': 'drafting', 'cad_circle': 'drafting', 'cad_arc': 'drafting', 'note': 'notes',
 }
 
 # Derived plan primitives: the role decides (a label of a column is a «label», a footing is «foundation»).
@@ -91,6 +94,7 @@ ROLE_LAYERS = {
     'floor-underlay': 'underlay',
     'worktop': 'kitchen', 'worktop-cutout': 'kitchen', 'sink-symbol': 'kitchen', 'hob-symbol': 'kitchen', 'hood': 'kitchen',
     'camera': 'cameras', 'camera-cone': 'cameras', 'camera-label': 'cameras',
+    'cad-line': 'drafting', 'note': 'notes', 'note-leader': 'notes',
 }
 # Live feedback of the tool in hand is never filtered.
 UNLAYERED_ROLES = ('preview', 'wall-move-arrow', 'wall-move-label', 'wall-move-opening', 'angle-arc', 'angle-label')

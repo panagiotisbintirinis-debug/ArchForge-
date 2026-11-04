@@ -140,6 +140,8 @@ class MainWindow(QMainWindow):
         dimension_tool.install(self)     # CAD ▸ Διαστάσεις: tape (Μεζούρα) + automatic exterior / interior
         from archforge.ui import corner_tool
         corner_tool.install(self)        # Επεξεργασία ▸ Γωνία: two walls meet in a corner (Revit Trim/Extend)
+        from archforge.ui import drafting_tool
+        drafting_tool.install(self)      # Σχέδια ▸ Σχεδίαση CAD / Σημειώσεις: lines, circles, arcs, notes in the plan
         from archforge.ui.main_menus import organize_work_menus
         organize_work_menus(self)        # the work menus of mockup v4 (owner 30/10): last, moves every command home
         from archforge.ui import storey_settings

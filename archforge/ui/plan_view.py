@@ -269,7 +269,7 @@ class PlanView(QGraphicsView):
     def _overlay(self,kind,event):
         # Overlay tool (the assistant's kitchen/bath guide lines, fixture drag): gets the mouse first.
         # The camera tool (ui/camera_tool.py: place / move / turn a camera) comes first.
-        return any(tool is not None and bool(tool.handle(self,kind,event)) for tool in (getattr(self,'corner_tool',None),getattr(self,'tape_tool',None),getattr(self,'pool_tool',None),getattr(self,'curved_wall_tool',None),getattr(self,'terrain_tool',None),getattr(self,'camera_tool',None),getattr(self,'overlay_tool',None),getattr(self,'dims_tool',None)))
+        return any(tool is not None and bool(tool.handle(self,kind,event)) for tool in (getattr(self,'corner_tool',None),getattr(self,'tape_tool',None),getattr(self,'pool_tool',None),getattr(self,'curved_wall_tool',None),getattr(self,'terrain_tool',None),getattr(self,'camera_tool',None),getattr(self,'overlay_tool',None),getattr(self,'dims_tool',None),getattr(self,'drafting_tool',None)))
     CLICK_PX=8   # press → release within this many screen pixels is a click, not a drag
     def _wall_chain_active(self):
         return getattr(self.controller,'wall_chain',None) is not None and self.controller.active is not None
@@ -1052,6 +1052,7 @@ class PlanView(QGraphicsView):
         if getattr(self,'curved_wall_tool',None) is not None:self.curved_wall_tool.paint(self)
         if getattr(self,'camera_tool',None) is not None:self.camera_tool.paint(self)
         if getattr(self,'tape_tool',None) is not None:self.tape_tool.paint(self)   # Μεζούρα (dimension_tool.py)
+        if getattr(self,'drafting_tool',None) is not None:self.drafting_tool.paint(self)   # CAD lines, notes (drafting_tool.py)
         if getattr(self,'corner_tool',None) is not None:self.corner_tool.paint(self)   # Γωνία (corner_tool.py)
         if getattr(self,'dims_tool',None) is not None:self.dims_tool.paint(self)   # dimensions of a selected wall (wall_dims_tool.py)
         if getattr(self,'survey_tool',None) is not None:self.survey_tool.paint(self)   # corner numbers (survey_dialog.py)
@@ -1139,6 +1140,11 @@ class PlanView(QGraphicsView):
         if p.role in ('pipe-cold','pipe-hot'):
             pen=QPen(QColor(31,111,209) if p.role=='pipe-cold' else QColor(209,48,31))
             pen.setWidthF(.035 if dict(p.meta).get('diameter',16)>=20 else .02)
+        if p.role in ('cad-line','note-leader'):
+            # CAD drafting and note arrows (architecture/drafting.py): dark ink, the line style of the drawing.
+            sel=p.entity_id in (self.doc.selection or ());pen=QPen(QColor(20,110,220) if sel else QColor(35,40,50))
+            pen.setWidthF(.02 if sel else .012)
+            pen.setStyle({'dashed':Qt.PenStyle.DashLine,'dotted':Qt.PenStyle.DotLine}.get(str(dict(p.meta).get('line_style')),Qt.PenStyle.SolidLine))
         if p.role=='dimension':
             # Dimensions (architecture/dimensions.py): blue, the ticks and extension lines thinner.
             sel=p.entity_id in (self.doc.selection or ());pen=QPen(QColor(20,110,220) if sel else QColor(30,90,170))
@@ -1297,6 +1303,12 @@ class PlanView(QGraphicsView):
             if p.role=='derived-room-label' and meta.get('signature'):
                 self._room_label_items[item]=meta['signature']       # double click on it: the room's name
             item.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations,True);item.setPos(cx,cy);item.setTransformOriginPoint(item.boundingRect().center());item.setScale(1.0);item.setZValue(8);
+            if p.role=='note':
+                # A note (architecture/drafting.py): dark, a little bigger; picked and double-clicked like a drawing.
+                f=item.font();f.setPointSizeF(f.pointSizeF()*1.1);item.setFont(f)
+                sel=p.entity_id in (self.doc.selection or ())
+                item.setDefaultTextColor(QColor(20,110,220) if sel else QColor(35,40,50))
+                if p.entity_id:self._entity_items[item]=p.entity_id
             if p.role=='dimension-label':
                 # Along its dimension line, just above it (screen y is the plan's −y, so the angle turns over).
                 from PySide6.QtGui import QTransform

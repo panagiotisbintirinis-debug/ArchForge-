@@ -680,6 +680,16 @@ def _id_list(v):
     return list(dict.fromkeys(str(i) for i in v))
 
 
+def _draft_points(v):
+    from archforge.architecture.drafting import points2
+    return points2(v)
+
+
+def _note_text(v):
+    from archforge.architecture.drafting import note_text
+    return note_text(v)
+
+
 def _between(lo, hi, label):
     def check(v):
         v = _finite(v)
@@ -976,6 +986,16 @@ SCHEMAS = {
     # Dimensions (architecture/dimensions.py): a tape-measured one, and a storey's automatic ones (read from the walls).
     'dimension': {'x1': _finite, 'y1': _finite, 'x2': _finite, 'y2': _finite, 'level_z': _finite, 'offset': _finite},
     'auto_dimensions': {'level_z': _finite, 'exterior': _flag, 'interior': _flag},
+    # Simple CAD drafting and notes in the plan (architecture/drafting.py): drawn, printed, never built.
+    'cad_line': {'points': _draft_points,
+                 'closed': _flag, 'level_z': _finite, 'line_style': _choice(('solid', 'dashed', 'dotted'), 'line style')},
+    'cad_circle': {'cx': _finite, 'cy': _finite, 'r': _positive, 'level_z': _finite,
+                   'line_style': _choice(('solid', 'dashed', 'dotted'), 'line style')},
+    'cad_arc': {'cx': _finite, 'cy': _finite, 'r': _positive, 'a0': _finite, 'a1': _finite, 'level_z': _finite,
+                'line_style': _choice(('solid', 'dashed', 'dotted'), 'line style')},
+    'note': {'x': _finite, 'y': _finite, 'level_z': _finite, 'size': _between(0.02, 5.0, 'text height'),
+             'text': _note_text,
+             'leader_x': _finite, 'leader_y': _finite, 'line_style': _choice(('solid', 'dashed', 'dotted'), 'line style')},
     # Saved camera (core/cameras.py): a view preference, never building geometry.
     'camera': {'x': _finite, 'y': _finite, 'level_z': _finite, 'height': _between(0.05, 50.0, 'eye height'),
                'heading': _finite, 'pitch': _between(-80.0, 80.0, 'camera pitch'),

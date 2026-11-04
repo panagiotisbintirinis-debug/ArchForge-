@@ -148,6 +148,12 @@ class MoveEntities(Command):
             elif e.kind in ('stair','ramp'):
                 doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy})
             elif e.kind=='dimension':doc.update(i,{'x1':p['x1']+self.dx,'x2':p['x2']+self.dx,'y1':p['y1']+self.dy,'y2':p['y2']+self.dy})
+            elif e.kind=='cad_line':doc.update(i,{'points':[[x+self.dx,y+self.dy] for x,y in p['points']]})   # architecture/drafting.py
+            elif e.kind in ('cad_circle','cad_arc'):doc.update(i,{'cx':p['cx']+self.dx,'cy':p['cy']+self.dy})
+            elif e.kind=='note':
+                changes={'x':p['x']+self.dx,'y':p['y']+self.dy}
+                if 'leader_x' in p:changes.update(leader_x=p['leader_x']+self.dx,leader_y=p['leader_y']+self.dy)
+                doc.update(i,changes)
         # Compatibility only: modern UV/local attachments are immutable semantic intent.
         # Old project files may still contain world-only sculpt centers, so translate those
         # until they can be migrated to an intrinsic surface frame.

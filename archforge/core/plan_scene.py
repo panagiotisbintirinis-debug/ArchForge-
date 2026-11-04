@@ -121,7 +121,7 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
     """Keep FLOOR PLAN focused on the active storey while 3D remains whole-building."""
     z=float(doc.work_plane.origin[2]);p=e.params
     if e.kind=='section_line':return True          # a section cuts every storey
-    if e.kind in ('camera','dimension','auto_dimensions'):return abs(float(p.get('level_z',0.0))-z)<=tolerance
+    if e.kind in ('camera','dimension','auto_dimensions','cad_line','cad_circle','cad_arc','note'):return abs(float(p.get('level_z',0.0))-z)<=tolerance
     if e.kind=='wall':return abs(float(p.get('z',0.0))-z)<=tolerance
     if e.kind=='pod':return abs(float(p.get('floor_level',0.0))-z)<=tolerance
     if e.kind=='floor':
@@ -1137,6 +1137,10 @@ def build_plan_frame(doc,preview=None,layers=True):
         xs=[float(q[0]) for q in e.params['points']];ys=[float(q[1]) for q in e.params['points']]
         f.primitives.append(Primitive2D('label',((min(xs)+.2,min(ys)+.2),),entity_id=eid,role='joists-label',meta=(('text',text),)))
     _dimension_primitives(doc,f)
+    from archforge.architecture.drafting import KINDS as _DRAFT
+    if any(e.kind in _DRAFT for e in doc.entities.values()):
+        from archforge.architecture.drafting import plan_primitives as _drafting
+        _drafting(doc,f)                 # CAD lines and notes (architecture/drafting.py)
     # Structural analysis results of the active storey (only when up to date; never computed here).
     if any(e.kind in ('structural_column','structural_beam') for e in doc.entities.values()):
         from archforge.structure.analysis import fresh_result
