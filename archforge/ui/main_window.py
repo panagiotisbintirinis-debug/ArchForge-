@@ -4455,9 +4455,14 @@ class MainWindow(QMainWindow):
         from archforge.core.commands import CompositeCommand
         kinds = ('wall', 'door', 'window', 'opening', 'structural_column', 'structural_beam',
                  'plumbing_point', 'electrical_point', 'ventilation_point', 'stair', 'cabinet', 'library_object')
-        ids = [i for i in ids if i in self.doc.entities and self.doc.get(i).kind in kinds
-               and self.doc.get(i).params.get('phase', 'new') != phase]
-        if not ids:
+        chosen = [i for i in ids if i in self.doc.entities and self.doc.get(i).kind in kinds]
+        ids = [i for i in chosen if self.doc.get(i).params.get('phase', 'new') != phase]
+        if not ids:                              # say why nothing changed (owner 30/10: «λέει γιατί»)
+            name = {'existing': 'Υφιστάμενα', 'demolish': 'Καθαίρεση', 'new': 'Νέα'}.get(phase, phase)
+            self.statusBar().showMessage(
+                f'Όλα τα επιλεγμένα είναι ήδη «{name}».' if chosen else
+                'Επίλεξε πρώτα τοίχους, κουφώματα, φέροντα, σημεία Η/Μ, σκάλες ή έπιπλα — η φάση αλλάζει στα επιλεγμένα.',
+                8000)
             return 0
         from archforge.core.layers import LayerLockedError
         try:

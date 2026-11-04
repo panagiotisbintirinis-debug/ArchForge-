@@ -102,6 +102,15 @@ def _action(window, text, run, tip=""):
     return a
 
 
+def _selected_materials_action(window):
+    """«Υλικό στο επιλεγμένο…» is one command: Βιβλιοθήκη ▸ Υλικά and Εργαλεία share this action (it was two
+    actions doing the same thing, listed twice in Διαμόρφωση ▸ Υλικά)."""
+    a = getattr(window, "_selected_materials_action", None)
+    if a is None:
+        a = window._selected_materials_action = _action(window, "Υλικό στο επιλεγμένο…", window._open_selected_materials)
+    return a
+
+
 def organize_main_menus(window):
     """Regroup the menu bar into the 8 menus of the mockup (moves, never drops)."""
     bar = window.menuBar()
@@ -237,7 +246,7 @@ def organize_main_menus(window):
             library.addSeparator(); library.addMenu(kitchen)
         mats = materials if materials is not None else QMenu("Υλικά", window)
         if not mats.actions() and hasattr(window, "_open_selected_materials"):
-            mats.addAction(_action(window, "Υλικό στο επιλεγμένο…", window._open_selected_materials))
+            mats.addAction(_selected_materials_action(window))
         mats.setTitle("Υλικά")
         library.addMenu(mats)
         window._library_materials_menu = mats
@@ -284,7 +293,7 @@ def organize_main_menus(window):
         window.sculpt_action.setText("Γλυπτική (ενεργή / ανενεργή)")
         tool_items.append(window.sculpt_action)
     if hasattr(window, "_open_selected_materials"):
-        tool_items.append(_action(window, "Υλικό στο επιλεγμένο…", window._open_selected_materials))
+        tool_items.append(_selected_materials_action(window))      # the same command as Βιβλιοθήκη ▸ Υλικά
     tool_items.append(None)
     assistant = getattr(window, "_assistant_dock", None)
     if assistant is not None:
@@ -413,6 +422,7 @@ def organize_work_menus(window):
     tops = [(a.text(), a.menu()) for a in bar.actions() if a.menu() is not None]
     # Keyed by id(): ``keep`` holds every wrapper for the whole run, so an id cannot be freed and reused meanwhile.
     menus, sections, placed, old_paths, old_cpaths, old_menus, keep, dynamic = {}, {}, set(), {}, {}, {}, [], []
+    also = []                                                  # (old path, command) of a command's second listing
     old_tops = {_key(t): m for t, m in tops}
     window._work_mirrors = []
     quick_row = getattr(window, "_top_row", None) is not None
@@ -467,7 +477,8 @@ def organize_work_menus(window):
             keep.append(a)
             if sub is None:
                 if id(a) in placed:
-                    continue                                   # one home per command
+                    also.append((cp, a))                       # one home per command; this old path finds it too
+                    continue
                 t = where(p) or (_key(path[0]), "")
                 if t == BAR:
                     from archforge.ui.layout2 import add_quick_action
@@ -559,6 +570,10 @@ def organize_work_menus(window):
         old = old_cpaths.get(id(a))
         if old is not None and old != new_path:
             aliases.setdefault(SEP.join(old), SEP.join(new_path))
+    new_of = {id(a): SEP.join(np) for np, a in _leaf_paths_sep(bar)}
+    for old, a in also:
+        if id(a) in new_of and SEP.join(old) != new_of[id(a)]:
+            aliases.setdefault(SEP.join(old), new_of[id(a)])
     # … and for submenus that moved whole (mouse menus can hold a whole submenu).
     for new_path, sub in _menu_paths(bar):
         old = old_menus.get(id(sub))

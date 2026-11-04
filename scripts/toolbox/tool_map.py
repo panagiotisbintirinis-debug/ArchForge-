@@ -47,10 +47,15 @@ WALL_MENU = (
 
 
 LEAF = {}
+ADDED = {}      # path → home, for commands an installer put straight into a work menu (no old path to map)
 
 
 def leaf(p):
     return LEAF.get(p, p.split(" / ")[-1])
+
+
+def home_of(p):
+    return ADDED.get(p) or home(p)
 
 
 
@@ -71,7 +76,10 @@ def collect(project=None):
             continue
         for path, action in menu_smoke._leaves(top.menu(), (top.text().replace("&", ""),)):
             # The homes are written against the old menus: read each command's old path (main_menus).
-            p = old_menu_path(action) or " / ".join(path)
+            old = old_menu_path(action)
+            p = old or " / ".join(path)
+            if old is None and path[0] in TOP:          # added straight into its work menu: already home
+                ADDED[p] = path[0] if len(path) == 2 else f"{path[0]} / {path[1]}"
             rows.append(p)
             LEAF[p] = path[-1]                      # a name may hold « / » itself (DXF / σημεία X Y Z)
             where.setdefault(id(action), []).append(p)
@@ -86,7 +94,7 @@ def collect(project=None):
 def report(rows, where, groups):
     by_home = {}
     for p in rows:
-        by_home.setdefault(home(p), []).append(p)
+        by_home.setdefault(home_of(p), []).append(p)
     out = ["# Χάρτης εργαλείων (tool_map)", "",
            f"{len(rows)} εντολές μενού · {len(groups)} κουμπιά στις ορατές ομάδες. Θέση = πίνακας `RULES` "
            "στο `archforge/ui/menu_map.py` (από αυτόν χτίζονται και τα μενού του προγράμματος).", ""]
@@ -115,8 +123,8 @@ def report(rows, where, groups):
     moves = {}
     for p in rows:
         old = " / ".join(p.split(" / ")[:2]) if p.count(" / ") >= 2 else p.split(" / ")[0]
-        moves.setdefault((old, home(p)), 0)
-        moves[(old, home(p))] += 1
+        moves.setdefault((old, home_of(p)), 0)
+        moves[(old, home_of(p))] += 1
     out += ["## 2. Από πού έρχονται (σημερινή ενότητα → νέα θέση)", "", "| Σήμερα | Νέα θέση | Εντολές |", "|---|---|---|"]
     out += [f"| {o} | {h} | {n} |" for (o, h), n in sorted(moves.items())]
     out.append("")
@@ -132,7 +140,7 @@ def report(rows, where, groups):
     out += [f"- «{n}»: " + " · ".join(ps) for n, ps in sorted(dup_name.items())] + [""]
     out += ["Σε ενότητα που δεν είναι δική τους (σήμερα):", ""]
     for p in rows:
-        h = home(p)
+        h = home_of(p)
         if p.startswith("Κατασκευή / Η/Μ") and not h.startswith("Εγκαταστάσεις"):
             out.append(f"- {p} → {h}")
         elif p.startswith("Προβολή") and h.startswith(("Εγκαταστάσεις", "Σχέδια")):
@@ -160,7 +168,7 @@ def as_tree(rows):
     """``{home menu: {section: [command, …]}}`` — every command once, for mockups and tests of the new map."""
     tree = {}
     for p in rows:
-        h = home(p)
+        h = home_of(p)
         top, _, section = h.partition(" / ")
         tree.setdefault(top, {}).setdefault(section or "", []).append(leaf(p))
     return tree
