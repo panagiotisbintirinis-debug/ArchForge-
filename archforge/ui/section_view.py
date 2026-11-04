@@ -259,6 +259,12 @@ class SectionPanel(QWidget):
         self.title = QLabel("Τομή")
         f = self.title.font(); f.setBold(True); f.setPointSizeF(f.pointSizeF() * 1.15); self.title.setFont(f)
         bar.addWidget(self.title, 1)
+        self.terrain_profile = QPushButton('Elevation profile…')
+        self.terrain_profile.setObjectName('terrain_profile_open')
+        self.terrain_profile.setProperty('archforge_command_id','terrain.profile.open')
+        self.terrain_profile.clicked.connect(lambda: __import__('archforge.ui.terrain_profile',
+            fromlist=['open_profile']).open_profile(window,self.view.entity_id))
+        bar.addWidget(self.terrain_profile)
         for text, tip, run in (("Αντιστροφή", "Κοίτα από την άλλη πλευρά της γραμμής", lambda: flip_section(window, self.view.entity_id)),
                                ("Στο 3D", "Η ίδια τομή στο 3D, με επίπεδο αποκοπής στη γραμμή", lambda: section_in_3d(window, self.view.entity_id)),
                                ("Υπόβαθρο τομής…", "Η τομή του μηχανικού (PDF / DXF) κάτω από αυτή — "
