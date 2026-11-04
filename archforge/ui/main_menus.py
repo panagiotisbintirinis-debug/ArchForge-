@@ -182,7 +182,9 @@ def organize_main_menus(window):
         acts = getattr(getattr(window, "shortcuts", None), "actions", {}) or {}
         tail = [a for a in edit_menu.actions() if not a.isSeparator() and a not in
                 (window.undo_action, window.redo_action, window.delete_action)]
-        _fill(edit_menu, [window.undo_action, window.redo_action, None,
+        from archforge.ui.select_similar import install as _select_install
+        selecting = getattr(window, "_select_actions", None) or _select_install(window)
+        _fill(edit_menu, [window.undo_action, window.redo_action, None, *selecting, None,
                           acts.get("edit.move"), acts.get("edit.rotate"), acts.get("edit.stretch"),
                           acts.get("edit.corner"),
                           acts.get("edit.duplicate"), None, window.delete_action, None, *tail])

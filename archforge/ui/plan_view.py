@@ -283,6 +283,18 @@ class PlanView(QGraphicsView):
         eid=self._entity_items.get(hit)
         if eid and eid in self.doc.entities and self.doc.get(eid).kind not in self.CONTAINER_KINDS:return eid
         return None
+    _hover_said=None
+    def _hover_info(self,event):
+        """Zero clicks (κριτική v5, k3): with Επιλογή and no button down, what is under the mouse — type, size, storey,
+        U — goes to the status bar once, when the object under the mouse changes."""
+        if str(self.controller.tool)!='select' or event.buttons() or self.controller.active is not None:
+            self._hover_said=None;return
+        eid=self._hovered_entity()
+        if eid==self._hover_said:return
+        self._hover_said=eid
+        if eid:
+            from archforge.ui.indication import describe
+            self.statusChanged.emit(describe(self.doc,eid)+' · κλικ = ένδειξη · διπλό κλικ = επιλογή')
     _indicated=None
     def indicate(self,eid):
         """One click: the object under the mouse is shown (outlined, its name and size below) — not selected."""
@@ -520,6 +532,7 @@ class PlanView(QGraphicsView):
         if lp is not None and (event.position()-lp[1]).manhattanLength()>self.CLICK_PX:self._long_press=None
         p=self.mapToScene(event.position().toPoint());self._cursor_xy=(p.x(),p.y());self.viewport().update()
         if self._overlay('move',event):return
+        self._hover_info(event)
         if self._slab_tool() and getattr(self,'_slab_draft',None) is not None:
             ev=self._scene_to_plane(event.position().toPoint());self._slab_draft.move(ev.a,ev.b)
             self.statusChanged.emit(self._slab_word()+': '+self._slab_draft.label());self.redraw();return

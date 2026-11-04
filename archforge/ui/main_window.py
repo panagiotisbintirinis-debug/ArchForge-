@@ -2203,6 +2203,9 @@ class MainWindow(QMainWindow):
             return
         if len(self.doc.selection) != 1:
             count = len(self.doc.selection)
+            from archforge.ui.multi_wall_rows import add_rows as _multi_wall_rows
+            if count > 1 and _multi_wall_rows(self, list(self.doc.selection)):
+                return                          # several walls: totals and one type for all (κριτική v5)
             self.form.addRow(QLabel('Καμία επιλογή' if not count else f'{count} επιλεγμένα'))
             if not count:
                 hint = QLabel('Κάνε κλικ σε ένα αντικείμενο στην κάτοψη ή στο 3D\nγια να δεις και να αλλάξεις τις ιδιότητές του.')

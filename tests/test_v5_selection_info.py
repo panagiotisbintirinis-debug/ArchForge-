@@ -1,0 +1,84 @@
+"""Κριτική v5 (04/11), k3/k4: πληροφορία με μηδέν κλικ, επιλογή όμοιων / εξωτερικών, τύπος σε πολλούς τοίχους μαζί με μία
+αναίρεση, U ζωντανά στο εργαλείο +/− των στρώσεων. Πάνω στο πραγματικό έργο του ιδιοκτήτη (owner_111)."""
+import os
+
+os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+
+import pytest
+from PySide6.QtWidgets import QApplication
+
+OWNER = os.path.join(os.path.dirname(__file__), 'data', 'owner_111_two_storey.archforge')
+
+
+@pytest.fixture
+def window():
+    QApplication.instance() or QApplication([])
+    from archforge.ui.main_window import MainWindow
+    w = MainWindow()
+    w._open_checked(OWNER)
+    QApplication.processEvents()
+    yield w
+    w._mark_clean(); w.close()
+
+
+def _walls(doc):
+    return [e for e in doc.entities.values() if e.kind == 'wall']
+
+
+def test_a_wall_says_type_storey_and_u_without_opening_anything(window):
+    from archforge.ui.indication import describe
+    walls = _walls(window.doc)
+    ground = next(e for e in walls if float(e.params.get('z', 0)) == 0.0)
+    upper = next(e for e in walls if float(e.params.get('z', 0)) > 0.0)
+    assert 'Γενικός (χωρίς σύνθεση)' in describe(window.doc, ground.id)
+    assert 'Ισόγειο' in describe(window.doc, ground.id)          # the storey by name, not «Στάθμη (z) 0.0000»
+    assert '1ος όροφος' in describe(window.doc, upper.id)
+
+
+def test_select_exterior_then_one_type_for_all_with_one_undo(window):
+    from archforge.ui import select_similar as S
+    from archforge.ui.multi_wall_rows import set_type_all
+    ids = S.select_exterior(window)
+    assert len(ids) == 23 and set(window.doc.selection) == set(ids)   # 16 ground + 7 upper (κριτής ενεργειακής)
+    n = set_type_all(window, ids, 'brick_double_insulated')
+    assert n == 23
+    assert all(window.doc.get(i).params['wall_type'] == 'brick_double_insulated' for i in ids)
+    assert all(abs(window.doc.get(i).params['thickness'] - 0.27) < 1e-9 for i in ids)
+    interior = [e for e in _walls(window.doc) if e.id not in ids]
+    assert interior and all(e.params.get('wall_type', 'generic') == 'generic' for e in interior)   # untouched
+    window.stack.undo()                                               # one undo for all 23
+    assert all(window.doc.get(i).params.get('wall_type', 'generic') == 'generic' for i in ids)
+
+
+def test_select_similar_takes_kind_and_type(window):
+    from archforge.ui import select_similar as S
+    from archforge.ui.multi_wall_rows import set_type_all
+    ext = S.exterior_wall_ids(window.doc)
+    set_type_all(window, ext[:3], 'concrete_etics')
+    window.doc.select([ext[0]])
+    ids = S.select_similar(window)
+    assert sorted(ids) == sorted(ext[:3])
+    window.doc.select([])
+    assert S.select_similar(window) == [] and 'επίλεξε πρώτα' in window.statusBar().currentMessage()
+
+
+def test_properties_with_several_walls_show_totals_and_one_type_field(window):
+    from PySide6.QtWidgets import QComboBox, QLabel
+    from archforge.ui import select_similar as S
+    S.select_exterior(window)
+    texts = [w.text() for w in window.form.parentWidget().findChildren(QLabel)]
+    assert any('23 τοίχοι επιλεγμένοι' in t for t in texts)
+    combo = next(c for c in window.form.parentWidget().findChildren(QComboBox) if c.findData('brick_double_insulated') >= 0)
+    combo.setCurrentIndex(combo.findData('brick_double_insulated'))
+    QApplication.processEvents()
+    assert sum(1 for e in _walls(window.doc) if e.params.get('wall_type') == 'brick_double_insulated') == 23
+
+
+def test_layers_tool_shows_u_live(window):
+    from archforge.ui.wall_details_dialog import WallDetailsDialog
+    d = WallDetailsDialog(window, 'brick_double_insulated')
+    assert 'U 0,48 W/m²K' in d.total_label.text() and 'προς επαλήθευση' in d.total_label.text()
+    ins = next(r for r in d._layer_widgets if r['material'].currentData() == 'xps')
+    ins['thickness'].setValue(10.0)                                    # 5 → 10 cm of XPS
+    assert 'U 0,28 W/m²K' in d.total_label.text()
+    d.close()
