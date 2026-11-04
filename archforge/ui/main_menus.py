@@ -10,6 +10,8 @@ the end of its menu — no command is ever lost.  Owner decisions: Έδαφος 
 """
 from __future__ import annotations
 
+from archforge.ui.language import source_text
+
 from PySide6.QtCore import QEvent, QObject
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMenu
@@ -31,7 +33,7 @@ def _find(menu, text, startswith=False):
     if menu is None:
         return None
     for a in menu.actions():
-        t = _plain(a.text())
+        t = _plain(source_text(a))
         if t == text or (startswith and t.startswith(text)):
             return a
     return None
@@ -106,7 +108,7 @@ def organize_main_menus(window):
     """Regroup the menu bar into the 8 menus of the mockup (moves, never drops)."""
     bar = window.menuBar()
     window._main_submenus, window._main_actions = [], []
-    old = {_plain(a.text()): a.menu() for a in bar.actions() if a.menu() is not None}
+    old = {_plain(source_text(a)): a.menu() for a in bar.actions() if a.menu() is not None}
     get = old.get
     file_menu, edit_menu, view_menu = get("Αρχείο"), get("Επεξεργασία"), get("Προβολή")
     build, library = get("Κατασκευή"), get("Βιβλιοθήκη")
@@ -227,7 +229,7 @@ def organize_main_menus(window):
             kitchen.setTitle("Κουζίνα && μπάνιο")
             # Owner 15/10: the kitchen is drawn freely (no Γ / Π proposals of the Βοηθός).
             for a in list(kitchen.actions()):
-                t = a.text().replace("&&", "&")
+                t = source_text(a).replace("&&", "&")
                 if t.startswith("Κουζίνα εδώ"):
                     kitchen.removeAction(a)
                 elif t.startswith("Γραμμή ντουλαπιών σε τοίχο"):
@@ -378,9 +380,9 @@ def _dynamic(menu):
 def _leaf_paths(menu, path):
     out = []
     for a in menu.actions():
-        if a.isSeparator() or not a.text():
+        if a.isSeparator() or not source_text(a):
             continue
-        p = path + (_key(a.text()),)
+        p = path + (_key(source_text(a)),)
         if a.menu() is not None:
             out += _leaf_paths(a.menu(), p)
         else:
@@ -410,7 +412,7 @@ def organize_work_menus(window):
     from archforge.ui.menu_map import UNPLACED, home
     from archforge.ui.toolbar_custom import SEP
     bar = window.menuBar()
-    tops = [(a.text(), a.menu()) for a in bar.actions() if a.menu() is not None]
+    tops = [(source_text(a), a.menu()) for a in bar.actions() if a.menu() is not None]
     # Keyed by id(): ``keep`` holds every wrapper for the whole run, so an id cannot be freed and reused meanwhile.
     menus, sections, placed, old_paths, old_cpaths, old_menus, keep, dynamic = {}, {}, set(), {}, {}, {}, [], []
     old_tops = {_key(t): m for t, m in tops}
@@ -459,10 +461,10 @@ def organize_work_menus(window):
 
     def move(menu, path, cpath):
         for a in list(menu.actions()):
-            if a.isSeparator() or not a.text():
+            if a.isSeparator() or not source_text(a):
                 continue
-            p = path + (_key(a.text()),)
-            cp = cpath + (a.text().replace("&&", "&"),)
+            p = path + (_key(source_text(a)),)
+            cp = cpath + (source_text(a).replace("&&", "&"),)
             sub = a.menu()
             keep.append(a)
             if sub is None:
@@ -585,7 +587,7 @@ class _Mirror(QObject):
             a = event.action()
             if a not in self.target.actions():
                 self.target.addAction(a)
-                a.setProperty(OLD_PATH, SEP_TEXT.join(self.path + (_key(a.text()),)))
+                a.setProperty(OLD_PATH, SEP_TEXT.join(self.path + (_key(source_text(a)),)))
         return False
 
 
@@ -609,13 +611,13 @@ def _menu_paths(bar):
 
     def walk(menu, path):
         for a in menu.actions():
-            if a.menu() is not None and a.text():
-                p = path + (a.text().replace("&&", "&"),)
+            if a.menu() is not None and source_text(a):
+                p = path + (source_text(a).replace("&&", "&"),)
                 out.append((p, a.menu()))
                 walk(a.menu(), p)
     for top in bar.actions():
         if top.menu() is not None:
-            walk(top.menu(), (top.text().replace("&&", "&"),))
+            walk(top.menu(), (source_text(top).replace("&&", "&"),))
     return out
 
 
@@ -631,9 +633,9 @@ def _leaf_paths_sep(bar, path=None):
 
     def walk(menu, path):
         for a in menu.actions():
-            if a.isSeparator() or not a.text():
+            if a.isSeparator() or not source_text(a):
                 continue
-            p = path + (a.text().replace("&&", "&"),)
+            p = path + (source_text(a).replace("&&", "&"),)
             if a.menu() is not None:
                 walk(a.menu(), p)
             else:
@@ -643,5 +645,5 @@ def _leaf_paths_sep(bar, path=None):
         return out
     for top in bar.actions():
         if top.menu() is not None:
-            walk(top.menu(), (top.text().replace("&&", "&"),))
+            walk(top.menu(), (source_text(top).replace("&&", "&"),))
     return out

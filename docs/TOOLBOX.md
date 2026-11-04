@@ -31,6 +31,7 @@
 
 | Εργαλείο | Τι κάνει | Εκτέλεση |
 |---|---|---|
+| `archforge/localization/` · `ui/language.py` · `scripts/toolbox/localization_audit.py` | Κοινή υποδομή γλωσσών, σταθερά κλειδιά ανά σημασία, ρητές συνδέσεις Qt, έλεγχος καταλόγων/μεταβλητών και αντιστοίχισης με το inventory μενού. Η παλιά διεπαφή δεν έχει μεταφερθεί ακόμη ολόκληρη· `docs/localization/INTEGRATION.md`. Ο έλεγχος μόνο διαβάζει. | `python scripts/toolbox/localization_audit.py --inventory menu_inventory.json` · `--scan --json` για υποψήφια παλιά κείμενα · `tests/test_localization.py` |
 | `scripts/user_drive/user.py` | Οδηγεί το ArchForge offscreen όπως ένας άνθρωπος: ribbon/μενού, κλικ στην κάτοψη, marking menu· μετρά βήματα, μαζεύει σημειώσεις τριβής (`U.notes`). | `from user import *` (δες `house.py`) |
 | `scripts/user_drive/core_check.py` | Ο πυρήνας με το ποντίκι όπως σχεδιάζει ο ιδιοκτήτης (κλικ λίγα εκ. δίπλα στις γωνίες). | `QT_QPA_PLATFORM=offscreen python scripts/user_drive/core_check.py` |
 | `scripts/user_drive/walls_check.py` | Τοίχοι από την όψη, κλείσιμο περιγράμματος στις 90°, οδηγοί (24/10). | ίδιο |

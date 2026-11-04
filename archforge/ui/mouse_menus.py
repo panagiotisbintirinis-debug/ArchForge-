@@ -15,6 +15,8 @@
 """
 from __future__ import annotations
 
+from archforge.ui.language import source_text
+
 import json
 import math
 
@@ -147,6 +149,9 @@ def _entries(window, items, live):
         elif iid.startswith("menu:"):
             e = {"id": iid, "label": it["label"], "placement": "radial", "checked": False, "danger": False,
                  "icon": it.get("icon") or "more"}
+            action = _find_action(window, iid[5:])
+            if action is not None and it['label'] == source_text(action).replace('&&', '&'):
+                e['label'] = action.text().replace('&&', '&')
             if it.get("submenu"):
                 e["children"] = _menu_children(window, iid[5:])
                 if not e["children"]:
@@ -171,7 +176,7 @@ def _find_action(window, path):
     actions = window.menuBar().actions()
     found = None
     for k, name in enumerate(parts):
-        found = next((a for a in actions if a.text().replace("&&", "&") == name), None)
+        found = next((a for a in actions if source_text(a).replace("&&", "&") == name), None)
         if found is None:
             return None
         if k < len(parts) - 1:
@@ -194,10 +199,10 @@ def _menu_children(window, path):
         a.menu().aboutToShow.emit()
     out = []
     for c in a.menu().actions():
-        if c.isSeparator() or not c.text():
+        if c.isSeparator() or not source_text(c):
             continue
-        text = c.text().replace("&&", "&")
-        child = {"id": "menu:" + path + SEP + text, "label": text, "placement": "radial", "checked": c.isChecked(),
+        text = source_text(c).replace("&&", "&")
+        child = {"id": "menu:" + path + SEP + text, "label": c.text().replace('&&', '&'), "placement": "radial", "checked": c.isChecked(),
                  "danger": False}
         if c.menu() is not None:
             child["children"] = _menu_children(window, path + SEP + text)
@@ -528,11 +533,11 @@ class MouseMenuEditor(QDialog):
 
         def walk(parent, menu, path):
             for a in menu.actions():
-                if a.isSeparator() or not a.text():
+                if a.isSeparator() or not source_text(a):
                     continue
-                text = a.text().replace("&&", "&")
+                text = source_text(a).replace("&&", "&")
                 p = path + (text,)
-                node = QTreeWidgetItem([text + (" ▸" if a.menu() is not None else "")])
+                node = QTreeWidgetItem([a.text().replace('&&', '&') + (" ▸" if a.menu() is not None else "")])
                 node.setData(0, Qt.ItemDataRole.UserRole, item_of_path(SEP.join(p), a))
                 if not a.icon().isNull():
                     node.setIcon(0, a.icon())
@@ -544,8 +549,8 @@ class MouseMenuEditor(QDialog):
         menus = QTreeWidgetItem(["Όλα τα μενού"]); self.tree.addTopLevelItem(menus)
         for top in self.w.menuBar().actions():
             if top.menu() is not None:
-                name = top.text().replace("&&", "&")
-                node = QTreeWidgetItem([name]); menus.addChild(node)
+                name = source_text(top).replace("&&", "&")
+                node = QTreeWidgetItem([top.text().replace('&&', '&')]); menus.addChild(node)
                 walk(node, top.menu(), (name,))
         menus.setExpanded(True)
         self._filter(self.search.text())

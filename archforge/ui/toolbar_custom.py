@@ -14,6 +14,8 @@ very same QAction as the menu entry — same command, same key, same undo.
 """
 from __future__ import annotations
 
+from archforge.ui.language import source_text
+
 import json
 
 from PySide6.QtCore import QSize, Qt
@@ -88,9 +90,9 @@ def catalog(window):
 
     def walk(menu, path, icon=None):
         for a in menu.actions():
-            if a.isSeparator() or not a.text():
+            if a.isSeparator() or not source_text(a):
                 continue
-            text = a.text().replace("&&", "&")
+            text = source_text(a).replace("&&", "&")
             if a.menu() is not None:
                 if not a.menu().actions():
                     a.menu().aboutToShow.emit()           # filled on first open
@@ -103,7 +105,7 @@ def catalog(window):
                     icons[key] = icon                 # an added button shows its submenu's icon
     for top in window.menuBar().actions():
         if top.menu() is not None:
-            walk(top.menu(), (top.text().replace("&&", "&"),))
+            walk(top.menu(), (source_text(top).replace("&&", "&"),))
     for old, action in (getattr(window, "_quick_paths", None) or {}).items():   # now always at hand in the first row
         out.setdefault(old, action)
     for old, new in (getattr(window, "_menu_aliases", None) or {}).items():   # paths saved before the work menus
@@ -119,22 +121,22 @@ def _fill_catalog(window, menu, on_pick):
     """The menu bar mirrored as submenus; a click on a command calls ``on_pick(path)``."""
     def build(parent, source, path):
         for a in source.actions():
-            if a.isSeparator() or not a.text():
+            if a.isSeparator() or not source_text(a):
                 continue
-            text = a.text().replace("&&", "&")
+            text = source_text(a).replace("&&", "&")
             if a.menu() is not None:
                 if not a.menu().actions():
                     a.menu().aboutToShow.emit()
-                sub = parent.addMenu(a.menu().icon(), text.replace("&", "&&"))
+                sub = parent.addMenu(a.menu().icon(), a.text())
                 build(sub, a.menu(), path + (text,))
             elif a.isEnabled():
-                item = parent.addAction(a.icon(), text.replace("&", "&&"))
+                item = parent.addAction(a.icon(), a.text())
                 item.triggered.connect(lambda _=False, p=SEP.join(path + (text,)): on_pick(p))
     menu.clear()
     for top in window.menuBar().actions():
         if top.menu() is not None:
-            name = top.text().replace("&&", "&")
-            build(menu.addMenu(name), top.menu(), (name,))
+            name = source_text(top).replace("&&", "&")
+            build(menu.addMenu(top.text()), top.menu(), (name,))
 
 
 # --------------------------------------------------------------------------- applying

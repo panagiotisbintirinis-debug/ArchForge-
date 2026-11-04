@@ -83,11 +83,16 @@ PARAM_LABELS = {
 
 
 def param_label(key: str) -> str:
-    return PARAM_LABELS.get(str(key), str(key))
+    from archforge.localization import translator
+    t = translator()
+    message_key = 'param.' + str(key)
+    return t.text(message_key) if message_key in t.keys() else PARAM_LABELS.get(str(key), str(key))
 
 
 def property_fields(kind: str):
-    return tuple(PROPERTY_FIELDS.get(str(kind), ()))
+    from archforge.localization import text
+    return tuple({**spec, 'label': text(f'property.{kind}.{spec["id"]}')}
+                 for spec in PROPERTY_FIELDS.get(str(kind), ()))
 
 
 def property_values(entity) -> Dict[str, float]:

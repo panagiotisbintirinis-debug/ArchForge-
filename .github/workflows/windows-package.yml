@@ -60,6 +60,7 @@ jobs:
           --collect-submodules archforge
           --add-data "archforge/ui/vendor;archforge/ui/vendor"
           --add-data "archforge/library/content;archforge/library/content"
+          --add-data "archforge/localization/catalogs;archforge/localization/catalogs"
           --add-data "build_info.json;."
           --add-data "docs/scenarios/S*.archforge;samples"
           --collect-all OCP
