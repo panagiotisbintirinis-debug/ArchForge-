@@ -150,6 +150,9 @@ class MainWindow(QMainWindow):
         task_icons.install(self)         # drawings on the original QActions + editable compact starter row
         from archforge.ui import control_center
         control_center.install(self)     # user-owned menu surfaces and mouse-button commands, same QAction identities
+        task_icons.fill_menus(self)      # the commands added since: an icon on every one (owner 04/11)
+        from archforge.ui import command_help
+        command_help.install(self)       # hover a command: a card with its icon, what it does, shortcut, menu path
         self._refresh_library_panel()
         if not os.environ.get('PYTEST_CURRENT_TEST'):
             # First run builds the shipped core library in the background.

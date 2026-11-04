@@ -598,6 +598,11 @@ class _Mirror(QObject):
             if a not in self.target.actions():
                 self.target.addAction(a)
                 a.setProperty(OLD_PATH, SEP_TEXT.join(self.path + (_key(a.text()),)))
+                if a.icon().isNull() and a.menu() is None:      # an icon on every command (task_icons)
+                    from archforge.ui import menu_icons, task_icons
+                    name = task_icons.icon_for_text(a.text())
+                    if name:
+                        a.setIcon(menu_icons.icon(name))
         return False
 
 

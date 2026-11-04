@@ -104,3 +104,28 @@ def test_grid_snap_and_assistant_are_always_at_hand_in_the_first_row(window):
     for old, a in window._quick_paths.items():                                     # saved paths still find it
         assert cat[old] is a and _find_action(window, old) is a
     assert 'Μονάδες μέτρησης…' in [a.text() for a in window._work_sections[('⚙ Ρυθμίσεις', 'Γενικά')].actions()]
+
+
+def test_every_command_has_an_icon_and_a_hover_card_like_inventor(window):
+    """Owner 04/11: «στα κουμπιά να μπουν εικονίδια και όταν το ποντίκι περνάει να ανοίγει ένα μικρό επεξηγηματικό»."""
+    from PySide6.QtCore import QEvent, QPoint
+    from PySide6.QtGui import QHelpEvent
+    from PySide6.QtWidgets import QApplication
+    from archforge.ui.command_help import PATH_PROPERTY, card_html, describe
+    leaves = [a for _top, m in _bar(window) for _p, a in _leaves(m)] + list(window._quick_actions)
+    assert leaves and all(not a.icon().isNull() for a in leaves), [a.text() for a in leaves if a.icon().isNull()]
+    described = [a for a in leaves if describe(a)]
+    assert len(described) >= 0.9 * len(leaves), sorted(a.text() for a in leaves if not describe(a))
+    door = next(a for a in leaves if a.text() == 'Πόρτα')
+    card = card_html(door)
+    assert '<b' in card and 'Πόρτα' in card and 'τοίχο' in card and 'Κατασκευή ▸ Ανοίγματα' in card
+    assert door.property(PATH_PROPERTY) == 'Κατασκευή ▸ Ανοίγματα'
+    # A tooltip asked over the command in its menu shows the card (not Qt's plain one).
+    menu = window._work_sections[('Κατασκευή', 'Ανοίγματα')]
+    menu.popup(QPoint(100, 100)); QApplication.processEvents()
+    at = menu.actionGeometry(door).center()
+    QApplication.sendEvent(menu, QHelpEvent(QEvent.Type.ToolTip, at, menu.mapToGlobal(at)))
+    tip = window._command_help.tip
+    assert tip.isVisible() and tip.action is door and 'Πόρτα' in tip.text.text()
+    menu.hide(); QApplication.processEvents()
+    assert not tip.isVisible()
