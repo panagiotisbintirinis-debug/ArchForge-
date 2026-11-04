@@ -82,3 +82,20 @@ def test_layers_tool_shows_u_live(window):
     ins['thickness'].setValue(10.0)                                    # 5 → 10 cm of XPS
     assert 'U 0,28 W/m²K' in d.total_label.text()
     d.close()
+
+
+def test_thermal_view_colours_walls_by_u_from_the_view_menu(window):
+    from archforge.ui import select_similar as S
+    from archforge.ui.multi_wall_rows import set_type_all
+    from archforge.ui import thermal_view as T
+    found = [a for a in window.findChildren(type(window._thermal_view_action)) if a is window._thermal_view_action]
+    assert found and window._thermal_view_action.isCheckable()
+    window._thermal_view_action.setChecked(True)
+    assert window.plan_view._thermal_counts == {'known': 0, 'unknown': 25}       # owner_111 ground: no build-ups yet
+    assert 'χωρίς σύνθεση' in window.statusBar().currentMessage()
+    set_type_all(window, S.exterior_wall_ids(window.doc), 'brick_double_insulated')
+    window.plan_view.redraw()
+    assert window.plan_view._thermal_counts == {'known': 16, 'unknown': 9}        # 16 exterior walls of the ground floor
+    assert T.colour(0.2).name() != T.colour(2.0).name()                          # good insulation ≠ losses
+    window._thermal_view_action.setChecked(False)
+    assert not window.plan_view.color_by_u

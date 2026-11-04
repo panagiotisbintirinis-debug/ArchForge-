@@ -183,6 +183,9 @@ class PlanView(QGraphicsView):
         # Rulers, scale bar, cursor X/Y, live measures and the empty-project hint, in screen pixels.
         from archforge.ui.plan_overlay import paint_overlay
         painter.save();painter.resetTransform();paint_overlay(self,painter);painter.restore()
+        if getattr(self,'color_by_u',False):
+            from archforge.ui.thermal_view import paint_legend
+            painter.save();painter.resetTransform();paint_legend(self,painter);painter.restore()
         if self.controller.tool in ('room_box','room_place'):
             from archforge.ui.room_box_tool import paint_preview
             paint_preview(self,painter)
@@ -1104,6 +1107,9 @@ class PlanView(QGraphicsView):
             self._scene.addLine(mx-.32,my,mx+.32,my,pen).setZValue(40);self._scene.addLine(mx,my-.32,mx,my+.32,pen).setZValue(40)
         # A fixed, very large sheet (±5 km): a scene rect that followed the visible area clamped the
         # scroll bars, so the wheel zoom could not keep the point under the mouse (drawing slid left).
+        if getattr(self,'color_by_u',False):
+            from archforge.ui.thermal_view import draw as _thermal_draw
+            _thermal_draw(self)                  # Προβολή › Χρωματισμός κατά U (κριτική v5, k7)
         self._scene.setSceneRect(-5000,-5000,10000,10000)
         self.previewChanged.emit(copy.deepcopy(self.controller.preview))
     def _draw_grid(self):

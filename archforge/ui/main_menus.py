@@ -282,7 +282,9 @@ def organize_main_menus(window):
         def m(a):
             return a.menu() if a is not None and a.menu() is not None else a
         _fill(view_menu, [m(views), section, interior, getattr(window, "_simultaneous_action", None), None,
-                          m(_find(view_menu, "Κάμερες")), render, show3d, None,
+                          m(_find(view_menu, "Κάμερες")), render, show3d,
+                          getattr(window, "_thermal_view_action", None) or __import__("archforge.ui.thermal_view", fromlist=["install"]).install(window),
+                          None,
                           m(_find(view_menu, "Περιβάλλον")), _find(view_menu, "Layers"), None,
                           m(panels), bars, getattr(window, "status_bar_action", None), reset])
         _remove(view_menu, *LAYER_TEXTS)          # only inside «Εμφάνιση στο 3D» now
