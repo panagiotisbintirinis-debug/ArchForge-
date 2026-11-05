@@ -25,9 +25,20 @@ class DesignClimateDialog(QDialog):
         root.addWidget(intro)
         form = QFormLayout()
         self.preset = QComboBox(self)
+        current = C.preset_of(doc)
         for key, p in C.PRESETS.items():
+            if p.get("superseded") and key != current:
+                continue                       # replaced 05/11 by ΤΟΤΕΕ 20701-3; shown only to a project that has it
             self.preset.addItem(f"{p['label']} · {p['heat_theta_ext_winter']:g} °C".replace(".", ","), key)
         self.preset.addItem(C.CUSTOM_LABEL, C.CUSTOM)
+        # 86 places: type any part of the name («Φλώρ», «Θεσ»…) to find it.
+        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import QCompleter
+        self.preset.setEditable(True)
+        self.preset.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        completer = self.preset.completer()
+        completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
         form.addRow("Περιοχή / επιλογή", self.preset)
         self.source = QLabel(self); self.source.setWordWrap(True)
         form.addRow("Πηγή", self.source)
@@ -52,7 +63,7 @@ class DesignClimateDialog(QDialog):
         buttons.rejected.connect(self.reject)
         root.addWidget(buttons)
         self._syncing = False
-        self.preset.setCurrentIndex(max(0, self.preset.findData(C.preset_of(doc))))
+        self.preset.setCurrentIndex(max(0, self.preset.findData(current)))
         self.preset.currentIndexChanged.connect(self._preset_changed)
         self.fields["heat_theta_ext_winter"].valueChanged.connect(self._winter_changed)
         self._show_source()

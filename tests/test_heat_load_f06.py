@@ -33,14 +33,14 @@ def test_the_power_is_the_sum_of_walls_and_air_with_the_project_design_values():
     doc, _ = _box()
     r = H.heat_load(doc)
     u = indicative_u('brick_double_insulated')
-    dt = 20.0 - 0.0                     # default 04/11: design day Αθήνα · ζώνη Β, 0 °C (mep/design_climate.py)
+    dt = 20.0 - 2.5                     # default 05/11: ΤΟΤΕΕ 20701-3 Πίν. 2.1, Αθήνα (Ν. Φιλαδέλφεια) DB 1 %
     walls = (2 * (6 + 5) * 3.0 - 1.0) * u * dt                     # exterior wall faces on the axes, minus the window
     parts = dict(r['parts'])
     assert parts['Εξωτερικοί τοίχοι'] == pytest.approx(walls, abs=1)
     assert parts['Κουφώματα'] == 0                                  # no U given: not counted, said
     assert any('κουφώματα 1,0 m²' in n for n in r['not_counted'])
     assert parts['Αερισμός'] == pytest.approx(H.AIR_HEAT * 0.5 * r['volume_m3'] * dt, abs=1)
-    assert r['delta_t'] == 20.0 and 'υπόθεση, όχι μελέτη' in H.summary(r)
+    assert r['delta_t'] == 17.5 and 'υπόθεση, όχι μελέτη' in H.summary(r)
     assert 'Αθήνα' in H.summary(r) and 'αλλάζουν' in H.summary(r)       # where the value comes from, and that it changes
     assert {'οροφή / στέγη', 'δάπεδο'} <= set(r['not_counted'])
     assert any(n.startswith('θερμογέφυρες: ') and 'χωρίς ψ' in n for n in r['not_counted'])   # measured, no ψ given
