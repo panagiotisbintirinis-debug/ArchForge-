@@ -4188,6 +4188,13 @@ class MainWindow(QMainWindow):
             self.setWindowModified(True)
         self._schedule_assistant_refresh()
         self._update_plan_title()
+        # Σ6 (κριτική v5): the status line describing the indicated object follows its change (new type → new
+        # thickness); the next hover describes afresh instead of keeping the old text.
+        plan = getattr(self, 'plan_view', None)
+        if plan is not None:
+            plan._hover_said = None
+            if getattr(plan, '_indicated', None):
+                plan.indicate(plan._indicated)
         self._refresh_floor_selector()
         self._refresh_project_tree()
         if getattr(self, '_cameras', None) is not None:

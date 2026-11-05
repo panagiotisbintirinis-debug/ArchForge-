@@ -99,3 +99,18 @@ def test_thermal_view_colours_walls_by_u_from_the_view_menu(window):
     assert T.colour(0.2).name() != T.colour(2.0).name()                          # good insulation ≠ losses
     window._thermal_view_action.setChecked(False)
     assert not window.plan_view.color_by_u
+
+
+def test_the_status_line_follows_a_type_change_of_the_indicated_wall(window):
+    """Σ6: after «Τύπος τοίχου» the status line kept «× 0,15» of the old type."""
+    from archforge.core.commands import UpdateEntity
+    w = window
+    wall = _walls(w.doc)[0]
+    said = []
+    w.plan_view.statusChanged.connect(said.append)
+    w.plan_view.indicate(wall.id)
+    old = said[-1]
+    new_thickness = float(wall.params['thickness']) + 0.1
+    w.stack.execute(UpdateEntity(wall.id, {'thickness': new_thickness}))
+    QApplication.processEvents()
+    assert said[-1] != old and f'{new_thickness:.2f}'.replace('.', ',') in said[-1]
