@@ -149,7 +149,29 @@ def material_dialog(window, material_id):
     lam.setPlaceholderText("κενό = η τιμή του προγράμματος")
     rho = QLineEdit("" if own.get("density") is None else f"{own['density']:g}")
     src = QLineEdit(str(own.get("source") or "")); src.setPlaceholderText("π.χ. φύλλο προϊόντος, έκδοση")
+    # 05/11: a row of ΤΟΤΕΕ 20701-2 Πίνακας 2 fills λ / density / source (a range gives its upper end — the data sheet
+    # of the product still decides); «OK» keeps them for this project (one undo).
+    from archforge.mep import totee_20701_2 as T2
+    rows = T2.MATERIAL_ROWS.get(material_id, ())
+    totee = QComboBox(); totee.addItem("— (δική σας τιμή ή του προγράμματος)", None)
+    for code in rows:
+        totee.addItem(T2.row_text(code), code)
+    if not rows:
+        totee.addItem("δεν υπάρχει στον Πίνακα 2 — από το φύλλο του προϊόντος", None)
+        totee.setEnabled(False)
+
+    def from_totee(_i):
+        code = totee.currentData()
+        if code is None:
+            return
+        v = T2.row_values(code)
+        lam.setText(f"{v['conductivity']:g}".replace(".", ","))
+        rho.setText("" if v["density"] is None else f"{v['density']:g}")
+        src.setText(v["source"])
+    totee.currentIndexChanged.connect(from_totee)
+    form.addRow("Από ΤΟΤΕΕ 20701-2, Πίν. 2", totee)
     form.addRow("λ από φύλλο (W/mK)", lam); form.addRow("Πυκνότητα (kg/m³)", rho); form.addRow("Πηγή", src)
+    dlg._totee_rows = totee
     buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel); lay.addWidget(buttons)
     buttons.rejected.connect(dlg.reject)
 

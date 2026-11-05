@@ -303,6 +303,12 @@ def test_member_role_cannot_leave_structural_while_support_or_load_attached():
 
 
 def test_structural_view_shares_authoritative_document_with_other_views():
+    # Qt aborts the whole process (not just this test) when a widget is built before a QApplication exists:
+    # alone, this file used to kill pytest at the last test (04/11). Same setup as the other window tests.
+    import os
+    os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+    from PySide6.QtWidgets import QApplication
+    QApplication.instance() or QApplication([])
     from archforge.ui.main_window import MainWindow
     window=MainWindow()
     assert window.structural_view.doc is window.doc

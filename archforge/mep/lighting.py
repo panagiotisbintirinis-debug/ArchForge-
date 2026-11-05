@@ -400,6 +400,7 @@ def lights_by_room(doc):
         keys = [k for k in order if k in by_key] + sorted((k for k in by_key if k not in order), key=lambda k: labels[k])
         return [{"type": k, "label": labels[k], "ids": by_key[k]} for k in keys]
 
+    from archforge.core.storey_names import level_name
     library = [e for e in lights if e.kind == "library_object"]
     for storey in reading:
         for room in storey["rooms"]:
@@ -410,7 +411,7 @@ def lights_by_room(doc):
             if not ids:
                 continue
             placed.update(ids)
-            out.append({"title": f"{storey['name']} · {room['name']}" if several else room["name"], "groups": groups_of(ids)})
+            out.append({"title": f"{level_name(storey['name'])} · {room['name']}" if several else room["name"], "groups": groups_of(ids)})
     rest = [e.id for e in lights if e.id not in placed]
     if rest:
         out.append({"title": OUTSIDE_ROOMS, "groups": groups_of(rest)})

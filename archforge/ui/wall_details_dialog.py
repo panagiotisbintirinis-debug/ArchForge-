@@ -185,6 +185,7 @@ class WallDetailsDialog(QDialog):
                 line.addWidget(b)
             self.rows_layout.addWidget(row)
             self._layer_widgets.append({"material": mat, "role": role, "thickness": thick})
+            mat.currentIndexChanged.connect(self._refresh_total)   # another material = another λ → U again
         self._refresh_total()
 
     def layer_specs(self):
@@ -199,7 +200,42 @@ class WallDetailsDialog(QDialog):
         total = sum(r["thickness"] for r in specs)
         pending = any(r["thickness"] <= 0 for r in specs)
         self.total_label.setText(f"Συνολικό πάχος στρώσεων: {total * 100:.2f} cm" +
-                                 (" · Συμπλήρωσε το πάχος της νέας στρώσης" if pending else ""))
+                                 (" · Συμπλήρωσε το πάχος της νέας στρώσης" if pending else "") + self.u_text(specs))
+
+    def u_text(self, specs=None):
+        """« · U 0,48 W/m²K από τα λ των στρώσεων» — live, as layers / materials / thicknesses change (κριτική v5:
+        «U ζωντανά μέσα στο +/−»). The same formula as the program (wall_types.indicative_u, EN ISO 6946 for walls)."""
+        from archforge.architecture.wall_types import RSE, RSI
+        from archforge.construction.building_materials import material
+        specs = self.layer_specs() if specs is None else specs
+        r, unknown, unverified, statuses = RSI + RSE, [], False, set()
+        for spec in specs:
+            if spec["thickness"] <= 0:
+                continue
+            m = material(spec["material"], self.doc)
+            lam = getattr(m, "conductivity", None)
+            if not lam:
+                unknown.append(m.name)
+                continue
+            r += spec["thickness"] / float(lam)
+            unverified = unverified or getattr(m, "conductivity_status", "") == "UNVERIFIED"
+            statuses.add(getattr(m, "conductivity_status", ""))
+        if unknown:
+            return f" · U: λείπει το λ ({', '.join(unknown)})"
+        if r <= RSI + RSE:
+            return ""
+        key = str(self.type_combo.currentData() or "")
+        note = " · Isotex: το πρόγραμμα κρατά το U του φυλλαδίου όσο ο πυρήνας μένει ίδιος" if key.startswith("isotex_") else ""
+        # Where the λ of this build-up come from (05/11: ΤΟΤΕΕ 20701-2 Πίν. 2 for most built-in materials).
+        if unverified:
+            origin = " (λ τυπικά, προς επαλήθευση)"
+        elif "DESIGN_DEFAULT" in statuses:
+            origin = " (λ από ΤΟΤΕΕ 20701-2 Πίν. 2 · πυκνότητα / προϊόν προς επαλήθευση)"
+        elif statuses <= {"VERIFIED"}:
+            origin = " (λ από ΤΟΤΕΕ 20701-2 Πίν. 2)"
+        else:
+            origin = " (λ από φύλλο προϊόντος / ΤΟΤΕΕ 20701-2)"
+        return f" · U {1.0 / r:.2f} W/m²K".replace(".", ",") + origin + note
 
     def add_layer(self, material_id, side="inside"):
         if material_id not in MATERIALS:

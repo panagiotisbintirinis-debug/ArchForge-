@@ -571,7 +571,39 @@ def install(window):
         menu.insertAction(menu.actions()[0] if menu.actions() else None, action)
         menu.insertSeparator(menu.actions()[1] if len(menu.actions()) > 1 else None)
         window._electrical_analysis_action = action
+        # Σ2 (κριτική v5): the numbers the electrician already has do not move when a point is added.
+        keep = QAction('Κράτα την αρίθμηση κυκλωμάτων', window)
+        keep.setToolTip('Κάθε σημείο κρατά το κύκλωμά του (Κ1, Κ2…): μια νέα πρίζα παίρνει νέο αριθμό ή μπαίνει σε '
+                        'κύκλωμα του χώρου της, οι υπόλοιποι αριθμοί δεν αλλάζουν · μία αναίρεση')
+        keep.setObjectName('circuitNumbersKeepAction')
+        keep.triggered.connect(lambda _=False: keep_numbers(window))
+        renumber = QAction('Επαναρίθμηση κυκλωμάτων', window)
+        renumber.setToolTip('Ξαναχωρίζει και ξαναμετρά όλα τα κυκλώματα από το Κ1 και τα κρατά · μία αναίρεση')
+        renumber.setObjectName('circuitNumbersRenumberAction')
+        renumber.triggered.connect(lambda _=False: keep_numbers(window, renumber=True))
+        after = menu.actions()[2] if len(menu.actions()) > 2 else None
+        for a in (keep, renumber):
+            menu.insertAction(after, a)
+        window._circuit_number_actions = {"keep": keep, "renumber": renumber}
     return tab
+
+
+def keep_numbers(window, renumber=False):
+    """«Κράτα την αρίθμηση» / «Επαναρίθμηση» (one undo); says what happened in the status bar."""
+    from archforge.mep.electrical import design_circuits, keep_circuit_numbers
+    command = keep_circuit_numbers(window.doc, renumber=renumber)
+    if command is None:
+        n = len(design_circuits(window.doc)["circuits"])
+        window.statusBar().showMessage(f"Κυκλώματα: {n} — η αρίθμηση είναι ήδη κρατημένη" if n else
+                                       "Κυκλώματα: κανένα — βάλτε ηλεκτρικό πίνακα και σημεία", 6000)
+        return None
+    window.stack.execute(command)
+    window._redraw_views(all_views=True)
+    n = len(design_circuits(window.doc)["circuits"])
+    window.statusBar().showMessage(
+        f"{'Επαναρίθμηση: ' if renumber else ''}{n} κυκλώματα κρατούν τον αριθμό τους · νέα σημεία παίρνουν νέο αριθμό"
+        " · Ctrl+Z = αναίρεση", 8000)
+    return command
 
 
 def show(window):

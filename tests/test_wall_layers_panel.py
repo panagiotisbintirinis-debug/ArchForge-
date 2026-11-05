@@ -77,7 +77,8 @@ def test_material_info_shows_its_status_and_takes_the_data_sheet_value(window):
     from archforge.ui import wall_layers_panel as panel
     w = window
     text = panel.material_text(w.doc, 'xps')
-    assert 'Μη επαληθευμένο' in text and 'bmat.xps' in text and 'από το φύλλο' in text
+    # 05/11: λ inside the range of ΤΟΤΕΕ 20701-2 Πίν. 2 · 6.3.4.1 — the program's default, the data sheet decides.
+    assert 'Προεπιλογή του προγράμματος' in text and '6.3.4.1' in text and 'bmat.xps' in text and 'από το φύλλο' in text
     dlg = panel.material_dialog(w, 'xps')
     from PySide6.QtWidgets import QDialogButtonBox, QLineEdit
     lam, rho, src = dlg.findChildren(QLineEdit)

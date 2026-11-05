@@ -88,8 +88,19 @@ class TapeTool:
             return False
         z = float(doc.work_plane.origin[2])
         pos = event.position()
+        # Only a number that is drawn and under the mouse (Σ4, κριτική v5): zoomed out, the numbers are hidden
+        # (plan_view min_scale) and a click near one used to open «Διάσταση» instead of selecting the wall.
+        labels = set()
+        for item in view.items(pos.toPoint()):
+            eid = getattr(view, "_entity_items", {}).get(item)
+            if eid and item.isVisible() and isinstance(item, QGraphicsTextItem):
+                labels.add(eid)
+        if not labels:
+            return False
         best = None
         for d in D.storey_dimensions(doc, z):
+            if d.get("entity_id") not in labels:
+                continue
             at = D.drawing(d)["text_at"]
             q = view.mapFromScene(at[0], at[1])
             gap = math.hypot(q.x() - pos.x(), q.y() - pos.y())

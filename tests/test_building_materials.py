@@ -19,15 +19,22 @@ def test_every_layer_of_every_wall_type_is_a_registry_material():
 
 
 def test_u_values_did_not_change_when_the_layers_moved_to_the_registry():
-    # The λ the wall types used before (plaster 0.87, brick 0.47, XPS 0.034): same indicative U.
-    r = 0.13 + 0.04 + 2 * 0.02 / 0.87 + 2 * 0.09 / 0.47 + 0.05 / 0.034
+    # The registry's λ give the indicative U (EN ISO 6946). 05/11: ΤΟΤΕΕ 20701-2 Πίν. 2 — plaster 0.87 (1.4.2),
+    # hollow brick 0.47 → 0.45 (1.7.2.2, 1200 kg/m³), XPS 0.034 (inside 6.3.4.1): U 0.483 → 0.479, on purpose.
+    r = 0.13 + 0.04 + 2 * 0.02 / 0.87 + 2 * 0.09 / 0.45 + 0.05 / 0.034
     assert indicative_u('brick_double_insulated') == pytest.approx(1 / r)
 
 
 def test_built_in_values_are_honest_about_their_status():
     status = {r.id: r.status for r in rules('materials.')}
     assert set(status) == {f'materials.{m.id}.conductivity' for m in bm.MATERIALS.values()}
-    assert VERIFIED not in status.values() and set(status.values()) == {UNVERIFIED}
+    # 05/11 (ΤΟΤΕΕ 20701-2 Πίν. 2): VERIFIED only with the table's row as source; UNVERIFIED where it has none.
+    from archforge.core.provenance import DESIGN_DEFAULT
+    assert set(status.values()) <= {VERIFIED, DESIGN_DEFAULT, UNVERIFIED}
+    assert all('ΤΟΤΕΕ 20701-2' in r.source for r in rules('materials.') if r.status == VERIFIED)
+    assert {k for k, v in status.items() if v == UNVERIFIED} == {
+        'materials.gypsum_board.conductivity', 'materials.isotex_wood_cement.conductivity',
+        'materials.isotex_graphite_eps.conductivity'}
     for m in bm.MATERIALS.values():
         assert m.density is None                      # only from a data sheet the user enters
         assert m.role in bm.ROLES and m.hatch in bm.HATCHES

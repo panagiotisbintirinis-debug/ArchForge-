@@ -162,7 +162,8 @@ class PlanView(QGraphicsView):
     TOOL_LABELS={'paint_material':'Πινέλο υλικού','select':'Επιλογή','wall':'Τοίχος','door':'Πόρτα','window':'Παράθυρο','opening_rect':'Άνοιγμα','stair':'Σκάλα',
                  'ramp':'Ράμπα','structural_column':'Κολόνα','structural_beam':'Δοκός','component':'Τοποθέτηση','move':'Μετακίνηση',
                  'rotate':'Περιστροφή','stretch':'Τέντωμα'}
-    def set_tool(self,tool):self.controller.set_tool(tool);self._active_handle=None;self._railing_draft=None;self._slab_draft=None;self.statusChanged.emit(f'Εργαλείο: {self.TOOL_LABELS.get(tool,tool)}');self.redraw()
+    TOOL_HINTS={'wall':'Τοίχος: κλικ στο πρώτο σημείο · μετά κλικ στην επόμενη γωνία ή γράψε μήκος (4,20 · 420 cm) + Enter · Tab = γωνία · F = πλευρά'}
+    def set_tool(self,tool):self.controller.set_tool(tool);self._active_handle=None;self._railing_draft=None;self._slab_draft=None;self._typed=None;self.statusChanged.emit(self.TOOL_HINTS.get(tool) or f'Εργαλείο: {self.TOOL_LABELS.get(tool,tool)}');self.redraw()
     # Grid lines on/off and the grid/snap step (Κάνναβος & έλξη bar): view state, not Document.
     def set_grid_visible(self,on):self._show_grid=bool(on);self.redraw()
     # Owner 22/10: «υποτίθεται ότι είχαμε αυτόματο σναπ … και εργαλείο να ρυθμίσουμε την απόσταση».  The snap
@@ -182,6 +183,9 @@ class PlanView(QGraphicsView):
         # Rulers, scale bar, cursor X/Y, live measures and the empty-project hint, in screen pixels.
         from archforge.ui.plan_overlay import paint_overlay
         painter.save();painter.resetTransform();paint_overlay(self,painter);painter.restore()
+        if getattr(self,'color_by_u',False):
+            from archforge.ui.thermal_view import paint_legend
+            painter.save();painter.resetTransform();paint_legend(self,painter);painter.restore()
         if self.controller.tool in ('room_box','room_place'):
             from archforge.ui.room_box_tool import paint_preview
             paint_preview(self,painter)
@@ -282,6 +286,18 @@ class PlanView(QGraphicsView):
         eid=self._entity_items.get(hit)
         if eid and eid in self.doc.entities and self.doc.get(eid).kind not in self.CONTAINER_KINDS:return eid
         return None
+    _hover_said=None
+    def _hover_info(self,event):
+        """Zero clicks (κριτική v5, k3): with Επιλογή and no button down, what is under the mouse — type, size, storey,
+        U — goes to the status bar once, when the object under the mouse changes."""
+        if str(self.controller.tool)!='select' or event.buttons() or self.controller.active is not None:
+            self._hover_said=None;return
+        eid=self._hovered_entity()
+        if eid==self._hover_said:return
+        self._hover_said=eid
+        if eid:
+            from archforge.ui.indication import describe
+            self.statusChanged.emit(describe(self.doc,eid)+' · κλικ = ένδειξη · διπλό κλικ = επιλογή')
     _indicated=None
     def indicate(self,eid):
         """One click: the object under the mouse is shown (outlined, its name and size below) — not selected."""
@@ -519,6 +535,7 @@ class PlanView(QGraphicsView):
         if lp is not None and (event.position()-lp[1]).manhattanLength()>self.CLICK_PX:self._long_press=None
         p=self.mapToScene(event.position().toPoint());self._cursor_xy=(p.x(),p.y());self.viewport().update()
         if self._overlay('move',event):return
+        self._hover_info(event)
         if self._slab_tool() and getattr(self,'_slab_draft',None) is not None:
             ev=self._scene_to_plane(event.position().toPoint());self._slab_draft.move(ev.a,ev.b)
             self.statusChanged.emit(self._slab_word()+': '+self._slab_draft.label());self.redraw();return
@@ -602,7 +619,7 @@ class PlanView(QGraphicsView):
                         # The outline closed (or a click twice on a corner): the walls are done — Επιλογή.
                         self.to_select('Τοίχοι: το περίγραμμα έκλεισε · Επιλογή · Ctrl+Z = αναίρεση του τελευταίου τοίχου')
                     elif self._wall_chain_active():
-                        self.statusChanged.emit('Τοίχος: κλικ στην επόμενη γωνία · κλικ στο πρώτο σημείο = κλείσιμο · διπλό κλικ / δεξί κλικ / Enter = τέλος · Esc = ακύρωση')
+                        self.statusChanged.emit('Τοίχος: κλικ στην επόμενη γωνία ή γράψε μήκος + Enter (Tab = γωνία) · κλικ στο πρώτο σημείο = κλείσιμο · διπλό κλικ / δεξί κλικ / Enter = τέλος · Esc = ακύρωση')
                 except ValueError as exc:self.statusChanged.emit(str(exc));self.controller.cancel()
                 self._active_handle=None
                 if getattr(self,'_restore_select',False):
@@ -622,6 +639,7 @@ class PlanView(QGraphicsView):
         # Tab cycles Stair/Ramp options instead of moving keyboard focus.
         if self.controller.tool in ('stair','ramp') and self.controller.active is not None:return False
         if str(self.controller.tool).startswith('layout_'):return False     # Tab = next layout variant
+        if self.controller.tool=='wall' and self._wall_chain_active():return False   # Tab = μήκος ↔ γωνία (typed_length)
         return super().focusNextPrevChild(next)
     def finish_plot(self):
         draft=getattr(self,'plot_draft',None) or []
@@ -640,6 +658,9 @@ class PlanView(QGraphicsView):
         # Drawing with any tool: Delete is the plan's own (what is under the mouse first), not the window's «delete selection».
         if event.type()==QEvent.Type.ShortcutOverride and event.key()==Qt.Key.Key_Delete and str(self.controller.tool)!='select':
             event.accept();return True
+        if event.type()==QEvent.Type.ShortcutOverride:
+            from archforge.ui import typed_length
+            if typed_length.wants_key(self,event):event.accept();return True
         return super().event(event)
     def keyPressEvent(self,event):
         if self.carry is not None and event.key() in (Qt.Key.Key_Escape,Qt.Key.Key_R):
@@ -647,6 +668,8 @@ class PlanView(QGraphicsView):
             else:self.carry=None;self.statusChanged.emit('Σύρσιμο ακυρώθηκε')
             self.redraw();event.accept();return
         if self._overlay('key',event):event.accept();return
+        from archforge.ui import typed_length
+        if typed_length.handle_key(self,event):event.accept();return   # μήκος / γωνία με το πληκτρολόγιο (Σ1, 04/11)
         if event.key()==Qt.Key.Key_Delete and str(self.controller.tool)!='select' and getattr(self,'marking_menu_window',None) is not None:
             # Owner 23/10 «το Delete να δουλεύει παντού»: while drawing, Delete removes what the mouse points at;
             # nothing there → the last wall drawn (owner 15/10) in the wall tool, else the selection.
@@ -901,6 +924,9 @@ class PlanView(QGraphicsView):
             fm=QFontMetricsF(QGraphicsTextItem().font())
             PlanView._label_font_factor=max(1.0,fm.horizontalAdvance('ΣΔ1 25/50 4Ø14')/14/LABEL_CHAR_PX,fm.lineSpacing()/LABEL_LINE_PX)
         return abs(self.transform().m11())/PlanView._label_font_factor
+    def fitInView(self,*args,**kwargs):
+        # «Όλο το έργο» / zoom to a selection: the numbers that no longer fit are hidden, as with the wheel (Σ4).
+        super().fitInView(*args,**kwargs);self._update_label_visibility()
     def _update_label_visibility(self):
         scale=self._label_scale()
         for item,min_scale in getattr(self,'_scaled_labels',()):item.setVisible(scale>=min_scale)
@@ -1084,6 +1110,9 @@ class PlanView(QGraphicsView):
             self._scene.addLine(mx-.32,my,mx+.32,my,pen).setZValue(40);self._scene.addLine(mx,my-.32,mx,my+.32,pen).setZValue(40)
         # A fixed, very large sheet (±5 km): a scene rect that followed the visible area clamped the
         # scroll bars, so the wheel zoom could not keep the point under the mouse (drawing slid left).
+        if getattr(self,'color_by_u',False):
+            from archforge.ui.thermal_view import draw as _thermal_draw
+            _thermal_draw(self)                  # Προβολή › Χρωματισμός κατά U (κριτική v5, k7)
         self._scene.setSceneRect(-5000,-5000,10000,10000)
         self.previewChanged.emit(copy.deepcopy(self.controller.preview))
     def _draw_grid(self):

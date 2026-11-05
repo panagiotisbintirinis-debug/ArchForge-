@@ -102,6 +102,15 @@ def _action(window, text, run, tip=""):
     return a
 
 
+def _selected_materials_action(window):
+    """«Υλικό στο επιλεγμένο…» is one command: Βιβλιοθήκη ▸ Υλικά and Εργαλεία share this action (it was two
+    actions doing the same thing, listed twice in Διαμόρφωση ▸ Υλικά)."""
+    a = getattr(window, "_selected_materials_action", None)
+    if a is None:
+        a = window._selected_materials_action = _action(window, "Υλικό στο επιλεγμένο…", window._open_selected_materials)
+    return a
+
+
 def organize_main_menus(window):
     """Regroup the menu bar into the 8 menus of the mockup (moves, never drops)."""
     bar = window.menuBar()
@@ -173,7 +182,9 @@ def organize_main_menus(window):
         acts = getattr(getattr(window, "shortcuts", None), "actions", {}) or {}
         tail = [a for a in edit_menu.actions() if not a.isSeparator() and a not in
                 (window.undo_action, window.redo_action, window.delete_action)]
-        _fill(edit_menu, [window.undo_action, window.redo_action, None,
+        from archforge.ui.select_similar import install as _select_install
+        selecting = getattr(window, "_select_actions", None) or _select_install(window)
+        _fill(edit_menu, [window.undo_action, window.redo_action, None, *selecting, None,
                           acts.get("edit.move"), acts.get("edit.rotate"), acts.get("edit.stretch"),
                           acts.get("edit.corner"),
                           acts.get("edit.duplicate"), None, window.delete_action, None, *tail])
@@ -237,7 +248,7 @@ def organize_main_menus(window):
             library.addSeparator(); library.addMenu(kitchen)
         mats = materials if materials is not None else QMenu("Υλικά", window)
         if not mats.actions() and hasattr(window, "_open_selected_materials"):
-            mats.addAction(_action(window, "Υλικό στο επιλεγμένο…", window._open_selected_materials))
+            mats.addAction(_selected_materials_action(window))
         mats.setTitle("Υλικά")
         library.addMenu(mats)
         window._library_materials_menu = mats
@@ -271,7 +282,10 @@ def organize_main_menus(window):
         def m(a):
             return a.menu() if a is not None and a.menu() is not None else a
         _fill(view_menu, [m(views), section, interior, getattr(window, "_simultaneous_action", None), None,
-                          m(_find(view_menu, "Κάμερες")), render, show3d, None,
+                          m(_find(view_menu, "Κάμερες")), render, show3d,
+                          getattr(window, "_thermal_view_action", None) or __import__("archforge.ui.thermal_view", fromlist=["install"]).install(window),
+                          getattr(window, "_thermal_3d_action", None) or __import__("archforge.ui.thermal_view", fromlist=["install_3d"]).install_3d(window),
+                          None,
                           m(_find(view_menu, "Περιβάλλον")), _find(view_menu, "Layers"), None,
                           m(panels), bars, getattr(window, "status_bar_action", None), reset])
         _remove(view_menu, *LAYER_TEXTS)          # only inside «Εμφάνιση στο 3D» now
@@ -284,7 +298,7 @@ def organize_main_menus(window):
         window.sculpt_action.setText("Γλυπτική (ενεργή / ανενεργή)")
         tool_items.append(window.sculpt_action)
     if hasattr(window, "_open_selected_materials"):
-        tool_items.append(_action(window, "Υλικό στο επιλεγμένο…", window._open_selected_materials))
+        tool_items.append(_selected_materials_action(window))      # the same command as Βιβλιοθήκη ▸ Υλικά
     tool_items.append(None)
     assistant = getattr(window, "_assistant_dock", None)
     if assistant is not None:
@@ -413,6 +427,7 @@ def organize_work_menus(window):
     tops = [(a.text(), a.menu()) for a in bar.actions() if a.menu() is not None]
     # Keyed by id(): ``keep`` holds every wrapper for the whole run, so an id cannot be freed and reused meanwhile.
     menus, sections, placed, old_paths, old_cpaths, old_menus, keep, dynamic = {}, {}, set(), {}, {}, {}, [], []
+    also = []                                                  # (old path, command) of a command's second listing
     old_tops = {_key(t): m for t, m in tops}
     window._work_mirrors = []
     quick_row = getattr(window, "_top_row", None) is not None
@@ -467,7 +482,8 @@ def organize_work_menus(window):
             keep.append(a)
             if sub is None:
                 if id(a) in placed:
-                    continue                                   # one home per command
+                    also.append((cp, a))                       # one home per command; this old path finds it too
+                    continue
                 t = where(p) or (_key(path[0]), "")
                 if t == BAR:
                     from archforge.ui.layout2 import add_quick_action
@@ -559,6 +575,10 @@ def organize_work_menus(window):
         old = old_cpaths.get(id(a))
         if old is not None and old != new_path:
             aliases.setdefault(SEP.join(old), SEP.join(new_path))
+    new_of = {id(a): SEP.join(np) for np, a in _leaf_paths_sep(bar)}
+    for old, a in also:
+        if id(a) in new_of and SEP.join(old) != new_of[id(a)]:
+            aliases.setdefault(SEP.join(old), new_of[id(a)])
     # … and for submenus that moved whole (mouse menus can hold a whole submenu).
     for new_path, sub in _menu_paths(bar):
         old = old_menus.get(id(sub))

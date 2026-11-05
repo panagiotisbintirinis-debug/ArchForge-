@@ -337,6 +337,10 @@ function applySunAndSky() {
   const technical = activeTechnique === "technical";
   sky.visible = useSky;
   scene.background = useSky ? lookCubeTarget.texture : new THREE.Color(technical ? 0xf4f5f7 : 0xd9dee5);
+  if (window.__thermalOn) {                   // «Θερμική όψη»: the sky stays the coldest, dark, whatever the camera
+    scene.userData.thermalBackground = scene.background;
+    scene.background = new THREE.Color(0x07070c);
+  }
   scene.environment = useSky && lookSkyEnvironment ? lookSkyEnvironment : studioEnvironment;
   scene.environmentIntensity = useSky ? 1.0 : 0.25;
   // Distance haze into the horizon colour: the ground has no visible edge.
@@ -1327,7 +1331,104 @@ window.archforgeSetScene = function(payload, fit = true) {
   if (typeof afUpdateLightVisibility === "function") afUpdateLightVisibility();
   // (owner: «η κάμερα με πέταγε έξω κάθε φορά που άλλαζα κλίσεις στο terrain»).
   // The Fit command and the view presets call fitCamera()/setCameraPreset directly.
+  if (thermalPayload) applyThermal();          // new / changed meshes take the thermal colours too
+  if (pendingFrame) { const ids = pendingFrame; pendingFrame = null; window.frameEntities(ids, false); return; }
   if (fit && !cameraMovedByHuman) fitCamera();
+};
+
+// «Θερμική όψη» (owner 05/11: «να φαίνονται οι θερμοκρασίες οπτικά από εξωτερική πλευρά χρωματικά»): every mesh of a
+// computed wall / opening takes its colour of the thermography palette (mep/surface_temperature.py), everything else
+// grey (not computed); a legend in °C. The materials come back exactly when the view is switched off.
+let thermalPayload = null;
+let thermalLegend = null;
+function thermalPaint(mesh, rgb) {
+  // A flat, unlit colour (a camera's picture is not shaded by the sun): the mesh gets a basic material for the view
+  // and its own material back when the view is switched off.
+  if (!mesh.userData.thermalOriginal) mesh.userData.thermalOriginal = mesh.material;
+  const own = mesh.userData.thermalOriginal;
+  const flat = new THREE.MeshBasicMaterial({color: new THREE.Color().setRGB(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255,
+    THREE.SRGBColorSpace || undefined), side: own.side, clippingPlanes: own.clippingPlanes || null, toneMapped: false});
+  if (mesh.material !== own && mesh.material.dispose) mesh.material.dispose();
+  mesh.material = flat;
+}
+function thermalRestore(mesh) {
+  const own = mesh.userData.thermalOriginal;
+  if (!own) return;
+  if (mesh.material !== own && mesh.material.dispose) mesh.material.dispose();
+  mesh.material = own;
+  mesh.userData.thermalOriginal = null;
+}
+function applyThermal() {
+  const meshes = modelRoot.children.filter((mesh) => mesh.isMesh);
+  if (ground && ground.isMesh) meshes.push(ground);
+  meshes.forEach((mesh) => {
+    if (!thermalPayload) { thermalRestore(mesh); return; }
+    const own = thermalPayload.colors[mesh.userData.entityId];
+    const rgb = own || (mesh === ground || mesh.userData.kind === "terrain"
+      ? thermalPayload.ground_color : thermalPayload.unknown_color);
+    thermalPaint(mesh, rgb);
+  });
+  // The sky is the coldest thing a camera sees outdoors: dark while the view is on, the look's own sky after.
+  if (thermalPayload) {
+    if (scene.userData.thermalBackground === undefined) scene.userData.thermalBackground = scene.background;
+    scene.background = new THREE.Color(0x07070c);
+  } else if (scene.userData.thermalBackground !== undefined) {
+    scene.background = scene.userData.thermalBackground;
+    delete scene.userData.thermalBackground;
+  }
+  if (thermalLegend) { thermalLegend.remove(); thermalLegend = null; }
+  if (thermalPayload && thermalPayload.legend) {
+    const L = thermalPayload.legend;
+    const grad = L.stops.map(([t, c]) => `rgb(${c[0]},${c[1]},${c[2]}) ${Math.round(t * 100)}%`).join(",");
+    const fmt = (v) => String(v.toFixed(1)).replace(".", ",");
+    thermalLegend = document.createElement("div");
+    thermalLegend.id = "thermalLegend";
+    thermalLegend.style.cssText = "position:absolute;right:12px;bottom:12px;background:rgba(20,20,24,.82);color:#fff;" +
+      "font:12px sans-serif;padding:8px 10px;border-radius:6px;max-width:260px;pointer-events:none";
+    thermalLegend.innerHTML = `<b>${L.title}</b><div style="height:12px;margin:6px 0 2px;border-radius:3px;` +
+      `background:linear-gradient(90deg,${grad})"></div><div style="display:flex;justify-content:space-between">` +
+      `<span>${fmt(L.min)} °C</span><span>${fmt(L.max)} °C</span></div>` +
+      `<div style="opacity:.75;margin-top:4px;font-size:10.5px">${L.note}</div>`;
+    document.body.appendChild(thermalLegend);
+  }
+  if (typeof wakeRender === "function") wakeRender(10);
+}
+window.setThermalView = function(payload) {
+  thermalPayload = payload || null; window.__thermalOn = !!thermalPayload; applyThermal();
+};
+window.__thermalState = () => ({on: !!thermalPayload, legend: !!document.getElementById("thermalLegend"),
+  colors: modelRoot.children.filter((m) => m.userData.thermalOriginal)
+    .map((m) => [m.userData.entityId, m.material.color.getHexString()])});
+
+// «Δείξε την επιλογή στο 3D» (Shift+F3, κριτική v5 k8): the camera keeps its direction and comes close enough for the
+// chosen objects to fill the view.  Before their meshes arrive (first opening) the request waits for the scene.
+let pendingFrame = null;
+window.frameEntities = function(ids, wait = true) {
+  const want = new Set(ids || []);
+  const box = new THREE.Box3();
+  let found = 0;
+  modelRoot.children.forEach((m) => {
+    if (want.has(m.userData.entityId) && m.visible) { box.expandByObject(m); found += 1; }
+  });
+  if (box.isEmpty()) { pendingFrame = wait ? [...want] : null; return 0; }
+  if (walkMode) setWalkMode(false);
+  const center = box.getCenter(new THREE.Vector3());
+  const radius = Math.max(box.getSize(new THREE.Vector3()).length() * 0.5, 0.6);
+  const dir = camera.position.clone().sub(controls.target);
+  if (dir.lengthSq() < 1e-8) dir.set(1, -1.25, 0.85);
+  dir.normalize();
+  const distance = radius / Math.sin((camera.fov * Math.PI / 180) / 2) * 1.1;
+  controls.enabled = true;
+  controls.target.copy(center);
+  camera.position.copy(center).addScaledVector(dir, distance);
+  camera.near = Math.max(0.02, distance / 500.0);
+  camera.far = Math.max(camera.far, distance * 40.0);
+  camera.updateProjectionMatrix();
+  camera.lookAt(center);
+  controls.update();
+  cameraMovedByHuman = true;                 // the next scene update keeps this view
+  if (typeof wakeRender === "function") wakeRender(30);
+  return found;
 };
 
 window.setTechnique = function(mode) {
@@ -2306,6 +2407,7 @@ function walkStep() {
   if (fwd || side || up) walkMove(fwd * v, side * v, up * v * 0.6);
 }
 window.__walkStep = walkStep;
+window.__cameraState = () => ({position: camera.position.toArray(), target: controls.target.toArray()});   // tests
 window.__walkState = () => ({walkMode, x: camera.position.x, y: camera.position.y, z: camera.position.z});
 
 // Capture the same frame the user sees, including the active render technique.
@@ -2862,6 +2964,7 @@ class PBRViewport(QWidget):
             self.statusChanged.emit("PBR Preview HTML failed to load")
             return
         self.statusChanged.emit("3D έτοιμο")
+        self._page_ready = True
         from archforge.ui.control_center import push_3d_bindings
         window = getattr(self, "marking_menu_window", None)
         if window is not None:
@@ -2878,6 +2981,10 @@ class PBRViewport(QWidget):
         pending_line = self._view_line
         self.set_camera_preset(self._camera_preset)
         self._view_line = pending_line
+        if getattr(self, "_pending_frame", None):
+            self.frame_entities(self._pending_frame)
+        if self.thermal_side:
+            self.set_thermal_view(self.thermal_side)
         self._push_stair_preview()
         self._push_ramp_preview()
         self.set_snap_enabled(self._snap_enabled)
@@ -3661,6 +3768,32 @@ class PBRViewport(QWidget):
         )
         self.web_view.page().runJavaScript(script)
 
+    thermal_side = None                       # "exterior" while «Θερμική όψη» is on
+
+    def set_thermal_view(self, side="exterior") -> dict | None:
+        """«Θερμική όψη»: the surfaces in the thermography palette (``side`` = "exterior" / "interior"), None = off."""
+        self.thermal_side = side
+        payload = None
+        if side:
+            from archforge.mep.surface_temperature import thermal_view
+            payload = thermal_view(self.doc, side)
+        if self.web_view is not None and getattr(self, "_page_ready", False):
+            self.web_view.page().runJavaScript("if (window.setThermalView) window.setThermalView("
+                                               + json.dumps(payload) + ");")
+        if payload is not None:
+            self.statusChanged.emit(f"Θερμική όψη: {payload['count']} επιφάνειες, {payload['legend']['min']:g}…"
+                                    f"{payload['legend']['max']:g} °C · γκρι = δεν υπολογίστηκε".replace(".", ","))
+        return payload
+
+    def frame_entities(self, ids) -> None:
+        """«Δείξε την επιλογή στο 3D»: the camera turns to the given objects (kept for a page still loading)."""
+        self._pending_frame = [str(i) for i in ids]
+        if self.web_view is not None and getattr(self, "_page_ready", False):
+            self.web_view.page().runJavaScript(
+                "if (window.frameEntities) window.frameEntities(" + json.dumps(self._pending_frame) + ");")
+            self._pending_frame = None
+        self.statusChanged.emit(f"3D: η επιλογή στην οθόνη ({len(ids)}) · Home = όλο το κτίριο")
+
     def fit_camera(self) -> None:
         if self.web_view is not None:
             self.web_view.page().runJavaScript(
@@ -3921,6 +4054,8 @@ class PBRViewport(QWidget):
         else:        # only what changed: meaningless without the meshes already in the page
             script = "if (window.archforgeSetScene) window.archforgeSetScene(" + text + ", " + fit + ");"
         self.web_view.page().runJavaScript(script)
+        if self.thermal_side:
+            self.set_thermal_view(self.thermal_side)   # a new wall type / Uw changes the picture at once
         if getattr(self, "_camera_preset", None) == "dollhouse":
             self._push_dollhouse_cut()          # follows the active storey
         if not self.structural_only:

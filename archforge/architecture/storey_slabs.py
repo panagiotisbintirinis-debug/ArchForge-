@@ -330,7 +330,8 @@ def cut_room_slab(doc, entity, geometry, tolerance=1e-5):
 # --- commands -----------------------------------------------------------------------------------
 
 def storey_slab_name(kind, level_name):
-    storey = 'Ισόγειο' if level_name in ('Ground', 'XY', '') else str(level_name)
+    from archforge.core.storey_names import level_name as human
+    storey = human(level_name)
     return ('Πλάκα δαπέδου' if kind == 'room_floor' else 'Πλάκα δώματος') + f' — {storey}'
 
 

@@ -119,7 +119,12 @@ def slab_quantities(doc):
         islands = g.get("islands") or [(g["points"], [])]
         net = islands_area(islands)
         gross = sum(abs(_area(o)) for o, _h in islands)
-        out.append({"name": e.name or e.kind, "area_m2": round(net, 2), "openings_m2": round(gross - net, 2),
+        name = e.name or e.kind
+        head, sep, storey = name.partition(" — ")
+        if sep and head in ("Πλάκα δαπέδου", "Πλάκα δώματος"):
+            from archforge.core.storey_names import level_name
+            name = f"{head} — {level_name(storey)}"            # saved as «— Floor 2» before 05/11 (Σ7)
+        out.append({"name": name, "area_m2": round(net, 2), "openings_m2": round(gross - net, 2),
                     "volume_m3": round(net * float(g["thickness"]), 2)})
     return out
 
@@ -137,6 +142,7 @@ def _floor_material(doc, signature):
 
 def take_off(doc):
     """``{"rooms": [...], "demolition": {...}, "totals": {...}, "provenance": str}``."""
+    from archforge.core.storey_names import level_name
     from archforge.assistant.understanding import read_drawing
     reading = read_drawing(doc)
     rooms = []
@@ -167,7 +173,7 @@ def take_off(doc):
             finish = str((doc.room_metadata(r["signature"]) or {}).get("floor_finish", "") or floor_material).lower()
             wood = any(k in finish for k in ("ξύλ", "ξυλ", "wood", "parquet", "πάρκε", "παρκε", "δρυς", "καρυδιά"))
             rooms.append({
-                "storey": storey["name"], "name": r["name"], "use": r["use"], "height_m": round(h, 2),
+                "storey": level_name(storey["name"]), "name": r["name"], "use": r["use"], "height_m": round(h, 2),
                 "floor_m2": round(floor, 2), "perimeter_m": round(perim, 2), "ceiling_m2": round(ceiling, 2),
                 "walls_m2": round(walls, 2), "openings_m2": round(openings, 2),
                 "paint_walls_m2": round(walls - wall_tiles, 2), "paint_ceiling_m2": round(ceiling, 2),

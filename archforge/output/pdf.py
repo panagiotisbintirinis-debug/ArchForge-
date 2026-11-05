@@ -198,13 +198,7 @@ def _dimension(sh, P1, P2, off_dir, off_mm, value, to_mm):
     sh.text(mx, my, f"{value:.2f}", size=7, align="center", color=DIM, w=30, angle=ang)
 
 
-LEVEL_NAMES = {"Ground": "Ισόγειο", "XY": "Ισόγειο", "Basement": "Υπόγειο", "Roof": "Δώμα"}
-
-
-def level_name(name):
-    import re
-    m = re.match(r"Floor (\d+)$", str(name))
-    return f"{int(m.group(1)) - 1}ος όροφος" if m else LEVEL_NAMES.get(str(name), str(name))
+from archforge.core.storey_names import LEVEL_NAMES, level_name  # noqa: E402,F401  (one source)
 
 
 def _plan_page(sh, doc, storey, sheet_no, project, date):

@@ -130,6 +130,8 @@ class MainWindow(QMainWindow):
         install_layout2(self)            # Διάταξη 2: thin first row, tool groups, «Κοινά», panels on the right
         from archforge.ui import electrical_board_tab
         electrical_board_tab.install(self)  # «Ηλεκτρ. πίνακας»: circuits, conductors, metres per wall, board
+        from archforge.ui import live_lists
+        live_lists.install(self)           # «Λίστες» (κριτική v5 k9): κουφώματα, κέλυφος, χώροι, κυκλώματα — ζωντανές
         from archforge.ui import trades_tab
         trades_tab.install(self)            # «Υλικά & τιμές»: a card per trade, prices, order list, quote
         from archforge.ui import insulation_tab
@@ -2203,6 +2205,9 @@ class MainWindow(QMainWindow):
             return
         if len(self.doc.selection) != 1:
             count = len(self.doc.selection)
+            from archforge.ui.multi_wall_rows import add_rows as _multi_wall_rows
+            if count > 1 and _multi_wall_rows(self, list(self.doc.selection)):
+                return                          # several walls: totals and one type for all (κριτική v5)
             self.form.addRow(QLabel('Καμία επιλογή' if not count else f'{count} επιλεγμένα'))
             if not count:
                 hint = QLabel('Κάνε κλικ σε ένα αντικείμενο στην κάτοψη ή στο 3D\nγια να δεις και να αλλάξεις τις ιδιότητές του.')
@@ -4185,6 +4190,13 @@ class MainWindow(QMainWindow):
             self.setWindowModified(True)
         self._schedule_assistant_refresh()
         self._update_plan_title()
+        # Σ6 (κριτική v5): the status line describing the indicated object follows its change (new type → new
+        # thickness); the next hover describes afresh instead of keeping the old text.
+        plan = getattr(self, 'plan_view', None)
+        if plan is not None:
+            plan._hover_said = None
+            if getattr(plan, '_indicated', None):
+                plan.indicate(plan._indicated)
         self._refresh_floor_selector()
         self._refresh_project_tree()
         if getattr(self, '_cameras', None) is not None:
@@ -4310,6 +4322,10 @@ class MainWindow(QMainWindow):
         if getattr(self,'_board_tab',None) is not None:
             self.stack.listeners.append(self._board_tab.mark_stale)
             self._board_tab.mark_stale()
+        if getattr(self, '_lists_tab', None) is not None:
+            self.stack.listeners.append(self._lists_tab.mark_stale); self._lists_tab.mark_stale()
+        if getattr(self, '_takeoff_dialog', None) is not None:
+            self._takeoff_dialog.attach(); self._takeoff_dialog.mark_stale()      # the open take-off follows the new project
         self.current_path = path
         if path:
             from archforge.ui.start_page import remember
@@ -4455,9 +4471,14 @@ class MainWindow(QMainWindow):
         from archforge.core.commands import CompositeCommand
         kinds = ('wall', 'door', 'window', 'opening', 'structural_column', 'structural_beam',
                  'plumbing_point', 'electrical_point', 'ventilation_point', 'stair', 'cabinet', 'library_object')
-        ids = [i for i in ids if i in self.doc.entities and self.doc.get(i).kind in kinds
-               and self.doc.get(i).params.get('phase', 'new') != phase]
-        if not ids:
+        chosen = [i for i in ids if i in self.doc.entities and self.doc.get(i).kind in kinds]
+        ids = [i for i in chosen if self.doc.get(i).params.get('phase', 'new') != phase]
+        if not ids:                              # say why nothing changed (owner 30/10: «λέει γιατί»)
+            name = {'existing': 'Υφιστάμενα', 'demolish': 'Καθαίρεση', 'new': 'Νέα'}.get(phase, phase)
+            self.statusBar().showMessage(
+                f'Όλα τα επιλεγμένα είναι ήδη «{name}».' if chosen else
+                'Επίλεξε πρώτα τοίχους, κουφώματα, φέροντα, σημεία Η/Μ, σκάλες ή έπιπλα — η φάση αλλάζει στα επιλεγμένα.',
+                8000)
             return 0
         from archforge.core.layers import LayerLockedError
         try:

@@ -409,6 +409,23 @@ def _pieces_per_m2(v):
     return {str(k): _positive(x) for k, x in dict(v or {}).items()}
 
 
+def _thermal_bridge_values(v):
+    """``{type: {"psi": W/(m·K) | None, "code": str, "source": str}}`` (mep/thermal_bridges.py)."""
+    from archforge.mep.thermal_bridges import TYPES
+    out = {}
+    for key, entry in dict(v or {}).items():
+        if key not in TYPES:
+            raise ValueError(f'unknown thermal bridge type {key}')
+        entry = dict(entry or {})
+        psi = entry.get('psi')
+        if psi is not None:
+            psi = float(psi)
+            if not math.isfinite(psi):
+                raise ValueError('ψ must be finite')
+        out[key] = {'psi': psi, 'code': str(entry.get('code', '')), 'source': str(entry.get('source', ''))}
+    return out
+
+
 def _insulation_categories(v):
     """``{category: {"thermal": key, "thickness": m, "waterproofing": key}}`` (construction/insulation.py)."""
     from archforge.construction.insulation import CATEGORIES, THERMAL, WATERPROOFING
@@ -767,7 +784,17 @@ def _joinery(key):
     return check
 
 
-_JOINERY_OPENING = {**_OPENING, **{k: _joinery(k) for k in (
+def _u_value(v):
+    """Uw of a door / window from its maker [W/(m²K)], or None (the project's value applies) — mep/heat_load.py."""
+    if v is None or v == '':
+        return None
+    v = float(v)
+    if not math.isfinite(v) or v <= 0:
+        raise ValueError('U must be a positive number')
+    return v
+
+
+_JOINERY_OPENING = {**_OPENING, 'u_value': _u_value, **{k: _joinery(k) for k in (
     'opening_type', 'hinge', 'swing', 'leaves', 'bars_h', 'bars_v', 'transom', 'shading', 'ledge', 'finish', 'leaf_design')},
     'open_angle': _joinery('open_angle')}
 SCHEMAS = {
@@ -970,6 +997,12 @@ SCHEMAS = {
                  'opacity': _unit_interval, 'page_w': _positive, 'page_h': _positive, 'scale_denominator': _positive,
                  'section_id': str},
     'insulation_spec': {'categories': _insulation_categories},
+    # Design temperatures of the project (mep/design_climate.py): every value changes per project, nothing fixed.
+    'design_climate': {'heat_theta_int': _finite, 'heat_theta_ext_winter': _finite, 'heat_theta_ext_summer': _finite,
+                       'heat_air_changes': _nonnegative, 'preset': str,
+                       'zone': _choice(('', 'Α', 'Β', 'Γ', 'Δ'), 'climate zone')},
+    # ψ of the thermal bridges, written by the user with detail code and source (mep/thermal_bridges.py).
+    'thermal_bridge_psi': {'values': _thermal_bridge_values},
     # Data-sheet figures the user enters (construction/shell.py): pieces per m² of a brick / roof tile.
     'construction_spec': {'pieces_per_m2': _pieces_per_m2},
     'section_line': {'x1': _finite, 'y1': _finite, 'x2': _finite, 'y2': _finite, 'flip': _flag, 'depth': _nonnegative},

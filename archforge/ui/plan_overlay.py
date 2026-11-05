@@ -123,6 +123,9 @@ def paint_overlay(view, painter):
     stair = stair_text(getattr(view.controller, "preview", None))
     if stair is not None:
         live = stair[0]
+    typed = getattr(view, "_typed", None)
+    if typed is not None and typed.has_text():
+        live = (live + "   " if live else "") + "⌨ " + typed.text()      # typed_length: what is being typed
     if live:
         bold = QFont(font); bold.setPointSizeF(10); bold.setBold(True); painter.setFont(bold)
         w = QFontMetrics(bold).horizontalAdvance(live) + 20

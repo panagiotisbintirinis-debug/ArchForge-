@@ -83,10 +83,41 @@ _STYLES = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
 
 def write_priced_workbook(path, sheets, prices=None):
     """``sheets``: ``[(name, title, rows, notes)]`` → .xlsx at ``path`` (prices empty, totals as formulas)."""
+    xmls = [(name, _sheet(title, rows, notes, prices)[0]) for name, title, rows, notes in sheets]
+    return _package(path, xmls)
+
+
+def _table_sheet(title, header, rows, notes=()):
+    """A plain table: title, notes (e.g. the completeness check), bold header, one row per item; numbers stay numbers."""
+    out = [f'<row r="1">{_cell("A1", title, 1)}</row>']
+    r = 2
+    for n in notes:
+        out.append(f'<row r="{r}">{_cell(f"A{r}", n)}</row>')
+        r += 1
+    r += 1
+    out.append(f'<row r="{r}">' + "".join(_cell(f"{_col(i)}{r}", h, 1) for i, h in enumerate(header)) + "</row>")
+    for row in rows:
+        r += 1
+        out.append(f'<row r="{r}">' + "".join(_cell(f"{_col(i)}{r}", v) for i, v in enumerate(row)) + "</row>")
+    widths = [max([len(str(header[i]))] + [len(str(row[i])) for row in rows if i < len(row) and row[i] is not None])
+              for i in range(len(header))]
+    cols = "<cols>" + "".join(f'<col min="{i + 1}" max="{i + 1}" width="{min(70, max(8, w + 2))}" customWidth="1"/>'
+                              for i, w in enumerate(widths)) + "</cols>"
+    return ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            f'{cols}<sheetData>{"".join(out)}</sheetData></worksheet>')
+
+
+def write_table_workbook(path, sheets):
+    """``sheets``: ``[(name, title, header, rows, notes)]`` → .xlsx at ``path`` — one plain table per sheet."""
+    return _package(path, [(name, _table_sheet(title, header, rows, notes)) for name, title, header, rows, notes in sheets])
+
+
+def _package(path, xmls):
+    """Write the workbook: ``xmls`` = ``[(sheet name, worksheet xml)]``; returns ``path``."""
     names = []
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
-        for i, (name, title, rows, notes) in enumerate(sheets, 1):
-            xml, _f, _l = _sheet(title, rows, notes, prices)
+        for i, (name, xml) in enumerate(xmls, 1):
             z.writestr(f"xl/worksheets/sheet{i}.xml", xml)
             names.append(name[:31])
         z.writestr("[Content_Types].xml",

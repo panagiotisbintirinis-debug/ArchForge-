@@ -5,9 +5,11 @@ Not a heating study (EN 12831-1 / ΚΕΝΑΚ): an indication from what the model
 * Transmission through **exterior walls**: net area (length × height − openings) × U × ΔT, U from the wall's
   layers (``wall_types.indicative_u``, EN ISO 6946 with the materials' λ: typical, or the project's data sheet).
   A wall without a build-up has no U: it is listed under «δεν μετρήθηκαν», never guessed.
-* **Openings**: area × U of the openings — only when the project gives one (``u_openings``); else not counted, said.
+* **Openings**: area × Uw of each door / window (its own ``u_value``, else the project's ``u_openings``); one with
+  neither is not counted, said.
 * **Ventilation**: 0.34 Wh/(m³K) (ρ·c of air) × air changes per hour × room volume × ΔT.
-* Roof, floor and thermal bridges are not counted yet — said on the result.
+* **Thermal bridges**: Σ ψ·l × ΔT, lengths from the drawing, ψ from the project's catalogue (``mep/thermal_bridges``);
+  a kind without ψ is listed under «δεν μετρήθηκαν».  Roof and floor are not counted yet — said on the result.
 
 Temperatures and air changes are the owner's assumptions (28/10: «υποθετικές θερμοκρασίες με περιθώριο αλλαγής…
 μέσα 20, έξω καλοκαίρι 28, χειμώνα 12»), stored on the project's heat source / connection point (its Properties),
@@ -21,26 +23,30 @@ import math
 AIR_HEAT = 0.34          # Wh/(m³·K): density × specific heat of air (physics, not a design choice)
 
 # Owner 28/10, DESIGN_DEFAULT: changed per project («περιθώριο αλλαγής»).
-ASSUMPTIONS = {
-    "heat_theta_int": (20.0, "°C", "Θερμοκρασία μέσα (άνεση)"),
-    "heat_theta_ext_winter": (12.0, "°C", "Θερμοκρασία έξω, χειμώνας"),
-    "heat_theta_ext_summer": (28.0, "°C", "Θερμοκρασία έξω, καλοκαίρι"),
-    "heat_air_changes": (0.5, "1/h", "Αλλαγές αέρα την ώρα"),
+from archforge.mep.design_climate import FIELDS as _CLIMATE
+
+# Temperatures and air changes: the project's design values (mep/design_climate.py, 04/11 — a preset with its source or
+# the user's own; nothing fixed). U values: on the heat source / connection point, as before.
+ASSUMPTIONS = {key: (default, unit, label) for key, (default, unit, label, _src) in _CLIMATE.items()}
+ASSUMPTIONS.update({
     "heat_u_openings": (None, "W/m²K", "U κουφωμάτων (από τον κατασκευαστή)"),
     "heat_u_walls": (None, "W/m²K", "U εξωτερικών τοίχων χωρίς σύνθεση"),
-}
-PROVENANCE = "DESIGN_DEFAULT — υπόθεση ιδιοκτήτη 28/10, αλλάζει ανά έργο· όχι μελέτη θέρμανσης (EN 12831-1 / ΚΕΝΑΚ)"
+})
+PROVENANCE = ("DESIGN_DEFAULT — θερμοκρασίες σχεδιασμού του έργου (αλλάζουν ανά έργο, Εγκαταστάσεις › Θέρμανση › "
+              "Θερμοκρασίες σχεδιασμού…)· όχι μελέτη θέρμανσης (EN 12831-1 / ΚΕΝΑΚ)")
 
 
 def assumptions(doc):
     """``{key: value}``: the values on the project's heat source / connection point, else the owner's defaults."""
+    from archforge.mep.design_climate import values
     from archforge.mep.heating_layout import source_of
     e = source_of(doc)
     stored = dict(e.params) if e is not None else {}
-    out = {}
+    out = dict(values(doc))                     # temperatures / air changes: the project's design values
     for key, (default, _unit, _label) in ASSUMPTIONS.items():
-        value = stored.get(key, default)
-        out[key] = None if value is None else float(value)
+        if key not in out:
+            value = stored.get(key, default)
+            out[key] = None if value is None else float(value)
     return out
 
 
@@ -78,10 +84,17 @@ def heat_load(doc, season="winter"):
             p = w.params
             length = math.hypot(float(p["x2"]) - float(p["x1"]), float(p["y2"]) - float(p["y1"]))
             gross = length * float(p["height"])
-            holes = sum(float(o.params.get("width", 0.0)) * float(o.params.get("height", 0.0))
-                        for o in doc.entities.values()
-                        if o.kind in ("door", "window", "opening") and o.parent_id == w.id)
-            opening_area += holes
+            hosted = [o for o in doc.entities.values()
+                      if o.kind in ("door", "window", "opening") and o.parent_id == w.id]
+            holes = sum(float(o.params.get("width", 0.0)) * float(o.params.get("height", 0.0)) for o in hosted)
+            for o in hosted:
+                # Each door / window with its own Uw (Λίστες › Κουφώματα), else the project's one value.
+                area_o = float(o.params.get("width", 0.0)) * float(o.params.get("height", 0.0))
+                u_o = o.params.get("u_value") or a["heat_u_openings"]
+                if u_o is None:
+                    opening_area += area_o
+                else:
+                    openings_w += area_o * float(u_o) * dt
             u = indicative_u(p.get("wall_type", "generic"), doc)
             if u is None:
                 u = a["heat_u_walls"]                # the project's one value for walls without a build-up
@@ -101,16 +114,22 @@ def heat_load(doc, season="winter"):
         volume += sum(_polygon_area(f.polygon) for f in faces) * h
     if no_u_walls:
         not_counted.append(f"{no_u_walls} εξωτερικοί τοίχοι χωρίς σύνθεση (δώστε τύπο τοίχου ή U τοίχων)")
-    if opening_area > 0:
-        if a["heat_u_openings"] is None:
-            not_counted.append(f"κουφώματα {_gr(opening_area)} m² (δώστε U κουφωμάτων)")
-        else:
-            openings_w = opening_area * a["heat_u_openings"] * dt
+    if opening_area > 0:                             # the area of openings with no U (their own or the project's)
+        not_counted.append(f"κουφώματα {_gr(opening_area)} m² (δώστε U κουφωμάτων: Λίστες › Κουφώματα ή του έργου)")
     vent_w = AIR_HEAT * a["heat_air_changes"] * volume * dt
-    not_counted += ["οροφή / στέγη", "δάπεδο", "θερμογέφυρες"]
-    parts = [("Εξωτερικοί τοίχοι", walls_w), ("Κουφώματα", openings_w), ("Αερισμός", vent_w)]
-    watts = walls_w + openings_w + vent_w
+    # Thermal bridges (κριτική v5 k7): Σ ψ·l from the drawing's lengths and the project's ψ — a kind without ψ is said.
+    from archforge.mep.thermal_bridges import summary as bridges
+    tb = bridges(doc)
+    bridges_w = tb["h_tb"] * dt
+    if tb["missing_n"]:
+        not_counted.append(f"θερμογέφυρες: {tb['missing_n']} θέσεις, {_gr(tb['missing_m'])} m χωρίς ψ "
+                           "(Θέρμανση › Θερμογέφυρες…)")
+    not_counted += ["οροφή / στέγη", "δάπεδο", f"θερμογέφυρες που δεν βρίσκει η γεωμετρία ({tb['not_found']})"]
+    parts = [("Εξωτερικοί τοίχοι", walls_w), ("Κουφώματα", openings_w), ("Θερμογέφυρες", bridges_w), ("Αερισμός", vent_w)]
+    watts = walls_w + openings_w + bridges_w + vent_w
+    from archforge.mep.design_climate import source_text
     return {"watts": round(watts), "kw": round(watts / 1000.0, 1), "delta_t": dt, "season": season,
+            "climate_source": source_text(doc),
             "volume_m3": round(volume, 1), "parts": [(n, round(v)) for n, v in parts],
             "not_counted": not_counted, "assumptions": a, "provenance": PROVENANCE}
 
@@ -125,7 +144,8 @@ def summary(result):
     outside = a["heat_theta_ext_winter"] if result["season"] == "winter" else a["heat_theta_ext_summer"]
     g = lambda v: f"{v:g}".replace(".", ",")
     return (f"Ενδεικτική ισχύς θέρμανσης ≈ {_gr(result['kw'])} kW (μέσα {g(a['heat_theta_int'])} °C, έξω {g(outside)} °C, "
-            f"ΔT {g(result['delta_t'])} K, {g(a['heat_air_changes'])} αλλαγές αέρα/ώρα) — υπόθεση, όχι μελέτη· "
+            f"ΔT {g(result['delta_t'])} K, {g(a['heat_air_changes'])} αλλαγές αέρα/ώρα· έξω: {result.get('climate_source', '')}) — "
+            f"υπόθεση, όχι μελέτη· οι θερμοκρασίες αλλάζουν: Θέρμανση › Θερμοκρασίες σχεδιασμού… · "
             f"δεν μετρήθηκαν: {'; '.join(result['not_counted'])}")
 
 

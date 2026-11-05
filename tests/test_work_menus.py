@@ -104,3 +104,23 @@ def test_grid_snap_and_assistant_are_always_at_hand_in_the_first_row(window):
     for old, a in window._quick_paths.items():                                     # saved paths still find it
         assert cat[old] is a and _find_action(window, old) is a
     assert 'Μονάδες μέτρησης…' in [a.text() for a in window._work_sections[('⚙ Ρυθμίσεις', 'Γενικά')].actions()]
+
+
+def test_selected_material_is_one_command_and_both_old_paths_find_it(window):
+    """«Υλικό στο επιλεγμένο…» was two actions doing the same thing, listed twice in Διαμόρφωση ▸ Υλικά (map 04/11)."""
+    from archforge.ui.mouse_menus import _find_action
+    from archforge.ui.toolbar_custom import SEP
+    hits = [path for top, menu in _bar(window) for path, _a in _leaves(menu, (top,))
+            if path[-1] == 'Υλικό στο επιλεγμένο…']
+    assert hits == [('Διαμόρφωση', 'Υλικά', 'Υλικό στο επιλεγμένο…')]
+    one = window._selected_materials_action
+    assert _find_action(window, SEP.join(hits[0])) is one
+    assert _find_action(window, SEP.join(('Εργαλεία', 'Υλικό στο επιλεγμένο…'))) is one
+    assert _find_action(window, SEP.join(('Βιβλιοθήκη', 'Υλικά', 'Υλικό στο επιλεγμένο…'))) is one
+
+
+def test_phase_without_selection_says_why(window):
+    """menu_smoke 04/11: «Επιλεγμένα → Καθαίρεση / Νέα» with nothing selected did nothing and said nothing."""
+    window.doc.selection.clear()
+    assert window._set_phase(list(window.doc.selection), 'demolish') == 0
+    assert 'Επίλεξε πρώτα' in window.statusBar().currentMessage()

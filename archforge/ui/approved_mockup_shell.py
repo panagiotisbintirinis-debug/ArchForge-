@@ -353,6 +353,10 @@ def install_approved_mockup_shell(window):
         a=QAction(text,window); a.triggered.connect(lambda _=False,r=run: r()); renovation.addAction(a)
     takeoff=QAction("Επιμέτρηση εργασιών (ανά χώρο)…",window); takeoff.triggered.connect(lambda: window._show_takeoff())
     menus["Κατασκευή"].addAction(takeoff); window._takeoff_action=takeoff
+    # Ζωντανές λίστες σε καρτέλα (κριτική v5 k9): κλικ σε γραμμή = επιλογή στο σχέδιο, «πώς μετρήθηκε» ανά γραμμή.
+    lists=QAction("Λίστες (κουφώματα · κέλυφος · χώροι · κυκλώματα)",window)
+    lists.triggered.connect(lambda: __import__("archforge.ui.live_lists",fromlist=["show"]).show(window))
+    menus["Κατασκευή"].addAction(lists); window._lists_action=lists
     isotex=QAction("Τεμάχια Isotex (αναγωγή)…",window); isotex.triggered.connect(lambda: window._show_isotex())
     menus["Κατασκευή"].addAction(isotex); window._isotex_action=isotex
     priced=QAction("Λίστα υλικών με τιμές (Excel)…",window); priced.triggered.connect(lambda: window._export_priced_lists())
@@ -466,6 +470,18 @@ def install_approved_mockup_shell(window):
     board=QAction("Πίνακας συλλεκτών θέρμανσης…",window)
     board.triggered.connect(lambda: __import__("archforge.ui.heating_board",fromlist=["show"]).show(window))
     heating.addAction(board)
+    # Θερμοκρασίες σχεδιασμού του έργου (04/11): όλες αλλάζουν, με την πηγή τους (mep/design_climate.py).
+    climate=QAction("Θερμοκρασίες σχεδιασμού…",window)
+    climate.triggered.connect(lambda: __import__("archforge.ui.design_climate_dialog",fromlist=["show"]).show(window))
+    heating.addAction(climate); window._design_climate_action=climate
+    # Θερμογέφυρες (κριτική v5 k7): θέσεις και μήκη από το σχέδιο, ψ από τον χρήστη (mep/thermal_bridges.py).
+    bridges=QAction("Θερμογέφυρες…",window)
+    bridges.triggered.connect(lambda: __import__("archforge.ui.thermal_bridges_dialog",fromlist=["show"]).show(window))
+    heating.addAction(bridges); window._thermal_bridges_action=bridges
+    # Σ10 (κριτική v5): the indicative power on its own — it adds no emitters or supplies, it only says.
+    power=QAction("Ενδεικτική ισχύς θέρμανσης…",window)
+    power.triggered.connect(lambda: __import__("archforge.ui.thermal_bridges_dialog",fromlist=["show_power"]).show_power(window))
+    heating.addAction(power); window._heat_power_action=power
     supplies=QAction("Παροχές ρεύματος θέρμανσης (αυτόματα)",window); supplies.triggered.connect(lambda: window._heating_supplies())
     heating.addAction(supplies); heating.addSeparator()
     for key,label in HEAT.items():

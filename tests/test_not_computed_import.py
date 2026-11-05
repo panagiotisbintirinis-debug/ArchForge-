@@ -47,7 +47,7 @@ def test_rooms_unreadable_are_said_by_walls_doors_and_dimensions(monkeypatch):
         dimension_reference.plan(doc, 0.0)
         dimensions.interior(doc, 0.0)
         joinery._served_side(doc, wall, door, 0.0, 1.0, 0.125)    # the interior-door branch of inside_sign
-    assert {i.code for i in found} == {'walls.reference', 'dims.rooms', 'joinery.side'}
+    assert {i.code for i in found} == {'walls.reference', 'dims.rooms', 'joinery.side', 'ventilation.rooms'}
 
 
 def test_mep_says_unreadable_rooms_instead_of_none(monkeypatch):
