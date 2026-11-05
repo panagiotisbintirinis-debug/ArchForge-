@@ -39,14 +39,14 @@ def test_select_exterior_then_one_type_for_all_with_one_undo(window):
     from archforge.ui import select_similar as S
     from archforge.ui.multi_wall_rows import set_type_all
     ids = S.select_exterior(window)
-    assert len(ids) == 23 and set(window.doc.selection) == set(ids)   # 16 ground + 7 upper (κριτής ενεργειακής)
+    assert len(ids) == 24 and set(window.doc.selection) == set(ids)   # 17 ground + 7 upper (05/11: η εσοχή του Γ)
     n = set_type_all(window, ids, 'brick_double_insulated')
-    assert n == 23
+    assert n == 24
     assert all(window.doc.get(i).params['wall_type'] == 'brick_double_insulated' for i in ids)
     assert all(abs(window.doc.get(i).params['thickness'] - 0.27) < 1e-9 for i in ids)
     interior = [e for e in _walls(window.doc) if e.id not in ids]
     assert interior and all(e.params.get('wall_type', 'generic') == 'generic' for e in interior)   # untouched
-    window.stack.undo()                                               # one undo for all 23
+    window.stack.undo()                                               # one undo for all 24
     assert all(window.doc.get(i).params.get('wall_type', 'generic') == 'generic' for i in ids)
 
 
@@ -67,11 +67,11 @@ def test_properties_with_several_walls_show_totals_and_one_type_field(window):
     from archforge.ui import select_similar as S
     S.select_exterior(window)
     texts = [w.text() for w in window.form.parentWidget().findChildren(QLabel)]
-    assert any('23 τοίχοι επιλεγμένοι' in t for t in texts)
+    assert any('24 τοίχοι επιλεγμένοι' in t for t in texts)
     combo = next(c for c in window.form.parentWidget().findChildren(QComboBox) if c.findData('brick_double_insulated') >= 0)
     combo.setCurrentIndex(combo.findData('brick_double_insulated'))
     QApplication.processEvents()
-    assert sum(1 for e in _walls(window.doc) if e.params.get('wall_type') == 'brick_double_insulated') == 23
+    assert sum(1 for e in _walls(window.doc) if e.params.get('wall_type') == 'brick_double_insulated') == 24
 
 
 def test_layers_tool_shows_u_live(window):
@@ -95,7 +95,7 @@ def test_thermal_view_colours_walls_by_u_from_the_view_menu(window):
     assert 'χωρίς σύνθεση' in window.statusBar().currentMessage()
     set_type_all(window, S.exterior_wall_ids(window.doc), 'brick_double_insulated')
     window.plan_view.redraw()
-    assert window.plan_view._thermal_counts == {'known': 16, 'unknown': 9}        # 16 exterior walls of the ground floor
+    assert window.plan_view._thermal_counts == {'known': 17, 'unknown': 8}        # 17 exterior walls of the ground floor (05/11)
     assert T.colour(0.2).name() != T.colour(2.0).name()                          # good insulation ≠ losses
     window._thermal_view_action.setChecked(False)
     assert not window.plan_view.color_by_u
