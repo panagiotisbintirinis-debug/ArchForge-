@@ -1327,7 +1327,39 @@ window.archforgeSetScene = function(payload, fit = true) {
   if (typeof afUpdateLightVisibility === "function") afUpdateLightVisibility();
   // (owner: «η κάμερα με πέταγε έξω κάθε φορά που άλλαζα κλίσεις στο terrain»).
   // The Fit command and the view presets call fitCamera()/setCameraPreset directly.
+  if (pendingFrame) { const ids = pendingFrame; pendingFrame = null; window.frameEntities(ids, false); return; }
   if (fit && !cameraMovedByHuman) fitCamera();
+};
+
+// «Δείξε την επιλογή στο 3D» (Shift+F3, κριτική v5 k8): the camera keeps its direction and comes close enough for the
+// chosen objects to fill the view.  Before their meshes arrive (first opening) the request waits for the scene.
+let pendingFrame = null;
+window.frameEntities = function(ids, wait = true) {
+  const want = new Set(ids || []);
+  const box = new THREE.Box3();
+  let found = 0;
+  modelRoot.children.forEach((m) => {
+    if (want.has(m.userData.entityId) && m.visible) { box.expandByObject(m); found += 1; }
+  });
+  if (box.isEmpty()) { pendingFrame = wait ? [...want] : null; return 0; }
+  if (walkMode) setWalkMode(false);
+  const center = box.getCenter(new THREE.Vector3());
+  const radius = Math.max(box.getSize(new THREE.Vector3()).length() * 0.5, 0.6);
+  const dir = camera.position.clone().sub(controls.target);
+  if (dir.lengthSq() < 1e-8) dir.set(1, -1.25, 0.85);
+  dir.normalize();
+  const distance = radius / Math.sin((camera.fov * Math.PI / 180) / 2) * 1.1;
+  controls.enabled = true;
+  controls.target.copy(center);
+  camera.position.copy(center).addScaledVector(dir, distance);
+  camera.near = Math.max(0.02, distance / 500.0);
+  camera.far = Math.max(camera.far, distance * 40.0);
+  camera.updateProjectionMatrix();
+  camera.lookAt(center);
+  controls.update();
+  cameraMovedByHuman = true;                 // the next scene update keeps this view
+  if (typeof wakeRender === "function") wakeRender(30);
+  return found;
 };
 
 window.setTechnique = function(mode) {
@@ -2306,6 +2338,7 @@ function walkStep() {
   if (fwd || side || up) walkMove(fwd * v, side * v, up * v * 0.6);
 }
 window.__walkStep = walkStep;
+window.__cameraState = () => ({position: camera.position.toArray(), target: controls.target.toArray()});   // tests
 window.__walkState = () => ({walkMode, x: camera.position.x, y: camera.position.y, z: camera.position.z});
 
 // Capture the same frame the user sees, including the active render technique.
@@ -2862,6 +2895,7 @@ class PBRViewport(QWidget):
             self.statusChanged.emit("PBR Preview HTML failed to load")
             return
         self.statusChanged.emit("3D έτοιμο")
+        self._page_ready = True
         from archforge.ui.control_center import push_3d_bindings
         window = getattr(self, "marking_menu_window", None)
         if window is not None:
@@ -2878,6 +2912,8 @@ class PBRViewport(QWidget):
         pending_line = self._view_line
         self.set_camera_preset(self._camera_preset)
         self._view_line = pending_line
+        if getattr(self, "_pending_frame", None):
+            self.frame_entities(self._pending_frame)
         self._push_stair_preview()
         self._push_ramp_preview()
         self.set_snap_enabled(self._snap_enabled)
@@ -3660,6 +3696,15 @@ class PBRViewport(QWidget):
             + "; if (window.setStairPreview) window.setStairPreview(window.__archforgePendingStairPreview);"
         )
         self.web_view.page().runJavaScript(script)
+
+    def frame_entities(self, ids) -> None:
+        """«Δείξε την επιλογή στο 3D»: the camera turns to the given objects (kept for a page still loading)."""
+        self._pending_frame = [str(i) for i in ids]
+        if self.web_view is not None and getattr(self, "_page_ready", False):
+            self.web_view.page().runJavaScript(
+                "if (window.frameEntities) window.frameEntities(" + json.dumps(self._pending_frame) + ");")
+            self._pending_frame = None
+        self.statusChanged.emit(f"3D: η επιλογή στην οθόνη ({len(ids)}) · Home = όλο το κτίριο")
 
     def fit_camera(self) -> None:
         if self.web_view is not None:

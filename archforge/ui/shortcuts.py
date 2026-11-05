@@ -53,6 +53,7 @@ ACTIONS = (
     ('view.front', 'Πρόσοψη', 'Προβολή', 'Ctrl+2', ('Πρόσοψη',)),
     ('view.side', 'Πλάγια', 'Προβολή', 'Ctrl+3', ('Πλάγια',)),
     ('view.zoom_all', 'Ζουμ σε όλα', 'Προβολή', 'Home', ()),
+    ('view.selection_3d', 'Δείξε την επιλογή στο 3D', 'Προβολή', 'Shift+F3', ()),
     ('env.arch', 'Περιβάλλον Αρχιτεκτονικό', 'Περιβάλλον', 'Alt+1', ('Αρχιτεκτονικό',)),
     ('env.structure', 'Περιβάλλον Φέρων', 'Περιβάλλον', 'Alt+2', ('Φέρων',)),
     ('env.mep', 'Περιβάλλον Η/Μ', 'Περιβάλλον', 'Alt+3', ('Η/Μ',)),
@@ -197,6 +198,17 @@ def _zoom_all(w, quiet=False):
     plan.redraw()
 
 
+def show_selection_3d(w):
+    """Shift+F3 (κριτική v5 k8): the 3D view opens on what is selected in the plan or the 3D."""
+    ids = [i for i in w.doc.selection if i in w.doc.entities]
+    if not ids:
+        w.statusBar().showMessage('Δείξε την επιλογή στο 3D: επιλέξτε πρώτα κάτι (κλικ στην κάτοψη)', 4000)
+        return None
+    w._show_3d_view()
+    w.pbr_view.frame_entities(ids)
+    return ids
+
+
 def _layout(arg):
     def run(w):
         from archforge.ui.layout_assist import run as layout_run
@@ -232,6 +244,7 @@ RUN = {
     'view.plan': _central(0), 'view.3d': _central(1),
     'view.top': lambda w: w._set_pbr_camera('top'), 'view.front': lambda w: w._set_pbr_camera('front'),
     'view.side': lambda w: w._set_pbr_camera('side'), 'view.zoom_all': _zoom_all,
+    'view.selection_3d': show_selection_3d,
     'env.arch': _workspace('arch'), 'env.structure': _workspace('structure'), 'env.mep': _workspace('mep'),
     'panel.layers': _dock('_layers_dock'), 'panel.properties': _dock('dock'), 'panel.assistant': _dock('_assistant_dock'),
     'panel.library': _library,
@@ -392,6 +405,9 @@ def install(window):
             menu.addSeparator()
             menu.addAction(action)
     manager.mirrors.setdefault('help.shortcuts', []).append((action, ''))
+    view_menu = getattr(window, 'view_menu', None)
+    if view_menu is not None:
+        view_menu.addAction(manager.actions['view.selection_3d'])
     action.setShortcutContext(Qt.ShortcutContext.WidgetShortcut)
     action.setProperty('af_shortcut_mirror_menu', True)
     manager.apply()
