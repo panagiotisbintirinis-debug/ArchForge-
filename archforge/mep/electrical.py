@@ -34,6 +34,7 @@ a load study, voltage-drop or selectivity calculation.
 from __future__ import annotations
 
 import math
+import re
 
 from archforge.core.provenance import DESIGN_DEFAULT, ENGINEER_REVIEW, MANUFACTURER_DATA, UNVERIFIED, Rule, register
 from archforge.mep.plumbing import CELL, _Grid, _grow, _levels
@@ -190,8 +191,14 @@ def _room_of(doc, x, y, floor):
     return None
 
 
-def design_circuits(doc):
-    """Group points into circuits: ``{"circuits": [...], "switch_links": [...], "report": {...}}``."""
+def design_circuits(doc, keep_numbers=True):
+    """Group points into circuits: ``{"circuits": [...], "switch_links": [...], "report": {...}}``.
+
+    Σ2 (κριτική v5): a point that carries a kept number (``params["circuit"]``, written by ``keep_circuit_numbers``)
+    stays in that circuit with that number; only new points are grouped, first into a kept circuit of the same kind
+    and room with room left, otherwise into new circuits numbered after the highest kept one.  ``keep_numbers=False``
+    groups everything afresh (Επαναρίθμηση).
+    """
     points = electrical_points(doc)
     panel = next((e for e in points if e.params["point_type"] == "panel"), None)
     out = {"circuits": [], "switch_links": [], "report": {"unassigned": [], "warnings": [], "provenance": PROVENANCE}}
@@ -211,7 +218,15 @@ def design_circuits(doc):
         floor = _floor_of(doc, float(e.params["z"]))
         room = _room_of(doc, float(e.params["x"]), float(e.params["y"]), floor) or "—"
         by_group.setdefault(group, []).append((room, floor, e))
-    number = 0
+    used = set()
+    if keep_numbers:
+        for e in loads:
+            m = re.match(r"Κ(\d+)$", str(e.params.get("circuit", "")))
+            if m:
+                used.add(int(m.group(1)))
+    number = max(used, default=0)
+    claimed = {}                                   # kept number → its group (a number belongs to one group)
+    made = []                                      # (number, circuit)
     for group in GROUP_ORDER:
         members = by_group.get(group, [])
         if not members:
@@ -220,8 +235,25 @@ def design_circuits(doc):
         # Same room (and storey) first, then by distance from the panel.
         px, py = float(panel.params["x"]), float(panel.params["y"])
         members.sort(key=lambda m: (m[1], m[0], math.hypot(float(m[2].params["x"]) - px, float(m[2].params["y"]) - py)))
-        chunks, current, current_room = [], [], None
+        kept, rest = {}, []
         for room, floor, e in members:
+            m = re.match(r"Κ(\d+)$", str(e.params.get("circuit", ""))) if keep_numbers else None
+            if m and claimed.setdefault(int(m.group(1)), group) == group:
+                kept.setdefault(int(m.group(1)), []).append((room, floor, e))
+            else:
+                rest.append((room, floor, e))
+        if kept:
+            # A new point joins a kept circuit of its room while that circuit has room left.
+            fresh, rest = rest, []
+            for room, floor, e in fresh:
+                home = next((k for k, pts in sorted(kept.items()) if limit > 1 and len(pts) < limit
+                             and (pts[0][0], pts[0][1]) == (room, floor)), None)
+                if home is None:
+                    rest.append((room, floor, e))
+                else:
+                    kept[home].append((room, floor, e))
+        chunks, current, current_room = [], [], None
+        for room, floor, e in rest:
             # Rooms are not mixed in lighting/socket circuits unless a room is small.
             if current and (len(current) >= limit or (limit > 1 and (room, floor) != current_room and len(current) >= limit // 2)):
                 chunks.append(current)
@@ -230,28 +262,33 @@ def design_circuits(doc):
             current_room = (room, floor)
         if current:
             chunks.append(current)
-        if group == "lighting" and len(chunks) == 1 and len(chunks[0]) >= 2:
+        if group == "lighting" and not kept and len(chunks) == 1 and len(chunks[0]) >= 2:
             # At least two lighting circuits (owner 15/10): split at the room change nearest the middle.
             only = chunks[0]
-            rooms_of = [(r, f) for r, f, e in members]
+            rooms_of = [(r, f) for r, f, e in rest]
             cuts = [k for k in range(1, len(only)) if rooms_of[k] != rooms_of[k - 1]] or [len(only) // 2]
             k = min(cuts, key=lambda c: (abs(c - len(only) / 2), c))
             chunks = [only[:k], only[k:]]
+        numbered = [(k, [e for _r, _f, e in pts]) for k, pts in sorted(kept.items())]
         for chunk in chunks:
             number += 1
+            numbered.append((number, chunk))
+        for num, chunk in numbered:
             watts = sum(point_load_w(e.params) for e in chunk)
             amps = watts / VOLTAGE
             dedicated = limit == 1
             # Shared circuits keep 20 % margin; a dedicated line must carry its appliance.
             ok = amps <= (breaker if dedicated else 0.8 * breaker)
-            circuit = {"id": f"Κ{number}", "group": group, "label": label, "breaker_a": breaker, "cable_mm2": cable,
+            circuit = {"id": f"Κ{num}", "group": group, "label": label, "breaker_a": breaker, "cable_mm2": cable,
                        "points": [e.id for e in chunk], "load_w": round(watts), "current_a": round(amps, 1), "ok": ok}
             if not ok:
                 fix = "μεγαλύτερη ασφάλεια/διατομή" if dedicated else "χωρίστε το κύκλωμα"
                 limit_txt = f"{breaker} A" if dedicated else f"80% της ασφάλειας {breaker} A"
                 out["report"]["warnings"].append(f"{circuit['id']} {label}: {amps:.1f} A > {limit_txt} — {fix} "
                                                  "[κανόνας μη επαληθευμένος]")
-            out["circuits"].append(circuit)
+            made.append((num, circuit))
+    out["circuits"] = [c for _n, c in sorted(made, key=lambda t: t[0])]
+    out["report"]["numbers_kept"] = bool(used)
     # Switches and dimmers control the lights of their automation group, otherwise of their room (same storey).
     lights = [(e, _room_of(doc, float(e.params["x"]), float(e.params["y"]), _floor_of(doc, float(e.params["z"]))),
                _floor_of(doc, float(e.params["z"]))) for e in points if POINT_TYPES[e.params["point_type"]][1] == "lighting"]
@@ -283,6 +320,20 @@ def design_circuits(doc):
 
 
 SCHEMES = {"single": "Απλός", "two_way": "Αλέ-ρετούρ (κομιτατέρ)", "intermediate": "Αντιστροφέας (ενδιάμεσος)"}
+
+
+def keep_circuit_numbers(doc, renumber=False):
+    """One undo: every load point keeps the number of the circuit it is in now («Κράτα την αρίθμηση»); with
+    ``renumber`` the circuits are grouped and numbered afresh first («Επαναρίθμηση»).  None when nothing changes."""
+    from archforge.core.commands import UpdateEntities
+    design = design_circuits(doc, keep_numbers=not renumber)
+    number_of = {pid: c["id"] for c in design["circuits"] for pid in c["points"]}
+    changes = {}
+    for e in electrical_points(doc):
+        want = number_of.get(e.id, "")
+        if str(e.params.get("circuit", "")) != want and (want or "circuit" in e.params):
+            changes[e.id] = {"circuit": want}
+    return UpdateEntities(changes) if changes else None
 
 
 def _switching_schemes(out, points):
