@@ -99,31 +99,45 @@ def openings(doc):
     no_u = sum(1 for r in rows if r["uw"] is None and not r["kind"].startswith("Άνοιγμα"))
     if no_u:
         check.append(f"{no_u} κουφώματα χωρίς Uw (από τον κατασκευαστή· γράψτε το στη στήλη «Uw»)")
+    for r in rows:
+        for note in r.get("range_notes") or ():
+            check.append(f"{r['mark']}: {note}")
     no_maker = sum(1 for r in rows if r.get("uw_from", "").startswith("του κουφώματος") and not r.get("maker"))
     if no_maker:
         check.append(f"{no_maker} κουφώματα με θερμικά στοιχεία χωρίς πηγή (γράψτε κατασκευαστή / σειρά / έγγραφο)")
     return {"title": "Κουφώματα", "rows": rows, "check": check,
             "editable": {"mark": "text", "uw": "number", "uf": "number", "ug": "number", "psi_g": "number",
-                         "frame_width": "number", "g_value": "number", "maker": "text"},
+                         "frame_width": "number", "g_value": "number", "maker": "text",
+                         "frame_material": ("choice", _choices("frame_material")),
+                         "glazing": ("choice", _choices("glazing"))},
             "columns": [("mark", "Κωδικός"), ("kind", "Είδος"), ("storey", "Όροφος"), ("rooms", "Χώρος"),
                         ("width", "Πλάτος m"), ("height", "Ύψος m"), ("sill", "Ποδιά m"), ("area", "m²"),
+                        ("frame_material", "Υλικό πλαισίου"), ("glazing", "Υαλοπίνακας"),
                         ("uw", "Uw δηλωμένο W/m²K"), ("uf", "Uf W/m²K"), ("ug", "Ug W/m²K"), ("psi_g", "ψg W/mK"),
                         ("frame_width", "Πλαίσιο cm"), ("g_value", "g"), ("uw_used", "Uw που ισχύει"),
                         ("uw_from", "Uw από"), ("maker", "Κατασκευαστής / έγγραφο"), ("how", "Πώς μετρήθηκε")],
             "total": f"{len(rows)} κουφώματα · {total:.2f} m²".replace(".", ",")}
 
 
+def _choices(key):
+    from archforge.mep.opening_thermal import CHOICES
+    return [(k, v[0]) for k, v in CHOICES[key][1].items()]
+
+
 def _opening_thermal_cells(doc, e):
     """The thermal data of a door / window from its maker (``mep.opening_thermal``) and the Uw that applies."""
     if e.kind not in ("door", "window"):
         return {}
-    from archforge.mep.opening_thermal import uw
+    from archforge.mep import opening_thermal as FT
     p = e.params
-    used, source = uw(doc, e)
+    used, source = FT.uw(doc, e)
     fw = p.get("frame_width")
     return {"uf": _r(p.get("uf"), 2), "ug": _r(p.get("ug"), 2), "psi_g": _r(p.get("psi_g"), 3),
             "frame_width": None if fw in (None, "") else _r(float(fw) * 100, 1), "g_value": _r(p.get("g_value"), 2),
-            "uw_used": _r(used, 2), "uw_from": source or "δεν δόθηκε", "maker": p.get("maker") or None}
+            "uw_used": _r(used, 2), "uw_from": source or "δεν δόθηκε", "maker": p.get("maker") or None,
+            "frame_material": FT.FRAME_TYPES[p["frame_material"]][0] if p.get("frame_material") in FT.FRAME_TYPES else None,
+            "glazing": FT.GLAZING_TYPES[p["glazing"]][0] if p.get("glazing") in FT.GLAZING_TYPES else None,
+            "range_notes": FT.range_notes(p)}
 
 
 def set_u_command(doc, eid, text):

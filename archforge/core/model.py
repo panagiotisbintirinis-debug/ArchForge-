@@ -807,7 +807,18 @@ def _optional_nonnegative(name):
 
 
 _OPENING_THERMAL = {'uf': _u_value, 'ug': _u_value, 'psi_g': _optional_nonnegative('psi_g'),
-                    'frame_width': _u_value, 'g_value': _optional_nonnegative('g_value')}
+                    'frame_width': _u_value, 'g_value': _optional_nonnegative('g_value'),
+                    'frame_material': lambda v: _opening_choice('frame_material', v),
+                    'glazing': lambda v: _opening_choice('glazing', v)}
+
+
+def _opening_choice(key, v):
+    if v is None or v == '':
+        return None
+    from archforge.mep.opening_thermal import CHOICES
+    if v not in CHOICES[key][1]:
+        raise ValueError(f'{key} must be one of {sorted(CHOICES[key][1])}')
+    return v
 _JOINERY_OPENING = {**_OPENING, 'u_value': _u_value, **_OPENING_THERMAL, **{k: _joinery(k) for k in (
     'opening_type', 'hinge', 'swing', 'leaves', 'bars_h', 'bars_v', 'transom', 'shading', 'ledge', 'finish', 'leaf_design')},
     'open_angle': _joinery('open_angle')}

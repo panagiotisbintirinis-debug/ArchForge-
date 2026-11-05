@@ -109,3 +109,44 @@ def test_editing_the_window_in_the_list_redraws_the_thermal_tab(window):
     rows_after = {x['kind']: x for x in tab.result['rows']}
     assert rows_after[2]['u'] == pytest.approx(1.2) and rows_after[2]['theta'] < rows_before[2]['theta']
     assert not np.allclose(before, tab.result['today']['theta'])
+
+
+def test_frame_and_glazing_types_check_the_makers_numbers_but_never_fill_them():
+    """Έντυπο ιδιοκτήτη 05/11: τυπικά εύρη Uf / Ug ανά υλικό πλαισίου — μόνο έλεγχος, UNVERIFIED."""
+    doc, st, _w, o = _wall_with_window()
+    st.execute(O.set_command(doc, o.id, 'frame_material', 'upvc'))
+    st.execute(O.set_command(doc, o.id, 'glazing', 'Διπλός ενεργειακός (Low-E + αργό)'))   # by its label too
+    o = doc.get(o.id)
+    assert o.params['frame_material'] == 'upvc' and o.params['glazing'] == 'double_lowe_argon'
+    assert o.params.get('uf') is None and O.uw(doc, o)[1] != O.SOURCE_10077                # nothing invented
+    assert O.RANGES_STATUS == 'UNVERIFIED'
+    st.execute(O.set_command(doc, o.id, 'uf', '3,5'))
+    data = S.openings(doc)
+    row = next(r for r in data['rows'] if r['ids'] == [o.id])
+    assert row['frame_material'] == 'Συνθετικό (uPVC)'
+    assert any('Uf 3,5 έξω από το συνηθισμένο 1–1,8' in c for c in data['check'])
+    assert data['editable']['frame_material'][0] == 'choice'
+    st.execute(O.set_command(doc, o.id, 'uf', '1,3'))
+    assert not any('έξω από το συνηθισμένο' in c for c in S.openings(doc)['check'])
+    with pytest.raises(ValueError):
+        O.set_command(doc, o.id, 'frame_material', 'τιτάνιο')
+    with pytest.raises(ValueError):
+        st.execute(__import__('archforge.core.commands', fromlist=['UpdateEntity']).UpdateEntity(
+            o.id, {'frame_material': 'titanium'}))
+
+
+def test_the_list_offers_the_frame_material_as_a_drop_down_with_undo(window):
+    from archforge.ui import live_lists
+    w, app = window
+    wall = Entity('wall', {'x1': 0, 'y1': 0, 'x2': 6, 'y2': 0, 'z': 0, 'height': 2.7, 'thickness': 0.27})
+    w.stack.execute(AddEntity(wall))
+    o = Entity('window', {'offset': 2.0, 'width': 1.2, 'height': 1.4, 'sill': 0.9}, parent_id=wall.id)
+    w.stack.execute(AddEntity(o))
+    lists = live_lists.show(w, 'openings') and w._lists_tab
+    col = [k for k, _l in lists.data['columns']].index('frame_material')
+    box = lists.table.cellWidget(0, col)
+    i = box.findData('alu_break')
+    box.setCurrentIndex(i); box.activated.emit(i); app.processEvents()
+    assert w.doc.get(o.id).params['frame_material'] == 'alu_break'
+    w.stack.undo()
+    assert w.doc.get(o.id).params.get('frame_material') is None

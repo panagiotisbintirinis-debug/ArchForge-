@@ -109,6 +109,9 @@ class ListsTab(QWidget):
                         item.setForeground(QColor(140, 140, 140))
                         item.setToolTip("αυτόματος κωδικός — γράψτε δικό σας για να μείνει σταθερός")
                     self.table.setItem(r, c, item)
+                    kind = d["editable"].get(key)
+                    if isinstance(kind, tuple) and kind[0] == "choice":
+                        self._choice_cell(r, c, key, row, kind[1])
             self.table.resizeColumnsToContents()
         finally:
             self._filling = False
@@ -198,6 +201,27 @@ class ListsTab(QWidget):
                 self.table.scrollToItem(self.table.item(first, 0))
         finally:
             self._filling = False
+
+    def _choice_cell(self, r, c, key, row, options):
+        """A drop-down in the cell («Υλικό πλαισίου», «Υαλοπίνακας»): one undoable change on choosing."""
+        from PySide6.QtWidgets import QComboBox
+        if len(row.get("ids") or ()) != 1:
+            return
+        box = QComboBox()
+        box.addItem("—", None)
+        for k, label in options:
+            box.addItem(label, k)
+        current = self.window.doc.get(row["ids"][0]).params.get(key)
+        box.setCurrentIndex(max(0, box.findData(current)))
+        box.activated.connect(lambda _i, b=box, eid=row["ids"][0], k=key: self._choose_value(eid, k, b.currentData()))
+        self.table.setCellWidget(r, c, box)
+
+    def _choose_value(self, eid, key, value):
+        from archforge.mep.opening_thermal import set_command
+        self.window.stack.execute(set_command(self.window.doc, eid, key, value or ""))
+        self.window._redraw_views(all_views=True)
+        self.window.statusBar().showMessage(f"{NAMES[self.key]}: αλλαγή · Ctrl+Z = αναίρεση", 6000)
+        self.refresh()
 
     # ------------------------------------------------------------ edits in place (one undo each)
     def _edited(self, item):

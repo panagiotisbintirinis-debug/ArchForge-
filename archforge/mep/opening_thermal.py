@@ -27,6 +27,38 @@ NUMBERS = {
     "g_value": ("g υαλοπίνακα", "", 0.05, 0.95),
 }
 TEXTS = {"maker": "Κατασκευαστής / σειρά / έγγραφο"}
+
+# Τυπικά εύρη από το «Τεχνικό έντυπο: Στοιχεία κουφωμάτων & θερμική αγωγιμότητα (λ)» που έστειλε ο ιδιοκτήτης 05/11.
+# Χωρίς αναφορά προτύπου ή κατασκευαστή → UNVERIFIED: χρησιμεύουν ΜΟΝΟ ως έλεγχος («το Uf που γράψατε είναι έξω από
+# το συνηθισμένο για αυτό το πλαίσιο»), ποτέ ως τιμή του κουφώματος. key: (label, λ W/mK or (min, max), (U min, max)).
+RANGES_SOURCE = "τεχνικό έντυπο κουφωμάτων του ιδιοκτήτη (05/11), τυπικά εύρη χωρίς πηγή προτύπου"
+RANGES_STATUS = "UNVERIFIED"
+FRAME_TYPES = {
+    "alu_plain": ("Αλουμίνιο χωρίς θερμοδιακοπή", 160.0, (4.0, 7.0)),
+    "alu_break": ("Αλουμίνιο με θερμοδιακοπή (πολυαμίδιο)", 0.30, (1.4, 2.8)),
+    "upvc": ("Συνθετικό (uPVC)", 0.17, (1.0, 1.8)),
+    "wood": ("Ξύλο (μαλακή / σκληρή ξυλεία)", (0.13, 0.18), (1.2, 2.0)),
+}
+GLAZING_TYPES = {
+    "double_lowe_argon": ("Διπλός ενεργειακός (Low-E + αργό)", 0.016, (1.0, 1.4)),
+}
+CHOICES = {"frame_material": ("Υλικό πλαισίου", FRAME_TYPES, "uf"),
+           "glazing": ("Υαλοπίνακας", GLAZING_TYPES, "ug")}
+
+
+def range_notes(params):
+    """«Uf 3,5 έξω από το συνηθισμένο 1,0–1,8 για uPVC» — one note per value outside the sheet's typical range."""
+    notes = []
+    for key, (_label, table, u_key) in CHOICES.items():
+        choice = params.get(key)
+        if choice not in table or params.get(u_key) in (None, ""):
+            continue
+        name, _lam, (lo, hi) = table[choice]
+        v = float(params[u_key])
+        if not lo <= v <= hi:
+            notes.append(f"{'Uf' if u_key == 'uf' else 'Ug'} {v:g} έξω από το συνηθισμένο {lo:g}–{hi:g} για "
+                         f"«{name}» — ελέγξτε το φύλλο του κατασκευαστή".replace(".", ","))
+    return notes
 SOURCE_DECLARED = "του κουφώματος, δηλωμένο από τον κατασκευαστή"
 SOURCE_10077 = "του κουφώματος, EN ISO 10077-1 από Uf, Ug, ψg, πλαίσιο"
 SOURCE_PROJECT = "του έργου"
@@ -66,6 +98,15 @@ def parse(key, text):
     """A typed value (comma or dot; empty = remove) checked against ``NUMBERS``; ``frame_width`` is typed in cm."""
     if key in TEXTS:
         return str(text or "").strip() or None
+    if key in CHOICES:
+        t = str(text or "").strip()
+        if t in ("", "—"):
+            return None
+        table = CHOICES[key][1]
+        for k, (label, _lam, _rng) in table.items():
+            if t == k or t.casefold() == label.casefold():
+                return k
+        raise ValueError(f"{CHOICES[key][0]} «{t}»: διαλέξτε από τη λίστα")
     if key not in NUMBERS:
         raise KeyError(key)
     t = str(text or "").strip().replace(",", ".")
