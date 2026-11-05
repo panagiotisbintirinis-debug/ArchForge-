@@ -794,7 +794,21 @@ def _u_value(v):
     return v
 
 
-_JOINERY_OPENING = {**_OPENING, 'u_value': _u_value, **{k: _joinery(k) for k in (
+def _optional_nonnegative(name):
+    """Thermal datum of a door / window from its maker (mep/opening_thermal.py), or None."""
+    def check(v):
+        if v is None or v == '':
+            return None
+        v = float(v)
+        if not math.isfinite(v) or v < 0:
+            raise ValueError(f'{name} must be a non-negative number')
+        return v
+    return check
+
+
+_OPENING_THERMAL = {'uf': _u_value, 'ug': _u_value, 'psi_g': _optional_nonnegative('psi_g'),
+                    'frame_width': _u_value, 'g_value': _optional_nonnegative('g_value')}
+_JOINERY_OPENING = {**_OPENING, 'u_value': _u_value, **_OPENING_THERMAL, **{k: _joinery(k) for k in (
     'opening_type', 'hinge', 'swing', 'leaves', 'bars_h', 'bars_v', 'transom', 'shading', 'ledge', 'finish', 'leaf_design')},
     'open_angle': _joinery('open_angle')}
 SCHEMAS = {

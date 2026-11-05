@@ -211,6 +211,9 @@ class ListsTab(QWidget):
                 command = S.set_mark_command(doc, row["ids"][0], item.text())
             elif key == "uw":
                 command = S.set_u_command(doc, row["ids"][0], item.text())
+            elif key in ("uf", "ug", "psi_g", "frame_width", "g_value", "maker"):
+                from archforge.mep.opening_thermal import set_command
+                command = set_command(doc, row["ids"][0], key, item.text())
             elif key == "name":
                 command = S.rename_room_command(doc, row["signature"], item.text())
             else:

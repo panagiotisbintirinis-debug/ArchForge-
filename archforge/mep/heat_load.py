@@ -90,7 +90,8 @@ def heat_load(doc, season="winter"):
             for o in hosted:
                 # Each door / window with its own Uw (Λίστες › Κουφώματα), else the project's one value.
                 area_o = float(o.params.get("width", 0.0)) * float(o.params.get("height", 0.0))
-                u_o = o.params.get("u_value") or a["heat_u_openings"]
+                from archforge.mep.opening_thermal import uw as _uw
+                u_o = _uw(doc, o)[0]          # declared Uw, else EN ISO 10077-1 from Uf/Ug/ψg, else the project's
                 if u_o is None:
                     opening_area += area_o
                 else:

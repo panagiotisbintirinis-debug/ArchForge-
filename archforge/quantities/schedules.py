@@ -87,6 +87,7 @@ def openings(doc):
                      "width": _r(w), "height": _r(h), "sill": _r(sill) if kind == "window" else None,
                      "area": _r(w * h), "type": str(p.get("opening_type", "") or ""),
                      "uw": _r(p.get("u_value"), 2) if kind != "opening" else None,
+                     **_opening_thermal_cells(doc, e),
                      "how": f"πλάτος {w:.2f} × ύψος {h:.2f} = {w * h:.2f} m² (διαστάσεις ανοίγματος)".replace(".", ",")
                      + (" · κωδικός αυτόματος — γράψτε δικό σας για να μείνει" if auto else "")})
     check = []
@@ -98,11 +99,31 @@ def openings(doc):
     no_u = sum(1 for r in rows if r["uw"] is None and not r["kind"].startswith("Άνοιγμα"))
     if no_u:
         check.append(f"{no_u} κουφώματα χωρίς Uw (από τον κατασκευαστή· γράψτε το στη στήλη «Uw»)")
-    return {"title": "Κουφώματα", "rows": rows, "check": check, "editable": {"mark": "text", "uw": "number"},
+    no_maker = sum(1 for r in rows if r.get("uw_from", "").startswith("του κουφώματος") and not r.get("maker"))
+    if no_maker:
+        check.append(f"{no_maker} κουφώματα με θερμικά στοιχεία χωρίς πηγή (γράψτε κατασκευαστή / σειρά / έγγραφο)")
+    return {"title": "Κουφώματα", "rows": rows, "check": check,
+            "editable": {"mark": "text", "uw": "number", "uf": "number", "ug": "number", "psi_g": "number",
+                         "frame_width": "number", "g_value": "number", "maker": "text"},
             "columns": [("mark", "Κωδικός"), ("kind", "Είδος"), ("storey", "Όροφος"), ("rooms", "Χώρος"),
                         ("width", "Πλάτος m"), ("height", "Ύψος m"), ("sill", "Ποδιά m"), ("area", "m²"),
-                        ("uw", "Uw W/m²K"), ("how", "Πώς μετρήθηκε")],
+                        ("uw", "Uw δηλωμένο W/m²K"), ("uf", "Uf W/m²K"), ("ug", "Ug W/m²K"), ("psi_g", "ψg W/mK"),
+                        ("frame_width", "Πλαίσιο cm"), ("g_value", "g"), ("uw_used", "Uw που ισχύει"),
+                        ("uw_from", "Uw από"), ("maker", "Κατασκευαστής / έγγραφο"), ("how", "Πώς μετρήθηκε")],
             "total": f"{len(rows)} κουφώματα · {total:.2f} m²".replace(".", ",")}
+
+
+def _opening_thermal_cells(doc, e):
+    """The thermal data of a door / window from its maker (``mep.opening_thermal``) and the Uw that applies."""
+    if e.kind not in ("door", "window"):
+        return {}
+    from archforge.mep.opening_thermal import uw
+    p = e.params
+    used, source = uw(doc, e)
+    fw = p.get("frame_width")
+    return {"uf": _r(p.get("uf"), 2), "ug": _r(p.get("ug"), 2), "psi_g": _r(p.get("psi_g"), 3),
+            "frame_width": None if fw in (None, "") else _r(float(fw) * 100, 1), "g_value": _r(p.get("g_value"), 2),
+            "uw_used": _r(used, 2), "uw_from": source or "δεν δόθηκε", "maker": p.get("maker") or None}
 
 
 def set_u_command(doc, eid, text):
@@ -162,7 +183,8 @@ def envelope(doc):
                 if o.kind == "opening":
                     continue
                 ao = float(o.params.get("width", 0)) * float(o.params.get("height", 0))
-                uo = o.params.get("u_value") or project_u
+                from archforge.mep.opening_thermal import uw as _uw
+                uo, uo_from = _uw(doc, o)
                 if uo is None:
                     no_u_openings += 1
                 else:
@@ -172,8 +194,7 @@ def envelope(doc):
                                      "quantity": _r(ao), "unit": "m²", "u": _r(uo, 2),
                                      "loss": _r(None if uo is None else float(uo) * ao, 2),
                                      "how": (f"{float(o.params.get('width', 0)):.2f} × {float(o.params.get('height', 0)):.2f} · Uw "
-                                             + ("του κουφώματος" if o.params.get("u_value") else
-                                                "του έργου" if project_u is not None else "δεν δόθηκε")).replace(".", ",")})
+                                             + (uo_from or "δεν δόθηκε")).replace(".", ",")})
             rows.append({"ids": [w.id], "element": "Εξωτερικός τοίχος", "storey": _storey(doc, z),
                          "type": _wall_type_label(doc, p.get("wall_type", "generic")),
                          "quantity": _r(area), "unit": "m²", "u": _r(u, 3), "loss": _r(None if u is None else u * area, 2),

@@ -62,7 +62,8 @@ def surface_temperatures(doc, side="exterior", season="winter"):
                 items[w.id] = {"kind": "wall", "u": float(u), "theta": round(theta(float(u)), 2)}
             for o in doc.entities.values():
                 if o.kind in ("door", "window") and o.parent_id == w.id:
-                    uo = o.params.get("u_value") or a["heat_u_openings"]
+                    from archforge.mep.opening_thermal import uw as _uw
+                    uo = _uw(doc, o)[0]
                     if uo is None:
                         unknown.append(o.id)
                     else:
