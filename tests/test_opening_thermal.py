@@ -111,23 +111,22 @@ def test_editing_the_window_in_the_list_redraws_the_thermal_tab(window):
     assert not np.allclose(before, tab.result['today']['theta'])
 
 
-def test_frame_and_glazing_types_check_the_makers_numbers_but_never_fill_them():
-    """Έντυπο ιδιοκτήτη 05/11: τυπικά εύρη Uf / Ug ανά υλικό πλαισίου — μόνο έλεγχος, UNVERIFIED."""
+def test_frame_ranges_of_table_10_need_the_makers_uf_and_check_it():
+    """ΤΟΤΕΕ 20701-2/2021 Πίν. 10: μεταλλικό με θερμοδιακοπή 1,0–4,0, PVC πολυθαλαμικό 1,0–2,0 → Uf του κατασκευαστή."""
     doc, st, _w, o = _wall_with_window()
-    st.execute(O.set_command(doc, o.id, 'frame_material', 'upvc'))
-    st.execute(O.set_command(doc, o.id, 'glazing', 'Διπλός ενεργειακός (Low-E + αργό)'))   # by its label too
+    st.execute(O.set_command(doc, o.id, 'frame_material', 'pvc_multi'))
+    st.execute(O.set_command(doc, o.id, 'glazing', '2|le05|4-16-4|argon'))
     o = doc.get(o.id)
-    assert o.params['frame_material'] == 'upvc' and o.params['glazing'] == 'double_lowe_argon'
-    assert o.params.get('uf') is None and O.uw(doc, o)[1] != O.SOURCE_10077                # nothing invented
-    assert O.RANGES_STATUS == 'UNVERIFIED'
+    assert o.params['frame_material'] == 'pvc_multi' and o.params['glazing'] == '2|le05|4-16-4|argon'
+    assert any('γράψτε το Uf του κατασκευαστή' in c for c in S.openings(doc)['check'])   # a range: never picked
     st.execute(O.set_command(doc, o.id, 'uf', '3,5'))
     data = S.openings(doc)
     row = next(r for r in data['rows'] if r['ids'] == [o.id])
-    assert row['frame_material'] == 'Συνθετικό (uPVC)'
-    assert any('Uf 3,5 έξω από το συνηθισμένο 1–1,8' in c for c in data['check'])
+    assert row['frame_material'].startswith('Συνθετικό πλαίσιο: PVC πολυθαλαμικό')
+    assert any('Uf 3,5 έξω από το 1–2 του Πίν. 10' in c for c in data['check'])
     assert data['editable']['frame_material'][0] == 'choice'
     st.execute(O.set_command(doc, o.id, 'uf', '1,3'))
-    assert not any('έξω από το συνηθισμένο' in c for c in S.openings(doc)['check'])
+    assert not any('Πίν. 10' in c for c in S.openings(doc)['check'])
     with pytest.raises(ValueError):
         O.set_command(doc, o.id, 'frame_material', 'τιτάνιο')
     with pytest.raises(ValueError):
@@ -145,9 +144,9 @@ def test_the_list_offers_the_frame_material_as_a_drop_down_with_undo(window):
     lists = live_lists.show(w, 'openings') and w._lists_tab
     col = [k for k, _l in lists.data['columns']].index('frame_material')
     box = lists.table.cellWidget(0, col)
-    i = box.findData('alu_break')
+    i = box.findData('metal_break')
     box.setCurrentIndex(i); box.activated.emit(i); app.processEvents()
-    assert w.doc.get(o.id).params['frame_material'] == 'alu_break'
+    assert w.doc.get(o.id).params['frame_material'] == 'metal_break'
     w.stack.undo()
     assert w.doc.get(o.id).params.get('frame_material') is None
 
@@ -176,13 +175,11 @@ def test_the_schedule_has_typology_equipment_glazing_and_requirements_like_a_pro
     assert doc.get(o.id).params.get('uw_required') is None
 
 
-def test_uw_above_the_zone_limit_of_table_6_is_said():
+def test_uw_above_the_zone_limit_of_table_5a_is_said():
     from archforge.mep.design_climate import zone
-    from archforge.mep.totee_20701_2 import u_max
-    doc, _st, _w, o = _wall_with_window(u_value=5.5)
+    from archforge.mep.totee_20701_2_2021 import u_max
+    doc, _st, _w, o = _wall_with_window(u_value=2.7)
     z = zone(doc)
     notes = O.requirement_notes(doc, o)
-    if z:
-        assert any(f'Umax {u_max("opening", z):.2f}'.replace('.', ',') in n and 'Πίν. 6' in n for n in notes)
-    else:
-        assert notes == []
+    assert z == 'Β' and u_max('opening', z) == 2.60 and u_max('opening', z, renovation=True) == 3.00
+    assert any('Umax 2,60' in n and 'Πίν. 5α (νέο κτίριο)' in n for n in notes)   # new building by default

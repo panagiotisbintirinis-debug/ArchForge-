@@ -55,6 +55,11 @@ class ListsTab(QWidget):
         self.live = QLabel(self); self.live.setStyleSheet("color:palette(mid);font-size:11px")
         foot.addWidget(self.total); foot.addStretch(1); foot.addWidget(self.live)
         from PySide6.QtWidgets import QPushButton
+        self.design_btn = QPushButton("Σχεδιασμός κουφώματος (ΤΟΤΕΕ)…", self)
+        self.design_btn.setToolTip("Solver: πλαίσιο × υαλοπίνακας × αποστάτης της ΤΟΤΕΕ 20701-2/2021 για τον στόχο Uw "
+                                   "του επιλεγμένου κουφώματος")
+        self.design_btn.clicked.connect(self.design_opening)
+        foot.addWidget(self.design_btn)
         for text, run in (("PDF αυτής της λίστας…", lambda: self.export_pdf(keys=[self.key])),
                           ("PDF όλων…", lambda: self.export_pdf()), ("Excel όλων…", lambda: self.export_xlsx())):
             b = QPushButton(text, self); b.clicked.connect(lambda _=False, r=run: r()); foot.addWidget(b)
@@ -62,6 +67,19 @@ class ListsTab(QWidget):
         self._timer = QTimer(self); self._timer.setSingleShot(True); self._timer.setInterval(250)
         self._timer.timeout.connect(self.refresh)
         self._stale = True
+
+    def design_opening(self):
+        """The design solver for the selected door / window (Λίστες ▸ Κουφώματα)."""
+        rows = sorted({i.row() for i in self.table.selectedItems()})
+        if self.key != "openings" or not rows or self.data is None:
+            self.window.statusBar().showMessage("Σχεδιασμός κουφώματος: διαλέξτε ένα κούφωμα στη λίστα «Κουφώματα»", 6000)
+            return None
+        eid = self.data["rows"][rows[0]]["ids"][0]
+        if self.window.doc.get(eid).kind not in ("door", "window"):
+            return None
+        from archforge.ui.opening_design_dialog import open_for
+        self._design_dialog = open_for(self.window, eid)
+        return self._design_dialog
 
     # ------------------------------------------------------------ live
     def mark_stale(self):
@@ -88,6 +106,7 @@ class ListsTab(QWidget):
         self._stale = False
         try:
             self.data = S.LISTS[self.key](self.window.doc)
+            self.design_btn.setVisible(self.key == "openings")
         except Exception as exc:                        # noqa: BLE001 — said, the tab stays usable
             self.data = {"title": NAMES[self.key], "rows": [], "columns": [], "check": [f"δεν υπολογίστηκε: {exc}"],
                          "editable": {}, "total": ""}
@@ -245,7 +264,7 @@ class ListsTab(QWidget):
                 command = S.set_mark_command(doc, row["ids"][0], item.text())
             elif key == "uw":
                 command = S.set_u_command(doc, row["ids"][0], item.text())
-            elif key in ("uf", "ug", "psi_g", "frame_width", "g_value", "maker", "glazing_build", "uw_required"):
+            elif key in ("uf", "ug", "psi_g", "frame_width", "g_value", "maker", "glazing_build", "uw_required", "usb"):
                 command = S.set_opening_command(doc, row["ids"][0], key, item.text())
             elif key == "name":
                 command = S.rename_room_command(doc, row["signature"], item.text())

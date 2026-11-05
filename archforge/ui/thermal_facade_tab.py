@@ -431,7 +431,7 @@ class ThermalFacadeTab(QWidget):
         if r["u_max"] is not None:
             frame = next((x["u"] for x in r["rows"] if x["kind"] == 1), None)
             masonry = next((x["u"] for x in r["rows"] if x["kind"] == 0), None)
-            self.umax.setText(f"Umax ζώνης {r['zone']} (ΤΟΤΕΕ 20701-2 Πίν. 6): τοίχοι {_num(r['u_max'])} — "
+            self.umax.setText(f"Umax {r['u_max_source']}: τοίχοι {_num(r['u_max'])} — "
                               f"τοιχοποιία σήμερα {_num(masonry) if masonry else '—'}"
                               + (f", κολόνες/δοκοί σήμερα {_num(frame)}" if frame else ""))
         else:

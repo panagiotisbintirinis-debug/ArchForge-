@@ -810,7 +810,9 @@ _OPENING_THERMAL = {'uf': _u_value, 'ug': _u_value, 'psi_g': _optional_nonnegati
                     'frame_width': _u_value, 'g_value': _optional_nonnegative('g_value'),
                     'frame_material': lambda v: _opening_choice('frame_material', v),
                     'glazing': lambda v: _opening_choice('glazing', v),
-                    'uw_required': _u_value, 'safety_glass': lambda v: _safety_glass(v)}
+                    'uw_required': _u_value, 'usb': _u_value,
+                    **{k: (lambda key: lambda v: _opening_choice(key, v))(k)
+                       for k in ('safety_glass', 'spacer', 'roller_box', 'shutter_slats', 'shutter_airtightness')}}
 
 
 def _safety_glass(v):

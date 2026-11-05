@@ -156,11 +156,18 @@ def test_envelope_checks_each_wall_and_window_against_the_zone_limit():
     win = Entity('window', {'offset': 1.0, 'width': 1.2, 'height': 1.2, 'sill': 0.9},
                  parent_id=next(e.id for e in doc.entities.values() if e.kind == 'wall'))
     stack.execute(AddEntity(win))
-    stack.execute(set_u_command(doc, win.id, '3,1'))            # above Umax 3,00 of zone Β
+    stack.execute(set_u_command(doc, win.id, '3,1'))            # above Umax of zone Β (2,60 new · 3,00 renovation)
     d = envelope(doc)
     assert d['zone'] == 'Β'
     row = next(r for r in d['rows'] if r['ids'] == [win.id])
-    assert row['umax'] == 3.0 and row['ok'].startswith('⚠')
+    # ΤΟΤΕΕ 20701-2/2021: Πίν. 5α for a new building (the default), Πίν. 5β for a radical renovation.
+    assert row['umax'] == 2.6 and row['ok'].startswith('⚠')
     walls = [r for r in d['rows'] if r['element'] == 'Εξωτερικός τοίχος']
-    assert walls and all(r['umax'] == 0.50 for r in walls)
-    assert any('πάνω από το μέγιστο U της ζώνης Β' in c for c in d['check'])
+    assert walls and all(r['umax'] == 0.45 for r in walls)
+    assert any('πάνω από το μέγιστο U ζώνης Β' in c and 'Πίν. 5α (νέο κτίριο)' in c for c in d['check'])
+    stack.execute(AddEntity(Entity('project_brief', {'project_type': 'renovation'})))
+    d = envelope(doc)
+    row = next(r for r in d['rows'] if r['ids'] == [win.id])
+    assert row['umax'] == 3.0 and row['ok'].startswith('⚠')
+    assert all(r['umax'] == 0.50 for r in d['rows'] if r['element'] == 'Εξωτερικός τοίχος')
+    assert any('Πίν. 5β (ριζική ανακαίνιση)' in c for c in d['check'])

@@ -113,28 +113,29 @@ def openings(doc):
                          "typology": ("choice", []), "shading": ("choice", _joinery_choices("SHADINGS")),
                          "roller_drive": ("choice", _joinery_choices("ROLLER_DRIVES")),
                          "screen": ("choice", _joinery_choices("SCREENS")),
-                         "safety_glass": ("choice", _safety_choices()), "glazing_build": "text",
+                         "safety_glass": ("choice", _choices("safety_glass")), "glazing_build": "text",
+                         "spacer": ("choice", _choices("spacer")), "roller_box": ("choice", _choices("roller_box")),
+                         "shutter_slats": ("choice", _choices("shutter_slats")),
+                         "shutter_airtightness": ("choice", _choices("shutter_airtightness")), "usb": "number",
                          "uw_required": "number"},
             "columns": [("mark", "Κωδικός"), ("kind", "Είδος"), ("typology", "Τυπολογία"), ("leaves", "Φύλλα"),
                         ("storey", "Όροφος"), ("rooms", "Χώρος"),
                         ("width", "Πλάτος m"), ("height", "Ύψος m"), ("sill", "Ποδιά m"), ("area", "m²"),
                         ("frame_material", "Υλικό πλαισίου"), ("glazing", "Υαλοπίνακας"),
-                        ("glazing_build", "Σύνθεση υάλωσης"), ("safety_glass", "Ασφαλείας"),
-                        ("shading", "Ρολό / παντζούρι"), ("roller_drive", "Μηχανισμός ρολού"), ("screen", "Σίτα"),
+                        ("spacer", "Αποστάτης"), ("glazing_build", "Σύνθεση υάλωσης"), ("safety_glass", "Ασφαλείας"),
+                        ("shading", "Ρολό / παντζούρι"), ("roller_drive", "Μηχανισμός ρολού"),
+                        ("roller_box", "Κουτί ρολού"), ("usb", "Usb W/m²K"), ("shutter_slats", "Περσίδα"),
+                        ("shutter_airtightness", "Αεροστεγανότητα"), ("screen", "Σίτα"),
                         ("uw_required", "Uw απαίτηση ≤"), ("uw", "Uw δηλωμένο W/m²K"), ("uf", "Uf W/m²K"), ("ug", "Ug W/m²K"), ("psi_g", "ψg W/mK"),
                         ("frame_width", "Πλαίσιο cm"), ("g_value", "g"), ("uw_used", "Uw που ισχύει"),
-                        ("uw_from", "Uw από"), ("maker", "Κατασκευαστής / έγγραφο"), ("how", "Πώς μετρήθηκε")],
+                        ("uw_from", "Uw από"), ("uw_rb", "Uw,rb (κλειστό ρολό)"),
+                        ("uw_corrected", "Uw,διορθ (σχ. 2.19)"), ("maker", "Κατασκευαστής / έγγραφο"), ("how", "Πώς μετρήθηκε")],
             "total": f"{len(rows)} κουφώματα · {total:.2f} m²".replace(".", ",")}
 
 
 def _joinery_choices(name):
     from archforge.architecture import joinery as J
     return list(getattr(J, name).items())
-
-
-def _safety_choices():
-    from archforge.mep.opening_thermal import SAFETY_GLASS
-    return list(SAFETY_GLASS.items())
 
 
 JOINERY_KEYS = {"typology": "opening_type", "shading": "shading", "roller_drive": "roller_drive", "screen": "screen"}
@@ -181,7 +182,7 @@ def set_opening_command(doc, eid, key, value):
 
 def _choices(key):
     from archforge.mep.opening_thermal import CHOICES
-    return [(k, v[0]) for k, v in CHOICES[key][1].items()]
+    return list(CHOICES[key][1].items())
 
 
 def _opening_thermal_cells(doc, e):
@@ -195,11 +196,18 @@ def _opening_thermal_cells(doc, e):
     return {"uf": _r(p.get("uf"), 2), "ug": _r(p.get("ug"), 2), "psi_g": _r(p.get("psi_g"), 3),
             "frame_width": None if fw in (None, "") else _r(float(fw) * 100, 1), "g_value": _r(p.get("g_value"), 2),
             "uw_used": _r(used, 2), "uw_from": source or "δεν δόθηκε", "maker": p.get("maker") or None,
-            "frame_material": FT.FRAME_TYPES[p["frame_material"]][0] if p.get("frame_material") in FT.FRAME_TYPES else None,
-            "glazing": FT.GLAZING_TYPES[p["glazing"]][0] if p.get("glazing") in FT.GLAZING_TYPES else None,
+            "frame_material": FT.FRAME_TYPES.get(p.get("frame_material")),
+            "glazing": FT.GLAZING_TYPES.get(p.get("glazing")),
+            "spacer": FT.CHOICES["spacer"][1].get(p.get("spacer")),
+            "roller_box": FT.ROLLER_BOXES.get(p.get("roller_box")),
+            "shutter_slats": FT.SHUTTER_SLATS.get(p.get("shutter_slats")),
+            "shutter_airtightness": FT.AIRTIGHTNESS.get(p.get("shutter_airtightness")),
+            "usb": _r(p.get("usb"), 2),
+            "uw_rb": _r((FT.uw_with_shutters(doc, e) or (None, None))[0], 2),
+            "uw_corrected": _r((FT.uw_with_shutters(doc, e) or (None, None))[1], 2),
             "range_notes": FT.range_notes(p) + FT.requirement_notes(doc, e),
             "glazing_build": p.get("glazing_build") or None,
-            "safety_glass": FT.SAFETY_GLASS.get(p.get("safety_glass")) if p.get("safety_glass") else None,
+            "safety_glass": FT.SAFETY_GLASS.get(p.get("safety_glass")),
             "uw_required": _r(p.get("uw_required"), 2),
             **_joinery_cells(e)}
 
@@ -305,14 +313,15 @@ def envelope(doc):
                      .replace(".", ","))
     if no_u_openings:
         check.append(f"{no_u_openings} κουφώματα χωρίς Uw (Λίστες › Κουφώματα, στήλη «Uw»)")
-    # Μέγιστο U της ζώνης (ΤΟΤΕΕ 20701-2 Πίν. 6): every wall / opening against its limit, the zone said.
+    # Μέγιστο U (ΤΟΤΕΕ 20701-2/2021 Πίν. 5α νέο κτίριο / 5β ριζική ανακαίνιση): every wall / opening, the zone said.
     from archforge.mep.design_climate import zone as project_zone
-    from archforge.mep.totee_20701_2 import TABLE_6_SOURCE, u_max
+    from archforge.mep.totee_20701_2_2021 import u_max_project
     z = project_zone(doc)
+    limits = {k: u_max_project(doc, k) for k in ("wall_exterior", "opening")}
     over = 0
     for r in rows:
         element = {"Εξωτερικός τοίχος": "wall_exterior", "Κούφωμα": "opening"}.get(r["element"])
-        limit = u_max(element, z) if element else None
+        limit = limits[element][0] if element else None
         r["umax"] = limit
         if limit is not None and r["u"] is not None and r["u"] > limit + 1e-9:
             r["ok"] = f"⚠ > {limit:g}".replace(".", ",")
@@ -322,7 +331,7 @@ def envelope(doc):
     if z is None:
         check.append("χωρίς κλιματική ζώνη: τα όρια U δεν ελέγχονται (Θέρμανση › Θερμοκρασίες σχεδιασμού…)")
     elif over:
-        check.append(f"{over} στοιχεία πάνω από το μέγιστο U της ζώνης {z} ({TABLE_6_SOURCE})")
+        check.append(f"{over} στοιχεία πάνω από το μέγιστο U {limits['opening'][1]}")
     check.append("δεν μετρώνται ακόμη: οροφή/στέγη, δάπεδο/έδαφος")
     h_t = h_walls + h_openings + tb["h_tb"]
     return {"title": "Κέλυφος", "rows": rows, "check": check, "editable": {}, "zone": z,

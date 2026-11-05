@@ -172,11 +172,12 @@ def compare(doc, wall_id, layers=None, opening_u=None, side="exterior", scale=No
     w_now = today["watts"]
     w_p = proposal["watts"] if proposal else None
     from archforge.mep.design_climate import zone
-    from archforge.mep.totee_20701_2 import u_max
+    from archforge.mep.totee_20701_2_2021 import u_max_project
     z = zone(doc)
+    u_max_wall, u_max_source = u_max_project(doc, "wall_exterior")
     return {"today": today, "proposal": proposal, "lo": lo, "hi": hi, "side": side, "palette": palette, "rows": rows,
             "watts": (w_now, w_p), "reduction": (None if w_p is None or w_now <= 0 else (w_p - w_now) / w_now),
-            "zone": z, "u_max": u_max("wall_exterior", z) if z else None}
+            "zone": z, "u_max": u_max_wall, "u_max_source": u_max_source}
 
 
 def junction_profile(result, side="exterior", reach=0.35):

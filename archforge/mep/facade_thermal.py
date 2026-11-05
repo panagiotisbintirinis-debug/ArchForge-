@@ -168,8 +168,9 @@ def facade(doc, wall_id, wall_type=None, theta_i=None, theta_e=None, layers=None
     for o in doc.entities.values():
         if o.kind not in ("window", "door") or o.parent_id != wall.id:
             continue
-        from archforge.mep.opening_thermal import has_parts, uw as opening_uw
+        from archforge.mep.opening_thermal import components, uw as opening_uw
         uw = opening_u or opening_uw(doc, o)[0]
+        parts_c = components(o) if opening_u is None and not o.params.get("u_value") else None
         s0 = float(o.params.get("offset", 0.0))
         za = float(o.params.get("sill", 0.0)) if o.kind == "window" else 0.0
         rr, cc = cells(s0, s0 + float(o.params.get("width", 1.0)), za, za + float(o.params.get("height", 1.0)))
@@ -181,19 +182,19 @@ def facade(doc, wall_id, wall_type=None, theta_i=None, theta_e=None, layers=None
             stacks.append(np.full(len(dz), total / max(1e-6, 1.0 / float(u_part) - rsi - rse)))
             return len(stacks) - 1
         kind[rr, cc] = 2
-        parts = opening_u is None and has_parts(o.params)
-        stack[rr, cc] = eq_stack(o.params["uf"] if parts else uw)
+        parts = bool(parts_c) and not parts_c["missing"]
+        stack[rr, cc] = eq_stack(parts_c["uf"] if parts else uw)
         if parts:
             # Frame (Uf) all round, the glass edge (Ug + ψg over one cell: the spacer's cold line, EN ISO 10077-1)
             # and the glass (Ug) — as a camera shows a window, not one colour.
-            nb = max(1, int(round(float(o.params["frame_width"]) / H)))
+            nb = max(1, int(round(parts_c["frame_width"] / H)))
             g_r = slice(rr.start + nb, rr.stop - nb)
             g_c = slice(cc.start + nb, cc.stop - nb)
             if g_r.stop > g_r.start and g_c.stop > g_c.start:
-                stack[g_r, g_c] = eq_stack(float(o.params["ug"]) + float(o.params["psi_g"]) / H)
+                stack[g_r, g_c] = eq_stack(parts_c["ug"] + parts_c["psi_g"] / H)
                 in_r, in_c = slice(g_r.start + 1, g_r.stop - 1), slice(g_c.start + 1, g_c.stop - 1)
                 if in_r.stop > in_r.start and in_c.stop > in_c.start:
-                    stack[in_r, in_c] = eq_stack(o.params["ug"])
+                    stack[in_r, in_c] = eq_stack(parts_c["ug"])
         u[o.kind] = float(uw)
         regions.append({"kind": o.kind, "id": o.id, "parts": bool(parts)})
     lam = np.stack(stacks)[stack]                                   # (rows, cols, depth)

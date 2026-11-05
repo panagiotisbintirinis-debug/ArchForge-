@@ -7,6 +7,8 @@
   αποστάτης / τζάμι στη θερμική εικόνα, ίδιο Uw σε απώλειες / κέλυφος / όψη 3D. Τεστ `tests/test_opening_thermal.py`: 4 passed.
 - Έντυπο κουφωμάτων ιδιοκτήτη: «Υλικό πλαισίου» / «Υαλοπίνακας» ανά κούφωμα, έλεγχος εύρους Uf/Ug (UNVERIFIED),
   αναπτυσσόμενο μέσα στη λίστα (`live_lists._choice_cell`). Ανάλυση `docs/specs/koyfomata_thermika.md`. Τεστ: 6 passed.
+- Πλήρης σειρά στο `06c6954`: 2463 passed, 1 skipped.
+- ΤΟΤΕΕ 20701-2/2021 πίνακες κουφωμάτων + Πίν. 5α/5β + solver σχεδιασμού κουφώματος. Τεστ `test_totee_windows_2021.py`: 5.
 - Πλήρης σειρά στο `bb4cb7a`: 2461 passed, 1 skipped.
 - Πίνακας ανάλυσης κουφωμάτων: τυπολογία, φύλλα, σύνθεση υάλωσης, ασφαλείας, ρολό + μηχανισμός, σίτα, Uw απαίτηση,
   έλεγχος Umax Πίν. 6 (`schedules.set_opening_command`, `opening_thermal.requirement_notes`). Τεστ: 8 passed.
