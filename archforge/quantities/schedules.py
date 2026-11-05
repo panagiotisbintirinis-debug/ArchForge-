@@ -86,6 +86,7 @@ def openings(doc):
                      "storey": _storey(doc, z), "rooms": " / ".join(rooms) or "—",
                      "width": _r(w), "height": _r(h), "sill": _r(sill) if kind == "window" else None,
                      "area": _r(w * h), "type": str(p.get("opening_type", "") or ""),
+                     "uw": _r(p.get("u_value"), 2) if kind != "opening" else None,
                      "how": f"πλάτος {w:.2f} × ύψος {h:.2f} = {w * h:.2f} m² (διαστάσεις ανοίγματος)".replace(".", ",")
                      + (" · κωδικός αυτόματος — γράψτε δικό σας για να μείνει" if auto else "")})
     check = []
@@ -94,11 +95,26 @@ def openings(doc):
     if no_room:
         check.append(f"{no_room} κουφώματα χωρίς χώρο (ο τοίχος δεν κλείνει χώρο)")
     total = sum(r["area"] for r in rows)
-    return {"title": "Κουφώματα", "rows": rows, "check": check, "editable": {"mark": "text"},
+    no_u = sum(1 for r in rows if r["uw"] is None and not r["kind"].startswith("Άνοιγμα"))
+    if no_u:
+        check.append(f"{no_u} κουφώματα χωρίς Uw (από τον κατασκευαστή· γράψτε το στη στήλη «Uw»)")
+    return {"title": "Κουφώματα", "rows": rows, "check": check, "editable": {"mark": "text", "uw": "number"},
             "columns": [("mark", "Κωδικός"), ("kind", "Είδος"), ("storey", "Όροφος"), ("rooms", "Χώρος"),
                         ("width", "Πλάτος m"), ("height", "Ύψος m"), ("sill", "Ποδιά m"), ("area", "m²"),
-                        ("how", "Πώς μετρήθηκε")],
+                        ("uw", "Uw W/m²K"), ("how", "Πώς μετρήθηκε")],
             "total": f"{len(rows)} κουφώματα · {total:.2f} m²".replace(".", ",")}
+
+
+def set_u_command(doc, eid, text):
+    """Uw of one door / window from its maker (empty = the project's value) — one undo."""
+    from archforge.core.commands import UpdateEntity
+    text = str(text or "").strip().replace(",", ".")
+    if text in ("", "—"):
+        return UpdateEntity(eid, {"u_value": None})
+    value = float(text)
+    if value <= 0 or value > 10:
+        raise ValueError(f"Uw {text} W/m²K — ελέγξτε την τιμή του κατασκευαστή")
+    return UpdateEntity(eid, {"u_value": value})
 
 
 def set_mark_command(doc, eid, mark):
@@ -118,7 +134,10 @@ def envelope(doc):
     from archforge.architecture.wall_types import indicative_u
     from archforge.mep.thermal_bridges import summary as bridges
     from archforge.mep.ventilation import exterior_walls
+    from archforge.mep.heat_load import assumptions
+    project_u = assumptions(doc)["heat_u_openings"]
     rows, no_u, h_walls = [], 0, 0.0
+    opening_rows, no_u_openings, h_openings = [], 0, 0.0
     storeys = sorted({round(float(e.params.get("z", 0.0)), 4) for e in doc.entities.values()
                       if e.kind == "wall" and e.visible})
     for z in storeys:
@@ -139,10 +158,27 @@ def envelope(doc):
                 h_walls += u * area
             how = (f"{L:.2f} × {H:.2f} − {len(holes)} ανοίγματα {minus:.2f} = {area:.2f} m²"
                    + (f" · U από τις στρώσεις (EN ISO 6946)" if u is not None else " · χωρίς σύνθεση: χωρίς U"))
+            for o in holes:
+                if o.kind == "opening":
+                    continue
+                ao = float(o.params.get("width", 0)) * float(o.params.get("height", 0))
+                uo = o.params.get("u_value") or project_u
+                if uo is None:
+                    no_u_openings += 1
+                else:
+                    h_openings += float(uo) * ao
+                opening_rows.append({"ids": [o.id], "element": "Κούφωμα", "storey": _storey(doc, z),
+                                     "type": str(o.params.get("mark", "")) or ("Πόρτα" if o.kind == "door" else "Παράθυρο"),
+                                     "quantity": _r(ao), "unit": "m²", "u": _r(uo, 2),
+                                     "loss": _r(None if uo is None else float(uo) * ao, 2),
+                                     "how": (f"{float(o.params.get('width', 0)):.2f} × {float(o.params.get('height', 0)):.2f} · Uw "
+                                             + ("του κουφώματος" if o.params.get("u_value") else
+                                                "του έργου" if project_u is not None else "δεν δόθηκε")).replace(".", ",")})
             rows.append({"ids": [w.id], "element": "Εξωτερικός τοίχος", "storey": _storey(doc, z),
                          "type": _wall_type_label(doc, p.get("wall_type", "generic")),
                          "quantity": _r(area), "unit": "m²", "u": _r(u, 3), "loss": _r(None if u is None else u * area, 2),
                          "how": how.replace(".", ",")})
+    rows += opening_rows
     tb = bridges(doc)
     for r in tb["rows"]:
         rows.append({"ids": r["ids"], "element": "Θερμογέφυρα", "storey": "", "type": r["label"],
@@ -155,13 +191,16 @@ def envelope(doc):
     if tb["missing_n"]:
         check.append(f"θερμογέφυρες: {tb['missing_n']} θέσεις, {tb['missing_m']:.1f} m χωρίς ψ (Θέρμανση › Θερμογέφυρες…)"
                      .replace(".", ","))
-    check.append("δεν μετρώνται ακόμη: κουφώματα (U ανά τύπο), οροφή/στέγη, δάπεδο/έδαφος")
-    h_t = h_walls + tb["h_tb"]
+    if no_u_openings:
+        check.append(f"{no_u_openings} κουφώματα χωρίς Uw (Λίστες › Κουφώματα, στήλη «Uw»)")
+    check.append("δεν μετρώνται ακόμη: οροφή/στέγη, δάπεδο/έδαφος")
+    h_t = h_walls + h_openings + tb["h_tb"]
     return {"title": "Κέλυφος", "rows": rows, "check": check, "editable": {},
             "columns": [("element", "Στοιχείο"), ("storey", "Όροφος"), ("type", "Τύπος / είδος"),
                         ("quantity", "Ποσότητα"), ("unit", "Μον."), ("u", "U / ψ"), ("loss", "U·A / Ψ·l W/K"),
                         ("how", "Πώς μετρήθηκε")],
-            "total": f"H_T (μετρημένα) = {h_t:.1f} W/K: τοίχοι {h_walls:.1f} + θερμογέφυρες {tb['h_tb']:.1f}".replace(".", ",")}
+            "total": (f"H_T (μετρημένα) = {h_t:.1f} W/K: τοίχοι {h_walls:.1f} + κουφώματα {h_openings:.1f} + "
+                      f"θερμογέφυρες {tb['h_tb']:.1f}").replace(".", ",")}
 
 
 # ------------------------------------------------------------------ Χώροι

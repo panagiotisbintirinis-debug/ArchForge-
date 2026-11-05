@@ -784,7 +784,17 @@ def _joinery(key):
     return check
 
 
-_JOINERY_OPENING = {**_OPENING, **{k: _joinery(k) for k in (
+def _u_value(v):
+    """Uw of a door / window from its maker [W/(m²K)], or None (the project's value applies) — mep/heat_load.py."""
+    if v is None or v == '':
+        return None
+    v = float(v)
+    if not math.isfinite(v) or v <= 0:
+        raise ValueError('U must be a positive number')
+    return v
+
+
+_JOINERY_OPENING = {**_OPENING, 'u_value': _u_value, **{k: _joinery(k) for k in (
     'opening_type', 'hinge', 'swing', 'leaves', 'bars_h', 'bars_v', 'transom', 'shading', 'ledge', 'finish', 'leaf_design')},
     'open_angle': _joinery('open_angle')}
 SCHEMAS = {

@@ -5,7 +5,8 @@ Not a heating study (EN 12831-1 / ΚΕΝΑΚ): an indication from what the model
 * Transmission through **exterior walls**: net area (length × height − openings) × U × ΔT, U from the wall's
   layers (``wall_types.indicative_u``, EN ISO 6946 with the materials' λ: typical, or the project's data sheet).
   A wall without a build-up has no U: it is listed under «δεν μετρήθηκαν», never guessed.
-* **Openings**: area × U of the openings — only when the project gives one (``u_openings``); else not counted, said.
+* **Openings**: area × Uw of each door / window (its own ``u_value``, else the project's ``u_openings``); one with
+  neither is not counted, said.
 * **Ventilation**: 0.34 Wh/(m³K) (ρ·c of air) × air changes per hour × room volume × ΔT.
 * **Thermal bridges**: Σ ψ·l × ΔT, lengths from the drawing, ψ from the project's catalogue (``mep/thermal_bridges``);
   a kind without ψ is listed under «δεν μετρήθηκαν».  Roof and floor are not counted yet — said on the result.
@@ -83,10 +84,17 @@ def heat_load(doc, season="winter"):
             p = w.params
             length = math.hypot(float(p["x2"]) - float(p["x1"]), float(p["y2"]) - float(p["y1"]))
             gross = length * float(p["height"])
-            holes = sum(float(o.params.get("width", 0.0)) * float(o.params.get("height", 0.0))
-                        for o in doc.entities.values()
-                        if o.kind in ("door", "window", "opening") and o.parent_id == w.id)
-            opening_area += holes
+            hosted = [o for o in doc.entities.values()
+                      if o.kind in ("door", "window", "opening") and o.parent_id == w.id]
+            holes = sum(float(o.params.get("width", 0.0)) * float(o.params.get("height", 0.0)) for o in hosted)
+            for o in hosted:
+                # Each door / window with its own Uw (Λίστες › Κουφώματα), else the project's one value.
+                area_o = float(o.params.get("width", 0.0)) * float(o.params.get("height", 0.0))
+                u_o = o.params.get("u_value") or a["heat_u_openings"]
+                if u_o is None:
+                    opening_area += area_o
+                else:
+                    openings_w += area_o * float(u_o) * dt
             u = indicative_u(p.get("wall_type", "generic"), doc)
             if u is None:
                 u = a["heat_u_walls"]                # the project's one value for walls without a build-up
@@ -106,11 +114,8 @@ def heat_load(doc, season="winter"):
         volume += sum(_polygon_area(f.polygon) for f in faces) * h
     if no_u_walls:
         not_counted.append(f"{no_u_walls} εξωτερικοί τοίχοι χωρίς σύνθεση (δώστε τύπο τοίχου ή U τοίχων)")
-    if opening_area > 0:
-        if a["heat_u_openings"] is None:
-            not_counted.append(f"κουφώματα {_gr(opening_area)} m² (δώστε U κουφωμάτων)")
-        else:
-            openings_w = opening_area * a["heat_u_openings"] * dt
+    if opening_area > 0:                             # the area of openings with no U (their own or the project's)
+        not_counted.append(f"κουφώματα {_gr(opening_area)} m² (δώστε U κουφωμάτων: Λίστες › Κουφώματα ή του έργου)")
     vent_w = AIR_HEAT * a["heat_air_changes"] * volume * dt
     # Thermal bridges (κριτική v5 k7): Σ ψ·l from the drawing's lengths and the project's ψ — a kind without ψ is said.
     from archforge.mep.thermal_bridges import summary as bridges

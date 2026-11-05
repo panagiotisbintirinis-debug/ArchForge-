@@ -209,6 +209,8 @@ class ListsTab(QWidget):
         try:
             if key == "mark":
                 command = S.set_mark_command(doc, row["ids"][0], item.text())
+            elif key == "uw":
+                command = S.set_u_command(doc, row["ids"][0], item.text())
             elif key == "name":
                 command = S.rename_room_command(doc, row["signature"], item.text())
             else:

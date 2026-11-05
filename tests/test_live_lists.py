@@ -140,3 +140,23 @@ def test_lists_go_to_pdf_and_excel_as_shown(window, tmp_path):
         return
     ws = openpyxl.load_workbook(xlsx)['Κουφώματα']
     assert any(row[0] == 'Θ-εισόδου' for row in ws.iter_rows(values_only=True))
+
+
+def test_each_window_carries_its_own_uw_into_the_envelope_and_the_heating_power():
+    from archforge.mep.heat_load import heat_load
+    doc = Document(); st = CommandStack(doc); ids = _house(doc, st)
+    before = heat_load(doc)
+    assert dict(before['parts'])['Κουφώματα'] == 0 and any(n.startswith('κουφώματα ') for n in before['not_counted'])
+    assert any('χωρίς Uw' in c for c in S.openings(doc)['check'])
+    st.execute(S.set_u_command(doc, ids['w1'], '1,4'))                 # the maker's figure, typed
+    after = heat_load(doc)
+    assert dict(after['parts'])['Κουφώματα'] == pytest.approx(1.2 * 1.2 * 1.4 * after['delta_t'], abs=1)
+    row = next(r for r in S.envelope(doc)['rows'] if r['ids'] == [ids['w1']])
+    assert row['element'] == 'Κούφωμα' and row['loss'] == pytest.approx(1.2 * 1.2 * 1.4, abs=0.01)
+    assert 'του κουφώματος' in row['how']
+    with pytest.raises(ValueError):
+        S.set_u_command(doc, ids['w2'], '0')
+    st.execute(S.set_u_command(doc, ids['w1'], ''))                     # empty: the project's value again
+    assert doc.get(ids['w1']).params.get('u_value') is None
+    st.undo(); st.undo()
+    assert doc.get(ids['w1']).params.get('u_value') is None
