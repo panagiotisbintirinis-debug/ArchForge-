@@ -111,7 +111,33 @@ class TakeoffDialog(QDialog):
         csv = QPushButton("Αποθήκευση CSV (ανά χώρο)…"); csv.clicked.connect(self._save_csv)
         xlsx = QPushButton("Excel με τιμές (ό,τι είναι επιλεγμένο)…"); xlsx.clicked.connect(self._save_xlsx)
         buttons.addWidget(csv); buttons.addWidget(xlsx)
+        self.live = QLabel(); self.live.setStyleSheet("color:palette(mid);font-size:11px")
+        buttons.addStretch(1); buttons.addWidget(self.live)
+        # Σ5 (κριτική v5): open beside the drawing, it follows every committed change (and undo) by itself.
+        from PySide6.QtCore import QTimer
+        self._timer = QTimer(self); self._timer.setSingleShot(True); self._timer.setInterval(250)
+        self._timer.timeout.connect(self.refresh)
+        self.setModal(False)
+        self.attach()
+        self.is_open = True
+        self.finished.connect(lambda _r: self.detach())
         self.refresh()
+
+    def attach(self):
+        """Listen to the window's current stack (again after another project is opened)."""
+        stack = self.window.stack
+        if self.mark_stale not in stack.listeners:
+            stack.listeners.append(self.mark_stale)
+
+    def detach(self):
+        self.is_open = False
+        try:
+            self.window.stack.listeners.remove(self.mark_stale)
+        except ValueError:
+            pass
+
+    def mark_stale(self):
+        self._timer.start()                    # many commands in a row: one refresh
 
     def chosen(self):
         return [self.sections.item(i).text() for i in range(self.sections.count())
@@ -125,8 +151,28 @@ class TakeoffDialog(QDialog):
         self.refresh()
 
     def refresh(self):
+        doc = self.window.doc
+        names = section_names(doc)
+        have = [self.sections.item(i).text() for i in range(self.sections.count())]
+        if names != have:                      # a list appeared / emptied: keep the ticks, add new ones ticked
+            ticked = set(self.chosen())
+            self.sections.blockSignals(True)
+            self.sections.clear()
+            for name in names:
+                item = QListWidgetItem(name)
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                item.setCheckState(Qt.CheckState.Checked if name in ticked or name not in have else Qt.CheckState.Unchecked)
+                self.sections.addItem(item)
+            self.sections.blockSignals(False)
+        from archforge.quantities.quote import settings
+        if not self.margin.hasFocus():
+            self.margin.blockSignals(True); self.margin.setValue(settings(doc)["margin"]); self.margin.blockSignals(False)
         self.window._takeoff_sections = set(self.chosen())
-        self.browser.setHtml(html(self.window.doc, self.chosen()))
+        bar = self.browser.verticalScrollBar().value()
+        self.browser.setHtml(html(doc, self.chosen()))
+        self.browser.verticalScrollBar().setValue(bar)       # the place being read stays in view
+        import datetime
+        self.live.setText(f"Ζωντανή: ενημερώνεται με κάθε αλλαγή · {datetime.datetime.now():%H:%M:%S}")
 
     def _set_margin(self):
         from archforge.quantities.quote import settings
@@ -149,9 +195,14 @@ class TakeoffDialog(QDialog):
 
 
 def show(window):
-    dlg = TakeoffDialog(window)
-    window._takeoff_dialog = dlg
-    window._takeoff_view = dlg.browser
+    """Open (or bring forward) the take-off beside the drawing — not modal: the drawing stays editable."""
+    dlg = getattr(window, "_takeoff_dialog", None)
+    if dlg is None or not getattr(dlg, "is_open", False):
+        dlg = TakeoffDialog(window)
+        window._takeoff_dialog = dlg
+        window._takeoff_view = dlg.browser
+    else:
+        dlg.attach(); dlg.refresh()
     if not getattr(window, "_no_modal_dialogs", False):
-        dlg.exec()
+        dlg.show(); dlg.raise_(); dlg.activateWindow()
     return dlg

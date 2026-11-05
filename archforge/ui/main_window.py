@@ -4313,6 +4313,8 @@ class MainWindow(QMainWindow):
         if getattr(self,'_board_tab',None) is not None:
             self.stack.listeners.append(self._board_tab.mark_stale)
             self._board_tab.mark_stale()
+        if getattr(self, '_takeoff_dialog', None) is not None:
+            self._takeoff_dialog.attach(); self._takeoff_dialog.mark_stale()      # the open take-off follows the new project
         self.current_path = path
         if path:
             from archforge.ui.start_page import remember

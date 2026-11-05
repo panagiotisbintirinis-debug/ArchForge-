@@ -73,3 +73,33 @@ def test_the_window_ticks_and_unticks_lists_and_remembers_them():
         assert settings(w.doc)['margin'] == 12.5
     finally:
         w._mark_clean(); w.close(); app.processEvents()
+
+
+def test_the_take_off_stays_open_and_follows_every_change_and_undo():
+    """Σ5 (κριτική v5): «άλλαξα ύψος τοίχου και η λίστα έμεινε ίδια» — the window was modal and never listened."""
+    from PySide6.QtWidgets import QApplication
+    from archforge.core.commands import AddEntity, UpdateEntity
+    from archforge.core.model import Entity
+    from archforge.ui.main_window import MainWindow
+    from archforge.ui.takeoff_view import show
+    app = QApplication.instance() or QApplication([])
+    w = MainWindow(); w._no_modal_dialogs = True
+    try:
+        walls = []
+        for a, b in (((0, 0), (5, 0)), ((5, 0), (5, 4)), ((5, 4), (0, 4)), ((0, 4), (0, 0))):
+            e = Entity('wall', {'x1': a[0], 'y1': a[1], 'x2': b[0], 'y2': b[1], 'z': 0, 'height': 2.7, 'thickness': 0.2})
+            w.stack.execute(AddEntity(e)); walls.append(e)
+        dlg = show(w)
+        assert not dlg.isModal() and dlg.mark_stale in w.stack.listeners
+        text = lambda: dlg.browser.toPlainText()
+        before = text()
+        for e in walls:
+            w.stack.execute(UpdateEntity(e.id, {'height': 3.2}))
+        dlg._timer.timeout.emit()                      # what the 250 ms timer does
+        assert text() != before and '3,2' in text().replace('.', ',')
+        w.stack.undo(); dlg._timer.timeout.emit()
+        assert show(w) is dlg                          # the same open window comes forward
+        dlg.done(0)
+        assert dlg.mark_stale not in w.stack.listeners
+    finally:
+        w._mark_clean(); w.close(); app.processEvents()
