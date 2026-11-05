@@ -353,6 +353,10 @@ def install_approved_mockup_shell(window):
         a=QAction(text,window); a.triggered.connect(lambda _=False,r=run: r()); renovation.addAction(a)
     takeoff=QAction("Επιμέτρηση εργασιών (ανά χώρο)…",window); takeoff.triggered.connect(lambda: window._show_takeoff())
     menus["Κατασκευή"].addAction(takeoff); window._takeoff_action=takeoff
+    # Ζωντανές λίστες σε καρτέλα (κριτική v5 k9): κλικ σε γραμμή = επιλογή στο σχέδιο, «πώς μετρήθηκε» ανά γραμμή.
+    lists=QAction("Λίστες (κουφώματα · κέλυφος · χώροι · κυκλώματα)",window)
+    lists.triggered.connect(lambda: __import__("archforge.ui.live_lists",fromlist=["show"]).show(window))
+    menus["Κατασκευή"].addAction(lists); window._lists_action=lists
     isotex=QAction("Τεμάχια Isotex (αναγωγή)…",window); isotex.triggered.connect(lambda: window._show_isotex())
     menus["Κατασκευή"].addAction(isotex); window._isotex_action=isotex
     priced=QAction("Λίστα υλικών με τιμές (Excel)…",window); priced.triggered.connect(lambda: window._export_priced_lists())

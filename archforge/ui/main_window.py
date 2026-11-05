@@ -130,6 +130,8 @@ class MainWindow(QMainWindow):
         install_layout2(self)            # Διάταξη 2: thin first row, tool groups, «Κοινά», panels on the right
         from archforge.ui import electrical_board_tab
         electrical_board_tab.install(self)  # «Ηλεκτρ. πίνακας»: circuits, conductors, metres per wall, board
+        from archforge.ui import live_lists
+        live_lists.install(self)           # «Λίστες» (κριτική v5 k9): κουφώματα, κέλυφος, χώροι, κυκλώματα — ζωντανές
         from archforge.ui import trades_tab
         trades_tab.install(self)            # «Υλικά & τιμές»: a card per trade, prices, order list, quote
         from archforge.ui import insulation_tab
@@ -4320,6 +4322,8 @@ class MainWindow(QMainWindow):
         if getattr(self,'_board_tab',None) is not None:
             self.stack.listeners.append(self._board_tab.mark_stale)
             self._board_tab.mark_stale()
+        if getattr(self, '_lists_tab', None) is not None:
+            self.stack.listeners.append(self._lists_tab.mark_stale); self._lists_tab.mark_stale()
         if getattr(self, '_takeoff_dialog', None) is not None:
             self._takeoff_dialog.attach(); self._takeoff_dialog.mark_stale()      # the open take-off follows the new project
         self.current_path = path
