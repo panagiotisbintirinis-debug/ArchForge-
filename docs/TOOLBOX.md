@@ -94,6 +94,11 @@
 | `archforge/ui/control_center.py` · `toolbar_custom` · `mouse_menus` | **Διαχείριση από τον χρήστη:** προσωπικές σταθερές / αναδυόμενες / ιπτάμενες παλέτες με τις υπάρχουσες `QAction` (χωρίς αντιγραφή εντολής), προαιρετικές αντιστοιχίσεις κλικ ποντικιού 2D/3D, μεγέθη, αποθήκευση και εξαγωγή/εισαγωγή προφίλ. `control_center.install(window)` μετά την οργάνωση μενού · `push_3d_bindings(window)` μετά τη φόρτωση WebGL. Οι αρχικές εντολές μένουν διαθέσιμες. |
 | `archforge/ui/material_library.py` | `MATERIAL_KINDS` (ποια είδη παίρνουν υλικό) · `_apply_material(window, id, role, material)` = **η** εντολή υλικού (browser, πινέλο) · `_targets` (πλευρές/τμήματα). |
 | `tests/conftest.py` | Απομονωμένος τιμοκατάλογος και κλείσιμο παραθύρων σε κάθε τεστ. |
+| `archforge/core/storey_names.py` | `level_name(id)`: το όνομα ορόφου όπως το διαβάζει ο άνθρωπος (Ground → Ισόγειο, Floor 2 → 1ος όροφος), χωρίς Qt. **Κάθε** λίστα, PDF, IFC το παίρνει από εδώ· τα ids δεν αλλάζουν (05/11, Σ7). |
+| `archforge/quantities/schedules.py` | **Οι ζωντανές λίστες** (κουφώματα, κέλυφος, χώροι, κυκλώματα): `LISTS[key](doc)` → στήλες, γραμμές με `ids` και «πώς μετρήθηκε», `check` (έλεγχος πληρότητας), `total`· `html(doc, keys)` για PDF, `write_xlsx(doc, path, keys)`. Νέα λίστα = μία συνάρτηση εδώ· η καρτέλα `ui/live_lists.py` τη δείχνει. |
+| `archforge/quantities/xlsx.py` | Excel χωρίς εξάρτηση: `write_priced_workbook` (λίστα υλικών με τιμές και τύπους) · `write_table_workbook(path, [(όνομα, τίτλος, κεφαλίδα, γραμμές, σημειώσεις)])` (απλός πίνακας, αριθμοί ως αριθμοί). Κοινό πακετάρισμα `_package`. |
+| `archforge/mep/thermal_bridges.py` | `find(doc)`: θερμογέφυρες με θέση και **μήκος** από τη γεωμετρία· `catalogue`/`set_command`: ψ, κωδικός, πηγή του έργου (μόνο από τον χρήστη)· `summary(doc)` → Ψ·l, H_TB. |
+| `archforge/mep/electrical.py` | `keep_circuit_numbers(doc, renumber=False)`: κρατά/ξαναμετρά τους αριθμούς κυκλωμάτων (μία αναίρεση)· `design_circuits` τους τιμά. |
 
 ## Περιβάλλον cloud
 
