@@ -11,9 +11,11 @@ the material carries what the layer needs beyond its thickness:
   when the layer is never seen (insulation inside the wall);
 * ``price_code``: the code in the price book (``quantities/price_book.py``, per m³).  No price is built in.
 
-The built-in λ values are the *typical* values the program used since the wall types were written: none is
-cross-checked against a source in force, so every one is registered ``UNVERIFIED`` (Isotex: from the maker's
-published data, still «προς έλεγχο»).  They give an indicative U only.
+05/11: the built-in λ come from ΤΟΤΕΕ 20701-2/2010 Πίνακας 2 (PDF from the owner, ``mep/totee_20701_2.py``):
+``VERIFIED`` where a row gives the material exactly (σοβάς, οπλισμένο σκυρόδεμα), ``DESIGN_DEFAULT`` where the
+density / product is not known (row nearest to the value used before, or a value inside the table's range), and
+``UNVERIFIED`` where the table has no row (γυψοσανίδα) or the maker's figure is outside it (Isotex ξυλότσιμεντο).
+They give an indicative U only — the product's data sheet (ⓘ of the material) decides.
 
 A project may override a material's λ / density with the value from the data sheet of the product it uses:
 ``doc.materials["bmat:<id>"] = {"conductivity": .., "density": .., "source": ..}`` (``set_properties_command``,
@@ -25,7 +27,7 @@ from dataclasses import dataclass, replace
 from typing import Any, Dict, Optional
 
 from archforge.core.commands import Command, SetMaterial
-from archforge.core.provenance import MANUFACTURER_DATA, UNVERIFIED, Rule, register
+from archforge.core.provenance import DESIGN_DEFAULT, MANUFACTURER_DATA, UNVERIFIED, VERIFIED, Rule, register
 
 PROJECT_PREFIX = "bmat:"
 ROLES = {"structure": "Φέρουσα / πυρήνας", "insulation": "Μόνωση", "finish": "Τελείωμα", "board": "Πλάκα / επένδυση"}
@@ -58,38 +60,65 @@ class BuildingMaterial:
         return f"bmat.{self.id}"
 
 
-def _m(id_, name, category, colour, hatch, role, lam, appearance=None, insulation=False, source=_TYPICAL, note=_CHECK):
-    return BuildingMaterial(id_, name, category, colour, hatch, role, insulation, lam, UNVERIFIED, source,
+def _m(id_, name, category, colour, hatch, role, lam, appearance=None, insulation=False, source=_TYPICAL, note=_CHECK,
+       status=UNVERIFIED):
+    return BuildingMaterial(id_, name, category, colour, hatch, role, insulation, lam, status, source,
                             appearance=appearance, note=note)
 
 
+def _totee(code, pick="lower"):
+    """λ and source of one row of ΤΟΤΕΕ 20701-2 Πίνακας 2 (05/11, PDF from the owner — mep/totee_20701_2.py)."""
+    from archforge.mep.totee_20701_2 import row_values
+    v = row_values(code, pick)
+    return v["conductivity"], v["source"]
+
+
+_ROW = "Άλλη γραμμή του πίνακα (πυκνότητα) ή φύλλο του προϊόντος: ⓘ του υλικού."
+_RANGE = "Τιμή μέσα στο εύρος του πίνακα· το ακριβές λ από το φύλλο του προϊόντος (ⓘ του υλικού)."
+
+
 MATERIALS: dict[str, BuildingMaterial] = {m.id: m for m in (
-    # λ values exactly as the wall types used them before the registry (no U changes silently).
-    _m("cement_plaster", "Σοβάς", "Κονιάματα", "#ece6da", "plaster", "finish", 0.87, "plaster_white"),
-    _m("gypsum_board", "Γυψοσανίδα", "Ξηρά δόμηση", "#f1efea", "gypsum", "board", 0.25, "paint_white_matt"),
-    _m("hollow_brick", "Οπτόπλινθος διάτρητος", "Τοιχοποιία", "#b5653b", "brick", "structure", 0.47, "brick_exposed"),
-    _m("stone_masonry", "Λιθοδομή", "Τοιχοποιία", "#9b8f7d", "stone", "structure", 1.70, "stone_cladding"),
-    _m("reinforced_concrete", "Οπλισμένο σκυρόδεμα", "Σκυρόδεμα", "#a3a3a0", "concrete", "structure", 2.30,
-       "concrete_rough"),
-    _m("bearing_masonry", "Φέρουσα τοιχοποιία", "Τοιχοποιία", "#a8704a", "masonry", "structure", 0.80, "brick_old"),
-    _m("mineral_wool", "Ορυκτοβάμβακας", "Μονώσεις", "#e8d38a", "insulation_soft", "insulation", 0.037, insulation=True),
+    # 05/11: λ from ΤΟΤΕΕ 20701-2 Πίνακας 2 where the table gives the material (VERIFIED: exact row), our choice of row
+    # (DESIGN_DEFAULT: density not known — the row nearest to the value used before, so U barely moves), or a value
+    # inside the table's range (DESIGN_DEFAULT: the data sheet decides). Not in the table: UNVERIFIED, said.
+    _m("cement_plaster", "Σοβάς", "Κονιάματα", "#ece6da", "plaster", "finish", _totee("1.4.2-1800")[0], source=_totee("1.4.2-1800")[1], appearance="plaster_white",
+       note="", status=VERIFIED),
+    _m("gypsum_board", "Γυψοσανίδα", "Ξηρά δόμηση", "#f1efea", "gypsum", "board", 0.25, "paint_white_matt",
+       note="Δεν υπάρχει στον Πίνακα 2 της ΤΟΤΕΕ 20701-2 (μόνο γυψοκονιάματα 1.4.5): λ από το φύλλο της πλάκας."),
+    _m("hollow_brick", "Οπτόπλινθος διάτρητος", "Τοιχοποιία", "#b5653b", "brick", "structure",
+       _totee("1.7.2.2-1200")[0], source=_totee("1.7.2.2-1200")[1], appearance="brick_exposed", note=_ROW, status=DESIGN_DEFAULT),
+    _m("stone_masonry", "Λιθοδομή", "Τοιχοποιία", "#9b8f7d", "stone", "structure", _totee("1.1.1.8-σκληρός")[0], source=_totee("1.1.1.8-σκληρός")[1],
+       appearance="stone_cladding", note="Λίθος χωρίς αρμούς (ο πίνακας δεν δίνει λιθοδομή με κονίαμα). " + _ROW,
+       status=DESIGN_DEFAULT),
+    _m("reinforced_concrete", "Οπλισμένο σκυρόδεμα", "Σκυρόδεμα", "#a3a3a0", "concrete", "structure",
+       _totee("1.5.3-1%")[0], source=_totee("1.5.3-1%")[1], appearance="concrete_rough", note="", status=VERIFIED),
+    _m("bearing_masonry", "Φέρουσα τοιχοποιία", "Τοιχοποιία", "#a8704a", "masonry", "structure",
+       _totee("1.7.2.1-1900")[0], source=_totee("1.7.2.1-1900")[1], appearance="brick_old", note="Πλήρεις οπτόπλινθοι. " + _ROW, status=DESIGN_DEFAULT),
+    _m("mineral_wool", "Ορυκτοβάμβακας", "Μονώσεις", "#e8d38a", "insulation_soft", "insulation", _totee("6.1.3.2")[0], source=_totee("6.1.3.2")[1],
+       insulation=True, note=_RANGE, status=DESIGN_DEFAULT),
     _m("xps", "Εξηλασμένη πολυστερίνη (XPS)", "Μονώσεις", "#9cc3d9", "insulation_rigid", "insulation", 0.034,
-       insulation=True),
+       insulation=True, source=_totee("6.3.4.1")[1], note=_RANGE, status=DESIGN_DEFAULT),
     _m("eps", "Διογκωμένη πολυστερίνη (EPS)", "Μονώσεις", "#e9eef0", "insulation_rigid", "insulation", 0.036,
-       insulation=True),
+       insulation=True, source=_totee("6.3.3.2")[1], note=_RANGE, status=DESIGN_DEFAULT),
     _m("isotex_wood_cement", "Ξυλότσιμεντο Isotex", "Δομικά συστήματα", "#b9a98c", "wood_cement", "structure", 0.11,
-       source=_ISOTEX),
+       source=_ISOTEX, note="ΤΟΤΕΕ 20701-2 Πίν. 2 · 6.3.1 (ξυλόμαλλο, d ≥ 25 mm): 0,090–0,100 — η τιμή του "
+                            "κατασκευαστή είναι πάνω από το εύρος· κρατιέται (δυσμενέστερη) ως την επιβεβαίωση."),
     _m("isotex_graphite_eps", "EPS γραφίτη (Neopor®)", "Δομικά συστήματα", "#6f7780", "insulation_rigid", "insulation",
-       0.031, insulation=True, source=_ISOTEX),
-    _m("infill_concrete", "Σκυρόδεμα πλήρωσης", "Σκυρόδεμα", "#a3a3a0", "concrete", "structure", 2.30),
+       0.031, insulation=True, source=_ISOTEX,
+       note="ΤΟΤΕΕ 20701-2 Πίν. 2 · 6.3.3.3: 0,030–0,032 — η τιμή του κατασκευαστή είναι μέσα στο εύρος."),
+    _m("infill_concrete", "Σκυρόδεμα πλήρωσης", "Σκυρόδεμα", "#a3a3a0", "concrete", "structure", _totee("1.5.3-1%")[0], source=_totee("1.5.3-1%")[1],
+       note="", status=VERIFIED),
     _m("icf_eps", "EPS καλουπιού ICF", "Δομικά συστήματα", "#e9eef0", "insulation_rigid", "insulation", 0.036,
-       insulation=True),
-    _m("icf_core_concrete", "Σκυρόδεμα πυρήνα ICF", "Σκυρόδεμα", "#a3a3a0", "concrete", "structure", 2.30),
+       insulation=True, source=_totee("6.3.3.2")[1], note=_RANGE, status=DESIGN_DEFAULT),
+    _m("icf_core_concrete", "Σκυρόδεμα πυρήνα ICF", "Σκυρόδεμα", "#a3a3a0", "concrete", "structure",
+       _totee("1.5.3-1%")[0], source=_totee("1.5.3-1%")[1], note="", status=VERIFIED),
 )}
 
 register(*(Rule(f"materials.{m.id}.conductivity",
                 f"λ {m.name} = {m.conductivity:g} W/mK για το ενδεικτικό U των συνθέσεων τοίχου",
-                m.conductivity_status, note=f"{m.conductivity_source}. {m.note}".strip())
+                m.conductivity_status,
+                source=m.conductivity_source if m.conductivity_status == VERIFIED else "",
+                note=f"{m.conductivity_source}. {m.note}".strip())
            for m in MATERIALS.values() if m.conductivity is not None))
 
 

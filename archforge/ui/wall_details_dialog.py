@@ -208,7 +208,7 @@ class WallDetailsDialog(QDialog):
         from archforge.architecture.wall_types import RSE, RSI
         from archforge.construction.building_materials import material
         specs = self.layer_specs() if specs is None else specs
-        r, unknown, unverified = RSI + RSE, [], False
+        r, unknown, unverified, statuses = RSI + RSE, [], False, set()
         for spec in specs:
             if spec["thickness"] <= 0:
                 continue
@@ -219,14 +219,23 @@ class WallDetailsDialog(QDialog):
                 continue
             r += spec["thickness"] / float(lam)
             unverified = unverified or getattr(m, "conductivity_status", "") == "UNVERIFIED"
+            statuses.add(getattr(m, "conductivity_status", ""))
         if unknown:
             return f" · U: λείπει το λ ({', '.join(unknown)})"
         if r <= RSI + RSE:
             return ""
         key = str(self.type_combo.currentData() or "")
         note = " · Isotex: το πρόγραμμα κρατά το U του φυλλαδίου όσο ο πυρήνας μένει ίδιος" if key.startswith("isotex_") else ""
-        return (f" · U {1.0 / r:.2f} W/m²K".replace(".", ",") +
-                (" (λ τυπικά, προς επαλήθευση)" if unverified else " (λ από φύλλο προϊόντος)") + note)
+        # Where the λ of this build-up come from (05/11: ΤΟΤΕΕ 20701-2 Πίν. 2 for most built-in materials).
+        if unverified:
+            origin = " (λ τυπικά, προς επαλήθευση)"
+        elif "DESIGN_DEFAULT" in statuses:
+            origin = " (λ από ΤΟΤΕΕ 20701-2 Πίν. 2 · πυκνότητα / προϊόν προς επαλήθευση)"
+        elif statuses <= {"VERIFIED"}:
+            origin = " (λ από ΤΟΤΕΕ 20701-2 Πίν. 2)"
+        else:
+            origin = " (λ από φύλλο προϊόντος / ΤΟΤΕΕ 20701-2)"
+        return f" · U {1.0 / r:.2f} W/m²K".replace(".", ",") + origin + note
 
     def add_layer(self, material_id, side="inside"):
         if material_id not in MATERIALS:
