@@ -104,7 +104,8 @@ def test_menu_places_points_and_schedule_lists_circuits():
             for a in menu.actions():
                 if a.menu() is not None:
                     yield from leaves(a.menu())
-                elif not a.isSeparator() and a.objectName() != 'electricalAnalysisAction':
+                elif not a.isSeparator() and a.objectName() not in (
+                        'electricalAnalysisAction', 'circuitNumbersKeepAction', 'circuitNumbersRenumberAction'):
                     yield a
         point_actions = list(leaves(window._mockup_electrical_menu))
         lighting = next(a.menu() for a in window._mockup_electrical_menu.actions() if a.menu() and a.text() == 'Φωτισμός')

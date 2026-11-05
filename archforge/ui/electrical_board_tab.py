@@ -575,9 +575,11 @@ def install(window):
         keep = QAction('Κράτα την αρίθμηση κυκλωμάτων', window)
         keep.setToolTip('Κάθε σημείο κρατά το κύκλωμά του (Κ1, Κ2…): μια νέα πρίζα παίρνει νέο αριθμό ή μπαίνει σε '
                         'κύκλωμα του χώρου της, οι υπόλοιποι αριθμοί δεν αλλάζουν · μία αναίρεση')
+        keep.setObjectName('circuitNumbersKeepAction')
         keep.triggered.connect(lambda _=False: keep_numbers(window))
         renumber = QAction('Επαναρίθμηση κυκλωμάτων', window)
         renumber.setToolTip('Ξαναχωρίζει και ξαναμετρά όλα τα κυκλώματα από το Κ1 και τα κρατά · μία αναίρεση')
+        renumber.setObjectName('circuitNumbersRenumberAction')
         renumber.triggered.connect(lambda _=False: keep_numbers(window, renumber=True))
         after = menu.actions()[2] if len(menu.actions()) > 2 else None
         for a in (keep, renumber):

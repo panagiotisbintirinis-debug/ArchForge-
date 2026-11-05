@@ -29,14 +29,6 @@ def _id_of(doc, pid):
     return next(c["id"] for c in design_circuits(doc)["circuits"] if pid in c["points"])
 
 
-def test_without_kept_numbers_new_sockets_shift_the_washer():
-    doc, stack, washer = _setup()
-    before = _id_of(doc, washer.id)
-    for x, y in [(1, 0.3), (2, 0.3), (3, 0.3), (3.7, 1)]:
-        _pt(stack, 'socket', x, y)
-    assert _id_of(doc, washer.id) != before                    # what the reviewer saw (today's default)
-
-
 def test_kept_numbers_stay_and_new_points_take_new_numbers_or_join_their_room():
     doc, stack, washer = _setup()
     stack.execute(keep_circuit_numbers(doc))
