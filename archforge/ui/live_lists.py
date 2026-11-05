@@ -54,6 +54,10 @@ class ListsTab(QWidget):
         self.total = QLabel(self); self.total.setStyleSheet("font-weight:600")
         self.live = QLabel(self); self.live.setStyleSheet("color:palette(mid);font-size:11px")
         foot.addWidget(self.total); foot.addStretch(1); foot.addWidget(self.live)
+        from PySide6.QtWidgets import QPushButton
+        for text, run in (("PDF αυτής της λίστας…", lambda: self.export_pdf(keys=[self.key])),
+                          ("PDF όλων…", lambda: self.export_pdf()), ("Excel όλων…", lambda: self.export_xlsx())):
+            b = QPushButton(text, self); b.clicked.connect(lambda _=False, r=run: r()); foot.addWidget(b)
         root.addLayout(foot)
         self._timer = QTimer(self); self._timer.setSingleShot(True); self._timer.setInterval(250)
         self._timer.timeout.connect(self.refresh)
@@ -114,6 +118,51 @@ class ListsTab(QWidget):
         self.live.setText(f"Ζωντανή · {datetime.datetime.now():%H:%M:%S} · κλικ σε γραμμή = επιλογή στο σχέδιο")
         self.follow_selection()
         return d
+
+    # ------------------------------------------------------------ export (the same lists, as they are now)
+    def _project(self):
+        import os
+        path = getattr(self.window, "current_path", None)
+        return os.path.splitext(os.path.basename(path))[0] if path else ""
+
+    def _ask(self, title, default, pattern):
+        from PySide6.QtWidgets import QFileDialog
+        path, _f = QFileDialog.getSaveFileName(self, title, default, pattern)
+        return path or None
+
+    def export_pdf(self, path=None, keys=None):
+        """The chosen lists (all by default) to an A4 landscape PDF; returns the path."""
+        from PySide6.QtGui import QPageLayout, QPageSize, QPdfWriter, QTextDocument
+        from PySide6.QtCore import QMarginsF
+        if path is None:
+            path = self._ask("Λίστες (PDF)", "listes.pdf" if not keys else f"{NAMES[keys[0]].lower()}.pdf", "PDF (*.pdf)")
+            if not path:
+                return None
+        if not path.lower().endswith(".pdf"):
+            path += ".pdf"
+        writer = QPdfWriter(path)
+        writer.setPageLayout(QPageLayout(QPageSize(QPageSize.PageSizeId.A4), QPageLayout.Orientation.Landscape,
+                                         QMarginsF(12, 12, 12, 12), QPageLayout.Unit.Millimeter))
+        writer.setResolution(150)
+        doc = QTextDocument()
+        doc.setDefaultStyleSheet("body{font-size:9pt} th{background:#e8e8e8} td,th{padding:2px}")
+        doc.setHtml(S.html(self.window.doc, keys, self._project()))
+        doc.setPageSize(writer.pageLayout().paintRectPixels(writer.resolution()).size().toSizeF())
+        doc.print_(writer)
+        self.window.statusBar().showMessage(f"{TAB_TITLE}: {path}", 8000)
+        return path
+
+    def export_xlsx(self, path=None, keys=None):
+        """The chosen lists (all by default) to .xlsx, one sheet each; returns the path."""
+        if path is None:
+            path = self._ask("Λίστες (Excel)", "listes.xlsx", "Excel (*.xlsx)")
+            if not path:
+                return None
+        if not path.lower().endswith(".xlsx"):
+            path += ".xlsx"
+        S.write_xlsx(self.window.doc, path, keys)
+        self.window.statusBar().showMessage(f"{TAB_TITLE}: {path} — ένα φύλλο ανά λίστα", 8000)
+        return path
 
     # ------------------------------------------------------------ two-way selection
     def _rows_selected(self):

@@ -246,3 +246,52 @@ def circuits(doc):
 
 
 LISTS = {"openings": openings, "envelope": envelope, "rooms": rooms, "circuits": circuits}
+
+
+# ------------------------------------------------------------------ export: PDF (HTML) and Excel, the same lists
+
+def table(data):
+    """``(header, rows)`` of a list as plain values (None stays empty) — the same columns the tab shows."""
+    keys = [k for k, _l in data["columns"]]
+    return [label for _k, label in data["columns"]], [[row.get(k) for k in keys] for row in data["rows"]]
+
+
+def _fmt(v):
+    if v is None:
+        return "—"
+    if isinstance(v, float):
+        return f"{v:g}".replace(".", ",")
+    return str(v)
+
+
+def html(doc, keys=None, project=""):
+    """One HTML document with the chosen lists (all by default): title, completeness check, table, total."""
+    from html import escape
+    import datetime
+    parts = [f"<h2>Λίστες{(' — ' + escape(project)) if project else ''}</h2>"
+             f"<p><small>{datetime.date.today():%d/%m/%Y} · από το σχέδιο, προς έλεγχο πριν από χρήση</small></p>"]
+    for key in (keys or LISTS):
+        d = LISTS[key](doc)
+        header, rows = table(d)
+        parts.append(f"<h3>{escape(d['title'])}</h3>")
+        if d["check"]:
+            parts.append("<p style='color:#b45309'>" + "<br>".join(escape(c) for c in d["check"]) + "</p>")
+        parts.append("<table border=1 cellspacing=0 cellpadding=3 width=100%><tr>"
+                     + "".join(f"<th>{escape(h)}</th>" for h in header) + "</tr>"
+                     + "".join("<tr>" + "".join(f"<td>{escape(_fmt(v))}</td>" for v in row) + "</tr>" for row in rows)
+                     + "</table>")
+        if d.get("total"):
+            parts.append(f"<p><b>{escape(d['total'])}</b></p>")
+    return "".join(parts)
+
+
+def write_xlsx(doc, path, keys=None):
+    """The chosen lists (all by default) to .xlsx, one sheet each, with the check and the total under the title."""
+    from archforge.quantities.xlsx import write_table_workbook
+    sheets = []
+    for key in (keys or LISTS):
+        d = LISTS[key](doc)
+        header, rows = table(d)
+        notes = list(d["check"]) + ([d["total"]] if d.get("total") else [])
+        sheets.append((d["title"], d["title"], header, rows, notes))
+    return write_table_workbook(path, sheets)

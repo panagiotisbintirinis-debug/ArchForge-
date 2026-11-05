@@ -113,3 +113,30 @@ def test_the_tab_is_live_and_selection_goes_both_ways(window):
     for key in ('envelope', 'rooms', 'circuits'):
         assert tab.show_list(key) is not None and tab.key == key
     assert w._lists_action.text().startswith('Λίστες')
+
+
+def test_lists_go_to_pdf_and_excel_as_shown(window, tmp_path):
+    import zipfile
+    from archforge.ui import live_lists
+    w, app = window
+    ids = _house(w.doc, w.stack)
+    w.stack.execute(S.set_mark_command(w.doc, ids['d1'], 'Θ-εισόδου'))
+    tab = w._lists_tab
+    live_lists.show(w, 'openings')
+    pdf = tab.export_pdf(str(tmp_path / 'one'), keys=['openings'])
+    assert pdf.endswith('.pdf') and open(pdf, 'rb').read(5) == b'%PDF-' and os.path.getsize(pdf) > 2000
+    html = S.html(w.doc, ['openings'])
+    assert 'Θ-εισόδου' in html and 'Πώς μετρήθηκε' in html and 'αυτόματο κωδικό' in html
+    assert all(S.LISTS[k](w.doc)['title'] in S.html(w.doc) for k in S.LISTS)
+    xlsx = tab.export_xlsx(str(tmp_path / 'all'))
+    with zipfile.ZipFile(xlsx) as z:
+        book = z.read('xl/workbook.xml').decode()
+        assert all(f'name="{t}"' in book for t in ('Κουφώματα', 'Κέλυφος', 'Χώροι', 'Κυκλώματα'))
+        sheet = z.read('xl/worksheets/sheet1.xml').decode()
+        assert 'Θ-εισόδου' in sheet and '<v>1.2</v>' in sheet            # numbers stay numbers
+    try:
+        import openpyxl
+    except ImportError:
+        return
+    ws = openpyxl.load_workbook(xlsx)['Κουφώματα']
+    assert any(row[0] == 'Θ-εισόδου' for row in ws.iter_rows(values_only=True))
