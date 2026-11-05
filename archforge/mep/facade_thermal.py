@@ -28,6 +28,7 @@ import math
 import numpy as np
 
 H = 0.05                                     # m, cell of the façade grid (DESIGN_DEFAULT)
+DZ = 0.02                                    # m, at most, through the wall's depth (DESIGN_DEFAULT)
 OPENING_LATERAL = 0.01                       # W/K, λ·d across a frame / glass (small: a window is its own surface)
 
 
@@ -114,32 +115,46 @@ def facade(doc, wall_id, wall_type=None, theta_i=None, theta_e=None, layers=None
     height = float(p["height"])
     z0 = float(p.get("z", 0.0))
     nx, nz = max(2, round(length / H)), max(2, round(height / H))
-    g0, k0 = _conductances(base, rsi)
-    g = np.full((nz, nx), g0)
-    k = np.full((nz, nx), k0)
-    kind = np.zeros((nz, nx), dtype=np.int8)        # 0 masonry, 1 frame, 2 opening
-    regions, u = [], {"masonry": 1.0 / (1.0 / g0 + rse)}
+    total = sum(l[1] for l in base)
+    fl = frame_layers(doc, base, None)
+    # One depth grid for every stack: the boundaries of the wall's and the frame's layers, cells of at most DZ.
+    edges = sorted({0.0, round(total, 6)} | {round(x, 6) for st in (base, fl) for x in np.cumsum([l[1] for l in st])})
+    dz = []
+    for z_a, z_b in zip(edges, edges[1:]):
+        n = max(1, int(math.ceil((z_b - z_a) / DZ - 1e-9)))
+        dz += [(z_b - z_a) / n] * n
+    dz = np.array(dz)
+    centres = np.cumsum(dz) - dz / 2
+
+    def stack_lambda(layers_):
+        bounds = np.cumsum([l[1] for l in layers_])
+        return np.array([layers_[min(int(np.searchsorted(bounds, c)), len(layers_) - 1)][2] for c in centres])
+
+    stacks = [stack_lambda(base), stack_lambda(fl)]           # 0 masonry, 1 frame, then one per Uw
+    kind = np.zeros((nz, nx), dtype=np.int8)                  # 0 masonry, 1 frame, 2 opening
+    stack = np.zeros((nz, nx), dtype=np.int16)
+    regions = []
+    r_base = sum(d / lam for _m, d, lam, _r in base)
+    r_frame = sum(d / lam for _m, d, lam, _r in fl)
+    u = {"masonry": 1.0 / (rsi + r_base + rse)}
 
     def cells(s0, s1, za, zb):
         i0, i1 = max(0, int(round(s0 / H))), min(nx, int(round(s1 / H)))
         r0, r1 = max(0, int(round((height - zb) / H))), min(nz, int(round((height - za) / H)))
         return slice(r0, r1), slice(i0, i1)
 
-    def frame(s0, s1, za, zb, depth, label, eid):
-        fl = frame_layers(doc, base, None)
-        gf, kf = _conductances(fl, rsi)
+    def frame(s0, s1, za, zb, label, eid):
         rr, cc = cells(s0, s1, za, zb)
-        g[rr, cc], k[rr, cc], kind[rr, cc] = gf, kf, 1
-        u[label] = 1.0 / (1.0 / gf + rse)
+        stack[rr, cc], kind[rr, cc] = 1, 1
+        u[label] = 1.0 / (rsi + r_frame + rse)
         regions.append({"kind": label, "id": eid, "s": (round(s0, 3), round(s1, 3)), "z": (round(za, 3), round(zb, 3))})
 
     for e in doc.entities.values():
         if e.kind == "structural_column" and abs(float(e.params.get("z", 0.0)) - z0) < 0.05:
-            s, on = _on_wall(wall, float(e.params["x"]), float(e.params["y"]), float(e.params.get("depth", 0.3)) / 2)
+            sc, on = _on_wall(wall, float(e.params["x"]), float(e.params["y"]), float(e.params.get("depth", 0.3)) / 2)
             w = float(e.params.get("width", 0.4))
-            if on and -w / 2 < s < length + w / 2:
-                frame(s - w / 2, s + w / 2, 0.0, min(height, float(e.params.get("height", height))),
-                      e.params.get("depth"), "column", e.id)
+            if on and -w / 2 < sc < length + w / 2:
+                frame(sc - w / 2, sc + w / 2, 0.0, min(height, float(e.params.get("height", height))), "column", e.id)
         elif e.kind == "structural_beam":
             bz = float(e.params.get("z", 0.0)) - z0
             if not (-0.01 <= bz < height):
@@ -149,7 +164,7 @@ def facade(doc, wall_id, wall_type=None, theta_i=None, theta_e=None, layers=None
             if on1 and on2:
                 lo, hi = max(0.0, min(s1, s2)), min(length, max(s1, s2))
                 if hi > lo:
-                    frame(lo, hi, bz, min(height, bz + float(e.params.get("height", 0.5))), None, "beam", e.id)
+                    frame(lo, hi, bz, min(height, bz + float(e.params.get("height", 0.5))), "beam", e.id)
     for o in doc.entities.values():
         if o.kind not in ("window", "door") or o.parent_id != wall.id:
             continue
@@ -158,43 +173,75 @@ def facade(doc, wall_id, wall_type=None, theta_i=None, theta_e=None, layers=None
         za = float(o.params.get("sill", 0.0)) if o.kind == "window" else 0.0
         rr, cc = cells(s0, s0 + float(o.params.get("width", 1.0)), za, za + float(o.params.get("height", 1.0)))
         if uw is None:
-            kind[rr, cc] = 2
-            g[rr, cc] = 1.0 / (1.0 / g0 + 0.0)          # unknown Uw: left as wall, said below
-            regions.append({"kind": "opening_no_u", "id": o.id})
+            regions.append({"kind": "opening_no_u", "id": o.id})      # left as wall, said by the caller
             continue
-        g[rr, cc], k[rr, cc], kind[rr, cc] = 1.0 / max(1e-6, 1.0 / float(uw) - rse), OPENING_LATERAL, 2
+        # The door / window as one equivalent layer through the wall's depth: R = 1/Uw − Rsi − Rse.
+        lam_eq = total / max(1e-6, 1.0 / float(uw) - rsi - rse)
+        stacks.append(np.full(len(dz), lam_eq))
+        stack[rr, cc], kind[rr, cc] = len(stacks) - 1, 2
         u[o.kind] = float(uw)
         regions.append({"kind": o.kind, "id": o.id})
-    theta = _solve(g, k, he, ti, te)
-    # What leaves the façade: he·(θse − θe) over every cell (the lateral flow stays inside the wall).
-    watts = float(np.sum(he * (theta - te)) * H * H)
-    return {"theta": theta, "watts": watts, "layers": base, "extent": (length, height), "regions": regions, "u": u, "kind": kind,
-            "theta_i": ti, "theta_e": te, "wall_type": key, "one_d": te + u["masonry"] * rse * (ti - te)}
+    lam = np.stack(stacks)[stack]                                   # (rows, cols, depth)
+    theta_e_face, theta_i_face, watts = _solve3d(lam, dz, ti, te, rsi, rse)
+    return {"theta": theta_e_face, "theta_inside": theta_i_face, "watts": watts, "layers": base,
+            "extent": (length, height), "regions": regions, "u": u, "kind": kind, "theta_i": ti, "theta_e": te,
+            "wall_type": key, "one_d": te + u["masonry"] * rse * (ti - te), "depth_cells": len(dz)}
 
 
-def _solve(g, k, he, ti, te, tol=1e-5, max_iter=20000):
-    """λd ∇²θ + g (θi − θ) + he (θe − θ) = 0 on the grid (Jacobi, zero flux at the edges)."""
-    kk = k / (H * H)
-    # Lateral conductance between neighbours: harmonic mean (a crisp joint between two materials).
-    def link(a, b):
-        return 2 * a * b / np.maximum(a + b, 1e-12)
-    kx = link(kk[:, :-1], kk[:, 1:])
-    ky = link(kk[:-1, :], kk[1:, :])
-    diag = g + he
-    diag = diag.copy()
-    diag[:, :-1] += kx; diag[:, 1:] += kx
-    diag[:-1, :] += ky; diag[1:, :] += ky
-    rhs = g * ti + he * te
-    theta = (g * ti + he * te) / (g + he)              # the 1D answer as the start
+def _solve3d(lam, dz, ti, te, rsi, rse, tol=1e-7, max_iter=6000):
+    """Steady conduction in the wall, cells H × H × dz (EN ISO 10211 kind of model): Robin faces inside (Rsi, θi) and
+    outside (Rse, θe), no flow across the cut edges of the façade. Conjugate gradients, Jacobi preconditioner.
+    Returns (θ exterior surface, θ interior surface, W through the façade)."""
+    A = H * H
+    nd = len(dz)
+
+    def harm(l1, l2, w1, w2):                          # conductance over two half cells in series
+        return 1.0 / (w1 / l1 + w2 / l2)
+    gz = A * harm(lam[..., :-1], lam[..., 1:], dz[:-1] / 2, dz[1:] / 2)            # depth links
+    lat_x = (2 * lam[:, :-1, :] * lam[:, 1:, :] / (lam[:, :-1, :] + lam[:, 1:, :])) * dz * H / H
+    lat_y = (2 * lam[:-1, :, :] * lam[1:, :, :] / (lam[:-1, :, :] + lam[1:, :, :])) * dz * H / H
+    ge = A / (rse + dz[0] / (2 * lam[..., 0]))         # exterior face → outside air
+    gi = A / (rsi + dz[-1] / (2 * lam[..., -1]))       # interior face → inside air
+    diag = np.zeros(lam.shape)
+    diag[..., :-1] += gz; diag[..., 1:] += gz
+    diag[:, :-1, :] += lat_x; diag[:, 1:, :] += lat_x
+    diag[:-1, :, :] += lat_y; diag[1:, :, :] += lat_y
+    diag[..., 0] += ge; diag[..., -1] += gi
+    b = np.zeros(lam.shape)
+    b[..., 0] += ge * te; b[..., -1] += gi * ti
+
+    def apply(x):
+        y = diag * x
+        y[..., :-1] -= gz * x[..., 1:]; y[..., 1:] -= gz * x[..., :-1]
+        y[:, :-1, :] -= lat_x * x[:, 1:, :]; y[:, 1:, :] -= lat_x * x[:, :-1, :]
+        y[:-1, :, :] -= lat_y * x[1:, :, :]; y[1:, :, :] -= lat_y * x[:-1, :, :]
+        return y
+    # Start: the 1D answer of every column of cells.
+    r_cells = np.cumsum(dz / lam, axis=-1) - dz / (2 * lam)
+    r_tot = rse + np.sum(dz / lam, axis=-1) + rsi
+    x = te + (ti - te) * (rse + r_cells) / r_tot[..., None]
+    r = b - apply(x)
+    zp = r / diag
+    p_ = zp.copy()
+    rz = float(np.sum(r * zp))
+    norm_b = float(np.sqrt(np.sum(b * b))) or 1.0
     for _ in range(max_iter):
-        nb = np.zeros_like(theta)
-        nb[:, :-1] += kx * theta[:, 1:]; nb[:, 1:] += kx * theta[:, :-1]
-        nb[:-1, :] += ky * theta[1:, :]; nb[1:, :] += ky * theta[:-1, :]
-        new = (rhs + nb) / diag
-        if np.max(np.abs(new - theta)) < tol:
-            return new
-        theta = new
-    return theta
+        q = apply(p_)
+        alpha = rz / float(np.sum(p_ * q))
+        x += alpha * p_
+        r -= alpha * q
+        if float(np.sqrt(np.sum(r * r))) / norm_b < tol:
+            break
+        zp = r / diag
+        rz_new = float(np.sum(r * zp))
+        p_ = zp + (rz_new / rz) * p_
+        rz = rz_new
+    # Surface temperatures from the face cells and their film resistances.
+    q_out = ge * (x[..., 0] - te)                       # W per cell leaving outside
+    theta_se = te + q_out / A * rse
+    q_in = gi * (ti - x[..., -1])
+    theta_si = ti - q_in / A * rsi
+    return theta_se, theta_si, float(np.sum(q_out))
 
 
 PALETTES = {

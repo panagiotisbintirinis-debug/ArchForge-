@@ -58,3 +58,20 @@ def test_a_wall_without_layers_is_refused_not_guessed():
     st.execute(UpdateEntity(w.id, {'wall_type': 'generic'}))
     with pytest.raises(ValueError):
         F.facade(doc, w.id)
+
+
+def test_heat_spreads_through_the_whole_depth_at_a_junction_as_a_camera_shows_it():
+    """Ιδιοκτήτης 05/11: «οι τιμές δεν είναι απόλυτες εκεί που συνδέονται τα διαφορετικά υλικά λόγω διάχυσης»."""
+    doc, _st, w = _wall()
+    r = F.facade(doc, w.id)
+    row = r['theta'][r['theta'].shape[0] // 2]
+    c0 = int(round(2.8 / F.H))                                # the column's edge (column 2,80 … 3,20 m)
+    masonry_far = r['theta'][r['theta'].shape[0] // 2, 10]
+    near = row[c0 - 4: c0]                                    # 20 cm of brick next to the concrete
+    assert near.min() > masonry_far + 0.05                    # 20 cm away the brick is still warmer: diffusion
+    assert np.all(np.diff(near) > 0)
+    # The 2D/3D effect is the thermal bridge: more than the sum of the 1D parts (ψ > 0, EN ISO 10211).
+    one_d = sum(r['u'][k] * a for k, a in (('masonry', 6 * 3.0 - 0.4 * 2.5 - 6 * 0.5),
+                                            ('column', 0.4 * 2.5 + 6 * 0.5))) * (r['theta_i'] - r['theta_e'])
+    assert r['watts'] > one_d
+    assert r['theta_inside'].min() < r['theta_i'] - 1.0       # the inside surface is colder at the frame
