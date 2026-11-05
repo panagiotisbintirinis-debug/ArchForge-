@@ -301,6 +301,9 @@ def install_approved_mockup_shell(window):
     insulation_action=QAction("Μονώσεις (θερμομόνωση, στεγάνωση ανά επιφάνεια)",window)
     insulation_action.triggered.connect(lambda: __import__("archforge.ui.insulation_tab",fromlist=["show"]).show(window))
     file_menu.addAction(insulation_action); window._insulation_action=insulation_action
+    thermal_tab_action=QAction("Θερμομονώσεις (θερμική εικόνα όψης, σήμερα / πρόταση)",window)
+    thermal_tab_action.triggered.connect(lambda: __import__("archforge.ui.thermal_facade_tab",fromlist=["show"]).show(window))
+    file_menu.addAction(thermal_tab_action); window._thermal_tab_action=thermal_tab_action
     file_menu.addAction(window.export_stl_action)
     edit_menu=menus["Επεξεργασία"]
     edit_menu.addAction(window.undo_action); edit_menu.addAction(window.redo_action)
@@ -753,7 +756,8 @@ def install_approved_mockup_shell(window):
 
     def central_changed(index):
         if central_tabs.widget(index) in (getattr(window,"_board_tab",None),getattr(window,"_trades_tab",None),
-                                          getattr(window,"_insulation_tab",None)):
+                                          getattr(window,"_insulation_tab",None),
+                                          getattr(window,"_thermal_facade_tab",None)):
             window.view=window.plan_view        # the board is a report: drawing tools stay with the plan
             return
         if index==0:

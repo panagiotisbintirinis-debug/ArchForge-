@@ -136,6 +136,8 @@ class MainWindow(QMainWindow):
         trades_tab.install(self)            # «Υλικά & τιμές»: a card per trade, prices, order list, quote
         from archforge.ui import insulation_tab
         insulation_tab.install(self)        # «Μονώσεις»: every surface, thermal + waterproofing
+        from archforge.ui import thermal_facade_tab
+        thermal_facade_tab.install(self)    # «Θερμομονώσεις» (mockup v2): θερμική εικόνα όψης σήμερα / πρόταση
         from archforge.ui import wall_dims_tool
         wall_dims_tool.install(self)     # selected wall: its distances; double click = move it with the mouse
         from archforge.ui import dimension_tool
