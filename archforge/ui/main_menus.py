@@ -284,6 +284,7 @@ def organize_main_menus(window):
         _fill(view_menu, [m(views), section, interior, getattr(window, "_simultaneous_action", None), None,
                           m(_find(view_menu, "Κάμερες")), render, show3d,
                           getattr(window, "_thermal_view_action", None) or __import__("archforge.ui.thermal_view", fromlist=["install"]).install(window),
+                          getattr(window, "_thermal_3d_action", None) or __import__("archforge.ui.thermal_view", fromlist=["install_3d"]).install_3d(window),
                           None,
                           m(_find(view_menu, "Περιβάλλον")), _find(view_menu, "Layers"), None,
                           m(panels), bars, getattr(window, "status_bar_action", None), reset])

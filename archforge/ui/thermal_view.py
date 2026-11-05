@@ -113,3 +113,31 @@ def install(window):
     window._thermal_view_action = a
     window._main_actions.append(a)
     return a
+
+
+def toggle_3d(window, on):
+    """«Θερμική όψη 3D»: the façades in the thermography palette, outside surface temperatures (owner 05/11)."""
+    view = window.pbr_view
+    if on:
+        window._show_3d_view()
+        payload = view.set_thermal_view("exterior")
+        n_unknown = len(payload["unknown"]) if payload else 0
+        window.statusBar().showMessage(
+            f"Θερμική όψη: {payload['count'] if payload else 0} επιφάνειες με θερμοκρασία"
+            + (f", {n_unknown} χωρίς U (γκρι) — δώσε τύπο τοίχου / Uw κουφώματος (Λίστες › Κουφώματα)" if n_unknown else ""),
+            12000)
+        return payload
+    view.set_thermal_view(None)
+    return None
+
+
+def install_3d(window):
+    from PySide6.QtGui import QAction
+    a = QAction("Θερμική όψη 3D (εξωτερικές επιφάνειες)", window)
+    a.setCheckable(True)
+    a.setToolTip("Οι όψεις όπως τις δείχνει μια θερμοκάμερα: θερμοκρασία εξωτερικής επιφάνειας από το U, "
+                 "παλέτα «iron», κλίμακα σε °C · γκρι = δεν υπολογίστηκε")
+    a.toggled.connect(lambda on: toggle_3d(window, on))
+    window._thermal_3d_action = a
+    window._main_actions.append(a)
+    return a
