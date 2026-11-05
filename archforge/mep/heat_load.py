@@ -7,7 +7,8 @@ Not a heating study (EN 12831-1 / ΚΕΝΑΚ): an indication from what the model
   A wall without a build-up has no U: it is listed under «δεν μετρήθηκαν», never guessed.
 * **Openings**: area × U of the openings — only when the project gives one (``u_openings``); else not counted, said.
 * **Ventilation**: 0.34 Wh/(m³K) (ρ·c of air) × air changes per hour × room volume × ΔT.
-* Roof, floor and thermal bridges are not counted yet — said on the result.
+* **Thermal bridges**: Σ ψ·l × ΔT, lengths from the drawing, ψ from the project's catalogue (``mep/thermal_bridges``);
+  a kind without ψ is listed under «δεν μετρήθηκαν».  Roof and floor are not counted yet — said on the result.
 
 Temperatures and air changes are the owner's assumptions (28/10: «υποθετικές θερμοκρασίες με περιθώριο αλλαγής…
 μέσα 20, έξω καλοκαίρι 28, χειμώνα 12»), stored on the project's heat source / connection point (its Properties),
@@ -111,9 +112,16 @@ def heat_load(doc, season="winter"):
         else:
             openings_w = opening_area * a["heat_u_openings"] * dt
     vent_w = AIR_HEAT * a["heat_air_changes"] * volume * dt
-    not_counted += ["οροφή / στέγη", "δάπεδο", "θερμογέφυρες"]
-    parts = [("Εξωτερικοί τοίχοι", walls_w), ("Κουφώματα", openings_w), ("Αερισμός", vent_w)]
-    watts = walls_w + openings_w + vent_w
+    # Thermal bridges (κριτική v5 k7): Σ ψ·l from the drawing's lengths and the project's ψ — a kind without ψ is said.
+    from archforge.mep.thermal_bridges import summary as bridges
+    tb = bridges(doc)
+    bridges_w = tb["h_tb"] * dt
+    if tb["missing_n"]:
+        not_counted.append(f"θερμογέφυρες: {tb['missing_n']} θέσεις, {_gr(tb['missing_m'])} m χωρίς ψ "
+                           "(Θέρμανση › Θερμογέφυρες…)")
+    not_counted += ["οροφή / στέγη", "δάπεδο", f"θερμογέφυρες που δεν βρίσκει η γεωμετρία ({tb['not_found']})"]
+    parts = [("Εξωτερικοί τοίχοι", walls_w), ("Κουφώματα", openings_w), ("Θερμογέφυρες", bridges_w), ("Αερισμός", vent_w)]
+    watts = walls_w + openings_w + bridges_w + vent_w
     from archforge.mep.design_climate import source_text
     return {"watts": round(watts), "kw": round(watts / 1000.0, 1), "delta_t": dt, "season": season,
             "climate_source": source_text(doc),

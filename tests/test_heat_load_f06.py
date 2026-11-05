@@ -42,7 +42,8 @@ def test_the_power_is_the_sum_of_walls_and_air_with_the_project_design_values():
     assert parts['Αερισμός'] == pytest.approx(H.AIR_HEAT * 0.5 * r['volume_m3'] * dt, abs=1)
     assert r['delta_t'] == 20.0 and 'υπόθεση, όχι μελέτη' in H.summary(r)
     assert 'Αθήνα' in H.summary(r) and 'αλλάζουν' in H.summary(r)       # where the value comes from, and that it changes
-    assert {'οροφή / στέγη', 'δάπεδο', 'θερμογέφυρες'} <= set(r['not_counted'])
+    assert {'οροφή / στέγη', 'δάπεδο'} <= set(r['not_counted'])
+    assert any(n.startswith('θερμογέφυρες: ') and 'χωρίς ψ' in n for n in r['not_counted'])   # measured, no ψ given
 
 
 def test_walls_without_a_build_up_are_said_until_the_project_gives_a_u():
