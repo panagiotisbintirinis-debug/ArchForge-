@@ -107,9 +107,30 @@ def _ray_hits(walls, skip, ox, oy, dx, dy):
     return False
 
 
+ROOM_SAMPLES = (0.1, 0.3, 0.5, 0.7, 0.9)
+
+
+def _room_faces(doc, floor):
+    try:
+        return [f.polygon for f in doc.active_room_faces(z=floor)]
+    except Exception as exc:                        # said; the ray test still answers
+        from archforge.core.notices import not_computed
+        not_computed("ventilation.rooms", f"Εξωτερικοί τοίχοι: δεν αναγνωρίστηκαν οι χώροι {floor:+.2f}", exc=exc)
+        return []
+
+
 def exterior_walls(doc, floor):
-    """``[(wall, outward_normal)]``: walls of the storey with open space on one side."""
+    """``[(wall, outward_normal)]``: walls of the storey with open space on one side.
+
+    With closed rooms on the storey (05/11): a wall is exterior when there is a room on one side and open space on
+    the other — sampled along the wall, so a partition meeting it does not hide the open side.  The ray test alone
+    (kept for a storey without closed rooms) missed the walls of a re-entrant corner, whose outward ray meets the
+    other wing of an L-shaped house (owner_111: 2 ground-floor walls), and took a stub with no room on either side
+    for an exterior wall.  A wall with no room on either side (garden wall, stub) is not part of the envelope.
+    """
+    from archforge.geometry.regions import point_in_polygon
     walls = _walls(doc, floor)
+    rooms = _room_faces(doc, floor)
     out = []
     for w in walls:
         p = w.params
@@ -118,6 +139,18 @@ def exterior_walls(doc, floor):
         if length < 1e-9:
             continue
         nx, ny = -(y2 - y1) / length, (x2 - x1) / length
+        if rooms:
+            inside = {}
+            for sign in (1.0, -1.0):
+                d = t / 2 + 0.05
+                inside[sign] = sum(1 for f in ROOM_SAMPLES
+                                   if any(point_in_polygon(x1 + (x2 - x1) * f + sign * nx * d,
+                                                           y1 + (y2 - y1) * f + sign * ny * d, poly) for poly in rooms))
+            room_side = max(inside, key=lambda s: inside[s])
+            open_side = -room_side
+            if inside[room_side] and inside[open_side] < inside[room_side] and inside[open_side] < len(ROOM_SAMPLES):
+                out.append((w, (open_side * nx, open_side * ny)))
+            continue
         sides = []
         for sign in (1.0, -1.0):
             # Sample a few points along the wall so a short partition meeting it
