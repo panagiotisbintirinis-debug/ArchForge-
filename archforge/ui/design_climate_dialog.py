@@ -53,6 +53,14 @@ class DesignClimateDialog(QDialog):
             box.setValue(values[key])
             form.addRow(label, box)
             self.fields[key] = box
+        # Κλιματική ζώνη ΚΕΝΑΚ: from the city (ΤΟΤΕΕ 20701-3 Πίν. 1.1/1.2) or the user's — for the U limits (Πίν. 6).
+        self.zone = QComboBox(self)
+        self.zone.addItem("Από την πόλη", "")
+        for z in ("Α", "Β", "Γ", "Δ"):
+            self.zone.addItem(f"Ζώνη {z}", z)
+        own_zone = (dict(C.entity(doc).params) if C.entity(doc) is not None else {}).get("zone", "")
+        self.zone.setCurrentIndex(max(0, self.zone.findData(own_zone)))
+        form.addRow("Κλιματική ζώνη", self.zone)
         root.addLayout(form)
         self.power = QLabel(self); self.power.setWordWrap(True)
         root.addWidget(self.power)
@@ -91,13 +99,15 @@ class DesignClimateDialog(QDialog):
         self.source.setText(C.PRESETS[key]["source"] if key in C.PRESETS else "δική σας τιμή για το έργο")
         from archforge.mep.heat_load import heat_load
         r = heat_load(self.window.doc)
-        self.power.setText(f"Με τις αποθηκευμένες τιμές: ενδεικτική ισχύς ≈ {r['kw']:.1f} kW (ΔT {r['delta_t']:g} K)."
-                           .replace(".", ",", 1))
+        z = C.zone(self.window.doc)
+        self.power.setText((f"Με τις αποθηκευμένες τιμές: ενδεικτική ισχύς ≈ {r['kw']:.1f} kW (ΔT {r['delta_t']:g} K)."
+                            .replace(".", ",", 1)) + (f" · ζώνη {z}" if z else " · ζώνη: δεν ορίστηκε"))
 
     def changes(self):
         out = {key: box.value() for key, box in self.fields.items()}
         key = self.preset.currentData()
         out["preset"] = key if key in C.PRESETS else C.CUSTOM
+        out["zone"] = self.zone.currentData() or ""
         return out
 
     def apply(self):

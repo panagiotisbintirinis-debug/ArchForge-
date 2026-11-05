@@ -193,12 +193,30 @@ def envelope(doc):
                      .replace(".", ","))
     if no_u_openings:
         check.append(f"{no_u_openings} κουφώματα χωρίς Uw (Λίστες › Κουφώματα, στήλη «Uw»)")
+    # Μέγιστο U της ζώνης (ΤΟΤΕΕ 20701-2 Πίν. 6): every wall / opening against its limit, the zone said.
+    from archforge.mep.design_climate import zone as project_zone
+    from archforge.mep.totee_20701_2 import TABLE_6_SOURCE, u_max
+    z = project_zone(doc)
+    over = 0
+    for r in rows:
+        element = {"Εξωτερικός τοίχος": "wall_exterior", "Κούφωμα": "opening"}.get(r["element"])
+        limit = u_max(element, z) if element else None
+        r["umax"] = limit
+        if limit is not None and r["u"] is not None and r["u"] > limit + 1e-9:
+            r["ok"] = f"⚠ > {limit:g}".replace(".", ",")
+            over += 1
+        else:
+            r["ok"] = "ναι" if limit is not None and r["u"] is not None else ""
+    if z is None:
+        check.append("χωρίς κλιματική ζώνη: τα όρια U δεν ελέγχονται (Θέρμανση › Θερμοκρασίες σχεδιασμού…)")
+    elif over:
+        check.append(f"{over} στοιχεία πάνω από το μέγιστο U της ζώνης {z} ({TABLE_6_SOURCE})")
     check.append("δεν μετρώνται ακόμη: οροφή/στέγη, δάπεδο/έδαφος")
     h_t = h_walls + h_openings + tb["h_tb"]
-    return {"title": "Κέλυφος", "rows": rows, "check": check, "editable": {},
+    return {"title": "Κέλυφος", "rows": rows, "check": check, "editable": {}, "zone": z,
             "columns": [("element", "Στοιχείο"), ("storey", "Όροφος"), ("type", "Τύπος / είδος"),
                         ("quantity", "Ποσότητα"), ("unit", "Μον."), ("u", "U / ψ"), ("loss", "U·A / Ψ·l W/K"),
-                        ("how", "Πώς μετρήθηκε")],
+                        ("umax", f"Umax ζώνης {z or '—'}"), ("ok", "Εντός ορίου"), ("how", "Πώς μετρήθηκε")],
             "total": (f"H_T (μετρημένα) = {h_t:.1f} W/K: τοίχοι {h_walls:.1f} + κουφώματα {h_openings:.1f} + "
                       f"θερμογέφυρες {tb['h_tb']:.1f}").replace(".", ",")}
 

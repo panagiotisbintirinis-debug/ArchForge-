@@ -143,3 +143,41 @@ def test_heating_power_on_its_own_adds_nothing_to_the_project():
         assert 'Εξωτερικοί τοίχοι:' in text and 'Θερμογέφυρες:' in text and 'δεν μετρήθηκαν' in text
     finally:
         w._mark_clean(); w.close(); app.processEvents()
+
+
+def test_psi_from_totee_20701_2_table_15_for_the_insulation_the_user_states():
+    """05/11: ΤΟΤΕΕ 20701-2 (PDF από τον ιδιοκτήτη): Πίνακας 15 ανά θέση θερμομόνωσης· α/β/γ ανά γραμμή· μία αναίρεση."""
+    from archforge.mep import totee_20701_2 as T2
+    assert T2.TABLE_15['15.1.1'][2] == -0.10 and T2.TABLE_15['15.1.3β'][2] == 0.65
+    assert T2.TABLE_15['15.4.6β'][2] == -0.55 and T2.TABLE_15['15.8.1α'][2] == 1.25
+    assert T2.TABLE_15['15.12.2'][2] == 0.55 and T2.TABLE_15['15.11.3'][2] == 0.15
+    assert T2.base_case('roof', 'ext', 'bottom', 'apart') == '15.4.2'
+    assert T2.base_case('floor_ground', 'int', 'top', 'apart') == '15.9.1'     # 9 is ordered differently from 4
+    assert T2.base_case('threshold', 'ext', 'top', 'same') == '15.12.4'
+    os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+    from PySide6.QtWidgets import QApplication
+    from archforge.ui.main_window import MainWindow
+    from archforge.ui.thermal_bridges_dialog import CASE, ThermalBridgesDialog
+    app = QApplication.instance() or QApplication([])
+    w = MainWindow(); app.processEvents()
+    try:
+        _box(w.doc, w.stack)
+        d = ThermalBridgesDialog(w)
+        d.schemes['walls'].setCurrentIndex(d.schemes['walls'].findData('frame'))
+        assert d.fill_from_totee() == len(d.rows)                   # every measured type has a row in Πίν. 15
+        assert TB.summary(w.doc)['h_tb'] == 0                       # nothing in the project before «Εφαρμογή»
+        rows = {r['type']: k for k, r in enumerate(d.rows)}
+        box = d.table.cellWidget(rows['corner_out'], CASE)
+        box.setCurrentIndex(box.findData('15.1.3β'))                  # a beam cuts the insulation at the corners
+        d.apply()
+        cat = TB.catalogue(w.doc)
+        assert cat['corner_out']['psi'] == 0.65 and cat['corner_out']['code'].endswith('1.3β')
+        assert 'ΤΟΤΕΕ 20701-2/2010, Πίνακας 15' in cat['corner_out']['source']
+        assert cat['jamb']['psi'] == 0.35 and cat['floor_ground']['psi'] == 0.05     # frame + slab top → 9.5
+        s = TB.summary(w.doc)
+        assert s['missing_n'] == 0 and s['h_tb'] == pytest.approx(sum(r['psi'] * r['length_m'] for r in s['rows']), abs=0.01)
+        w.stack.undo()
+        assert TB.summary(w.doc)['h_tb'] == 0                       # the whole table: one undo
+        d.close()
+    finally:
+        w._mark_clean(); w.close(); app.processEvents()

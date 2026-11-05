@@ -999,7 +999,8 @@ SCHEMAS = {
     'insulation_spec': {'categories': _insulation_categories},
     # Design temperatures of the project (mep/design_climate.py): every value changes per project, nothing fixed.
     'design_climate': {'heat_theta_int': _finite, 'heat_theta_ext_winter': _finite, 'heat_theta_ext_summer': _finite,
-                       'heat_air_changes': _nonnegative, 'preset': str},
+                       'heat_air_changes': _nonnegative, 'preset': str,
+                       'zone': _choice(('', 'Α', 'Β', 'Γ', 'Δ'), 'climate zone')},
     # ψ of the thermal bridges, written by the user with detail code and source (mep/thermal_bridges.py).
     'thermal_bridge_psi': {'values': _thermal_bridge_values},
     # Data-sheet figures the user enters (construction/shell.py): pieces per m² of a brick / roof tile.

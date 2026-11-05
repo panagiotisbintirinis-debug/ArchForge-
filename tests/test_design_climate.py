@@ -128,3 +128,39 @@ def test_a_project_that_stored_the_old_choice_still_reads_it():
     stack.execute(C.set_command(doc, {'preset': 'athens_b'}))
     assert C.values(doc)['heat_theta_ext_winter'] == 0.0 and C.preset_of(doc) == 'athens_b'
     assert 'αντικαταστάθηκε' in C.source_text(doc)
+
+
+def test_zone_from_the_city_or_the_user_and_the_u_limits_of_table_6():
+    """ΤΟΤΕΕ 20701-3 Πίν. 1.1/1.2 (ζώνη από τον νομό) · ΤΟΤΕΕ 20701-2 Πίν. 6 (μέγιστο U ανά ζώνη) · Πίν. 3β (Rsi/Rse)."""
+    from archforge.mep import totee_20701_2 as T2, totee_20701_3 as T3
+    assert T3.zone_of('Αθήνα (Ν. Φιλαδέλφεια)') == 'Β' and T3.zone_of('Φλώρινα') == 'Δ'
+    assert T3.zone_of('Ηράκλειο') == 'Α' and T3.zone_of('Κύθηρα') == 'Α'          # Αττικής, but an exception
+    assert T3.zone_of('Τρίπολη') is None                       # Αρκαδία: Α πεδινή / Γ ορεινή — the user says
+    assert T2.u_max('wall_exterior', 'Β') == 0.50 and T2.u_max('opening', 'Δ') == 2.60
+    assert T2.u_max('roof', 'Α') == 0.50 and T2.u_max('floor_ground', 'Γ') == 0.75
+    assert T2.u_max('wall_exterior', None) is None
+    assert T2.TABLE_3B['wall_exterior'] == (0.13, 0.04) and T2.TABLE_3B['floor_ground'] == (0.17, 0.00)
+    doc, stack = _doc()
+    assert C.zone(doc) == 'Β'
+    stack.execute(C.set_command(doc, {'preset': 'totee:Τρίπολη'}))
+    assert C.zone(doc) is None
+    stack.execute(C.set_command(doc, {'zone': 'Γ'}))           # the user's choice
+    assert C.zone(doc) == 'Γ'
+    stack.undo()
+    assert C.zone(doc) is None
+
+
+def test_envelope_checks_each_wall_and_window_against_the_zone_limit():
+    from archforge.quantities.schedules import envelope, set_u_command
+    doc, stack = _doc()
+    win = Entity('window', {'offset': 1.0, 'width': 1.2, 'height': 1.2, 'sill': 0.9},
+                 parent_id=next(e.id for e in doc.entities.values() if e.kind == 'wall'))
+    stack.execute(AddEntity(win))
+    stack.execute(set_u_command(doc, win.id, '3,1'))            # above Umax 3,00 of zone Β
+    d = envelope(doc)
+    assert d['zone'] == 'Β'
+    row = next(r for r in d['rows'] if r['ids'] == [win.id])
+    assert row['umax'] == 3.0 and row['ok'].startswith('⚠')
+    walls = [r for r in d['rows'] if r['element'] == 'Εξωτερικός τοίχος']
+    assert walls and all(r['umax'] == 0.50 for r in walls)
+    assert any('πάνω από το μέγιστο U της ζώνης Β' in c for c in d['check'])

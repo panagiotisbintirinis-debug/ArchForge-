@@ -88,6 +88,18 @@ def preset_of(doc):
     return CUSTOM
 
 
+def zone(doc):
+    """Κλιματική ζώνη ΚΕΝΑΚ of the project (Α–Δ): the one the user set, else the chosen city's (ΤΟΤΕΕ 20701-3
+    Πίν. 1.1/1.2), else None — then the limits of Πίνακας 6 are not checked, and that is said."""
+    own = dict(entity(doc).params) if entity(doc) is not None else {}
+    if own.get("zone"):
+        return own["zone"]
+    key = preset_of(doc)
+    if key.startswith("totee:"):
+        return _T.zone_of(key[len("totee:"):])
+    return None
+
+
 def source_text(doc):
     """One line: where the winter design temperature comes from."""
     key = preset_of(doc)

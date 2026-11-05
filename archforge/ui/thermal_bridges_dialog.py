@@ -1,18 +1,23 @@
 """Εγκαταστάσεις › Θέρμανση › «Θερμογέφυρες…» (κριτική v5 k7): οι θέσεις και τα μήκη από το σχέδιο, το ψ από εσάς.
 
-Μία γραμμή ανά είδος: πόσες θέσεις, συνολικό μήκος, ψ [W/(m·K)], κωδικός λεπτομέρειας (π.χ. ΤΟΤΕΕ 20701-1), πηγή, Ψ·l.
-Το ψ το γράφει ο χρήστης· κενό = δεν μετράει και λέγεται. «Εφαρμογή» = μία αναίρεση. «Δείξε» επιλέγει τις θέσεις του
-είδους στην κάτοψη. Από κάτω η ενδεικτική ισχύς θέρμανσης με τις θερμογέφυρες.
+Μία γραμμή ανά είδος: πόσες θέσεις, συνολικό μήκος, ψ [W/(m·K)], κωδικός λεπτομέρειας, πηγή, Ψ·l.
+05/11: από την ΤΟΤΕΕ 20701-2, Πίνακας 15 (``mep/totee_20701_2.py``). Ο χρήστης λέει πού είναι η θερμομόνωση (τοίχοι,
+πλάκες, κουφώματα) και «Συμπλήρωση από ΤΟΤΕΕ» γράφει τη βασική περίπτωση κάθε είδους· η στήλη «Πίν. 15» δίνει κάθε
+περίπτωση της κατηγορίας με τα α/β/γ (π.χ. δοκός που διακόπτει τη θερμομόνωση). Δικό σας ψ γράφεται κι αυτό με το χέρι.
+Κενό = δεν μετράει και λέγεται. «Εφαρμογή» = μία αναίρεση. «Δείξε» επιλέγει τις θέσεις του είδους στην κάτοψη.
 """
 from __future__ import annotations
 
-from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QPushButton, QTableWidget,
+from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QPushButton, QTableWidget,
                                QTableWidgetItem, QVBoxLayout)
 
 from archforge.mep import thermal_bridges as TB
 
 TITLE = "Θερμογέφυρες"
-COLUMNS = ("Είδος", "Θέσεις", "Μήκος m", "ψ W/(m·K)", "Κωδικός λεπτομέρειας", "Πηγή", "Ψ·l W/K")
+from archforge.mep import totee_20701_2 as T2
+
+COLUMNS = ("Είδος", "Θέσεις", "Μήκος m", "ψ W/(m·K)", "Κωδικός λεπτομέρειας", "Πηγή", "Ψ·l W/K", "Πίν. 15")
+CASE = 7
 EDITABLE = (3, 4, 5)
 
 
@@ -32,11 +37,28 @@ class ThermalBridgesDialog(QDialog):
         self.setWindowTitle(TITLE)
         self.resize(900, 460)
         root = QVBoxLayout(self)
-        intro = QLabel("Οι θέσεις και τα μήκη βγαίνουν από το σχέδιο. Το ψ, ο κωδικός λεπτομέρειας και η πηγή "
-                       "γράφονται από εσάς (μελέτη, ΤΟΤΕΕ 20701-1, φύλλο κατασκευαστή) — το πρόγραμμα δεν βάζει τιμή. "
-                       "Είδος χωρίς ψ δεν μετράει και λέγεται. Δεν βρίσκονται ακόμη: " + TB.NOT_FOUND + ".")
+        intro = QLabel("Οι θέσεις και τα μήκη βγαίνουν από το σχέδιο. Το ψ: πείτε πού είναι η θερμομόνωση και "
+                       "«Συμπλήρωση από ΤΟΤΕΕ» (20701-2, Πίνακας 15), ή διαλέξτε περίπτωση ανά γραμμή, ή γράψτε δικό σας "
+                       "(μελέτη, φύλλο κατασκευαστή). Είδος χωρίς ψ δεν μετράει και λέγεται. Δεν βρίσκονται ακόμη: "
+                       + TB.NOT_FOUND + ".")
         intro.setWordWrap(True)
         root.addWidget(intro)
+        scheme = QHBoxLayout()
+        self.schemes = {}
+        for key, options in T2.SCHEMES.items():
+            box = QComboBox(self)
+            for value, label in options.items():
+                box.addItem(label, value)
+            if key == "opening":
+                box.setCurrentIndex(box.findData("apart"))
+            self.schemes[key] = box
+            scheme.addWidget(box)
+        fill = QPushButton("Συμπλήρωση από ΤΟΤΕΕ", self)
+        fill.setToolTip("ΤΟΤΕΕ 20701-2/2010, Πίνακας 15: η βασική περίπτωση κάθε είδους για αυτή τη θέση θερμομόνωσης "
+                        "(χωρίς τα α/β/γ — διαλέξτε τα ανά γραμμή αν ισχύουν)")
+        fill.clicked.connect(self.fill_from_totee)
+        scheme.addWidget(fill)
+        root.addLayout(scheme)
         self.table = QTableWidget(0, len(COLUMNS), self)
         self.table.setHorizontalHeaderLabels(COLUMNS)
         self.table.horizontalHeader().setStretchLastSection(True)
@@ -69,6 +91,16 @@ class ThermalBridgesDialog(QDialog):
                     from PySide6.QtCore import Qt
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 self.table.setItem(r, c, item)
+            # Every case of the type's category in Πίνακας 15, with its α/β/γ.
+            box = QComboBox(self.table)
+            box.addItem("—", None)
+            for code, text, psi in T2.cases(row["type"]):
+                box.addItem(f"{code[3:]} · {psi:+.2f} · {text}".replace(".", ",", 2), code)
+            current = row["code"].split("· ")[-1] if row["code"].startswith("ΤΟΤΕΕ 20701-2") else None
+            if current:
+                box.setCurrentIndex(max(0, box.findData("15." + current)))
+            box.currentIndexChanged.connect(lambda _i, r=r, b=box: self._case_chosen(r, b.currentData()))
+            self.table.setCellWidget(r, CASE, box)
         from archforge.mep.heat_load import heat_load
         h = heat_load(self.window.doc)
         bridges = dict(h["parts"]).get("Θερμογέφυρες", 0)
@@ -76,6 +108,31 @@ class ThermalBridgesDialog(QDialog):
         self.power.setText(f"H_TB = Σ Ψ·l = {_gr(s['h_tb'], 2)} W/K → {bridges} W με ΔT {h['delta_t']:g} K · "
                            f"ενδεικτική ισχύς θέρμανσης ≈ {_gr(h['kw'], 1)} kW{missing}")
         return s
+
+    def _case_chosen(self, r, code):
+        """A row of Πίνακας 15 chosen: its ψ, code and source go into the row (saved with «Εφαρμογή»)."""
+        if code is None:
+            return
+        e = T2.entry(code)
+        self.table.item(r, 3).setText(_gr(e["psi"], 3))
+        self.table.item(r, 4).setText(e["code"])
+        self.table.item(r, 5).setText(e["source"])
+
+    def fill_from_totee(self):
+        """The base case of every type for the insulation scheme chosen above; returns how many rows were filled."""
+        walls, slab, opening = (self.schemes[k].currentData() for k in ("walls", "slab", "opening"))
+        n = 0
+        for r, row in enumerate(self.rows):
+            code = T2.base_case(row["type"], walls, slab, opening)
+            if code is None:
+                continue
+            box = self.table.cellWidget(r, CASE)
+            box.blockSignals(True); box.setCurrentIndex(max(0, box.findData(code))); box.blockSignals(False)
+            self._case_chosen(r, code)
+            n += 1
+        self.window.statusBar().showMessage(f"{TITLE}: {n} είδη από ΤΟΤΕΕ 20701-2 Πίν. 15 — «Εφαρμογή» για να μείνουν",
+                                            8000)
+        return n
 
     def commands(self):
         """One command per kind the user changed (None when nothing changed); raises ValueError on a bad ψ."""
