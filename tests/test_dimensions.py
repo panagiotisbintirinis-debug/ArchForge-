@@ -191,3 +191,43 @@ def test_a_room_face_split_where_walls_meet_it_from_behind_is_one_dimension():
     st.execute(D.set_auto(doc, 0.0, interior=True))
     inner = _values(D.storey_dimensions(doc, 0.0), 'interior')
     assert inner.count(7.75) >= 1 and 2.875 not in inner and 2.375 not in inner
+
+
+def test_click_on_a_wall_selects_it_and_only_a_drawn_number_opens_dimension(window, monkeypatch):
+    """Σ4 (κριτική v5): zoomed out the numbers are hidden; a click on the wall selected nothing and opened «Διάσταση»."""
+    from PySide6.QtCore import QPointF, Qt
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QGraphicsTextItem, QInputDialog
+    w, app = window
+    ids = _house(w.doc, w.stack)
+    w._dimension_actions['interior'].trigger(); app.processEvents()
+    asked = []
+    monkeypatch.setattr(QInputDialog, 'getText', staticmethod(lambda *a, **k: (asked.append(a), ('', False))[1]))
+    view = w.plan_view
+    sid = D.settings(w.doc, 0.0).id
+
+    # The reviewer's zoom (≈ 14 px/m, «όλο το έργο»): the partition x = 6, half way up, is a few pixels from the
+    # room's 7,75 — inside the old 14 px circle — but not on the drawn number.
+    view.fitInView(-30, -30, 70, 70); app.processEvents()
+    assert abs(view.transform().m11()) < 16
+    labels = [i for i, e in view._entity_items.items() if e == sid and isinstance(i, QGraphicsTextItem)]
+    click = view.mapFromScene(QPointF(6.0, 4.0))
+    near = [d for d in D.storey_dimensions(w.doc, 0.0)
+            if (view.mapFromScene(*D.drawing(d)['text_at']) - click).manhattanLength() <= w._tape_tool.LABEL_PX]
+    assert near                                                        # the old rule would have opened «Διάσταση»
+    w.doc.select([])
+    QTest.mouseClick(view.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, click)
+    app.processEvents()
+    assert not asked
+    assert ids['mid'] in w.doc.selection
+
+    # Close up: a click on a drawn number still types it.
+    view.fitInView(-1, -1, 12, 10); app.processEvents()
+    shown = next(i for i, e in view._entity_items.items()
+                 if e == sid and isinstance(i, QGraphicsTextItem) and i.isVisible())
+    centre = shown.deviceTransform(view.viewportTransform()).map(shown.boundingRect().center()).toPoint()
+    hit = [i for i in view.items(centre) if i is shown]
+    assert hit
+    QTest.mouseClick(view.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, centre)
+    app.processEvents()
+    assert asked

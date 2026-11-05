@@ -924,6 +924,9 @@ class PlanView(QGraphicsView):
             fm=QFontMetricsF(QGraphicsTextItem().font())
             PlanView._label_font_factor=max(1.0,fm.horizontalAdvance('ΣΔ1 25/50 4Ø14')/14/LABEL_CHAR_PX,fm.lineSpacing()/LABEL_LINE_PX)
         return abs(self.transform().m11())/PlanView._label_font_factor
+    def fitInView(self,*args,**kwargs):
+        # «Όλο το έργο» / zoom to a selection: the numbers that no longer fit are hidden, as with the wheel (Σ4).
+        super().fitInView(*args,**kwargs);self._update_label_visibility()
     def _update_label_visibility(self):
         scale=self._label_scale()
         for item,min_scale in getattr(self,'_scaled_labels',()):item.setVisible(scale>=min_scale)
