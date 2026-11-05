@@ -122,3 +122,24 @@ def test_dialog_writes_psi_with_one_undo_and_shows_the_places(monkeypatch):
         d.close()
     finally:
         w._mark_clean(); w.close(); app.processEvents()
+
+
+def test_heating_power_on_its_own_adds_nothing_to_the_project():
+    """Σ10 (κριτική v5): the power came only through «Ολοκλήρωση κτιρίου…», which also adds emitters and supplies."""
+    os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+    from PySide6.QtWidgets import QApplication
+    from archforge.ui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    w = MainWindow(); w._no_modal_dialogs = True; app.processEvents()
+    try:
+        _box(w.doc, w.stack)
+        count, done = len(w.doc.entities), len(w.stack.done)
+        assert w._heat_power_action in w._mockup_heating_menu.actions()
+        w._heat_power_action.trigger(); app.processEvents()
+        assert len(w.doc.entities) == count and len(w.stack.done) == done
+        assert 'Ενδεικτική ισχύς θέρμανσης' in w.statusBar().currentMessage()
+        from archforge.ui.thermal_bridges_dialog import power_text
+        text = power_text(w.doc)
+        assert 'Εξωτερικοί τοίχοι:' in text and 'Θερμογέφυρες:' in text and 'δεν μετρήθηκαν' in text
+    finally:
+        w._mark_clean(); w.close(); app.processEvents()

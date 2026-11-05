@@ -134,3 +134,21 @@ def show(window):
     dialog = ThermalBridgesDialog(window)
     dialog.exec()
     return dialog
+
+
+def power_text(doc):
+    """The indicative heating power with each part and what is left out (nothing in the project changes)."""
+    from archforge.mep.heat_load import heat_load, summary
+    r = heat_load(doc)
+    lines = [summary(r), ""] + [f"{name}: {watts} W" for name, watts in r["parts"]]
+    return "\n".join(lines)
+
+
+def show_power(window):
+    """Εγκαταστάσεις › Θέρμανση › «Ενδεικτική ισχύς θέρμανσης…» (Σ10): only the calculation, no emitters added."""
+    text = power_text(window.doc)
+    window.statusBar().showMessage(text.splitlines()[0][:220], 12000)
+    if not getattr(window, "_no_modal_dialogs", False):
+        from PySide6.QtWidgets import QMessageBox
+        QMessageBox.information(window, "Ενδεικτική ισχύς θέρμανσης", text)
+    return text

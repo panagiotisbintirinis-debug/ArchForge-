@@ -474,6 +474,10 @@ def install_approved_mockup_shell(window):
     bridges=QAction("Θερμογέφυρες…",window)
     bridges.triggered.connect(lambda: __import__("archforge.ui.thermal_bridges_dialog",fromlist=["show"]).show(window))
     heating.addAction(bridges); window._thermal_bridges_action=bridges
+    # Σ10 (κριτική v5): the indicative power on its own — it adds no emitters or supplies, it only says.
+    power=QAction("Ενδεικτική ισχύς θέρμανσης…",window)
+    power.triggered.connect(lambda: __import__("archforge.ui.thermal_bridges_dialog",fromlist=["show_power"]).show_power(window))
+    heating.addAction(power); window._heat_power_action=power
     supplies=QAction("Παροχές ρεύματος θέρμανσης (αυτόματα)",window); supplies.triggered.connect(lambda: window._heating_supplies())
     heating.addAction(supplies); heating.addSeparator()
     for key,label in HEAT.items():
