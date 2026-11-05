@@ -25,8 +25,12 @@ NUMBERS = {
     "psi_g": ("ψg αποστάτη", "W/mK", 0.0, 0.3),
     "frame_width": ("πλάτος πλαισίου", "m", 0.02, 0.3),
     "g_value": ("g υαλοπίνακα", "", 0.05, 0.95),
+    # Απαίτηση της μελέτης / του προγράμματος (π.χ. «Εξοικονομώ», τεύχος): ο χρήστης τη γράφει, το πρόγραμμα ελέγχει.
+    "uw_required": ("Uw απαίτηση ≤", "W/m²K", 0.3, 7.0),
 }
-TEXTS = {"maker": "Κατασκευαστής / σειρά / έγγραφο"}
+SAFETY_GLASS = {"none": "Όχι", "laminated": "Laminated (πολύστρωμο)", "tempered": "Tempered (σκληρυμένο)"}
+TEXTS = {"maker": "Κατασκευαστής / σειρά / έγγραφο",
+         "glazing_build": "Σύνθεση υάλωσης (π.χ. 4 Clear + 16 Ar + 4 Low-E)"}
 
 # Τυπικά εύρη από το «Τεχνικό έντυπο: Στοιχεία κουφωμάτων & θερμική αγωγιμότητα (λ)» που έστειλε ο ιδιοκτήτης 05/11.
 # Χωρίς αναφορά προτύπου ή κατασκευαστή → UNVERIFIED: χρησιμεύουν ΜΟΝΟ ως έλεγχος («το Uf που γράψατε είναι έξω από
@@ -41,9 +45,28 @@ FRAME_TYPES = {
 }
 GLAZING_TYPES = {
     "double_lowe_argon": ("Διπλός ενεργειακός (Low-E + αργό)", 0.016, (1.0, 1.4)),
+    "triple": ("Τριπλός υαλοπίνακας", None, None),                 # no range in the sheet: no check
 }
 CHOICES = {"frame_material": ("Υλικό πλαισίου", FRAME_TYPES, "uf"),
            "glazing": ("Υαλοπίνακας", GLAZING_TYPES, "ug")}
+
+
+def requirement_notes(doc, opening):
+    """«Uw 2,1 > απαίτηση 1,8» and «Uw 3,2 > Umax 3,0 της ζώνης Β (ΤΟΤΕΕ 20701-2 Πίν. 6)» for one door / window."""
+    used, _src = uw(doc, opening)
+    if used is None:
+        return []
+    out = []
+    req = opening.params.get("uw_required")
+    if req and used > float(req) + 1e-9:
+        out.append(f"Uw {used:.2f} > απαίτηση {float(req):.2f}".replace(".", ","))
+    from archforge.mep.design_climate import zone
+    from archforge.mep.totee_20701_2 import u_max
+    z = zone(doc)
+    limit = u_max("opening", z) if z else None
+    if limit is not None and used > limit + 1e-9:
+        out.append(f"Uw {used:.2f} > Umax {limit:.2f}".replace(".", ",") + f" ζώνης {z} (ΤΟΤΕΕ 20701-2 Πίν. 6)")
+    return out
 
 
 def range_notes(params):
@@ -51,7 +74,7 @@ def range_notes(params):
     notes = []
     for key, (_label, table, u_key) in CHOICES.items():
         choice = params.get(key)
-        if choice not in table or params.get(u_key) in (None, ""):
+        if choice not in table or params.get(u_key) in (None, "") or table[choice][2] is None:
             continue
         name, _lam, (lo, hi) = table[choice]
         v = float(params[u_key])
@@ -98,6 +121,14 @@ def parse(key, text):
     """A typed value (comma or dot; empty = remove) checked against ``NUMBERS``; ``frame_width`` is typed in cm."""
     if key in TEXTS:
         return str(text or "").strip() or None
+    if key == "safety_glass":
+        t = str(text or "").strip()
+        if t in ("", "—"):
+            return None
+        for k, label in SAFETY_GLASS.items():
+            if t == k or t.casefold() == label.casefold():
+                return k
+        raise ValueError(f"Γυαλί ασφαλείας «{t}»: διαλέξτε από τη λίστα")
     if key in CHOICES:
         t = str(text or "").strip()
         if t in ("", "—"):

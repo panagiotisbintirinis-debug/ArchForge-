@@ -809,7 +809,17 @@ def _optional_nonnegative(name):
 _OPENING_THERMAL = {'uf': _u_value, 'ug': _u_value, 'psi_g': _optional_nonnegative('psi_g'),
                     'frame_width': _u_value, 'g_value': _optional_nonnegative('g_value'),
                     'frame_material': lambda v: _opening_choice('frame_material', v),
-                    'glazing': lambda v: _opening_choice('glazing', v)}
+                    'glazing': lambda v: _opening_choice('glazing', v),
+                    'uw_required': _u_value, 'safety_glass': lambda v: _safety_glass(v)}
+
+
+def _safety_glass(v):
+    if v is None or v == '':
+        return None
+    from archforge.mep.opening_thermal import SAFETY_GLASS
+    if v not in SAFETY_GLASS:
+        raise ValueError(f'safety_glass must be one of {sorted(SAFETY_GLASS)}')
+    return v
 
 
 def _opening_choice(key, v):
@@ -820,7 +830,8 @@ def _opening_choice(key, v):
         raise ValueError(f'{key} must be one of {sorted(CHOICES[key][1])}')
     return v
 _JOINERY_OPENING = {**_OPENING, 'u_value': _u_value, **_OPENING_THERMAL, **{k: _joinery(k) for k in (
-    'opening_type', 'hinge', 'swing', 'leaves', 'bars_h', 'bars_v', 'transom', 'shading', 'ledge', 'finish', 'leaf_design')},
+    'opening_type', 'hinge', 'swing', 'leaves', 'bars_h', 'bars_v', 'transom', 'shading', 'ledge', 'finish', 'leaf_design',
+    'screen', 'roller_drive')},
     'open_angle': _joinery('open_angle')}
 SCHEMAS = {
     'box': {'x': _finite, 'y': _finite, 'z': _finite, 'width': _positive, 'depth': _positive, 'height': _positive, 'rotation': _finite},

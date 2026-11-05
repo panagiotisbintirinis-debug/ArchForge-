@@ -150,3 +150,39 @@ def test_the_list_offers_the_frame_material_as_a_drop_down_with_undo(window):
     assert w.doc.get(o.id).params['frame_material'] == 'alu_break'
     w.stack.undo()
     assert w.doc.get(o.id).params.get('frame_material') is None
+
+
+def test_the_schedule_has_typology_equipment_glazing_and_requirements_like_a_professional_table():
+    """Πίνακας ανάλυσης κουφωμάτων (ιδιοκτήτης 05/11): τυπολογία, Π × Υ, υαλοπίνακες, ρολό / σίτα, ενεργειακοί δείκτες."""
+    doc, st, _w, o = _wall_with_window(u_value=2.0)
+    for key, value in (('typology', 'tilt_turn'), ('shading', 'Ρολό (κουτί πάνω)'), ('roller_drive', 'electric'),
+                       ('screen', 'pleated'), ('safety_glass', 'laminated'),
+                       ('glazing_build', '4 Clear + 16 Ar + 4 Low-E'), ('uw_required', '1,8')):
+        st.execute(S.set_opening_command(doc, o.id, key, value))
+    o = doc.get(o.id)
+    assert o.params['opening_type'] == 'tilt_turn' and o.params['shading'] == 'roller'
+    data = S.openings(doc)
+    row = next(r for r in data['rows'] if r['ids'] == [o.id])
+    assert row['typology'] == 'Ανοιγοανακλινόμενο' and row['shading'] == 'Ρολό (κουτί πάνω)'
+    assert row['roller_drive'] == 'Ηλεκτρικό' and row['screen'] == 'Σίτα πλισέ'
+    assert row['safety_glass'].startswith('Laminated') and row['glazing_build'] == '4 Clear + 16 Ar + 4 Low-E'
+    assert any('Uw 2,00 > απαίτηση 1,80' in c for c in data['check'])
+    keys = [k for k, _l in data['columns']]
+    assert keys.index('typology') < keys.index('width') < keys.index('glazing') < keys.index('screen') < keys.index('uw')
+    # a window type cannot be a door type, and one undo takes back one change
+    with pytest.raises(ValueError):
+        S.set_opening_command(doc, o.id, 'typology', 'security')
+    st.undo()
+    assert doc.get(o.id).params.get('uw_required') is None
+
+
+def test_uw_above_the_zone_limit_of_table_6_is_said():
+    from archforge.mep.design_climate import zone
+    from archforge.mep.totee_20701_2 import u_max
+    doc, _st, _w, o = _wall_with_window(u_value=5.5)
+    z = zone(doc)
+    notes = O.requirement_notes(doc, o)
+    if z:
+        assert any(f'Umax {u_max("opening", z):.2f}'.replace('.', ',') in n and 'Πίν. 6' in n for n in notes)
+    else:
+        assert notes == []

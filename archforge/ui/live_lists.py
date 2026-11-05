@@ -111,7 +111,7 @@ class ListsTab(QWidget):
                     self.table.setItem(r, c, item)
                     kind = d["editable"].get(key)
                     if isinstance(kind, tuple) and kind[0] == "choice":
-                        self._choice_cell(r, c, key, row, kind[1])
+                        self._choice_cell(r, c, key, row, row.get(f"options:{key}") or kind[1])
             self.table.resizeColumnsToContents()
         finally:
             self._filling = False
@@ -211,14 +211,24 @@ class ListsTab(QWidget):
         box.addItem("—", None)
         for k, label in options:
             box.addItem(label, k)
-        current = self.window.doc.get(row["ids"][0]).params.get(key)
+        e = self.window.doc.get(row["ids"][0])
+        param = S.JOINERY_KEYS.get(key, key)
+        current = e.params.get(param)
+        if param in ("opening_type", "shading"):                 # the type's own default when not set
+            from archforge.architecture import joinery as J
+            current = J.resolved(e.kind, e.params)[param]
         box.setCurrentIndex(max(0, box.findData(current)))
         box.activated.connect(lambda _i, b=box, eid=row["ids"][0], k=key: self._choose_value(eid, k, b.currentData()))
         self.table.setCellWidget(r, c, box)
 
     def _choose_value(self, eid, key, value):
-        from archforge.mep.opening_thermal import set_command
-        self.window.stack.execute(set_command(self.window.doc, eid, key, value or ""))
+        try:
+            command = S.set_opening_command(self.window.doc, eid, key, value)
+        except ValueError as exc:
+            self.window.statusBar().showMessage(f"⚠ {TAB_TITLE}: {exc}", 8000)
+            self.refresh()
+            return
+        self.window.stack.execute(command)
         self.window._redraw_views(all_views=True)
         self.window.statusBar().showMessage(f"{NAMES[self.key]}: αλλαγή · Ctrl+Z = αναίρεση", 6000)
         self.refresh()
@@ -235,9 +245,8 @@ class ListsTab(QWidget):
                 command = S.set_mark_command(doc, row["ids"][0], item.text())
             elif key == "uw":
                 command = S.set_u_command(doc, row["ids"][0], item.text())
-            elif key in ("uf", "ug", "psi_g", "frame_width", "g_value", "maker"):
-                from archforge.mep.opening_thermal import set_command
-                command = set_command(doc, row["ids"][0], key, item.text())
+            elif key in ("uf", "ug", "psi_g", "frame_width", "g_value", "maker", "glazing_build", "uw_required"):
+                command = S.set_opening_command(doc, row["ids"][0], key, item.text())
             elif key == "name":
                 command = S.rename_room_command(doc, row["signature"], item.text())
             else:

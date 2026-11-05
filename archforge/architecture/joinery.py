@@ -54,6 +54,9 @@ TYPES = {"window": WINDOW_TYPES, "door": DOOR_TYPES}
 HINGES = {"left": "Αριστερά", "right": "Δεξιά"}
 SWINGS = {"in": "Προς τα μέσα", "out": "Προς τα έξω"}
 SHADINGS = {"none": "Χωρίς", "roller": "Ρολό (κουτί πάνω)", "shutters": "Παντζούρια"}
+# Σίτα και μηχανισμός ρολού: στοιχεία του πίνακα κουφωμάτων (ιδιοκτήτης 05/11), δεν αλλάζουν τη γεωμετρία.
+SCREENS = {"none": "Χωρίς", "sliding": "Σίτα οριζόντιας κίνησης", "pleated": "Σίτα πλισέ", "fixed": "Σταθερή σίτα"}
+ROLLER_DRIVES = {"manual": "Χειροκίνητο", "electric": "Ηλεκτρικό"}
 LEDGES = {"none": "Χωρίς", "outside": "Ποδιά έξω", "inside": "Περβάζι μέσα", "both": "Ποδιά και περβάζι"}
 # name, colour, roughness, metalness — όψη μόνο, όχι φυσικές ιδιότητες.
 FINISHES = {
@@ -138,7 +141,8 @@ def is_typed(params):
 def validate_choice(key, value):
     """Έλεγχος μίας παραμέτρου κουφώματος (καλείται από το SCHEMAS)."""
     options = {"opening_type": set(WINDOW_TYPES) | set(DOOR_TYPES), "hinge": HINGES, "swing": SWINGS,
-               "shading": SHADINGS, "ledge": LEDGES, "finish": FINISHES, "leaf_design": LEAF_DESIGNS}
+               "shading": SHADINGS, "ledge": LEDGES, "finish": FINISHES, "leaf_design": LEAF_DESIGNS,
+               "screen": SCREENS, "roller_drive": ROLLER_DRIVES}
     if key in options:
         v = str(value)
         if v not in options[key]:

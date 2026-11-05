@@ -109,14 +109,74 @@ def openings(doc):
             "editable": {"mark": "text", "uw": "number", "uf": "number", "ug": "number", "psi_g": "number",
                          "frame_width": "number", "g_value": "number", "maker": "text",
                          "frame_material": ("choice", _choices("frame_material")),
-                         "glazing": ("choice", _choices("glazing"))},
-            "columns": [("mark", "Κωδικός"), ("kind", "Είδος"), ("storey", "Όροφος"), ("rooms", "Χώρος"),
+                         "glazing": ("choice", _choices("glazing")),
+                         "typology": ("choice", []), "shading": ("choice", _joinery_choices("SHADINGS")),
+                         "roller_drive": ("choice", _joinery_choices("ROLLER_DRIVES")),
+                         "screen": ("choice", _joinery_choices("SCREENS")),
+                         "safety_glass": ("choice", _safety_choices()), "glazing_build": "text",
+                         "uw_required": "number"},
+            "columns": [("mark", "Κωδικός"), ("kind", "Είδος"), ("typology", "Τυπολογία"), ("leaves", "Φύλλα"),
+                        ("storey", "Όροφος"), ("rooms", "Χώρος"),
                         ("width", "Πλάτος m"), ("height", "Ύψος m"), ("sill", "Ποδιά m"), ("area", "m²"),
                         ("frame_material", "Υλικό πλαισίου"), ("glazing", "Υαλοπίνακας"),
-                        ("uw", "Uw δηλωμένο W/m²K"), ("uf", "Uf W/m²K"), ("ug", "Ug W/m²K"), ("psi_g", "ψg W/mK"),
+                        ("glazing_build", "Σύνθεση υάλωσης"), ("safety_glass", "Ασφαλείας"),
+                        ("shading", "Ρολό / παντζούρι"), ("roller_drive", "Μηχανισμός ρολού"), ("screen", "Σίτα"),
+                        ("uw_required", "Uw απαίτηση ≤"), ("uw", "Uw δηλωμένο W/m²K"), ("uf", "Uf W/m²K"), ("ug", "Ug W/m²K"), ("psi_g", "ψg W/mK"),
                         ("frame_width", "Πλαίσιο cm"), ("g_value", "g"), ("uw_used", "Uw που ισχύει"),
                         ("uw_from", "Uw από"), ("maker", "Κατασκευαστής / έγγραφο"), ("how", "Πώς μετρήθηκε")],
             "total": f"{len(rows)} κουφώματα · {total:.2f} m²".replace(".", ",")}
+
+
+def _joinery_choices(name):
+    from archforge.architecture import joinery as J
+    return list(getattr(J, name).items())
+
+
+def _safety_choices():
+    from archforge.mep.opening_thermal import SAFETY_GLASS
+    return list(SAFETY_GLASS.items())
+
+
+JOINERY_KEYS = {"typology": "opening_type", "shading": "shading", "roller_drive": "roller_drive", "screen": "screen"}
+
+
+def set_opening_command(doc, eid, key, value):
+    """One undoable change of a door / window from the list (column ``key``, a choice key or typed text):
+    τυπολογία / ρολό / σίτα through the joinery rules (the type must suit the kind and fit the opening),
+    the thermal data through ``opening_thermal``."""
+    from archforge.core.commands import UpdateEntity
+    e = doc.get(eid)
+    if e is None or e.kind not in ("door", "window"):
+        raise ValueError("μόνο πόρτες και παράθυρα")
+    if key in JOINERY_KEYS:
+        from archforge.architecture import joinery as J
+        from archforge.architecture.openings import validate_opening
+        param = JOINERY_KEYS[key]
+        v = None if value in (None, "", "—") else str(value)
+        table = J.TYPES[e.kind] if param == "opening_type" else {
+            "shading": J.SHADINGS, "roller_drive": J.ROLLER_DRIVES, "screen": J.SCREENS}[param]
+        if v is not None and v not in table:
+            match = [k for k, label in table.items() if label.casefold() == v.casefold()]
+            if not match:
+                raise ValueError(f"«{v}»: διαλέξτε από τη λίστα")
+            v = match[0]
+        empty = {"opening_type": "basic", "shading": "none", "screen": "none", "roller_drive": None}[param]
+        changes = {param: v if v is not None else empty}
+        if param == "opening_type":
+            changes["leaves"] = 0                                  # the new type's own number of leaves
+            if str(e.params.get("leaf_design", "auto")) not in J.leaf_design_options(changes[param]):
+                changes["leaf_design"] = "auto"
+        merged = {**e.params, **changes}
+        host = doc.get(e.parent_id) if e.parent_id else None
+        if host is not None and host.kind == "wall":
+            validate_opening(host.params, merged, e.kind)
+        else:
+            J.validate_joinery(e.kind, merged)
+        return UpdateEntity(eid, changes)
+    if key == "uw":
+        return set_u_command(doc, eid, value)
+    from archforge.mep.opening_thermal import set_command
+    return set_command(doc, eid, key, value or "")
 
 
 def _choices(key):
@@ -137,7 +197,24 @@ def _opening_thermal_cells(doc, e):
             "uw_used": _r(used, 2), "uw_from": source or "δεν δόθηκε", "maker": p.get("maker") or None,
             "frame_material": FT.FRAME_TYPES[p["frame_material"]][0] if p.get("frame_material") in FT.FRAME_TYPES else None,
             "glazing": FT.GLAZING_TYPES[p["glazing"]][0] if p.get("glazing") in FT.GLAZING_TYPES else None,
-            "range_notes": FT.range_notes(p)}
+            "range_notes": FT.range_notes(p) + FT.requirement_notes(doc, e),
+            "glazing_build": p.get("glazing_build") or None,
+            "safety_glass": FT.SAFETY_GLASS.get(p.get("safety_glass")) if p.get("safety_glass") else None,
+            "uw_required": _r(p.get("uw_required"), 2),
+            **_joinery_cells(e)}
+
+
+def _joinery_cells(e):
+    """Τυπολογία, φύλλα, ρολό / παντζούρι, μηχανισμός ρολού, σίτα — από τις παραμέτρους του κουφώματος (joinery)."""
+    from archforge.architecture import joinery as J
+    r = J.resolved(e.kind, e.params)
+    t = r["opening_type"]
+    shading = r["shading"]
+    return {"typology": J.TYPES[e.kind].get(t, t), "leaves": J.leaf_count(e.kind, e.params),
+            "shading": J.SHADINGS.get(shading, shading) if shading != "none" else None,
+            "roller_drive": (J.ROLLER_DRIVES.get(e.params.get("roller_drive"), None) if shading == "roller" else None),
+            "screen": J.SCREENS.get(e.params.get("screen")) if e.params.get("screen") not in (None, "none") else None,
+            "options:typology": list(J.TYPES[e.kind].items())}
 
 
 def set_u_command(doc, eid, text):

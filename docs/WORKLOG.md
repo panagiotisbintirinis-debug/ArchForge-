@@ -7,6 +7,9 @@
   αποστάτης / τζάμι στη θερμική εικόνα, ίδιο Uw σε απώλειες / κέλυφος / όψη 3D. Τεστ `tests/test_opening_thermal.py`: 4 passed.
 - Έντυπο κουφωμάτων ιδιοκτήτη: «Υλικό πλαισίου» / «Υαλοπίνακας» ανά κούφωμα, έλεγχος εύρους Uf/Ug (UNVERIFIED),
   αναπτυσσόμενο μέσα στη λίστα (`live_lists._choice_cell`). Ανάλυση `docs/specs/koyfomata_thermika.md`. Τεστ: 6 passed.
+- Πλήρης σειρά στο `bb4cb7a`: 2461 passed, 1 skipped.
+- Πίνακας ανάλυσης κουφωμάτων: τυπολογία, φύλλα, σύνθεση υάλωσης, ασφαλείας, ρολό + μηχανισμός, σίτα, Uw απαίτηση,
+  έλεγχος Umax Πίν. 6 (`schedules.set_opening_command`, `opening_thermal.requirement_notes`). Τεστ: 8 passed.
 - Πλήρης σειρά στο `29561f4` (καρτέλα + κουφώματα): 2459 passed, 1 skipped.
 - Πλήρης σειρά στο `2e692db` (κώδικας HANDOFF 05/11 βράδυ): 2449 passed, 1 skipped.
 
