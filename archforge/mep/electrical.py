@@ -450,8 +450,24 @@ def route_cables(doc):
     px, py = float(panel.params["x"]), float(panel.params["y"])
     panel_floor = _floor_of(doc, float(panel.params["z"]))
     avoid = avoid_frame(doc)                 # owner 06/11: keep out of columns / beams unless cast-in is allowed
+    # Bots 06/11: every new socket re-routed every circuit (~2 s per click in a 450-element house). Each circuit's runs
+    # are remembered against what they read — its own points, the building (walls, frame, ceilings, storeys, rooms) and
+    # the panel's settings — so a change routes only the circuits it touches.
+    geom = _geometry_key(doc)
+    panel_key = tuple(sorted((k, str(v)) for k, v in panel.params.items()))
+    if len(_CIRCUIT_MEMO) > 4000:
+        _CIRCUIT_MEMO.clear()
     for circuit in design["circuits"]:
         members = [points[i] for i in circuit["points"]]
+        ckey = (geom, panel_key, circuit["id"], circuit["group"],
+                tuple((e.id, tuple(sorted((k, str(v)) for k, v in e.params.items()))) for e in members))
+        hit = _CIRCUIT_MEMO.get(ckey)
+        if hit is not None:
+            runs.extend(hit[0]); boxes.extend(hit[1])
+            if hit[2]:
+                design["report"].setdefault("warnings", []).extend(hit[2])
+            continue
+        n_runs, n_boxes, n_warn = len(runs), len(boxes), len(design["report"].get("warnings", []))
         floor = _floor_of(doc, float(members[0].params["z"]))
         cid, group = circuit["id"], circuit["group"]
         split = {"wall": [], "floor": [], "ceiling": []}
@@ -563,6 +579,7 @@ def route_cables(doc):
                     terminal, box = device_legs(doc, e, mode, g.point(targets[e.id]), z)
                 boxes.append((*box, cid))
                 runs.extend((a, b, group, cid) for a, b in terminal)
+        _CIRCUIT_MEMO[ckey] = (runs[n_runs:], boxes[n_boxes:], list(design["report"].get("warnings", [])[n_warn:]))
     # The board consumes this same geometry instead of reconstructing switch legs.
     switch_legs, switch_boxes = switch_runs(doc, design, points)
     runs.extend((a, b, "switch", "") for a, b, _sid in switch_legs)
@@ -661,6 +678,19 @@ def _collinear(a, b, c):
 
 
 _CACHE = {"key": None, "value": None}
+
+
+_CIRCUIT_MEMO = {}
+
+
+def _geometry_key(doc):
+    """What a circuit's runs read of the building besides its own points."""
+    items = []
+    for e in doc.entities.values():
+        if e.kind in ("wall", "structural_column", "structural_beam", "drywall_ceiling", "room_floor", "room_roof"):
+            items.append((e.kind, e.id, e.visible, tuple(sorted((k, str(v)) for k, v in e.params.items()))))
+    return hash((tuple(sorted(items)), tuple(sorted((str(k), float(v)) for k, v in doc.levels.items())),
+                 repr(getattr(doc, "room_data", None)), repr(getattr(doc, "view_layers", None) and None)))
 
 
 def route_cables_if_cached(doc):

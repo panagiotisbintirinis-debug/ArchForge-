@@ -254,3 +254,29 @@ def test_a_dense_three_storey_frame_feeds_every_point_without_sleeves():
         home = _nearest_component(comp, P)
         assert all(_nearest_component(comp, (float(doc.get(p).params['x']), float(doc.get(p).params['y']))) == home
                    for p in c['points']), c['id']
+
+
+def test_remembered_circuits_route_exactly_as_from_scratch_and_follow_the_walls():
+    """Bots 06/11: each circuit remembers its runs (a new socket no longer re-routes every circuit) — the result must be
+    the one a fresh routing gives, and a moved wall must re-route."""
+    import os
+    from archforge.core.commands import CommandStack, UpdateEntity
+    from archforge.core.model import Entity
+    from archforge.mep import electrical as E
+    from archforge.project.persistence import load_project
+    doc = load_project(os.path.join(os.path.dirname(__file__), 'data', 'owner_111_two_storey.archforge')).doc
+    E._CIRCUIT_MEMO.clear()
+    fresh = E.route_cables(doc)
+    again = E.route_cables(doc)
+    assert sorted(map(str, again['runs'])) == sorted(map(str, fresh['runs']))
+    panel = next(e for e in doc.entities.values() if e.kind == 'electrical_point' and e.params['point_type'] == 'panel')
+    doc.add(Entity('electrical_point', {'point_type': 'socket', 'x': float(panel.params['x']) + 0.05,
+                                        'y': float(panel.params['y']) + 1.2, 'z': float(panel.params['z'])}))
+    remembered = E.route_cables(doc)
+    E._CIRCUIT_MEMO.clear()
+    assert sorted(map(str, remembered['runs'])) == sorted(map(str, E.route_cables(doc)['runs']))
+    wall = next(e for e in doc.entities.values() if e.kind == 'wall')
+    CommandStack(doc).execute(UpdateEntity(wall.id, {'x1': float(wall.params['x1']) + 0.3}))
+    moved = E.route_cables(doc)
+    E._CIRCUIT_MEMO.clear()
+    assert sorted(map(str, moved['runs'])) == sorted(map(str, E.route_cables(doc)['runs']))
