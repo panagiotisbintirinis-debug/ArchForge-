@@ -601,11 +601,13 @@ class PlanView(QGraphicsView):
             if self.controller.active is not None:
                 pos=event.position()
                 press=getattr(self,'_press_pos',None)
-                if self.controller.tool=='wall' and press is not None and (pos-press).manhattanLength()<=self.CLICK_PX:
+                screen_click=press is not None and (pos-press).manhattanLength()<=self.CLICK_PX
+                if self.controller.tool=='wall' and screen_click:
                     # A click is a click on screen, whatever the zoom: hand tremor of a few pixels
                     # must not draw a 5 cm wall (Windows mice move a little while clicking).
                     pos=press
                 ev=self._scene_to_plane(pos.toPoint())
+                ev.click=screen_click
                 ev.shift=bool(event.modifiers()&Qt.KeyboardModifier.ShiftModifier)
                 ev.ctrl=bool(event.modifiers()&Qt.KeyboardModifier.ControlModifier)
                 moved_wall=getattr(self.controller.active,'distance',None) if self.controller.preview.kind=='wall-move' else None

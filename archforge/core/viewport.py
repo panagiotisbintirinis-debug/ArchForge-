@@ -438,7 +438,11 @@ class PointerController:
         if isinstance(self.active,WallDrawTransaction):
             tx=self.active
             import math
-            if exact is None and math.hypot(tx.end[0]-tx.start[0],tx.end[1]-tx.start[1])<tx.min_length:
+            short=math.hypot(tx.end[0]-tx.start[0],tx.end[1]-tx.start[1])<tx.min_length
+            # Bots 06/11: a click inside a wall's thickness snaps the start to its axis, the release stays where the
+            # mouse is — 6 cm away it drew a 6 cm wall and cancelled the one meant. A click on screen starts the chain.
+            first_click=self.wall_chain is None and bool(getattr(ev,'click',False))
+            if exact is None and (short or first_click):
                 if self.wall_chain is None:
                     # A click without a drag: click-click walls, one corner per click.
                     self.wall_chain={'first':tuple(tx.start),'count':0}

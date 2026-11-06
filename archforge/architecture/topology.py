@@ -271,6 +271,24 @@ def room_faces(doc, tolerance: float = 1e-6, z: Optional[float] = None, min_area
     # Below 0,05 m² (≈ 22×22 cm) a closed outline is a sliver between nearly touching walls, not a room
     # (owner saw «Χώρος 1 · 0,00 m²» labels on the plan).
     """Return bounded room faces with stable semantic boundary signatures."""
+    # Remembered per wall layout (bots 06/11: the project tree alone asked for the rooms 179 times per change).
+    # The key is the walls themselves — everything the graph reads — so a changed wall can never see old rooms.
+    key=(tolerance,None if z is None else float(z),min_area,tuple(
+        (eid,float(p['x1']),float(p['y1']),float(p['x2']),float(p['y2']),float(p['z']),float(p.get('thickness',0.2) or 0.2))
+        for eid,e in doc.entities.items() if e.kind=='wall' and e.visible for p in (e.params,)))
+    hit=_ROOM_FACES.get(key)
+    if hit is not None:
+        return list(hit)
+    rooms=_room_faces(doc,tolerance,z,min_area)
+    if len(_ROOM_FACES)>=64:_ROOM_FACES.clear()
+    _ROOM_FACES[key]=tuple(rooms)
+    return rooms
+
+
+_ROOM_FACES={}
+
+
+def _room_faces(doc, tolerance, z, min_area):
     graph=build_wall_graph(doc,tolerance=tolerance,z=z);raw=_halfedge_faces(graph);edge_wall=_edge_wall_map(graph)
     rooms=[];seen=set()
     for face in raw:

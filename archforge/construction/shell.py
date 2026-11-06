@@ -58,12 +58,12 @@ def masonry_list(doc):
     rows = []
     for kind, area in sorted(per.items()):
         name = label(kind, doc)
-        label = "Τοιχοποιία — τύπος δεν ορίστηκε" if kind == "generic" else f"Τοιχοποιία {name}"
-        rows.append((label, "m²", round(area, 2), _meta(f"masonry.{kind}", "Εμβαδόν τοίχων αυτού του τύπου από το σχέδιο, "
+        row = "Τοιχοποιία — τύπος δεν ορίστηκε" if kind == "generic" else f"Τοιχοποιία {name}"
+        rows.append((row, "m²", round(area, 2), _meta(f"masonry.{kind}", "Εμβαδόν τοίχων αυτού του τύπου από το σχέδιο, "
                                                                           "μείον πόρτες και παράθυρα.")))
         if kind in pieces:
             n = math.ceil(area * float(pieces[kind]))
-            rows.append((f"Τεμάχια για {label.lower()} ({float(pieces[kind]):g}/m² από το φύλλο)".replace(".", ","), "τεμ.", n,
+            rows.append((f"Τεμάχια για {row.lower()} ({float(pieces[kind]):g}/m² από το φύλλο)".replace(".", ","), "τεμ.", n,
                          _meta(f"masonry.{kind}.pieces", "Εμβαδόν × τεμάχια ανά m² που έδωσε ο χρήστης.", "MANUFACTURER_DATA")))
     return rows
 

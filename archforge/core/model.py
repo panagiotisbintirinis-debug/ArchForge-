@@ -1354,7 +1354,9 @@ class Document:
             horizontal = min(u1, v1) - max(u0, v0)
             vertical = min(z1, w1) - max(z0, w0)
             if horizontal > tolerance and vertical > tolerance:
-                raise ValueError('wall openings must not overlap')
+                what = {'door': 'την πόρτα', 'window': 'το παράθυρο'}.get(other.kind, 'το άνοιγμα')
+                raise ValueError(f'Δεν χωράει εδώ: πέφτει πάνω σε {what} «{other.name}» του ίδιου τοίχου — '
+                                 'κλικ λίγο πιο δίπλα')
 
     def _validate_links(self, entity):
         if entity.kind in ('door', 'window', 'opening'):

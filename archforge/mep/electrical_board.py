@@ -103,6 +103,13 @@ CONDUCTOR_LABELS = {"L": "Φάση", "N": "Ουδέτερος", "PE": "Γείω�
                     "T1": "Ενδιάμεσος αγωγός 1 (αλέ-ρετούρ)", "T2": "Ενδιάμεσος αγωγός 2 (αλέ-ρετούρ)"}
 
 
+def panel_value(doc, key, default):
+    """One board setting without the rest (``settings`` also designs the circuits for the RCD groups — far too slow to
+    ask per device: bots 06/11 found every change taking minutes in a house with ~100 points)."""
+    panel = next((e for e in electrical_points(doc) if e.params["point_type"] == "panel"), None)
+    return (panel.params if panel is not None else {}).get(key, default)
+
+
 def settings(doc):
     """Board settings from the panel point; 0 = not entered (no hidden defaults)."""
     from archforge.mep.conduit_fill import DEFAULT_LIMIT, DEFAULT_MAX_DN

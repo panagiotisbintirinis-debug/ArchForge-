@@ -35,7 +35,7 @@ def test_overlapping_wall_openings_are_rejected():
     door = _door(wall.id, offset=2.0, width=1.2, height=2.1); doc.add(door)
 
     overlapping = _window(wall.id, offset=2.2, width=1.0, height=1.0, sill=1.0)
-    with pytest.raises(ValueError, match='overlap'):
+    with pytest.raises(ValueError, match='πέφτει πάνω'):
         doc.add(overlapping)
 
     assert overlapping.id not in doc.entities
@@ -68,7 +68,7 @@ def test_opening_update_that_creates_overlap_is_atomic():
     before = dict(window.params)
     before_revision = window.revision
 
-    with pytest.raises(ValueError, match='overlap'):
+    with pytest.raises(ValueError, match='πέφτει πάνω'):
         doc.update(window.id, {'offset': 1.4})
 
     assert window.params == before

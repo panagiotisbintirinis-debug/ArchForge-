@@ -70,6 +70,17 @@ def test_slab_concrete_from_area_times_model_thickness():
         window._mark_clean(); window.close(); app.processEvents()
 
 
+def test_masonry_with_several_wall_types():
+    """Bots 06/11: a house with exterior + interior wall types made Επιμέτρηση / Τιμές / PDF fail
+    («'str' object is not callable» — the row label shadowed the ``label`` function)."""
+    doc, stack = _doc()
+    walls = [e for e in doc.entities.values() if e.kind == 'wall']
+    stack.execute(UpdateEntity(walls[0].id, {'wall_type': 'brick_double_insulated'}))
+    stack.execute(UpdateEntity(walls[1].id, {'wall_type': 'brick_partition'}))
+    codes = {m['code'] for _d, _u, _q, m in shell.masonry_list(doc)}
+    assert {'masonry.generic', 'masonry.brick_double_insulated', 'masonry.brick_partition'} <= codes
+
+
 def test_pieces_per_m2_entered_in_the_masonry_card_with_undo():
     from PySide6.QtWidgets import QApplication
     from archforge.ui.main_window import MainWindow

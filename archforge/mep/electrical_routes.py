@@ -29,8 +29,8 @@ DISTRIBUTIONS = {'walls': 'Διανομή στους τοίχους (οριζό�
 
 def avoid_frame(doc):
     """True unless the project allows conduits cast in the concrete (electrical_board settings, «Προσωλήνωση»)."""
-    from archforge.mep.electrical_board import settings
-    return not settings(doc)['cast_in_concrete']
+    from archforge.mep.electrical_board import panel_value
+    return not int(panel_value(doc, 'cast_in_concrete', 0))
 
 
 def layered(doc, grid, mode, floor, z, free=()):
@@ -46,8 +46,8 @@ def layered(doc, grid, mode, floor, z, free=()):
 
 def distribution(doc):
     """The project's way of distributing the circuits (electrical_board.settings, on the panel)."""
-    from archforge.mep.electrical_board import settings
-    return settings(doc)['distribution']
+    from archforge.mep.electrical_board import panel_value
+    return str(panel_value(doc, 'distribution', 'walls'))
 
 
 def run_z(doc, floor, mode):
@@ -193,8 +193,17 @@ def frame_cells(grid, doc, z, pad):
     """Cells of the plan whose centre lies in a column / beam that spans height ``z``, grown by ``pad`` (m)."""
     from archforge.coordination.clash import structure
     from archforge.mep.plumbing import CELL
+    # The grid lives for one routing of an unchanged model: the same (z, pad) is asked ~80 times (bots 06/11:
+    # 1,5 s of every change in a two-storey house) — computed once per grid.
+    memo = grid.__dict__.setdefault('_frame_cells', {})
+    key = (round(float(z), 6), round(float(pad), 6))
+    if key in memo:
+        return set(memo[key])
+    boxes = grid.__dict__.get('_frame_boxes')
+    if boxes is None:
+        boxes = grid.__dict__['_frame_boxes'] = list(structure(doc))
     cells = set()
-    for box in structure(doc):
+    for box in boxes:
         if not (box.z0 - 1e-6 <= z <= box.z1 + 1e-6):
             continue
         r = math.hypot(box.hu, box.hv) + pad + CELL
@@ -205,6 +214,7 @@ def frame_cells(grid, doc, z, pad):
                 u, v = box.local(*grid.point((i, j)))
                 if abs(u) <= box.hu + pad and abs(v) <= box.hv + pad:
                     cells.add((i, j))
+    memo[key] = frozenset(cells)
     return cells
 
 

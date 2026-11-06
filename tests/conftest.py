@@ -50,3 +50,14 @@ def _release_windows():
     for _ in range(3):
         QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         app.processEvents()
+
+
+@pytest.fixture(autouse=True)
+def _no_brief_on_new_project(monkeypatch):
+    """«Νέο έργο» opens the project questions (a modal dialog) for a person; tests that make new projects do not
+    answer it — the brief has its own tests (test_project_brief.py)."""
+    try:
+        from archforge.ui.main_window import MainWindow
+    except Exception:                                                     # noqa: BLE001 — no Qt: nothing to turn off
+        return
+    monkeypatch.setattr(MainWindow, 'ASK_BRIEF_ON_NEW', False)

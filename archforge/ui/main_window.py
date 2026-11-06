@@ -3149,7 +3149,7 @@ class MainWindow(QMainWindow):
 
     def _open_selected_materials(self):
         if len(self.doc.selection) != 1:
-            self.statusBar().showMessage('Select one object before choosing a material', 3000)
+            self.statusBar().showMessage('Υλικό: διάλεξε πρώτα ένα στοιχείο (διπλό κλικ πάνω του) και μετά «Υλικό στο επιλεγμένο…»', 3000)
             return
         self._open_materials(self.doc.selection[0])
 
@@ -4353,14 +4353,16 @@ class MainWindow(QMainWindow):
         from .shortcuts import _zoom_all
         QTimer.singleShot(0, self, lambda: _zoom_all(self, quiet=True))   # dropped if the window is gone
 
+    ASK_BRIEF_ON_NEW = True
+
     def new_project(self):
         if not self._confirm_destructive_action():
             return False
         self._replace_project(Document())
-        self.statusBar().showMessage('New project', 3000)
-        # Every project starts with its questions: the answers drive the choices that follow.
-        from PySide6.QtGui import QGuiApplication
-        if not getattr(self, '_no_modal_dialogs', False) and QGuiApplication.platformName() != 'offscreen':
+        self.statusBar().showMessage('Νέο έργο', 3000)
+        # Every project starts with its questions: the answers drive the choices that follow. The same with or
+        # without a screen (bots 06/11: no hidden «offscreen» path) — only the test suite turns it off (conftest).
+        if not getattr(self, '_no_modal_dialogs', False) and self.ASK_BRIEF_ON_NEW:
             self._edit_project_brief()
         return True
 

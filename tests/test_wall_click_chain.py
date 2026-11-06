@@ -1,4 +1,5 @@
 """Walls by click-click (one corner per click) next to the existing drag."""
+import math
 import os
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
@@ -173,3 +174,25 @@ def test_alignment_with_another_wall_never_moves_it():
     assert pv.snap and pv.snap['kind'] == 'alignment'      # the guide is shown …
     _click(ctrl, 9.5, 8.6)
     assert all(d.get(k).params == v for k, v in before.items())   # … but the other wall stays as it was
+
+
+def test_a_click_inside_a_walls_thickness_starts_the_chain_not_a_6cm_wall():
+    """Bots 06/11: the first click 6 cm off an exterior wall's axis (inside its thickness) snapped the start to the
+    axis while the release stayed under the mouse — a 6 cm wall was drawn and the partition meant was cancelled."""
+    d, stack, ctrl = _ctrl()
+    for x, y in ((0, 0), (8, 0), (8, 6), (0, 6), (0, 0)):
+        _click(ctrl, x, y)
+    n = len(_walls(d))
+    ctrl.set_tool('wall')
+
+    def screen_click(x, y):                       # what plan_view sends: the mouse did not move on screen
+        ctrl.pointer_move(PointerEvent(x, y)); ctrl.pointer_down(PointerEvent(x, y))
+        ev = PointerEvent(x, y); ev.click = True
+        return ctrl.pointer_up(ev)
+    screen_click(3.0, 0.063)
+    assert len(_walls(d)) == n and ctrl.wall_chain is not None          # no stub wall
+    screen_click(3.0, 6.0)
+    long = [w for w in _walls(d) if abs(w.params['x1'] - w.params['x2']) < 1e-6 and abs(w.params['x1'] - 3.0) < 0.07
+            and abs(w.params['y2'] - w.params['y1']) > 2.5]
+    assert long, [(w.params['x1'], w.params['y1'], w.params['x2'], w.params['y2']) for w in _walls(d)]
+    assert not [w for w in _walls(d) if math.hypot(w.params['x2'] - w.params['x1'], w.params['y2'] - w.params['y1']) < 0.2]
