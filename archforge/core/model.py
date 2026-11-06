@@ -10,6 +10,34 @@ import uuid
 Vec3 = Tuple[float, float, float]
 
 
+# The person reads Greek (bots 06/11): a value refused in Ιδιότητες says which field and why, the technical reason
+# kept in brackets (reports, tests).
+_REASONS = {
+    'value must be finite': 'πρέπει να είναι αριθμός',
+    'dimension must be > 0': 'πρέπει να είναι πάνω από 0',
+    'value must be >= 0': 'δεν μπορεί να είναι αρνητικό',
+    'value must be a non-empty string': 'δεν μπορεί να μείνει κενό',
+    'value must be a positive integer': 'ακέραιος πάνω από 0',
+    'value must be a whole number ≥ 0': 'ακέραιος 0 ή μεγαλύτερος',
+    'value must be a 3-vector': 'τρεις αριθμοί (x, y, z)',
+}
+
+
+def _field_message(key, exc):
+    try:
+        from archforge.ui.object_properties import PARAM_LABELS
+        label = PARAM_LABELS.get(key, key)
+    except Exception:                                                     # noqa: BLE001 — no UI here: the key
+        label = key
+    reason = str(exc)
+    if any('\u0370' <= ch <= '\u03ff' for ch in reason):
+        return f'«{label}»: {reason}'
+    greek = _REASONS.get(reason)
+    if greek is None:
+        greek = next((g for e, g in _REASONS.items() if reason.startswith(e)), 'μη αποδεκτή τιμή')
+    return f'«{label}»: {greek} ({reason})'
+
+
 def _finite(v):
     v = float(v)
     if not math.isfinite(v):
@@ -1107,7 +1135,10 @@ def validate_params(kind, params):
         out['phase'] = _choice(PHASES, 'phase')(out['phase'])
     for key, fn in schema.items():
         if key in out:
-            out[key] = fn(out[key])
+            try:
+                out[key] = fn(out[key])
+            except (ValueError, TypeError) as exc:
+                raise ValueError(_field_message(key, exc)) from exc
     if kind == 'terrain':
         if float(out.get('x1', 0)) - float(out.get('x0', 0)) <= 1e-6 or float(out.get('y1', 0)) - float(out.get('y0', 0)) <= 1e-6:
             raise ValueError('terrain extent must be positive (x1 > x0, y1 > y0)')

@@ -514,7 +514,8 @@ class Bot:
             else:
                 self.find('δεν έγινε τίποτα', name)
         if dt > 20:
-            self.find('αργό', f'{name}: {dt:.0f} s')
+            load = os.getloadavg()[0] / (os.cpu_count() or 1)
+            self.find('αργό', f'{name}: {dt:.0f} s', f'φόρτος μηχανήματος ×{load:.1f} ανά πυρήνα')
         self.steps.append(dict(step=name, s=round(dt, 2), added=after - before))
         if self.verbose:
             print(f'  {dt:6.1f}s {after - before:+4d}  {name}')
@@ -741,7 +742,7 @@ class Bot:
             for p_ in plot:
                 self.click(*p_)
             self.click(*plot[0]); self.esc(); self.select_tool()
-        self.do('όρια οικοπέδου', boundary, 'more')
+        self.do('όρια οικοπέδου', boundary)        # may update the existing terrain: no new element
         def fence():
             self.menu('Κατασκευή', 'Κάγκελα', s['fence'])
             for p_ in plot[1:] + [plot[0]]:
@@ -985,7 +986,8 @@ def undo_all_check(bot):
     if bot.w.stack.can_redo:
         bot.find('αναίρεση όλων', f'μετά από {n} αναιρέσεις και {m} επαναλήψεις έμεινε κάτι για επανάληψη')
     if slow > 3:
-        bot.find('αργό', f'μία αναίρεση / επανάληψη πήρε έως {slow:.0f} s: {slow_what}')
+        bot.find('αργό', f'μία αναίρεση / επανάληψη πήρε έως {slow:.0f} s: {slow_what}',
+                 f'φόρτος μηχανήματος ×{os.getloadavg()[0] / (os.cpu_count() or 1):.1f} ανά πυρήνα')
     back = bot.snapshot()
     if set(back) != set(full):
         kf = {}; kb = {}
@@ -1000,7 +1002,10 @@ def undo_all_check(bot):
     else:
         diff = [i for i in full if full[i] != back[i]]
         if diff:
-            bot.find('επανάληψη όλων', f'{len(diff)} στοιχεία με άλλες παραμέτρους', str(sorted({full[i][0] for i in diff})))
+            a, b = json.loads(full[diff[0]][1]), json.loads(back[diff[0]][1])
+            keys = {k: (a.get(k), b.get(k)) for k in set(a) | set(b) if a.get(k) != b.get(k)}
+            bot.find('επανάληψη όλων', f'{len(diff)} στοιχεία με άλλες παραμέτρους',
+                     f"{sorted({full[i][0] for i in diff})} · π.χ. {str(keys)[:600]}")
     bot.orphans()
     return n, m
 

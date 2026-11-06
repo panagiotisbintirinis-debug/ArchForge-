@@ -83,16 +83,16 @@ def default_params(railing_type, points, z=0.0, height=None, **extra):
 
 def validate_points(v):
     if not isinstance(v, (list, tuple)) or len(v) < 2:
-        raise ValueError('railing needs at least two points')
+        raise ValueError('Κάγκελο: χρειάζονται τουλάχιστον δύο σημεία')
     out = []
     for q in v:
         if not isinstance(q, (list, tuple)) or len(q) not in (2, 3):
-            raise ValueError('railing point must be [x, y] or [x, y, dz]')
+            raise ValueError('Κάγκελο: κάθε σημείο είναι [x, y] ή [x, y, dz]')
         q = [float(c) for c in q]
         if not all(math.isfinite(c) for c in q):
-            raise ValueError('railing point must be finite')
+            raise ValueError('Κάγκελο: σημείο χωρίς αριθμητική θέση')
         if out and math.hypot(q[0] - out[-1][0], q[1] - out[-1][1]) < 0.01:
-            raise ValueError('railing points must be at least 1 cm apart')
+            raise ValueError('Κάγκελο: δύο σημεία σχεδόν στην ίδια θέση (< 1 cm) — κλικ λίγο πιο μακριά')
         out.append(q)
     _frames([q + [0.0] * (3 - len(q)) for q in out], False)     # rejects fold-backs
     return out
@@ -102,19 +102,19 @@ def validate(p):
     """Checks across fields (after each field passed its own validator)."""
     missing = {'points', 'height', 'railing_type'} - set(p)
     if missing:
-        raise ValueError('railing is missing required fields: ' + ', '.join(sorted(missing)))
+        raise ValueError('Κάγκελο: λείπουν στοιχεία: ' + ', '.join(sorted(missing)))
     if int(p.get('closed', 0)) and len(p.get('points', ())) < 3:
-        raise ValueError('a closed railing needs at least three points')
+        raise ValueError('Κλειστό κάγκελο: χρειάζονται τουλάχιστον τρία σημεία')
     if 'height' in p and float(p['height']) > 3.0:
-        raise ValueError('railing height must be at most 3 m')
+        raise ValueError('Κάγκελο: ύψος έως 3 m')
     if float(p.get('base_height', 0.0)) > float(p.get('height', DEFAULT_HEIGHT)) - 0.3 and p.get('railing_type') != 'parapet':
-        raise ValueError('the base (ποδιά) must stay at least 30 cm below the handrail')
+        raise ValueError('Κάγκελο: η ποδιά να μένει τουλάχιστον 30 cm κάτω από την κουπαστή')
     if 'post_spacing' in p and not 0.3 <= float(p['post_spacing']) <= MAX_POST_SPACING:
         raise ValueError(f'post spacing must be between 0.30 and {MAX_POST_SPACING:.2f} m')
     if 'gap' in p and not 0.02 <= float(p['gap']) <= MAX_GAP:
         raise ValueError(f'clear gap must be between 0.02 and {MAX_GAP:.2f} m (child safety)')
     if 'handrail_size' in p and not 0.02 <= float(p['handrail_size']) <= 0.40:
-        raise ValueError('handrail size must be between 0.02 and 0.40 m')
+        raise ValueError('Κουπαστή: διάσταση από 2 ως 40 cm')
     return p
 
 
@@ -147,7 +147,7 @@ def _frames(pts, closed):
             continue
         d = 1.0 + before[0] * after[0] + before[1] * after[1]
         if d < 0.03:
-            raise ValueError('railing folds back on itself (angle too sharp)')
+            raise ValueError('Κάγκελο: γυρίζει πίσω πάνω στον εαυτό του (πολύ κλειστή γωνία) — βάλε ενδιάμεσο σημείο ή άνοιξε τη γωνία')
         out.append(((before[0] + after[0]) / d, (before[1] + after[1]) / d))
     return out
 
