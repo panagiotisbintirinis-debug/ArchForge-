@@ -215,7 +215,7 @@ def _objects(doc, evaluation=None):
         from archforge.geometry.incremental import IncrementalEvaluationCache
         from archforge.geometry.sculpt import SculptedPreviewBackend
         evaluation = IncrementalEvaluationCache(SculptedPreviewBackend()).sync(doc)
-    objects = build_pbr_scene_payload(evaluation, (), doc=doc).get("objects", ())
+    objects = build_pbr_scene_payload(evaluation, (), doc=doc, derived_mep=False).get("objects", ())
     # One body per entity: the 3D splits a wall by finish, the cut needs it whole (closed loops).
     merged = {}
     for o in objects:

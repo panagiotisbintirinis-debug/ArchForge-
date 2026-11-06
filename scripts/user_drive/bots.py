@@ -966,8 +966,14 @@ def undo_all_check(bot):
     rooms_at = {}                                         # undo depth → room ids bound there (which step renumbers?)
 
     def room_ids():
-        b = getattr(bot.w.doc, 'room_bindings', None) or {}
-        return tuple(sorted(b)) if isinstance(b, dict) else ()
+        """What the person sees of the rooms: names and uses (ids may be renumbered — names must not be lost)."""
+        d = bot.w.doc
+        out = []
+        for f in d.active_room_faces():
+            m = d.room_metadata(f.signature)
+            if m.get('name') or m.get('use'):
+                out.append((m.get('name', ''), m.get('use', '')))
+        return tuple(sorted(out))
     while n < limit:
         rooms_at[len(bot.w.stack.done)] = room_ids()
         t = time.process_time(); what = label()
@@ -1000,8 +1006,8 @@ def undo_all_check(bot):
         if depth in rooms_at and room_ids() != rooms_at[depth] and not getattr(bot, '_renumber_said', False):
             bot._renumber_said = True
             before, after = set(rooms_at[depth]), set(room_ids())
-            bot.find('χώροι με νέο αναγνωριστικό', f'μετά την επανάληψη «{what}» οι χώροι δεν έχουν τα ίδια ids',
-                     f'βάθος {depth} · χάθηκαν {len(before - after)} · νέα {len(after - before)}')
+            bot.find('χάθηκαν ονόματα χώρων', f'μετά την επανάληψη «{what}» οι χώροι δεν έχουν τα ίδια ονόματα / χρήσεις',
+                     f'βάθος {depth} · χάθηκαν {sorted(before - after)[:4]} · νέα {sorted(after - before)[:4]}')
     if bot.w.stack.can_redo:
         bot.find('αναίρεση όλων', f'μετά από {n} αναιρέσεις και {m} επαναλήψεις έμεινε κάτι για επανάληψη')
     if slow > 1.5:
@@ -1282,7 +1288,7 @@ def _write_report(reports, path, title, intro):
                                             first=r['seed']))
             g['bots'].add(r['seed']); g['steps'].add(norm(f['step']))
     order = ['κατάρρευση / κόλλημα', 'διακοπή bot', 'εξαίρεση', 'μη έγκυρο στοιχείο', 'αποθήκευση ≠ άνοιγμα',
-             'άνοιγμα ≠ αρχείο', 'κρυφή αλλαγή', 'ορφανό στοιχείο', 'χώροι με νέο αναγνωριστικό', 'αναίρεση όλων', 'επανάληψη όλων', 'επανάληψη: νέα αναγνωριστικά', 'αναίρεση', 'αποθήκευση', 'νέο έργο', 'δεν βγήκε αρχείο',
+             'άνοιγμα ≠ αρχείο', 'κρυφή αλλαγή', 'ορφανό στοιχείο', 'χάθηκαν ονόματα χώρων', 'αναίρεση όλων', 'επανάληψη όλων', 'επανάληψη: νέα αναγνωριστικά', 'αναίρεση', 'αποθήκευση', 'νέο έργο', 'δεν βγήκε αρχείο',
              'μήνυμα σφάλματος', 'αγγλικό μήνυμα στον χρήστη', 'δεν βρέθηκε εντολή', 'δεν έγινε τίποτα', 'αργό', 'προειδοποίηση Qt',
              'προειδοποίηση χρήστη']
     gl = sorted(groups.values(), key=lambda g: (order.index(g['kind']) if g['kind'] in order else 99, -len(g['bots'])))

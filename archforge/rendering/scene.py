@@ -207,7 +207,7 @@ def _material(kind: str, selected: bool, entity=None, doc=None, surface_role: st
     return spec
 
 
-def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_overrides=None, doc=None) -> dict:
+def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_overrides=None, doc=None, derived_mep=True) -> dict:
     """Serialize evaluated MeshPayloads for the derived WebGL renderer.
 
     The returned structure contains no authoritative state and is safe to discard at any
@@ -446,36 +446,37 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
             from archforge.kitchen.cabinet_run import scene_objects as run_objects
             objects.extend(run_objects(doc))
         # Derived water pipes (layer "mep"): one mesh per system, not entities.
-        from archforge.mep.plumbing import pipe_mesh, route_plumbing_cached
-        network = route_plumbing_cached(doc)
-        from archforge.mep.plumbing import manifold_mesh
-        for system in ("cold", "hot"):
-            verts, tris = [], []
-            for m in network.get("manifolds", ()):
-                if m["system"] == system:
-                    v, t = manifold_mesh(m)
+        if derived_mep:              # the section cut drops them: not routed for it (bots 06/11)
+            from archforge.mep.plumbing import pipe_mesh, route_plumbing_cached
+            network = route_plumbing_cached(doc)
+            from archforge.mep.plumbing import manifold_mesh
+            for system in ("cold", "hot"):
+                verts, tris = [], []
+                for m in network.get("manifolds", ()):
+                    if m["system"] == system:
+                        v, t = manifold_mesh(m)
+                        base = len(verts)
+                        verts += [list(map(float, q)) for q in v]
+                        tris += [[base + i for i in tri] for tri in t]
+                for a, b, dia in network[system]:
+                    # Drawn at least Ø40 so the route reads in 3D; the real Ø stays in the data/plan.
+                    v, t = pipe_mesh(a, b, max(dia, 40))
                     base = len(verts)
                     verts += [list(map(float, q)) for q in v]
                     tris += [[base + i for i in tri] for tri in t]
-            for a, b, dia in network[system]:
-                # Drawn at least Ø40 so the route reads in 3D; the real Ø stays in the data/plan.
-                v, t = pipe_mesh(a, b, max(dia, 40))
-                base = len(verts)
-                verts += [list(map(float, q)) for q in v]
-                tris += [[base + i for i in tri] for tri in t]
-            if tris:
-                objects.append({
-                    "id": "",
-                    "render_part": f"mep:{system}",
-                    "kind": "mep_pipe",
-                    "layer": "mep",
-                    "vertices": verts,
-                    "triangles": tris,
-                    "surfaces": ["pipe"] * len(tris),
-                    "material": dict(_MATERIALS[f"mep_{system}"]),
-                })
+                if tris:
+                    objects.append({
+                        "id": "",
+                        "render_part": f"mep:{system}",
+                        "kind": "mep_pipe",
+                        "layer": "mep",
+                        "vertices": verts,
+                        "triangles": tris,
+                        "surfaces": ["pipe"] * len(tris),
+                        "material": dict(_MATERIALS[f"mep_{system}"]),
+                    })
         # Derived conduit pieces (layer "elec"), matching the conduit map and take-off.
-        if any(e.kind == "electrical_point" for e in doc.entities.values()):
+        if derived_mep and any(e.kind == "electrical_point" for e in doc.entities.values()):
             from archforge.mep.electrical import CABLE_COLORS, route_cables_cached
             wiring = route_cables_cached(doc)
             from archforge.mep.conduits import conduit_map
@@ -566,7 +567,7 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                                 "vertices": verts, "triangles": tris, "surfaces": ["concrete"] * len(tris),
                                 "material": {"color": "#9a9a95", "roughness": 0.8, "metalness": 0.0}})
         # Derived drainage (layer "drain"): sloped pipes, stacks, floor drains and manhole, true diameters.
-        if any(e.kind == "plumbing_point" for e in doc.entities.values()):
+        if derived_mep and any(e.kind == "plumbing_point" for e in doc.entities.values()):
             from archforge.mep.drainage import route_drainage_cached
             from archforge.mep.plumbing import pipe_mesh as _pipe
             route = route_drainage_cached(doc)
@@ -595,7 +596,7 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                                         "vertices": [list(map(float, q)) for q in verts], "triangles": [list(t) for t in tris],
                                         "surfaces": [part] * len(tris), "material": dict(_MATERIALS[f"pool_{part}"])})
         # Derived heating (layer "heat"): supply / return at the owner's Ø, underfloor loops, manifolds with their parts.
-        if any(e.kind == "heating_point" for e in doc.entities.values()):
+        if derived_mep and any(e.kind == "heating_point" for e in doc.entities.values()):
             from archforge.mep.heating_layout import PIPE_SIZES, manifold_parts, route_heating_cached
             from archforge.mep.plumbing import pipe_mesh as _pipe
             route = route_heating_cached(doc)
@@ -617,7 +618,7 @@ def build_pbr_scene_payload(evaluation, selected_ids: Iterable[str] = (), mesh_o
                                     "vertices": verts, "triangles": tris, "surfaces": ["pipe"] * len(tris),
                                     "material": dict(_MATERIALS[f"heat_{part}"])})
         # Derived extract ducts (layer "vent"): ducts at their true Ø, grilles and roof caps.
-        if any(e.kind == "ventilation_point" for e in doc.entities.values()):
+        if derived_mep and any(e.kind == "ventilation_point" for e in doc.entities.values()):
             from archforge.mep.ventilation import duct_meshes, route_ventilation_cached
             for part, (verts, tris) in zip(("duct", "terminal"), duct_meshes(route_ventilation_cached(doc))):
                 if tris:

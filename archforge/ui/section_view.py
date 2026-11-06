@@ -381,7 +381,7 @@ def open_section(window, eid):
         panel = window._section_panel = SectionPanel(window)
         if tabs is not None:
             tabs.addTab(panel, "Τομή")
-            tabs.currentChanged.connect(lambda _i, p=panel: tabs.currentWidget() is p and p.refresh())
+            tabs.currentChanged.connect(lambda _i, p=panel: tabs.currentWidget() is p and p.refresh(fit=p.__dict__.pop('_fit_next', False)))
     panel.view.entity_id = eid
     if tabs is not None:
         if tabs.indexOf(panel) < 0:
@@ -390,8 +390,10 @@ def open_section(window, eid):
         if tabs.currentWidget() is panel:
             panel.refresh(fit=True)
         else:
+            panel._fit_next = True                # its currentChanged draws the cut once, fitted (bots 06/11: cut twice)
             tabs.setCurrentWidget(panel)
-            panel.refresh(fit=True)
+            if panel.__dict__.pop('_fit_next', None):     # no signal came (another tab widget): draw it here
+                panel.refresh(fit=True)
     else:
         panel.refresh(fit=True)
     return panel
