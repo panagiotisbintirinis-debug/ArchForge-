@@ -33,7 +33,54 @@ class IncrementalViewportAdapter:
 class PointerController:
     def __init__(self,doc,stack):
         self.doc=doc;self.stack=stack;self.tool='select';self.active=None;self.component_definition=None;self.active_entity=None;self.active_handle=None;self.preview=PreviewState();self.construction_grid=.10;self.grid=self.construction_grid;self.snap_tolerance=.10;self.angle_increment=15.;self.wall_angle_increment='magnet';self.wall_angle_reference='relative';self.snap_enabled=True;self.structural_preset={};self.wall_chain=None
+    STAIR_SNAP=0.05            # the plan ghost moves in 5 cm steps (as in 3D)
+    stair_ghost=None
+    stair_heading=0.0
+    stair_option=0
+    stair_first_flight=0
+
+    def stair_hover(self,x,y):
+        """Stair tool, mouse up: the stair you would place follows the cursor as a ghost (owner 06/11: «δεν
+        εμφανιζόταν το ghost»). Click = place it; drag = draw it as before; Tab / wheel = type, R = turn 90°,
+        + / − = steps between the two flights of Γ / Π."""
+        import math
+        snap=self.STAIR_SNAP;x,y=round(float(x)/snap)*snap,round(float(y)/snap)*snap
+        h=math.radians(self.stair_heading)
+        tx=StairPlaceTransaction(self.doc,self.stack,(x,y),layout=getattr(self,'stair_layout',None),
+                                 first_flight=self.stair_first_flight)
+        tx.active_index=self.stair_option
+        hud=tx.update(x+math.cos(h)*3.0,y+math.sin(h)*3.0)
+        self.stair_option=tx.active_index;self.stair_ghost=tx
+        self.preview=PreviewState('stair',copy.deepcopy(tx.preview),hud.values,None)
+        return self.preview
+
+    def _stair_ghost_again(self):
+        tx=self.stair_ghost
+        if tx is not None:
+            self.stair_hover(*tx.origin)
+
+    def stair_rotate(self):
+        if self.tool!='stair':return False
+        self.stair_heading=(self.stair_heading+90.0)%360.0
+        if self.active is None:self._stair_ghost_again()
+        return True
+
+    def stair_shift(self,step):
+        """+ / −: one step more / less in the first flight of a Γ / Π (ghost or while dragging)."""
+        tx=self.active if isinstance(self.active,StairPlaceTransaction) else self.stair_ghost
+        if tx is None or not tx.shift_flight(step):return False
+        self.stair_first_flight=tx.first_flight
+        if tx is self.active:
+            self.preview=PreviewState('stair',copy.deepcopy(tx.preview),self.preview.hud,None)
+        else:
+            self._stair_ghost_again()
+        return True
+
     def cycle_option(self,step=1):
+        # Tab / wheel on the plan ghost of a stair (mouse up): next type.
+        if self.active is None and self.tool=='stair' and self.stair_ghost is not None:
+            self.stair_ghost.cycle_candidate(step);self.stair_option=self.stair_ghost.active_index
+            self.stair_layout=self.stair_ghost.layout;self._stair_ghost_again();return True   # the type, not its place
         # Tab / wheel during a live Stair or Ramp placement: next option.
         if isinstance(self.active,(StairPlaceTransaction,RampPlaceTransaction)):
             hud=self.active.cycle_candidate(step)
@@ -44,7 +91,7 @@ class PointerController:
         return False
     def set_tool(self,tool):
         if self.active is not None:self.cancel()
-        self.tool=tool;self.preview=PreviewState();self.opening_preset=None
+        self.tool=tool;self.preview=PreviewState();self.opening_preset=None;self.stair_ghost=None
     def set_component_definition(self,definition):
         self.component_definition=None if definition is None else dict(definition)
 
@@ -261,7 +308,8 @@ class PointerController:
             )
             return self.preview
         if self.tool=='stair':
-            self.active=StairPlaceTransaction(self.doc,self.stack,(x,y),layout=getattr(self,'stair_layout',None))
+            self.active=StairPlaceTransaction(self.doc,self.stack,(x,y),layout=getattr(self,'stair_layout',None),
+                                              first_flight=getattr(self,'stair_first_flight',0))
             hud=self.active.update(x,y)
             self.preview=PreviewState('stair',copy.deepcopy(self.active.preview),hud.values,None)
             return self.preview
@@ -474,6 +522,10 @@ class PointerController:
         elif isinstance(self.active,MEPTerminalPlaceTransaction):committed_id=self.active.commit()
         elif isinstance(self.active,OpeningPlaceTransaction):committed_id=self.active.commit()
         elif isinstance(self.active,StairPlaceTransaction):
+            ghost=self.stair_ghost
+            if getattr(ev,'click',False) and ghost is not None and not ghost.cancelled:
+                self.active.cancel();self.active=ghost      # a click places the ghost that was shown, as shown
+            self.stair_ghost=None
             fits=bool(self.active.preview.get('fits',True));committed_id=self.active.commit()
             self.last_warning=('Σκάλα: μπήκε μέσα στους τοίχους · η πλάκα του ορόφου ανοίγει μόνο όπου δεν μένουν 2,00 m '
                                'ύψος διέλευσης — ο υπόλοιπος χώρος από πάνω μένει · Ctrl+Z = αναίρεση' if fits else

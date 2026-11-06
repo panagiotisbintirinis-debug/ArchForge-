@@ -156,13 +156,20 @@ class Bot:
         def box(level):
             def f(parent, title, text, *a, **k):
                 bot.windows_seen.append((bot.step, f'{level}: {title}'))
+                buttons = a[0] if a else k.get('buttons')
+                default = a[1] if len(a) > 1 else k.get('defaultButton')
                 if level in ('critical',):
                     bot.find('μήνυμα σφάλματος', f'{title}: {text}')
-                elif level == 'warning':
+                elif level == 'warning' and buttons is None:
                     bot.find('προειδοποίηση χρήστη', f'{title}: {text}')
                 if bot.verbose:
                     print(f'    [{level}] {title} | {str(text)[:140]}')
-                return QMessageBox.StandardButton.Yes if level == 'question' else QMessageBox.StandardButton.Ok
+                # Enter = the button the dialog proposes; without one: Ναι to a question, OK to a message.
+                if default not in (None, QMessageBox.StandardButton.NoButton):
+                    return default
+                if level == 'question':
+                    return QMessageBox.StandardButton.Yes
+                return QMessageBox.StandardButton.Ok
             return staticmethod(f)
         for lv in ('question', 'information', 'warning', 'critical'):
             setattr(QMessageBox, lv, box(lv))
@@ -191,6 +198,9 @@ class Bot:
             if ext and not base.lower().endswith(ext.group(1).lower()):
                 base = os.path.splitext(base)[0] + ext.group(1)
             path = os.path.join(bot.dir, base or 'arxeio')
+            k_ = 2
+            while os.path.exists(path) and path.endswith('.archforge'):   # never over an existing project
+                path = os.path.join(bot.dir, f'{os.path.splitext(base)[0]}_{k_}.archforge'); k_ += 1
             bot.windows_seen.append((bot.step, f'αποθήκευση αρχείου: {title} → {os.path.basename(path)}'))
             return path, pattern
         QFileDialog.getSaveFileName = staticmethod(save_name)
@@ -281,8 +291,18 @@ class Bot:
         return self.plan.mapFromScene(QPointF(x, y))
 
     def see(self, x, y):
-        from PySide6.QtCore import QPointF
-        self.plan.centerOn(QPointF(x, y)); self.pump()
+        """Μετακίνηση της κάτοψης με σύρσιμο της ροδέλας (μεσαίο κουμπί) ώστε το (x, y) να έρθει στο κέντρο."""
+        from PySide6.QtTest import QTest
+        from PySide6.QtCore import Qt, QPoint
+        vp = self.plan.viewport()
+        for _ in range(4):
+            c = QPoint(vp.width() // 2, vp.height() // 2); t = self._pos(x, y)
+            if (t - c).manhattanLength() < 6:
+                break
+            QTest.mousePress(vp, Qt.MouseButton.MiddleButton, Qt.KeyboardModifier.NoModifier, t)
+            for i in range(1, 9):
+                QTest.mouseMove(vp, t + (c - t) * (i / 8)); self.pump(1)
+            QTest.mouseRelease(vp, Qt.MouseButton.MiddleButton, Qt.KeyboardModifier.NoModifier, c); self.pump()
 
     def zoom_to_site(self):
         """Ροδέλα προς τα πίσω ώσπου να χωρά όλο το οικόπεδο (κτίριο + 10 m γύρω), μετά κέντρο με τη μέση."""
@@ -469,7 +489,9 @@ class Bot:
         if ok and expect == 'more' and after <= before and len(self.findings) == n0:
             said = [m for st, m in self.status_log if st == name and not m.startswith(('X ', 'Εργαλείο', 'Επιλογή', 'Ακυρώθηκε'))]
             last = said[-1] if said else ''
-            if last:
+            if last and 'υπάρχει ήδη' in last:
+                pass                                    # already there and said so: right, not a problem
+            elif last:
                 self.find('δεν έγινε (με εξήγηση)', f'{name} — {last}')
             else:
                 self.find('δεν έγινε τίποτα', name)
@@ -697,10 +719,8 @@ class Bot:
                           ('Δρόμος', [(X0 - 5, Y0 - 6), (X1 + 5, Y0 - 6)])):
             def run(name=name, pts=pts):
                 self.menu('Διαμόρφωση', 'Περιβάλλων χώρος', name)
-                for p_ in pts[:-1]:
-                    self.click(*p_)
-                self.dbl(*pts[-1]); self.esc(); self.select_tool()
-            self.do(f'{name.lower()} (κλικ, διπλό κλικ στο τέλος)', run, 'more')
+                self.drag(*pts[0], *pts[-1]); self.esc(); self.select_tool()
+            self.do(f'{name.lower()} (σύρσιμο)', run, 'more')
         if s['pool']:
             def pool():
                 self.menu('Διαμόρφωση', 'Περιβάλλων χώρος', 'Πισίνα με σχεδίαση σχήματος (γωνίες, καμπύλες)')
@@ -855,8 +875,9 @@ class Bot:
             self.find('αποθήκευση', 'δεν γράφτηκε αρχείο έργου', str(os.listdir(self.dir)))
             return
         self.do('νέο έργο', lambda: self.menu('Έργο', 'Αρχείο', 'Νέο έργο'))
-        if self.count():
-            self.find('νέο έργο', f'το νέο έργο έχει {self.count()} στοιχεία')
+        extra = [e.kind for e in self.w.doc.entities.values() if e.kind != 'project_brief']
+        if extra:
+            self.find('νέο έργο', f'το νέο έργο έχει {len(extra)} στοιχεία', str(sorted(set(extra))))
         self.open_queue.append(path)
         self.do('άνοιγμα του αρχείου', lambda: self.menu('Έργο', 'Αρχείο', 'Άνοιγμα έργου…'))
         self.step = 'έλεγχος: αποθήκευση → άνοιγμα'
@@ -948,6 +969,7 @@ def run_one(seed, verbose=False):
         original_final = bot.final_checks
 
         def final_with_undo():
+            bot.do('αποθήκευση (πριν από τους ελέγχους)', lambda: bot.menu('Έργο', 'Αρχείο', 'Αποθήκευση'))
             try:
                 undo_all_check(bot)
             except Exception as exc:                                     # noqa: BLE001

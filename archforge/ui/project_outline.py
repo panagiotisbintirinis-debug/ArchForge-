@@ -351,8 +351,9 @@ def _mep_summary(doc):
         r = route_plumbing_cached(doc)["report"]
         out["plumbing_point"] = f" · κρύο {r['cold_m']:.1f} m, ζεστό {r['hot_m']:.1f} m"
     if "electrical_point" in kinds:
-        from archforge.mep.electrical import route_cables_cached
-        out["electrical_point"] = f" · {len(route_cables_cached(doc)['circuits'])} κυκλώματα"
+        # The count only: the circuits, not the cable routing (bots 06/11: 0,8 s of every change, even an undo).
+        from archforge.mep.electrical import design_circuits
+        out["electrical_point"] = f" · {len(design_circuits(doc)['circuits'])} κυκλώματα"
     if "plumbing_point" in kinds:
         from archforge.mep.drainage import route_drainage_cached
         lengths = route_drainage_cached(doc)["report"]["length_by_dn"]

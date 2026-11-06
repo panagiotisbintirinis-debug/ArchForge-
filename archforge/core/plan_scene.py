@@ -1075,8 +1075,12 @@ def build_plan_frame(doc,preview=None,layers=True):
             if e.kind=='plumbing_point' and _entity_on_active_level(doc,e):
                 f.primitives.append(Primitive2D('label',((float(e.params['x'])+.15,float(e.params['y'])+.15),),entity_id=eid,role='plumbing-label',
                                                 meta=(('text',POINT_TYPES[e.params['point_type']][0]),)))
-    # Derived cable runs of the active storey, labelled with their circuit.
-    if any(e.kind=='electrical_point' for e in doc.entities.values()):
+    # Derived cable runs of the active storey, labelled with their circuit. Everything this block draws is on the
+    # «electrical» / «low_voltage» layers: when both are hidden (the Αρχιτεκτονικό / Φέρων environments) the frame
+    # drops it anyway (apply_to_frame below) — not routed for nothing on every change (bots 06/11: 0,9 s per undo).
+    from .layers import layers_active as _la,layer_state as _ls
+    wiring_shown=not (layers and _la(doc)) or _ls(doc,'electrical')['visible'] or _ls(doc,'low_voltage')['visible']
+    if wiring_shown and any(e.kind=='electrical_point' for e in doc.entities.values()):
         from archforge.mep.electrical import POINT_TYPES as ELEC,_floor_of as elec_floor,route_cables_cached
         level=float(doc.work_plane.origin[2])
         wiring=route_cables_cached(doc)
@@ -1263,8 +1267,8 @@ def build_plan_frame(doc,preview=None,layers=True):
                 text=f"{VENT[e.params['point_type']][4]} Ø{info.get('diameter','')} → {where}"
                 f.primitives.append(Primitive2D('label',((float(e.params['x'])+.15,float(e.params['y'])+.30),),entity_id=eid,role='ventilation-label',meta=(('text',text),)))
     # Conduit map: size and lines on every shared piece of the active storey (owner 18/10: «πόσα καλώδια περνάνε;»).
-    if any(e.kind=='electrical_point' and e.params.get('point_type')=='panel' for e in doc.entities.values()):
-        _conduit_labels(doc,f,conduit_map_)
+    if wiring_shown and any(e.kind=='electrical_point' and e.params.get('point_type')=='panel' for e in doc.entities.values()):
+        _conduit_labels(doc,f,conduit_map_)                 # «electrical» layer too: with the runs or not at all
     # Pools of the active storey: inside edge, depths, safety zones 0/1/2, pipes to the equipment room.
     if any(e.kind=='pool' for e in doc.entities.values()):
         _pool_primitives(doc,f)

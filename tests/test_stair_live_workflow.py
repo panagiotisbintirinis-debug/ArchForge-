@@ -71,7 +71,7 @@ def test_stair_requires_an_upper_floor_level():
     try:
         StairPlaceTransaction(doc, stack, (0.0, 0.0))
     except ValueError as exc:
-        assert 'upper floor level' in str(exc)
+        assert 'όροφος από πάνω' in str(exc)
     else:
         raise AssertionError('stair placement should require an upper level')
 

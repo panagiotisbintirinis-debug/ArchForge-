@@ -24,10 +24,16 @@ class StairCandidate:
     turn_direction: int
     score: float
     suggestions: Tuple[str, ...] = ()
+    first_flight: int = 0          # Γ / Π: steps in the first flight (owner: «να θέτεις τα επιμέρους μήκη»); 0 = half
 
     @property
     def tread_count(self) -> int:
         return max(1, self.riser_count - 1)
+
+    @property
+    def first_treads(self) -> int:
+        """Steps of the first flight of an L / U stair: the user's number (kept 1 … n−1), else half of them."""
+        return first_treads(self.tread_count, self.first_flight)
 
     @property
     def floor_height(self) -> float:
@@ -50,7 +56,17 @@ class StairCandidate:
             'landing_depth': float(self.landing_depth),
             'turn_direction': int(self.turn_direction),
             'opening_margin': 0.05,
+            **({'first_flight': int(self.first_flight)} if self.first_flight else {}),
         }
+
+
+def first_treads(n: int, first_flight: int = 0) -> int:
+    """Steps in the first of two flights: ``first_flight`` within 1 … n−1, 0 = half (the default since S1)."""
+    n = int(n)
+    if n < 2:
+        return max(1, n)
+    k = int(first_flight or 0)
+    return min(n - 1, max(1, k)) if k > 0 else max(1, n // 2)
 
 
 def _riser_solution(
@@ -203,6 +219,7 @@ def candidate_from_params(params) -> StairCandidate:
         turn_direction=1 if int(params.get('turn_direction', 1)) >= 0 else -1,
         score=0.0,
         suggestions=(),
+        first_flight=int(params.get('first_flight', 0) or 0),
     )
 
 
@@ -223,7 +240,7 @@ def stair_centerline(candidate: StairCandidate) -> Tuple[Point2, ...]:
     if candidate.layout == 'straight':
         local = ((0.0, 0.0), (n * t, 0.0))
     elif candidate.layout == 'l':
-        first = max(1, n // 2)
+        first = candidate.first_treads
         second = n - first
         p1 = first * t
         local = (
@@ -233,7 +250,7 @@ def stair_centerline(candidate: StairCandidate) -> Tuple[Point2, ...]:
             (p1 + landing / 2.0, turn * (second * t + landing / 2.0)),
         )
     elif candidate.layout == 'u':
-        first = max(1, n // 2)
+        first = candidate.first_treads
         second = n - first
         p1 = first * t
         offset = turn * (w + 0.20)
@@ -1003,7 +1020,7 @@ def stair_treads(candidate: StairCandidate):
             inner_back = [(inner * cos(a), inner * sin(a)) for a in reversed(arc)]
             treads.append((i, world(outer_arc + inner_back)))
         return treads, []
-    first = max(1, n // 2)
+    first = c.first_treads
     second = n - first
     p1 = first * t
     local = []

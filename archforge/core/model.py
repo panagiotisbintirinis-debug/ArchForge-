@@ -517,6 +517,12 @@ def _cabinet_blind_side(v):
     return v
 
 
+def _nonnegative_int(v):
+    if isinstance(v, bool) or int(v) != float(v) or int(v) < 0:
+        raise ValueError('value must be a whole number ≥ 0')
+    return int(v)
+
+
 def _positive_int(v):
     value = int(v)
     if value <= 0:
@@ -866,6 +872,7 @@ SCHEMAS = {
         'turn_direction': _turn_direction,
         'opening_margin': _nonnegative,
         'plan_numbers': _flag,          # numbered steps in the plan symbol (optional)
+        'first_flight': _nonnegative_int,   # Γ / Π: steps of the first flight, 0 = half (optional)
     },
     'ramp': {
         'x': _finite,

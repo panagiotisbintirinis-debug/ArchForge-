@@ -125,8 +125,23 @@ def test_turning_stairs_get_one_railing_per_flight_and_side(layout):
         assert validate_mesh(MeshPayload(*railing_mesh(p))).watertight
     tops = sorted(max(float(q[2]) for q in p['points']) for p in params)
     assert tops[-1] == pytest.approx(2.89)
-    with pytest.raises(ValueError, match='σπιράλ'):
-        stair_railings(doc, Entity('stair', _stair('spiral')))
+
+
+def test_spiral_stair_gets_one_helix_railing_on_the_outer_side():
+    """Bots 06/11: every stair the solver turned into a spiral said «Κάγκελο… δεν υποστηρίζεται»."""
+    from archforge.architecture.stairs import _spiral_radii, candidate_from_params
+    doc = Document()
+    sp = _stair('spiral'); stair = Entity('stair', sp); doc.add(stair)
+    params = stair_railings(doc, stair)
+    assert len(params) == 1
+    p = params[0]
+    assert validate_mesh(MeshPayload(*railing_mesh(p))).watertight
+    c = candidate_from_params(sp)
+    _inner, outer = _spiral_radii(c)
+    ox, oy = c.origin[0], c.origin[1]
+    radii = [math.hypot(q[0] - ox, q[1] - oy) for q in p['points']]
+    assert min(radii) > outer and max(radii) < outer + 0.1          # outside the steps, all the way round
+    assert max(float(q[2]) for q in p['points']) == pytest.approx(float(sp['upper_z']) - float(sp['lower_z']), abs=0.01)
 
 
 def test_plan_symbol_on_its_storey_and_scene_materials_per_role():

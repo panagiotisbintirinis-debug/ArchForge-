@@ -179,3 +179,21 @@ def test_routes_go_round_a_column_in_the_floor_not_through_it_nor_in_the_air():
             u, v = box.local(*mid)
             assert abs(u) > box.hu + COLUMN_CLEARANCE - 0.11 or abs(v) > box.hv + COLUMN_CLEARANCE - 0.11
     assert any(a[2] < 0.2 for a, b, _g, _c in runs)      # it did go down to pass the column
+
+
+def test_cached_routing_is_redone_when_the_frame_changes():
+    """Bots 06/11: the cache key of the cable routing had no columns / beams — a column added after the cables
+    left the old runs through it."""
+    from archforge.core.model import Document, Entity
+    from archforge.mep.electrical import route_cables_cached
+    doc = Document()
+    for a, b in (((0, 0), (6, 0)), ((6, 0), (6, 5)), ((6, 5), (0, 5)), ((0, 5), (0, 0))):
+        doc.add(Entity('wall', {'x1': a[0], 'y1': a[1], 'x2': b[0], 'y2': b[1], 'z': 0.0, 'height': 2.7, 'thickness': 0.2}))
+    doc.add(Entity('electrical_point', {'point_type': 'panel', 'x': 0.1, 'y': 1.0, 'z': 0.0}))
+    doc.add(Entity('electrical_point', {'point_type': 'socket', 'x': 5.9, 'y': 1.0, 'z': 0.0}))
+    first = route_cables_cached(doc)
+    assert route_cables_cached(doc) is first
+    doc.add(Entity('structural_column', {'x': 3.0, 'y': 0.0, 'z': 0.0, 'width': 0.3, 'depth': 0.3, 'height': 2.7,
+                                         'rotation': 0.0, 'role': 'structural', 'construction': 'reinforced_concrete',
+                                         'base_level': 'Ground'}))
+    assert route_cables_cached(doc) is not first

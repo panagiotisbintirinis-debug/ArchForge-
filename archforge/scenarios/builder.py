@@ -26,6 +26,20 @@ import math
 from archforge.scenarios.common import Scenario
 
 
+
+def _in_column(doc, q, pad=0.10):
+    """Plan point inside a column (+ ``pad``): no socket there."""
+    for e in doc.entities.values():
+        if e.kind != "structural_column":
+            continue
+        p = e.params
+        a = math.radians(float(p.get("rotation", 0.0)))
+        dx, dy = q[0] - float(p["x"]), q[1] - float(p["y"])
+        u, v = dx * math.cos(a) + dy * math.sin(a), -dx * math.sin(a) + dy * math.cos(a)
+        if abs(u) <= float(p.get("width", 0.4)) / 2 + pad and abs(v) <= float(p.get("depth", 0.4)) / 2 + pad:
+            return True
+    return False
+
 def build_spec(window, key, title, spec):
     s = Scenario(key, title, window)
     for name, z in spec["levels"]:
@@ -68,8 +82,6 @@ def build_spec(window, key, title, spec):
             s.layout("bath", *xy, wet=wet)
         for fname, x, y, turn in st.get("furniture", ()):
             s.furniture(fname, x, y, turn)
-    _mep(s, window, spec)
-    _heating(s, window, spec)
     for pool in spec.get("pools", ()):
         s.level(spec.get("main", spec["levels"][0][0]))
         args = dict(pool)
@@ -100,6 +112,9 @@ def build_spec(window, key, title, spec):
         from archforge.structure.design_all import summary
         return summary(out)
     s.step("Φέρων οργανισμός: κολόνες, δοκοί, θεμελίωση", structure)
+    # Η/Μ after the frame, as on a real job (bots 06/11: before it, the proposal put columns on two sockets).
+    _mep(s, window, spec)
+    _heating(s, window, spec)
     return s
 
 
@@ -248,10 +263,18 @@ def _room_points(doc, face, z):
         a, b = net[i], net[(i + 1) % len(net)]
         L = math.dist(a, b) or 1.0
         nx, ny = -(b[1] - a[1]) / L, (b[0] - a[0]) / L
-        m = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
-        for sgn in (1, -1):
-            q = (m[0] + nx * 0.12 * sgn, m[1] + ny * 0.12 * sgn)
-            if point_in_polygon(q[0], q[1], net):
-                out.append(("elec_socket", (round(q[0], 3), round(q[1], 3))))
+        ux, uy = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+        # The middle — or, where a column stands there (bots 06/11: s02 put two sockets inside a column), the first
+        # place along the wall clear of it, as an electrician would.
+        placed = False
+        for slide in (0.0, 0.3, -0.3, 0.6, -0.6, 0.9, -0.9):
+            m = ((a[0] + b[0]) / 2 + ux * slide, (a[1] + b[1]) / 2 + uy * slide)
+            for sgn in (1, -1):
+                q = (m[0] + nx * 0.12 * sgn, m[1] + ny * 0.12 * sgn)
+                if point_in_polygon(q[0], q[1], net) and not _in_column(doc, q):
+                    out.append(("elec_socket", (round(q[0], 3), round(q[1], 3))))
+                    placed = True
+                    break
+            if placed:
                 break
     return out

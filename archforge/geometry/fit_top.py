@@ -95,7 +95,7 @@ def _stair_underside(doc, x, y, floor_z):
         if c.layout in ('l', 'u'):
             # The landing between the flights is a ceiling too (walk-through 14/10: a tall cupboard
             # under it went up through it).
-            first = max(1, c.tread_count // 2)
+            first = c.first_treads
             if c.layout == 'l':
                 cx, cy, sx_, sy_ = first * c.tread_depth + c.landing_depth / 2, 0.0, c.landing_depth, c.landing_depth
             else:

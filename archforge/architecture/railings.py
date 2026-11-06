@@ -469,7 +469,7 @@ def _flights(c):
     rise = c.upper_z - c.lower_z
     if c.layout == 'straight':
         return [((0.0, 0.0), (1.0, 0.0), n, 0, rise)]
-    first = max(1, n // 2)
+    first = c.first_treads
     second = n - first
     if c.layout == 'l':
         turn = float(c.turn_direction)
@@ -482,6 +482,26 @@ def _flights(c):
     raise ValueError('Κάγκελο σε σπιράλ σκάλα: δεν υποστηρίζεται ακόμη — σχεδίασέ το με σημεία')
 
 
+def _spiral_railing_lines(c, side, edge):
+    """Spiral stair (bots 06/11: «Κάγκελο σε σπιράλ σκάλα: δεν υποστηρίζεται» on every stair the solver made
+    spiral): one helix over the outer ends of the steps; the inner side is the central post — no railing there."""
+    from archforge.architecture.stairs import _local_to_world, _spiral_radii
+    turn = float(c.turn_direction)
+    outer_side = 'right' if turn > 0 else 'left'           # going up anticlockwise, the centre is on the left
+    if side != outer_side:
+        return []
+    _inner, outer = _spiral_radii(c)
+    R = outer + edge
+    n, r = c.tread_count, c.riser_height
+    sweep = turn * 2.0 * math.pi
+    line = []
+    for i in range(n + 1):
+        a = sweep * i / n
+        x, y = _local_to_world(c, R * math.cos(a), R * math.sin(a))
+        line.append([x, y, (i + 1) * r if i < n else c.upper_z - c.lower_z])   # last: the upper floor
+    return [line]
+
+
 def stair_railing_lines(stair_params, side, edge=0.03):
     """Walking lines of a stair railing on ``side`` ('left' / 'right' going up), one per flight.
 
@@ -492,6 +512,8 @@ def stair_railing_lines(stair_params, side, edge=0.03):
     from archforge.architecture.stairs import _local_to_world, candidate_from_params
     c = candidate_from_params(stair_params)
     t, r = c.tread_depth, c.riser_height
+    if c.layout == 'spiral':
+        return _spiral_railing_lines(c, side, edge)
     sign = 1.0 if side == 'left' else -1.0
     o = sign * (c.width / 2 + edge)
     lines = []
@@ -585,9 +607,13 @@ def stair_railing_entities(doc, stair, choice, railing_type='balusters'):
             line, visible = _stair_child_state(doc, type(stair)(stair.kind, dict(stair.params, railing=choice), id=stair.id), side, flight)
             if line is None:                  # keep a valid placeholder (first flight) while hidden
                 try:
-                    line = stair_railing_lines(stair.params, side)[0]
+                    lines = stair_railing_lines(stair.params, side) or \
+                        [ln for other in ('left', 'right') for ln in stair_railing_lines(stair.params, other)]
                 except ValueError:
                     continue
+                if not lines:
+                    continue
+                line = lines[0]               # spiral, centre side: no railing there — hidden, ready if the type changes
             p = default_params(railing_type, line, z=float(stair.params['lower_z']),
                                height=float(stair.params.get('railing_height', STAIR_HEIGHT)),
                                stair_side=side, stair_flight=flight)

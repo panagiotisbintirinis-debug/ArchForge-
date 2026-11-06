@@ -202,6 +202,7 @@ def frame_cells(grid, doc, z, pad):
     boxes = grid.__dict__.get('_frame_boxes')
     if boxes is None:
         boxes = grid.__dict__['_frame_boxes'] = list(structure(doc))
+    import numpy as np
     cells = set()
     for box in boxes:
         if not (box.z0 - 1e-6 <= z <= box.z1 + 1e-6):
@@ -209,11 +210,14 @@ def frame_cells(grid, doc, z, pad):
         r = math.hypot(box.hu, box.hv) + pad + CELL
         i0, j0 = grid.cell(box.cx - r, box.cy - r)
         i1, j1 = grid.cell(box.cx + r, box.cy + r)
-        for i in range(i0, i1 + 1):
-            for j in range(j0, j1 + 1):
-                u, v = box.local(*grid.point((i, j)))
-                if abs(u) <= box.hu + pad and abs(v) <= box.hv + pad:
-                    cells.add((i, j))
+        # Every cell centre round the member at once (same test as Box.local, cell by cell before).
+        I, J = np.meshgrid(np.arange(i0, i1 + 1), np.arange(j0, j1 + 1), indexing='ij')
+        x, y = grid.x0 + I * CELL, grid.y0 + J * CELL
+        c, s_ = math.cos(box.angle), math.sin(box.angle)
+        dx, dy = x - box.cx, y - box.cy
+        u, v = dx * c + dy * s_, -dx * s_ + dy * c
+        hit = (np.abs(u) <= box.hu + pad) & (np.abs(v) <= box.hv + pad)
+        cells.update(zip(I[hit].tolist(), J[hit].tolist()))
     memo[key] = frozenset(cells)
     return cells
 
@@ -237,6 +241,7 @@ class LayeredGrid:
         self.two = z_floor is not None
         self.base, self.z = base, (z_run, z_floor if self.two else z_run)
         keep = {tuple(c[:2]) for c in free}                                     # the panel / riser / points themselves
+        self.keep = keep        # their own drop is vertical anyway: they may change layer in their cell (06/11)
         if self.two:      # wall run: the member and the band in front of it; floor: the column and its clearance
             self.blocked = (frame_cells(base, doc, z_run, 2 * CELL + CELL / 2) - keep,
                             frame_cells(base, doc, z_floor, COLUMN_CLEARANCE) - keep)
@@ -287,8 +292,8 @@ class LayeredGrid:
             if d > best.get((c, came), math.inf):
                 continue
             steps = [((c[0] + dx, c[1] + dy, c[2]), (dx, dy)) for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))]
-            if self.two and c[:2] in self.wall and c[:2] not in self.core and c[:2] not in self.blocked[0] \
-                    and c[:2] not in self.blocked[1]:
+            if self.two and (c[:2] in self.wall or c[:2] in self.keep) and c[:2] not in self.core \
+                    and c[:2] not in self.blocked[0] and c[:2] not in self.blocked[1]:
                 steps.append(((c[0], c[1], 1 - c[2]), (0, 0)))                # down / up inside the brick
             for n, move in steps:
                 if not (0 <= n[0] < self.nx and 0 <= n[1] < self.ny):
@@ -301,4 +306,4 @@ class LayeredGrid:
                     best[(n, move)] = nd
                     parent[(n, move)] = (c, came)
                     heapq.heappush(heap, (nd, n, move))
-        return [start]
+        return None          # no way round the frame from here: said by the caller, never a one-cell «path» (06/11)

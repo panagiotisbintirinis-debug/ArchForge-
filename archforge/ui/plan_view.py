@@ -265,8 +265,9 @@ class PlanView(QGraphicsView):
             from archforge.ui.library_drag import TURN_STEP
             self.carry.turn_by(TURN_STEP if event.angleDelta().y()>0 else -TURN_STEP);self.redraw();self.statusChanged.emit(self.carry.label());event.accept();return
         # During a live Stair/Ramp placement the wheel picks the next option.
-        if self.controller.cycle_option(-1 if event.angleDelta().y()>0 else 1):
-            self.redraw();event.accept();return
+        # (The plan ghost of a stair, mouse up, keeps the wheel for zoom: Tab changes its type.)
+        if self.controller.active is not None and self.controller.cycle_option(-1 if event.angleDelta().y()>0 else 1):
+            self._stair_ghost_status();self.redraw();event.accept();return
         from archforge.ui.view_zoom import zoom_about
         zoom_about(self,event)   # the drawing point under the cursor stays under it (touchpad: two fingers pan)
         self._update_label_visibility()
@@ -570,6 +571,14 @@ class PlanView(QGraphicsView):
                 elif self.controller.preview.kind=='move':
                     hud=self.controller.preview.hud;self.statusChanged.emit(f"Μετακίνηση ΔX {float(hud.get('dx',0.))*100:+.0f} cm · ΔY {float(hud.get('dy',0.))*100:+.0f} cm — αφήνεις για να γίνει · Esc = ακύρωση")
             except ValueError as exc:self.statusChanged.emit(str(exc))
+            if self.controller.preview.kind=='stair':self._stair_ghost_status()
+        elif self.controller.tool=='stair' and not self._mouse_down:
+            ev=self._scene_to_plane(event.position().toPoint())
+            try:
+                self.controller.stair_hover(*self.controller._plan_xy(ev));self._stair_ghost_status()
+            except ValueError as exc:
+                self.controller.stair_ghost=None;self.statusChanged.emit(str(exc))
+            self.redraw()
         else:
             p=self.mapToScene(event.position().toPoint());self.statusChanged.emit(f'X {p.x():.3f}   Y {p.y():.3f}')
         super().mouseMoveEvent(event)
@@ -715,8 +724,32 @@ class PlanView(QGraphicsView):
         if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self._slab_tool():self.finish_slab_opening();event.accept();return
         if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self._railing_tool():self.finish_railing();event.accept();return
         if event.key() in (Qt.Key.Key_Tab,Qt.Key.Key_Space) and self.controller.cycle_option(1):
-            self.redraw();event.accept();return
+            self._stair_ghost_status();self.redraw();event.accept();return
+        if self.controller.tool=='stair':
+            if event.key()==Qt.Key.Key_R and self.controller.stair_rotate():
+                self._stair_ghost_status();self.redraw();event.accept();return
+            if event.key() in (Qt.Key.Key_Plus,Qt.Key.Key_Minus,Qt.Key.Key_Equal):
+                step=-1 if event.key()==Qt.Key.Key_Minus else 1
+                if self.controller.stair_shift(step):
+                    self._stair_ghost_status();self.redraw()
+                else:
+                    self.statusChanged.emit('Σκάλα: τα σκέλη αλλάζουν μόνο σε Γ / Π (Tab = τύπος) και μένει ≥ 1 σκαλί στο καθένα')
+                event.accept();return
         super().keyPressEvent(event)
+    LAYOUT_WORDS={'straight':'Ευθεία','l':'Γ','u':'Π','spiral':'Σπιράλ'}
+    def _stair_ghost_status(self):
+        """What the stair ghost / drag will place: type, steps, the two flights of a Γ / Π, and the keys."""
+        pv=self.controller.preview
+        if pv.kind!='stair' or not pv.geometry:return
+        g=pv.geometry;c=g.get('chosen',{})
+        words=[f"Σκάλα {self.LAYOUT_WORDS.get(c.get('layout'),c.get('layout'))}",
+               f"{int(c.get('riser_count',0))} ρίχτια × {float(c.get('riser_height',0))*100:.1f} cm"]
+        if g.get('flights'):
+            (a,b),(la,lb)=g['flights'],g['flight_lengths']
+            words.append(f"1ο σκέλος {a} σκαλιά ({la:.2f} m) · 2ο {b} ({lb:.2f} m) · + / − = αλλαγή")
+        if g.get('fits') is False:words.insert(0,'⚠ δεν χωράει εδώ')
+        words.append('κλικ = τοποθέτηση · σύρσιμο = κατεύθυνση · Tab/ροδέλα = τύπος · R = στροφή · Esc')
+        self.statusChanged.emit(' · '.join(words).replace('.',','))
     # ---- Library drag (library_drag.py): ghost under the cursor, one command on drop.
     carry=None
     def _plan_xy_at(self,pos):return self.controller._plan_xy(self._scene_to_plane(pos))
@@ -771,7 +804,7 @@ class PlanView(QGraphicsView):
         self.statusChanged.emit(f'Γωνία τοίχου: {label}')
     def set_wall_angle_reference(self, mode):
         self.controller.set_wall_angle_reference(mode)
-        self.statusChanged.emit(f'Wall angle reference: {str(mode).title()}')
+        self.statusChanged.emit(f'Γωνία τοίχου ως προς: {"τον προηγούμενο τοίχο" if str(mode)=="relative" else "τους άξονες"}')
 
     def hide_marking_menu(self):
         menu=getattr(self,'_marking_menu',None)
@@ -822,7 +855,7 @@ class PlanView(QGraphicsView):
             if self.controller.active is not None and hasattr(self.controller.active,'start'):
                 self.controller.cancel()
                 self._mouse_down=False
-                self.statusChanged.emit('Current wall segment cancelled')
+                self.statusChanged.emit('Ο τοίχος που σχεδιαζόταν ακυρώθηκε')
                 self.redraw()
             else:
                 target=self._wall_menu_target_entity
@@ -832,7 +865,7 @@ class PlanView(QGraphicsView):
                     self.selectionChangedByView.emit()
                     self.commandRequested.emit('delete')
                 else:
-                    self.statusChanged.emit('Nothing to delete at this wall corner')
+                    self.statusChanged.emit('Δεν υπάρχει κάτι για διαγραφή σε αυτή τη γωνία')
         self._hide_wall_angle_radial()
 
     def _wall_angle_anchor(self, pos):

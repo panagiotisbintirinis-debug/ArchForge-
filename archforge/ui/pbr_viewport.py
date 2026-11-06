@@ -2961,7 +2961,7 @@ class PBRViewport(QWidget):
 
     def _on_load_finished(self, ok: bool) -> None:
         if not ok:
-            self.statusChanged.emit("PBR Preview HTML failed to load")
+            self.statusChanged.emit("Το 3D δεν φόρτωσε (πρόγραμμα περιήγησης / κάρτα γραφικών)")
             return
         self.statusChanged.emit("3D έτοιμο")
         self._page_ready = True
@@ -3041,7 +3041,7 @@ class PBRViewport(QWidget):
                 f"PBR Sculpt {self.sculpt_op}: click a surface and drag | brush {self.sculpt_brush.radius:.2f} m"
             )
         else:
-            self.statusChanged.emit(f"PBR Viewport Tool: {self.active_tool}")
+            self.statusChanged.emit(f"3D εργαλείο: {self.active_tool}")
 
     def configure_sculpt(self, *, operation=None, radius=None, strength=None, falloff=None) -> None:
         operation = self.sculpt_op if operation is None else str(operation)
@@ -3066,7 +3066,7 @@ class PBRViewport(QWidget):
             self.doc.select([])
             self.selectionChangedByView.emit()
             self.redraw(force_full=False)
-            self.statusChanged.emit("Selection cleared")
+            self.statusChanged.emit("Καμία επιλογή")
             return
         self.doc.select([entity_id])
         self.selectionChangedByView.emit()
@@ -3202,7 +3202,7 @@ class PBRViewport(QWidget):
                 f"PBR local sculpt displacement: {self._sculpt_tx.amount:.3f} m"
             )
         except Exception as exc:
-            self.statusChanged.emit(f"PBR sculpt preview error: {exc}")
+            self.statusChanged.emit(f"Γλυπτική: δεν φαίνεται η προεπισκόπηση — {exc}")
 
     def _finish_sculpt_from_web(self) -> None:
         terrain_tx = getattr(self, "_terrain_tx", None)
@@ -3226,13 +3226,13 @@ class PBRViewport(QWidget):
             if tx.amount > 0.001:
                 tx.commit()
                 self._evaluation_cache.clear()
-                self.statusChanged.emit(f"Applied sculpt modifier ({self.sculpt_op})")
+                self.statusChanged.emit(f"Γλυπτική: εφαρμόστηκε ({self.sculpt_op}) · Ctrl+Z = αναίρεση")
             else:
                 tx.cancel()
             self.selectionChangedByView.emit()
             self.redraw(force_full=False)
         except Exception as exc:
-            self.statusChanged.emit(f"PBR sculpt commit error: {exc}")
+            self.statusChanged.emit(f"Γλυπτική: δεν εφαρμόστηκε — {exc}")
             self.redraw(force_full=False)
 
 
@@ -3262,7 +3262,7 @@ class PBRViewport(QWidget):
                     },
                 }
         except Exception as exc:
-            self.statusChanged.emit(f"Stair preview error: {exc}")
+            self.statusChanged.emit(f"Σκάλα: {exc}")
             payload = {"active": None, "info": {}}
         self._stair_preview_payload = payload
         self._push_stair_preview()
@@ -3320,9 +3320,9 @@ class PBRViewport(QWidget):
             self.doc.select([entity_id])
             self.selectionChangedByView.emit()
             self.redraw(force_full=False)
-            self.statusChanged.emit("Placed structural column — Undo is available")
+            self.statusChanged.emit("Κολόνα: μπήκε · Ctrl+Z = αναίρεση")
         except Exception as exc:
-            self.statusChanged.emit(f"Cannot place structural column: {exc}")
+            self.statusChanged.emit(f"Κολόνα: δεν μπήκε — {exc}")
 
     def _begin_structural_beam_from_web(self, x: float, y: float) -> None:
         try:
@@ -3337,14 +3337,14 @@ class PBRViewport(QWidget):
                 level=level_name, grid=(0.10 if self._snap_enabled else None),
                 snap_tol=0.10, angle_increment=15.0,
             )
-            self.statusChanged.emit("Beam start set — click the end point")
+            self.statusChanged.emit("Δοκάρι: η αρχή ορίστηκε — κλικ στο τέλος")
         except Exception as exc:
             self._structural_beam_tx = None
-            self.statusChanged.emit(f"Cannot start structural beam: {exc}")
+            self.statusChanged.emit(f"Δοκάρι: δεν ξεκινά — {exc}")
 
     def _finish_structural_beam_from_web(self, x: float, y: float) -> None:
         if self._structural_beam_tx is None:
-            self.statusChanged.emit("Beam has no start point")
+            self.statusChanged.emit("Δοκάρι: πρώτα κλικ στην αρχή")
             return
         tx = self._structural_beam_tx
         self._structural_beam_tx = None
@@ -3355,9 +3355,9 @@ class PBRViewport(QWidget):
             self.doc.select([entity_id])
             self.selectionChangedByView.emit()
             self.redraw(force_full=False)
-            self.statusChanged.emit("Placed structural beam — Undo is available")
+            self.statusChanged.emit("Δοκάρι: μπήκε · Ctrl+Z = αναίρεση")
         except Exception as exc:
-            self.statusChanged.emit(f"Cannot commit structural beam: {exc}")
+            self.statusChanged.emit(f"Δοκάρι: δεν μπήκε — {exc}")
 
     def _cancel_structural_beam_from_web(self) -> None:
         if self._structural_beam_tx is not None:
@@ -3365,7 +3365,7 @@ class PBRViewport(QWidget):
         self._structural_beam_tx = None
         if self.web_view is not None:
             self.web_view.page().runJavaScript("window.__archforgeBeamStart = false; window.__archforgeSetControlsEnabled?.(true);")
-        self.statusChanged.emit("Beam placement cancelled")
+        self.statusChanged.emit("Δοκάρι: ακυρώθηκε")
 
     def _begin_stair_from_web(self, x: float, y: float) -> None:
         try:
@@ -3381,7 +3381,7 @@ class PBRViewport(QWidget):
         except Exception as exc:
             self._stair_tx = None
             self._set_stair_candidate_params(())
-            self.statusChanged.emit(f"Cannot start stair: {exc}")
+            self.statusChanged.emit(f"Σκάλα: {exc}")
 
     def _update_stair_from_web(self, x: float, y: float) -> None:
         if self._stair_tx is None:
@@ -3394,7 +3394,7 @@ class PBRViewport(QWidget):
             )
             self._stair_status()
         except Exception as exc:
-            self.statusChanged.emit(f"Stair preview error: {exc}")
+            self.statusChanged.emit(f"Σκάλα: {exc}")
 
     STAIR_SNAP = 0.05          # the ghost moves in 5 cm steps on the floor: magnetised, never stuck
 
@@ -3434,14 +3434,14 @@ class PBRViewport(QWidget):
             self._set_stair_candidate_params(self._stair_tx.preview.get("candidates", ())[i:i + 1], 0)
             self._stair_status()
         except Exception as exc:
-            self.statusChanged.emit(f"Cannot change stair option: {exc}")
+            self.statusChanged.emit(f"Σκάλα: {exc}")
 
     def _cancel_stair_from_web(self) -> None:
         if self._stair_tx is not None:
             self._stair_tx.cancel()
         self._stair_tx = None
         self._set_stair_candidate_params(())
-        self.statusChanged.emit("Stair placement cancelled")
+        self.statusChanged.emit("Σκάλα: ακυρώθηκε")
 
     def _finish_stair_from_web(self) -> None:
         if self._stair_tx is None:
@@ -3457,23 +3457,23 @@ class PBRViewport(QWidget):
             self.selectionChangedByView.emit()
             self.redraw(force_full=False)
             self.statusChanged.emit(
-                f"Committed {chosen.layout.upper()} stair — Undo is available"
+                f"Σκάλα {({'straight': 'ευθεία', 'l': 'Γ', 'u': 'Π', 'spiral': 'σπιράλ'}).get(chosen.layout, chosen.layout)}: μπήκε · Ctrl+Z = αναίρεση"
             )
         except Exception as exc:
             self._set_stair_candidate_params(())
-            self.statusChanged.emit(f"Cannot commit stair: {exc}")
+            self.statusChanged.emit(f"Σκάλα: δεν μπήκε — {exc}")
 
     def _begin_move_from_web(self, entity_id: str, x: float, y: float) -> None:
         entity_id = str(entity_id)
         if entity_id not in self.doc.entities:
-            self.statusChanged.emit("Move target no longer exists")
+            self.statusChanged.emit("Μετακίνηση: το στοιχείο δεν υπάρχει πια")
             return
         entity = self.doc.get(entity_id)
         from archforge.core.object_ops import USER_PLACED_KINDS
         supported = {"stair", "ramp", "wall", "box", "pod", "floor", "room", "mechanical_part", "structural_column", "structural_beam",
                      *USER_PLACED_KINDS}
         if entity.kind not in supported:
-            self.statusChanged.emit(f"Move in 3D is not supported for {entity.kind}")
+            self.statusChanged.emit(f"Μετακίνηση στο 3D: όχι για αυτό το στοιχείο ({entity.kind}) — κάν' το στην κάτοψη")
             return
         try:
             self.doc.select([entity_id])
@@ -3489,7 +3489,7 @@ class PBRViewport(QWidget):
             )
         except Exception as exc:
             self._move_tx = None
-            self.statusChanged.emit(f"Cannot start move: {exc}")
+            self.statusChanged.emit(f"Μετακίνηση: δεν ξεκινά — {exc}")
 
     def _update_move_from_web(
         self,
@@ -3528,13 +3528,13 @@ class PBRViewport(QWidget):
                 f"Move ΔX {hud.values['dx']:.3f} m · ΔY {hud.values['dy']:.3f} m{suffix}"
             )
         except Exception as exc:
-            self.statusChanged.emit(f"Move preview error: {exc}")
+            self.statusChanged.emit(f"Μετακίνηση: {exc}")
 
     def _cancel_move_from_web(self) -> None:
         if self._move_tx is not None:
             self._move_tx.cancel()
         self._move_tx = None
-        self.statusChanged.emit("Move cancelled")
+        self.statusChanged.emit("Μετακίνηση: ακυρώθηκε")
 
     def _finish_move_from_web(self) -> None:
         if self._move_tx is None:
@@ -3552,9 +3552,9 @@ class PBRViewport(QWidget):
                 )
             else:
                 tx.cancel()
-                self.statusChanged.emit("Move cancelled: position unchanged")
+                self.statusChanged.emit("Μετακίνηση: η θέση δεν άλλαξε")
         except Exception as exc:
-            self.statusChanged.emit(f"Cannot commit move: {exc}")
+            self.statusChanged.emit(f"Μετακίνηση: δεν έγινε — {exc}")
 
     def _begin_rotate_from_web(
         self,
@@ -3566,13 +3566,13 @@ class PBRViewport(QWidget):
     ) -> None:
         entity_id = str(entity_id)
         if entity_id not in self.doc.entities:
-            self.statusChanged.emit("Rotate target no longer exists")
+            self.statusChanged.emit("Περιστροφή: το στοιχείο δεν υπάρχει πια")
             return
         entity = self.doc.get(entity_id)
         from archforge.core.object_ops import ROTATABLE_KINDS
         supported = {"stair", "ramp", "wall", "box", "pod", "structural_column", "structural_beam", *ROTATABLE_KINDS}
         if entity.kind not in supported:
-            self.statusChanged.emit(f"Rotate in 3D is not supported for {entity.kind}")
+            self.statusChanged.emit(f"Περιστροφή στο 3D: όχι για αυτό το στοιχείο ({entity.kind}) — κάν' το στην κάτοψη")
             return
         try:
             self.doc.select([entity_id])
@@ -3592,7 +3592,7 @@ class PBRViewport(QWidget):
             )
         except Exception as exc:
             self._rotate_tx = None
-            self.statusChanged.emit(f"Cannot start rotate: {exc}")
+            self.statusChanged.emit(f"Περιστροφή: δεν ξεκινά — {exc}")
 
     def _update_rotate_from_web(
         self,
@@ -3615,13 +3615,13 @@ class PBRViewport(QWidget):
                 f"Rotate {hud.values['angle_deg']:.1f}°{suffix}"
             )
         except Exception as exc:
-            self.statusChanged.emit(f"Rotate preview error: {exc}")
+            self.statusChanged.emit(f"Περιστροφή: {exc}")
 
     def _cancel_rotate_from_web(self) -> None:
         if self._rotate_tx is not None:
             self._rotate_tx.cancel()
         self._rotate_tx = None
-        self.statusChanged.emit("Rotate cancelled")
+        self.statusChanged.emit("Περιστροφή: ακυρώθηκε")
 
     def _finish_rotate_from_web(self) -> None:
         if self._rotate_tx is None:
@@ -3639,9 +3639,9 @@ class PBRViewport(QWidget):
                 )
             else:
                 tx.cancel()
-                self.statusChanged.emit("Rotate cancelled: angle unchanged")
+                self.statusChanged.emit("Περιστροφή: η γωνία δεν άλλαξε")
         except Exception as exc:
-            self.statusChanged.emit(f"Cannot commit rotate: {exc}")
+            self.statusChanged.emit(f"Περιστροφή: δεν έγινε — {exc}")
 
     def _set_ramp_candidate_params(self, candidates, active_index=0) -> None:
         candidates = list(candidates)
@@ -3666,7 +3666,7 @@ class PBRViewport(QWidget):
                     },
                 }
         except Exception as exc:
-            self.statusChanged.emit(f"Ramp preview error: {exc}")
+            self.statusChanged.emit(f"Ράμπα: {exc}")
             payload = {"active": None, "info": {}}
         self._ramp_preview_payload = payload
         self._push_ramp_preview()
@@ -3693,7 +3693,7 @@ class PBRViewport(QWidget):
         except Exception as exc:
             self._ramp_tx = None
             self._set_ramp_candidate_params(())
-            self.statusChanged.emit(f"Cannot start ramp: {exc}")
+            self.statusChanged.emit(f"Ράμπα: δεν ξεκινά — {exc}")
 
     def _update_ramp_from_web(self, x: float, y: float) -> None:
         if self._ramp_tx is None:
@@ -3706,7 +3706,7 @@ class PBRViewport(QWidget):
             )
             self._ramp_status()
         except Exception as exc:
-            self.statusChanged.emit(f"Ramp preview error: {exc}")
+            self.statusChanged.emit(f"Ράμπα: {exc}")
 
     def _cycle_ramp_from_web(self, step: int) -> None:
         if self._ramp_tx is None:
@@ -3719,14 +3719,14 @@ class PBRViewport(QWidget):
             )
             self._ramp_status()
         except Exception as exc:
-            self.statusChanged.emit(f"Cannot change ramp slope: {exc}")
+            self.statusChanged.emit(f"Ράμπα: η κλίση δεν αλλάζει — {exc}")
 
     def _cancel_ramp_from_web(self) -> None:
         if self._ramp_tx is not None:
             self._ramp_tx.cancel()
         self._ramp_tx = None
         self._set_ramp_candidate_params(())
-        self.statusChanged.emit("Ramp placement cancelled")
+        self.statusChanged.emit("Ράμπα: ακυρώθηκε")
 
     def _finish_ramp_from_web(self) -> None:
         if self._ramp_tx is None:
@@ -3746,7 +3746,7 @@ class PBRViewport(QWidget):
             )
         except Exception as exc:
             self._set_ramp_candidate_params(())
-            self.statusChanged.emit(f"Cannot commit ramp: {exc}")
+            self.statusChanged.emit(f"Ράμπα: δεν μπήκε — {exc}")
 
     def _push_ramp_preview(self) -> None:
         if self.web_view is None:
@@ -4005,7 +4005,7 @@ class PBRViewport(QWidget):
             )
             self.statusChanged.emit(f"Placed {label} in 3D Studio")
         except Exception as exc:
-            self.statusChanged.emit(f"Cannot place {tool_kind} in 3D Studio: {exc}")
+            self.statusChanged.emit(f"Δεν μπαίνει στο 3D ({tool_kind}): {exc}")
 
     def set_render_technique(self, technique: str) -> None:
         if technique not in ("pbr", "technical", "glass"):
@@ -4038,7 +4038,7 @@ class PBRViewport(QWidget):
             try:
                 overrides = {self._sculpt_tx.hit.owner_id: self._sculpt_tx.preview_mesh()}
             except Exception as exc:
-                self.statusChanged.emit(f"PBR sculpt preview error: {exc}")
+                self.statusChanged.emit(f"Γλυπτική: δεν φαίνεται η προεπισκόπηση — {exc}")
         payload = scene_payload(self.doc, evaluation, self.structural_only, overrides,
                                 getattr(self, "hidden_layers", set()))
         if terrain_tx is not None and terrain_tx.new_terrain is not None and terrain_tx.amount > 0:

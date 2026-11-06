@@ -495,8 +495,22 @@ def route_cables(doc):
                 lg, z = layered(doc, grid, mode, floor, z, [grid.cell(sx, sy), *base_targets.values()])
             g = lg or grid
             source = g.cell(sx, sy)
-            targets = {k: (*c, 0) if lg else c for k, c in base_targets.items()}
+            # Bots 06/11: a device whose wall run would be inside a beam (wall under the beam) is fed from the floor
+            # — before, its leg rose into the concrete where no run could reach it, silently.
+            from_floor = {k for k, c in base_targets.items() if lg is not None and lg.two and tuple(c) in lg.core}
+            targets = {k: (*c, 1 if k in from_floor else 0) if lg else c for k, c in base_targets.items()}
             paths, _loads, parent = _grow(g, source, targets)
+            missing = [k for k in targets if k not in paths and k not in from_floor]
+            if missing and lg is not None and lg.two:          # boxed in by the frame on the wall: from the floor
+                from_floor |= set(missing)
+                targets = {k: (*base_targets[k], 1 if k in from_floor else 0) for k in base_targets}
+                paths, _loads, parent = _grow(g, source, targets)
+            for e in chosen:
+                if e.id not in paths:
+                    design["report"].setdefault("warnings", []).append(
+                        f"{cid}: «{e.name}» (x {float(e.params['x']):.2f}, y {float(e.params['y']):.2f}) δεν συνδέθηκε — "
+                        "κλεισμένο από φέρον (κολόνα / δοκάρι): μετακίνησέ το "
+                        "ή επίλεξε «Φέροντα: προσωλήνωση» στον πίνακα")
             at = (lambda c: lg.xyz(c)) if lg else (lambda c: (*grid.point(c), z))
             seen = set()
             for tid, path in paths.items():
@@ -518,7 +532,12 @@ def route_cables(doc):
             elif abs(pp[0] - rx) > 1e-6 or abs(pp[1] - ry) > 1e-6:      # the two grids round the riser apart
                 runs.append(((rx, ry, z), (pp[0], pp[1], z), group, cid))
             for e in chosen:
-                terminal, box = device_legs(doc, e, mode, g.point(targets[e.id]), z)
+                if e.id not in paths:
+                    continue                                   # said in the warnings, no leg into the concrete
+                if e.id in from_floor:
+                    terminal, box = device_legs(doc, e, "floor", g.point(targets[e.id]), lg.z[1])
+                else:
+                    terminal, box = device_legs(doc, e, mode, g.point(targets[e.id]), z)
                 boxes.append((*box, cid))
                 runs.extend((a, b, group, cid) for a, b in terminal)
     # The board consumes this same geometry instead of reconstructing switch legs.
@@ -542,22 +561,32 @@ def _riser(doc, lower, upper, px, py):
     if not up:
         return None
     candidates = []
+    beside = []                 # 10 cm off each face of the wall: a riser box next to it (when beams sit on the walls)
     for w in up:
         p = w.params
         x1, y1, x2, y2 = (float(p[k]) for k in ("x1", "y1", "x2", "y2"))
-        steps = max(1, int(math.hypot(x2 - x1, y2 - y1) / CELL))
-        candidates += [(x1 + (x2 - x1) * k / steps, y1 + (y2 - y1) * k / steps) for k in range(steps + 1)]
+        L = math.hypot(x2 - x1, y2 - y1)
+        steps = max(1, int(L / CELL))
+        on = [(x1 + (x2 - x1) * k / steps, y1 + (y2 - y1) * k / steps) for k in range(steps + 1)]
+        candidates += on
+        if L > 1e-9:
+            off = float(p.get("thickness", 0.2)) / 2 + 0.10
+            nx, ny = -(y2 - y1) / L * off, (x2 - x1) / L * off
+            beside += [(x + sx * nx, y + sx * ny) for x, y in on for sx in (1, -1)]
 
     def on_lower(q):
         return any(_dist_to_segment(w, *q) <= float(w.params.get("thickness", 0.2)) / 2 + 1e-6 for w in down)
     from archforge.mep.electrical_routes import avoid_frame
     if avoid_frame(doc):                                    # owner 06/11: the vertical run in the brick, not a column
         from archforge.coordination.clash import structure
-        cols = [b for b in structure(doc) if b.kind == "structural_column"]
+        # Bots 06/11: a beam too — the riser crosses the slab zone between the storeys, where the beams are; inside
+        # one it boxed in a whole storey (its own cell concrete at the run height: no circuit could reach it).
+        frame = [b for b in structure(doc) if b.z1 > lower - 1e-6 and b.z0 < upper + 3.5]
 
-        def in_column(q):
-            return any(abs(u) <= b.hu + 0.05 and abs(v) <= b.hv + 0.05 for b in cols for u, v in [b.local(*q)])
-        candidates = [q for q in candidates if not in_column(q)] or candidates
+        def in_frame(q):
+            return any(abs(u) <= b.hu + 0.05 and abs(v) <= b.hv + 0.05 for b in frame for u, v in [b.local(*q)])
+        clear = [q for q in candidates if not in_frame(q)]
+        candidates = clear or [q for q in beside if not in_frame(q)] or candidates
     stacked = [q for q in candidates if on_lower(q)]
     return min(stacked or candidates, key=lambda q: (math.hypot(q[0] - px, q[1] - py), q))
 
@@ -620,6 +649,8 @@ def route_cables_cached(doc):
             items.append(("w", e.id, tuple(round(float(e.params[k]), 6) for k in ("x1", "y1", "x2", "y2", "z", "thickness"))))
         elif e.kind == "drywall_ceiling":          # hidden lights sit in its cove
             items.append(("d", e.id, tuple(sorted((k, str(v)) for k, v in e.params.items()))))
+        elif e.kind in ("structural_column", "structural_beam"):   # the runs go round the frame (06/11)
+            items.append(("s", e.id, tuple(sorted((k, str(v)) for k, v in e.params.items()))))
     key = (tuple(sorted(items)), tuple(sorted((str(k), float(v)) for k, v in doc.levels.items())),
            tuple(sorted((k, str(v)) for k, v in doc.room_data.items())) if hasattr(doc, "room_data") else ())
     if _CACHE["key"] != key:

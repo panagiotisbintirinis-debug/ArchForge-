@@ -203,7 +203,7 @@ class Viewport3D(QGraphicsView):
             )
         else:
             self._sculpt_cursor_item.hide()
-            self.statusChanged.emit(f"3D Viewport Tool: {tool}")
+            self.statusChanged.emit(f"3D εργαλείο: {tool}")
 
     def configure_sculpt(self, *, operation=None, radius=None, strength=None, falloff=None):
         operation = self.sculpt_op if operation is None else str(operation)
@@ -559,7 +559,7 @@ class Viewport3D(QGraphicsView):
                 try:
                     self._sculpt_tx.commit()
                     self.statusChanged.emit(
-                        f"Applied sculpt modifier ({self.sculpt_op})"
+                        f"Γλυπτική: εφαρμόστηκε ({self.sculpt_op}) · Ctrl+Z = αναίρεση"
                     )
                 except Exception as exc:
                     self.statusChanged.emit(
@@ -596,7 +596,7 @@ class Viewport3D(QGraphicsView):
                 try:
                     mesh = self._sculpt_tx.preview_mesh()
                 except Exception as exc:
-                    self.statusChanged.emit(f'Sculpt preview error: {exc}')
+                    self.statusChanged.emit(f'Γλυπτική: {exc}')
             if not isinstance(mesh, MeshPayload):
                 continue
             live_ids.add(body.entity_id)

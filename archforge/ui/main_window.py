@@ -192,7 +192,7 @@ class MainWindow(QMainWindow):
                     5000,
                 )
             except Exception as exc:
-                self.statusBar().showMessage(f'Structural View — graph issue: {exc}',5000)
+                self.statusBar().showMessage(f'Φέρων: πρόβλημα στο διάγραμμα — {exc}',5000)
         self._redraw_views()
 
     def _ensure_upper_level_for(self, tool):
@@ -302,7 +302,7 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage('Sculpt 3D ON', 2000)
         else:
             self.pbr_view.set_tool('orbit')
-            self.statusBar().showMessage('Sculpt 3D OFF — camera navigation restored', 2000)
+            self.statusBar().showMessage('Γλυπτική 3D ανενεργή — η κάμερα κινείται ξανά κανονικά', 2000)
 
     def _configure_sculpt_views(self, **kwargs):
         self.pbr_view.configure_sculpt(**kwargs)
@@ -2878,10 +2878,10 @@ class MainWindow(QMainWindow):
             return
         member=self.doc.get(entity_id)
         if member.kind not in ('structural_column','structural_beam'):
-            self.statusBar().showMessage('Support requires a structural Column or Beam',3000)
+            self.statusBar().showMessage('Στήριξη: διάλεξε κολόνα ή δοκάρι',3000)
             return
         if str(member.params.get('role','structural'))!='structural':
-            self.statusBar().showMessage('Only Structural-role members can receive supports',3500)
+            self.statusBar().showMessage('Στήριξη μπαίνει μόνο σε φέροντα στοιχεία (κολόνα / δοκάρι)',3500)
             return
 
         end_label,ok=QInputDialog.getItem(
@@ -2924,10 +2924,10 @@ class MainWindow(QMainWindow):
             return
         member=self.doc.get(entity_id)
         if member.kind not in ('structural_column','structural_beam'):
-            self.statusBar().showMessage('Load requires a structural Column or Beam',3000)
+            self.statusBar().showMessage('Φορτίο: διάλεξε κολόνα ή δοκάρι',3000)
             return
         if str(member.params.get('role','structural'))!='structural':
-            self.statusBar().showMessage('Only Structural-role members can receive loads',3500)
+            self.statusBar().showMessage('Φορτίο μπαίνει μόνο σε φέροντα στοιχεία (κολόνα / δοκάρι)',3500)
             return
 
         load_label,ok=QInputDialog.getItem(
@@ -3684,7 +3684,7 @@ class MainWindow(QMainWindow):
     def _create_room_floors_legacy(self):
         faces = self.doc.active_room_faces()
         if not faces:
-            self.statusBar().showMessage('No closed rooms on the current work plane', 4000)
+            self.statusBar().showMessage('Δεν υπάρχουν κλειστοί χώροι σε αυτόν τον όροφο — κλείσε πρώτα τους τοίχους', 4000)
             return
         existing = {
             entity.params.get('room_signature')
@@ -3693,7 +3693,7 @@ class MainWindow(QMainWindow):
         }
         signatures = [face.signature for face in faces if face.signature not in existing]
         if not signatures:
-            self.statusBar().showMessage('All current rooms already have automatic floors', 4000)
+            self.statusBar().showMessage('Όλοι οι χώροι έχουν ήδη δάπεδο', 4000)
             return
         try:
             self.stack.execute(CreateRoomFloors(signatures))
@@ -3701,7 +3701,7 @@ class MainWindow(QMainWindow):
             # representation (2D, PBR 3D and Structural), not only the active tab.
             self._redraw_views(all_views=True)
             self.refresh_inspector()
-            self.statusBar().showMessage(f'Created {len(signatures)} automatic floor(s)', 4000)
+            self.statusBar().showMessage(f'Δάπεδα: μπήκαν {len(signatures)} · Ctrl+Z = αναίρεση', 4000)
         except Exception as exc:
             QMessageBox.warning(self, 'Auto Floors', str(exc))
 
@@ -4907,6 +4907,6 @@ class MainWindow(QMainWindow):
         try:
             scope = list(self.doc.selection) if self.doc.selection else None
             count = export_document_stl(self.doc, path, entity_ids=scope, binary=True)
-            self.statusBar().showMessage(f'Exported {count} triangles to {os.path.basename(path)}', 4000)
+            self.statusBar().showMessage(f'STL: {count} τρίγωνα → {os.path.basename(path)}', 4000)
         except Exception as exc:
             QMessageBox.warning(self, 'Fabrication Gate Failed', f'Cannot export STL: {exc}')

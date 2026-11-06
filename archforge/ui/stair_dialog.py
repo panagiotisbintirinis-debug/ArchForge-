@@ -98,7 +98,7 @@ class StairPreview(QWidget):
         kind = SO.structure(q)
         n, t, r = c.tread_count, c.tread_depth, c.riser_height
         landing = c.landing_depth if c.layout in ('l', 'u') else 0.0
-        first = max(1, n // 2) if landing else n
+        first = c.first_treads if landing else n
         run = n * t + landing
         rise = c.upper_z - c.lower_z
         s = min(box.width() / max(run, 1e-6), box.height() / max(rise + 0.3, 1e-6)) * 0.92
@@ -217,6 +217,14 @@ class StairDialog(QDialog):
         self.width = QDoubleSpinBox(); self.width.setDecimals(0); self.width.setRange(60, 250); self.width.setSuffix(' cm')
         self.width.setValue(p['width'] * 100); self.width.valueChanged.connect(lambda v: self._set('width', v / 100))
         form.addRow('Πλάτος', self.width)
+        # Γ / Π: the two flights (owner 06/11: «σε σχήμα Π να μπορείς να θέτεις τα επιμέρους μήκη της σκάλας»).
+        self.first_flight = QSpinBox(); self.first_flight.setSuffix(' σκαλιά')
+        self.first_flight.setToolTip('Πόσα σκαλιά έχει το 1ο σκέλος ως το πλατύσκαλο· το 2ο παίρνει τα υπόλοιπα '
+                                     '(και κατά την τοποθέτηση: + / −)')
+        self.first_flight.valueChanged.connect(self._set_first_flight)
+        form.addRow('1ο σκέλος (Γ / Π)', self.first_flight)
+        self.flights_label = QLabel(); self.flights_label.setWordWrap(True)
+        form.addRow('', self.flights_label)
         numbers = QCheckBox('Αρίθμηση σκαλοπατιών στην κάτοψη'); numbers.setChecked(bool(p.get('plan_numbers', 0)))
         numbers.toggled.connect(lambda on: self._set('plan_numbers', 1 if on else 0))
         form.addRow(numbers)
@@ -321,6 +329,31 @@ class StairDialog(QDialog):
         self.params['riser_height'] = height / int(n)
         self._refresh()
 
+    def _set_first_flight(self, k):
+        if getattr(self, '_filling_flights', False):
+            return
+        n = candidate_from_params(self.params).tread_count
+        self.params['first_flight'] = int(k) if 1 <= int(k) <= n - 1 else 0
+        self._refresh()
+
+    def _fill_flights(self):
+        """The split of a Γ / Π, in steps and metres; another type has one flight (the field is off)."""
+        c = candidate_from_params(self.params)
+        two = c.layout in ('l', 'u') and c.tread_count >= 2
+        self._filling_flights = True
+        try:
+            self.first_flight.setEnabled(two)
+            self.first_flight.setRange(1, max(1, c.tread_count - 1))
+            self.first_flight.setValue(c.first_treads if two else 1)
+        finally:
+            self._filling_flights = False
+        if two:
+            a = c.first_treads; b = c.tread_count - a; t = c.tread_depth
+            self.flights_label.setText(f'1ο σκέλος {a} σκαλιά = {a * t:.2f} m · πλατύσκαλο {c.landing_depth:.2f} m · '
+                                       f'2ο σκέλος {b} σκαλιά = {b * t:.2f} m'.replace('.', ','))
+        else:
+            self.flights_label.setText('Ένα σκέλος (τα σκέλη ορίζονται σε Γ και Π)')
+
     def _set_material(self, role, mid):
         mats = dict(self.params.get('surface_materials') or {})
         if mid:
@@ -342,6 +375,7 @@ class StairDialog(QDialog):
         p = self.params
         r, t = p['riser_height'], p['tread_depth']
         c = candidate_from_params(p)
+        self._fill_flights()
         slope = math.degrees(math.atan2(r, t))
         b = blondel(r, t)
         ok = 0.60 <= b <= 0.65

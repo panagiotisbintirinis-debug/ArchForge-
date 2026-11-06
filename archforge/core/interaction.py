@@ -656,11 +656,14 @@ class StairPlaceTransaction:
         preferred_riser: float = 0.17,
         preferred_tread: float = 0.29,
         layout: Optional[str] = None,
+        first_flight: int = 0,
     ):
         from archforge.architecture.stairs import upper_floor_landing
         self.doc,self.stack=doc,stack
         # Human-chosen stair type (straight/l/u/spiral); None = best fit.
         self.layout=str(layout) if layout else None
+        # Γ / Π: steps in the first flight (+ / − while placing, or the «Σκάλα» window); 0 = half.
+        self.first_flight=int(first_flight or 0)
         self.origin=(float(origin[0]),float(origin[1]))
         self.width=float(width)
         self.preferred_riser=float(preferred_riser)
@@ -668,7 +671,7 @@ class StairPlaceTransaction:
         self.lower_z=float(doc.work_plane.origin[2])
         landing=upper_floor_landing(doc,self.lower_z,self.origin)
         if landing is None:
-            raise ValueError('Create an upper floor level before placing stairs')
+            raise ValueError('Σκάλα: πρώτα ένας όροφος από πάνω (Έργο ▸ Όροφοι ▸ Όροφος) — η σκάλα ανεβαίνει ως εκεί')
         self.upper_floor_z=float(landing['floor_z'])
         self.upper_slab_thickness=float(landing['slab_thickness'])
         self.upper_z=float(landing['landing_z'])
@@ -695,7 +698,11 @@ class StairPlaceTransaction:
             upper_slab_thickness=self.upper_slab_thickness,
         )
         if not self.candidates:
-            raise ValueError('no stair solution available')
+            raise ValueError('Σκάλα: δεν βρέθηκε λύση εδώ — σύρε πιο μακριά ή αλλού')
+        if self.first_flight:
+            from dataclasses import replace as _replace
+            self.candidates=tuple(_replace(c,first_flight=self.first_flight) if c.layout in ('l','u') else c
+                                  for c in self.candidates)
         # The four offered options are the best candidate of each distinct
         # layout, so straight, L, U and spiral are all reachable.
         firsts=[];rest=[];seen=set()
@@ -726,6 +733,10 @@ class StairPlaceTransaction:
             'upper_level_name':self.upper_level_name,
             'suggestions':suggestions,
         }
+        if active.layout in ('l','u'):
+            k=active.first_treads;n=active.tread_count
+            self.preview['flights']=[k,n-k]
+            self.preview['flight_lengths']=[k*active.tread_depth,(n-k)*active.tread_depth]
         return HUD({
             'fits':1.0 if fits else 0.0,
             'risers':float(active.riser_count),
@@ -741,6 +752,19 @@ class StairPlaceTransaction:
         if not self.candidates:
             raise ValueError('stair has no candidates')
         return self.candidates[self.active_index]
+
+    def shift_flight(self, step=1):
+        """Γ / Π: one step more (+1) or less (−1) in the first flight, the other flight takes the rest."""
+        c=self.active_candidate if self.candidates else None
+        if c is None or c.layout not in ('l','u'):
+            return False
+        from archforge.architecture.stairs import first_treads
+        k=first_treads(c.tread_count,self.first_flight or c.first_flight)+int(step)
+        if not 1<=k<=c.tread_count-1:
+            return False
+        self.first_flight=k;self.layout=c.layout
+        self.update(*self.pointer)
+        return True
 
     def cycle_candidate(self, step=1):
         if not self.candidates:

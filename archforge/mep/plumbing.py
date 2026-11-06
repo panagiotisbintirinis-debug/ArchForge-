@@ -180,9 +180,11 @@ def _grow(grid, source_cell, targets):
         tid, cell = min(remaining.items(),
                         key=lambda kv: min(abs(kv[1][0] - t[0]) + abs(kv[1][1] - t[1]) for t in tree))
         path = grid.route(cell, tree)          # fixture -> tree
+        del remaining[tid]
+        if path is None:                       # unreachable (a router that says so): left out, the caller tells
+            continue
         paths[tid] = path
         tree.update(path)
-        del remaining[tid]
     # Edge loads: walk each fixture back to the source along the union tree.
     adj = {}
     for path in paths.values():
