@@ -106,3 +106,46 @@ def test_the_menu_opens_the_clash_list_and_a_row_selects_both(tmp_path):
         assert set(w.doc.selection) == {door.id, col.id}
     finally:
         w._mark_clean(); w.close(); app.processEvents()
+
+
+def test_cast_in_conduits_are_work_before_the_pour_not_clashes(monkeypatch):
+    """Ιδιοκτήτης 06/11: «μπορεί να γίνει προσωλήνωση… σωληνώσεις στα μπετά»."""
+    from archforge.quantities import schedules as S
+    doc, st, wall, col, beam = _frame()
+    panel = Entity('electrical_point', {'x': 0.5, 'y': 0.0, 'z': 0.0, 'point_type': 'panel'})
+    st.execute(AddEntity(panel))
+    segs = [('electrical', (2.0, 0, 2.35), (2.2, 0, 2.35), 0.02), ('electrical', (2.2, 0, 2.35), (2.4, 0, 2.35), 0.02),
+            ('electrical', (2.4, 0, 2.35), (4.0, 0, 2.35), 0.02),           # one conduit, three grid pieces: 1 crossing
+            ('electrical', (3.0, -1, 2.7), (3.0, 1, 2.7), 0.02),            # across the beam (and the column top)
+            ('cold', (0.5, -1, 2.7), (0.5, 1, 2.7), 0.02)]                  # water through the beam: still a clash
+    monkeypatch.setattr(C, 'network_segments', lambda d: segs)
+    groups = {(c.a_kind, c.b_id) for c in C.find(doc)}
+    assert ('network:cold', beam.id) in groups and not any(k == 'network:electrical' for k, _b in groups)
+    rows = {r['ids'][0]: r for r in S.cast_in(doc)['rows']}
+    assert rows[col.id]['passes'] == 2 and rows[beam.id]['passes'] >= 1
+    assert C.crossings([(0, 0, 0), (0.2, 0, 0), (0.4, 0, 0), (2, 0, 0)]) and len(C.crossings([(0, 0, 0), (0.2, 0, 0), (2, 0, 0)])) == 2
+    st.execute(UpdateEntity(panel.id, {'cast_in_concrete': 0}))           # the project says no: clashes again
+    assert any(c.a_kind == 'network:electrical' for c in C.find(doc))
+    assert 'κλειστή' in S.cast_in(doc)['check'][0]
+
+
+def test_distribution_from_the_ceiling():
+    """Ιδιοκτήτης 06/11: «σε άλλες χώρες… διανομή από το ταβάνι»."""
+    from archforge.mep.electrical import route_cables
+    from archforge.mep.electrical_routes import mode_of
+    doc = Document(); st = CommandStack(doc)
+    for a, b in (((0, 0), (6, 0)), ((6, 0), (6, 5)), ((6, 5), (0, 5)), ((0, 5), (0, 0))):
+        st.execute(AddEntity(Entity('wall', {'x1': a[0], 'y1': a[1], 'x2': b[0], 'y2': b[1], 'z': 0, 'height': 3.0, 'thickness': 0.25})))
+    panel = Entity('electrical_point', {'x': 0.2, 'y': 2.0, 'z': 0.0, 'point_type': 'panel'})
+    socket = Entity('electrical_point', {'x': 5.8, 'y': 3.0, 'z': 0.0, 'point_type': 'socket'})
+    island = Entity('electrical_point', {'x': 3.0, 'y': 2.5, 'z': 0.0, 'point_type': 'socket'})
+    for e in (panel, socket, island):
+        st.execute(AddEntity(e))
+    assert mode_of(doc, socket) == 'wall' and mode_of(doc, island) == 'floor'
+    walls_z = {round(a[2], 2) for a, b, _g, _c in route_cables(doc)['runs'] if abs(a[2] - b[2]) < 1e-9}
+    st.execute(UpdateEntity(panel.id, {'distribution': 'ceiling'}))
+    assert mode_of(doc, socket) == 'ceiling' and mode_of(doc, island) == 'floor'   # the island keeps its floor feed
+    ceil_z = {round(a[2], 2) for a, b, _g, _c in route_cables(doc)['runs'] if abs(a[2] - b[2]) < 1e-9}
+    assert 2.35 in walls_z and 2.35 not in ceil_z and max(ceil_z) > 2.35
+    with pytest.raises(ValueError):
+        st.execute(UpdateEntity(panel.id, {'distribution': 'roof'}))

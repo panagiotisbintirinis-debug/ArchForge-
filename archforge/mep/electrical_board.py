@@ -116,7 +116,10 @@ def settings(doc):
             "control_system": str(p.get("control_system", "conventional")),
             "conduit_fill_limit": float(p.get("conduit_fill_limit", DEFAULT_LIMIT)),
             "conduit_max_dn": int(p.get("conduit_max_dn", DEFAULT_MAX_DN)),
-            "conduit_profile": str(p.get("conduit_profile", "conflex"))}
+            "conduit_profile": str(p.get("conduit_profile", "conflex")),
+            # 06/11 (owner): «μπορεί να γίνει προσωλήνωση… σωληνώσεις στα μπετά· σε άλλες χώρες διανομή από το ταβάνι»
+            "distribution": str(p.get("distribution", "walls")),
+            "cast_in_concrete": int(p.get("cast_in_concrete", 1))}
 
 
 def _rcd_groups(doc, p):

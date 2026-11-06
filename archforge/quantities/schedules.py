@@ -444,13 +444,42 @@ def clashes(doc):
     check = ([f"{n} {g}" for g, n in by.items()] if found else []) + [
         "ελέγχονται: δίκτυα Η/Μ μέσα σε δοκούς / κολόνες, δοκοί / κολόνες μέσα σε ανοίγματα, έπιπλα μέσα σε κολόνες / "
         "τοίχους, σημεία Η/Μ μέσα σε κολόνες· όχι αποστάσεις κανονισμού"]
+    if C.cast_in_allowed(doc):
+        check.append("ηλεκτρολογικές / ασθενείς σωληνώσεις στο σκυρόδεμα: προσωλήνωση (λίστα «Προσωλήνωση»), όχι σύγκρουση")
     return {"title": "Συγκρούσεις", "rows": rows, "check": check, "editable": {},
             "columns": [("group", "Ομάδα"), ("a", "Στοιχείο Α"), ("b", "Στοιχείο Β"), ("depth", "Μέσα (cm)"),
                         ("storey", "Όροφος"), ("where", "Θέση (m)"), ("note", "Τι συμβαίνει")],
             "total": f"{len(found)} συγκρούσεις" if found else "Καμία σύγκρουση"}
 
 
-LISTS = {"openings": openings, "envelope": envelope, "rooms": rooms, "circuits": circuits, "clashes": clashes}
+def cast_in(doc):
+    """Προσωλήνωση: the electrical / low-voltage conduits that cross columns and beams, per member — placed in the
+    formwork before the pour (owner 06/11). Click = the member in the drawing."""
+    from archforge.coordination import clash as C
+    from archforge.core.cameras import storey_of
+    rows = []
+    for r in C.cast_in(doc):
+        e = doc.entities.get(r["member"])
+        pts = r["points"]
+        where = " · ".join(f"({x:.2f}, {y:.2f}, {z:.2f})" for x, y, z in pts[:3]).replace(".", ",") + (" …" if len(pts) > 3 else "")
+        rows.append({"ids": [r["member"]] if e is not None else [],
+                     "member": f"{C.KIND_LABEL[r['kind']]} {(e.name if e is not None else '') or ''}".strip(),
+                     "storey": _storey(doc, storey_of(doc, pts[0][2])), "network": C.NETWORKS[r["network"]],
+                     "passes": r["passes"], "length": _r(r["length"] * 100, 0), "dn": f"Ø{r['diameter'] * 1000:.0f}",
+                     "where": where})
+    check = []
+    if not C.cast_in_allowed(doc):
+        check.append("η προσωλήνωση είναι κλειστή για το έργο (Ηλεκτρ. πίνακας): οι διελεύσεις είναι συγκρούσεις")
+    check.append("θέσεις στο ύψος της όδευσης· να τοποθετηθούν στον ξυλότυπο πριν τη σκυροδέτηση, σε συνεννόηση με τον στατικό")
+    members = len({r["ids"][0] for r in rows if r["ids"]})
+    return {"title": "Προσωλήνωση", "rows": rows, "check": check, "editable": {},
+            "columns": [("member", "Φέρον στοιχείο"), ("storey", "Όροφος"), ("network", "Δίκτυο"), ("passes", "Διελεύσεις"),
+                        ("length", "Μήκος μέσα (cm)"), ("dn", "Σωλήνας"), ("where", "Θέσεις x, y, z (m)")],
+            "total": f"{sum(r['passes'] for r in rows)} διελεύσεις σε {members} φέροντα στοιχεία" if rows else "Καμία διέλευση"}
+
+
+LISTS = {"openings": openings, "envelope": envelope, "rooms": rooms, "circuits": circuits, "clashes": clashes,
+         "castin": cast_in}
 
 
 # ------------------------------------------------------------------ export: PDF (HTML) and Excel, the same lists

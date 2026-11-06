@@ -56,6 +56,18 @@ class BoardTab(QWidget):
         for value, label in CONTROL_SYSTEMS.items():
             self.control.addItem(label, value)
         self.control.activated.connect(lambda _i: self._set("control_system", self.control.currentData()))
+        from archforge.mep.electrical_routes import DISTRIBUTIONS
+        self.distribution = QComboBox(); self.distribution.setObjectName('electricalDistribution')
+        for value, label in DISTRIBUTIONS.items():
+            self.distribution.addItem(label, value)
+        self.distribution.setToolTip("Πώς φτάνουν τα κυκλώματα στα σημεία: οριζόντια στους τοίχους (ελληνική πρακτική) ή "
+                                     "από την πλάκα / το ταβάνι με κάθοδο σε κάθε σημείο — σημείο με δική του όδευση την κρατά")
+        self.distribution.activated.connect(lambda _i: self._set("distribution", self.distribution.currentData()))
+        self.cast_in = QComboBox(); self.cast_in.setObjectName('castInConcrete')
+        self.cast_in.addItem("Προσωλήνωση στο σκυρόδεμα: ναι", 1); self.cast_in.addItem("Προσωλήνωση στο σκυρόδεμα: όχι", 0)
+        self.cast_in.setToolTip("Ναι: οι σωληνώσεις που περνούν κολόνες / δοκούς μπαίνουν στον ξυλότυπο πριν τη "
+                                "σκυροδέτηση (Λίστες ▸ Προσωλήνωση). Όχι: είναι συγκρούσεις (Λίστες ▸ Συγκρούσεις)")
+        self.cast_in.activated.connect(lambda _i: self._set("cast_in_concrete", int(self.cast_in.currentData())))
         from archforge.mep.conduit_fill import CONDUIT_PROFILES
         self.pipe_profile = QComboBox(); self.pipe_profile.setObjectName('conduitProfile')
         for key,spec in CONDUIT_PROFILES.items():
@@ -72,7 +84,7 @@ class BoardTab(QWidget):
         self.pipe_fill.editingFinished.connect(lambda: self._set('conduit_fill_limit',self.pipe_fill.value()/100))
         settings_grid = QGridLayout()
         for index,w in enumerate((self.control,self.kva,self.phases,self.fuse,self.factor,self.waste,self.method,
-                                 self.pipe_profile,self.pipe_max,self.pipe_fill)):
+                                 self.pipe_profile,self.pipe_max,self.pipe_fill,self.distribution,self.cast_in)):
             settings_grid.addWidget(w,index//4,index%4)
         self.kva.editingFinished.connect(lambda: self._set("supply_kva", float(self.kva.value())))
         self.phases.activated.connect(lambda _i: self._set("supply_phases", int(self.phases.currentData())))
@@ -192,7 +204,7 @@ class BoardTab(QWidget):
 
     def _set_settings_visible(self, visible):
         for widget in (self.control, self.kva, self.phases, self.fuse, self.factor, self.waste, self.method,
-                       self.pipe_profile, self.pipe_max, self.pipe_fill, self.pipe_note):
+                       self.pipe_profile, self.pipe_max, self.pipe_fill, self.pipe_note, self.distribution, self.cast_in):
             widget.setVisible(visible)
         for key, (box, _cap, _value) in self.card_labels.items():
             box.setVisible(visible and key in getattr(self, '_active_card_keys', set()))
@@ -245,6 +257,8 @@ class BoardTab(QWidget):
             self.waste.setValue(conf["waste_pct"])
             self.method.setCurrentIndex(max(0, self.method.findData(conf["install_method"])))
             self.control.setCurrentIndex(max(0, self.control.findData(conf["control_system"])))
+            self.distribution.setCurrentIndex(max(0, self.distribution.findData(conf["distribution"])))
+            self.cast_in.setCurrentIndex(max(0, self.cast_in.findData(conf["cast_in_concrete"])))
             self.pipe_profile.setCurrentIndex(max(0,self.pipe_profile.findData(conf['conduit_profile'])))
             self.pipe_max.setCurrentIndex(max(0,self.pipe_max.findData(conf['conduit_max_dn'])))
             self.pipe_fill.setValue(conf['conduit_fill_limit']*100)

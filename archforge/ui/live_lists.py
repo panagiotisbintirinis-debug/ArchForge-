@@ -17,7 +17,7 @@ from archforge.quantities import schedules as S
 
 TAB_TITLE = "Λίστες"
 NAMES = {"openings": "Κουφώματα", "envelope": "Κέλυφος", "rooms": "Χώροι", "circuits": "Κυκλώματα",
-         "clashes": "Συγκρούσεις"}
+         "clashes": "Συγκρούσεις", "castin": "Προσωλήνωση"}
 
 
 def _text(v):

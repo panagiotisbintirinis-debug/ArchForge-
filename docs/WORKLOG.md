@@ -1,3 +1,9 @@
+## 06/11 — Προσωλήνωση στο σκυρόδεμα και διανομή από το ταβάνι (απόφαση ιδιοκτήτη)
+
+- `electrical_board.settings` (+ `distribution`, `cast_in_concrete`), `electrical_routes.mode_of / distribution`,
+  `coordination/clash.py` (`member_passes`, `crossings`, `cast_in`, `cast_in_allowed`), `schedules.cast_in`, καρτέλα
+  πίνακα (2 επιλογές). Τεστ `tests/test_clash.py` +2 · ηλεκτρολογικά 151 passed.
+
 ## 06/11 — Δοκιμή: δρομολογητής ηλεκτρολογικών που αποφεύγει κολόνες (αποσύρθηκε)
 
 - Μέτρηση στο owner_111: συγκρούσεις 34 → 15 αλλά σωληνώσεις εκτός τοίχων 38 → ~90 m. Δεν μπήκε· ερώτηση στον

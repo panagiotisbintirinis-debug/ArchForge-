@@ -235,19 +235,15 @@ def find(doc, tolerance=TOLERANCE):
     """Every clash of the project, ordered by group and depth: ``[Clash]``."""
     found = []
     frame = structure(doc)
-    # 1. networks through beams / columns — one clash per network and member, all its passes summed
-    passes = {}
-    for net, a, b, d in network_segments(doc):
-        for box in frame:
-            inside, at = segment_in_box(a, b, box, d / 2)
-            if inside > tolerance:
-                key = (net, box.eid)
-                if key not in passes:
-                    passes[key] = [box, 0.0, 0, at, d]
-                passes[key][1] += inside
-                passes[key][2] += 1
-                passes[key][4] = max(passes[key][4], d)
-    for (net, _eid), (box, total, n, at, d) in passes.items():
+    # 1. networks through beams / columns — one clash per network and member, all its passes summed. Electrical and
+    #    low-voltage conduits cast in the concrete (owner 06/11: «μπορεί να γίνει προσωλήνωση») are not clashes when
+    #    the project allows it: they are the «Προσωλήνωση» list (cast_in), work before the pour.
+    passes = member_passes(doc, frame, tolerance)
+    allowed = CAST_IN_NETWORKS if cast_in_allowed(doc) else ()
+    for (net, _eid), (box, total, n, at, d, _pts) in passes.items():
+        if net in allowed:
+            continue
+        n = len(crossings(_pts))
         found.append(Clash("network:" + net, "", box.kind, box.eid, total, at, "Η/Μ ↔ φέρων",
                            f"{NETWORKS[net]} Ø{d * 1000:.0f}: {n} διελεύσεις, {total * 100:.0f} cm μέσα σε "
                            f"{KIND_LABEL[box.kind].lower()}", (box.eid,)))
@@ -301,6 +297,61 @@ def find(doc, tolerance=TOLERANCE):
                                        f"{KIND_LABEL[kind]} {margin * 100:.0f} cm μέσα στο σκυρόδεμα", (e.id, box.eid)))
     found.sort(key=lambda c: (c.group, -c.depth))
     return found
+
+
+CAST_IN_NETWORKS = ("electrical", "low_voltage")
+
+
+def cast_in_allowed(doc):
+    """Conduits may be cast in the concrete (electrical_board settings on the panel; default yes, owner 06/11)."""
+    try:
+        from archforge.mep.electrical_board import settings
+        return bool(settings(doc)["cast_in_concrete"])
+    except Exception:                                   # noqa: BLE001 — no panel: the default
+        return True
+
+
+def member_passes(doc, frame=None, tolerance=TOLERANCE):
+    """``{(network, member id): [box, length inside, passes, first point, Ø, [points]]}``."""
+    frame = structure(doc) if frame is None else frame
+    passes = {}
+    for net, a, b, d in network_segments(doc):
+        for box in frame:
+            inside, at = segment_in_box(a, b, box, d / 2)
+            if inside > tolerance:
+                key = (net, box.eid)
+                if key not in passes:
+                    passes[key] = [box, 0.0, 0, at, d, []]
+                passes[key][1] += inside
+                passes[key][2] += 1
+                passes[key][4] = max(passes[key][4], d)
+                passes[key][5].append(at)
+    return passes
+
+
+def crossings(points, reach=0.35):
+    """The physical crossings of one member: grid pieces of the same conduit (≤ ``reach`` apart, a 20 cm grid) are
+    one crossing. ``[(x, y, z)]`` one point each."""
+    groups = []
+    for q in points:
+        hit = [g for g in groups if any(math.dist(q, p) <= reach for p in g)]
+        merged = [q] + [p for g in hit for p in g]
+        groups = [g for g in groups if g not in hit] + [merged]
+    return [tuple(sum(p[i] for p in g) / len(g) for i in range(3)) for g in groups]
+
+
+def cast_in(doc):
+    """The conduits to place in the formwork before the pour: ``[{"member", "kind", "network", "passes", "length",
+    "points", "diameter"}]`` per member and network (electrical / low voltage), by member."""
+    out = []
+    for (net, eid), (box, total, n, _at, d, pts) in member_passes(doc).items():
+        if net not in CAST_IN_NETWORKS:
+            continue
+        where = crossings(pts)
+        out.append({"member": eid, "kind": box.kind, "network": net, "passes": len(where), "length": total,
+                    "points": where, "diameter": d})
+    out.sort(key=lambda r: (r["kind"], r["member"], r["network"]))
+    return out
 
 
 def summary(clashes):

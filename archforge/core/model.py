@@ -975,6 +975,8 @@ SCHEMAS = {
                          'electrical_extra_items': _electrical_extra_items,
                          'demand_factor': _unit_interval, 'install_method': _choice(('A1', 'B1'), 'installation method'),
                          'control_system': _choice(('conventional', 'knx'), 'control system'),
+                         'distribution': _choice(('walls', 'ceiling'), 'electrical distribution'),
+                         'cast_in_concrete': _flag,
                          'waste_pct': _nonnegative,
                          # luminaires (mep/lighting.py): strip end, load, light effect, control
                          'x2': _finite, 'y2': _finite, 'w_per_m': _nonnegative, 'lumen': _nonnegative, 'kelvin': _kelvin,

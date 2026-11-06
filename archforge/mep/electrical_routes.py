@@ -12,11 +12,25 @@ def mode_of(doc, e):
     choice = str(e.params.get('routing', 'auto'))
     if choice in ('wall', 'floor', 'ceiling'):
         return choice
+    floor = _floor_of(doc, float(e.params['z']))
+    near_wall = _wall_distance(doc, float(e.params['x']), float(e.params['y']), floor) <= WALL_NEAR
+    if distribution(doc) == 'ceiling' and (near_wall or _ceiling_fed(e)):
+        # Distribution from the ceiling (owner 06/11: «σε άλλες χώρες… διανομή από το ταβάνι»): the runs in / under the
+        # slab, each point fed down from above; a point in the middle of a room keeps its floor feed.
+        return 'ceiling'
     # Preserve the old automatic wall feed for lights and weak-current points.
     if _ceiling_fed(e) or e.params['point_type'] in LOW_VOLTAGE_TYPES:
         return 'wall'
-    floor = _floor_of(doc, float(e.params['z']))
-    return 'wall' if _wall_distance(doc, float(e.params['x']), float(e.params['y']), floor) <= WALL_NEAR else 'floor'
+    return 'wall' if near_wall else 'floor'
+
+
+DISTRIBUTIONS = {'walls': 'Διανομή στους τοίχους (οριζόντια στα 2,35 m)', 'ceiling': 'Διανομή από το ταβάνι (στην πλάκα)'}
+
+
+def distribution(doc):
+    """The project's way of distributing the circuits (electrical_board.settings, on the panel)."""
+    from archforge.mep.electrical_board import settings
+    return settings(doc)['distribution']
 
 
 def run_z(doc, floor, mode):
