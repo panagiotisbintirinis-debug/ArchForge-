@@ -109,11 +109,11 @@ def cells(s):
 
 # ----------------------------------------------------------------------------------------------- the bot
 class Bot:
-    def __init__(self, seed, verbose=False):
+    def __init__(self, seed, verbose=False, folder=None, rng_seed=None):
         import builtins
         self.seed = seed; self.verbose = verbose; self.s = scenario(seed)
-        self.rng = random.Random(seed * 7919 + 1)
-        self.dir = os.path.join(OUT, f'bot_{seed}'); os.makedirs(self.dir, exist_ok=True)
+        self.rng = random.Random(rng_seed if rng_seed is not None else seed * 7919 + 1)
+        self.dir = folder or os.path.join(OUT, f'bot_{seed}'); os.makedirs(self.dir, exist_ok=True)
         self.findings = []; self.steps = []; self.step = 'εκκίνηση'; self.status_log = []
         self.windows_seen = []
         self._hooks()
@@ -490,7 +490,7 @@ class Bot:
     def do(self, name, fn, expect=None, kinds=()):
         """Ένα βήμα του χρήστη. ``expect``: 'more' = πρέπει να προστεθούν στοιχεία (των ``kinds``)."""
         self.step = name
-        before = self.count(*kinds); t0 = time.perf_counter(); n0 = len(self.findings)
+        before = self.count(*kinds); t0 = time.perf_counter(); c0 = time.process_time(); n0 = len(self.findings)
         ok = True
         import faulthandler
         faulthandler.dump_traceback_later(180, repeat=True)          # a hung step tells where (in bot_<seed>.err)
@@ -501,7 +501,7 @@ class Bot:
         except Exception as exc:                                         # noqa: BLE001
             self.find('εξαίρεση', f'{type(exc).__name__}: {exc}', traceback.format_exc()[-2500:]); ok = False
         faulthandler.cancel_dump_traceback_later()
-        dt = time.perf_counter() - t0
+        dt = time.perf_counter() - t0; cpu = time.process_time() - c0     # CPU: what the program costs, not the queue
         self.close_windows()
         after = self.count(*kinds)
         if ok and expect == 'more' and after <= before and len(self.findings) == n0:
@@ -513,10 +513,11 @@ class Bot:
                 self.find('δεν έγινε (με εξήγηση)', f'{name} — {last}')
             else:
                 self.find('δεν έγινε τίποτα', name)
-        if dt > 20:
+        cpu = min(cpu, dt)               # numpy uses several cores (CPU > clock), a busy machine the reverse
+        if cpu > 8:
             load = os.getloadavg()[0] / (os.cpu_count() or 1)
-            self.find('αργό', f'{name}: {dt:.0f} s', f'φόρτος μηχανήματος ×{load:.1f} ανά πυρήνα')
-        self.steps.append(dict(step=name, s=round(dt, 2), added=after - before))
+            self.find('αργό', f'{name}: {cpu:.0f} s επεξεργαστή', f'{dt:.0f} s ρολογιού · φόρτος ×{load:.1f} ανά πυρήνα')
+        self.steps.append(dict(step=name, s=round(dt, 2), cpu=round(cpu, 2), added=after - before))
         if self.verbose:
             print(f'  {dt:6.1f}s {after - before:+4d}  {name}')
         return after - before
@@ -744,10 +745,12 @@ class Bot:
             self.click(*plot[0]); self.esc(); self.select_tool()
         self.do('όρια οικοπέδου', boundary)        # may update the existing terrain: no new element
         def fence():
+            """Γύρω από το οικόπεδο, 30 cm μέσα: κλικ σε κάθε γωνία, κλικ ξανά στην πρώτη = κλειστό κάγκελο."""
             self.menu('Κατασκευή', 'Κάγκελα', s['fence'])
-            for p_ in plot[1:] + [plot[0]]:
-                self.click(p_[0] - 0.3 if p_[0] > 0 else p_[0] + 0.3, p_[1] - 0.3 if p_[1] > 0 else p_[1] + 0.3)
-            self.dbl(X0 + 0.3, Y0 + 0.3); self.esc(); self.select_tool()
+            inner = [(x + (0.3 if x < 0 else -0.3), y + (0.3 if y < 0 else -0.3)) for x, y in plot]
+            for p_ in inner + [inner[0]]:
+                self.click(*p_)
+            self.esc(); self.select_tool()
         self.do(f'περίφραξη «{s["fence"]}»', fence, 'more')
         for name, pts in (('Μονοπάτι', [(W / 2, -0.3), (W / 2, -4), (W / 2 + 3, -8)]),
                           ('Πεζοδρόμιο', [(X0, Y0 - 1.5), (X1, Y0 - 1.5)]),
@@ -957,12 +960,12 @@ def undo_all_check(bot):
         return getattr(c, 'label', None) or type(c).__name__ if c is not None else ''
     limit = 3000 if bot.seed % 10 == 0 else 150          # all the way back in 1 bot of 10, else the last 150
     while n < limit:
-        t = time.perf_counter(); what = label()
+        t = time.process_time(); what = label()
         try:
             bot.menu('Επεξεργασία', 'Αναίρεση')       # γκρίζο στο μενού = τέλος (όπως το βλέπει ο χρήστης)
         except LookupError:
             break
-        n += 1; dt = time.perf_counter() - t
+        n += 1; dt = time.process_time() - t
         if dt > slow:
             slow, slow_what = dt, f'αναίρεση «{what}»'
     left = bot.count() if n < limit else 0
@@ -973,20 +976,20 @@ def undo_all_check(bot):
     bot.step = 'έλεγχος: επανάληψη όλων'
     m = 0
     while m < n:
-        t = time.perf_counter()
+        t = time.process_time()
         st = bot.w.stack; what = st.undone[-1] if st.undone else None
         what = (getattr(what, 'label', None) or type(what).__name__) if what is not None else ''
         try:
             bot.menu('Επεξεργασία', 'Επανάληψη')
         except LookupError:
             break
-        m += 1; dt = time.perf_counter() - t
+        m += 1; dt = time.process_time() - t
         if dt > slow:
             slow, slow_what = dt, f'επανάληψη «{what}»'
     if bot.w.stack.can_redo:
         bot.find('αναίρεση όλων', f'μετά από {n} αναιρέσεις και {m} επαναλήψεις έμεινε κάτι για επανάληψη')
-    if slow > 3:
-        bot.find('αργό', f'μία αναίρεση / επανάληψη πήρε έως {slow:.0f} s: {slow_what}',
+    if slow > 1.5:
+        bot.find('αργό', f'μία αναίρεση / επανάληψη πήρε έως {slow:.1f} s επεξεργαστή: {slow_what}',
                  f'φόρτος μηχανήματος ×{os.getloadavg()[0] / (os.cpu_count() or 1):.1f} ανά πυρήνα')
     back = bot.snapshot()
     if set(back) != set(full):
@@ -1041,6 +1044,148 @@ def run_one(seed, verbose=False):
     os._exit(0)                                                          # no Qt teardown questions
 
 
+# ----------------------------------------------------------------------------------------------- cross
+def _file_snapshot(path):
+    """The project as written in the file (read apart from the program's window): {id: (kind, params json)}."""
+    from archforge.project.persistence import load_project
+    doc = load_project(path).doc
+    return {e.id: (e.kind, json.dumps(e.params, sort_keys=True, default=str)) for e in doc.entities.values()}
+
+
+def run_cross(me, source, verbose=False):
+    """Bot «me» opens the project bot «source» made (Έργο ▸ Αρχείο ▸ Άνοιγμα) and carries on like a second person:
+    is it whole, does open → save hide changes, can it be edited, extended and output, and do the checks still hold."""
+    os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen'); os.environ.setdefault('QTWEBENGINE_DISABLE_SANDBOX', '1')
+    os.environ.setdefault('QTWEBENGINE_CHROMIUM_FLAGS', '--no-sandbox')
+    sys.path.insert(0, ROOT)
+    import shutil
+    folder = os.path.join(OUT, f'cross_{me}_from_{source}'); os.makedirs(folder, exist_ok=True)
+    src = os.path.join(folder, 'apo_allon.archforge')
+    shutil.copyfile(os.path.join(OUT, f'bot_{source}', 'ergo.archforge'), src)
+    bot = Bot(source, verbose, folder=folder, rng_seed=me * 104729 + source)   # the other bot's sketch, my own hands
+    try:
+        written = _file_snapshot(src)
+        bot.step = 'άνοιγμα έργου άλλου bot'
+        bot.open_queue.append(src)
+        bot.do('Έργο ▸ Αρχείο ▸ Άνοιγμα (έργο άλλου)', lambda: bot.menu('Έργο', 'Αρχείο', 'Άνοιγμα έργου…'))
+        bot.step = 'έλεγχος: ίδιο με το αρχείο'
+        opened = bot.snapshot()
+        if set(opened) != set(written):
+            bot.find('άνοιγμα ≠ αρχείο', f'{len(written)} στο αρχείο, {len(opened)} στο έργο',
+                     f'λείπουν {sorted({written[i][0] for i in set(written) - set(opened)})}, '
+                     f'νέα {sorted({opened[i][0] for i in set(opened) - set(written)})}')
+        else:
+            diff = [i for i in written if written[i] != opened[i]]
+            if diff:
+                bot.find('άνοιγμα ≠ αρχείο', f'{len(diff)} στοιχεία με άλλες παραμέτρους μόλις άνοιξε',
+                         str(sorted({written[i][0] for i in diff})))
+        from archforge.core.model import validate_params
+        for e in list(bot.w.doc.entities.values()):
+            try:
+                validate_params(e.kind, e.params)
+            except Exception as exc:                                       # noqa: BLE001
+                bot.find('μη έγκυρο στοιχείο', f'{e.kind}: {exc}')
+        bot.orphans()
+        if bot.w._is_dirty():
+            bot.find('άνοιγμα ≠ αρχείο', 'μόλις άνοιξε, το έργο λέει «μη αποθηκευμένες αλλαγές» χωρίς να αλλάξει κάτι')
+        # Save straight back under a new name (no edit): nothing may change on the way.
+        bot.w.current_path = None
+        bot.do('Αποθήκευση ως νέο (χωρίς αλλαγή)', bot.save)
+        again = bot.w.current_path
+        if again and os.path.exists(again):
+            back = _file_snapshot(again)
+            changed = [i for i in written if i in back and back[i] != written[i]]
+            if set(back) != set(written) or changed:
+                bot.find('κρυφή αλλαγή', 'άνοιγμα → αποθήκευση χωρίς αλλαγή έγραψε άλλο έργο',
+                         f'{len(set(written) ^ set(back))} διαφορετικά ids, {len(changed)} άλλες παράμετροι · '
+                         f'είδη {sorted({written[i][0] for i in changed})[:8]}')
+        bot.zoom_to_site()
+        cells_ = [cells(bot.s)]
+        # Carry on: the second person corrects, furnishes, wires, landscapes, outputs.
+        bot.do('επιλογή ισογείου', lambda: bot.pick_floor(1 if bot.s['basement'] else 0))
+        bot.part_edits(cells_)
+        bot.part_materials(cells_)
+        bot.interiors(cells_[0], 1)                       # more lights / sockets / switches (no second kitchen)
+        bot.part_outside(cells_)
+        bot.part_outputs()
+        original_final = bot.final_checks
+
+        def final_with_undo():
+            bot.do('αποθήκευση (πριν από τους ελέγχους)', bot.save)
+            try:
+                undo_all_check(bot)
+            except Exception as exc:                                     # noqa: BLE001
+                bot.find('εξαίρεση', f'αναίρεση όλων: {exc}', traceback.format_exc()[-2000:])
+            original_final()
+        final_with_undo()
+    except Exception as exc:                                             # noqa: BLE001
+        bot.find('διακοπή bot', f'{type(exc).__name__}: {exc}', traceback.format_exc()[-2500:])
+    rep = bot.report(); rep['cross'] = dict(me=me, source=source)
+    with open(os.path.join(OUT, f'cross_{me}_from_{source}.json'), 'w', encoding='utf-8') as fh:
+        json.dump(rep, fh, ensure_ascii=False, indent=1)
+    try:
+        bot.w._mark_clean()
+    except Exception:                                                    # noqa: BLE001
+        pass
+    os._exit(0)
+
+
+def cross_pairs(seeds, shift=7):
+    """Each bot gets the project of another (a fixed shift round the list): pairs (me, source), never itself."""
+    ok = [sd for sd in seeds if os.path.exists(os.path.join(OUT, f'bot_{sd}', 'ergo.archforge'))]
+    good = []
+    for sd in ok:
+        try:
+            if _file_snapshot(os.path.join(OUT, f'bot_{sd}', 'ergo.archforge')):
+                good.append(sd)
+        except Exception:                                                  # noqa: BLE001 — a broken file: its own finding
+            good.append(sd)
+    if len(good) < 2:
+        return []
+    k = shift % len(good) or 1
+    return [(good[i], good[(i + k) % len(good)]) for i in range(len(good))]
+
+
+def crossfleet(seeds, jobs, timeout=2400):
+    env = dict(os.environ, QT_QPA_PLATFORM='offscreen', QTWEBENGINE_DISABLE_SANDBOX='1',
+               QTWEBENGINE_CHROMIUM_FLAGS='--no-sandbox',
+               OMP_NUM_THREADS='1', OPENBLAS_NUM_THREADS='1', MKL_NUM_THREADS='1')   # 4 bots, 4 cores: no oversubscription
+    pairs = cross_pairs(seeds); todo = list(pairs); running = {}; done = {}; t0 = time.time()
+    while todo or running:
+        while todo and len(running) < jobs:
+            me, src = todo.pop(0)
+            p = subprocess.Popen([sys.executable, os.path.abspath(__file__), 'cross', '--seed', str(me), '--source', str(src),
+                                  '--quiet'], cwd=ROOT, env=env, stdout=subprocess.DEVNULL,
+                                 stderr=open(os.path.join(OUT, f'cross_{me}_from_{src}.err'), 'w'))
+            running[(me, src)] = (p, time.time())
+        for key, (p, ts) in list(running.items()):
+            rc = p.poll()
+            if rc is None and time.time() - ts > timeout:
+                p.kill(); rc = 'timeout'
+            if rc is not None:
+                done[key] = rc; del running[key]
+                print(f'cross {key[0]:3d} ← {key[1]:3d}: {rc}  ({len(done)}/{len(pairs)}, {time.time() - t0:.0f} s)', flush=True)
+        time.sleep(1)
+    aggregate_cross(sorted(done), done)
+
+
+def aggregate_cross(pairs, codes=None):
+    reports = []
+    for me, src in pairs:
+        p = os.path.join(OUT, f'cross_{me}_from_{src}.json')
+        if os.path.exists(p):
+            reports.append(json.load(open(p, encoding='utf-8')))
+        else:
+            why = 'κόλλησε (χρονικό όριο)' if codes and codes.get((me, src)) == 'timeout' else 'κατέρρευσε'
+            reports.append(dict(seed=src, scenario=scenario(src), steps=[], kinds={}, seconds=0, cross=dict(me=me, source=src),
+                                findings=[dict(kind='κατάρρευση / κόλλημα', step='', text=why, detail='')]))
+    _write_report(reports, os.path.join(ROOT, 'docs', 'BOTS_CROSS_REPORT.md'),
+                  'Αναφορά διασταύρωσης: κάθε bot συνεχίζει το έργο άλλου bot',
+                  'Το bot ανοίγει από το μενού το αποθηκευμένο έργο άλλου bot, ελέγχει ότι άνοιξε ίδιο με το αρχείο '
+                  '(ίδια στοιχεία, έγκυρα, χωρίς ορφανά, χωρίς «μη αποθηκευμένο»), ότι άνοιγμα → αποθήκευση δεν αλλάζει '
+                  'τίποτα κρυφά, και συνεχίζει: διορθώσεις, υλικά, έπιπλα, Η/Μ, εξωτερικοί χώροι, έξοδοι, αναιρέσεις.')
+
+
 # ----------------------------------------------------------------------------------------------- fleet
 def norm(text):
     t = re.sub(r'\d+([.,]\d+)?', '#', text)
@@ -1051,7 +1196,8 @@ def norm(text):
 def fleet(n, jobs, start=1, timeout=2400):
     os.makedirs(OUT, exist_ok=True)
     env = dict(os.environ, QT_QPA_PLATFORM='offscreen', QTWEBENGINE_DISABLE_SANDBOX='1',
-               QTWEBENGINE_CHROMIUM_FLAGS='--no-sandbox')
+               QTWEBENGINE_CHROMIUM_FLAGS='--no-sandbox',
+               OMP_NUM_THREADS='1', OPENBLAS_NUM_THREADS='1', MKL_NUM_THREADS='1')   # 4 bots, 4 cores: no oversubscription
     seeds = list(range(start, start + n)); running = {}; done = {}
     t0 = time.time()
     while seeds or running:
@@ -1083,6 +1229,13 @@ def aggregate(seeds, codes=None):
             why = 'κόλλησε (χρονικό όριο)' if codes and codes.get(sd) == 'timeout' else 'κατέρρευσε'
             reports.append(dict(seed=sd, scenario=scenario(sd), steps=[], kinds={}, seconds=0,
                                 findings=[dict(kind='κατάρρευση / κόλλημα', step=';', text=why, detail=err)]))
+    _write_report(reports, REPORT, 'Αναφορά 100 bot χρηστών',
+                  'Κάθε bot ενεργεί μόνο όπως άνθρωπος (μενού, κουμπιά, κλικ / σύρσιμο / δεξί κλικ στην κάτοψη, πλήκτρα, '
+                  'το «OK» των διαλόγων). Ο ελεγκτής κοιτάζει το έργο: έγκυρα στοιχεία, αποθήκευση → άνοιγμα ίδιο, '
+                  'αναίρεση όλων → άδειο, επανάληψη όλων → ίδιο, αρχεία εξαγωγής.')
+
+
+def _write_report(reports, path, title, intro):
     groups = {}
     for r in reports:
         for f in r['findings']:
@@ -1091,7 +1244,7 @@ def aggregate(seeds, codes=None):
                                             first=r['seed']))
             g['bots'].add(r['seed']); g['steps'].add(norm(f['step']))
     order = ['κατάρρευση / κόλλημα', 'διακοπή bot', 'εξαίρεση', 'μη έγκυρο στοιχείο', 'αποθήκευση ≠ άνοιγμα',
-             'ορφανό στοιχείο', 'αναίρεση όλων', 'επανάληψη όλων', 'επανάληψη: νέα αναγνωριστικά', 'αναίρεση', 'αποθήκευση', 'νέο έργο', 'δεν βγήκε αρχείο',
+             'άνοιγμα ≠ αρχείο', 'κρυφή αλλαγή', 'ορφανό στοιχείο', 'αναίρεση όλων', 'επανάληψη όλων', 'επανάληψη: νέα αναγνωριστικά', 'αναίρεση', 'αποθήκευση', 'νέο έργο', 'δεν βγήκε αρχείο',
              'μήνυμα σφάλματος', 'αγγλικό μήνυμα στον χρήστη', 'δεν βρέθηκε εντολή', 'δεν έγινε τίποτα', 'αργό', 'προειδοποίηση Qt',
              'προειδοποίηση χρήστη']
     gl = sorted(groups.values(), key=lambda g: (order.index(g['kind']) if g['kind'] in order else 99, -len(g['bots'])))
@@ -1101,13 +1254,11 @@ def aggregate(seeds, codes=None):
     kinds = {}
     for r in reports:
         kinds[r['scenario']['kind']] = kinds.get(r['scenario']['kind'], 0) + 1
-    L = ['# Αναφορά 100 bot χρηστών', '',
+    L = [f'# {title}', '',
          f'Bot: **{len(reports)}** · βήματα: **{steps}** · στοιχεία που έφτιαξαν: **{ents}** · '
          f'χωρίς κανένα εύρημα: **{clean}** · ομάδες ευρημάτων: **{len(gl)}**', '',
          'Κτίρια: ' + ' · '.join(f'{k} {v}' for k, v in sorted(kinds.items())), '',
-         'Κάθε bot ενεργεί μόνο όπως άνθρωπος (μενού, κουμπιά, κλικ / σύρσιμο / δεξί κλικ στην κάτοψη, πλήκτρα, το «OK» '
-         'των διαλόγων). Ο ελεγκτής κοιτάζει το έργο: έγκυρα στοιχεία, αποθήκευση → άνοιγμα ίδιο, αναίρεση όλων → άδειο, '
-         'επανάληψη όλων → ίδιο, αρχεία εξαγωγής. Εργαλείο: `scripts/user_drive/bots.py`.', '',
+         intro + ' Εργαλείο: `scripts/user_drive/bots.py`.', '',
          '| # | Είδος | Bot | Εύρημα | Πού (βήμα) | Πρώτο bot |', '|---|---|---|---|---|---|']
     for i, g in enumerate(gl, 1):
         txt = g['text'].replace('|', '/').replace('\n', ' ')[:160]
@@ -1118,15 +1269,16 @@ def aggregate(seeds, codes=None):
         if g['detail'] and g['kind'] in ('εξαίρεση', 'διακοπή bot', 'κατάρρευση / κόλλημα', 'μη έγκυρο στοιχείο',
                                          'αποθήκευση ≠ άνοιγμα', 'αναίρεση όλων', 'επανάληψη όλων'):
             L += [f'### {i}. {g["text"][:120]}', '', '```', g['detail'][-1800:], '```', '']
-    with open(REPORT, 'w', encoding='utf-8') as fh:
+    with open(path, 'w', encoding='utf-8') as fh:
         fh.write('\n'.join(L) + '\n')
-    print(f'αναφορά: {REPORT} — {len(gl)} ομάδες, {clean}/{len(reports)} καθαρά bot')
+    print(f'αναφορά: {path} — {len(gl)} ομάδες, {clean}/{len(reports)} καθαρά bot')
 
 
 if __name__ == '__main__':
     import argparse
     ap = argparse.ArgumentParser()
-    ap.add_argument('mode', choices=['one', 'fleet', 'report'])
+    ap.add_argument('mode', choices=['one', 'fleet', 'report', 'cross', 'crossfleet', 'crossreport'])
+    ap.add_argument('--source', type=int, default=0)
     ap.add_argument('--seed', type=int, default=1)
     ap.add_argument('--n', type=int, default=100)
     ap.add_argument('--jobs', type=int, default=4)
@@ -1135,6 +1287,12 @@ if __name__ == '__main__':
     a = ap.parse_args()
     if a.mode == 'one':
         run_one(a.seed, verbose=not a.quiet)
+    elif a.mode == 'cross':
+        run_cross(a.seed, a.source, verbose=not a.quiet)
+    elif a.mode == 'crossfleet':
+        crossfleet(list(range(a.start, a.start + a.n)), a.jobs)
+    elif a.mode == 'crossreport':
+        aggregate_cross(cross_pairs(list(range(a.start, a.start + a.n))))
     elif a.mode == 'fleet':
         fleet(a.n, a.jobs, a.start)
     else:

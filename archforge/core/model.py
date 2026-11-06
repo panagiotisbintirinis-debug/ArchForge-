@@ -31,7 +31,7 @@ def _field_message(key, exc):
         label = key
     reason = str(exc)
     if any('\u0370' <= ch <= '\u03ff' for ch in reason):
-        return f'«{label}»: {reason}'
+        return reason                                  # already says what and why, in Greek
     greek = _REASONS.get(reason)
     if greek is None:
         greek = next((g for e, g in _REASONS.items() if reason.startswith(e)), 'μη αποδεκτή τιμή')
