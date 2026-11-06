@@ -893,8 +893,16 @@ class Bot:
             out[e.kind] = out.get(e.kind, 0) + 1
         return out
 
-    def snapshot(self):
-        return {e.id: (e.kind, json.dumps(e.params, sort_keys=True, default=str)) for e in self.w.doc.entities.values()}
+    def snapshot(self, room_ids=True):
+        """{id: (kind, params)}; ``room_ids=False``: without the room id slabs follow (renumbered when a partition is
+        redone — the names are checked instead, see undo_all_check)."""
+        out = {}
+        for e in self.w.doc.entities.values():
+            p = e.params
+            if not room_ids and e.kind in ('room_floor', 'room_roof', 'room_ceiling') and 'room_id' in p:
+                p = {k: v for k, v in p.items() if k != 'room_id'}
+            out[e.id] = (e.kind, json.dumps(p, sort_keys=True, default=str))
+        return out
 
     def final_checks(self):
         from archforge.core.model import validate_params
@@ -953,7 +961,7 @@ class Bot:
 
 def undo_all_check(bot):
     """Αναίρεση όλων ως την αρχή και επανάληψη όλων (Επεξεργασία ▸ Αναίρεση / Επανάληψη) σε ένα χτισμένο έργο."""
-    full = bot.snapshot(); n = 0
+    full = bot.snapshot(room_ids=False); n = 0
     bot.step = 'έλεγχος: αναίρεση όλων'
     act_u = None
     slow = 0.0; slow_what = ''
@@ -1013,7 +1021,7 @@ def undo_all_check(bot):
     if slow > 1.5:
         bot.find('αργό', f'μία αναίρεση / επανάληψη πήρε έως {slow:.1f} s επεξεργαστή: {slow_what}',
                  f'φόρτος μηχανήματος ×{os.getloadavg()[0] / (os.cpu_count() or 1):.1f} ανά πυρήνα')
-    back = bot.snapshot()
+    back = bot.snapshot(room_ids=False)
     if set(back) != set(full):
         kf = {}; kb = {}
         for k, _ in full.values(): kf[k] = kf.get(k, 0) + 1
