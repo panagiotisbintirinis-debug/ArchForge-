@@ -122,3 +122,22 @@ def test_the_section_view_paints_the_layers(tmp_path):
         assert blue > 500                                                                # the XPS layer, light blue
     finally:
         w._mark_clean(); w.close(); app.processEvents()
+
+
+def test_remembered_bands_follow_every_change():
+    """Bots 06/11: the bands are kept while nothing changes (the plan redraws on every mouse move) — any change to the
+    wall, its openings, the project's wall types or materials gives the fresh ones."""
+    from archforge.core.commands import UpdateEntity
+    doc, ids = _room()
+    st = CommandStack(doc)
+    w = doc.get(ids[0])
+    first = wall_bands(doc, w)
+    assert wall_bands(doc, w) is first                                     # nothing changed: the same answer
+    st.execute(UpdateEntity(w.id, {'thickness': 0.35}))
+    thicker = wall_bands(doc, doc.get(w.id))
+    assert thicker is not first and thicker != first
+    st.execute(AddEntity(Entity('window', {'offset': 1.0, 'width': 1.2, 'height': 1.4, 'sill': 0.9}, parent_id=w.id)))
+    cut = wall_bands(doc, doc.get(w.id))
+    assert sum(len(b['islands']) for b in cut) > sum(len(b['islands']) for b in thicker)   # the opening cuts them
+    doc.materials = dict(getattr(doc, 'materials', None) or {}, **{'project:xps': {'conductivity': 0.03}})
+    assert wall_bands(doc, doc.get(w.id)) is not cut                       # project data changed: recomputed

@@ -134,9 +134,36 @@ def _same_storey(doc, w):
     return [e for e in doc.entities.values() if e.kind == "wall" and round(float(e.params.get("z", 0.0)), 4) == z]
 
 
+_MEMO = {"key": None, "bands": {}, "lines": {}}
+
+
+def _memo_key(doc):
+    """Everything the bands read, cheaply: any change anywhere in the project gives another key (bots 06/11: the plan
+    re-cut every wall's layers on each mouse move while drawing — 486 times for one wall in a 388-element house)."""
+    ents = doc.entities
+    return (id(doc), getattr(doc, "_change_serial", None), len(ents), sum(e.revision for e in ents.values()),
+            repr(getattr(doc, "constructions", None)), repr(getattr(doc, "materials", None)))
+
+
+def _memoised(table, doc, w, walls, compute):
+    if walls is not None:
+        return compute()
+    key = _memo_key(doc)
+    if _MEMO["key"] != key:
+        _MEMO.update(key=key, bands={}, lines={})
+    store = _MEMO[table]
+    if w.id not in store:
+        store[w.id] = compute()
+    return store[w.id]
+
+
 def wall_bands(doc, w, walls=None):
     """``[{"layer", "index", "material", "hatch", "colour", "insulation", "islands": [(outer, holes)]}]``, side A
     first (``index``: the layer's place in its type)."""
+    return _memoised("bands", doc, w, walls, lambda: _wall_bands(doc, w, walls))
+
+
+def _wall_bands(doc, w, walls=None):
     from archforge.construction.building_materials import material
     from archforge.geometry.regions import region
     axis = _axis(w)
@@ -159,6 +186,10 @@ def wall_bands(doc, w, walls=None):
 
 def boundaries(doc, w, walls=None):
     """Plan lines between layers, mitred like the bands and broken at openings: ``[(points, insulation?)]``."""
+    return _memoised("lines", doc, w, walls, lambda: _boundaries(doc, w, walls))
+
+
+def _boundaries(doc, w, walls=None):
     axis = _axis(w)
     rows = offsets(doc, w)
     if axis is None or len(rows) < 2:
