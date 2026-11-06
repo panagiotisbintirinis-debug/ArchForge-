@@ -293,6 +293,9 @@ def install_approved_mockup_shell(window):
     file_menu.addSeparator()
     pdf_action=QAction("Εξαγωγή PDF (κατόψεις, επιμέτρηση, προσφορά)…",window); pdf_action.triggered.connect(lambda: window._export_pdf())
     file_menu.addAction(pdf_action); window._pdf_action=pdf_action
+    sheets_action=QAction("Φύλλα σχεδίων (A4–A0: κατόψεις, τομές, λίστες, πινακίδα)…",window)
+    sheets_action.triggered.connect(lambda: __import__("archforge.ui.sheets_dialog",fromlist=["show"]).show(window))
+    file_menu.addAction(sheets_action); window._sheets_action=sheets_action
     prices_action=QAction("Τιμές && προσφορά…",window); prices_action.triggered.connect(lambda: window._edit_prices())
     file_menu.addAction(prices_action); window._prices_action=prices_action
     trades_action=QAction("Υλικά && τιμές ανά επάγγελμα (παραγγελία, προσφορά)",window)

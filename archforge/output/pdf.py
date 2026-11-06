@@ -227,7 +227,37 @@ def _dimension(sh, P1, P2, off_dir, off_mm, value, to_mm):
 from archforge.core.storey_names import LEVEL_NAMES, level_name  # noqa: E402,F401  (one source)
 
 
+PLAN_MARGIN = 2.2                                         # m around the walls for the dimension chains
+
+
+def plan_extent(doc, storey):
+    """``(x0, y0, x1, y1)`` m of the storey's walls with room for the dimension chains."""
+    z = float(storey["z"])
+    walls = _storey_walls(doc, z)
+    pts = [q for w in walls for poly in wall_pieces(doc, w, walls)[0] for q in poly] or [(0.0, 0.0)]
+    xs, ys = [q[0] for q in pts], [q[1] for q in pts]
+    return min(xs) - PLAN_MARGIN, min(ys) - PLAN_MARGIN, max(xs) + PLAN_MARGIN, max(ys) + PLAN_MARGIN
+
+
+def fit_scale(extent, box_w, box_h):
+    """The largest of ``SCALES`` at which ``extent`` (m) fits a ``box_w`` × ``box_h`` mm frame (else the smallest)."""
+    x0, y0, x1, y1 = extent
+    return next((s for s in SCALES if (x1 - x0) * 1000 / s <= box_w and (y1 - y0) * 1000 / s <= box_h), SCALES[-1])
+
+
 def _plan_page(sh, doc, storey, sheet_no, project, date):
+    z = float(storey["z"])
+    sh.text(12, 8, f"Κάτοψη — {level_name(storey['name'])} (+{z:.2f})", size=13, bold=True, w=200)
+    scale = draw_plan(sh, doc, storey, (12.0, 14.0, 268.0, 150.0))
+    _north(sh, 275, 30)
+    _scale_bar(sh, 14, 190, scale)
+    _title_block(sh, f"Κάτοψη {level_name(storey['name'])}", scale, sheet_no, project, date)
+    return scale
+
+
+def draw_plan(sh, doc, storey, box, scale=None):
+    """The plan of ``storey`` centred in ``box`` = (x, y, w, h) mm of the sheet, at ``scale`` (1:scale; None = the
+    largest that fits). Returns the scale. The same drawing for the A4 plan pages and for the sheets (output/sheets.py)."""
     from archforge.assistant.understanding import centroid
     from archforge.mep.ventilation import exterior_walls
     z = float(storey["z"])
@@ -239,16 +269,15 @@ def _plan_page(sh, doc, storey, sheet_no, project, date):
     xs = [q[0] for poly in pieces for q in poly] or [0.0]
     ys = [q[1] for poly in pieces for q in poly] or [0.0]
     x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
-    margin = 2.2                                          # m for the dimension chains
-    box_w, box_h = 268.0, 150.0
-    scale = next((s for s in SCALES if (x1 - x0 + 2 * margin) * 1000 / s <= box_w and (y1 - y0 + 2 * margin) * 1000 / s <= box_h), SCALES[-1])
+    bx, by, box_w, box_h = (float(v) for v in box)
+    if scale is None:
+        scale = fit_scale((x0 - PLAN_MARGIN, y0 - PLAN_MARGIN, x1 + PLAN_MARGIN, y1 + PLAN_MARGIN), box_w, box_h)
     k = 1000.0 / scale
     cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
-    ox, oy = 12 + box_w / 2, 14 + box_h / 2
+    ox, oy = bx + box_w / 2, by + box_h / 2
 
     def to_mm(x, y):
         return ox + (x - cx) * k, oy - (y - cy) * k
-    sh.text(12, 8, f"Κάτοψη — {level_name(storey['name'])} (+{z:.2f})", size=13, bold=True, w=200)
     # Rooms: light fill and labels.
     for r in storey["rooms"]:
         sh.poly([to_mm(*q) for q in r["polygon"]], color=QColor(255, 255, 255, 0), width=.01, fill=QColor(247, 243, 236))
@@ -327,9 +356,6 @@ def _plan_page(sh, doc, storey, sheet_no, project, date):
                          and abs(float(e.params.get("level_z", 0.0)) - z) <= D.LEVEL_TOL) if d is not None]
     for d in dims:
         _dimension(sh, d["a"], d["b"], d["n"], float(d["offset"]) * k, d["value"], to_mm)
-    _north(sh, 275, 30)
-    _scale_bar(sh, 14, 190, scale)
-    _title_block(sh, f"Κάτοψη {level_name(storey['name'])}", scale, sheet_no, project, date)
     return scale
 
 

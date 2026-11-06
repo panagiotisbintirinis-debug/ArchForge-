@@ -71,6 +71,7 @@ KIND_LAYERS = {
     'camera': 'cameras',
     'dimension': 'dimensions', 'auto_dimensions': 'dimensions',
     'drafting': 'drafting',
+    'sheet': 'other',
 }
 
 # Derived plan primitives: the role decides (a label of a column is a «label», a footing is «foundation»).

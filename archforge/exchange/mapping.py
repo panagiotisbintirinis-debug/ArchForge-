@@ -59,7 +59,7 @@ ELECTRICAL = {
     "wifi_ap": ("IfcCommunicationsAppliance", "NETWORKAPPLIANCE", "T-DATA"),
 }
 # Not things that are built: never exported as elements.
-SKIP = {"camera", "auto_dimensions", "dimension", "drafting", "section_line", "elevation_line", "underlay", "light_probe",
+SKIP = {"camera", "auto_dimensions", "dimension", "drafting", "sheet", "section_line", "elevation_line", "underlay", "light_probe",
         "mechanical_joint", "organic_junction", "organic_opening_patch", "structural_support", "structural_load",
         "door", "window", "opening"}            # openings are written with their wall
 PROXY = ("IfcBuildingElementProxy", None, "A-MISC", "Στοιχείο")

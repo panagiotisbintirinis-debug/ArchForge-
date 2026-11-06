@@ -1,3 +1,8 @@
+## 06/11 — Φύλλα σχεδίων (κενό 4)
+
+- `output/sheets.py`, `ui/sheets_dialog.py`, `pdf.draw_plan` / `plan_extent` / `fit_scale`, στοιχείο `sheet`, μενού.
+  Τεστ `tests/test_sheets.py`: 4 (παράμετροι, κοινή κλίμακα, PDF A1 + A3 με τομή, διάλογος με αναίρεση).
+
 ## 06/11 — Εισαγωγή DXF ως σχέδιο 2D (κενό 3)
 
 - `exchange/dxf_import.py` (`read`, `import_command`, `report_text`), `ui/exchange_export.import_dxf_drawing`, μενού
