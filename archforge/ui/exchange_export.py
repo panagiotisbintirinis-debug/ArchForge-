@@ -82,14 +82,45 @@ def import_ifc(window, path=None):
         + (f" — δεν εισήχθησαν: {rest}" if rest else "") + " · Ctrl+Z για αναίρεση", 15000)
     return result
 
+DWG_GUIDE = (
+    "Το DWG είναι κλειστή μορφή της Autodesk: το ArchForge δεν το διαβάζει απευθείας (θα χρειαζόταν πληρωμένη άδεια "
+    "βιβλιοθήκης). Μετατρέψτε το σε DXF — ίδιο περιεχόμενο, ανοιχτή μορφή — με έναν από τους δύο δωρεάν τρόπους:\n\n"
+    "1. Από το CAD που το έφτιαξε (AutoCAD, ArchiCAD, BricsCAD, ZWCAD, DraftSight, LibreCAD…): "
+    "«Αποθήκευση ως» ▸ τύπος DXF.\n"
+    "2. Χωρίς CAD: το δωρεάν «DWG TrueView» της Autodesk ▸ κουμπί «DWG Convert» ▸ προσθήκη αρχείου ▸ "
+    "μορφή εξόδου DXF ▸ «Convert».\n\n"
+    "Μετά, στο Έργο ▸ Εισαγωγή:\n"
+    "• «Σχέδιο μηχανικού ως υπόβαθρο» — για αναφορά/αντιγραφή (π.χ. «Τοίχοι από υπόβαθρο»), ή\n"
+    "• «DXF ως σχέδιο 2D (επεξεργάσιμο)» — γραμμές, κείμενα, blocks γίνονται στοιχεία του ορόφου.\n\n"
+    "Συμβουλή: διαλέξτε έκδοση DXF 2013 ή νεότερη και ελέγξτε τις μονάδες (mm / cm / m) όταν ρωτηθείτε."
+)
+
+
+def is_dwg(path):
+    return bool(path) and str(path).lower().endswith(".dwg")
+
+
+def dwg_guide(window):
+    """Έργο ▸ Εισαγωγή ▸ «DWG (AutoCAD): πώς να το φέρετε…» — and what is shown when a .dwg is picked anywhere."""
+    window.statusBar().showMessage("DWG: μετατρέψτε το σε DXF (δωρεάν, DWG TrueView ή «Αποθήκευση ως DXF») "
+                                   "και εισάγετέ το — δείτε τον οδηγό", 15000)
+    if not getattr(window, "_no_modal_dialogs", False):
+        from PySide6.QtWidgets import QMessageBox
+        QMessageBox.information(window, "Αρχεία DWG", DWG_GUIDE)
+    return DWG_GUIDE
+
 
 def import_dxf_drawing(window, path=None, unit=None):
     """A DXF as editable 2D drawing on the active storey (exchange/dxf_import.py) — one undo."""
     from archforge.exchange import dxf_import as DI
     if path is None and not getattr(window, "_no_modal_dialogs", False):
         from PySide6.QtWidgets import QFileDialog, QInputDialog
-        path, _ = QFileDialog.getOpenFileName(window, "Εισαγωγή DXF ως σχέδιο 2D", "", "DXF (*.dxf)")
+        path, _ = QFileDialog.getOpenFileName(window, "Εισαγωγή DXF ως σχέδιο 2D", "",
+                                              "DXF (*.dxf);;DWG — οδηγός μετατροπής (*.dwg)")
         if not path:
+            return None
+        if is_dwg(path):
+            dwg_guide(window)
             return None
         choices = ["όπως λέει το αρχείο", "mm", "cm", "m"]
         choice, ok = QInputDialog.getItem(window, "Μονάδες του DXF", "Σε τι μονάδες είναι σχεδιασμένο;", choices, 0, False)
@@ -97,6 +128,9 @@ def import_dxf_drawing(window, path=None, unit=None):
             return None
         unit = None if choice == choices[0] else choice
     if not path:
+        return None
+    if is_dwg(path):
+        dwg_guide(window)
         return None
     try:
         cmd, report = DI.import_command(window.doc, path, unit)
@@ -127,6 +161,11 @@ def import_action(window):
                      "του ορόφου — μία αναίρεση· για υπόβαθρο αναφοράς: «Σχέδιο μηχανικού ως υπόβαθρο»")
         d.triggered.connect(lambda _=False: import_dxf_drawing(window))
         window._import_dxf_drawing_action = d
+        g = QAction("DWG (AutoCAD): πώς να το φέρετε…", window)
+        g.setToolTip("Το DWG είναι κλειστή μορφή: μετατροπή σε DXF δωρεάν (DWG TrueView «DWG Convert» ή "
+                     "«Αποθήκευση ως DXF» από το CAD σας) και μετά εισαγωγή ως υπόβαθρο ή ως σχέδιο 2D")
+        g.triggered.connect(lambda _=False: dwg_guide(window))
+        window._dwg_guide_action = g
     return window._import_ifc_action
 
 

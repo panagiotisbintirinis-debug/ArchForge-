@@ -102,3 +102,23 @@ def test_the_menu_command(tmp_path):
         assert 'DXF ως σχέδιο 2D' in w.statusBar().currentMessage()
     finally:
         w._mark_clean(); w.close(); app.processEvents()
+
+
+def test_dwg_is_guided_to_dxf_not_read(tmp_path):
+    from PySide6.QtWidgets import QApplication
+    from archforge.ui.main_window import MainWindow
+    from archforge.ui.exchange_export import import_dxf_drawing, DWG_GUIDE
+    from archforge.ui.underlay_tools import import_drawing
+    app = QApplication.instance() or QApplication([])
+    w = MainWindow(); w._no_modal_dialogs = True; w.show(); app.processEvents()
+    try:
+        assert w._dwg_guide_action in w._file_import_menu.actions()
+        assert 'DWG TrueView' in DWG_GUIDE and 'DXF' in DWG_GUIDE
+        path = str(tmp_path / 'plan.dwg'); open(path, 'wb').write(b'AC1032\0')
+        n = len(w.doc.entities)
+        assert import_dxf_drawing(w, path) is None and import_drawing(w, path) is None
+        assert len(w.doc.entities) == n and 'DWG' in w.statusBar().currentMessage()
+        w._dwg_guide_action.trigger()
+        assert 'DXF' in w.statusBar().currentMessage()
+    finally:
+        w._mark_clean(); w.close(); app.processEvents()

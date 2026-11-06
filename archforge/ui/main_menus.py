@@ -156,6 +156,7 @@ def organize_main_menus(window):
         from archforge.ui.exchange_export import actions as exchange_actions, import_action as ifc_import_action
         imports.append(ifc_import_action(window))
         imports.append(window._import_dxf_drawing_action)         # 06/11: exchange/dxf_import.py
+        imports.append(window._dwg_guide_action)                  # 06/11: DWG → DXF guide (no licence)
         exports = [getattr(window, "_pdf_action", None), *exchange_actions(window),
                    getattr(window, "export_stl_action", None), image]
         exports = [a for a in exports if a is not None]

@@ -21,8 +21,12 @@ def import_drawing(window, path=None, unit=None, scale=None, page=None, section_
     if path is None:
         title = "Τομή μηχανικού ως υπόβαθρο" if section_id else "Σχέδιο μηχανικού ως υπόβαθρο"
         path, _f = QFileDialog.getOpenFileName(window, title, "",
-                                               "Σχέδια (*.pdf *.dxf);;PDF (*.pdf);;DXF (*.dxf)")
+                                               "Σχέδια (*.pdf *.dxf);;PDF (*.pdf);;DXF (*.dxf);;DWG — οδηγός μετατροπής (*.dwg)")
     if not path:
+        return None
+    from archforge.ui.exchange_export import dwg_guide, is_dwg
+    if is_dwg(path):
+        dwg_guide(window)
         return None
     z = float(window.doc.work_plane.origin[2])
     name = os.path.basename(path)

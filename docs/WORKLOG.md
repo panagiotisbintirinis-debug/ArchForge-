@@ -31,6 +31,12 @@
 - `output/sheets.py`, `ui/sheets_dialog.py`, `pdf.draw_plan` / `plan_extent` / `fit_scale`, στοιχείο `sheet`, μενού.
   Τεστ `tests/test_sheets.py`: 4 (παράμετροι, κοινή κλίμακα, PDF A1 + A3 με τομή, διάλογος με αναίρεση).
 
+## 06/11 — Οδηγός DWG → DXF
+- Έργο ▸ Εισαγωγή ▸ «DWG (AutoCAD): πώς να το φέρετε…» (`ui/exchange_export.dwg_guide`, `DWG_GUIDE`): το DWG είναι
+  κλειστή μορφή — δεν διαβάζεται (άδεια ODA / GPL LibreDWG αποφεύγονται)· μετατροπή δωρεάν με «Αποθήκευση ως DXF» ή
+  DWG TrueView «DWG Convert», μετά υπόβαθρο ή σχέδιο 2D. Αν επιλεγεί .dwg στους διαλόγους υποβάθρου / DXF 2D δείχνεται ο
+  οδηγός, τίποτα δεν προστίθεται. Τεστ `test_dxf_import.test_dwg_is_guided_to_dxf_not_read`.
+
 ## 06/11 — Εισαγωγή DXF ως σχέδιο 2D (κενό 3)
 
 - `exchange/dxf_import.py` (`read`, `import_command`, `report_text`), `ui/exchange_export.import_dxf_drawing`, μενού
