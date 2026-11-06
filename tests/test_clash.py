@@ -197,3 +197,60 @@ def test_cached_routing_is_redone_when_the_frame_changes():
                                          'rotation': 0.0, 'role': 'structural', 'construction': 'reinforced_concrete',
                                          'base_level': 'Ground'}))
     assert route_cables_cached(doc) is not first
+
+
+def test_beams_on_every_wall_below_the_2_35_run_still_route_in_the_brick():
+    """Bots 06/11: storey 2,70 with 50 cm beams on the walls (soffit +2,20): the 2,35 wall run lay inside every beam —
+    15 of 16 circuits of a 3-storey house could not reach the panel. The run goes in the brick under the soffit."""
+    from archforge.core.model import Document, Entity
+    from archforge.coordination import clash as C
+    from archforge.mep.electrical import route_cables
+    from archforge.scenarios.gate import _components, _nearest_component
+    doc = Document()
+    doc.levels = {'Ground': 0.0, 'Floor 1': 2.7}
+    corners = ((0, 0), (6, 0), (6, 5), (0, 5))
+    for z, level in ((0.0, 'Ground'), (2.7, 'Floor 1')):
+        for a, b in list(zip(corners, corners[1:] + corners[:1])) + [((3, 0), (3, 5))]:
+            doc.add(Entity('wall', {'x1': a[0], 'y1': a[1], 'x2': b[0], 'y2': b[1], 'z': z, 'height': 2.7, 'thickness': 0.25}))
+            doc.add(Entity('structural_beam', {'x1': a[0], 'y1': a[1], 'x2': b[0], 'y2': b[1], 'z': z + 2.2, 'width': 0.25,
+                                               'height': 0.5, 'role': 'structural', 'construction': 'reinforced_concrete',
+                                               'level': level, 'section': 'rectangular'}))
+        for x, y in corners + ((3, 0), (3, 5)):
+            doc.add(Entity('structural_column', {'x': x, 'y': y, 'z': z, 'width': 0.3, 'depth': 0.3, 'height': 2.7,
+                                                 'rotation': 0.0, 'role': 'structural', 'construction': 'reinforced_concrete',
+                                                 'base_level': level}))
+    doc.add(Entity('electrical_point', {'point_type': 'panel', 'x': 0.12, 'y': 2.0, 'z': 0.0}))
+    for z in (0.0, 2.7):
+        for x, y in ((5.88, 1.5), (4.5, 4.88), (1.5, 0.12), (2.88, 2.5)):
+            doc.add(Entity('electrical_point', {'point_type': 'socket', 'x': x, 'y': y, 'z': z}))
+    r = route_cables(doc)
+    assert not [w for w in r['report']['warnings'] if 'φέρον' in w or 'συνδέθηκε' in w], r['report']['warnings']
+    P = (0.12, 2.0)
+    for c in r['circuits']:
+        comp = _components([(a, b) for a, b, _g, cid in r['runs'] if cid == c['id']])
+        home = _nearest_component(comp, P)
+        assert all(_nearest_component(comp, (float(doc.get(p).params['x']), float(doc.get(p).params['y']))) == home
+                   for p in c['points'])
+    beams = [b for b in C.structure(doc) if b.kind == 'structural_beam']
+    inside = [(a, b) for a, b, _g, _c in r['runs'] for m in beams if C.segment_in_box(a, b, m)[0] > 0.01]
+    assert not inside, inside[:3]                                                  # never along / through a beam
+
+
+def test_a_dense_three_storey_frame_feeds_every_point_without_sleeves():
+    """The bot 16 house (3 storeys + frame from «Πρόταση φέροντος», 475 elements): with the 2,35 run inside the beams,
+    15 of its 16 circuits needed sleeves and the storeys were not reached from the panel."""
+    import os
+    from archforge.project.persistence import load_project
+    from archforge.mep.electrical import route_cables
+    from archforge.scenarios.gate import _components, _nearest_component
+    path = os.path.join(os.path.dirname(__file__), 'data', 'bot16_three_storey_frame.archforge')
+    doc = load_project(path).doc
+    r = route_cables(doc)
+    assert not [w for w in r['report']['warnings'] if 'φέρον' in w or 'συνδέθηκε' in w]
+    panel = next(e for e in doc.entities.values() if e.kind == 'electrical_point' and e.params['point_type'] == 'panel')
+    P = (float(panel.params['x']), float(panel.params['y']))
+    for c in r['circuits']:
+        comp = _components([(a, b) for a, b, _g, cid in r['runs'] if cid == c['id']])
+        home = _nearest_component(comp, P)
+        assert all(_nearest_component(comp, (float(doc.get(p).params['x']), float(doc.get(p).params['y']))) == home
+                   for p in c['points']), c['id']

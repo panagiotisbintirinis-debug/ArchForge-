@@ -33,11 +33,25 @@ def avoid_frame(doc):
     return not int(panel_value(doc, 'cast_in_concrete', 0))
 
 
+def routed_z(doc, floor, mode, avoid):
+    """Height of the runs of ``mode`` on the storey at ``floor`` — what ``layered`` uses when keeping out of the frame,
+    so a riser rises to where the storey's runs really are."""
+    z = run_z(doc, floor, mode)
+    if avoid and mode == 'wall':
+        z = min(z, false_ceiling_z(doc, floor))
+    elif avoid and mode == 'ceiling':
+        z = false_ceiling_z(doc, floor)
+    return z
+
+
 def layered(doc, grid, mode, floor, z, free=()):
     """The grid that keeps out of the frame for a run of ``mode`` at ``z`` (``(grid, z)``): walls → two layers (brick +
     floor); floor → the screed round the columns; ceiling → a false ceiling under the lowest beam, round the columns."""
     from archforge.mep.electrical import FLOOR_RUN_Z
     if mode == 'wall':
+        # In the brick just under the lowest beam of the storey (bots 06/11: with 2,70 storeys and 50 cm beams the
+        # 2,35 run lay inside every beam on a wall — the electrician runs it below the soffit).
+        z = min(z, false_ceiling_z(doc, floor))
         return LayeredGrid(grid, doc, z, floor + FLOOR_RUN_Z, free), z
     if mode == 'ceiling':
         z = false_ceiling_z(doc, floor)

@@ -467,10 +467,21 @@ def route_cables(doc):
             low_z = run_z(doc, panel_floor, "wall")
             low = _Grid(doc, panel_floor, [(px, py), riser])
             low.mode = "wall"
-            lg = layered(doc, low, "wall", panel_floor, low_z, [low.cell(px, py), low.cell(*riser)])[0] if avoid else None
+            lg = None
+            if avoid:
+                lg, low_z = layered(doc, low, "wall", panel_floor, low_z, [low.cell(px, py), low.cell(*riser)])
             g = lg or low
             start, goal = (g.cell(*riser), g.cell(px, py))
             path = g.route(start, {goal})
+            if path is None:
+                # Boxed in by the frame (bots 06/11: this raised, and Επιμέτρηση / PDF / Φέρων with it): the storey is
+                # still fed — on the plain grid, said as a crossing to agree with the structural engineer.
+                design["report"].setdefault("warnings", []).append(
+                    f"{cid}: η σύνδεση πίνακα → κατακόρυφη όδευση ορόφου δεν βρίσκει δρόμο έξω από το φέρον — "
+                    "περνά από κολόνα / δοκάρι: χιτώνιο με έγκριση στατικού (Λίστες ▸ Χιτώνια / προσωλήνωση)")
+                g, lg = low, None
+                start, goal = (g.cell(*riser), g.cell(px, py))
+                path = g.route(start, {goal})
             chain = [g.point(c) for c in path]
             xyz = [lg.xyz(c) for c in path] if lg else [(*p_, low_z) for p_ in chain]
             for a, b in zip(xyz, xyz[1:]):
@@ -479,12 +490,14 @@ def route_cables(doc):
             pp = low.point(low.cell(px, py))
             runs.append(((pp[0], pp[1], mount_z(doc, panel.params)), (pp[0], pp[1], low_z), group, cid))
             rx, ry = low.point(low.cell(*riser))
-            top = max(run_z(doc, floor, mode) for mode, chosen in split.items() if chosen)
+            from archforge.mep.electrical_routes import routed_z
+            top = max(routed_z(doc, floor, mode, avoid) for mode, chosen in split.items() if chosen)
             runs.append(((rx, ry, low_z), (rx, ry, top), group, cid))
         for mode, chosen in split.items():
             if not chosen:
                 continue
             z = run_z(doc, floor, mode)
+            z_plain = z
             sx, sy = (rx, ry) if riser is not None else (px, py)
             grid = _Grid(doc, floor, [(float(e.params["x"]), float(e.params["y"])) for e in chosen] + [(sx, sy)])
             grid.mode = "wall" if mode == "wall" else "floor"
@@ -505,12 +518,22 @@ def route_cables(doc):
                 from_floor |= set(missing)
                 targets = {k: (*base_targets[k], 1 if k in from_floor else 0) for k in base_targets}
                 paths, _loads, parent = _grow(g, source, targets)
+            boxed = [e for e in chosen if e.id not in paths]
+            if boxed and lg is not None:
+                # Bots 06/11 (a 3-storey frame): avoiding it left dozens of points unconnected. Then the circuit is
+                # routed as without avoidance — every point fed — and said once: its crossings need sleeves agreed
+                # with the structural engineer (Λίστες ▸ Χιτώνια / προσωλήνωση lists them).
+                design["report"].setdefault("warnings", []).append(
+                    f"{cid}: {len(boxed)} σημεία δεν φτάνουν παρακάμπτοντας το φέρον — το κύκλωμα περνά από κολόνα / "
+                    "δοκάρι: χιτώνια με έγκριση στατικού (Λίστες ▸ Χιτώνια / προσωλήνωση) ή μετακίνηση των σημείων")
+                lg, g, z, from_floor = None, grid, z_plain, set()
+                source = grid.cell(sx, sy)
+                targets = dict(base_targets)
+                paths, _loads, parent = _grow(grid, source, targets)
             for e in chosen:
                 if e.id not in paths:
                     design["report"].setdefault("warnings", []).append(
-                        f"{cid}: «{e.name}» (x {float(e.params['x']):.2f}, y {float(e.params['y']):.2f}) δεν συνδέθηκε — "
-                        "κλεισμένο από φέρον (κολόνα / δοκάρι): μετακίνησέ το "
-                        "ή επίλεξε «Φέροντα: προσωλήνωση» στον πίνακα")
+                        f"{cid}: «{e.name}» (x {float(e.params['x']):.2f}, y {float(e.params['y']):.2f}) δεν συνδέθηκε")
             at = (lambda c: lg.xyz(c)) if lg else (lambda c: (*grid.point(c), z))
             seen = set()
             for tid, path in paths.items():
