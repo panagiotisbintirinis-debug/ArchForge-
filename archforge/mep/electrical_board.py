@@ -276,7 +276,8 @@ def analyse(doc, override=None):
     conf = {**settings(doc), **(override or {})}
     knx = conf["control_system"] == "knx"
     points = {e.id: e for e in electrical_points(doc)}
-    circuits = wiring["circuits"]
+    # Sub-board feeders are lines of the main panel (cable, drop, conduits) — their load is the storey's circuits.
+    circuits = wiring["circuits"] + list(wiring.get("feeders", ()))
     warnings = list(wiring["report"]["warnings"])
     by_id = {c["id"]: c for c in circuits}
     # Switch legs belong to the lighting circuit of their lights.
@@ -404,7 +405,7 @@ def analyse(doc, override=None):
 
 def _board(circuits, rows, conf, warnings):
     """Installed power (sum of the points' loads), demand and supply only from the user's entries."""
-    installed = sum(float(c["load_w"]) for c in circuits)
+    installed = sum(float(c["load_w"]) for c in circuits if c.get("group") != "feeder")   # feeders: counted below
     factor, kva, phases, fuse = conf["demand_factor"], conf["supply_kva"], conf["supply_phases"], conf["supply_fuse_a"]
     demand_kva = installed * factor / 1000.0 if factor > 0 else None      # kVA ≈ kW: no power factor assumed
     missing = [name for name, value in (("συντελεστής ταυτοχρονισμού", factor), ("παροχή kVA", kva),

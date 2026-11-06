@@ -607,8 +607,10 @@ class Gate:
         # Graph per circuit: every point of it on the same cable network as the panel.
         broken = []
         if panel is not None:
-            P = (float(panel.params["x"]), float(panel.params["y"]))
-            for c in r["circuits"]:
+            P0 = (float(panel.params["x"]), float(panel.params["y"]))
+            for c in r["circuits"] + list(r.get("feeders", ())):
+                b = self.doc.entities.get(c.get("board") or "")
+                P = (float(b.params["x"]), float(b.params["y"])) if b is not None else P0
                 segs = [(a, b) for a, b, _g, cid in r["runs"] if cid == c["id"]]
                 comp = _components(segs)
                 if not comp:

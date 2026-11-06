@@ -268,7 +268,7 @@ def electrical_list(doc, result=None):
     counts, strips = {}, {}
     for e in pts:
         t = e.params["point_type"]
-        if t == "panel" or POINT_TYPES[t][1] == "low_voltage":
+        if POINT_TYPES[t][1] in ("panel", "low_voltage"):          # panel and sub-boards are not loads
             continue
         cid = e.params.get("catalog_id") or ""
         if t == "led_strip":

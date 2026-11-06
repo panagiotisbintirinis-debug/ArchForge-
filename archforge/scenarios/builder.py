@@ -115,6 +115,7 @@ def build_spec(window, key, title, spec):
     # Η/Μ after the frame, as on a real job (bots 06/11: before it, the proposal put columns on two sockets).
     _mep(s, window, spec)
     _heating(s, window, spec)
+    _subpanels(s, window, spec)
     return s
 
 
@@ -186,6 +187,15 @@ def _mep(s, window, spec):
                 xy = _behind_on_level(s, appliance, z)
                 if xy is not None:
                     s.point(tool, *xy)
+
+
+def _subpanels(s, window, spec):
+    """Owner 06/11 (rule): a «Υποπίνακας ορόφου» on every storey with loads in a multi-storey building."""
+    if len(spec["levels"]) < 2 or not spec.get("mep", {}).get("panel"):
+        return
+    from archforge.ui.electrical_board_tab import place_subpanels
+    s.step("Ηλεκτρολογικά ▸ Υποπίνακες ορόφων (αυτόματα)",
+           lambda: (place_subpanels(window), window.statusBar().currentMessage()[:140])[1])
 
 
 def _heating(s, window, spec):

@@ -32,6 +32,42 @@ QT_NOISE = re.compile(r'QRhi|Vulkan|GPU|WebEngine|OpenGL|zygote|AA_ShareOpenGLCo
                       r'QWindowsWindow|qt\.qpa|QBackingStore|Populating font family', re.I)
 
 
+def _code_version():
+    """The commit this bot ran on, «+αλλαγές» when the working tree differed (a finding is judged on its code)."""
+    try:
+        head = subprocess.run(['git', 'rev-parse', '--short', 'HEAD'], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+        dirty = subprocess.run(['git', 'status', '--porcelain', '--', 'archforge'], cwd=ROOT, capture_output=True,
+                               text=True).stdout.strip()
+        return head + (' +αλλαγές' if dirty else '')
+    except Exception:                                                     # noqa: BLE001
+        return '?'
+
+
+CODE_VERSION = _code_version()
+
+# Every repeated finding gets its cause (owner 06/11: «όλα τα μηνύματα που αγνοούνται λόγω επανάληψης πρέπει να βρεθεί
+# ο λόγος»). A finding matching none of these is «προς διερεύνηση» — never dismissed.
+CAUSES = (
+    ('επανάληψη όλων', r'άλλες παραμέτρους', 'room_id των πλακών ακολουθεί την επανάληψη χωρίσματος (τα ονόματα χώρων '
+     'μένουν — ελέγχονται χωριστά)· εξαιρείται από 06/11 (commit cf9121d) · αφορά bot πριν από αυτό'),
+    ('χώροι με νέο αναγνωριστικό', r'', 'ίδια αιτία (επανάληψη χωρίσματος)· ο έλεγχος έγινε «ονόματα χώρων»'),
+    ('τριβή', r'τόξο πόρτας', 'δεξί κλικ στη μέση μικρού χώρου πέφτει στο τόξο της πόρτας — θέμα συμπεριφοράς, για απόφαση'),
+    ('εξαίρεση', r'derived_mep', 'το bot ξεκίνησε ενώ άλλαζαν τα αρχεία (μικτή έκδοση) — όχι λάθος του προγράμματος'),
+    ('αγγλικό μήνυμα στον χρήστη', r'', 'διορθώθηκε (ελληνικά + φύλακας test_no_english_messages) — bot με παλιό κώδικα'),
+    ('εξαίρεση', r"'NoneType' object is not iterable", 'διαδρομή κατακόρυφης όδευσης χωρίς δρόμο — διορθώθηκε 200013f'),
+    ('προειδοποίηση χρήστη', r'Ενεργή σχεδίαση', 'περίγραμμα οικοπέδου ανοιχτό μετά από Esc — διορθώθηκε (Esc το ακυρώνει)'),
+    ('δεν έγινε (με εξήγηση)', r'κλειδωμένο', 'εργαλείο οικοπέδου σε περιβάλλον Η/Μ — διορθώθηκε (αλλάζει περιβάλλον)'),
+    ('δεν έγινε (με εξήγηση)', r'γυρίζει πίσω|folds back', 'λάθος του bot στην περίφραξη (κλείσιμο) — διορθώθηκε'),
+)
+
+
+def cause_of(kind, text):
+    for k, pattern, cause in CAUSES:
+        if k == kind and (not pattern or re.search(pattern, text)):
+            return cause
+    return 'προς διερεύνηση'
+
+
 # ----------------------------------------------------------------------------------------------- scenario
 def scenario(seed):
     """Ένα κτίριο από το «σκίτσο» του χρήστη: τύπος, περίγραμμα, κάνναβος χώρων, όροφοι, τι θα βάλει."""
@@ -711,6 +747,10 @@ class Bot:
         C = cells_[0]
         self.place(('Εγκαταστάσεις', 'Ύδρευση', 'Παροχή κρύου νερού'), [(C[0]['x0'] + 0.2, 0.2)])
         self.place(('Εγκαταστάσεις', 'Ασθενή (δίκτυο·TV)', 'Πρίζα TV / SAT'), [(C[0]['x1'] - 0.15, C[0]['cy'])])
+        if self.s['floors'] > 1 or self.s['basement']:
+            # The rule (owner 06/11): a sub-board on every storey — the program says so; the person runs the command.
+            self.do('υποπίνακες ορόφων (αυτόματα)',
+                    lambda: self.menu('Εγκαταστάσεις', 'Ηλεκτρολογικά', 'Υποπίνακες ορόφων (αυτόματα)'), 'more')
         self.do('ανάλυση ηλεκτρολογικών',
                 lambda: self.menu('Εγκαταστάσεις', 'Ηλεκτρολογικά', 'Ανάλυση ηλεκτρολογικών — σχέδιο & κόστος…'))
 
@@ -955,6 +995,7 @@ class Bot:
 
     def report(self):
         return dict(seed=self.seed, scenario=self.s, findings=self.findings, steps=self.steps, project=self.project,
+                    code=CODE_VERSION,
                     windows=self.windows_seen[-200:], status=[x for x in self.status_log if not x[1].startswith("X ")][-400:], kinds=getattr(self, 'kinds', {}),
                     seconds=round(getattr(self, 'total', 0), 1))
 
@@ -1293,8 +1334,8 @@ def _write_report(reports, path, title, intro):
         for f in r['findings']:
             key = (f['kind'], norm(f['text']))
             g = groups.setdefault(key, dict(kind=f['kind'], text=f['text'], bots=set(), steps=set(), detail=f['detail'],
-                                            first=r['seed']))
-            g['bots'].add(r['seed']); g['steps'].add(norm(f['step']))
+                                            first=r['seed'], codes=set()))
+            g['bots'].add(r['seed']); g['steps'].add(norm(f['step'])); g['codes'].add(r.get('code', '?'))
     order = ['κατάρρευση / κόλλημα', 'διακοπή bot', 'εξαίρεση', 'μη έγκυρο στοιχείο', 'αποθήκευση ≠ άνοιγμα',
              'άνοιγμα ≠ αρχείο', 'κρυφή αλλαγή', 'ορφανό στοιχείο', 'χάθηκαν ονόματα χώρων', 'αναίρεση όλων', 'επανάληψη όλων', 'επανάληψη: νέα αναγνωριστικά', 'αναίρεση', 'αποθήκευση', 'νέο έργο', 'δεν βγήκε αρχείο',
              'μήνυμα σφάλματος', 'αγγλικό μήνυμα στον χρήστη', 'δεν βρέθηκε εντολή', 'δεν έγινε τίποτα', 'αργό', 'προειδοποίηση Qt',
@@ -1311,11 +1352,12 @@ def _write_report(reports, path, title, intro):
          f'χωρίς κανένα εύρημα: **{clean}** · ομάδες ευρημάτων: **{len(gl)}**', '',
          'Κτίρια: ' + ' · '.join(f'{k} {v}' for k, v in sorted(kinds.items())), '',
          intro + ' Εργαλείο: `scripts/user_drive/bots.py`.', '',
-         '| # | Είδος | Bot | Εύρημα | Πού (βήμα) | Πρώτο bot |', '|---|---|---|---|---|---|']
+         '| # | Είδος | Bot | Εύρημα | Πού (βήμα) | Αιτία | Κώδικας | Πρώτο bot |', '|---|---|---|---|---|---|---|---|']
     for i, g in enumerate(gl, 1):
         txt = g['text'].replace('|', '/').replace('\n', ' ')[:160]
         st = '; '.join(sorted(g['steps']))[:120].replace('|', '/')
-        L.append(f'| {i} | {g["kind"]} | {len(g["bots"])} | {txt} | {st} | {g["first"]} |')
+        cause = cause_of(g['kind'], g['text']).replace('|', '/')
+        L.append(f'| {i} | {g["kind"]} | {len(g["bots"])} | {txt} | {st} | {cause} | {", ".join(sorted(g["codes"]))[:40]} | {g["first"]} |')
     L += ['', '## Λεπτομέρειες (εξαιρέσεις / καταρρεύσεις)', '']
     for i, g in enumerate(gl, 1):
         if g['detail'] and g['kind'] in ('εξαίρεση', 'διακοπή bot', 'κατάρρευση / κόλλημα', 'μη έγκυρο στοιχείο',

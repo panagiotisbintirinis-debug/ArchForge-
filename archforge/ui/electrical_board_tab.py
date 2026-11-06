@@ -597,11 +597,35 @@ def install(window):
         renumber.setToolTip('Ξαναχωρίζει και ξαναμετρά όλα τα κυκλώματα από το Κ1 και τα κρατά · μία αναίρεση')
         renumber.setObjectName('circuitNumbersRenumberAction')
         renumber.triggered.connect(lambda _=False: keep_numbers(window, renumber=True))
+        # Owner 06/11: «σε πολλούς ορόφους κάθε όροφος πρέπει να έχει υποπίνακα — αυτός είναι κανόνας».
+        subs = QAction('Υποπίνακες ορόφων (αυτόματα)', window)
+        subs.setToolTip('Ένας «Υποπίνακας ορόφου» σε κάθε όροφο με φορτία που δεν έχει, εκεί που φτάνει η κατακόρυφη '
+                        'όδευση από τον γενικό πίνακα · τα κυκλώματα του ορόφου τροφοδοτούνται από αυτόν · μία αναίρεση')
+        subs.setObjectName('subpanelsAutoAction')
+        subs.triggered.connect(lambda _=False: place_subpanels(window))
+        window._subpanels_action = subs
         after = menu.actions()[2] if len(menu.actions()) > 2 else None
-        for a in (keep, renumber):
+        for a in (keep, renumber, subs):
             menu.insertAction(after, a)
         window._circuit_number_actions = {"keep": keep, "renumber": renumber}
     return tab
+
+
+def place_subpanels(window):
+    """«Υποπίνακες ορόφων (αυτόματα)» (one undo); says how many and where, or why none."""
+    from archforge.mep.electrical import missing_subpanels, subpanel_command
+    command = subpanel_command(window.doc)
+    if command is None:
+        window.statusBar().showMessage("Υποπίνακες: κάθε όροφος με φορτία έχει ήδη τον δικό του (ή δεν υπάρχει γενικός "
+                                       "πίνακας)", 6000)
+        return None
+    floors = missing_subpanels(window.doc)
+    window.stack.execute(command)
+    window._redraw_views(all_views=True)
+    window.statusBar().showMessage(f"Υποπίνακες ορόφων: {len(floors)} (στάθμες "
+                                   + ", ".join(f"{z:+.2f}".replace(".", ",") for z in floors)
+                                   + ") — γραμμές τροφοδοσίας από τον γενικό πίνακα · Ctrl+Z = αναίρεση", 8000)
+    return command
 
 
 def keep_numbers(window, renumber=False):

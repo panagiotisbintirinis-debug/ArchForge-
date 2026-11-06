@@ -81,6 +81,8 @@ VOLTAGE = 230.0
 # type: label, group, default W, mounting height (m), plan letter
 POINT_TYPES = {
     "panel": ("Ηλεκτρικός πίνακας", "panel", 0, 1.60, "ΠΙ"),
+    # Owner 06/11: «σε πολλούς ορόφους κάθε όροφος πρέπει να έχει υποπίνακα — αυτός είναι κανόνας».
+    "subpanel": ("Υποπίνακας ορόφου", "panel", 0, 1.60, "ΥΠ"),
     "light": ("Φωτιστικό οροφής", "lighting", 60, None, "Φ"),
     "spot": ("Σποτ (κατευθυνόμενο)", "lighting", 0, None, "Σπ"),
     "downlight": ("Χωνευτό φωτιστικό οροφής", "lighting", 0, None, "Χ"),
@@ -191,6 +193,70 @@ def _room_of(doc, x, y, floor):
     return None
 
 
+SUBPANEL_RULE = ("κανόνας ιδιοκτήτη 06/11: σε κτίριο με φορτία σε πολλούς ορόφους κάθε όροφος έχει δικό του "
+                 "υποπίνακα, τροφοδοτούμενο από τον γενικό πίνακα")
+
+
+def boards(doc):
+    """``{floor z: board entity}``: the main panel on its storey, a «Υποπίνακας ορόφου» on each other storey that has
+    one (the first, if two were placed); a storey without one is fed from the main panel — and said."""
+    points = electrical_points(doc)
+    panel = next((e for e in points if e.params["point_type"] == "panel"), None)
+    out = {}
+    if panel is not None:
+        out[_floor_of(doc, float(panel.params["z"]))] = panel
+    for e in sorted((e for e in points if e.params["point_type"] == "subpanel"), key=lambda e: e.id):
+        out.setdefault(_floor_of(doc, float(e.params["z"])), e)
+    return out
+
+
+def load_floors(doc):
+    """Storeys that have electrical loads (not counting the boards themselves)."""
+    return sorted({_floor_of(doc, float(e.params["z"])) for e in electrical_points(doc)
+                   if POINT_TYPES[e.params["point_type"]][1] in CIRCUIT_RULES})
+
+
+def missing_subpanels(doc):
+    """Storeys with loads, other than the main panel's, that have no «Υποπίνακας ορόφου» (the rule)."""
+    points = electrical_points(doc)
+    panel = next((e for e in points if e.params["point_type"] == "panel"), None)
+    if panel is None:
+        return []
+    have = boards(doc)
+    floors = load_floors(doc)
+    if len(floors) < 2 and (not floors or floors[0] == _floor_of(doc, float(panel.params["z"]))):
+        return []
+    return [f for f in floors if f not in have]
+
+
+def subpanel_command(doc):
+    """«Υποπίνακες ορόφων (αυτόματα)»: a «Υποπίνακας ορόφου» on every storey with loads that has none, where the riser
+    from the main panel reaches it (a wall both storeys share when there is one) — one undo; None when none is missing."""
+    from archforge.core.commands import AddEntities
+    from archforge.core.model import Entity
+    points = electrical_points(doc)
+    panel = next((e for e in points if e.params["point_type"] == "panel"), None)
+    if panel is None:
+        return None
+    px, py = float(panel.params["x"]), float(panel.params["y"])
+    pf = _floor_of(doc, float(panel.params["z"]))
+    new = []
+    for floor in missing_subpanels(doc):
+        q = _riser(doc, pf, floor, px, py) or (px, py)
+        new.append(Entity("electrical_point", {"point_type": "subpanel", "x": float(q[0]), "y": float(q[1]),
+                                               "z": float(floor)}, name=f"Υποπίνακας ορόφου {floor:+.2f}".replace(".", ",")))
+    return AddEntities(new) if new else None
+
+
+def feeder_sizing(watts):
+    """Breaker and copper section of a sub-board feeder from its storey's installed load (single phase, a design
+    default to check: Ib = P / 230, In the next standard rating ≥ Ib, section with Iz ≥ In in method B1)."""
+    ib = max(float(watts), 0.0) / VOLTAGE
+    rating = next((r for r in (16, 20, 25, 32, 40, 50, 63, 80) if r >= ib), 80)
+    section = {16: 2.5, 20: 4.0, 25: 6.0, 32: 6.0, 40: 10.0, 50: 10.0, 63: 16.0, 80: 25.0}[rating]
+    return rating, section, round(ib, 1)
+
+
 def design_circuits(doc, keep_numbers=True):
     """Group points into circuits: ``{"circuits": [...], "switch_links": [...], "report": {...}}``.
 
@@ -208,6 +274,11 @@ def design_circuits(doc, keep_numbers=True):
         if loads:
             out["report"]["warnings"].append("Δεν υπάρχει ηλεκτρικός πίνακας: τα κυκλώματα δεν σχηματίζονται")
         return out
+    board_of = boards(doc)
+    for floor in missing_subpanels(doc):
+        out["report"]["warnings"].append(
+            f"Όροφος {floor:+.2f}: χρειάζεται «Υποπίνακας ορόφου» ({SUBPANEL_RULE}) — Εγκαταστάσεις ▸ "
+            "Ηλεκτρολογικά ▸ Υποπίνακες ορόφων (αυτόματα)".replace(".", ","))
     by_group = {}
     for e in loads:
         if e.params["point_type"] in DATASHEET_TYPES and point_load_w(e.params) <= 0:
@@ -217,7 +288,8 @@ def design_circuits(doc, keep_numbers=True):
         group = POINT_TYPES[e.params["point_type"]][1]
         floor = _floor_of(doc, float(e.params["z"]))
         room = _room_of(doc, float(e.params["x"]), float(e.params["y"]), floor) or "—"
-        by_group.setdefault(group, []).append((room, floor, e))
+        board = board_of.get(floor, panel).id                # its storey's sub-board, else the main panel
+        by_group.setdefault((group, board), []).append((room, floor, e))
     used = set()
     if keep_numbers:
         for e in loads:
@@ -227,8 +299,8 @@ def design_circuits(doc, keep_numbers=True):
     number = max(used, default=0)
     claimed = {}                                   # kept number → its group (a number belongs to one group)
     made = []                                      # (number, circuit)
-    for group in GROUP_ORDER:
-        members = by_group.get(group, [])
+    for group, board_id in [(g, b) for g in GROUP_ORDER for b in sorted({b for (gg, b) in by_group if gg == g})]:
+        members = by_group.get((group, board_id), [])
         if not members:
             continue
         label, breaker, cable, limit = CIRCUIT_RULES[group]
@@ -280,7 +352,8 @@ def design_circuits(doc, keep_numbers=True):
             # Shared circuits keep 20 % margin; a dedicated line must carry its appliance.
             ok = amps <= (breaker if dedicated else 0.8 * breaker)
             circuit = {"id": f"Κ{num}", "group": group, "label": label, "breaker_a": breaker, "cable_mm2": cable,
-                       "points": [e.id for e in chunk], "load_w": round(watts), "current_a": round(amps, 1), "ok": ok}
+                       "points": [e.id for e in chunk], "load_w": round(watts), "current_a": round(amps, 1), "ok": ok,
+                       "board": board_id}
             if not ok:
                 fix = "μεγαλύτερη ασφάλεια/διατομή" if dedicated else "χωρίστε το κύκλωμα"
                 limit_txt = f"{breaker} A" if dedicated else f"80% της ασφάλειας {breaker} A"
@@ -288,6 +361,15 @@ def design_circuits(doc, keep_numbers=True):
                                                  "[κανόνας μη επαληθευμένος]")
             made.append((num, circuit))
     out["circuits"] = [c for _n, c in sorted(made, key=lambda t: t[0])]
+    # One feeder per sub-board, from the main panel up the riser (sized by its storey's installed load).
+    feeders = []
+    for k, (floor, sub) in enumerate(sorted((f, b) for f, b in board_of.items() if b.id != panel.id), 1):
+        watts = sum(c["load_w"] for c in out["circuits"] if c.get("board") == sub.id)
+        rating, section, ib = feeder_sizing(watts)
+        feeders.append({"id": f"Τ{k}", "group": "feeder", "label": f"Τροφοδοσία υποπίνακα ορόφου {floor:+.2f}".replace(".", ","),
+                        "breaker_a": rating, "cable_mm2": section, "points": [sub.id], "load_w": round(watts),
+                        "current_a": ib, "ok": True, "board": panel.id, "feeds": sub.id})
+    out["feeders"] = feeders
     out["report"]["numbers_kept"] = bool(used)
     # Switches and dimmers control the lights of their automation group, otherwise of their room (same storey).
     lights = [(e, _room_of(doc, float(e.params["x"]), float(e.params["y"]), _floor_of(doc, float(e.params["z"]))),
@@ -457,10 +539,15 @@ def route_cables(doc):
     panel_key = tuple(sorted((k, str(v)) for k, v in panel.params.items()))
     if len(_CIRCUIT_MEMO) > 4000:
         _CIRCUIT_MEMO.clear()
-    for circuit in design["circuits"]:
+    main = panel
+    for circuit in design["circuits"] + design.get("feeders", []):
+        # Each circuit from its own board: its storey's sub-board, or the main panel (feeders: main → sub-board).
+        panel = points.get(circuit.get("board")) or main
+        px, py = float(panel.params["x"]), float(panel.params["y"])
+        panel_floor = _floor_of(doc, float(panel.params["z"]))
         members = [points[i] for i in circuit["points"]]
-        ckey = (geom, panel_key, circuit["id"], circuit["group"],
-                tuple((e.id, tuple(sorted((k, str(v)) for k, v in e.params.items()))) for e in members))
+        ckey = (geom, panel_key, tuple(sorted((k, str(v)) for k, v in panel.params.items())), circuit["id"],
+                circuit["group"], tuple((e.id, tuple(sorted((k, str(v)) for k, v in e.params.items()))) for e in members))
         hit = _CIRCUIT_MEMO.get(ckey)
         if hit is not None:
             runs.extend(hit[0]); boxes.extend(hit[1])
@@ -734,8 +821,9 @@ def point_marker_mesh(doc, params):
         c = [(px + sx * nx, py + sx * ny, z + dz) for px, py in ((x, y), (x2, y2)) for sx in (-1, 1) for dz in (0.0, 0.01)]
         quads = [(0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3), (0, 1, 3, 2), (4, 6, 7, 5)]
         return c, [t for a, b, cc, d in quads for t in ((a, b, cc), (a, cc, d))]
-    s = 0.12 if params["point_type"] == "panel" else 0.06
-    h = 0.4 if params["point_type"] == "panel" else 0.06
+    board = params["point_type"] in ("panel", "subpanel")
+    s = 0.12 if board else 0.06
+    h = 0.4 if board else 0.06
     c = [(x + dx, y + dy, z + dz) for dx in (-s, s) for dy in (-s / 2, s / 2) for dz in (-h / 2, h / 2)]
     quads = [(0, 2, 3, 1), (4, 5, 7, 6), (0, 1, 5, 4), (2, 6, 7, 3), (0, 4, 6, 2), (1, 3, 7, 5)]
     tris = [t for a, b, cc, d in quads for t in ((a, b, cc), (a, cc, d))]
