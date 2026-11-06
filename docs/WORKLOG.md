@@ -1,3 +1,8 @@
+## 06/11 — Εισαγωγή DXF ως σχέδιο 2D (κενό 3)
+
+- `exchange/dxf_import.py` (`read`, `import_command`, `report_text`), `ui/exchange_export.import_dxf_drawing`, μενού
+  Εισαγωγή. Τεστ `tests/test_dxf_import.py`: 4 (όλοι οι τύποι, μονάδες, αναίρεση, εξαγωγή → εισαγωγή, μενού).
+
 ## 06/11 — Έλεγχος συγκρούσεων (κενό 2 της αποτύπωσης)
 
 - `coordination/clash.py` (Box, segment_in_box, box_overlap, network_segments, find), λίστα `schedules.clashes`,

@@ -155,6 +155,7 @@ def organize_main_menus(window):
         image = _find(camera_menu.menu(), "Εξαγωγή εικόνας", True) if camera_menu is not None else None
         from archforge.ui.exchange_export import actions as exchange_actions, import_action as ifc_import_action
         imports.append(ifc_import_action(window))
+        imports.append(window._import_dxf_drawing_action)         # 06/11: exchange/dxf_import.py
         exports = [getattr(window, "_pdf_action", None), *exchange_actions(window),
                    getattr(window, "export_stl_action", None), image]
         exports = [a for a in exports if a is not None]

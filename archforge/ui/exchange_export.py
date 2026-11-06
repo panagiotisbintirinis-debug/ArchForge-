@@ -83,6 +83,38 @@ def import_ifc(window, path=None):
     return result
 
 
+def import_dxf_drawing(window, path=None, unit=None):
+    """A DXF as editable 2D drawing on the active storey (exchange/dxf_import.py) — one undo."""
+    from archforge.exchange import dxf_import as DI
+    if path is None and not getattr(window, "_no_modal_dialogs", False):
+        from PySide6.QtWidgets import QFileDialog, QInputDialog
+        path, _ = QFileDialog.getOpenFileName(window, "Εισαγωγή DXF ως σχέδιο 2D", "", "DXF (*.dxf)")
+        if not path:
+            return None
+        choices = ["όπως λέει το αρχείο", "mm", "cm", "m"]
+        choice, ok = QInputDialog.getItem(window, "Μονάδες του DXF", "Σε τι μονάδες είναι σχεδιασμένο;", choices, 0, False)
+        if not ok:
+            return None
+        unit = None if choice == choices[0] else choice
+    if not path:
+        return None
+    try:
+        cmd, report = DI.import_command(window.doc, path, unit)
+        b = report["bounds"]
+        if b is not None and max(abs(v) for v in b) > 1000:       # survey coordinates: bring it to the origin, said
+            cmd, report = DI.import_command(window.doc, path, unit, to_origin=True)
+            report["moved"] = True
+        window.stack.execute(cmd)
+    except Exception as exc:                                            # noqa: BLE001 — told, nothing added
+        window.statusBar().showMessage(f"DXF: δεν διαβάστηκε — {exc}", 10000)
+        return None
+    window._redraw_views(all_views=True)
+    window.statusBar().showMessage("DXF ως σχέδιο 2D: " + DI.report_text(report)
+                                   + (" · μεταφέρθηκε στην αρχή των αξόνων (συντεταγμένες > 1 km)" if report.get("moved") else "")
+                                   + " · Ctrl+Z = αναίρεση", 15000)
+    return report
+
+
 def import_action(window):
     if getattr(window, "_import_ifc_action", None) is None:
         a = QAction("IFC (τοίχοι, κουφώματα, όροφοι)…", window)
@@ -90,6 +122,11 @@ def import_action(window):
                      "στα ανοίγματά τους — μία αναίρεση· ό,τι άλλο λέγεται, δεν χάνεται σιωπηλά")
         a.triggered.connect(lambda _=False: import_ifc(window))
         window._import_ifc_action = a
+        d = QAction("DXF ως σχέδιο 2D (επεξεργάσιμο)…", window)
+        d.setToolTip("Γραμμές, τόξα, κύκλοι, πολυγραμμές, κείμενα, γεμίσματα και blocks γίνονται στοιχεία «Σχέδιο 2D» "
+                     "του ορόφου — μία αναίρεση· για υπόβαθρο αναφοράς: «Σχέδιο μηχανικού ως υπόβαθρο»")
+        d.triggered.connect(lambda _=False: import_dxf_drawing(window))
+        window._import_dxf_drawing_action = d
     return window._import_ifc_action
 
 
