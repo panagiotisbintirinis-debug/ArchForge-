@@ -1,3 +1,8 @@
+## 06/11 — Άνεμος περιοχής (ΤΟΤΕΕ 20701-3), μπαλκόνια, όψεις
+
+- `mep/totee_20701_3_site.py`, `site/wind.py`, `solar_study.site` (πλάτος από σταθμό, `blocked(max_t=…)`),
+  `ui/solar_dialog.py` → «Ήλιος και άνεμος», γραμμή ανέμου στο `thermal_facade_tab`. Τεστ `tests/test_wind.py`: 5.
+
 ## 06/11 — Ηλιασμός κουφωμάτων (κενό 5)
 
 - `site/solar_study.py` (site, set_site_command, sun_vector, obstacles, blocked, study, facing), `ui/solar_dialog.py`,

@@ -794,6 +794,16 @@ def _u_value(v):
     return v
 
 
+def _wind_dir(v):
+    """Prevailing wind direction (site/wind.py): one of the 8 compass points, or None (ΤΟΤΕΕ 20701-3 then)."""
+    if v is None or v == '':
+        return None
+    from archforge.mep.totee_20701_3_site import DIRECTIONS
+    if v not in DIRECTIONS:
+        raise ValueError(f'wind direction must be one of {", ".join(DIRECTIONS)}')
+    return v
+
+
 def _optional_nonnegative(name):
     """Thermal datum of a door / window from its maker (mep/opening_thermal.py), or None."""
     def check(v):
@@ -1037,6 +1047,7 @@ SCHEMAS = {
     'insulation_spec': {'categories': _insulation_categories},
     # Design temperatures of the project (mep/design_climate.py): every value changes per project, nothing fixed.
     'design_climate': {'latitude': _between(-66.0, 66.0, 'latitude'), 'north_deg': _finite,
+                       'wind_dir_winter': lambda v: _wind_dir(v), 'wind_dir_summer': lambda v: _wind_dir(v),
                        'heat_theta_int': _finite, 'heat_theta_ext_winter': _finite, 'heat_theta_ext_summer': _finite,
                        'heat_air_changes': _nonnegative, 'preset': str,
                        'zone': _choice(('', 'Α', 'Β', 'Γ', 'Δ'), 'climate zone')},

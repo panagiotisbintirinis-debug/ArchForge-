@@ -400,6 +400,9 @@ class ThermalFacadeTab(QWidget):
             + f" · {'από έξω (θse)' if side == 'exterior' else 'από μέσα (θsi)'} · υπολογισμός 3Δ αγωγής (EN ISO 10211)"
             + ("" if palette in ("iron", "rainbow", "gray", C.ZONES) else
                f" · παλέτα {C.PALETTES[palette][0]}"))
+        note = self._wind_note()
+        if note:
+            self.header.setText(self.header.text() + "\n" + note)
         self.today_img.setPixmap(pixmap(C.to_rgb(t[key], r["lo"], r["hi"], palette, zones)))
         self.lo_label.setText(f"{_num(r['lo'], 1)} °C")
         self.hi_label.setText(f"{_num(r['hi'], 1)} °C")
@@ -436,6 +439,20 @@ class ThermalFacadeTab(QWidget):
                               + (f", κολόνες/δοκοί σήμερα {_num(frame)}" if frame else ""))
         else:
             self.umax.setText("Umax: χωρίς ζώνη στο έργο (Θέρμανση › Θερμοκρασίες σχεδιασμού…)")
+
+    def _wind_note(self):
+        """How the region's wind meets this façade (site/wind.py), or ''."""
+        wid = self.wall_id()
+        w = self.window.doc.entities.get(wid)
+        if w is None:
+            return ""
+        try:
+            from archforge.mep.ventilation import exterior_walls
+            from archforge.site.wind import facade_note
+            out = next((n for e, n in exterior_walls(self.window.doc, float(w.params.get("z", 0.0))) if e.id == wid), None)
+            return facade_note(self.window.doc, out) if out is not None else ""
+        except Exception:                                   # noqa: BLE001 — a note, never a stop
+            return ""
 
     def _fill_coords(self, r):
         rows = r["rows"]

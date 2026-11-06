@@ -31,16 +31,26 @@ MONTHS = ("Ιανουάριος", "Φεβρουάριος", "Μάρτιος", "�
 
 
 def site(doc):
-    """``{"latitude", "north_deg", "assumed": [...]}``: the project's place on the earth (assumed values said)."""
+    """``{"latitude", "north_deg", "assumed": [...], "latitude_from"}``: the project's place on the earth. Latitude: the
+    user's own, else the station of the design temperatures (ΤΟΤΕΕ 20701-3 Πίν. 1.1), else 38° (said)."""
     from archforge.mep.design_climate import entity
+    from archforge.mep.totee_20701_3_site import STATIONS
+    from archforge.site.wind import station
     p = dict(entity(doc).params) if entity(doc) is not None else {}
     assumed = []
-    if p.get("latitude") is None:
+    st = station(doc)
+    if p.get("latitude") is None and st in STATIONS:
+        p["latitude"] = STATIONS[st][0]
+        latitude_from = f"σταθμός {st} (ΤΟΤΕΕ 20701-3 {STATIONS[st][3]})"
+    elif p.get("latitude") is None:
+        latitude_from = "προεπιλογή"
         assumed.append(f"γεωγραφικό πλάτος {DEFAULT_LATITUDE:g}° Β (προεπιλογή)")
+    else:
+        latitude_from = "δικό σας"
     if p.get("north_deg") is None:
         assumed.append("βορράς = +y της κάτοψης (προεπιλογή)")
     return {"latitude": float(p.get("latitude", DEFAULT_LATITUDE)), "north_deg": float(p.get("north_deg", 0.0)),
-            "assumed": assumed}
+            "assumed": assumed, "latitude_from": latitude_from}
 
 
 def set_site_command(doc, latitude=None, north_deg=None):
@@ -84,8 +94,8 @@ def obstacles(doc):
     return v0, all_t[:, 1] - v0, all_t[:, 2] - v0
 
 
-def blocked(origins, direction, tri, eps=1e-6):
-    """Boolean per origin: does the ray origin + t·direction (t > 0) hit any triangle?"""
+def blocked(origins, direction, tri, eps=1e-6, max_t=None):
+    """Boolean per origin: does the ray origin + t·direction (t > 0, and t ≤ ``max_t`` when given) hit any triangle?"""
     v0, e1, e2 = tri
     if len(v0) == 0:
         return np.zeros(len(origins), dtype=bool)
@@ -102,6 +112,8 @@ def blocked(origins, direction, tri, eps=1e-6):
         v = (qvec @ d) * inv
         t = np.einsum("ij,ij->i", e2, qvec) * inv
         hit = ok & (u >= 0) & (v >= 0) & (u + v <= 1) & (t > 1e-4)
+        if max_t is not None:
+            hit &= t <= max_t
         out[i] = bool(hit.any())
     return out
 

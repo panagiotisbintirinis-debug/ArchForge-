@@ -61,7 +61,7 @@ def test_site_is_kept_in_the_project_with_one_undo():
     s = SS.site(doc)
     assert (s['latitude'], s['north_deg'], s['assumed']) == (40.6, 15.0, [])
     st.undo()
-    assert SS.site(doc)['latitude'] == SS.DEFAULT_LATITUDE
+    assert 'σταθμός' in SS.site(doc)['latitude_from']          # back to the design temperatures' station (ΤΟΤΕΕ 20701-3)
     with pytest.raises(ValueError):
         SS.set_site_command(doc, 80, 0)
 
