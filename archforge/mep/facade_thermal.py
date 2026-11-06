@@ -171,7 +171,8 @@ def facade(doc, wall_id, wall_type=None, theta_i=None, theta_e=None, layers=None
         from archforge.mep.opening_thermal import components, uw as opening_uw
         uw = opening_u or opening_uw(doc, o)[0]
         parts_c = components(o) if opening_u is None and not o.params.get("u_value") else None
-        s0 = float(o.params.get("offset", 0.0))
+        # ``offset`` is the opening's centre along the wall (architecture/openings.plan_segment), not its start.
+        s0 = float(o.params.get("offset", 0.0)) - float(o.params.get("width", 1.0)) / 2
         za = float(o.params.get("sill", 0.0)) if o.kind == "window" else 0.0
         rr, cc = cells(s0, s0 + float(o.params.get("width", 1.0)), za, za + float(o.params.get("height", 1.0)))
         if uw is None:

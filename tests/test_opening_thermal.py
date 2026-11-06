@@ -69,7 +69,9 @@ def test_the_picture_shows_frame_spacer_and_glass_and_follows_the_window():
     after = F.facade(doc, w.id)
     o = doc.get(o.id)
     th = after['theta']
-    r0, c0 = int(round((3.0 - 0.9 - 1.4) / F.H)), int(round(2.0 / F.H))        # top-left cell of the window
+    r0, c0 = int(round((3.0 - 0.9 - 1.4) / F.H)), int(round((2.0 - 0.6) / F.H))  # top-left cell (offset = centre)
+    cols = sorted({c for c in range(th.shape[1]) if (after['kind'][:, c] == 2).any()})
+    assert cols[0] * F.H == pytest.approx(1.4) and (cols[-1] + 1) * F.H == pytest.approx(2.6)   # 1,40 … 2,60 m
     frame, edge, glass = th[r0 + 3, c0], th[r0 + 3, c0 + 2], th[r0 + 14, c0 + 12]
     assert edge > glass + 0.05                                               # the spacer's warm line outside
     assert not np.allclose(before['theta'], th)                              # the window changed → the picture
