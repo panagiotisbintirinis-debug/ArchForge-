@@ -110,9 +110,9 @@ def validate(p):
     if float(p.get('base_height', 0.0)) > float(p.get('height', DEFAULT_HEIGHT)) - 0.3 and p.get('railing_type') != 'parapet':
         raise ValueError('Κάγκελο: η ποδιά να μένει τουλάχιστον 30 cm κάτω από την κουπαστή')
     if 'post_spacing' in p and not 0.3 <= float(p['post_spacing']) <= MAX_POST_SPACING:
-        raise ValueError(f'post spacing must be between 0.30 and {MAX_POST_SPACING:.2f} m')
+        raise ValueError(f'Κάγκελο: απόσταση ορθοστατών από 0,30 ως {MAX_POST_SPACING:.2f} m'.replace('.', ','))
     if 'gap' in p and not 0.02 <= float(p['gap']) <= MAX_GAP:
-        raise ValueError(f'clear gap must be between 0.02 and {MAX_GAP:.2f} m (child safety)')
+        raise ValueError(f'Κάγκελο: καθαρό κενό από 0,02 ως {MAX_GAP:.2f} m (ασφάλεια παιδιών)'.replace('.', ','))
     if 'handrail_size' in p and not 0.02 <= float(p['handrail_size']) <= 0.40:
         raise ValueError('Κουπαστή: διάσταση από 2 ως 40 cm')
     return p

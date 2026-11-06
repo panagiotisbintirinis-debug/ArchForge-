@@ -369,7 +369,7 @@ class PointerController:
                     snap_enabled=self.snap_enabled and not ev.shift,
                 )
             elif e.kind in ('door','window','opening'):self.active=OpeningEditTransaction(self.doc,self.stack,e.id,self.active_handle or 'right')
-            else:raise ValueError('stretch unsupported for entity kind')
+            else:raise ValueError('Αυτό το στοιχείο δεν τεντώνεται με τη λαβή')
             return self.pointer_move(ev)
         if self.tool=='rotate':
             if not self.active_entity or self.active_entity not in self.doc.entities:return self.preview

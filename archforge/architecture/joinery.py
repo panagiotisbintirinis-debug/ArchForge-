@@ -146,12 +146,12 @@ def validate_choice(key, value):
     if key in options:
         v = str(value)
         if v not in options[key]:
-            raise ValueError(f"{key} must be one of {', '.join(sorted(options[key]))}")
+            raise ValueError(f"«{key}»: επιτρέπονται {', '.join(sorted(options[key]))}")
         return v
     if key in ("leaves", "bars_h", "bars_v"):
         v = int(round(float(value)))
         if not 0 <= v <= 8:
-            raise ValueError(f"{key} must be between 0 and 8")
+            raise ValueError(f"«{key}»: από 0 ως 8")
         return v
     if key == "open_angle":
         v = float(value)
@@ -217,10 +217,10 @@ def validate_joinery(kind, params, wall_length=None):
     """Ο τύπος ανήκει στο είδος (πόρτα/παράθυρο) και χωρά στο άνοιγμα (και η θήκη της χωνευτής στον τοίχο)."""
     t = str(params.get("opening_type", "basic"))
     if t not in TYPES.get(kind, {}):
-        raise ValueError(f"{kind} type must be one of {', '.join(TYPES.get(kind, {}))}")
+        raise ValueError(f"Τύπος κουφώματος: επιτρέπονται {', '.join(TYPES.get(kind, {}))}")
     design = str(params.get("leaf_design", "auto"))
     if design not in leaf_design_options(t):
-        raise ValueError(f"leaf design {design} is not supported by {t}")
+        raise ValueError(f"Σχέδιο φύλλου «{design}»: δεν υπάρχει για τον τύπο «{t}»")
     if t == "basic":
         return True
     leaves = int(params.get("leaves", 0) or 0)

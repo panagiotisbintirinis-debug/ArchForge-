@@ -561,8 +561,8 @@ class WallDrawTransaction:
         if self.cancelled:raise RuntimeError('transaction cancelled')
         sx,sy=self.start;ex,ey=self.end;dx,dy=ex-sx,ey-sy;L=hypot(dx,dy)
         if exact_length is not None:
-            if exact_length<=0:raise ValueError('length must be > 0')
-            if L==0:raise ValueError('cannot set exact length for zero direction')
+            if exact_length<=0:raise ValueError('Μήκος: πάνω από 0')
+            if L==0:raise ValueError('Μήκος: κίνησε πρώτα το ποντίκι προς την κατεύθυνση του τοίχου')
             ex=sx+dx/L*exact_length;ey=sy+dy/L*exact_length;L=exact_length
         if L < self.min_length:
             raise ValueError(
@@ -878,10 +878,10 @@ class BoxStretchTransaction:
         if 'left' in self.handle and x is not None:left=x
         if 'top' in self.handle and y is not None:top=y
         if 'bottom' in self.handle and y is not None:bottom=y
-        if right<=left or top<=bottom:raise ValueError('stretch inverted object')
+        if right<=left or top<=bottom:raise ValueError('Τέντωμα: το στοιχείο θα αναποδογύριζε — λιγότερο')
         p['x']=(left+right)/2;p['y']=(bottom+top)/2;p['width']=right-left;p['depth']=top-bottom
         if 'height' in self.handle and z is not None:
-            if z<=p['z']:raise ValueError('height must remain above base')
+            if z<=p['z']:raise ValueError('Ύψος: η κορυφή πρέπει να μένει πάνω από τη βάση')
             p['height']=z-p['z']
         self.preview=p;return HUD({'width':p['width'],'depth':p['depth'],'height':p['height'],'x':p['x'],'y':p['y'],'z':p['z']})
     def commit(self):self.stack.execute(UpdateEntity(self.eid,self.preview))
@@ -908,7 +908,7 @@ class RotateTransaction:
         else:
             # Everything else the user places (object_ops): its centre; a pergola turns as one.
             from archforge.core.object_ops import ROTATABLE_KINDS,group_ids,pivot as group_pivot
-            if e.kind not in ROTATABLE_KINDS:raise ValueError('rotation unsupported for entity kind')
+            if e.kind not in ROTATABLE_KINDS:raise ValueError('Αυτό το στοιχείο δεν περιστρέφεται')
             self.pivot=group_pivot(doc,group_ids(doc,eid))
     def update_angle(self,angle_deg,snap=True):
         a=float(angle_deg)
@@ -944,7 +944,7 @@ class WallEndpointStretchTransaction:
         self.doc,self.stack,self.eid,self.endpoint=doc,stack,eid,endpoint;self.before=doc.get(eid).params.copy();self.preview=self.before.copy();self.grid=grid;self.snap_tol=snap_tol
     def update(self,x,y):
         sp=best_snap(self.doc,x,y,self.snap_tol,self.grid,{self.eid});x,y=(sp.x,sp.y) if sp else (x,y);p=self.before.copy();p[f'x{self.endpoint}']=x;p[f'y{self.endpoint}']=y;L=hypot(p['x2']-p['x1'],p['y2']-p['y1'])
-        if L<=1e-9:raise ValueError('zero-length wall')
+        if L<=1e-9:raise ValueError('Τοίχος: το μήκος δεν μπορεί να γίνει 0')
         self.preview=p;return HUD({'length':L,'angle_deg':degrees(atan2(p['y2']-p['y1'],p['x2']-p['x1'])),'x':x,'y':y,'z':p['z']})
     def commit(self):self.stack.execute(UpdateEntity(self.eid,self.preview))
     def cancel(self):self.preview=self.before.copy()
@@ -967,7 +967,7 @@ class StructuralBeamEndpointStretchTransaction:
                 x,y=float(sp.x),float(sp.y);self.last_snap=sp
         p=self.before.copy();p[f'x{self.endpoint}']=x;p[f'y{self.endpoint}']=y
         length=hypot(float(p['x2'])-float(p['x1']),float(p['y2'])-float(p['y1']))
-        if length<0.05:raise ValueError('beam must remain at least 0.05 m long')
+        if length<0.05:raise ValueError('Δοκάρι: μήκος τουλάχιστον 5 cm')
         self.preview=p
         return HUD({
             'length':length,
@@ -990,9 +990,9 @@ class PodStretchTransaction:
         elif self.handle=='bottom' and y is not None:bottom=y
         elif self.handle=='top' and y is not None:top=y
         elif self.handle=='height' and z is not None:
-            if z<=p['floor_level']:raise ValueError('pod top must remain above floor')
+            if z<=p['floor_level']:raise ValueError('Η κορυφή πρέπει να μένει πάνω από το δάπεδο')
             p['height']=z-p['floor_level']
-        if right<=left or top<=bottom:raise ValueError('stretch inverted pod')
+        if right<=left or top<=bottom:raise ValueError('Τέντωμα: το στοιχείο θα αναποδογύριζε — λιγότερο')
         p['cx']=(left+right)/2;p['cy']=(bottom+top)/2;p['diameter_x']=right-left;p['diameter_y']=top-bottom;self.preview=p
         return HUD({'diameter_x':p['diameter_x'],'diameter_y':p['diameter_y'],'height':p['height'],'cx':p['cx'],'cy':p['cy'],'floor_level':p['floor_level']})
     def commit(self):self.stack.execute(UpdateEntity(self.eid,self.preview))
@@ -1001,10 +1001,10 @@ class PodStretchTransaction:
 class VerticalStretchTransaction:
     def __init__(self,doc,stack,eid):
         self.doc,self.stack,self.eid=doc,stack,eid;self.before=doc.get(eid).params.copy();self.preview=self.before.copy()
-        if doc.get(eid).kind not in ('wall','box','pod'):raise ValueError('vertical stretch unsupported for entity kind')
+        if doc.get(eid).kind not in ('wall','box','pod'):raise ValueError('Αυτό το στοιχείο δεν αλλάζει ύψος με τη λαβή')
     def update(self,z):
         p=self.before.copy();e=self.doc.get(self.eid);z=float(z);base=p['z'] if e.kind in ('wall','box') else p['floor_level']
-        if z<=base:raise ValueError('top must remain above base')
+        if z<=base:raise ValueError('Ύψος: η κορυφή πρέπει να μένει πάνω από τη βάση')
         p['height']=z-base;self.preview=p;return HUD({'height':p['height'],'base_z':base,'top_z':z})
     def commit(self):self.stack.execute(UpdateEntity(self.eid,self.preview))
     def cancel(self):self.preview=self.before.copy()
@@ -1106,7 +1106,7 @@ class StructuralBeamDrawTransaction:
     def commit(self):
         if self.cancelled:raise RuntimeError('transaction cancelled')
         sx,sy=self.start;ex,ey=self.end
-        if hypot(ex-sx,ey-sy)<0.05:raise ValueError('beam drag is too short; move at least 0.05 m')
+        if hypot(ex-sx,ey-sy)<0.05:raise ValueError('Δοκάρι: σύρε τουλάχιστον 5 cm')
         e=Entity('structural_beam',dict(self.preview),name='Beam')
         self.stack.execute(AddEntity(e));return e.id
 
@@ -1255,7 +1255,7 @@ class OpeningPlaceTransaction:
 
     def commit(self):
         if self.cancelled:raise RuntimeError('transaction cancelled')
-        if not self.host_id or not self.preview:raise ValueError('opening must be placed on a valid host')
+        if not self.host_id or not self.preview:raise ValueError('Πόρτα / παράθυρο: κλικ πάνω σε τοίχο')
         host=self.doc.get(self.host_id)
         from archforge.architecture.openings import validate_opening,validate_pod_opening
         if host.kind=='wall':
@@ -1263,7 +1263,7 @@ class OpeningPlaceTransaction:
         elif host.kind=='pod' and self.kind in ('door','window'):
             validate_pod_opening(host.params,self.preview,self.kind)
         else:
-            raise ValueError('free architectural opening must be placed on a wall')
+            raise ValueError('Άνοιγμα: κλικ πάνω σε τοίχο')
         name=self.name or next_name(self.doc,self.kind)
         e=Entity(self.kind,dict(self.preview),name=name,parent_id=self.host_id)
         if host.kind=='pod':
@@ -1280,8 +1280,8 @@ class OpeningEditTransaction:
     def __init__(self,doc,stack,eid,handle='move'):
         e=doc.get(eid)
         if e.kind not in ('door','window','opening'):raise ValueError('opening edit requires door/window/opening')
-        if not e.parent_id or e.parent_id not in doc.entities or doc.get(e.parent_id).kind not in ('wall','pod'):raise ValueError('opening has no valid wall/pod host')
-        if e.kind=='opening' and doc.get(e.parent_id).kind!='wall':raise ValueError('free architectural opening requires wall host')
+        if not e.parent_id or e.parent_id not in doc.entities or doc.get(e.parent_id).kind not in ('wall','pod'):raise ValueError('Το άνοιγμα δεν είναι πάνω σε τοίχο')
+        if e.kind=='opening' and doc.get(e.parent_id).kind!='wall':raise ValueError('Άνοιγμα: μόνο σε τοίχο')
         if handle not in ('move','left','right'):raise ValueError('opening handle must be move, left or right')
         self.doc,self.stack,self.eid,self.handle=doc,stack,eid,handle
         self.kind=e.kind;self.host_id=e.parent_id;self.before=e.params.copy();self.preview=e.params.copy();self.cancelled=False
@@ -1295,7 +1295,7 @@ class OpeningEditTransaction:
                 from archforge.architecture.openings import pod_opening_plan_segment
                 a,b=pod_opening_plan_segment(host.params,{**self.before,'_kind':self.kind});fixed=b if self.handle=='left' else a
                 width=hypot(float(x)-fixed[0],float(y)-fixed[1])
-                if width<=1e-9:raise ValueError('opening width must remain positive')
+                if width<=1e-9:raise ValueError('Άνοιγμα: το πλάτος δεν μπορεί να γίνει 0')
                 p['width']=width
                 mu,_,_,_=project_to_pod(host.params,(float(x)+fixed[0])/2.0,(float(y)+fixed[1])/2.0);p['surface_u']=mu
             validate_pod_opening(host.params,p,self.kind);self.preview=p
@@ -1307,7 +1307,7 @@ class OpeningEditTransaction:
             left=self.before['offset']-self.before['width']/2;right=self.before['offset']+self.before['width']/2
             if self.handle=='left':left=projected
             else:right=projected
-            if right-left<=1e-9:raise ValueError('opening width must remain positive')
+            if right-left<=1e-9:raise ValueError('Άνοιγμα: το πλάτος δεν μπορεί να γίνει 0')
             p['offset']=(left+right)/2;p['width']=right-left
         validate_opening(wall,p,self.kind);self.preview=p
         return HUD({'offset':p['offset'],'width':p['width'],'height':p['height'],'sill':p['sill'],'distance':distance,'x':px,'y':py,'valid':1.0})

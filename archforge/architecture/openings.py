@@ -37,13 +37,13 @@ def validate_pod_opening(pod_params, opening_params, kind="window"):
     """Validate a conventional planar door/window attached to an organic pod shell."""
     width=float(opening_params["width"]); height=float(opening_params["height"]); sill=float(opening_params.get("sill",0.0))
     u=float(opening_params["surface_u"]); margin=float(opening_params.get("flat_margin",0.25))
-    if not all(isfinite(v) for v in (width,height,sill,u,margin)):raise ValueError("pod opening values must be finite")
-    if width<=0 or height<=0:raise ValueError("opening width/height must be positive")
-    if margin<0:raise ValueError("flat opening margin must be non-negative")
-    if sill<0 or sill+height>float(pod_params["height"]):raise ValueError("opening must fit within pod height")
-    if kind=="door" and abs(sill)>1e-12:raise ValueError("door sill must be zero")
+    if not all(isfinite(v) for v in (width,height,sill,u,margin)):raise ValueError("Άνοιγμα θόλου: οι τιμές πρέπει να είναι αριθμοί")
+    if width<=0 or height<=0:raise ValueError("Άνοιγμα: πλάτος και ύψος πρέπει να είναι πάνω από 0")
+    if margin<0:raise ValueError("Άνοιγμα θόλου: το περιθώριο δεν μπορεί να είναι αρνητικό")
+    if sill<0 or sill+height>float(pod_params["height"]):raise ValueError("Άνοιγμα θόλου: δεν χωράει στο ύψος του θόλου")
+    if kind=="door" and abs(sill)>1e-12:raise ValueError("Πόρτα: η ποδιά είναι 0 (ξεκινά από το δάπεδο)")
     # Semantic azimuth is cyclic, but canonical persisted values remain normalized.
-    if u < 0.0 or u >= 1.0:raise ValueError("pod opening surface_u must be in [0,1)")
+    if u < 0.0 or u >= 1.0:raise ValueError("Άνοιγμα θόλου: θέση γύρω από τον θόλο από 0 ως κάτω από 1")
     return True
 
 
