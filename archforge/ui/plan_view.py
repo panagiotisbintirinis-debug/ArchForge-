@@ -659,6 +659,18 @@ class PlanView(QGraphicsView):
         self._long_press=None
         self.sitePointRequested.emit('plot_point',float(draft[0][0]),float(draft[0][1]))
 
+    def unfinished_what(self):
+        """What is drawn but not yet in the project, in words (bots 06/11: the save refusal did not say what)."""
+        if self._wall_chain_active():return 'ένας τοίχος που σχεδιάζεις (Enter / διπλό κλικ = τέλος · Esc = ακύρωση)'
+        if getattr(self,'_railing_draft',None) is not None:return 'ένα κάγκελο (Enter / διπλό κλικ = τέλος · Esc = ακύρωση)'
+        if getattr(self,'plot_draft',None):return 'τα όρια του οικοπέδου (Enter ή κλικ στην πρώτη κορυφή · Esc = ακύρωση)'
+        slab=getattr(self,'_slab_draft',None)
+        if slab is not None and (slab.points or slab.press is not None):return 'μια πλάκα / οπή (Enter = κλείσιμο · Esc = ακύρωση)'
+        if getattr(self,'_view_drag',None) is not None:return 'μια γραμμή τομής / όψης (άφησε το κουμπί · Esc = ακύρωση)'
+        active=self.controller.active
+        if active is not None:
+            return f"«{self.TOOL_LABELS.get(str(self.controller.tool),str(self.controller.tool))}» σε εξέλιξη (Esc = ακύρωση)"
+        return ''
     def _tool_idle(self):
         """No drawing in progress (segment, drag, railing/slab outline, site line)."""
         slab=getattr(self,'_slab_draft',None)
@@ -719,7 +731,9 @@ class PlanView(QGraphicsView):
             window=getattr(self,'marking_menu_window',None)
             (window._set_active_tool if window is not None else self.controller.set_tool)('select')
             self.statusChanged.emit('Επιλογή');self.redraw();event.accept();return
-        if event.key()==Qt.Key.Key_Escape:self.controller.cancel();self._mouse_down=False;self._view_drag=None;self._wall_press=None;self._railing_draft=None;self._slab_draft=None;self.redraw();return
+        if event.key()==Qt.Key.Key_Escape:
+            # The plot outline too (bots 06/11: «Esc ακύρωση» left it open and every save was refused after it).
+            self.controller.cancel();self._mouse_down=False;self._view_drag=None;self._wall_press=None;self._railing_draft=None;self._slab_draft=None;self.plot_draft=None;self.redraw();return
         if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self._wall_chain_active():self.finish_wall_chain();event.accept();return
         if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self._slab_tool():self.finish_slab_opening();event.accept();return
         if event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter) and self._railing_tool():self.finish_railing();event.accept();return

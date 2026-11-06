@@ -161,7 +161,15 @@ class Bot:
                 if level in ('critical',):
                     bot.find('μήνυμα σφάλματος', f'{title}: {text}')
                 elif level == 'warning' and buttons is None:
-                    bot.find('προειδοποίηση χρήστη', f'{title}: {text}')
+                    extra = ''
+                    if 'Ενεργή σχεδίαση' in str(title):
+                        pv = bot.plan
+                        extra = (f"εργαλείο {pv.controller.tool} · ενεργό {type(pv.controller.active).__name__} · "
+                                 f"αλυσίδα τοίχων {bool(pv.controller.wall_chain)} · κάγκελο {getattr(pv, '_railing_draft', None) is not None} · "
+                                 f"οικόπεδο {bool(getattr(pv, 'plot_draft', None))} · πλάκα {getattr(pv, '_slab_draft', None) is not None} · "
+                                 f"γραμμή όψης {getattr(pv, '_view_drag', None) is not None} · βήμα πριν: {bot.steps[-1]['step'] if bot.steps else ''}")
+                        bot.unfinished = True
+                    bot.find('προειδοποίηση χρήστη', f'{title}: {text}', extra)
                 if bot.verbose:
                     print(f'    [{level}] {title} | {str(text)[:140]}')
                 # Enter = the button the dialog proposes; without one: Ναι to a question, OK to a message.
@@ -363,6 +371,16 @@ class Bot:
 
     def esc(self):
         self.key('Escape')
+
+    unfinished = False
+
+    def save(self):
+        """Έργο ▸ Αρχείο ▸ Αποθήκευση· αν λέει «Ενεργή σχεδίαση», ο χρήστης πατά Esc δύο φορές και ξαναπατά."""
+        self.unfinished = False
+        self.menu('Έργο', 'Αρχείο', 'Αποθήκευση')
+        if self.unfinished:
+            self.esc(); self.esc(); self.select_tool()
+            self.menu('Έργο', 'Αρχείο', 'Αποθήκευση')
 
     def menu(self, *path):
         """Κλικ στη γραμμή μενού και σε κάθε υπομενού ώς την εντολή (το κείμενο όπως το βλέπει ο χρήστης)."""
@@ -580,7 +598,23 @@ class Bot:
                 self.do('κουζίνα κατά μήκος τοίχου', kitchen, 'more', ('cabinet',))
             if c['role'] == 'μπάνιο':
                 def bath(c=c):
-                    self.select_tool(); self.mm(c['cx'], c['cy'], 'mm:layout:bath'); self.mm(c['cx'], c['cy'], 'mm:layout:apply')
+                    """Δεξί κλικ στον χώρο· αν ανοίξει μενού άλλου στοιχείου (π.χ. τόξο πόρτας), λίγο πιο δίπλα."""
+                    self.select_tool()
+                    spots = [(c['cx'], c['cy'])] + [(c['x0'] + (c['x1'] - c['x0']) * fx, c['y0'] + (c['y1'] - c['y0']) * fy)
+                                                     for fx, fy in ((0.25, 0.25), (0.75, 0.75), (0.25, 0.75), (0.75, 0.25))]
+                    last = None
+                    for k_, (x_, y_) in enumerate(spots):
+                        try:
+                            self.mm(x_, y_, 'mm:layout:bath')
+                        except LookupError as exc:
+                            last = exc
+                            continue
+                        if k_:
+                            self.find('τριβή', 'δεξί κλικ στη μέση μικρού χώρου ανοίγει άλλο μενού (τόξο πόρτας / στοιχείο)',
+                                      str(last))
+                        self.mm(x_, y_, 'mm:layout:apply')
+                        return
+                    raise last
                 n = self.do('μπάνιο εδώ (μενού ποντικιού)', bath, 'more')
                 if n <= 0:
                     self.place(('Εγκαταστάσεις', 'Ύδρευση', 'Νιπτήρας'), [(c['x0'] + 0.4, c['cy'])])
@@ -870,7 +904,8 @@ class Bot:
         path = os.path.join(self.dir, 'ergo.archforge')
         if os.path.exists(path):
             os.remove(path)
-        self.do('αποθήκευση (Έργο ▸ Αρχείο ▸ Αποθήκευση)', lambda: self.menu('Έργο', 'Αρχείο', 'Αποθήκευση'))
+        self.do('αποθήκευση (Έργο ▸ Αρχείο ▸ Αποθήκευση)', self.save)
+        path = self.w.current_path or path                  # the name the save dialog gave (ergo_2 … if taken)
         if not os.path.exists(path):
             self.find('αποθήκευση', 'δεν γράφτηκε αρχείο έργου', str(os.listdir(self.dir)))
             return
@@ -913,32 +948,44 @@ def undo_all_check(bot):
     full = bot.snapshot(); n = 0
     bot.step = 'έλεγχος: αναίρεση όλων'
     act_u = None
-    slow = 0.0
-    while n < 3000:
-        t = time.perf_counter()
+    slow = 0.0; slow_what = ''
+
+    def label():
+        st = bot.w.stack
+        c = st.done[-1] if st.done else None
+        return getattr(c, 'label', None) or type(c).__name__ if c is not None else ''
+    limit = 3000 if bot.seed % 10 == 0 else 150          # all the way back in 1 bot of 10, else the last 150
+    while n < limit:
+        t = time.perf_counter(); what = label()
         try:
             bot.menu('Επεξεργασία', 'Αναίρεση')       # γκρίζο στο μενού = τέλος (όπως το βλέπει ο χρήστης)
         except LookupError:
             break
-        n += 1; slow = max(slow, time.perf_counter() - t)
-    left = bot.count()
+        n += 1; dt = time.perf_counter() - t
+        if dt > slow:
+            slow, slow_what = dt, f'αναίρεση «{what}»'
+    left = bot.count() if n < limit else 0
     if left:
         kinds = sorted({e.kind for e in bot.w.doc.entities.values()})
         if set(kinds) - {'project_brief', 'level', 'design_climate', 'site', 'terrain'}:
             bot.find('αναίρεση όλων', f'μετά από {n} αναιρέσεις έμειναν {left} στοιχεία', str(kinds))
     bot.step = 'έλεγχος: επανάληψη όλων'
     m = 0
-    while m < 3000:
+    while m < n:
         t = time.perf_counter()
+        st = bot.w.stack; what = st.undone[-1] if st.undone else None
+        what = (getattr(what, 'label', None) or type(what).__name__) if what is not None else ''
         try:
             bot.menu('Επεξεργασία', 'Επανάληψη')
         except LookupError:
             break
-        m += 1; slow = max(slow, time.perf_counter() - t)
-    if bot.w.stack.can_undo is False or bot.w.stack.can_redo:
-        bot.find('αναίρεση όλων', 'η κατάσταση του μενού Αναίρεση / Επανάληψη δεν συμφωνεί με το έργο')
+        m += 1; dt = time.perf_counter() - t
+        if dt > slow:
+            slow, slow_what = dt, f'επανάληψη «{what}»'
+    if bot.w.stack.can_redo:
+        bot.find('αναίρεση όλων', f'μετά από {n} αναιρέσεις και {m} επαναλήψεις έμεινε κάτι για επανάληψη')
     if slow > 3:
-        bot.find('αργό', f'μία αναίρεση / επανάληψη πήρε έως {slow:.0f} s')
+        bot.find('αργό', f'μία αναίρεση / επανάληψη πήρε έως {slow:.0f} s: {slow_what}')
     back = bot.snapshot()
     if set(back) != set(full):
         kf = {}; kb = {}
@@ -969,7 +1016,7 @@ def run_one(seed, verbose=False):
         original_final = bot.final_checks
 
         def final_with_undo():
-            bot.do('αποθήκευση (πριν από τους ελέγχους)', lambda: bot.menu('Έργο', 'Αρχείο', 'Αποθήκευση'))
+            bot.do('αποθήκευση (πριν από τους ελέγχους)', bot.save)
             try:
                 undo_all_check(bot)
             except Exception as exc:                                     # noqa: BLE001
@@ -996,7 +1043,7 @@ def norm(text):
     return t[:220]
 
 
-def fleet(n, jobs, start=1, timeout=1500):
+def fleet(n, jobs, start=1, timeout=2400):
     os.makedirs(OUT, exist_ok=True)
     env = dict(os.environ, QT_QPA_PLATFORM='offscreen', QTWEBENGINE_DISABLE_SANDBOX='1',
                QTWEBENGINE_CHROMIUM_FLAGS='--no-sandbox')

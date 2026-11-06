@@ -1368,7 +1368,7 @@ class Document:
     def _validate_links(self, entity):
         if entity.kind in ('door', 'window', 'opening'):
             if not entity.parent_id or entity.parent_id not in self.entities:
-                raise ValueError('opening object must be attached to an existing host')
+                raise ValueError('Άνοιγμα: πρέπει να μπει σε υπάρχοντα τοίχο')
             host = self.entities[entity.parent_id]
             if host.kind == 'wall':
                 from archforge.architecture.openings import validate_opening
@@ -1378,15 +1378,15 @@ class Document:
                 from archforge.architecture.openings import validate_pod_opening
                 validate_pod_opening(host.params, entity.params, entity.kind)
             elif entity.kind == 'opening':
-                raise ValueError('free architectural opening must be attached to a wall')
+                raise ValueError('Άνοιγμα: πρέπει να μπει σε τοίχο')
             else:
-                raise ValueError('door/window host must be a wall or pod')
+                raise ValueError('Πόρτα / παράθυρο: μπαίνει σε τοίχο')
         elif entity.kind == 'structural_support':
             if not entity.parent_id or entity.parent_id not in self.entities:
                 raise ValueError('structural support must be attached to a Column or Beam')
             host = self.entities[entity.parent_id]
             if host.kind not in ('structural_column','structural_beam'):
-                raise ValueError('structural support host must be a Column or Beam')
+                raise ValueError('Στήριξη: μπαίνει σε κολόνα ή δοκάρι')
             if str(host.params.get('role','structural')) != 'structural':
                 raise ValueError('supports can only be attached to structural-role members')
             for cid in self.children.get(entity.parent_id, ()):
@@ -1403,7 +1403,7 @@ class Document:
                 raise ValueError('structural load must be attached to a Column or Beam')
             host = self.entities[entity.parent_id]
             if host.kind not in ('structural_column','structural_beam'):
-                raise ValueError('structural load host must be a Column or Beam')
+                raise ValueError('Φορτίο: μπαίνει σε κολόνα ή δοκάρι')
             if str(host.params.get('role','structural')) != 'structural':
                 raise ValueError('loads can only be attached to structural-role members')
         elif entity.kind == 'arboreal_branch':

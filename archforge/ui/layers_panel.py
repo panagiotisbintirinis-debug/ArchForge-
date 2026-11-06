@@ -22,6 +22,11 @@ TIPS = {
 STRUCTURE_TOOLS = ('structural_column', 'structural_beam')
 ARCH_TOOLS = ('wall', 'door', 'window', 'opening_rect', 'opening_arch', 'stair', 'ramp', 'component')
 MEP_PREFIXES = ('plumb_', 'elec_', 'drain_', 'vent_', 'heat_', 'mep_')
+# Bots 06/11: «Οικόπεδο: σχεδίαση ορίων» right after Η/Μ work said «layer κλειδωμένο» — the site tools take the user
+# to an environment where the site can be edited, as the wall tools do.
+SITE_TOOLS = ('terrain_point', 'plot_point', 'plant_tree', 'plant_shrub', 'pool_place', 'path_path', 'path_sidewalk',
+              'path_road', 'pergola_timber', 'pergola_aluminium')
+SITE_PREFIXES = ('terrain_', 'pool_', 'path_', 'plant_', 'pergola_', 'plot_')
 
 
 # --------------------------------------------------------------------------- switching
@@ -112,6 +117,8 @@ def _tool_environment(window, tool, *_):
     elif tool.startswith(MEP_PREFIXES) and ws != 'mep':
         set_workspace(window, 'mep')
     elif tool in ARCH_TOOLS and L.layer_state(window.doc, 'walls')['locked']:
+        set_workspace(window, 'arch')
+    elif (tool in SITE_TOOLS or tool.startswith(SITE_PREFIXES)) and L.layer_state(window.doc, 'site')['locked']:
         set_workspace(window, 'arch')
 
 

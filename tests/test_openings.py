@@ -65,7 +65,7 @@ def test_frame_free_opening_rejects_non_wall_host():
         'height':3,'shell_thickness':.15,'rotation':0,
     })
     d.add(pod)
-    with pytest.raises(ValueError, match='wall'):
+    with pytest.raises(ValueError, match='τοίχο'):
         d.add(Entity(
             'opening',
             {

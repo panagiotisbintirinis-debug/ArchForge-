@@ -139,8 +139,9 @@ def propose(doc, reading=None):
             out.append(Proposal("M-1", "warning", f"Υδραυλικά: {len(unserved)} συνδέσεις χωρίς πηγή",
                                 "Πρόσθεσε παροχή κρύου νερού ή θερμοσίφωνα:<br>" + "<br>".join(unserved), "Βλ. Υδραυλικά"))
     if any(e.kind == "electrical_point" for e in doc.entities.values()):
-        from archforge.mep.electrical import route_cables_cached
-        for w in route_cables_cached(doc)["report"]["warnings"]:
+        from archforge.mep.electrical import design_circuits, route_cables_if_cached
+        wiring = route_cables_if_cached(doc) or design_circuits(doc)    # routing only when already done (06/11)
+        for w in wiring["report"]["warnings"]:
             out.append(Proposal(f"M-2:{w}", "warning", w, "Από τα κυκλώματα.", "Βλ. καρτέλα «Ηλεκτρ. πίνακας»"))
     # LAY-1: a kitchen / bath laid out by the assistant whose walls moved → re-fit it.
     from archforge.assistant.room_layout import refit_proposals

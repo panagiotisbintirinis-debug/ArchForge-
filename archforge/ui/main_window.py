@@ -1505,7 +1505,15 @@ class MainWindow(QMainWindow):
             from archforge.ui.light_properties import finish_linked_switch
             finish_linked_switch(self, point)      # «Προσθήκη διακόπτη» from a luminaire's Ιδιότητες
         self._redraw_views(all_views=True)
-        wiring = route_cables_cached(self.doc)
+        from archforge.core import layers as _L
+        shown = not _L.layers_active(self.doc) or _L.layer_state(self.doc, 'electrical')['visible']
+        # Shown: the plan has just routed the cables (cached, free here) and their warnings matter now. Hidden: the
+        # circuit is enough for the message (bots 06/11: 1,4 s of routing per click in the Αρχιτεκτονικό / Φέρων).
+        if shown:
+            wiring = route_cables_cached(self.doc)
+        else:
+            from archforge.mep.electrical import design_circuits
+            wiring = design_circuits(self.doc)                 # its own warnings (overload, no panel) kept
         circuit = next((c for c in wiring['circuits'] if point.id in c['points']), None)
         where = f" → {circuit['id']} {circuit['label']} ({circuit['breaker_a']} A, {circuit['cable_mm2']} mm²)" if circuit else ''
         warn = f" · ⚠ {wiring['report']['warnings'][0]}" if wiring['report']['warnings'] else ''
@@ -4265,8 +4273,10 @@ class MainWindow(QMainWindow):
                    ('_slab_draft', '_railing_draft', 'plot_draft'))
 
     def _warn_unfinished_editor_work(self):
+        plan = getattr(self, 'plan_view', None)
+        what = plan.unfinished_what() if plan is not None and hasattr(plan, 'unfinished_what') else ''
         message = ('Υπάρχει σχεδίαση ή μετακίνηση που δεν έχει ολοκληρωθεί και δεν έχει ακόμη '
-                   'καταχωριστεί στο έργο.\n\n'
+                   'καταχωριστεί στο έργο' + (f': {what}' if what else '') + '.\n\n'
                    'Ολοκλήρωσέ την πρώτα (π.χ. Enter ή διπλό κλικ για τους τοίχους), '
                    'έπειτα πάτησε ξανά Αποθήκευση.\n'
                    'Το προηγούμενο αρχείο και η ανάκτηση δεν έχουν διαγραφεί.')

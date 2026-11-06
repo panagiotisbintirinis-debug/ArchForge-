@@ -10,21 +10,26 @@ def wall_length(wall_params):
 def validate_opening(wall_params, opening_params, kind="window"):
     length=wall_length(wall_params)
     width=float(opening_params["width"]); height=float(opening_params["height"]); offset=float(opening_params["offset"]); sill=float(opening_params.get("sill",0.0))
-    if width <= 0 or height <= 0: raise ValueError("opening width/height must be positive")
-    if offset-width/2 < 0 or offset+width/2 > length: raise ValueError("opening must fit within host wall")
-    if sill < 0 or sill+height > wall_params["height"]: raise ValueError("opening must fit within wall height")
-    if kind=="door" and abs(sill)>1e-12: raise ValueError("door sill must be zero")
+    if width <= 0 or height <= 0: raise ValueError("Άνοιγμα: πλάτος και ύψος πρέπει να είναι πάνω από 0")
+    if offset-width/2 < 0 or offset+width/2 > length:
+        # Bots 06/11: this reached the status line in English.
+        raise ValueError(f"Δεν χωράει εδώ: άνοιγμα {width*100:.0f} cm και ο τοίχος έχει {length*100:.0f} cm — "
+                         "κλικ πιο μέσα στον τοίχο ή μικρότερο πλάτος")
+    if sill < 0 or sill+height > wall_params["height"]:
+        raise ValueError(f"Δεν χωράει στο ύψος: ποδιά {sill*100:.0f} + ύψος {height*100:.0f} cm > τοίχος "
+                         f"{float(wall_params['height'])*100:.0f} cm")
+    if kind=="door" and abs(sill)>1e-12: raise ValueError("Πόρτα: η ποδιά είναι 0 (ξεκινά από το δάπεδο)")
     if kind in ("door","window"):
         from archforge.architecture.joinery import validate_joinery
         validate_joinery(kind,opening_params,wall_length=length)
     if kind=="opening":
         shape=str(opening_params.get("shape","rectangle")).lower()
         if shape not in ("rectangle","arch"):
-            raise ValueError("opening shape must be rectangle or arch")
+            raise ValueError("Άνοιγμα: σχήμα ορθογώνιο ή τόξο")
         if shape=="arch":
             rise=float(opening_params.get("arch_rise",min(width/2.0,height)))
             if rise <= 0 or rise > height:
-                raise ValueError("arch rise must be > 0 and no greater than opening height")
+                raise ValueError("Τοξωτό άνοιγμα: το βέλος του τόξου από 0 ως το ύψος του ανοίγματος")
     return True
 
 

@@ -156,12 +156,12 @@ def validate_choice(key, value):
     if key == "open_angle":
         v = float(value)
         if not math.isfinite(v) or not 0 <= v <= 180:
-            raise ValueError("open_angle must be between 0 and 180")
+            raise ValueError("Γωνία ανοίγματος φύλλου: από 0° ως 180°")
         return v
     if key == "transom":
         v = float(value)
         if not math.isfinite(v) or v < 0:
-            raise ValueError("transom must be >= 0")
+            raise ValueError("Φεγγίτης: ύψος 0 ή περισσότερο")
         return v
     raise KeyError(key)
 
@@ -231,15 +231,15 @@ def validate_joinery(kind, params, wall_length=None):
     height = float(params["height"])
     usable = height - (ROLLER_BOX if r["shading"] == "roller" else 0.0)
     if r["transom"] and not 0.15 <= r["transom"] <= usable - 0.40:
-        raise ValueError("transom must leave at least 40 cm for the main leaves")
+        raise ValueError("Φεγγίτης: να μένουν τουλάχιστον 40 cm για τα φύλλα")
     if usable < 0.30:
-        raise ValueError("opening too low for its roller box")
+        raise ValueError("Το άνοιγμα είναι πολύ χαμηλό για το κουτί του ρολού")
     if r["opening_type"] == "pocket" and wall_length is not None:
         # Η θήκη χρειάζεται τοίχο ίσο με το φύλλο δίπλα στο άνοιγμα. Εδώ: τουλάχιστον από
         # μία πλευρά· η σωστή πλευρά ελέγχεται με pocket_fits (Ιδιότητες), γιατί θέλει το έργο.
         width, offset = float(params["width"]), float(params["offset"])
         if max(offset - width / 2, wall_length - offset - width / 2) < width - 2 * JAMB:
-            raise ValueError("pocket door needs wall beside the opening for its pocket")
+            raise ValueError("Χωνευτή πόρτα: χρειάζεται τοίχο δίπλα στο άνοιγμα για τη θήκη της")
     return True
 
 

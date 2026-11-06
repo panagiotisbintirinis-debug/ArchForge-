@@ -379,6 +379,7 @@ def project_outline(doc, title="Έργο"):
     reading = read_drawing(doc)
     labels = _labels_from_analysis(doc)
     mep = _mep_summary(doc)
+    levels = _levels(doc)          # once per tree, not once per element (bots 06/11: 337 times, 0,45 s per change)
     placed = set()
     children = []
     # Slabs belong to the load-bearing structure once there is one (each panel with its reinforcement).
@@ -408,7 +409,7 @@ def project_outline(doc, title="Έργο"):
                                    None, name, inner, signature=r["signature"]))
             groups.append(_node(f"Δωμάτια ({len(rooms)})", None, name, rooms))
         # Walls, exterior / interior, each with its openings.
-        walls = [e for e in doc.entities.values() if e.kind == "wall" and entity_level(doc, e) == name]
+        walls = [e for e in doc.entities.values() if e.kind == "wall" and entity_level(doc, e, levels) == name]
         if walls:
             ext = set(storey["exterior_walls"])
             from archforge.mep.ventilation import exterior_walls
@@ -435,7 +436,7 @@ def project_outline(doc, title="Έργο"):
         cols = [i for i in storey["columns"] if i not in placed]
         beams = [i for i in storey["beams"] if i not in placed]
         structure = [i for i, e in doc.entities.items() if e.kind in ("structural_support", "structural_load")
-                     and i not in placed and entity_level(doc, e) == name]
+                     and i not in placed and entity_level(doc, e, levels) == name]
         slabs = [p for p in slab_panels if p["storey"] == name]
         from archforge.structure.analysis import last_result
         fd = (last_result(doc) or {}).get("foundation") or {}
@@ -481,7 +482,7 @@ def project_outline(doc, title="Έργο"):
             groups.append(_node(f"Φέρων οργανισμός ({len(cols) + len(beams) + len(structure) + len(slabs)})", None, name, sub))
         # Everything else on this storey (outside rooms).
         rest = [i for i, e in doc.entities.items() if i not in placed and e.kind not in SITE
-                and entity_level(doc, e) == name and e.kind not in ("structural_design", "project_brief")]
+                and entity_level(doc, e, levels) == name and e.kind not in ("structural_design", "project_brief")]
         for cat, ids in _categorise(rest, doc):
             placed.update(ids)
             groups.append(_group(cat, ids, doc, name, labels))

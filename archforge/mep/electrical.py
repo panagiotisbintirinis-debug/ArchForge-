@@ -640,7 +640,13 @@ def _collinear(a, b, c):
 _CACHE = {"key": None, "value": None}
 
 
-def route_cables_cached(doc):
+def route_cables_if_cached(doc):
+    """The routing already computed for this very model, else None — for readers that must not route on their own
+    (the assistant after every change: bots 06/11, 1,2 s per click)."""
+    return _CACHE["value"] if _CACHE["key"] is not None and _CACHE["key"] == _route_key(doc) else None
+
+
+def _route_key(doc):
     items = []
     for e in doc.entities.values():
         if e.kind == "electrical_point":
@@ -651,8 +657,12 @@ def route_cables_cached(doc):
             items.append(("d", e.id, tuple(sorted((k, str(v)) for k, v in e.params.items()))))
         elif e.kind in ("structural_column", "structural_beam"):   # the runs go round the frame (06/11)
             items.append(("s", e.id, tuple(sorted((k, str(v)) for k, v in e.params.items()))))
-    key = (tuple(sorted(items)), tuple(sorted((str(k), float(v)) for k, v in doc.levels.items())),
-           tuple(sorted((k, str(v)) for k, v in doc.room_data.items())) if hasattr(doc, "room_data") else ())
+    return (tuple(sorted(items)), tuple(sorted((str(k), float(v)) for k, v in doc.levels.items())),
+            tuple(sorted((k, str(v)) for k, v in doc.room_data.items())) if hasattr(doc, "room_data") else ())
+
+
+def route_cables_cached(doc):
+    key = _route_key(doc)
     if _CACHE["key"] != key:
         _CACHE["key"], _CACHE["value"] = key, route_cables(doc)
     return _CACHE["value"]

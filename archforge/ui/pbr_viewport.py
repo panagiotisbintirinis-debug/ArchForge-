@@ -2870,7 +2870,9 @@ class PBRViewport(QWidget):
             # scene (possibly just the empty ground) until we refresh it.
             # Keep the incremental scene diff and the user's orbit/zoom; when
             # the previous scene was empty, fit the first actual building.
-            self.redraw(force_full=not bool(getattr(self, "_sent_scene", None)))
+            full = not bool(getattr(self, "_sent_scene", None)) or bool(getattr(self, "_pending_full", False))
+            self._pending_full = False
+            self.redraw(force_full=full)
             return
         if QWebEngineView is None:
             return
@@ -4023,9 +4025,28 @@ class PBRViewport(QWidget):
     def refresh_selection(self) -> None:
         self.redraw(force_full=False)
 
+    def _redraw_key(self):
+        d = self.doc
+        return (id(d), getattr(d, '_change_serial', None), len(d.entities), sum(e.revision for e in d.entities.values()),
+                tuple(d.selection), tuple(d.work_plane.origin), repr(getattr(d, 'view_layers', None)),
+                self.structural_only, tuple(sorted(getattr(self, 'hidden_layers', set()) or ())),
+                getattr(self, 'thermal_side', None), getattr(self, '_camera_preset', None),
+                id(getattr(self, '_sent_scene', None)))            # the page asked for everything again: not the same
+
     def redraw(self, force_full=False) -> None:
         if self.web_view is None:
             return
+        top = self.window()
+        if top is not None and top is not self and top.isVisible() and not self.isVisible():
+            # The 3D tab is not on screen: activate() brings it up to date when it is opened (bots 06/11: 2,5 s of
+            # every click in the plan went into a hidden 3D scene).
+            self._pending_full = bool(getattr(self, '_pending_full', False) or force_full)
+            return
+        # Bots 06/11: one click redrew the 3D scene twice (the change notice, then the command's «all views»), 2,5 s
+        # each in a 350-element house. The same state within the same turn of the event loop is sent once.
+        if self._sculpt_tx is None and getattr(self, '_terrain_tx', None) is None and not force_full:
+            if self._redraw_key() == getattr(self, '_drawn_key', None):
+                return
         evaluation = self._evaluation_cache.sync(self.doc)
         overrides = None
         terrain_tx = getattr(self, "_terrain_tx", None)
@@ -4046,6 +4067,10 @@ class PBRViewport(QWidget):
         fit = "true" if force_full and self._sculpt_tx is None else "false"
         payload, full = scene_changes(payload, None if force_full else getattr(self, "_sent_scene", None))
         self._sent_scene = payload.pop("_sent")
+        # What was just sent (after _sent_scene: the key holds it), forgotten at the next turn of the event loop.
+        self._drawn_key = self._redraw_key()
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, lambda: setattr(self, '_drawn_key', None))
         text = json.dumps(payload, separators=(",", ":"))
         if full:     # kept for the page's first script run (a scene pushed before the page was ready)
             script = ("window.__archforgePendingScene = " + text

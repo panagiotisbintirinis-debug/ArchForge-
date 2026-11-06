@@ -409,7 +409,7 @@ class CreateRoomFloors(Command):
                 if found is None:raise ValueError('room signature is not currently active')
                 face,z=found;room_id=room_id_for_signature(doc,sig,z=z)
                 if any(e.kind=='room_floor' and (e.params.get('room_id')==room_id or e.params.get('room_signature')==sig) for e in doc.entities.values()):continue
-                key=room_id or sig;e=self.entities.get(key)
+                key=sig;e=self.entities.get(key)          # the signature given: room ids may be renumbered on undo (bots 06/11)
                 if e is None:
                     params={'room_signature':sig,'thickness':self.thickness,'offset_z':self.offset_z}
                     if room_id is not None:params['room_id']=room_id
@@ -493,7 +493,7 @@ class CreateRoomRoofs(Command):
 
                 top_z=sum(tops)/len(tops)
                 offset_z=top_z-float(base_z)
-                key=room_id or sig
+                key=sig                  # the signature given, not the room id: it may change between undo / redo (bots 06/11)
                 e=self.entities.get(key)
                 if e is None:
                     params={

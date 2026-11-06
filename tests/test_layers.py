@@ -160,3 +160,38 @@ def test_window_environment_switch_and_locked_inspector():
         assert window._workspace_menu.actions() and window._layers_dock.objectName() == 'layers_panel'
     finally:
         window._mark_clean(); window.close(); app.processEvents()
+
+
+def test_site_tools_take_the_user_to_an_environment_where_the_site_is_editable():
+    """Bots 06/11: right after Η/Μ work (environment «Η/Μ», site locked) «Οικόπεδο: σχεδίαση ορίων» refused with
+    «layer κλειδωμένο» — the site tools switch environment as the wall / MEP / structure tools already do."""
+    from PySide6.QtWidgets import QApplication
+    from archforge.core import layers as L
+    from archforge.ui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    w = MainWindow()
+    try:
+        w._set_workspace('mep'); app.processEvents()
+        assert L.layer_state(w.doc, 'site')['locked']
+        w._start_site_tool('plot_point', 'Κλικ σε κάθε κορυφή του οικοπέδου')
+        assert not L.layer_state(w.doc, 'site')['locked'] and L.workspace(w.doc) == 'arch'
+    finally:
+        w._mark_clean(); w.close()
+
+
+def test_escape_cancels_an_open_plot_outline_so_the_project_can_be_saved():
+    """Bots 06/11: the plot outline stayed open after Esc («Esc ακύρωση» in its message) and blocked every save."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QApplication
+    from archforge.ui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    w = MainWindow(); w.show(); app.processEvents()
+    try:
+        w._start_site_tool('plot_point', 'Κλικ σε κάθε κορυφή του οικοπέδου')
+        w._plot_vertex(0.0, 0.0); w._plot_vertex(10.0, 0.0)
+        assert w._has_unfinished_editor_work()
+        QTest.keyClick(w.plan_view.viewport(), Qt.Key.Key_Escape); app.processEvents()
+        assert not w.plan_view.plot_draft and not w._has_unfinished_editor_work()
+    finally:
+        w._mark_clean(); w.close()
