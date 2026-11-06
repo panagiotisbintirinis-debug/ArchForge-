@@ -4027,7 +4027,8 @@ class PBRViewport(QWidget):
 
     def _redraw_key(self):
         d = self.doc
-        return (id(d), getattr(d, '_change_serial', None), len(d.entities), sum(e.revision for e in d.entities.values()),
+        from archforge.core.state_memo import doc_token
+        return (doc_token(d), getattr(d, '_change_serial', None), len(d.entities), sum(e.revision for e in d.entities.values()),
                 tuple(d.selection), tuple(d.work_plane.origin), repr(getattr(d, 'view_layers', None)),
                 self.structural_only, tuple(sorted(getattr(self, 'hidden_layers', set()) or ())),
                 getattr(self, 'thermal_side', None), getattr(self, '_camera_preset', None),

@@ -343,9 +343,25 @@ def _labels_from_analysis(doc):
 
 
 def _mep_summary(doc):
-    """One line per derived network, keyed by kind (no layers: these are the networks themselves)."""
+    """One line per derived network, keyed by kind (no layers: these are the networks themselves).
+
+    Lengths when the network is on screen (its layer shown: the plan has just routed it, so it costs nothing here);
+    a network hidden in this environment is counted, not routed on every change (bots 06/11: 3 s in 8 changes)."""
+    from archforge.core import layers as L
+    shown = (lambda key: not L.layers_active(doc) or L.layer_state(doc, key)['visible'])
     out = {}
     kinds = {e.kind for e in doc.entities.values()}
+    count = {k: sum(1 for e in doc.entities.values() if e.kind == k) for k in
+             ("plumbing_point", "ventilation_point", "heating_point")}
+    if "plumbing_point" in kinds and not shown("plumbing"):
+        out["plumbing_point"] = f" · {count['plumbing_point']} σημεία"
+        kinds = kinds - {"plumbing_point"}
+    if "ventilation_point" in kinds and not shown("ventilation"):
+        out["ventilation_point"] = f" · {count['ventilation_point']} σημεία"
+        kinds = kinds - {"ventilation_point"}
+    if "heating_point" in kinds and not shown("heating"):
+        out["heating_point"] = f" · {count['heating_point']} σημεία"
+        kinds = kinds - {"heating_point"}
     if "plumbing_point" in kinds:
         from archforge.mep.plumbing import route_plumbing_cached
         r = route_plumbing_cached(doc)["report"]

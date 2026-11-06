@@ -58,7 +58,32 @@ def _polygon_matches(a,b,tolerance: float = 1e-5):
     return False
 
 
+_RECONCILED = {}
+
+
 def reconcile_room_bindings(doc, z=None, tolerance: float = 1e-5) -> Tuple[Tuple[RoomFace,str],...]:
+    """Bind transient topology faces to persistent semantic room IDs (see _reconcile).
+
+    Once bound, the same walls and the same bindings give the same answer and change nothing more: remembered for
+    that state (bots 06/11: ~700 calls per change in a 3-storey house, through every slab's room lookup)."""
+    from archforge.core.state_memo import state_key
+    if z is None:
+        z=float(doc.work_plane.origin[2])
+    def bound():                    # light fingerprint of the bindings (the polygon follows the signature)
+        return tuple(sorted((rid, b.get('signature'), b.get('status'), b.get('z')) for rid, b in doc.room_bindings.items()))
+    key=(state_key(doc),bound(),float(z),float(tolerance))
+    hit=_RECONCILED.get(key)
+    if hit is not None:
+        return hit
+    out=_reconcile(doc,z,tolerance)
+    if len(_RECONCILED)>256:
+        _RECONCILED.clear()
+    _RECONCILED[key]=out
+    _RECONCILED[(key[0],bound(),key[2],key[3])]=out      # as the bindings are now: the next call
+    return out
+
+
+def _reconcile(doc, z=None, tolerance: float = 1e-5) -> Tuple[Tuple[RoomFace,str],...]:
     """Bind transient topology faces to persistent semantic room IDs conservatively.
 
     Exact topology signature is the primary match. If boundary objects were recreated

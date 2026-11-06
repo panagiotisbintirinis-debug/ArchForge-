@@ -87,7 +87,14 @@ def _plan_point(e):
 
 
 def read_drawing(doc):
-    """``{"storeys": [...], "counts": {...}}`` — one reading of the model shared by the assistant and the project tree."""
+    """``{"storeys": [...], "counts": {...}}`` — one reading of the model shared by the assistant and the project tree.
+
+    Read once per project state (bots 06/11: four readings of the same state per change in a large house)."""
+    from archforge.core.state_memo import remembered
+    return remembered("read_drawing", doc, (), lambda: _read_drawing(doc))
+
+
+def _read_drawing(doc):
     from archforge.mep.ventilation import exterior_walls
     from archforge.ui.project_outline import _levels, entity_level
 

@@ -46,18 +46,44 @@ def coverage(doc, polygon, base_z, cell=0.10):
         return 0.0
     poly = [(float(p[0]), float(p[1])) for p in polygon]
     xs, ys = [p[0] for p in poly], [p[1] for p in poly]
-    total = covered = 0
+    # The same 10 cm sample points and the same crossing rule as _inside, all at once (bots 06/11: 1,6 million
+    # point tests per change in a 3-storey house, through the assistant).
+    import numpy as np
+    gx, gy = [], []
     y = min(ys) + cell / 2
     while y < max(ys):
         x = min(xs) + cell / 2
         while x < max(xs):
-            if _inside(poly, x, y):
-                total += 1
-                if any(_inside(u, x, y) for u in upper):
-                    covered += 1
+            gx.append(x); gy.append(y)
             x += cell
         y += cell
-    return covered / total if total else 0.0
+    if not gx:
+        return 0.0
+    X, Y = np.array(gx), np.array(gy)
+    room = _inside_many(poly, X, Y)
+    total = int(room.sum())
+    if not total:
+        return 0.0
+    under = np.zeros(len(gx), bool)
+    for u in upper:
+        under |= _inside_many(u, X, Y)
+    return int((room & under).sum()) / total
+
+
+def _inside_many(poly, X, Y):
+    """``_inside`` for arrays of points (identical crossings: same comparisons, same order of operations)."""
+    import numpy as np
+    hit = np.zeros(X.shape, bool)
+    n = len(poly)
+    for i in range(n):
+        (x1, y1), (x2, y2) = poly[i], poly[(i + 1) % n]
+        cross = (y1 > Y) != (y2 > Y)
+        if not cross.any():
+            continue
+        with np.errstate(divide="ignore", invalid="ignore"):
+            xi = x1 + (Y - y1) * (x2 - x1) / (y2 - y1)
+        hit ^= cross & (X < xi)
+    return hit
 
 
 def room_face_of(doc, entity):

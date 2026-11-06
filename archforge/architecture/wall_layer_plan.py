@@ -140,8 +140,9 @@ _MEMO = {"key": None, "bands": {}, "lines": {}}
 def _memo_key(doc):
     """Everything the bands read, cheaply: any change anywhere in the project gives another key (bots 06/11: the plan
     re-cut every wall's layers on each mouse move while drawing — 486 times for one wall in a 388-element house)."""
+    from archforge.core.state_memo import doc_token
     ents = doc.entities
-    return (id(doc), getattr(doc, "_change_serial", None), len(ents), sum(e.revision for e in ents.values()),
+    return (doc_token(doc), getattr(doc, "_change_serial", None), len(ents), sum(e.revision for e in ents.values()),
             repr(getattr(doc, "constructions", None)), repr(getattr(doc, "materials", None)))
 
 
