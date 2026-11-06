@@ -121,7 +121,7 @@ def _entity_on_active_level(doc,e,tolerance=1e-5):
     """Keep FLOOR PLAN focused on the active storey while 3D remains whole-building."""
     z=float(doc.work_plane.origin[2]);p=e.params
     if e.kind=='section_line':return True          # a section cuts every storey
-    if e.kind in ('camera','dimension','auto_dimensions'):return abs(float(p.get('level_z',0.0))-z)<=tolerance
+    if e.kind in ('camera','dimension','auto_dimensions','drafting'):return abs(float(p.get('level_z',0.0))-z)<=tolerance
     if e.kind=='wall':return abs(float(p.get('z',0.0))-z)<=tolerance
     if e.kind=='pod':return abs(float(p.get('floor_level',0.0))-z)<=tolerance
     if e.kind=='floor':
@@ -318,6 +318,10 @@ def entity_primitive(doc,eid):
     e=doc.get(eid);p=e.params
     if not e.visible:return None
     if e.kind=='wall':return Primitive2D('line',((p['x1'],p['y1']),(p['x2'],p['y2'])),entity_id=eid,meta=(('thickness',p['thickness']),))
+    if e.kind=='drafting':
+        # Free 2D drafting (architecture/drafting.py): one primitive per shape.
+        from archforge.architecture.drafting import primitives as drafting_primitives
+        return drafting_primitives(e)[0]
     if e.kind=='section_line':
         return Primitive2D('polyline',((float(p['x1']),float(p['y1'])),(float(p['x2']),float(p['y2']))),entity_id=eid,role='section-line')
     if e.kind=='camera':

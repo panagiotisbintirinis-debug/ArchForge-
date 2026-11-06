@@ -1048,6 +1048,7 @@ SCHEMAS = {
     'dimension': {'x1': _finite, 'y1': _finite, 'x2': _finite, 'y2': _finite, 'level_z': _finite, 'offset': _finite},
     'auto_dimensions': {'level_z': _finite, 'exterior': _flag, 'interior': _flag},
     # Saved camera (core/cameras.py): a view preference, never building geometry.
+    'drafting': {},                     # validated as a whole: architecture/drafting.validate
     'camera': {'x': _finite, 'y': _finite, 'level_z': _finite, 'height': _between(0.05, 50.0, 'eye height'),
                'heading': _finite, 'pitch': _between(-80.0, 80.0, 'camera pitch'),
                'fov': _between(20.0, 120.0, 'field of view')},
@@ -1062,6 +1063,10 @@ def validate_params(kind, params):
     if kind == 'structural_column':
         out.setdefault('section', 'rectangular')
         out.setdefault('top_level', 'Unassigned')
+    if kind == 'drafting':
+        # Free 2D drafting (architecture/drafting.py): the shape decides which params exist.
+        from archforge.architecture.drafting import validate
+        return validate(out)
     if kind == 'structural_design':
         schema = _structural_design_schema()
     elif kind == 'project_brief':

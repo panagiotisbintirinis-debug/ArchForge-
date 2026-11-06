@@ -143,6 +143,32 @@ def _extras(doc, z):
     return out
 
 
+def _drafting(sh, doc, z, to_mm, k):
+    """Free 2D drafting of the storey (architecture/drafting.py): lines in their style and pen, closed shapes with
+    their fill, texts at their height — as the plan view and the DXF."""
+    from archforge.architecture import drafting as DR
+    styles = {"dashed": Qt.PenStyle.DashLine, "dotted": Qt.PenStyle.DotLine, "dashdot": Qt.PenStyle.DashDotLine}
+    for e in doc.entities.values():
+        if e.kind != "drafting" or not e.visible or abs(float(e.params.get("level_z", 0.0)) - z) > 1e-4:
+            continue
+        p = e.params
+        if p["shape"] == "text":
+            x, y = to_mm(p["x"], p["y"])
+            size = float(p["height"]) * k / 0.3528 / 0.7          # cap height (mm) → font size (pt)
+            sh.text(x, y + float(p["height"]) * k / 2, p["text"], size=size, w=400, angle=-float(p.get("angle", 0.0)))
+            continue
+        pts, closed = DR.outline(p)
+        mm = [to_mm(*q) for q in pts]
+        width, style = float(p.get("weight", 0.25)), styles.get(p.get("style"), Qt.PenStyle.SolidLine)
+        fill = {"solid": QColor(70, 72, 80, 150), "diagonal": QColor(150, 150, 150, 90),
+                "cross": QColor(120, 120, 120, 110)}.get(p.get("hatch"))
+        if closed and fill is not None:
+            sh.poly(mm, color=QColor(0, 0, 0, 0), width=.01, fill=fill)
+        seq = mm + (mm[:1] if closed else [])
+        for a, b in zip(seq, seq[1:]):
+            sh.line(*a, *b, width=width, style=style)
+
+
 def net_room(doc, room, z):
     """(net area m², width, depth) of a room inside its walls (as the take-off measures it)."""
     from archforge.quantities.takeoff import _area, net_polygon
@@ -289,6 +315,7 @@ def _plan_page(sh, doc, storey, sheet_no, project, date):
         sh.text(mx, my + 1.2, f"{a:.2f} m²", size=7.5, align="center", w=50)
         sh.text(mx, my + 4.6, f"{rw:.2f} × {rd:.2f}", size=6.5, align="center", w=50,
                 color=QColor(110, 110, 110))
+    _drafting(sh, doc, z, to_mm, k)
     # Dimensions (architecture/dimensions.py, the same chains as the plan view): the exterior ones always —
     # through the openings, each façade, the overall size — plus the interior / tape ones the storey asks for.
     from archforge.architecture import dimensions as D

@@ -59,7 +59,7 @@ ELECTRICAL = {
     "wifi_ap": ("IfcCommunicationsAppliance", "NETWORKAPPLIANCE", "T-DATA"),
 }
 # Not things that are built: never exported as elements.
-SKIP = {"camera", "auto_dimensions", "dimension", "section_line", "elevation_line", "underlay", "light_probe",
+SKIP = {"camera", "auto_dimensions", "dimension", "drafting", "section_line", "elevation_line", "underlay", "light_probe",
         "mechanical_joint", "organic_junction", "organic_opening_patch", "structural_support", "structural_load",
         "door", "window", "opening"}            # openings are written with their wall
 PROXY = ("IfcBuildingElementProxy", None, "A-MISC", "Στοιχείο")
@@ -77,6 +77,7 @@ def target(entity):
 PLAN_LAYERS = (
     ("wall-layer-fill", "A-WALL-PATT"), ("wall", "A-WALL"), ("model", "A-WALL-CNTR"), ("opening-symbol", "A-DOOR"), ("opening", "A-DOOR"),
     ("dimension-label", "A-ANNO-DIMS"), ("dimension", "A-ANNO-DIMS"),
+    ("drafting-text", "A-ANNO-TEXT"), ("drafting", "A-DETL"),
     ("derived-room-label", "A-AREA-IDEN"), ("derived-room", "A-AREA"), ("room-", "A-FLOR"),
     ("structural-column", "S-COLS"), ("structural-beam", "S-BEAM"), ("joist", "S-FRAM"), ("joists-area", "S-FRAM"),
     ("stair", "A-FLOR-STRS"), ("railing", "A-FLOR-HRAL"), ("roof", "A-ROOF"),

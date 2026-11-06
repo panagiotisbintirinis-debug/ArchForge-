@@ -203,7 +203,9 @@ def organize_main_menus(window):
     from archforge.ui.dimension_tool import menu as dimension_menu
     # Audit F08: no visible «— έρχονται» entry; lines and markup appear here when they work (RELEASE_PLAN rule 2.7).
     dims = dimension_menu(window); window._main_submenus.append(dims)
-    _fill(cad, [_submenu(window, "Βοηθήματα σχεδίασης", aids), None, dims])
+    from archforge.ui.drafting_tool import menu as drafting_menu
+    draft = drafting_menu(window); window._main_submenus.append(draft)
+    _fill(cad, [_submenu(window, "Βοηθήματα σχεδίασης", aids), None, draft, dims])
     window._cad_menu = cad
 
     if mep is not None:                                  # mechanisms: parts, hinges, slides (kinematics/)

@@ -54,6 +54,12 @@ def write_storey(doc, name, z, path):
         attrs = {"layer": _layer(dxf, layer)}
         pts = [(float(a), float(b)) for a, b in p.points]
         meta = dict(p.meta)
+        if p.role == "drafting":
+            # Drafted line style and pen width (architecture/drafting.py) as DXF linetype / lineweight.
+            lt = {"dashed": "DASHED", "dotted": "DOT", "dashdot": "DASHDOT"}.get(str(meta.get("style")))
+            if lt:
+                attrs["linetype"] = lt
+            attrs["lineweight"] = int(round(float(meta.get("weight", 0.25)) * 100))
         if p.role == "wall-layer-fill":
             # One wall layer hatched by its material (wall_layer_plan.py), the same bands as the plan.
             from archforge.exchange.mapping import LAYER_PATTERNS
@@ -69,6 +75,8 @@ def write_storey(doc, name, z, path):
         elif p.kind in ("polyline", "polygon") and len(pts) >= 2:
             closed = p.kind == "polygon"
             msp.add_lwpolyline(pts, close=closed, dxfattribs=attrs)
+            if p.role == "drafting" and closed and meta.get("hatch") not in (None, "none"):
+                _drafting_hatch(msp, layer, meta["hatch"], [pts])
             if closed and layer in ("A-WALL", "S-COLS") and len(pts) >= 3:
                 hatch = msp.add_hatch(color=COLORS.get(layer, 7), dxfattribs={"layer": layer})
                 islands = meta.get("islands")
@@ -83,6 +91,9 @@ def write_storey(doc, name, z, path):
             rx, ry = float(p.radius_x), float(p.radius_y)
             if abs(rx - ry) < 1e-9:
                 msp.add_circle(pts[0], rx, dxfattribs=attrs)
+                if p.role == "drafting" and meta.get("hatch") not in (None, "none"):
+                    from archforge.architecture.drafting import arc_points
+                    _drafting_hatch(msp, layer, meta["hatch"], [arc_points(pts[0][0], pts[0][1], rx, 0.0, 360.0)[:-1]])
             elif rx > 0 and ry > 0:
                 import math
                 a = math.radians(float(p.rotation))
@@ -92,15 +103,27 @@ def write_storey(doc, name, z, path):
             text = str(meta.get("text", "")).strip()
             if not text:
                 continue
-            h = TEXT_HEIGHT.get(layer, 0.12)
+            h = float(meta.get("height") or TEXT_HEIGHT.get(layer, 0.12))
             m = msp.add_mtext(text.replace("\n", "\\P"), dxfattribs={**attrs, "char_height": h,
                                                                        "rotation": float(meta.get("angle", 0.0) or 0.0)})
-            m.set_location(pts[0], attachment_point=5)                 # middle centre, as the plan places it
+            # Middle centre, as the plan places its labels; a drafted text sits on its insertion point (top left).
+            m.set_location(pts[0], attachment_point=1 if p.role == "drafting-text" else 5)
         else:
             continue
         counts[layer] = counts.get(layer, 0) + 1
     dxf.saveas(path)
     return counts
+
+
+def _drafting_hatch(msp, layer, kind, loops):
+    """Hatch of a drafted closed shape: solid, ANSI31 (diagonal) or ANSI37 (cross)."""
+    hatch = msp.add_hatch(color=8, dxfattribs={"layer": layer})
+    if kind == "solid":
+        hatch.set_solid_fill(color=8)
+    else:
+        hatch.set_pattern_fill("ANSI37" if kind == "cross" else "ANSI31", scale=0.02)
+    for loop in loops:
+        hatch.paths.add_polyline_path([tuple(q) for q in loop], is_closed=True)
 
 
 def export_dxf(doc, path, project_name="ArchForge"):

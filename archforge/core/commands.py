@@ -148,6 +148,9 @@ class MoveEntities(Command):
             elif e.kind in ('stair','ramp'):
                 doc.update(i,{'x':p['x']+self.dx,'y':p['y']+self.dy})
             elif e.kind=='dimension':doc.update(i,{'x1':p['x1']+self.dx,'x2':p['x2']+self.dx,'y1':p['y1']+self.dy,'y2':p['y2']+self.dy})
+            elif e.kind=='drafting':
+                from archforge.architecture.drafting import translated
+                doc.update(i,translated(p,self.dx,self.dy))
         # Compatibility only: modern UV/local attachments are immutable semantic intent.
         # Old project files may still contain world-only sculpt centers, so translate those
         # until they can be migrated to an intrinsic surface frame.

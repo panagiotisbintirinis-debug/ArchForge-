@@ -1,3 +1,8 @@
+## 06/11 — Ελεύθερη 2D σχεδίαση (κενό 1 της αποτύπωσης)
+
+- `architecture/drafting.py`, `ui/drafting_tool.py`, σύνδεση σε model / layers / plan_scene / plan_view / MoveEntities /
+  DXF / PDF / menu_map. Τεστ `tests/test_drafting.py`: 7 passed· μενού 22 passed.
+
 ## 06/11 — Αποτύπωση δυνατοτήτων για προώθηση και κρίση
 
 - `docs/ArchForge_Dynatotites_2026-11.md`: σύγκριση με τη λίστα βασικών (CAD) / ειδικών (BIM) ικανοτήτων, ελεγμένη στον

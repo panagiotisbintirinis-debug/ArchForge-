@@ -41,6 +41,7 @@ LAYERS = {
     'ventilation': 'Εξαερισμοί',
     'heating': 'Θέρμανση',
     'dimensions': 'Διαστάσεις',
+    'drafting': 'Σχέδιο 2D (γραμμές, κείμενα)',
     'site': 'Οικόπεδο / έδαφος',
     'underlay': 'Υπόβαθρο κάτω ορόφου',
     'cameras': 'Κάμερες',
@@ -69,11 +70,13 @@ KIND_LAYERS = {
     'terrain': 'site', 'plant': 'site', 'site_path': 'site', 'pool': 'site',
     'camera': 'cameras',
     'dimension': 'dimensions', 'auto_dimensions': 'dimensions',
+    'drafting': 'drafting',
 }
 
 # Derived plan primitives: the role decides (a label of a column is a «label», a footing is «foundation»).
 ROLE_LAYERS = {
     'derived-room': 'rooms', 'derived-room-label': 'rooms', 'dimension': 'dimensions', 'dimension-label': 'dimensions',
+    'drafting': 'drafting', 'drafting-text': 'drafting',
     'structural-label': 'structural_labels', 'footing-label': 'structural_labels', 'joists-label': 'structural_labels',
     'structural-load': 'structural_labels', 'structural-load-label': 'structural_labels',
     'footing': 'foundation', 'tie-beam': 'foundation',

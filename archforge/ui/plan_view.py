@@ -273,7 +273,7 @@ class PlanView(QGraphicsView):
     def _overlay(self,kind,event):
         # Overlay tool (the assistant's kitchen/bath guide lines, fixture drag): gets the mouse first.
         # The camera tool (ui/camera_tool.py: place / move / turn a camera) comes first.
-        return any(tool is not None and bool(tool.handle(self,kind,event)) for tool in (getattr(self,'corner_tool',None),getattr(self,'tape_tool',None),getattr(self,'pool_tool',None),getattr(self,'curved_wall_tool',None),getattr(self,'terrain_tool',None),getattr(self,'camera_tool',None),getattr(self,'overlay_tool',None),getattr(self,'dims_tool',None)))
+        return any(tool is not None and bool(tool.handle(self,kind,event)) for tool in (getattr(self,'corner_tool',None),getattr(self,'tape_tool',None),getattr(self,'drafting_tool',None),getattr(self,'pool_tool',None),getattr(self,'curved_wall_tool',None),getattr(self,'terrain_tool',None),getattr(self,'camera_tool',None),getattr(self,'overlay_tool',None),getattr(self,'dims_tool',None)))
     CLICK_PX=8   # press → release within this many screen pixels is a click, not a drag
     def _wall_chain_active(self):
         return getattr(self.controller,'wall_chain',None) is not None and self.controller.active is not None
@@ -661,6 +661,12 @@ class PlanView(QGraphicsView):
         if event.type()==QEvent.Type.ShortcutOverride:
             from archforge.ui import typed_length
             if typed_length.wants_key(self,event):event.accept();return True
+        dt=getattr(self,'drafting_tool',None)
+        if dt is not None and dt.active and event.type() in (QEvent.Type.ShortcutOverride,QEvent.Type.KeyPress):
+            # Σχέδιο 2D: digits / Tab / Enter / Esc / Backspace belong to the drawing command (not focus, not shortcuts).
+            if event.key() in (Qt.Key.Key_Tab,Qt.Key.Key_Return,Qt.Key.Key_Enter,Qt.Key.Key_Escape,Qt.Key.Key_Backspace) or (event.text() and event.text() in '0123456789.,-'):
+                if event.type()==QEvent.Type.ShortcutOverride:event.accept();return True
+                if dt.handle(self,'key',event):self.redraw();event.accept();return True
         return super().event(event)
     def keyPressEvent(self,event):
         if self.carry is not None and event.key() in (Qt.Key.Key_Escape,Qt.Key.Key_R):
@@ -1078,6 +1084,7 @@ class PlanView(QGraphicsView):
         if getattr(self,'curved_wall_tool',None) is not None:self.curved_wall_tool.paint(self)
         if getattr(self,'camera_tool',None) is not None:self.camera_tool.paint(self)
         if getattr(self,'tape_tool',None) is not None:self.tape_tool.paint(self)   # Μεζούρα (dimension_tool.py)
+        if getattr(self,'drafting_tool',None) is not None:self.drafting_tool.paint(self)   # Σχέδιο 2D (drafting_tool.py)
         if getattr(self,'corner_tool',None) is not None:self.corner_tool.paint(self)   # Γωνία (corner_tool.py)
         if getattr(self,'dims_tool',None) is not None:self.dims_tool.paint(self)   # dimensions of a selected wall (wall_dims_tool.py)
         if getattr(self,'survey_tool',None) is not None:self.survey_tool.paint(self)   # corner numbers (survey_dialog.py)
@@ -1168,6 +1175,11 @@ class PlanView(QGraphicsView):
         if p.role in ('pipe-cold','pipe-hot'):
             pen=QPen(QColor(31,111,209) if p.role=='pipe-cold' else QColor(209,48,31))
             pen.setWidthF(.035 if dict(p.meta).get('diameter',16)>=20 else .02)
+        if p.role=='drafting':
+            # Free 2D drafting (architecture/drafting.py): pen width from the paper width (mm at 1:100 → m), style.
+            meta=dict(p.meta);sel=p.entity_id in (self.doc.selection or ())
+            pen=QPen(QColor(20,110,220) if sel else QColor(35,38,45));pen.setWidthF(max(.004,float(meta.get('weight',.25))*.05)*(1.6 if sel else 1))
+            pen.setStyle({'dashed':Qt.PenStyle.DashLine,'dotted':Qt.PenStyle.DotLine,'dashdot':Qt.PenStyle.DashDotLine}.get(str(meta.get('style')),Qt.PenStyle.SolidLine))
         if p.role=='dimension':
             # Dimensions (architecture/dimensions.py): blue, the ticks and extension lines thinner.
             sel=p.entity_id in (self.doc.selection or ());pen=QPen(QColor(20,110,220) if sel else QColor(30,90,170))
@@ -1312,6 +1324,8 @@ class PlanView(QGraphicsView):
                 cx-p.radius_x,cy-p.radius_y,2*p.radius_x,2*p.radius_y,pen,
                 QBrush(QColor(160,160,160,14) if context else QColor(170,120,210,30))
             )
+        elif p.kind=='label' and p.role=='drafting-text':
+            item=self._drafting_text(p)
         elif p.kind=='label':
             meta=dict(p.meta);text=str(meta.get('text',''));cx,cy=p.points[0];item=self._scene.addText(text);item.setDefaultTextColor(QColor(55,80,65))
             if p.role=='section-label':
@@ -1348,6 +1362,7 @@ class PlanView(QGraphicsView):
             if p.entity_id and not preview:self._entity_items[item]=p.entity_id
             if p.entity_id and p.entity_id==getattr(self,'_indicated',None) and not wall_line and p.role!='wall-layer-fill' and hasattr(item,'setPen'):
                 ind=QPen(QColor(240,140,30));ind.setWidthF(.03);ind.setCosmetic(False);item.setPen(ind)
+            if p.role=='drafting' and p.kind in ('polygon','ellipse'):item.setBrush(self._drafting_brush(dict(p.meta)))
             if preview and p.kind=='polygon' and dict(p.meta).get('fits') is False:item.setBrush(QBrush(QColor(210,40,40,45)))
             if preview and p.kind=='polygon' and dict(p.meta).get('semantic')=='wall-body-preview':
                 # The wall being drawn looks like a wall: its cut fill, a green edge (not yet placed).
@@ -1355,6 +1370,34 @@ class PlanView(QGraphicsView):
                 edge.setJoinStyle(Qt.PenJoinStyle.MiterJoin);item.setPen(edge)
             # Dim layer (Layers panel / environment): a faint reference under the work.
             if dict(p.meta).get('layer_dim'):item.setOpacity(.28);item.setZValue(-30)
+    def _drafting_brush(self,meta):
+        """Hatch of a drafted closed shape: none / solid / diagonal / cross, at drawing size."""
+        kind=str(meta.get('hatch','none'))
+        if kind=='solid':return QBrush(QColor(70,72,80,150))
+        if kind in ('diagonal','cross'):
+            b=QBrush(QColor(50,52,60),Qt.BrushStyle.BDiagPattern if kind=='diagonal' else Qt.BrushStyle.DiagCrossPattern)
+            b.setTransform(_PATTERN_SCALE);return b
+        return QBrush(Qt.BrushStyle.NoBrush)
+    def _drafting_text(self,p):
+        """A drafted text at its real height in metres (CAD text, scales with the drawing), top-left on its point,
+        turned by its angle; the plan's y is flipped by the view, so the text is flipped back."""
+        from PySide6.QtGui import QFont,QFontMetricsF,QTransform
+        from PySide6.QtWidgets import QGraphicsSimpleTextItem
+        meta=dict(p.meta);x,y=p.points[0]
+        item=QGraphicsSimpleTextItem(str(meta.get('text','')))
+        font=QFont(item.font());font.setPixelSize(100);item.setFont(font)
+        fm=QFontMetricsF(font);k=float(meta.get('height',.25))/max(1.0,fm.capHeight())
+        # Text matrix in the plan (y up): the baseline along the angle (counter-clockwise, as CAD), the glyphs' «down»
+        # at right angles to it — written out, so the view's y flip cannot turn or mirror it.
+        a=math.radians(float(meta.get('angle',0.)));c,s_=math.cos(a),math.sin(a)
+        item.setTransform(QTransform(k*c,k*s_,k*s_,-k*c,0.,0.))
+        sel=p.entity_id in (self.doc.selection or ())
+        item.setBrush(QBrush(QColor(20,110,220) if sel else QColor(35,38,45)))
+        # The insertion point is the top of the capitals at the left: lift the item by the space above them.
+        d=(fm.ascent()-fm.capHeight())*k
+        item.setPos(float(x)-d*s_,float(y)+d*c)
+        self._scene.addItem(item)
+        return item
     def _draw_rotate_dial(self,preview):
         # Live rotation: dial round the pivot, a ray at the new angle and the angle in degrees.
         hud=preview.hud;px,py=float(hud.get('pivot_x',0.)),float(hud.get('pivot_y',0.));a=float(hud.get('angle_deg',0.))

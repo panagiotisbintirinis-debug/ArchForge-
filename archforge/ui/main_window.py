@@ -142,6 +142,8 @@ class MainWindow(QMainWindow):
         wall_dims_tool.install(self)     # selected wall: its distances; double click = move it with the mouse
         from archforge.ui import dimension_tool
         dimension_tool.install(self)     # CAD ▸ Διαστάσεις: tape (Μεζούρα) + automatic exterior / interior
+        from archforge.ui import drafting_tool
+        drafting_tool.install(self)      # CAD ▸ Σχεδίαση 2D: γραμμή, πολυγραμμή, ορθογώνιο, κύκλος, τόξο, κείμενο
         from archforge.ui import corner_tool
         corner_tool.install(self)        # Επεξεργασία ▸ Γωνία: two walls meet in a corner (Revit Trim/Extend)
         from archforge.ui.main_menus import organize_work_menus
