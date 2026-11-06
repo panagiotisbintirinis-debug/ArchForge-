@@ -368,6 +368,8 @@ def preview(doc, params, px_per_mm=2.0):
     from archforge.output.pdf import Sheet
     W, H = paper_mm(params)
     img = QImage(int(W * px_per_mm), int(H * px_per_mm), QImage.Format.Format_RGB32)
+    # The image's own density = the drawing's: font sizes in points then come out as on paper (else ×96 dpi).
+    img.setDotsPerMeterX(int(round(px_per_mm * 1000))); img.setDotsPerMeterY(int(round(px_per_mm * 1000)))
     img.fill(QColor(255, 255, 255))
     p = QPainter(img)
     p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
