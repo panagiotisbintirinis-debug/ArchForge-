@@ -16,7 +16,8 @@ from PySide6.QtWidgets import (QAbstractItemView, QHBoxLayout, QLabel, QTabBar, 
 from archforge.quantities import schedules as S
 
 TAB_TITLE = "Λίστες"
-NAMES = {"openings": "Κουφώματα", "envelope": "Κέλυφος", "rooms": "Χώροι", "circuits": "Κυκλώματα"}
+NAMES = {"openings": "Κουφώματα", "envelope": "Κέλυφος", "rooms": "Χώροι", "circuits": "Κυκλώματα",
+         "clashes": "Συγκρούσεις"}
 
 
 def _text(v):

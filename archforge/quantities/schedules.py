@@ -423,7 +423,34 @@ def circuits(doc):
             "total": f"{len(rows)} κυκλώματα · {sum(r['load'] for r in rows)} W"}
 
 
-LISTS = {"openings": openings, "envelope": envelope, "rooms": rooms, "circuits": circuits}
+def clashes(doc):
+    """Συγκρούσεις αρχιτεκτονικών / στατικών / Η/Μ (``coordination/clash.py``): one row per clash; click = both elements."""
+    from archforge.coordination import clash as C
+    from archforge.core.cameras import storey_of
+    found = C.find(doc)
+
+    def label(kind, eid):
+        if kind.startswith("network:"):
+            return C.NETWORKS[kind.split(":", 1)[1]]
+        e = doc.entities.get(eid)
+        name = (e.name if e is not None and e.name else "") or ""
+        return f"{C.KIND_LABEL.get(kind, kind)} {name}".strip()
+    rows = []
+    for c in found:
+        rows.append({"ids": [i for i in c.ids if i in doc.entities], "group": c.group, "a": label(c.a_kind, c.a_id),
+                     "b": label(c.b_kind, c.b_id), "depth": _r(c.depth * 100, 0), "storey": _storey(doc, storey_of(doc, c.at[2])),
+                     "where": f"x {c.at[0]:.2f} · y {c.at[1]:.2f} · z {c.at[2]:.2f}".replace(".", ","), "note": c.note})
+    by = C.summary(found)
+    check = ([f"{n} {g}" for g, n in by.items()] if found else []) + [
+        "ελέγχονται: δίκτυα Η/Μ μέσα σε δοκούς / κολόνες, δοκοί / κολόνες μέσα σε ανοίγματα, έπιπλα μέσα σε κολόνες / "
+        "τοίχους, σημεία Η/Μ μέσα σε κολόνες· όχι αποστάσεις κανονισμού"]
+    return {"title": "Συγκρούσεις", "rows": rows, "check": check, "editable": {},
+            "columns": [("group", "Ομάδα"), ("a", "Στοιχείο Α"), ("b", "Στοιχείο Β"), ("depth", "Μέσα (cm)"),
+                        ("storey", "Όροφος"), ("where", "Θέση (m)"), ("note", "Τι συμβαίνει")],
+            "total": f"{len(found)} συγκρούσεις" if found else "Καμία σύγκρουση"}
+
+
+LISTS = {"openings": openings, "envelope": envelope, "rooms": rooms, "circuits": circuits, "clashes": clashes}
 
 
 # ------------------------------------------------------------------ export: PDF (HTML) and Excel, the same lists

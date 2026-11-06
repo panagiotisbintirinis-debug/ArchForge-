@@ -360,6 +360,9 @@ def install_approved_mockup_shell(window):
     lists=QAction("Λίστες (κουφώματα · κέλυφος · χώροι · κυκλώματα)",window)
     lists.triggered.connect(lambda: __import__("archforge.ui.live_lists",fromlist=["show"]).show(window))
     menus["Κατασκευή"].addAction(lists); window._lists_action=lists
+    clash=QAction("Έλεγχος συγκρούσεων (Η/Μ · φέρων · κουφώματα · έπιπλα)",window)
+    clash.triggered.connect(lambda: __import__("archforge.ui.live_lists",fromlist=["show"]).show(window,"clashes"))
+    menus["Κατασκευή"].addAction(clash); window._clash_action=clash
     isotex=QAction("Τεμάχια Isotex (αναγωγή)…",window); isotex.triggered.connect(lambda: window._show_isotex())
     menus["Κατασκευή"].addAction(isotex); window._isotex_action=isotex
     priced=QAction("Λίστα υλικών με τιμές (Excel)…",window); priced.triggered.connect(lambda: window._export_priced_lists())

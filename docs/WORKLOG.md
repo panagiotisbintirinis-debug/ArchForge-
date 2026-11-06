@@ -1,3 +1,8 @@
+## 06/11 — Έλεγχος συγκρούσεων (κενό 2 της αποτύπωσης)
+
+- `coordination/clash.py` (Box, segment_in_box, box_overlap, network_segments, find), λίστα `schedules.clashes`,
+  καρτέλα «Συγκρούσεις», εντολή μενού. Τεστ `tests/test_clash.py`: 5 + μενού.
+
 ## 06/11 — Διόρθωση: θέση κουφώματος στη θερμική εικόνα όψης
 
 - Το `offset` κουφώματος είναι το **κέντρο** του ανοίγματος (`architecture/openings.plan_segment`). Ο `facade_thermal`
