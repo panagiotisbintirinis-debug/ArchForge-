@@ -112,7 +112,7 @@ def test_cast_in_conduits_are_work_before_the_pour_not_clashes(monkeypatch):
     """Ιδιοκτήτης 06/11: «μπορεί να γίνει προσωλήνωση… σωληνώσεις στα μπετά»."""
     from archforge.quantities import schedules as S
     doc, st, wall, col, beam = _frame()
-    panel = Entity('electrical_point', {'x': 0.5, 'y': 0.0, 'z': 0.0, 'point_type': 'panel'})
+    panel = Entity('electrical_point', {'x': 0.5, 'y': 0.0, 'z': 0.0, 'point_type': 'panel', 'cast_in_concrete': 1})
     st.execute(AddEntity(panel))
     segs = [('electrical', (2.0, 0, 2.35), (2.2, 0, 2.35), 0.02), ('electrical', (2.2, 0, 2.35), (2.4, 0, 2.35), 0.02),
             ('electrical', (2.4, 0, 2.35), (4.0, 0, 2.35), 0.02),           # one conduit, three grid pieces: 1 crossing
@@ -126,7 +126,7 @@ def test_cast_in_conduits_are_work_before_the_pour_not_clashes(monkeypatch):
     assert C.crossings([(0, 0, 0), (0.2, 0, 0), (0.4, 0, 0), (2, 0, 0)]) and len(C.crossings([(0, 0, 0), (0.2, 0, 0), (2, 0, 0)])) == 2
     st.execute(UpdateEntity(panel.id, {'cast_in_concrete': 0}))           # the project says no: clashes again
     assert any(c.a_kind == 'network:electrical' for c in C.find(doc))
-    assert 'κλειστή' in S.cast_in(doc)['check'][0]
+    assert S.cast_in(doc)['title'].startswith('Διελεύσεις προς έγκριση') and 'στατικός' in S.cast_in(doc)['check'][0]
 
 
 def test_distribution_from_the_ceiling():
@@ -149,3 +149,33 @@ def test_distribution_from_the_ceiling():
     assert 2.35 in walls_z and 2.35 not in ceil_z and max(ceil_z) > 2.35
     with pytest.raises(ValueError):
         st.execute(UpdateEntity(panel.id, {'distribution': 'roof'}))
+
+
+def test_routes_go_round_a_column_in_the_floor_not_through_it_nor_in_the_air():
+    """Κείμενο ιδιοκτήτη 06/11: «στην τοιχοποιία… μέσα από το τούβλο· στη συνάντηση με το μπετόν στρίβει… στο δάπεδο
+    10–20 cm από τη βάση της κολόνας»."""
+    from archforge.mep.electrical import route_cables
+    from archforge.mep.electrical_routes import COLUMN_CLEARANCE
+    doc = Document(); st = CommandStack(doc)
+    for a, b in (((0, 0), (8, 0)), ((8, 0), (8, 5)), ((8, 5), (0, 5)), ((0, 5), (0, 0))):
+        st.execute(AddEntity(Entity('wall', {'x1': a[0], 'y1': a[1], 'x2': b[0], 'y2': b[1], 'z': 0, 'height': 3.0, 'thickness': 0.25})))
+    col = Entity('structural_column', {'x': 4.0, 'y': 0.0, 'z': 0.0, 'width': 0.4, 'depth': 0.4, 'height': 3.0, 'rotation': 0.0,
+                                       'role': 'structural', 'construction': 'reinforced_concrete', 'base_level': 'Ground'})
+    st.execute(AddEntity(col))
+    st.execute(AddEntity(Entity('electrical_point', {'x': 1.0, 'y': 0.2, 'z': 0.0, 'point_type': 'panel'})))
+    st.execute(AddEntity(Entity('electrical_point', {'x': 7.0, 'y': 0.2, 'z': 0.0, 'point_type': 'socket'})))
+    box = next(b for b in C.structure(doc) if b.eid == col.id)
+    runs = route_cables(doc)['runs']
+    assert not any(C.segment_in_box(a, b, box, 0.01)[0] > C.TOLERANCE for a, b, _g, _c in runs)
+    # every horizontal run is in a wall (the brick) or down in the floor screed — none hanging in the room
+    walls = [C._wall(e) for e in C._visible(doc, 'wall')]
+    for a, b, _g, _c in runs:
+        if abs(a[2] - b[2]) > 1e-9:
+            continue
+        mid = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+        in_brick = any(abs(w.local(*mid)[0]) <= w.hu + 0.15 and abs(w.local(*mid)[1]) <= w.hv + 0.11 for w in walls)
+        assert in_brick or a[2] < 0.2
+        if a[2] < 0.2:                                   # in the floor: clear of the column by its clearance
+            u, v = box.local(*mid)
+            assert abs(u) > box.hu + COLUMN_CLEARANCE - 0.11 or abs(v) > box.hv + COLUMN_CLEARANCE - 0.11
+    assert any(a[2] < 0.2 for a, b, _g, _c in runs)      # it did go down to pass the column

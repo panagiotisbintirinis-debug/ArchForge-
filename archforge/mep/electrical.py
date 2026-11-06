@@ -440,7 +440,7 @@ def route_cables(doc):
     level. Choices change routes and quantities; heights remain design defaults.
     Pull boxes by the stated length/bend rule.
     """
-    from archforge.mep.electrical_routes import run_z, target_cell, device_legs, switch_runs
+    from archforge.mep.electrical_routes import avoid_frame, layered, run_z, target_cell, device_legs, switch_runs
     design = design_circuits(doc)
     runs, boxes = [], []
     points = {e.id: e for e in electrical_points(doc)}
@@ -449,6 +449,7 @@ def route_cables(doc):
         return {**design, "runs": runs, "boxes": boxes, "switch_runs": []}
     px, py = float(panel.params["x"]), float(panel.params["y"])
     panel_floor = _floor_of(doc, float(panel.params["z"]))
+    avoid = avoid_frame(doc)                 # owner 06/11: keep out of columns / beams unless cast-in is allowed
     for circuit in design["circuits"]:
         members = [points[i] for i in circuit["points"]]
         floor = _floor_of(doc, float(members[0].params["z"]))
@@ -466,10 +467,14 @@ def route_cables(doc):
             low_z = run_z(doc, panel_floor, "wall")
             low = _Grid(doc, panel_floor, [(px, py), riser])
             low.mode = "wall"
-            path = low.route(low.cell(*riser), {low.cell(px, py)})
-            chain = [low.point(c) for c in path]
-            for a, b in zip(chain, chain[1:]):
-                runs.append(((a[0], a[1], low_z), (b[0], b[1], low_z), group, cid))
+            lg = layered(doc, low, "wall", panel_floor, low_z, [low.cell(px, py), low.cell(*riser)])[0] if avoid else None
+            g = lg or low
+            start, goal = (g.cell(*riser), g.cell(px, py))
+            path = g.route(start, {goal})
+            chain = [g.point(c) for c in path]
+            xyz = [lg.xyz(c) for c in path] if lg else [(*p_, low_z) for p_ in chain]
+            for a, b in zip(xyz, xyz[1:]):
+                runs.append((a, b, group, cid))
             boxes.extend(_pull_boxes(chain, low_z, cid))
             pp = low.point(low.cell(px, py))
             runs.append(((pp[0], pp[1], mount_z(doc, panel.params)), (pp[0], pp[1], low_z), group, cid))
@@ -483,31 +488,37 @@ def route_cables(doc):
             sx, sy = (rx, ry) if riser is not None else (px, py)
             grid = _Grid(doc, floor, [(float(e.params["x"]), float(e.params["y"])) for e in chosen] + [(sx, sy)])
             grid.mode = "wall" if mode == "wall" else "floor"
-            source = grid.cell(sx, sy)
-            targets = {e.id: target_cell(grid, e, mode) for e in chosen}
-            paths, _loads, parent = _grow(grid, source, targets)
+            grid.doc, grid.floor = doc, floor                   # target_cell keeps a ceiling feed out of the frame
+            base_targets = {e.id: target_cell(grid, e, mode) for e in chosen}
+            lg = None
+            if avoid:
+                lg, z = layered(doc, grid, mode, floor, z, [grid.cell(sx, sy), *base_targets.values()])
+            g = lg or grid
+            source = g.cell(sx, sy)
+            targets = {k: (*c, 0) if lg else c for k, c in base_targets.items()}
+            paths, _loads, parent = _grow(g, source, targets)
+            at = (lambda c: lg.xyz(c)) if lg else (lambda c: (*grid.point(c), z))
             seen = set()
             for tid, path in paths.items():
                 chain = []
                 c = path[0]
-                chain.append(grid.point(c))
+                chain.append(g.point(c))
                 while parent.get(c) is not None:
                     p_ = parent[c]
                     edge = frozenset((c, p_))
-                    a, b = grid.point(c), grid.point(p_)
                     if edge not in seen:
                         seen.add(edge)
-                        runs.append(((a[0], a[1], z), (b[0], b[1], z), group, cid))
-                    chain.append(b)
+                        runs.append((at(c), at(p_), group, cid))
+                    chain.append(g.point(p_))
                     c = p_
                 boxes.extend(_pull_boxes(chain, z, cid))
-            pp = grid.point(source)
+            pp = g.point(source)
             if riser is None:
                 runs.append(((pp[0], pp[1], mount_z(doc, panel.params)), (pp[0], pp[1], z), group, cid))
             elif abs(pp[0] - rx) > 1e-6 or abs(pp[1] - ry) > 1e-6:      # the two grids round the riser apart
                 runs.append(((rx, ry, z), (pp[0], pp[1], z), group, cid))
             for e in chosen:
-                terminal, box = device_legs(doc, e, mode, grid.point(targets[e.id]), z)
+                terminal, box = device_legs(doc, e, mode, g.point(targets[e.id]), z)
                 boxes.append((*box, cid))
                 runs.extend((a, b, group, cid) for a, b in terminal)
     # The board consumes this same geometry instead of reconstructing switch legs.
@@ -539,6 +550,14 @@ def _riser(doc, lower, upper, px, py):
 
     def on_lower(q):
         return any(_dist_to_segment(w, *q) <= float(w.params.get("thickness", 0.2)) / 2 + 1e-6 for w in down)
+    from archforge.mep.electrical_routes import avoid_frame
+    if avoid_frame(doc):                                    # owner 06/11: the vertical run in the brick, not a column
+        from archforge.coordination.clash import structure
+        cols = [b for b in structure(doc) if b.kind == "structural_column"]
+
+        def in_column(q):
+            return any(abs(u) <= b.hu + 0.05 and abs(v) <= b.hv + 0.05 for b in cols for u, v in [b.local(*q)])
+        candidates = [q for q in candidates if not in_column(q)] or candidates
     stacked = [q for q in candidates if on_lower(q)]
     return min(stacked or candidates, key=lambda q: (math.hypot(q[0] - px, q[1] - py), q))
 

@@ -1,3 +1,9 @@
+## 06/11 — Ηλεκτρολογικές οδεύσεις που παρακάμπτουν τα φέροντα (προεπιλογή)
+
+- `electrical_routes`: `LayeredGrid`, `frame_cells`, `false_ceiling_z`, `layered`, `avoid_frame`· `route_cables`, riser,
+  σκέλη φωτιστικών / διακοπτών. owner_111: 34 → 8 συγκρούσεις, 0 m στον αέρα. Τεστ `test_clash.py` (+1 παράκαμψη στο
+  δάπεδο), ηλεκτρολογικά / λίστες / φύλλα 157 passed.
+
 ## 06/11 — Προσωλήνωση στο σκυρόδεμα και διανομή από το ταβάνι (απόφαση ιδιοκτήτη)
 
 - `electrical_board.settings` (+ `distribution`, `cast_in_concrete`), `electrical_routes.mode_of / distribution`,

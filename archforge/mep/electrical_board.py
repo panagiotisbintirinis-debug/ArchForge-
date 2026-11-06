@@ -119,7 +119,8 @@ def settings(doc):
             "conduit_profile": str(p.get("conduit_profile", "conflex")),
             # 06/11 (owner): «μπορεί να γίνει προσωλήνωση… σωληνώσεις στα μπετά· σε άλλες χώρες διανομή από το ταβάνι»
             "distribution": str(p.get("distribution", "walls")),
-            "cast_in_concrete": int(p.get("cast_in_concrete", 1))}
+            # 06/11 (owner, later): «η διέλευση… μέσα από φέροντα στοιχεία πρέπει να αποφεύγεται» → default: avoid
+            "cast_in_concrete": int(p.get("cast_in_concrete", 0))}
 
 
 def _rcd_groups(doc, p):

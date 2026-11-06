@@ -64,9 +64,11 @@ class BoardTab(QWidget):
                                      "από την πλάκα / το ταβάνι με κάθοδο σε κάθε σημείο — σημείο με δική του όδευση την κρατά")
         self.distribution.activated.connect(lambda _i: self._set("distribution", self.distribution.currentData()))
         self.cast_in = QComboBox(); self.cast_in.setObjectName('castInConcrete')
-        self.cast_in.addItem("Προσωλήνωση στο σκυρόδεμα: ναι", 1); self.cast_in.addItem("Προσωλήνωση στο σκυρόδεμα: όχι", 0)
-        self.cast_in.setToolTip("Ναι: οι σωληνώσεις που περνούν κολόνες / δοκούς μπαίνουν στον ξυλότυπο πριν τη "
-                                "σκυροδέτηση (Λίστες ▸ Προσωλήνωση). Όχι: είναι συγκρούσεις (Λίστες ▸ Συγκρούσεις)")
+        self.cast_in.addItem("Φέροντα: παράκαμψη (χωρίς διέλευση)", 0)
+        self.cast_in.addItem("Φέροντα: προσωλήνωση στο σκυρόδεμα", 1)
+        self.cast_in.setToolTip("Παράκαμψη (προεπιλογή): στο τούβλο, γύρω από τις κολόνες στο δάπεδο (15 cm), στην "
+                                "ψευδοροφή κάτω από τις δοκούς· ό,τι μένει → Λίστες ▸ Χιτώνια, έγκριση στατικού. "
+                                "Προσωλήνωση: οι σωληνώσεις περνούν τα φέροντα, μπαίνουν στον ξυλότυπο πριν τη σκυροδέτηση")
         self.cast_in.activated.connect(lambda _i: self._set("cast_in_concrete", int(self.cast_in.currentData())))
         from archforge.mep.conduit_fill import CONDUIT_PROFILES
         self.pipe_profile = QComboBox(); self.pipe_profile.setObjectName('conduitProfile')

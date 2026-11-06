@@ -24,7 +24,24 @@ def mode_of(doc, e):
     return 'wall' if near_wall else 'floor'
 
 
-DISTRIBUTIONS = {'walls': 'Διανομή στους τοίχους (οριζόντια στα 2,35 m)', 'ceiling': 'Διανομή από το ταβάνι (στην πλάκα)'}
+DISTRIBUTIONS = {'walls': 'Διανομή στους τοίχους (οριζόντια στα 2,35 m)', 'ceiling': 'Διανομή από το ταβάνι'}
+
+
+def avoid_frame(doc):
+    """True unless the project allows conduits cast in the concrete (electrical_board settings, «Προσωλήνωση»)."""
+    from archforge.mep.electrical_board import settings
+    return not settings(doc)['cast_in_concrete']
+
+
+def layered(doc, grid, mode, floor, z, free=()):
+    """The grid that keeps out of the frame for a run of ``mode`` at ``z`` (``(grid, z)``): walls → two layers (brick +
+    floor); floor → the screed round the columns; ceiling → a false ceiling under the lowest beam, round the columns."""
+    from archforge.mep.electrical import FLOOR_RUN_Z
+    if mode == 'wall':
+        return LayeredGrid(grid, doc, z, floor + FLOOR_RUN_Z, free), z
+    if mode == 'ceiling':
+        z = false_ceiling_z(doc, floor)
+    return LayeredGrid(grid, doc, z, None, free), z
 
 
 def distribution(doc):
@@ -45,7 +62,10 @@ def target_cell(grid, e, mode):
     from archforge.mep.electrical import _ceiling_fed
     xy = (float(e.params['x']), float(e.params['y']))
     if mode != 'ceiling' and _ceiling_fed(e) and (grid.wall or grid.near):
-        return min(grid.wall | grid.near, key=lambda c: (c not in grid.wall, math.dist(grid.point(c), xy), c))
+        pool = grid.wall | grid.near
+        if avoid_frame(grid.doc) if getattr(grid, 'doc', None) is not None else False:
+            pool = pool - frame_cells(grid, grid.doc, run_z(grid.doc, grid.floor, 'wall'), 0.0) or pool
+        return min(pool, key=lambda c: (c not in grid.wall, math.dist(grid.point(c), xy), c))
     return grid.cell(*xy)
 
 
@@ -61,7 +81,9 @@ def device_legs(doc, e, mode, anchor, z):
         # snapping jogs here changes bend counts and can demand an extra pipe.
         points = [(bx, by, z), (bx, by, box_z), (bx, by, device_z)]
     elif _ceiling_fed(e) and mode != 'ceiling':
-        points = [(bx, by, z), (bx, by, box_z), (bx, by, device_z), (ex, by, device_z), (ex, ey, device_z)]
+        floor = _floor_of(doc, float(e.params['z']))
+        zc = min(device_z, false_ceiling_z(doc, floor)) if avoid_frame(doc) else device_z
+        points = [(bx, by, z), (bx, by, box_z), (bx, by, zc), (ex, by, zc), (ex, ey, zc), (ex, ey, device_z)]
     else:
         points = [(bx, by, z), (ex, by, z), (ex, ey, z), (ex, ey, box_z), (ex, ey, device_z)]
         bx, by = ex, ey
@@ -84,6 +106,8 @@ def switch_runs(doc, wiring, points):
         if sw.params.get('routing', 'auto') == 'auto':
             # Backwards compatibility: the previous conventional switch feed.
             zr, zc = floor + WALL_RUN_Z, _ceiling(doc, floor)
+            if avoid_frame(doc):
+                zc = min(zc, false_ceiling_z(doc, floor))          # in the false ceiling, under the beams
             legs = [((sx, sy, mount_z(doc, sw.params)), (sx, sy, zr)), ((sx, sy, zr), (sx, sy, zc))]
             boxes.append((sx, sy, zr, 'junction', ''))
             for e in members:
@@ -155,3 +179,116 @@ def bus_legs(doc, start, e, mode, rise):
     pts = [start, (*start[:2], z), (xy[0][0], start[1], z)] + [(*p, z) for p in xy]
     pts += [(ex, xy[-1][1], z), (ex, ey, z), (ex, ey, mount_z(doc, e.params))]
     return [(a, b) for a, b in zip(pts, pts[1:]) if math.dist(a, b) > 1e-6]
+
+
+# ------------------------------------------------------------------ avoiding the frame (owner 06/11)
+# «Η διέλευση … μέσα από φέροντα στοιχεία πρέπει να αποφεύγεται… Στην τοιχοποιία η σωλήνωση περνάει αποκλειστικά μέσα
+# από το τούβλο· στο σημείο συνάντησης με το μπετόν η διαδρομή στρίβει… Στο δάπεδο απόσταση 10–20 cm από τη βάση της
+# κολόνας… Οριζόντια διανομή στην ψευδοροφή… Χιτώνιο μόνο αν η διέλευση είναι απολύτως απαραίτητη, εγκεκριμένο».
+COLUMN_CLEARANCE = 0.15    # m around a column in the floor (the owner's 10–20 cm: the middle), DESIGN_DEFAULT
+FALSE_CEILING_GAP = 0.05   # m under the lowest beam for the false-ceiling runs, DESIGN_DEFAULT
+
+
+def frame_cells(grid, doc, z, pad):
+    """Cells of the plan whose centre lies in a column / beam that spans height ``z``, grown by ``pad`` (m)."""
+    from archforge.coordination.clash import structure
+    from archforge.mep.plumbing import CELL
+    cells = set()
+    for box in structure(doc):
+        if not (box.z0 - 1e-6 <= z <= box.z1 + 1e-6):
+            continue
+        r = math.hypot(box.hu, box.hv) + pad + CELL
+        i0, j0 = grid.cell(box.cx - r, box.cy - r)
+        i1, j1 = grid.cell(box.cx + r, box.cy + r)
+        for i in range(i0, i1 + 1):
+            for j in range(j0, j1 + 1):
+                u, v = box.local(*grid.point((i, j)))
+                if abs(u) <= box.hu + pad and abs(v) <= box.hv + pad:
+                    cells.add((i, j))
+    return cells
+
+
+def false_ceiling_z(doc, floor):
+    """Height of the runs in a false ceiling: under the lowest beam of the storey (else under the slab)."""
+    from archforge.coordination.clash import structure
+    from archforge.mep.electrical import _ceiling
+    top = _ceiling(doc, floor)
+    bottoms = [b.z0 for b in structure(doc) if b.kind == "structural_beam" and floor < b.z0 < top + 0.3]
+    return min([top] + [z - FALSE_CEILING_GAP for z in bottoms])
+
+
+class LayeredGrid:
+    """The router's grid in two layers that keep out of the frame: 0 = the wall run (brick only, at ``z_run``),
+    1 = the floor (anywhere but a column and its clearance, at ``z_floor``). A run meeting a column in a wall turns
+    down inside the brick, goes round the column in the floor and comes back up. Cells are (i, j, layer)."""
+
+    def __init__(self, base, doc, z_run, z_floor=None, free=()):
+        from archforge.mep.plumbing import CELL, FREE_COST, NEAR_WALL_COST, TURN_COST, WALL_COST
+        self.two = z_floor is not None
+        self.base, self.z = base, (z_run, z_floor if self.two else z_run)
+        keep = {tuple(c[:2]) for c in free}                                     # the panel / riser / points themselves
+        if self.two:      # wall run: the member and the band in front of it; floor: the column and its clearance
+            self.blocked = (frame_cells(base, doc, z_run, 2 * CELL + CELL / 2) - keep,
+                            frame_cells(base, doc, z_floor, COLUMN_CLEARANCE) - keep)
+        else:             # one layer (floor screed or false ceiling): the column and its clearance
+            self.blocked = (frame_cells(base, doc, z_run, COLUMN_CLEARANCE) - keep, set())
+        # The concrete itself (no band, nothing kept): never a vertical drop through it.
+        self.core = frame_cells(base, doc, z_run, 0.0) | (frame_cells(base, doc, z_floor, 0.0) if self.two else set())
+        self.turn = TURN_COST
+        self.vertical = abs(self.z[0] - self.z[1]) / CELL                      # a drop costs its length in cells
+        self.costs = (WALL_COST, NEAR_WALL_COST, FREE_COST)
+        self.wall, self.near = base.wall, base.near
+        self.nx, self.ny = base.nx, base.ny
+
+    def cell(self, x, y, layer=0):
+        return (*self.base.cell(x, y), layer)
+
+    def point(self, c):
+        return self.base.point(c[:2])
+
+    def xyz(self, c):
+        x, y = self.base.point(c[:2])
+        return (x, y, self.z[c[2]])
+
+    def cost(self, c):
+        ij, layer = c[:2], c[2]
+        if ij in self.blocked[layer]:
+            return math.inf
+        if layer == 0 and self.two:
+            return 0.8 if ij in self.wall else (1.5 if ij in self.near else 40.0)   # as base mode «wall»
+        wall_cost, near_cost, free_cost = self.costs
+        return wall_cost if ij in self.wall else (near_cost if ij in self.near else free_cost)
+
+    def route(self, start, tree):
+        import heapq
+        if start in tree:
+            return [start]
+        best = {(start, None): 0.0}
+        heap = [(0.0, start, None)]
+        parent = {}
+        while heap:
+            d, c, came = heapq.heappop(heap)
+            if c in tree:
+                path, key = [c], (c, came)
+                while key in parent:
+                    key = parent[key]
+                    path.append(key[0])
+                return path[::-1]
+            if d > best.get((c, came), math.inf):
+                continue
+            steps = [((c[0] + dx, c[1] + dy, c[2]), (dx, dy)) for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))]
+            if self.two and c[:2] in self.wall and c[:2] not in self.core and c[:2] not in self.blocked[0] \
+                    and c[:2] not in self.blocked[1]:
+                steps.append(((c[0], c[1], 1 - c[2]), (0, 0)))                # down / up inside the brick
+            for n, move in steps:
+                if not (0 <= n[0] < self.nx and 0 <= n[1] < self.ny):
+                    continue
+                step = self.vertical if move == (0, 0) else self.cost(n)
+                if step == math.inf:
+                    continue
+                nd = d + step + (self.turn if came not in (None, move) else 0.0)
+                if nd < best.get((n, move), math.inf):
+                    best[(n, move)] = nd
+                    parent[(n, move)] = (c, came)
+                    heapq.heappush(heap, (nd, n, move))
+        return [start]

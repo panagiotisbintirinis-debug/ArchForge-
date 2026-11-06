@@ -446,6 +446,9 @@ def clashes(doc):
         "τοίχους, σημεία Η/Μ μέσα σε κολόνες· όχι αποστάσεις κανονισμού"]
     if C.cast_in_allowed(doc):
         check.append("ηλεκτρολογικές / ασθενείς σωληνώσεις στο σκυρόδεμα: προσωλήνωση (λίστα «Προσωλήνωση»), όχι σύγκρουση")
+    else:
+        check.append("οι ηλεκτρολογικές οδεύσεις παρακάμπτουν κολόνες / δοκούς· όσες διελεύσεις μένουν είναι εδώ και στη λίστα "
+                     "«Χιτώνια»")
     return {"title": "Συγκρούσεις", "rows": rows, "check": check, "editable": {},
             "columns": [("group", "Ομάδα"), ("a", "Στοιχείο Α"), ("b", "Στοιχείο Β"), ("depth", "Μέσα (cm)"),
                         ("storey", "Όροφος"), ("where", "Θέση (m)"), ("note", "Τι συμβαίνει")],
@@ -467,12 +470,20 @@ def cast_in(doc):
                      "storey": _storey(doc, storey_of(doc, pts[0][2])), "network": C.NETWORKS[r["network"]],
                      "passes": r["passes"], "length": _r(r["length"] * 100, 0), "dn": f"Ø{r['diameter'] * 1000:.0f}",
                      "where": where})
+    from archforge.project.brief import is_renovation
     check = []
-    if not C.cast_in_allowed(doc):
-        check.append("η προσωλήνωση είναι κλειστή για το έργο (Ηλεκτρ. πίνακας): οι διελεύσεις είναι συγκρούσεις")
-    check.append("θέσεις στο ύψος της όδευσης· να τοποθετηθούν στον ξυλότυπο πριν τη σκυροδέτηση, σε συνεννόηση με τον στατικό")
+    allowed = C.cast_in_allowed(doc)
+    if is_renovation(doc):
+        check.append("ανακαίνιση: σε υφιστάμενο σκυρόδεμα δεν ανοίγεται διέλευση εκ των υστέρων (κομπρεσέρ / καροτιέρα)· "
+                     "μετακινήστε το σημείο ή περάστε εμφανή σωλήνωση / γυψοσανίδα")
+    elif allowed:
+        check.append("θέσεις στο ύψος της όδευσης· να τοποθετηθούν στον ξυλότυπο πριν τη σκυροδέτηση, σε συνεννόηση με τον στατικό")
+    else:
+        check.append("οι οδεύσεις παρακάμπτουν τα φέροντα (τούβλο, δάπεδο, ψευδοροφή)· όσες διελεύσεις μένουν: χιτώνιο στον "
+                     "ξυλότυπο μόνο σε θέση που εγκρίνει ο στατικός, ή μετακίνηση του σημείου")
     members = len({r["ids"][0] for r in rows if r["ids"]})
-    return {"title": "Προσωλήνωση", "rows": rows, "check": check, "editable": {},
+    title = "Προσωλήνωση" if allowed else "Διελεύσεις προς έγκριση (χιτώνια)"
+    return {"title": title, "rows": rows, "check": check, "editable": {},
             "columns": [("member", "Φέρον στοιχείο"), ("storey", "Όροφος"), ("network", "Δίκτυο"), ("passes", "Διελεύσεις"),
                         ("length", "Μήκος μέσα (cm)"), ("dn", "Σωλήνας"), ("where", "Θέσεις x, y, z (m)")],
             "total": f"{sum(r['passes'] for r in rows)} διελεύσεις σε {members} φέροντα στοιχεία" if rows else "Καμία διέλευση"}
