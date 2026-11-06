@@ -366,6 +366,9 @@ def install_approved_mockup_shell(window):
     clash=QAction("Έλεγχος συγκρούσεων (Η/Μ · φέρων · κουφώματα · έπιπλα)",window)
     clash.triggered.connect(lambda: __import__("archforge.ui.live_lists",fromlist=["show"]).show(window,"clashes"))
     menus["Κατασκευή"].addAction(clash); window._clash_action=clash
+    solar=QAction("Ηλιασμός κουφωμάτων (ώρες ήλιου, σκίαση ανά μήνα)…",window)
+    solar.triggered.connect(lambda: __import__("archforge.ui.solar_dialog",fromlist=["show"]).show(window))
+    menus["Κατασκευή"].addAction(solar); window._solar_action=solar
     isotex=QAction("Τεμάχια Isotex (αναγωγή)…",window); isotex.triggered.connect(lambda: window._show_isotex())
     menus["Κατασκευή"].addAction(isotex); window._isotex_action=isotex
     priced=QAction("Λίστα υλικών με τιμές (Excel)…",window); priced.triggered.connect(lambda: window._export_priced_lists())

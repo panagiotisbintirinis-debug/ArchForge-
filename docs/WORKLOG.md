@@ -1,3 +1,9 @@
+## 06/11 — Ηλιασμός κουφωμάτων (κενό 5)
+
+- `site/solar_study.py` (site, set_site_command, sun_vector, obstacles, blocked, study, facing), `ui/solar_dialog.py`,
+  μενού. Τεστ `tests/test_solar_study.py`: 5 (ήλιος / βορράς, ακτίνες, νότια / βόρεια / προεξοχή, θέση με αναίρεση,
+  διάλογος). Πλήρης σειρά στο `c36d47d`: 2484 passed, 1 skipped.
+
 ## 06/11 — Φύλλα σχεδίων (κενό 4)
 
 - `output/sheets.py`, `ui/sheets_dialog.py`, `pdf.draw_plan` / `plan_extent` / `fit_scale`, στοιχείο `sheet`, μενού.
