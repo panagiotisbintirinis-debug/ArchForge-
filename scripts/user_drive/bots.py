@@ -113,7 +113,11 @@ class Bot:
         import builtins
         self.seed = seed; self.verbose = verbose; self.s = scenario(seed)
         self.rng = random.Random(rng_seed if rng_seed is not None else seed * 7919 + 1)
-        self.dir = folder or os.path.join(OUT, f'bot_{seed}'); os.makedirs(self.dir, exist_ok=True)
+        self.dir = folder or os.path.join(OUT, f'bot_{seed}')
+        import shutil
+        shutil.rmtree(self.dir, ignore_errors=True)        # a fresh folder: nothing left from an interrupted run
+        os.makedirs(self.dir, exist_ok=True)
+        self.project = None                                # the file this bot's building was saved to
         self.findings = []; self.steps = []; self.step = 'εκκίνηση'; self.status_log = []
         self.windows_seen = []
         self._hooks()
@@ -942,7 +946,7 @@ class Bot:
             self.find('αναίρεση', 'μετά από έναν τοίχο και μία αναίρεση το έργο δεν είναι ίδιο')
 
     def report(self):
-        return dict(seed=self.seed, scenario=self.s, findings=self.findings, steps=self.steps,
+        return dict(seed=self.seed, scenario=self.s, findings=self.findings, steps=self.steps, project=self.project,
                     windows=self.windows_seen[-200:], status=[x for x in self.status_log if not x[1].startswith("X ")][-400:], kinds=getattr(self, 'kinds', {}),
                     seconds=round(getattr(self, 'total', 0), 1))
 
@@ -959,7 +963,13 @@ def undo_all_check(bot):
         c = st.done[-1] if st.done else None
         return getattr(c, 'label', None) or type(c).__name__ if c is not None else ''
     limit = 3000 if bot.seed % 10 == 0 else 150          # all the way back in 1 bot of 10, else the last 150
+    rooms_at = {}                                         # undo depth → room ids bound there (which step renumbers?)
+
+    def room_ids():
+        b = getattr(bot.w.doc, 'room_bindings', None) or {}
+        return tuple(sorted(b)) if isinstance(b, dict) else ()
     while n < limit:
+        rooms_at[len(bot.w.stack.done)] = room_ids()
         t = time.process_time(); what = label()
         try:
             bot.menu('Επεξεργασία', 'Αναίρεση')       # γκρίζο στο μενού = τέλος (όπως το βλέπει ο χρήστης)
@@ -986,6 +996,12 @@ def undo_all_check(bot):
         m += 1; dt = time.process_time() - t
         if dt > slow:
             slow, slow_what = dt, f'επανάληψη «{what}»'
+        depth = len(bot.w.stack.done)
+        if depth in rooms_at and room_ids() != rooms_at[depth] and not getattr(bot, '_renumber_said', False):
+            bot._renumber_said = True
+            before, after = set(rooms_at[depth]), set(room_ids())
+            bot.find('χώροι με νέο αναγνωριστικό', f'μετά την επανάληψη «{what}» οι χώροι δεν έχουν τα ίδια ids',
+                     f'βάθος {depth} · χάθηκαν {len(before - after)} · νέα {len(after - before)}')
     if bot.w.stack.can_redo:
         bot.find('αναίρεση όλων', f'μετά από {n} αναιρέσεις και {m} επαναλήψεις έμεινε κάτι για επανάληψη')
     if slow > 1.5:
@@ -1025,6 +1041,11 @@ def run_one(seed, verbose=False):
 
         def final_with_undo():
             bot.do('αποθήκευση (πριν από τους ελέγχους)', bot.save)
+            bot.project = bot.w.current_path
+            if bot.project and os.path.exists(bot.project):   # a copy kept for the cross round (later saves move on)
+                import shutil
+                shutil.copyfile(bot.project, os.path.join(bot.dir, 'ktirio.archforge'))
+                bot.project = os.path.join(bot.dir, 'ktirio.archforge')
             try:
                 undo_all_check(bot)
             except Exception as exc:                                     # noqa: BLE001
@@ -1061,7 +1082,7 @@ def run_cross(me, source, verbose=False):
     import shutil
     folder = os.path.join(OUT, f'cross_{me}_from_{source}'); os.makedirs(folder, exist_ok=True)
     src = os.path.join(folder, 'apo_allon.archforge')
-    shutil.copyfile(os.path.join(OUT, f'bot_{source}', 'ergo.archforge'), src)
+    shutil.copyfile(_source_project(source), src)
     bot = Bot(source, verbose, folder=folder, rng_seed=me * 104729 + source)   # the other bot's sketch, my own hands
     try:
         written = _file_snapshot(src)
@@ -1112,6 +1133,11 @@ def run_cross(me, source, verbose=False):
 
         def final_with_undo():
             bot.do('αποθήκευση (πριν από τους ελέγχους)', bot.save)
+            bot.project = bot.w.current_path
+            if bot.project and os.path.exists(bot.project):   # a copy kept for the cross round (later saves move on)
+                import shutil
+                shutil.copyfile(bot.project, os.path.join(bot.dir, 'ktirio.archforge'))
+                bot.project = os.path.join(bot.dir, 'ktirio.archforge')
             try:
                 undo_all_check(bot)
             except Exception as exc:                                     # noqa: BLE001
@@ -1130,13 +1156,25 @@ def run_cross(me, source, verbose=False):
     os._exit(0)
 
 
+def _source_project(seed):
+    """The building bot «seed» saved (its report names it; kept apart from later saves of the checks)."""
+    p = os.path.join(OUT, f'bot_{seed}.json')
+    if os.path.exists(p):
+        f = json.load(open(p, encoding='utf-8')).get('project')
+        if f and os.path.exists(f):
+            return f
+    return os.path.join(OUT, f'bot_{seed}', 'ktirio.archforge')
+
+
 def cross_pairs(seeds, shift=7):
     """Each bot gets the project of another (a fixed shift round the list): pairs (me, source), never itself."""
-    ok = [sd for sd in seeds if os.path.exists(os.path.join(OUT, f'bot_{sd}', 'ergo.archforge'))]
     good = []
-    for sd in ok:
+    for sd in seeds:
+        f = _source_project(sd)
+        if not os.path.exists(f):
+            continue
         try:
-            if _file_snapshot(os.path.join(OUT, f'bot_{sd}', 'ergo.archforge')):
+            if len(_file_snapshot(f)) > 20:                                # a building, not an empty project
                 good.append(sd)
         except Exception:                                                  # noqa: BLE001 — a broken file: its own finding
             good.append(sd)
@@ -1244,7 +1282,7 @@ def _write_report(reports, path, title, intro):
                                             first=r['seed']))
             g['bots'].add(r['seed']); g['steps'].add(norm(f['step']))
     order = ['κατάρρευση / κόλλημα', 'διακοπή bot', 'εξαίρεση', 'μη έγκυρο στοιχείο', 'αποθήκευση ≠ άνοιγμα',
-             'άνοιγμα ≠ αρχείο', 'κρυφή αλλαγή', 'ορφανό στοιχείο', 'αναίρεση όλων', 'επανάληψη όλων', 'επανάληψη: νέα αναγνωριστικά', 'αναίρεση', 'αποθήκευση', 'νέο έργο', 'δεν βγήκε αρχείο',
+             'άνοιγμα ≠ αρχείο', 'κρυφή αλλαγή', 'ορφανό στοιχείο', 'χώροι με νέο αναγνωριστικό', 'αναίρεση όλων', 'επανάληψη όλων', 'επανάληψη: νέα αναγνωριστικά', 'αναίρεση', 'αποθήκευση', 'νέο έργο', 'δεν βγήκε αρχείο',
              'μήνυμα σφάλματος', 'αγγλικό μήνυμα στον χρήστη', 'δεν βρέθηκε εντολή', 'δεν έγινε τίποτα', 'αργό', 'προειδοποίηση Qt',
              'προειδοποίηση χρήστη']
     gl = sorted(groups.values(), key=lambda g: (order.index(g['kind']) if g['kind'] in order else 99, -len(g['bots'])))
