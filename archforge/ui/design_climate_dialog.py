@@ -74,6 +74,11 @@ class DesignClimateDialog(QDialog):
             box.setValue(float(given.get(key) or 0.0))
             form.addRow(label, box)
             self.u_fields[key] = box
+        # b towards unheated rooms (stairwell, storage…), owner 07/11 — DESIGN_DEFAULT 0,5, changed per project.
+        self.b_box = QDoubleSpinBox(self)
+        self.b_box.setRange(0.0, 1.0); self.b_box.setDecimals(2); self.b_box.setSingleStep(0.05)
+        self.b_box.setValue(float(given.get("heat_b_unheated") if given.get("heat_b_unheated") is not None else 0.5))
+        form.addRow("Συντελεστής b προς μη θερμαινόμενους (κλιμακοστάσιο, αποθήκη…)", self.b_box)
         root.addLayout(form)
         self.power = QLabel(self); self.power.setWordWrap(True)
         root.addWidget(self.power)
@@ -113,8 +118,10 @@ class DesignClimateDialog(QDialog):
         from archforge.mep.heat_load import heat_load
         r = heat_load(self.window.doc)
         z = C.zone(self.window.doc)
+        apts = " · ".join(f"{k} {v / 1000:.1f} kW".replace(".", ",") for k, v in r.get("apartments", {}).items() if v)
         self.power.setText((f"Με τις αποθηκευμένες τιμές: ενδεικτική ισχύς ≈ {r['kw']:.1f} kW (ΔT {r['delta_t']:g} K)."
-                            .replace(".", ",", 1)) + (f" · ζώνη {z}" if z else " · ζώνη: δεν ορίστηκε"))
+                            .replace(".", ",", 1)) + (f" · ζώνη {z}" if z else " · ζώνη: δεν ορίστηκε")
+                           + (f"\nΑνά διαμέρισμα: {apts}" if apts else ""))
 
     def changes(self):
         out = {key: box.value() for key, box in self.fields.items()}
@@ -123,6 +130,7 @@ class DesignClimateDialog(QDialog):
         out["zone"] = self.zone.currentData() or ""
         for key, box in self.u_fields.items():
             out[key] = box.value() if box.value() > 0 else None
+        out["heat_b_unheated"] = self.b_box.value()
         return out
 
     def apply(self):

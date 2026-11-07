@@ -122,6 +122,28 @@ def add_room_rows(window, signature):
             window._refresh_project_tree()
     use.activated.connect(set_use)
     form.addRow("Χρήση", use)
+    # Owner 07/11: «κάθε διαμέρισμα αποκτά πίνακα … η θέρμανση ξεχωρίζει τα διαμερίσματα ανά kW». Free text or one of
+    # the project's apartments; empty = one per storey (the unheated rooms are the common parts).
+    from archforge.mep.heat_load import apartment_of
+    apt = QComboBox(); apt.setObjectName("roomApartment"); apt.setEditable(True)
+    known = sorted({str(d.get("apartment")) for d in doc.room_data.values() if d.get("apartment")})
+    apt.addItem(f"(αυτόματα: {apartment_of(doc, face, z)})", "")
+    for a_ in known:
+        apt.addItem(a_, a_)
+    own = data.get("apartment", "")
+    apt.setCurrentIndex(max(0, apt.findData(own)) if own else 0)
+
+    def set_apartment():
+        from archforge.core.commands import SetRoomMetadata
+        text = apt.currentText().strip()
+        value = "" if text.startswith("(αυτόματα") else text
+        if value != doc.room_metadata(signature).get("apartment", ""):
+            window.stack.execute(SetRoomMetadata(signature, {"apartment": value or None}))
+            window._refresh_project_tree()
+            window.statusBar().showMessage(f"Χώρος: διαμέρισμα «{value or 'αυτόματα'}» — Ctrl+Z για αναίρεση", 5000)
+    apt.activated.connect(lambda _i: set_apartment())
+    apt.lineEdit().editingFinished.connect(set_apartment)
+    form.addRow("Διαμέρισμα", apt)
     storey = next((n for n, v in doc.levels.items() if abs(float(v) - z) < 1e-4), f"{z:+.2f} m")
     from archforge.ui.workspace_layout import level_label
     form.addRow("Όροφος", QLabel(level_label(storey)))

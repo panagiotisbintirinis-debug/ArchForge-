@@ -366,7 +366,8 @@ def _fit(entries):
 # Owner 17/10: rooms by use, so finishes and materials can be told apart room by room. A kitchen is its own
 # room only when closed; open to the living room it is «Σαλόνι – κουζίνα».
 ROOM_USES = ("Σαλόνι", "Κουζίνα", "Σαλόνι – κουζίνα", "Υπνοδωμάτιο", "Μπάνιο", "WC", "Διάδρομος", "Γραφείο",
-             "Αποθήκη", "Πλυσταριό", "Λεβητοστάσιο", "Γκαράζ", "Πισίνα", "Αυλή")
+             "Αποθήκη", "Πλυσταριό", "Λεβητοστάσιο", "Γκαράζ", "Πισίνα", "Αυλή",
+             "Κλιμακοστάσιο")      # 07/11: the common stairwell of a block of flats (unheated: heat_load × b)
 
 
 def set_room_use(window, x, y, name):

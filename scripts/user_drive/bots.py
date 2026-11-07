@@ -684,6 +684,14 @@ class Bot:
                     self.place(('Εγκαταστάσεις', 'Ύδρευση', 'Λεκάνη WC'), [(c['x1'] - 0.4, c['cy'])])
                     self.place(('Εγκαταστάσεις', 'Ύδρευση', 'Ντουζιέρα'), [(c['cx'], c['y1'] - 0.5)])
                 self.place(('Εγκαταστάσεις', 'Αερισμός', 'Ανεμιστήρας απαγωγής μπάνιου'), [(c['cx'], c['y1'] - 0.1)])
+        if s['kind'] == 'πολυκατοικία' and len(C) >= 3:
+            # The common stairwell (07/11): the smallest room that is not the bath, named by its use from the mouse
+            # menu — unheated, its walls to the flats lose × b (heat_load).
+            from archforge.ui.marking_menu import ROOM_USES
+            st = min((c for c in C if c['role'] not in ('μπάνιο', 'σαλόνι', 'κουζίνα')), key=lambda c: c['area'], default=None)
+            if st is not None:
+                self.do('κλιμακοστάσιο (μενού ποντικιού ▸ Χρήση χώρου)',
+                        lambda st=st: self.mm(st['cx'], st['cy'], f"mm:roomuse:{ROOM_USES.index('Κλιμακοστάσιο')}"))
         self.place(('Εγκαταστάσεις', 'Φωτισμός', 'Φωτιστικό οροφής'), [(c['cx'], c['cy']) for c in C])
         socks = self.menu_items('Εγκαταστάσεις', 'Ηλεκτρολογικά', 'Πρίζες')
         if socks:

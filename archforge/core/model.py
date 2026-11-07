@@ -1089,6 +1089,7 @@ SCHEMAS = {
                        'heat_theta_int': _finite, 'heat_theta_ext_winter': _finite, 'heat_theta_ext_summer': _finite,
                        'heat_air_changes': _nonnegative, 'preset': str,
                        'heat_u_walls': _u_value, 'heat_u_roof': _u_value, 'heat_u_floor': _u_value,
+                       'heat_b_unheated': _between(0.0, 1.0, 'b'),
                        'zone': _choice(('', 'Α', 'Β', 'Γ', 'Δ'), 'climate zone')},
     # ψ of the thermal bridges, written by the user with detail code and source (mep/thermal_bridges.py).
     'thermal_bridge_psi': {'values': _thermal_bridge_values},
@@ -1586,7 +1587,7 @@ class Document:
     def set_room_metadata(self, signature, **changes):
         from archforge.architecture.room_identity import resolve_room_metadata_key
         key = resolve_room_metadata_key(self, signature)
-        allowed = {'name', 'use', 'floor_finish', 'ceiling_finish', 'notes'}
+        allowed = {'name', 'use', 'floor_finish', 'ceiling_finish', 'notes', 'apartment'}   # apartment: 07/11
         data = copy.deepcopy(self.room_data.get(key, {}))
         if set(changes) - allowed:
             raise ValueError('unsupported room metadata')

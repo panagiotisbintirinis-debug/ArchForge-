@@ -37,6 +37,10 @@ ASSUMPTIONS.update({
     # (for the ground the equivalent U' of the floor, ΤΟΤΕΕ 20701-1), given by the user, never guessed.
     "heat_u_roof": (None, "W/m²K", "U οροφής / δώματος προς τα έξω"),
     "heat_u_floor": (None, "W/m²K", "U δαπέδου (ισοδύναμο U' προς έδαφος / πιλοτή)"),
+    # 07/11 (owner: «σε πολυκατοικία με κοινόχρηστες σκάλες οι απώλειες πρέπει να υπολογίζουν και αυτά»): what
+    # separates a heated room from an unheated one (stairwell, storage, boiler room) loses A·U·b·ΔT.  DESIGN_DEFAULT
+    # 0,5 — to be checked against ΤΟΤΕΕ 20701-1 / ΤΕΕ-ΚΕΝΑΚ; changed per project.
+    "heat_b_unheated": (0.5, "", "Συντελεστής b προς μη θερμαινόμενους χώρους"),
 })
 PROVENANCE = ("DESIGN_DEFAULT — θερμοκρασίες σχεδιασμού του έργου (αλλάζουν ανά έργο, Εγκαταστάσεις › Θέρμανση › "
               "Θερμοκρασίες σχεδιασμού…)· όχι μελέτη θέρμανσης (EN 12831-1 / ΚΕΝΑΚ)")
@@ -50,7 +54,7 @@ def assumptions(doc):
     stored = dict(e.params) if e is not None else {}
     from archforge.mep.design_climate import entity as climate
     if climate(doc) is not None:                   # the project's design values (Θερμοκρασίες σχεδιασμού…) win
-        stored.update({k: v for k, v in climate(doc).params.items() if k.startswith("heat_u_") and v not in (None, "")})
+        stored.update({k: v for k, v in climate(doc).params.items() if k.startswith(("heat_u_", "heat_b_")) and v not in (None, "")})
     out = dict(values(doc))                     # temperatures / air changes: the project's design values
     for key, (default, _unit, _label) in ASSUMPTIONS.items():
         if key not in out:
@@ -82,6 +86,9 @@ def heat_load(doc, season="winter"):
     no_u_walls = 0
     opening_area = 0.0
     volume = 0.0
+    rooms_out = []
+    b = a.get("heat_b_unheated")
+    unheated_w = 0.0
     for z in _storeys(doc):
         try:
             outer = exterior_walls(doc, z)
@@ -89,40 +96,36 @@ def heat_load(doc, season="winter"):
             not_computed("heat.exterior", f"Θέρμανση: δεν βρέθηκαν οι εξωτερικοί τοίχοι του ορόφου {z:+.2f}", exc=exc)
             not_counted.append(f"εξωτερικοί τοίχοι ορόφου {z:+.2f}")
             continue
-        for w, _normal in outer:
-            p = w.params
-            length = math.hypot(float(p["x2"]) - float(p["x1"]), float(p["y2"]) - float(p["y1"]))
-            gross = length * float(p["height"])
-            hosted = [o for o in doc.entities.values()
-                      if o.kind in ("door", "window", "opening") and o.parent_id == w.id]
-            holes = sum(float(o.params.get("width", 0.0)) * float(o.params.get("height", 0.0)) for o in hosted)
-            for o in hosted:
-                # Each door / window with its own Uw (Λίστες › Κουφώματα), else the project's one value.
-                area_o = float(o.params.get("width", 0.0)) * float(o.params.get("height", 0.0))
-                from archforge.mep.opening_thermal import uw as _uw
-                u_o = _uw(doc, o)[0]          # declared Uw, else EN ISO 10077-1 from Uf/Ug/ψg, else the project's
-                if u_o is None:
-                    opening_area += area_o
-                else:
-                    openings_w += area_o * float(u_o) * dt
-            u = indicative_u(p.get("wall_type", "generic"), doc)
-            if u is None:
-                u = a["heat_u_walls"]                # the project's one value for walls without a build-up
-            if u is None:
-                no_u_walls += 1
-                continue
-            walls_w += max(0.0, gross - holes) * u * dt
         try:
-            faces = doc.active_room_faces(z=z)
+            faces = list(doc.active_room_faces(z=z))
         except Exception as exc:
             not_computed("heat.rooms", f"Θέρμανση: δεν αναγνωρίστηκαν οι χώροι του ορόφου {z:+.2f}", exc=exc)
             not_counted.append(f"αερισμός ορόφου {z:+.2f}")
-            continue
+            faces = None
         heights = [float(e.params["height"]) for e in doc.entities.values()
                    if e.kind == "wall" and abs(float(e.params.get("z", 0.0)) - z) < 0.05]
         h = sum(heights) / len(heights) if heights else 0.0
-        volume += sum(_polygon_area(f.polygon) for f in faces) * h
-    roof_w, floor_w, roof_a, floor_a, roof_missing, floor_missing = _roof_and_floor(doc, a, dt)
+        if faces:
+            # With rooms (07/11): every loss belongs to a heated room — the exterior walls along it, its openings,
+            # what separates it from an unheated room (stairwell, storage…: × b), its air.  Unheated rooms lose
+            # nothing of their own (ΤΟΤΕΕ 20701-1: they are outside the heated envelope).
+            st = _storey_rooms(doc, z, faces, outer, a, dt, h)
+            rooms_out += st["rooms"]
+            walls_w += st["walls_w"]; openings_w += st["openings_w"]; unheated_w += st["unheated_w"]
+            opening_area += st["opening_area"]; no_u_walls += st["no_u_walls"]
+            volume += st["volume"]
+            continue
+        for w, _normal in outer:                     # a storey without closed rooms: its exterior walls as before
+            ww, ow, oa, missing = _wall_loss(doc, w, a, dt)
+            walls_w += ww; openings_w += ow; opening_area += oa; no_u_walls += missing
+    if rooms_out and b is None and any(r["unheated_m2"] for r in rooms_out):
+        not_counted.append("όρια προς μη θερμαινόμενους χώρους (δώστε συντελεστή b: Θέρμανση › Θερμοκρασίες σχεδιασμού…)")
+    roof_w = sum(r["parts"]["Οροφή / δώμα"] for r in rooms_out)
+    floor_w = sum(r["parts"]["Δάπεδο"] for r in rooms_out)
+    roof_a = sum(r["roof_m2"] for r in rooms_out)
+    floor_a = sum(r["floor_m2"] for r in rooms_out)
+    roof_missing = roof_a if a.get("heat_u_roof") is None else 0.0
+    floor_missing = floor_a if a.get("heat_u_floor") is None else 0.0
     if roof_missing > 0:
         not_counted.append(f"οροφή / δώμα {_gr(roof_missing)} m² (δώστε U οροφής: Θέρμανση › Θερμοκρασίες σχεδιασμού…)")
     if floor_missing > 0:
@@ -141,48 +144,204 @@ def heat_load(doc, season="winter"):
                            "(Θέρμανση › Θερμογέφυρες…)")
     not_counted += [f"θερμογέφυρες που δεν βρίσκει η γεωμετρία ({tb['not_found']})"]
     parts = [("Εξωτερικοί τοίχοι", walls_w), ("Οροφή / δώμα", roof_w), ("Δάπεδο", floor_w), ("Κουφώματα", openings_w),
-             ("Θερμογέφυρες", bridges_w), ("Αερισμός", vent_w)]
-    watts = walls_w + roof_w + floor_w + openings_w + bridges_w + vent_w
+             ("Προς μη θερμαινόμενους", unheated_w), ("Θερμογέφυρες", bridges_w), ("Αερισμός", vent_w)]
+    watts = walls_w + roof_w + floor_w + openings_w + unheated_w + bridges_w + vent_w
+    apartments = {}
+    for r in rooms_out:
+        apartments[r["apartment"]] = apartments.get(r["apartment"], 0.0) + r["watts"]
     from archforge.mep.design_climate import source_text
     return {"watts": round(watts), "kw": round(watts / 1000.0, 1), "delta_t": dt, "season": season,
             "climate_source": source_text(doc),
-            "volume_m3": round(volume, 1), "roof_m2": round(roof_a, 2), "floor_m2": round(floor_a, 2), "parts": [(n, round(v)) for n, v in parts],
+            "volume_m3": round(volume, 1), "roof_m2": round(roof_a, 2), "floor_m2": round(floor_a, 2),
+            "rooms": rooms_out, "apartments": {k: round(v) for k, v in apartments.items()}, "parts": [(n, round(v)) for n, v in parts],
             "not_counted": not_counted, "assumptions": a, "provenance": PROVENANCE}
 
 
-def _roof_and_floor_by_face(doc):
-    """``{(storey z, room signature): (roof m², floor m²)}``: the part of each room with no room of the storey above
-    over it (roof / terrace / ceiling to outside) and with no room of the storey below under it (the lowest storey
-    on the ground, or a floor over open space)."""
-    from shapely.geometry import Polygon
-    from shapely.ops import unary_union
-    zs = _storeys(doc)
-    faces, shapes = {}, {}
-    for z in zs:
-        try:
-            fs = list(doc.active_room_faces(z=z))
-        except Exception:                                  # noqa: BLE001 — said by the volume part already
-            fs = []
-        polys = [(f.signature, Polygon([(float(p[0]), float(p[1])) for p in f.polygon]).buffer(0)) for f in fs]
-        faces[z] = polys
-        shapes[z] = unary_union([g for _s, g in polys]) if polys else None
-    out = {}
-    for i, z in enumerate(zs):
-        above = shapes[zs[i + 1]] if i + 1 < len(zs) else None
-        below = shapes[zs[i - 1]] if i > 0 else None
-        for sig, g in faces[z]:
-            roof = g.area - (g.intersection(above).area if above is not None and not above.is_empty else 0.0)
-            floor = g.area - (g.intersection(below).area if below is not None and not below.is_empty else 0.0)
-            out[(z, sig)] = (roof, floor)
+def _heated(doc, face):
+    from archforge.mep.heating_layout import UNHEATED_USES, _room_use
+    return not any(_room_use(doc, face).startswith(u) for u in UNHEATED_USES)
+
+
+def apartment_of(doc, face, z):
+    """The room's apartment (Ιδιότητες χώρου ▸ Διαμέρισμα); unheated rooms are the building's common parts; without
+    one, one apartment per storey (owner 07/11: «προεπιλογή ένα ανά όροφο»)."""
+    meta = doc.room_metadata(face.signature) if hasattr(doc, "room_metadata") else {}
+    own = str(meta.get("apartment") or "").strip()
+    if own:
+        return own
+    if not _heated(doc, face):
+        return "Κοινόχρηστα"
+    from archforge.core.storey_names import level_name
+    name = next((n for n, v in doc.levels.items() if abs(float(v) - z) < 0.05), None)
+    return f"Διαμέρισμα {level_name(name) if name else f'{z:+.2f}'}"
+
+
+def _wall_loss(doc, w, a, dt, length=None, ops=None, factor=1.0):
+    """``(wall W, openings W, openings m² without U, 1 if the wall has no U)`` for ``length`` of the wall (all of it by
+    default) with the openings ``ops`` (its own by default), × ``factor`` (b towards an unheated room)."""
+    from archforge.architecture.wall_types import indicative_u
+    from archforge.mep.opening_thermal import uw
+    p = w.params
+    L = math.hypot(float(p["x2"]) - float(p["x1"]), float(p["y2"]) - float(p["y1"])) if length is None else length
+    if ops is None:
+        ops = [o for o in doc.entities.values() if o.kind in ("door", "window", "opening") and o.parent_id == w.id]
+    holes = sum(float(o.params.get("width", 0.0)) * float(o.params.get("height", 0.0)) for o in ops)
+    open_w = open_missing = 0.0
+    for o in ops:
+        area_o = float(o.params.get("width", 0.0)) * float(o.params.get("height", 0.0))
+        u_o = uw(doc, o)[0]          # declared Uw, else EN ISO 10077-1 from Uf/Ug/ψg, else the project's
+        if u_o is None:
+            open_missing += area_o
+        else:
+            open_w += area_o * float(u_o) * dt * factor
+    u = indicative_u(p.get("wall_type", "generic"), doc)
+    if u is None:
+        u = a["heat_u_walls"]                # the project's one value for walls without a build-up
+    if u is None:
+        return 0.0, open_w, open_missing, 1
+    return max(0.0, L * float(p["height"]) - holes) * u * dt * factor, open_w, open_missing, 0
+
+
+def _spans(w, poly):
+    """Stretches ``(lo, hi)`` along wall ``w``'s axis where a side of ``poly`` lies on it."""
+    p = w.params
+    x1, y1, x2, y2 = (float(p[k]) for k in ("x1", "y1", "x2", "y2"))
+    L = math.hypot(x2 - x1, y2 - y1)
+    if L < 1e-9:
+        return []
+    ux, uy = (x2 - x1) / L, (y2 - y1) / L
+    out = []
+    for i in range(len(poly)):
+        q, r = poly[i], poly[(i + 1) % len(poly)]
+        if abs((float(q[0]) - x1) * uy - (float(q[1]) - y1) * ux) > 1e-3 or \
+                abs((float(r[0]) - x1) * uy - (float(r[1]) - y1) * ux) > 1e-3:
+            continue
+        ta = (float(q[0]) - x1) * ux + (float(q[1]) - y1) * uy
+        tb = (float(r[0]) - x1) * ux + (float(r[1]) - y1) * uy
+        lo, hi = max(0.0, min(ta, tb)), min(L, max(ta, tb))
+        if hi - lo > 1e-6:
+            out.append((lo, hi))
     return out
 
 
+def _overlap(xs, ys):
+    return [(max(a, c), min(b, d)) for a, b in xs for c, d in ys if min(b, d) - max(a, c) > 1e-6]
+
+
+def _ops_in(doc, w, spans):
+    ops = [o for o in doc.entities.values() if o.kind in ("door", "window", "opening") and o.parent_id == w.id]
+    return [o for o in ops if any(lo - 1e-6 <= float(o.params.get("offset", 0.0)) <= hi + 1e-6 for lo, hi in spans)]
+
+
+def _storey_rooms(doc, z, faces, outer, a, dt, h):
+    """Each heated room of a storey with its losses: exterior walls along it, their openings, the walls / doors to an
+    unheated room × b, roof / floor (``_slabs``), air.  Totals of the storey for ``heat_load``."""
+    b = a.get("heat_b_unheated")
+    exterior = {w.id for w, _n in outer}
+    walls = [e for e in doc.entities.values() if e.kind == "wall" and e.visible
+             and abs(float(e.params.get("z", 0.0)) - z) < 0.05]
+    heated = [_heated(doc, f) for f in faces]
+    slabs = _slabs(doc)
+    out = {"rooms": [], "walls_w": 0.0, "openings_w": 0.0, "unheated_w": 0.0, "opening_area": 0.0, "no_u_walls": 0,
+           "volume": 0.0}
+    no_u = set()
+    spans = {(w.id, i): _spans(w, f.polygon) for w in walls for i, f in enumerate(faces)}
+    for i, f in enumerate(faces):
+        area = _polygon_area(f.polygon)
+        meta = doc.room_metadata(f.signature) if hasattr(doc, "room_metadata") else {}
+        room = {"z": z, "signature": f.signature, "name": meta.get("name") or f"Χώρος {i + 1}", "use": meta.get("use", ""),
+                "heated": heated[i], "apartment": apartment_of(doc, f, z), "area_m2": round(area, 2),
+                "polygon": [tuple(map(float, q[:2])) for q in f.polygon], "unheated_m2": 0.0,
+                "roof_m2": 0.0, "floor_m2": 0.0}
+        parts = {"Εξωτερικοί τοίχοι": 0.0, "Οροφή / δώμα": 0.0, "Δάπεδο": 0.0, "Κουφώματα": 0.0,
+                 "Προς μη θερμαινόμενους": 0.0, "Αερισμός": 0.0}
+        if heated[i]:
+            for w in walls:
+                mine = spans[(w.id, i)]
+                if not mine:
+                    continue
+                if w.id in exterior:
+                    ww, ow, oa, miss = _wall_loss(doc, w, a, dt, sum(hi - lo for lo, hi in mine), _ops_in(doc, w, mine))
+                    parts["Εξωτερικοί τοίχοι"] += ww; parts["Κουφώματα"] += ow
+                    out["opening_area"] += oa
+                    if miss:
+                        no_u.add(w.id)
+                    continue
+                # Interior wall: the stretch shared with an unheated room loses towards it (× b).
+                cold = [s_ for k, g in enumerate(faces) if not heated[k] and k != i for s_ in spans[(w.id, k)]]
+                shared = _overlap(mine, cold)
+                if shared:
+                    length = sum(hi - lo for lo, hi in shared)
+                    room["unheated_m2"] += length * float(w.params["height"])
+                    if b is not None:
+                        ww, ow, _oa, _m = _wall_loss(doc, w, a, dt, length, _ops_in(doc, w, shared), float(b))
+                        parts["Προς μη θερμαινόμενους"] += ww + ow
+            roof, floor, roof_cold, floor_cold = slabs.get((z, f.signature), (0.0, 0.0, 0.0, 0.0))
+            room["roof_m2"], room["floor_m2"] = round(roof, 2), round(floor, 2)
+            room["unheated_m2"] += roof_cold + floor_cold
+            ur, uf = a.get("heat_u_roof"), a.get("heat_u_floor")
+            if ur is not None:
+                parts["Οροφή / δώμα"] = roof * ur * dt
+            if uf is not None:
+                parts["Δάπεδο"] = floor * uf * dt
+            if b is not None:     # a slab over / under an unheated room: its U (roof / floor) × b
+                parts["Προς μη θερμαινόμενους"] += (roof_cold * (ur or 0.0) + floor_cold * (uf or 0.0)) * dt * float(b)
+            parts["Αερισμός"] = AIR_HEAT * a["heat_air_changes"] * area * h * dt
+            out["volume"] += area * h
+        out["walls_w"] += parts["Εξωτερικοί τοίχοι"]; out["openings_w"] += parts["Κουφώματα"]
+        out["unheated_w"] += parts["Προς μη θερμαινόμενους"]
+        room["unheated_m2"] = round(room["unheated_m2"], 2)
+        room["parts"] = {k: round(v, 1) for k, v in parts.items()}
+        room["watts"] = round(sum(parts.values()), 1)
+        out["rooms"].append(room)
+    out["no_u_walls"] = len(no_u)
+    return out
+
+
+def _slabs(doc):
+    """``{(storey z, room signature): (roof m², floor m², roof over an unheated room m², floor over one m²)}`` for
+    the heated rooms: the part with no room above / below is roof / floor to outside or ground; under / over an
+    unheated room it loses × b."""
+    from shapely.geometry import Polygon
+    from shapely.ops import unary_union
+    zs = _storeys(doc)
+    faces, warm, cold = {}, {}, {}
+    for z in zs:
+        try:
+            fs = list(doc.active_room_faces(z=z))
+        except Exception:                                  # noqa: BLE001 — said by the storey loop
+            fs = []
+        polys = [(f.signature, _heated(doc, f), Polygon([(float(p[0]), float(p[1])) for p in f.polygon]).buffer(0)) for f in fs]
+        faces[z] = polys
+        warm[z] = unary_union([g for _s, h, g in polys if h]) if any(h for _s, h, _g in polys) else None
+        cold[z] = unary_union([g for _s, h, g in polys if not h]) if any(not h for _s, h, _g in polys) else None
+
+    def cut(g, other):
+        return g.intersection(other).area if other is not None and not other.is_empty else 0.0
+    out = {}
+    for i, z in enumerate(zs):
+        up, down = (zs[i + 1] if i + 1 < len(zs) else None), (zs[i - 1] if i > 0 else None)
+        for sig, heated, g in faces[z]:
+            if not heated:
+                continue
+            roof_cold = cut(g, cold.get(up)) if up is not None else 0.0
+            floor_cold = cut(g, cold.get(down)) if down is not None else 0.0
+            roof = g.area - (cut(g, warm.get(up)) if up is not None else 0.0) - roof_cold
+            floor = g.area - (cut(g, warm.get(down)) if down is not None else 0.0) - floor_cold
+            out[(z, sig)] = (max(0.0, roof), max(0.0, floor), roof_cold, floor_cold)
+    return out
+
+
+def _roof_and_floor_by_face(doc):
+    """``{(z, signature): (roof m², floor m²)}`` of the heated rooms (``_slabs``)."""
+    return {k: (r, f) for k, (r, f, _rc, _fc) in _slabs(doc).items()}
+
+
 def _roof_and_floor(doc, a, dt):
-    """Losses through what is above and below the rooms (``_roof_and_floor_by_face``) — area × U × ΔT with the
-    project's U (``heat_u_roof`` / ``heat_u_floor``).  Without a U the area is said, not guessed."""
-    areas = _roof_and_floor_by_face(doc).values()
-    roof_a = sum(r for r, _f in areas)
-    floor_a = sum(f for _r, f in areas)
+    """Roof / floor losses of the heated rooms with the project's U — without a U the area is said, not guessed."""
+    areas = _slabs(doc).values()
+    roof_a = sum(r for r, _f, _rc, _fc in areas)
+    floor_a = sum(f for _r, f, _rc, _fc in areas)
     ur, uf = a.get("heat_u_roof"), a.get("heat_u_floor")
     roof_w = roof_a * ur * dt if ur is not None else 0.0
     floor_w = floor_a * uf * dt if uf is not None else 0.0
@@ -201,7 +360,9 @@ def summary(result):
     return (f"Ενδεικτική ισχύς θέρμανσης ≈ {_gr(result['kw'])} kW (μέσα {g(a['heat_theta_int'])} °C, έξω {g(outside)} °C, "
             f"ΔT {g(result['delta_t'])} K, {g(a['heat_air_changes'])} αλλαγές αέρα/ώρα· έξω: {result.get('climate_source', '')}) — "
             f"υπόθεση, όχι μελέτη· οι θερμοκρασίες αλλάζουν: Θέρμανση › Θερμοκρασίες σχεδιασμού… · "
-            f"δεν μετρήθηκαν: {'; '.join(result['not_counted'])}")
+            f"δεν μετρήθηκαν: {'; '.join(result['not_counted'])}"
+            + ("" if len(result.get("apartments") or {}) < 2 else " · ανά διαμέρισμα: " + ", ".join(
+                f"{k} {_gr(v / 1000.0)} kW" for k, v in result["apartments"].items() if v)))
 
 
 CONNECTION_NAME = "Σημείο σύνδεσης θέρμανσης (το είδος της πηγής: μηχανολόγος)"
