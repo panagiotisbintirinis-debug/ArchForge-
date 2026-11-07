@@ -285,6 +285,12 @@ class Bot:
                     return dlg.standardButton(b) or 0
                 return 0
             dlg.show(); bot.pump(4)
+            hook = getattr(bot, 'dialog_hook', None)
+            if hook is not None:                     # the person works inside this window first (its own buttons)
+                bot.dialog_hook = None
+                hook(dlg); bot.pump(3)
+                if not dlg.isVisible():
+                    return dlg.result()
             clicked = None
             for bb in dlg.findChildren(QDialogButtonBox):
                 for b in bb.buttons():
@@ -830,6 +836,36 @@ class Bot:
                     self.click(*p_)
                 self.click(W + 2, 1); self.key('Return'); self.esc(); self.select_tool()
             self.do('πισίνα με σχήμα', pool, 'more')
+
+            def designed():
+                # Σχεδιασμός πισίνας (07/11): typed depth, «Ελεύθερο» corners clicked in the window's editor, a click
+                # in the 3D miniature, then «στη θέση της μινιατούρας» or «με κλικ στην κάτοψη» + R + a click.
+                from PySide6.QtCore import Qt
+                from PySide6.QtTest import QTest
+                by_click = self.rng.random() < 0.5
+                free = self.rng.random() < 0.5
+
+                def inside(d):
+                    box = d.boxes['depth_deep']; box.setFocus(); box.selectAll()
+                    QTest.keyClicks(box, '2,00'); QTest.keyClick(box, Qt.Key.Key_Tab)
+                    if free:
+                        QTest.mouseClick(d.mode.button(1), Qt.MouseButton.LeftButton)
+                        ed = d.editor; ed.grab()
+                        for u, v in ((-3, -2), (3, -2), (3, 2), (-1, 2), (-3, 0)):
+                            QTest.mouseClick(ed, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+                                             ed.to_screen(u, v).toPoint())
+                        QTest.mouseClick(d.close_shape, Qt.MouseButton.LeftButton)
+                    d.mini.grab()
+                    QTest.mousePress(d.mini, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+                                     d.mini._scr(W + 9, 3, 0).toPoint())
+                    QTest.mouseClick(d.place_click if by_click else d.place_here, Qt.MouseButton.LeftButton)
+                self.dialog_hook = inside
+                self.menu('Διαμόρφωση', 'Περιβάλλων χώρος', 'Πισίνα (σχεδιασμός και τοποθέτηση)…')
+                self.dialog_hook = None
+                if by_click:
+                    self.key('R'); self.click(W + 9, -3)
+                self.select_tool()
+            self.do('σχεδιασμός πισίνας (παράθυρο)', designed, 'more', ('pool',))
         pg = self.menu_items('Διαμόρφωση', 'Περιβάλλων χώρος', 'Πέργκολα')
         for name in self.rng.sample(pg, min(2, len(pg))):
             def perg(name=name):
