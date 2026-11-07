@@ -328,6 +328,10 @@ def install_approved_mockup_shell(window):
             "plot_point","Κλικ σε κάθε κορυφή του οικοπέδου — Enter ή κλικ στην πρώτη για κλείσιμο, Esc ακύρωση")),
         ("Εισαγωγή τοπογραφικού μηχανικού (DXF / σημεία X Y Z)…",window._import_survey),
         (None,None),
+        # Issue #187 (04/11, owner 07/11 «να κοιτάξεις στο git»): the ground's levels along any section line —
+        # many sections, any direction; measured points protected, design points edited (ui/terrain_profile.py).
+        ("Υψομετρικό προφίλ εδάφους (σε τομή)…",lambda: __import__('archforge.ui.terrain_profile',fromlist=['x']).open_profile(
+            window,next((e.id for e in window.doc.entities.values() if e.kind=='section_line'),None))),
         ("Υψομετρικά σημεία",lambda: window._start_site_tool(
             "terrain_point","Κλικ στην κάτοψη και δώσε υψόμετρο — Esc για τέλος")),
         (None,None),

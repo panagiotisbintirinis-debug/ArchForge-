@@ -1140,6 +1140,8 @@ def validate_params(kind, params):
             except (ValueError, TypeError) as exc:
                 raise ValueError(_field_message(key, exc)) from exc
     if kind == 'terrain':
+        from archforge.site.terrain_profiles import validate_controls
+        validate_controls(out)
         if float(out.get('x1', 0)) - float(out.get('x0', 0)) <= 1e-6 or float(out.get('y1', 0)) - float(out.get('y0', 0)) <= 1e-6:
             raise ValueError('terrain extent must be positive (x1 > x0, y1 > y0)')
         if abs(float(out.get('slope_x', 0))) > 100 or abs(float(out.get('slope_y', 0))) > 100:

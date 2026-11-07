@@ -344,6 +344,16 @@
 - Τρέξιμο ελέγχων στο cloud: `apt-get install libegl1 libgl1 libxkbcommon0 libnss3 …` (χωρίς αυτά το PySide6 δεν
   φορτώνει), μετά `QTWEBENGINE_DISABLE_SANDBOX=1 QT_QPA_PLATFORM=offscreen python scripts/toolbox/menu_smoke.py
   --markdown docs/MENU_SMOKE_<ημ>.md` (φορτώνει το `tests/data/owner_111_two_storey.archforge`, ~2 λεπτά).
+## 04/11 — Υψομετρικές τομές εδάφους, πρώτη λειτουργική έκδοση (#187)
+
+- Ξεχωριστό branch `codex/terrain-elevation-profiles`, χωρίς ανάμειξη με το localization #185 ή τα μενού/mockup του Claude. Βάση live `develop cb0c825`. Καμία συγχώνευση.
+- Ο χρήστης σχεδιάζει όσες υπάρχουσες `section_line` θέλει και ανοίγει `Elevation profile…` μέσα στο παράθυρο Τομής. Το νέο κουμπί έχει σταθερό control id `terrain.profile.open`. Δεν αλλάζει θέση κανένα παλιό μενού/εργαλείο.
+- Νέο `site/terrain_profiles.py`: προφίλ περιορισμένο στη γραμμή/έδαφος, source και model τιμές χωριστά, νέα design controls με σταθερά IDs και DESIGN_DEFAULT στο ίδιο terrain. Οι παλιοί `points`/`levels` δεν μεταβάλλονται και η νέα διόρθωση μηδενίζεται σε όλες τις source άγκυρες. Fixed regions προστατεύονται· το όριο φυτεμένου δώματος διατηρείται. Χρησιμοποιείται ο παλιός κοινός interpolator, όχι δεύτερο terrain.
+- `ui/terrain_profile.py`: ποντίκι/ακριβείς τιμές/μέση κλίση προς επόμενο endpoint, διαγραφή design σημείου, Esc ακυρώνει preview, ένα Undo ανά ουσιαστική αλλαγή. Ίδιες εντολές για κάθε είσοδο. Οι τομές, το 3D και η κάτοψη διαβάζουν το ίδιο Document. Το editor αφαιρεί τον listener του όταν κλείσει.
+- `terrain.py` και validation `model.py`: υποστήριξη/έλεγχος controls. Το mesh συμπεριλαμβάνει τις design συντεταγμένες χωρίς πολύ λεπτά/εκφυλισμένα κελιά από αριθμητικές συμπτώσεις και χωρίς Cartesian πλέγμα όλων των survey συντεταγμένων.
+- Όρια που φαίνονται και στο UI: sampled model field, όχι νέες μετρήσεις ανάμεσα στα source σημεία· όχι γενική κατακόρυφη παρειά/overhang ή έλεγχος τοιχίου/γεωτεχνικής. Η μέση κλίση ορίζει endpoint, όχι σταθερή κλίση σε όλη την καμπύλη. Το χωρικό field κάτω από εκσκαφές κτιρίου/πισίνας διαφέρει από το κομμένο στερεό που δείχνει η αρχιτεκτονική Τομή. Υπάρχον source/model mismatch επισημαίνεται και δεν διορθώνεται σιωπηρά. Απόλυτα υψόμετρα μόνο από το αποθηκευμένο project datum.
+- 9 νέες regressions με ρητά synthetic δεδομένα, μέσα τους πραγματικό SectionPanel → editor → PBR/Τομή, Qt drag/preview/Esc, 41 γραμμές τομής, source protection, Undo/Redo/save-load, κλίση, κλειδώματα, near-coincident mesh και source-grid growth. Οι πρώτες 5 απέτυχαν πριν την υλοποίηση· επιπλέον δοκιμές απέτυχαν πριν τις διορθώσεις κενού Undo/εκφυλισμένων τριγώνων. Τελικός στοχευμένος έλεγχος: **67 passed, 1 skipped** (υφιστάμενη browser δοκιμή χωρίς Node/Playwright/Chromium). Compile/diff πέρασαν· πραγματικό offscreen Qt preview εξετάστηκε. Η πλήρης τοπική σουίτα τρέχει· απαιτούνται ανεξάρτητο PR CI και οπτικός έλεγχος Windows πριν ολοκλήρωση/merge.
+- API/οδηγίες/όρια: `docs/specs/terrain_elevation_profiles.md`, εγγραφή TOOLBOX. Τα νέα English UI strings χρειάζονται σύνδεση με το κοινό localization όταν οριστικοποιηθεί το inventory· δεν προστέθηκε δεύτερη υπηρεσία γλώσσας.
 
 ## 01/11 — Αναφορά ιδιοκτήτη: τοίχοι στην κάτοψη αλλά κενό 3D με μόνο έδαφος
 

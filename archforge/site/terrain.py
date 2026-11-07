@@ -202,13 +202,24 @@ def terrain_heights(params: Dict, xy, walls=None, floors=None):
             for outline, lowest in floors:
                 if out[k] < lowest and point_in_polygon(x, y, outline):
                     out[k] = lowest
+    if params.get('profile_controls'):
+        from .terrain_profiles import correction
+        controls = params['profile_controls']
+        source = dict(params, profile_controls=[])
+        control_base = terrain_heights(source, [(c['x'],c['y']) for c in controls], walls, floors)
+        out = correction(params, xy, out, control_base)
+        if floors:
+            for k,(x,y) in enumerate(xy):
+                for outline,lowest in floors:
+                    if out[k] < lowest and point_in_polygon(x,y,outline):
+                        out[k] = lowest
     return out
 
 
 def terrain_height(params: Dict, x: float, y: float, walls=None, floors=None) -> float:
     """Same height field for 3D, plan annotations, site elements and sections."""
     from .elevation_regions import blended_height
-    if params.get('levels') or floors:
+    if params.get('levels') or floors or params.get('profile_controls'):
         return terrain_heights(params, [(float(x), float(y))], walls or [], floors)[0]
     return blended_height(params, float(x), float(y), _point_height(params,x,y)) + stroke_offset(params, x, y)
 
@@ -259,15 +270,17 @@ def terrain_mesh(params: Dict, cell: float | None = None, exclusions=(), walls=N
         return _region_mesh(params,cell,exclusions,walls,floors)
     x0, y0, x1, y1 = (float(params[k]) for k in ('x0', 'y0', 'x1', 'y1'))
     if x1 - x0 <= 1e-6 or y1 - y0 <= 1e-6:
-        raise ValueError('terrain extent must be positive')
+        raise ValueError('το έδαφος πρέπει να έχει θετικές διαστάσεις')
     if cell is None:
         cell = _stroke_cell(params, 0.5 if params.get('points') else 1.0)
     nx = max(1, min(120, int(math.ceil((x1 - x0) / cell))))
     ny = max(1, min(120, int(math.ceil((y1 - y0) / cell))))
-    lowest = min(
-        terrain_height(params, x0 + (x1 - x0) * i / nx, y0 + (y1 - y0) * j / ny)
-        for i in range(nx + 1) for j in range(ny + 1)
-    )
+    from .terrain_profiles import grid
+    xs,ys = grid(params,nx,ny)
+    nx,ny = len(xs)-1,len(ys)-1
+    values = terrain_heights(params, [(x,y) for x in xs for y in ys])
+    heights = {(i,j):values[i*(ny+1)+j] for i in range(nx+1) for j in range(ny+1)}
+    lowest = min(values)
     bottom = lowest - max(0.05, float(params.get('thickness', DEFAULT_THICKNESS)))
     verts: List[Tuple[float, float, float]] = []
     index: Dict[Tuple, int] = {}
@@ -275,9 +288,9 @@ def terrain_mesh(params: Dict, cell: float | None = None, exclusions=(), walls=N
     def vid(i, j, top):
         key = (i, j, top)
         if key not in index:
-            x = x0 + (x1 - x0) * i / nx; y = y0 + (y1 - y0) * j / ny
+            x,y = xs[i],ys[j]
             index[key] = len(verts)
-            verts.append((x, y, terrain_height(params, x, y) if top else bottom))
+            verts.append((x, y, heights[(i,j)] if top else bottom))
         return index[key]
 
     tris: List[Tuple[int, int, int]] = []; roles: List[str] = []
@@ -350,9 +363,12 @@ def _region_mesh(params, cell, exclusions, walls=None, floors=None):
     from collections import Counter
     from archforge.geometry.regions import region, region_loops, group_loops, winding, triangulate_with_holes
     x0,y0,x1,y1=(float(params[k]) for k in ('x0','y0','x1','y1'))
-    if x1<=x0 or y1<=y0: raise ValueError('terrain extent must be positive')
+    if x1<=x0 or y1<=y0: raise ValueError('το έδαφος πρέπει να έχει θετικές διαστάσεις')
     cell=_stroke_cell(params,.5) if cell is None else max(.1,float(cell))
     nx=max(1,min(120,math.ceil((x1-x0)/cell))); ny=max(1,min(120,math.ceil((y1-y0)/cell)))
+    from .terrain_profiles import grid
+    xs,ys=grid(params,nx,ny)
+    nx,ny=len(xs)-1,len(ys)-1
     # Union once, so overlapping wall footprints cannot create duplicate cut edges.
     cuts=[outer for outer,holes in region(exclusions)] if exclusions else []
     regions=[r['points'] for r in params.get('regions') or ()]
@@ -364,9 +380,9 @@ def _region_mesh(params, cell, exclusions, walls=None, floors=None):
         if key not in index: index[key]=len(xy); xy.append(key)
         return index[key]
     for i in range(nx):
-        ax=x0+(x1-x0)*i/nx; bx=x0+(x1-x0)*(i+1)/nx
+        ax,bx=xs[i],xs[i+1]
         for j in range(ny):
-            ay=y0+(y1-y0)*j/ny; by=y0+(y1-y0)*(j+1)/ny
+            ay,by=ys[j],ys[j+1]
             square=[(ax,ay),(bx,ay),(bx,by),(ax,by)]
             def nearby(items): return [p for p,(lx,ly,hx,hy) in items if hx>=ax-1e-8 and lx<=bx+1e-8 and hy>=ay-1e-8 and ly<=by+1e-8]
             local_cuts=nearby(cut_boxes)
