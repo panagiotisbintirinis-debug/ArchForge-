@@ -892,17 +892,46 @@ class Bot:
         s = self.s; C = cells_[0]
         spots = [(s['W'] / 2, 0.0, 'εξωτερικός τοίχος νότια'), (0.0, s['D'] / 2, 'εξωτερικός τοίχος δυτικά')]
         spots += [(x, s['D'] * 0.2, 'εσωτερικός τοίχος') for x in s['xs']]
-        spots += [(c['cx'], c['cy'], f'δάπεδο / χώρος ({c["role"]})') for c in C]
+        # A floor: clicked in a quarter of the room, not on the ceiling light at its middle (07/11: every floor step
+        # selected the luminaire — «δεν υπάρχουν υλικά για electrical_point»).
+        spots += [(c['x0'] + (c['x1'] - c['x0']) * 0.3, c['y0'] + (c['y1'] - c['y0']) * 0.7, f'δάπεδο / χώρος ({c["role"]})')
+                  for c in C]
         for x, y, what in self.rng.sample(spots, min(s['n_materials'], len(spots))):
-            def mat(x=x, y=y):
+            def mat(x=x, y=y, what=what):
                 self.select_tool(); self.dbl(x, y)
+                before = self.snapshot()
                 self.choose_in_dialogs = True
                 try:
                     self.menu('Διαμόρφωση', 'Υλικά', 'Υλικό στο επιλεγμένο…')
                 finally:
                     self.choose_in_dialogs = False
                 self.esc()
+                if self.snapshot() == before:              # a step the person sees do nothing is a finding (07/11)
+                    said = [m for st, m in self.status_log if st == self.step and not m.startswith(('X ', 'Εργαλείο'))]
+                    self.find('δεν έγινε (με εξήγηση)' if said else 'δεν έγινε τίποτα',
+                              f'υλικό: {what} — {said[-1] if said else "κανένα υλικό δεν μπήκε"}')
             self.do(f'υλικό: {what}', mat)
+        # Variety of build-ups (07/11: every building had 2 wall types): some walls get another type from Ιδιότητες.
+        for x, y, what in self.rng.sample(spots[:2 + len(s['xs'])], min(3, 2 + len(s['xs']))):
+            def wtype(x=x, y=y):
+                from PySide6.QtCore import Qt
+                from PySide6.QtTest import QTest
+                from PySide6.QtWidgets import QComboBox, QLabel
+                self.select_tool(); self.dbl(x, y)
+                sel = [self.w.doc.get(i) for i in self.w.doc.selection]
+                if not sel or sel[0].kind != 'wall':
+                    raise LookupError(f'τύπος τοίχου: το διπλό κλικ επέλεξε {[e.kind for e in sel]}')
+                form = self.w.form
+                combo = next((form.itemAt(r, form.ItemRole.FieldRole).widget() for r in range(form.rowCount())
+                              if form.itemAt(r, form.ItemRole.LabelRole) is not None
+                              and isinstance(form.itemAt(r, form.ItemRole.LabelRole).widget(), QLabel)
+                              and form.itemAt(r, form.ItemRole.LabelRole).widget().text() == 'Τύπος τοίχου'), None)
+                if not isinstance(combo, QComboBox):
+                    raise LookupError('Ιδιότητες τοίχου χωρίς «Τύπος τοίχου»')
+                for _ in range(self.rng.randint(1, max(1, combo.count() - 1))):
+                    QTest.keyClick(combo, Qt.Key.Key_Down)
+                self.pump(4)
+            self.do(f'τύπος τοίχου (Ιδιότητες): {what}', wtype)
         for c in self.rng.sample(C, min(s['n_furniture'], len(C))):
             def furn(c=c):
                 self.choose_in_dialogs = True
@@ -973,7 +1002,41 @@ class Bot:
         self.do('θερμομονώσεις', lambda: self.menu('Έργο', 'Αρχείο', 'Θερμομονώσεις (θερμική εικόνα όψης, σήμερα / πρόταση)'))
         self.do('έλεγχος ποιότητας', lambda: self.menu('Σχέδια', 'Έλεγχος', 'Έλεγχος ποιότητας'))
         self.do('επιμέτρηση εργασιών', lambda: self.menu('Σχέδια', 'Επιμετρήσεις·τιμές', 'Επιμέτρηση εργασιών (ανά χώρο)…'))
-        self.do('τιμές & προσφορά', lambda: self.menu('Σχέδια', 'Επιμετρήσεις·τιμές', 'Τιμές & προσφορά…'))
+        def prices():
+            # Owner 07/11: «για κάθε κτίριο BOM υλικών και εργασιών με τιμή τυχαία ανά εργασία και υλικό». The person
+            # types a material and a labour price per unit in every line of «Τιμές & προσφορά», a client, margin, VAT.
+            from PySide6.QtCore import Qt
+            from PySide6.QtTest import QTest
+            from PySide6.QtWidgets import QApplication, QTableWidget
+
+            def inside(d):
+                table = d.findChild(QTableWidget)
+                if table is None:
+                    raise LookupError('«Τιμές & προσφορά» χωρίς πίνακα ειδών')
+                for r in range(table.rowCount()):
+                    if not table.item(r, 2) or not table.item(r, 2).text():
+                        continue                         # «από τη μελέτη»: no quantity, never priced
+                    for c in (3, 4):
+                        table.setCurrentCell(r, c)
+                        table.editItem(table.item(r, c))
+                        ed = QApplication.focusWidget()
+                        if ed is None:
+                            continue
+                        ed.selectAll() if hasattr(ed, 'selectAll') else None
+                        QTest.keyClicks(ed, f"{self.rng.uniform(0.5, 120.0):.2f}")
+                        QTest.keyClick(ed, Qt.Key.Key_Return)
+                from PySide6.QtWidgets import QDoubleSpinBox, QLineEdit
+                edits = d.findChildren(QLineEdit)
+                if edits:
+                    edits[0].setText(f'Πελάτης bot {self.seed}')
+                spins = [w for w in d.findChildren(QDoubleSpinBox) if w.suffix().strip() == '%']
+                for w in spins:
+                    w.setValue(self.rng.choice((0.0, 10.0, 15.0)) if w.maximum() > 100 else 24.0)
+            self.dialog_hook = inside
+            self.menu('Σχέδια', 'Επιμετρήσεις·τιμές', 'Τιμές & προσφορά…')
+            self.dialog_hook = None
+        self.do('τιμές & προσφορά (τιμή σε κάθε γραμμή)', prices)
+        self.quote_check()
         for name, path, ext in (('PDF', ('Σχέδια', 'Εκτύπωση·PDF', 'Εξαγωγή PDF (κατόψεις, επιμέτρηση, προσφορά)…'), '.pdf'),
                                 ('IFC', ('Σχέδια', 'Εξαγωγή', 'IFC για μηχανικούς (BIM)…'), '.ifc'),
                                 ('DXF', ('Σχέδια', 'Εξαγωγή', 'DXF κατόψεις ανά όροφο…'), '.dxf')):
@@ -986,6 +1049,38 @@ class Bot:
             elif any(os.path.getsize(os.path.join(self.dir, f)) == 0 for f in new):
                 self.find('δεν βγήκε αρχείο', f'εξαγωγή {name}: άδειο αρχείο')
         self.do('φύλλα σχεδίων', lambda: self.menu('Σχέδια', 'Φύλλα σχεδίων', 'Φύλλα σχεδίων (A4–A0: κατόψεις, τομές, λίστες, πινακίδα)…'))
+
+    def quote_check(self):
+        """Every priced line = quantity × (material + labour); Σ material + Σ labour = subtotal; margin and VAT on it;
+        each trade its own subtotal; no line with a quantity left without a price.  The totals go to the report (the
+        samples catalogue, 07/11)."""
+        from archforge.quantities.quote import quote
+        self.step = 'έλεγχος: προσφορά'
+        q = quote(self.w.doc)
+        bad = []
+        for title, rows in q['sections']:
+            for r in rows:
+                if r['quantity'] is None:
+                    continue
+                if r['amount'] is None:
+                    bad.append(f'{title}: «{r["description"]}» χωρίς τιμή')
+                    continue
+                want = float(r['quantity']) * float(r['price'] or 0.0)
+                if abs(want - r['amount']) > 0.011 + 1e-6 * abs(want):
+                    bad.append(f'{title}: «{r["description"]}» {r["amount"]} ≠ {float(r["quantity"]):g} × {r["price"]}')
+        if bad:
+            self.find('προσφορά', f'{len(bad)} γραμμές λάθος / χωρίς τιμή', '; '.join(bad[:8]))
+        if abs(q['material'] + q['labour'] - q['subtotal']) > 0.05:
+            self.find('προσφορά', f"υλικά {q['material']} + εργασίες {q['labour']} ≠ υποσύνολο {q['subtotal']}")
+        if abs(sum(t['subtotal'] for t in q['by_trade']) - q['subtotal']) > 0.05:
+            self.find('προσφορά', 'Σ ανά τεχνίτη ≠ υποσύνολο')
+        want_total = q['subtotal'] * (1 + q['margin'] / 100) * (1 + q['vat'] / 100)
+        if abs(want_total - q['total']) > 0.05:
+            self.find('προσφορά', f"σύνολο {q['total']} ≠ {want_total:.2f} (περιθώριο {q['margin']} %, ΦΠΑ {q['vat']} %)")
+        self.quote = {k: q[k] for k in ('subtotal', 'material', 'labour', 'margin', 'margin_amount', 'vat', 'vat_amount',
+                                        'total', 'missing')}
+        self.quote['by_trade'] = q['by_trade']
+        self.quote['lines'] = sum(len(rows) for _t, rows in q['sections'])
 
     # -- the auditor ---------------------------------------------------------------------------------
     def orphans(self):
@@ -1094,7 +1189,7 @@ class Bot:
 
     def report(self):
         return dict(seed=self.seed, scenario=self.s, findings=self.findings, steps=self.steps, project=self.project,
-                    code=CODE_VERSION,
+                    code=CODE_VERSION, quote=getattr(self, 'quote', None),
                     windows=self.windows_seen[-200:], status=[x for x in self.status_log if not x[1].startswith("X ")][-400:], kinds=getattr(self, 'kinds', {}),
                     seconds=round(getattr(self, 'total', 0), 1))
 
