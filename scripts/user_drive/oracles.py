@@ -111,8 +111,11 @@ def _enclosing_height(doc, poly, z):
 def heat_volume(doc, base):
     from archforge.mep.heat_load import _polygon_area, _storeys
     vol = 0.0
+    from archforge.mep.heat_load import _heated
     for z in _storeys(doc):
         for f in doc.active_room_faces(z=z):
+            if not _heated(doc, f):
+                continue                      # stairwell, storage…: not heated air (07/11)
             h = _enclosing_height(doc, f.polygon, z)
             if h is not None:
                 vol += _polygon_area(f.polygon) * h
