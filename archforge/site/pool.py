@@ -345,10 +345,17 @@ def coping_mesh(p):
     outer = rim(p, CHANNEL_W if param(p, "pool_type") == "overflow" else param(p, "coping"))
     verts, tris = [], []
     _flat(verts, tris, outer, z + 0.03, [inner])
+    k = len(tris)
+    _flat(verts, tris, outer, z, [inner])               # underside (bot oracle 07/11: the stone was an open sheet)
+    tris[k:] = [(a, c, b) for a, b, c in tris[k:]]      # facing down
     n = len(inner)
     for i in range(n):
         a, b = inner[i], inner[(i + 1) % n]
         _quad(verts, tris, (a[0], a[1], z), (a[0], a[1], z + 0.03), (b[0], b[1], z + 0.03), (b[0], b[1], z))
+    m = len(outer)
+    for i in range(m):
+        a, b = outer[i], outer[(i + 1) % m]
+        _quad(verts, tris, (a[0], a[1], z), (b[0], b[1], z), (b[0], b[1], z + 0.03), (a[0], a[1], z + 0.03))
     return verts, tris
 
 

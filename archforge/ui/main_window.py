@@ -112,6 +112,8 @@ class MainWindow(QMainWindow):
         terrain_tools.install(self)
         from archforge.ui import pool_shape
         pool_shape.install(self)
+        from archforge.ui import pool_designer
+        pool_designer.install(self)      # Πισίνα…: design first (shape, section, 3D miniature), then place (07/11)
         from archforge.ui import curved_wall_tool
         curved_wall_tool.install(self)
         from archforge.ui import start_page
@@ -2339,6 +2341,9 @@ class MainWindow(QMainWindow):
                 from archforge.site.pool import area as pool_area
                 self.form.addRow('Σχήμα', QLabel(f"σχεδιασμένο ({len(params['outline'])} σημεία, καμπύλες ως τεθλασμένη) · "
                                                  f"{pool_area(params):.1f} m² · μήκος/πλάτος το τεντώνουν".replace('.', ',')))
+            design = QPushButton('Σχεδιασμός πισίνας (σχήμα, τομή, μινιατούρα 3D)…')
+            design.clicked.connect(lambda _=False, entity_id=eid: __import__('archforge.ui.pool_designer', fromlist=['x']).open_designer(self, entity_id))
+            self.form.addRow(design)
             cut = QPushButton('Τομή πισίνας (υψόμετρα χείλους, νερού, πυθμένα)')
             cut.clicked.connect(lambda _=False, entity_id=eid: __import__('archforge.ui.section_view', fromlist=['x']).pool_section(self, entity_id))
             self.form.addRow(cut)

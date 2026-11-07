@@ -6,8 +6,8 @@ kept that the program cannot edit: what is not read is counted and said («δε�
 
 * **Storeys** → project levels (``LongName`` when it holds our own name, else ``Name``) at their ``Elevation``.
 * **Walls** → ``wall``: axis from the ``Axis`` representation (as ArchiCAD / Revit / our export write it); without
-  one, the long side of the smallest rectangle round the body in plan.  Base and height from the body, thickness
-  from the material layer set (else the rectangle's short side).
+  one, the long side of the smallest rectangle round the body in plan.  Base, height and thickness from the body (what
+  was drawn); the material layer set gives the build-up.
   Build-up: when every layer's material is one of ours by name (``construction/building_materials``) the wall gets
   the built-in type with the same layers, or a new project type (``wall_assemblies``); otherwise ``generic`` and the
   layer names are kept in the summary.
@@ -150,7 +150,14 @@ def read(path):
         if axis is None or math.dist(*axis) < 1e-3:
             counted[w.is_a()] = counted.get(w.is_a(), 0) + 1
             continue
-        thickness = sum(d for _n, d in layers) if layers else (rect[3] if rect else 0.2)
+        # Thickness: what was drawn (the body), the layers giving the build-up — a wall drawn thinner / thicker than
+        # its type's layers keeps its own thickness (bot oracle 07/11: 25 cm wall of a 27 cm type came back 27).
+        (ax, ay), (bx, by) = axis
+        n_len = math.hypot(bx - ax, by - ay)
+        nx, ny = -(by - ay) / n_len, (bx - ax) / n_len          # across the axis (a short wall's rectangle is not)
+        across = [(x - ax) * nx + (y - ay) * ny for x, y, _z in verts]
+        body = max(across) - min(across)
+        thickness = body if body > 1e-3 else (sum(d for _n, d in layers) if layers else 0.2)
         z0, z1 = min(v[2] for v in verts), max(v[2] for v in verts)
         storey = _storey_of(w)
         walls.append({"guid": w.GlobalId, "name": str(w.Name or ""), "a": axis[0], "b": axis[1], "z": z0,

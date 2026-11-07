@@ -233,7 +233,8 @@ def _build_menu(window, view, entity_id=None, xy=None):
             entries.append(_e("mm:analyze", "Στατική ανάλυση", "panel"))
         if entity.kind == "pool":
             # Owner 30/10: the pool's own drawing tools on its menu, not only behind Ιδιότητες.
-            entries.insert(1, _e("mm:pool:shape", "Σχήμα πισίνας (σχεδίαση)"))
+            entries.insert(1, _e("mm:pool:design", "Σχεδιασμός πισίνας (σχήμα, τομή, 3D)…"))
+            entries.insert(2, _e("mm:pool:shape", "Σχήμα πισίνας (σχεδίαση)"))
             entries.append(_e("mm:pool:section", "Τομή πισίνας", "panel"))
             if entity.params.get("outline"):
                 entries.append(_e("mm:pool:rect", "Ξανά ορθογώνια", "panel"))
@@ -528,7 +529,10 @@ def run(window, view, entity_id, action_id, plan_xy=None):
     elif group == "curvedwall":
         window._curved_wall_tool.start()
     elif group == "pool" and entity_id:
-        if arg == "shape":
+        if arg == "design":
+            from archforge.ui.pool_designer import open_designer
+            open_designer(window, entity_id)
+        elif arg == "shape":
             window._pool_shape_tool.start(entity_id)
         elif arg == "section":
             from archforge.ui.section_view import pool_section

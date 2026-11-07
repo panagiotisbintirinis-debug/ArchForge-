@@ -264,7 +264,15 @@ def design_circuits(doc, keep_numbers=True):
     stays in that circuit with that number; only new points are grouped, first into a kept circuit of the same kind
     and room with room left, otherwise into new circuits numbered after the highest kept one.  ``keep_numbers=False``
     groups everything afresh (Επαναρίθμηση).
+
+    Once per project state (bots 07/11: the click, the project tree and the assistant asked for the same circuits —
+    three times per luminaire); each caller gets its own copy.
     """
+    from archforge.core.state_memo import remembered
+    return remembered("design_circuits", doc, (bool(keep_numbers),), lambda: _design_circuits(doc, keep_numbers))
+
+
+def _design_circuits(doc, keep_numbers=True):
     points = electrical_points(doc)
     panel = next((e for e in points if e.params["point_type"] == "panel"), None)
     out = {"circuits": [], "switch_links": [], "report": {"unassigned": [], "warnings": [], "provenance": PROVENANCE}}

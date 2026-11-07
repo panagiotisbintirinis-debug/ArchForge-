@@ -973,6 +973,10 @@ class Bot:
             except Exception as exc:                                     # noqa: BLE001
                 self.find('μη έγκυρο στοιχείο', f'{e.kind}: {exc}')
         self.orphans()
+        self.step = 'έλεγχος: ορθότητα αποτελεσμάτων'
+        import oracles                                   # scripts/user_drive/oracles.py (07/11: «εσωτερικός έλεγχος»)
+        for title, detail, extra in oracles.audit(self.w.doc):
+            self.find(title, detail, extra)
         snap = self.snapshot(); kinds = {}
         for k, _ in snap.values():
             kinds[k] = kinds.get(k, 0) + 1
@@ -1012,6 +1016,28 @@ class Bot:
         self.do('αναίρεση (μενού)', lambda: self.menu('Επεξεργασία', 'Αναίρεση'))
         if self.snapshot() != again:
             self.find('αναίρεση', 'μετά από έναν τοίχο και μία αναίρεση το έργο δεν είναι ίδιο')
+        self.ifc_round_trip()
+
+    def ifc_round_trip(self):
+        """Σχέδια ▸ Εξαγωγή ▸ IFC, Νέο έργο, Έργο ▸ Εισαγωγή ▸ IFC: τοίχοι και κουφώματα ίδια (θέσεις, πάχη, ύψη,
+        σύνθεση, πλάτη, ποδιές) — ό,τι λέει ότι διαβάζει η εισαγωγή."""
+        import oracles
+        self.step = 'έλεγχος: IFC εξαγωγή → εισαγωγή'
+        before = oracles.ifc_signature(self.w.doc)
+        t_start = time.time() - 1
+        self.do('εξαγωγή IFC (τελικό έργο)', lambda: self.menu('Σχέδια', 'Εξαγωγή', 'IFC για μηχανικούς (BIM)…'))
+        new = sorted((f for f in os.listdir(self.dir) if f.lower().endswith('.ifc')
+                      and os.path.getmtime(os.path.join(self.dir, f)) >= t_start),
+                     key=lambda f: os.path.getmtime(os.path.join(self.dir, f)))
+        if not new:
+            self.find('δεν βγήκε αρχείο', 'εξαγωγή IFC (τελικό έργο): κανένα .ifc')
+            return
+        self.do('νέο έργο', lambda: self.menu('Έργο', 'Αρχείο', 'Νέο έργο'))
+        self.open_queue.append(os.path.join(self.dir, new[-1]))
+        self.do('εισαγωγή IFC', lambda: self.menu('Έργο', 'Εισαγωγή', 'IFC (τοίχοι, κουφώματα, όροφοι)…'),
+                'more', ('wall',))
+        for title, detail, extra in oracles.ifc_compare(before, oracles.ifc_signature(self.w.doc)):
+            self.find(title, detail, extra)
 
     def report(self):
         return dict(seed=self.seed, scenario=self.s, findings=self.findings, steps=self.steps, project=self.project,
