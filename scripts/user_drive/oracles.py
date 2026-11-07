@@ -76,6 +76,16 @@ def heat_linear(doc):
     return out, base
 
 
+def rooms_add_up(doc):
+    """Θερμικό φορτίο ανά χώρο (07/11): Σ χώρων = σύνολο του κτιρίου, όρο προς όρο (εκτός θερμογεφυρών, που μένουν
+    στο κτίριο) — ανοχή το στρογγύλεμα ανά όρο."""
+    from archforge.mep.room_heat_load import room_loads
+    r = room_loads(doc)
+    n = len(r["rooms"])
+    return [("φορτίο ανά χώρο", f"«{k}»: οι χώροι δίνουν {v:+.0f} W διαφορά από το σύνολο του κτιρίου", "")
+            for k, v in r["building"].items() if k != "Θερμογέφυρες" and abs(v) > 0.5 * n + 1]
+
+
 def _enclosing_height(doc, poly, z):
     """Ύψος του χώρου: το μικρότερο ύψος των τοίχων πάνω στους οποίους πέφτουν οι πλευρές του (ανεξάρτητα)."""
     walls = [w for w in doc.entities.values() if w.kind == "wall" and w.visible
@@ -176,7 +186,7 @@ def audit(doc):
     """Όλοι οι έλεγχοι· ένα σφάλμα σε έλεγχο είναι κι αυτό εύρημα (ποτέ σιωπηλά)."""
     out = []
     checks = [("κουφώματα", openings_in_host), ("U τοίχων", wall_u), ("χώροι", rooms_overlap),
-              ("επιμέτρηση", takeoff_sane), ("όγκος τοίχων", wall_volume)]
+              ("επιμέτρηση", takeoff_sane), ("όγκος τοίχων", wall_volume), ("φορτίο ανά χώρο", rooms_add_up)]
     for name, fn in checks:
         try:
             out += fn(doc)

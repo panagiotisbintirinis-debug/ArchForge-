@@ -150,31 +150,39 @@ def heat_load(doc, season="winter"):
             "not_counted": not_counted, "assumptions": a, "provenance": PROVENANCE}
 
 
-def _roof_and_floor(doc, a, dt):
-    """Losses through what is above and below the rooms: the part of each storey's rooms with no room of the storey
-    above over it (roof / terrace / ceiling to outside), and with no room of the storey below under it (the lowest
-    storey on the ground, or a floor over open space) — area × U × ΔT with the project's U (``heat_u_roof`` /
-    ``heat_u_floor``).  Without a U the area is said, not guessed."""
+def _roof_and_floor_by_face(doc):
+    """``{(storey z, room signature): (roof m², floor m²)}``: the part of each room with no room of the storey above
+    over it (roof / terrace / ceiling to outside) and with no room of the storey below under it (the lowest storey
+    on the ground, or a floor over open space)."""
     from shapely.geometry import Polygon
     from shapely.ops import unary_union
     zs = _storeys(doc)
-    shapes = {}
+    faces, shapes = {}, {}
     for z in zs:
         try:
-            faces = doc.active_room_faces(z=z)
+            fs = list(doc.active_room_faces(z=z))
         except Exception:                                  # noqa: BLE001 — said by the volume part already
-            faces = []
-        polys = [Polygon([(float(p[0]), float(p[1])) for p in f.polygon]).buffer(0) for f in faces]
-        shapes[z] = unary_union(polys) if polys else None
-    roof_a = floor_a = 0.0
+            fs = []
+        polys = [(f.signature, Polygon([(float(p[0]), float(p[1])) for p in f.polygon]).buffer(0)) for f in fs]
+        faces[z] = polys
+        shapes[z] = unary_union([g for _s, g in polys]) if polys else None
+    out = {}
     for i, z in enumerate(zs):
-        here = shapes[z]
-        if here is None or here.is_empty:
-            continue
         above = shapes[zs[i + 1]] if i + 1 < len(zs) else None
         below = shapes[zs[i - 1]] if i > 0 else None
-        roof_a += here.area - (here.intersection(above).area if above is not None else 0.0)
-        floor_a += here.area - (here.intersection(below).area if below is not None else 0.0)
+        for sig, g in faces[z]:
+            roof = g.area - (g.intersection(above).area if above is not None and not above.is_empty else 0.0)
+            floor = g.area - (g.intersection(below).area if below is not None and not below.is_empty else 0.0)
+            out[(z, sig)] = (roof, floor)
+    return out
+
+
+def _roof_and_floor(doc, a, dt):
+    """Losses through what is above and below the rooms (``_roof_and_floor_by_face``) — area × U × ΔT with the
+    project's U (``heat_u_roof`` / ``heat_u_floor``).  Without a U the area is said, not guessed."""
+    areas = _roof_and_floor_by_face(doc).values()
+    roof_a = sum(r for r, _f in areas)
+    floor_a = sum(f for _r, f in areas)
     ur, uf = a.get("heat_u_roof"), a.get("heat_u_floor")
     roof_w = roof_a * ur * dt if ur is not None else 0.0
     floor_w = floor_a * uf * dt if uf is not None else 0.0
