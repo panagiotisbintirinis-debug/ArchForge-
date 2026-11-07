@@ -1236,8 +1236,10 @@ def run_cross(me, source, verbose=False):
     import shutil
     folder = os.path.join(OUT, f'cross_{me}_from_{source}'); os.makedirs(folder, exist_ok=True)
     src = os.path.join(folder, 'apo_allon.archforge')
-    shutil.copyfile(_source_project(source), src)
     bot = Bot(source, verbose, folder=folder, rng_seed=me * 104729 + source)   # the other bot's sketch, my own hands
+    # After the bot: it starts from a clean folder (07/11: copied before, the copy was wiped — every cross bot stopped).
+    os.makedirs(folder, exist_ok=True)
+    shutil.copyfile(_source_project(source), src)
     try:
         written = _file_snapshot(src)
         bot.step = 'άνοιγμα έργου άλλου bot'
