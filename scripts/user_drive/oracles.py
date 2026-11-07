@@ -176,7 +176,7 @@ def audit(doc):
     """Όλοι οι έλεγχοι· ένα σφάλμα σε έλεγχο είναι κι αυτό εύρημα (ποτέ σιωπηλά)."""
     out = []
     checks = [("κουφώματα", openings_in_host), ("U τοίχων", wall_u), ("χώροι", rooms_overlap),
-              ("επιμέτρηση", takeoff_sane)]
+              ("επιμέτρηση", takeoff_sane), ("όγκος τοίχων", wall_volume)]
     for name, fn in checks:
         try:
             out += fn(doc)
@@ -212,6 +212,87 @@ def mesh_report(doc):
         r = validate_mesh(welded(m))
         out[kind] = (n + 1, o + (r.boundary_edges > 0 and open_length(m) > 0.001), inv + r.inside_out)
     return out
+
+def wall_volume(doc):
+    """Όγκος κάθε τοίχου στο 3D = μήκος άξονα × ύψος × πάχος − ανοίγματα, με ανοχή τον όγκο των γωνιών του
+    (t_A × t_B × H σε κάθε άκρο που ακουμπά άλλον τοίχο: φάλτσο / Τ) — προδιαγραφή 07/11."""
+    from archforge.exchange.ifc import _bodies
+    from archforge.geometry.mesh_validation import validate_mesh, welded
+    bodies = _bodies(doc)
+    walls = [e for e in doc.entities.values() if e.kind == "wall" and e.visible]
+    out = []
+    for w in walls:
+        m = bodies.get(w.id)
+        if m is None:
+            continue
+        r = validate_mesh(welded(m))
+        if not r.watertight:
+            continue                                   # «3D στερεό ανοιχτό» το λέει ήδη
+        q = w.params
+        L, H, t = _wall_len(q), float(q["height"]), float(q["thickness"])
+        holes = sum(float(o.params.get("width", 0.0)) * float(o.params.get("height", 0.0)) * t
+                    for o in doc.entities.values() if o.kind in ("door", "window", "opening") and o.parent_id == w.id)
+        corners = 0.0
+        for ex, ey in ((float(q["x1"]), float(q["y1"])), (float(q["x2"]), float(q["y2"]))):
+            for o in walls:
+                op = o.params
+                if o is w or abs(float(op.get("z", 0.0)) - float(q.get("z", 0.0))) > 0.05:
+                    continue
+                ax, ay, bx, by = (float(op[k]) for k in ("x1", "y1", "x2", "y2"))
+                dx, dy = bx - ax, by - ay
+                LL = dx * dx + dy * dy or 1.0
+                k = max(0.0, min(1.0, ((ex - ax) * dx + (ey - ay) * dy) / LL))
+                if math.hypot(ex - ax - k * dx, ey - ay - k * dy) <= max(t, float(op["thickness"])):
+                    corners += t * float(op["thickness"]) * H
+        nominal = L * H * t - holes
+        if abs(r.signed_volume - nominal) > corners + 1e-3:
+            out.append(("όγκος τοίχου", f"«{w.name or w.id[:8]}»: 3D {r.signed_volume:.3f} m³, αναμενόμενο "
+                        f"{nominal:.3f} ± {corners:.3f} m³ (γωνίες)", w.id))
+    return out
+
+
+def ifc_file_check(doc, path):
+    """Το αρχείο IFC απέναντι στο 3D του προγράμματος, στοιχείο προς στοιχείο (Tag = id): κάθε σώμα γράφτηκε,
+    όρια στον χώρο ≤ 5 mm, όγκος ≤ 1 % — και για ό,τι δεν ξαναδιαβάζει η εισαγωγή (πλάκες, δοκοί, στέγες …)."""
+    import ifcopenshell
+    import ifcopenshell.geom
+    from archforge.exchange.ifc import _bodies
+    from archforge.exchange.mapping import SKIP
+    from archforge.geometry.mesh import MeshPayload
+    from archforge.geometry.mesh_validation import validate_mesh, welded
+    s = ifcopenshell.geom.settings()
+    s.set(s.USE_WORLD_COORDS, True)
+    f = ifcopenshell.open(path)
+    bodies = {k: v for k, v in _bodies(doc).items() if k in doc.entities and doc.get(k).kind not in SKIP}
+    seen, out = set(), []
+    for el in f.by_type("IfcProduct"):
+        tag = getattr(el, "Tag", None)
+        if not tag or tag not in bodies or tag in seen:
+            continue
+        seen.add(tag)
+        kind = doc.get(tag).kind
+        try:
+            sh = ifcopenshell.geom.create_shape(s, el)
+        except Exception as exc:                                    # noqa: BLE001
+            out.append(("IFC αρχείο", f"{kind}: χωρίς γεωμετρία στο IFC ({exc})", tag)); continue
+        v, fa = sh.geometry.verts, sh.geometry.faces
+        V = [(v[i], v[i + 1], v[i + 2]) for i in range(0, len(v), 3)]
+        T = [(fa[i], fa[i + 1], fa[i + 2]) for i in range(0, len(fa), 3)]
+        m = bodies[tag]
+        err = max(abs(min(a[k] for a in m.vertices) - min(b[k] for b in V)) +
+                  abs(max(a[k] for a in m.vertices) - max(b[k] for b in V)) for k in range(3))
+        if err > 0.005:
+            out.append(("IFC αρχείο", f"{kind}: όρια στον χώρο διαφέρουν {err * 1000:.0f} mm από το 3D", tag)); continue
+        r = validate_mesh(welded(m))
+        if r.watertight and abs(r.signed_volume) > 1e-6 and T:
+            vol = abs(validate_mesh(welded(MeshPayload(tuple(V), tuple(T), ("x",) * len(T)))).signed_volume)
+            if abs(vol - abs(r.signed_volume)) > 0.01 * abs(r.signed_volume):
+                out.append(("IFC αρχείο", f"{kind}: όγκος {vol:.3f} m³ στο IFC, {abs(r.signed_volume):.3f} m³ στο 3D", tag))
+    missing = sorted({doc.get(k).kind for k in set(bodies) - seen})
+    if missing:
+        out.append(("IFC αρχείο", f"{len(set(bodies) - seen)} στοιχεία με 3D σώμα δεν γράφτηκαν", str(missing)))
+    return out
+
 
 # -- IFC: εξαγωγή → εισαγωγή σε νέο έργο (ό,τι διαβάζει η εισαγωγή: όροφοι, τοίχοι, κουφώματα) ------------------
 def _r(v):

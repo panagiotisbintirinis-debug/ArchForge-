@@ -1068,6 +1068,12 @@ class Bot:
         if not new:
             self.find('δεν βγήκε αρχείο', 'εξαγωγή IFC (τελικό έργο): κανένα .ifc')
             return
+        self.step = 'έλεγχος: αρχείο IFC απέναντι στο 3D'
+        try:
+            for title, detail, extra in oracles.ifc_file_check(self.w.doc, os.path.join(self.dir, new[-1])):
+                self.find(title, detail, extra)
+        except Exception as exc:                                         # noqa: BLE001
+            self.find('έλεγχος ορθότητας κατέρρευσε', f'αρχείο IFC: {type(exc).__name__}: {exc}')
         self.do('νέο έργο', lambda: self.menu('Έργο', 'Αρχείο', 'Νέο έργο'))
         self.open_queue.append(os.path.join(self.dir, new[-1]))
         self.do('εισαγωγή IFC', lambda: self.menu('Έργο', 'Εισαγωγή', 'IFC (τοίχοι, κουφώματα, όροφοι)…'),

@@ -66,3 +66,27 @@ def test_the_box_quantities():
     assert math.isclose(r['floor_m2'], (L - T) * (W - T), abs_tol=0.01)
     assert math.isclose(r['perimeter_m'], 2 * ((L - T) + (W - T)), abs_tol=0.01)
     assert math.isclose(r['walls_m2'], 2 * ((L - T) + (W - T)) * H - WIN_W * WIN_H, abs_tol=0.01)
+
+
+def test_doubling_only_the_walls_u_doubles_only_the_walls_part():
+    """Προδιαγραφή 07/11 (απομόνωση): διπλάσιο U τοίχων → μόνο ο όρος των τοίχων διπλάσιος, οι άλλοι ίδιοι."""
+    from archforge.mep.heat_load import heat_load
+    doc = _box()
+    for e in doc.entities.values():
+        if e.kind == 'wall':
+            e.params['wall_type'] = 'generic'            # no build-up: the project's one U for walls
+    climate = next(e for e in doc.entities.values() if e.kind == 'design_climate')
+    climate.params['heat_u_walls'] = 0.5
+    from archforge.mep import heat_load as hl
+    real = hl.assumptions
+
+    def with_u(u):
+        hl.assumptions = lambda d: {**real(d), 'heat_u_walls': u}
+        try:
+            return dict(heat_load(doc)['parts'])
+        finally:
+            hl.assumptions = real
+    a, b = with_u(0.5), with_u(1.0)
+    assert a['Εξωτερικοί τοίχοι'] == round(51.0 * 0.5 * DT) == 510      # 51 m² × 0,5 × 20
+    assert b['Εξωτερικοί τοίχοι'] == 2 * a['Εξωτερικοί τοίχοι']
+    assert all(b[k] == a[k] for k in a if k != 'Εξωτερικοί τοίχοι')

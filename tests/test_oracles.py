@@ -65,3 +65,31 @@ def test_ifc_round_trip_signature_sees_a_moved_window(tmp_path):
     w = next(e for e in back.entities.values() if e.kind == 'window')
     w.params['offset'] = float(w.params['offset']) + 0.3
     assert oracles.ifc_compare(oracles.ifc_signature(doc), oracles.ifc_signature(back))
+
+
+def test_wall_volume_and_the_ifc_file_match_the_3d(tmp_path):
+    from archforge.exchange.ifc import export_ifc
+    doc = Document.load(os.path.join(DATA, 'bot16_three_storey_frame.archforge'))
+    assert oracles.wall_volume(doc) == []
+    path = str(tmp_path / 'a.ifc')
+    export_ifc(doc, path)
+    assert oracles.ifc_file_check(doc, path) == []
+
+
+def test_wall_volume_sees_a_wall_whose_3d_is_not_its_size():
+    doc = Document(); ids = _box(doc)
+    assert oracles.wall_volume(doc) == []
+    import archforge.exchange.ifc as ifc
+    real = ifc._bodies
+
+    def thinner(d):
+        out = real(d)
+        m = out[ids[0]]
+        from archforge.geometry.mesh import MeshPayload
+        out[ids[0]] = MeshPayload(tuple((x, y, z * 0.5) for x, y, z in m.vertices), m.triangles, m.triangle_surfaces)
+        return out
+    ifc._bodies = thinner
+    try:
+        assert [t for t, *_ in oracles.wall_volume(doc)] == ['όγκος τοίχου']
+    finally:
+        ifc._bodies = real
