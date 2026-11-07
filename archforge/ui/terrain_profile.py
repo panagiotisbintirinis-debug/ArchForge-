@@ -69,6 +69,14 @@ class ProfileView(QGraphicsView):
                 label.setDefaultTextColor(QColor('#647080'))
                 label.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations)
                 label.setPos(x,y)
+        # The perimeter unrolled: a line at each corner of the plot, numbered (side 1 starts at the first corner).
+        corner_pen = QPen(QColor('#9aa4b2')); corner_pen.setCosmetic(True); corner_pen.setStyle(Qt.PenStyle.DashLine)
+        for k, u in enumerate(data.get('corners') or (), start=2):
+            scene.addLine(u,low,u,high,corner_pen).setZValue(-1)
+            label = scene.addText(f'γωνία {k}')
+            label.setDefaultTextColor(QColor('#5a6472'))
+            label.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations)
+            label.setPos(u,high+.3)
         rect = QRectF(lo-.9,low-.7,hi-lo+1.5,high-low+1.2)
         scene.setSceneRect(rect)
         if fit:
@@ -188,6 +196,12 @@ class TerrainProfileDialog(QDialog):
             for e in doc.entities.values():
                 if e.kind==kind:
                     combo.addItem(e.name or e.id,e.id)
+            if kind == 'section_line':
+                # Owner 07/11: the plot's perimeter unrolled, beside the sections (site/terrain_profiles._path).
+                from archforge.site.terrain_profiles import perimeter_id
+                for t in doc.entities.values():
+                    if t.kind == 'terrain' and len(t.params.get('boundary') or ()) >= 3:
+                        combo.addItem(f"Περίμετρος οικοπέδου (ανάπτυγμα) · {t.name or 'Έδαφος'}", perimeter_id(t.id))
             i = combo.findData(selected)
             combo.setCurrentIndex(i if i>=0 else (0 if combo.count() else -1))
             combo.blockSignals(False)
@@ -279,6 +293,15 @@ class TerrainProfileDialog(QDialog):
             self.window._redraw_views(all_views=True); self.refresh()
         except (ValueError,KeyError,PermissionError,RuntimeError) as exc:
             self.readout.setText(str(exc))
+
+
+def first_profile(doc):
+    """The plot's perimeter when there is a plot (owner 07/11), else the first section line, else None."""
+    from archforge.site.terrain_profiles import perimeter_id
+    plot = next((t.id for t in doc.entities.values() if t.kind == 'terrain' and len(t.params.get('boundary') or ()) >= 3), None)
+    if plot is not None:
+        return perimeter_id(plot)
+    return next((e.id for e in doc.entities.values() if e.kind == 'section_line'), None)
 
 
 def open_profile(window,section_id):

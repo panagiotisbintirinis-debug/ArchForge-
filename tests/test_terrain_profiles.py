@@ -195,3 +195,77 @@ def test_existing_section_button_opens_editor_and_updates_3d_and_section_from_th
     w.stack.undo()
     assert not w.doc.get(tid).params.get('profile_controls')
     editor.close(); w._mark_clean(); w.close(); app.processEvents()
+
+
+def _plot():
+    doc, tid, sid = fixture()
+    # Plot 8 × 6 inside the 10 × 10 site, a survey point on its south side and one on its east side.
+    doc.update(tid, {'boundary': [[1., 1.], [9., 1.], [9., 7.], [1., 7.]], 'points': [[4., 1., 1.5], [9., 4., 3.]]})
+    return doc, tid
+
+
+def test_the_plot_perimeter_unrolled_with_its_corners_and_survey_points():
+    """Owner 07/11: «πολλαπλά υψόμετρα περιμετρικά με κλίσεις … το οικόπεδο» — the boundary as one profile."""
+    from archforge.site.terrain_profiles import perimeter_id, profile
+    doc, tid = _plot()
+    data = profile(doc, tid, perimeter_id(tid))
+    assert data['length'] == pytest.approx(28.0)                     # 8 + 6 + 8 + 6
+    assert data['corners'] == pytest.approx([8.0, 14.0, 22.0])
+    assert data['range'] == pytest.approx((0.0, 28.0))
+    st = sorted((r['station'], r['z']) for r in data['survey'])
+    assert st == [(pytest.approx(3.0), 1.5), (pytest.approx(11.0), 3.0)]   # 3 m along side 1, 3 m along side 2
+    for row in data['samples']:
+        assert row['z'] == pytest.approx(terrain_height_at(doc, row['x'], row['y']))
+
+
+def test_a_design_point_on_the_perimeter_with_a_grade_and_one_undo():
+    from archforge.site.terrain_profiles import edit_control, edit_grade, perimeter_id, profile
+    doc, tid = _plot()
+    st = CommandStack(doc)
+    pid = perimeter_id(tid)
+    st.execute(edit_control(doc, tid, pid, 18.0, 2.25))                # side 3, 4 m from corner 3 → (5, 7)
+    (c,) = doc.get(tid).params['profile_controls']
+    assert (c['x'], c['y'], c['z']) == pytest.approx((5.0, 7.0, 2.25))
+    assert terrain_height_at(doc, 5.0, 7.0) == pytest.approx(2.25)
+    st.undo()
+    assert not doc.get(tid).params.get('profile_controls')
+    # 5 % from the survey point at station 11 (z 3,00) to station 13 → 3,10
+    st.execute(edit_grade(doc, tid, pid, 13.0, 5.0))
+    (c,) = doc.get(tid).params['profile_controls']
+    assert c['z'] == pytest.approx(3.10) and (c['x'], c['y']) == pytest.approx((9.0, 6.0))
+    assert profile(doc, tid, pid)['controls'][0]['station'] == pytest.approx(13.0)
+
+
+def test_no_plot_no_perimeter():
+    from archforge.site.terrain_profiles import perimeter_id, profile
+    doc, tid, _sid = fixture()
+    with pytest.raises(ValueError, match='όριο οικοπέδου'):
+        profile(doc, tid, perimeter_id(tid))
+
+
+def test_the_perimeter_from_the_site_menu_draws_with_its_corners():
+    import os
+    os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+    from PySide6.QtWidgets import QApplication
+    QApplication.instance() or QApplication([])
+    from archforge.core.commands import AddEntity
+    from archforge.ui.main_window import MainWindow
+    w = MainWindow()
+    try:
+        ground = Entity('terrain', dict(x0=0., y0=0., x1=10., y1=10., elevation=0., slope_x=10., slope_y=0., thickness=1.,
+                                        points=[[4., 1., 1.5]], blend_radius=3.,
+                                        boundary=[[1., 1.], [9., 1.], [9., 7.], [1., 7.]]))
+        w.stack.execute(AddEntity(ground))
+        acts = w.menuBar().actions()
+        for name in ('Διαμόρφωση', 'Έδαφος'):
+            a = next(x for x in acts if x.text().replace('&', '') == name)
+            a.menu().aboutToShow.emit(); acts = a.menu().actions()
+        next(x for x in acts if x.text().startswith('Υψομετρικό προφίλ εδάφους')).trigger()
+        d = w._terrain_profile_dialog
+        assert d.sections.currentText().startswith('Περίμετρος οικοπέδου')
+        assert d.data['length'] == pytest.approx(28.0) and len(d.data['corners']) == 3
+        texts = [i.toPlainText() for i in d.plot.scene().items() if hasattr(i, 'toPlainText')]
+        assert {'γωνία 2', 'γωνία 3', 'γωνία 4'} <= set(texts)
+        d.close()
+    finally:
+        w._mark_clean(); w.close()

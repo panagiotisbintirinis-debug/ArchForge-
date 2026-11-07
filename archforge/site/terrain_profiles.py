@@ -95,11 +95,51 @@ def grid(params, nx, ny):
     return sorted(xs), sorted(ys)
 
 
+PERIMETER = "perimeter:"          # section id of the plot's perimeter: "perimeter:<terrain id>"
+
+
+def perimeter_id(terrain_id):
+    return PERIMETER + str(terrain_id)
+
+
 def _entities(doc, terrain_id, section_id):
-    terrain, section = doc.get(terrain_id), doc.get(section_id)
-    if terrain.kind != 'terrain' or section.kind != 'section_line':
+    terrain = doc.get(terrain_id)
+    if terrain.kind != 'terrain':
+        raise ValueError('Διαλέξτε έδαφος και αποθηκευμένη γραμμή τομής')
+    if str(section_id).startswith(PERIMETER):
+        if len(terrain.params.get('boundary') or ()) < 3:
+            raise ValueError('Το έδαφος δεν έχει όριο οικοπέδου — σχεδιάστε το: Περιβάλλων χώρος ▸ Οικόπεδο')
+        return terrain, None
+    section = doc.get(section_id)
+    if section.kind != 'section_line':
         raise ValueError('Διαλέξτε έδαφος και αποθηκευμένη γραμμή τομής')
     return terrain, section
+
+
+def _path(terrain, section):
+    """``[(origin, direction, length, start station)]``: one straight run for a section line; the plot's sides one
+    after the other, unrolled (owner 07/11: «ανάπτυγμα» of the perimeter — station = distance along the boundary
+    from its first corner)."""
+    if section is not None:
+        o, d, _n, length = frame(section.params)
+        return [(o, d, length, 0.0)]
+    pts = [(float(x), float(y)) for x, y, *_ in terrain.params['boundary']]
+    runs, start = [], 0.0
+    for a, b in zip(pts, pts[1:] + pts[:1]):
+        L = math.dist(a, b)
+        if L > TOL:
+            runs.append((a, ((b[0] - a[0]) / L, (b[1] - a[1]) / L), L, start))
+            start += L
+    return runs
+
+
+def _at(runs, station):
+    """Plan point of a station on the path (None outside it)."""
+    for o, d, L, s0 in runs:
+        if s0 - TOL <= station <= s0 + L + TOL:
+            u = min(max(station - s0, 0.0), L)
+            return o[0] + d[0] * u, o[1] + d[1] * u
+    return None
 
 
 def _editable(doc, terrain):
@@ -121,57 +161,74 @@ def _range(params, origin, along, length):
 
 
 def profile(doc, terrain_id, section_id, samples=201):
-    """Sample the same height field used by plan/3D, clipped to this finite section and site.
+    """Sample the same height field used by plan/3D, clipped to this finite section (or the plot's perimeter,
+    unrolled) and the site.
 
     Sampled elevations are distinguished from measured records and design controls.
     No model edits and no extrapolation beyond the site. ``station`` starts at the
-    currently viewed end (the existing section frame handles reverse direction).
+    currently viewed end (the existing section frame handles reverse direction), or at the
+    boundary's first corner for the perimeter; ``corners`` are the stations of its corners.
     """
     from archforge.site.terrain import terrain_heights, barriers, green_roofs
     terrain, section = _entities(doc, terrain_id, section_id)
     p = terrain.params
-    o,d,_normal,length = frame(section.params)
-    interval = _range(p,o,d,length)
+    runs = _path(terrain, section)
+    length = sum(L for _o, _d, L, _s in runs)
     ref = float(p.get('altitude_ref',0.))
-    result = dict(range=interval, samples=[], survey=[], controls=[],
+    result = dict(range=None, samples=[], survey=[], controls=[],
                   altitude_ref=ref if ref or p.get('altitude_ref_confirmed') else None,
-                  length=length)
-    if interval is None:
+                  length=length, corners=[s0 for _o, _d, _L, s0 in runs][1:] if section is None else [])
+    pieces = []
+    for o, d, L, s0 in runs:
+        interval = _range(p, o, d, L)
+        if interval is not None:
+            pieces.append((o, d, L, s0, interval))
+    if not pieces:
         return result
-    lo,hi = interval
-    count = max(2,int(samples))
-    stations = {lo+(hi-lo)*i/(count-1) for i in range(count)}
+    result['range'] = (pieces[0][3] + pieces[0][4][0], pieces[-1][3] + pieces[-1][4][1])
+    count = max(2, int(samples))
+    stations = set()
+    for o, d, L, s0, (lo, hi) in pieces:
+        n = max(2, int(round(count * (hi - lo) / max(length, TOL))) + 1)
+        stations.update(s0 + lo + (hi - lo) * i / (n - 1) for i in range(n))
 
-    def on_line(x,y):
-        u = (float(x)-o[0])*d[0]+(float(y)-o[1])*d[1]
-        off = abs((float(x)-o[0])*d[1]-(float(y)-o[1])*d[0])
-        return u if off < TOL and lo-TOL <= u <= hi+TOL else None
+    def on_path(x, y):
+        for o, d, L, s0, (lo, hi) in pieces:
+            u = (float(x)-o[0])*d[0]+(float(y)-o[1])*d[1]
+            off = abs((float(x)-o[0])*d[1]-(float(y)-o[1])*d[0])
+            if off < TOL and lo-TOL <= u <= hi+TOL:
+                return s0 + u
+        return None
 
     for source in ('points','levels'):
         for i,(x,y,z) in enumerate(p.get(source) or ()):
-            u = on_line(x,y)
+            u = on_path(x,y)
             if u is not None:
                 stations.add(u)
                 result['survey'].append(dict(station=u,x=x,y=y,z=z,source=source,index=i))
     for c in p.get('profile_controls') or ():
-        u = on_line(c['x'],c['y'])
+        u = on_path(c['x'],c['y'])
         if u is not None:
             stations.add(u)
             result['controls'].append(dict(c,station=u))
     # Include existing polygon edges, so a narrow plateau is not skipped between uniform samples.
-    for r in p.get('regions') or ():
-        poly = r['points']
-        for a,b in zip(poly,poly[1:]+poly[:1]):
-            ex,ey = b[0]-a[0], b[1]-a[1]
-            den = d[0]*ey-d[1]*ex
-            if abs(den) < 1e-12:
-                continue
-            ax,ay = a[0]-o[0],a[1]-o[1]
-            u,v = (ax*ey-ay*ex)/den, (ax*d[1]-ay*d[0])/den
-            if 0 <= v <= 1 and lo <= u <= hi:
-                stations.update(q for q in (u-TOL,u,u+TOL) if lo <= q <= hi)
-    us = sorted(stations)
-    xy = [(o[0]+d[0]*u,o[1]+d[1]*u) for u in us]
+    for o, d, L, s0, (lo, hi) in pieces:
+        for r in p.get('regions') or ():
+            poly = r['points']
+            for a,b in zip(poly,poly[1:]+poly[:1]):
+                ex,ey = b[0]-a[0], b[1]-a[1]
+                den = d[0]*ey-d[1]*ex
+                if abs(den) < 1e-12:
+                    continue
+                ax,ay = a[0]-o[0],a[1]-o[1]
+                u,v = (ax*ey-ay*ex)/den, (ax*d[1]-ay*d[0])/den
+                if 0 <= v <= 1 and lo <= u <= hi:
+                    stations.update(s0 + q for q in (u-TOL,u,u+TOL) if lo <= q <= hi)
+    us = []
+    for u in sorted(stations):
+        if not us or u - us[-1] > TOL * 10:
+            us.append(u)
+    xy = [_at(runs, u) for u in us]
     heights = terrain_heights(p,xy,barriers(doc),green_roofs(doc))
     result['samples'] = [dict(station=u,x=x,y=y,z=z) for u,(x,y),z in zip(us,xy,heights)]
     return result
@@ -188,10 +245,11 @@ def edit_control(doc, terrain_id, section_id, station, z, control_id=None):
     station,z = float(station),float(z)
     if not math.isfinite(station) or not math.isfinite(z):
         raise ValueError('Απόσταση και υψόμετρο πρέπει να είναι αριθμοί')
-    o,d,_n,length = frame(section.params)
-    x,y = o[0]+d[0]*station,o[1]+d[1]*station
-    if not 0 <= station <= length or not terrain_contains(terrain.params,x,y):
+    runs = _path(terrain, section)
+    at = _at(runs, station)
+    if at is None or not terrain_contains(terrain.params,*at):
         raise ValueError('Το σημείο είναι έξω από την τομή ή το έδαφος')
+    x, y = at
     if any(distance_to_region(x,y,r['points']) <= TOL for r in terrain.params.get('regions') or ()):
         raise ValueError('Το σημείο ανήκει σε περιοχή σταθερού υψομέτρου — αλλάξτε την περιοχή')
     if any(z < lowest-TOL and point_in_polygon(x,y,outline) for outline,lowest in green_roofs(doc)):
