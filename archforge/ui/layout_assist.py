@@ -143,8 +143,13 @@ class LayoutAssist:
     def apply(self):
         """«Εφαρμογή»: one AddEntities (one undo); the new pieces stay selected."""
         from archforge.assistant.room_layout import apply_command
-        if self.proposal is None or not self.proposal.entities:
+        if self.proposal is None:
             self.status("Δεν υπάρχει πρόταση — κλικ μέσα σε χώρο ή γραμμή στον τοίχο")
+            return None
+        if not self.proposal.entities:
+            # Bots 06/11: a 0,9 m strip said only «κλικ μέσα σε χώρο» — the proposal knows why nothing fits: say it.
+            why = "; ".join(self.proposal.notes[:2]) if self.proposal.notes else ""
+            self.status(f"{self.proposal.label}" + (f" — {why}" if why else "") + " · δοκίμασε μεγαλύτερο χώρο ή γραμμή στον τοίχο")
             return None
         proposal = self.proposal
         self.w.stack.execute(apply_command(proposal))

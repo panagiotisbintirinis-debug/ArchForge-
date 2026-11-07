@@ -138,8 +138,14 @@ def cells(s):
     roles = ['σαλόνι', 'κουζίνα'] + ['υπνοδωμάτιο'] * 8
     for i, c in enumerate(out):
         c['role'] = roles[i] if i < len(roles) else 'υπνοδωμάτιο'
-    if len(out) >= 3:
-        out[-1]['role'] = 'μπάνιο'
+        c['narrow'] = min(c['x1'] - c['x0'], c['y1'] - c['y0']) < 1.5
+    # The bath: the smallest room a bath fits in (≥ 1,5 m wide) — an architect would not put one in a 0,9 m strip.
+    fit = [c for c in out[2:] if not c['narrow']] if len(out) >= 3 else []
+    if fit:
+        fit[-1]['role'] = 'μπάνιο'
+    for c in out:
+        if c['narrow'] and c['role'] == 'υπνοδωμάτιο':
+            c['role'] = 'διάδρομος'
     return out
 
 
@@ -413,6 +419,15 @@ class Bot:
         self.key('Escape')
 
     unfinished = False
+
+    def assistant_says(self, words):
+        """The person waits for the «Βοηθός» panel to catch up (it refreshes ¼ s after a change) and reads its list."""
+        from PySide6.QtTest import QTest
+        QTest.qWait(450); self.pump(3)
+        lst = getattr(self.w, 'assistant_list', None)
+        if lst is None:
+            return False
+        return any(words in lst.item(i).text() for i in range(lst.count()))
 
     def save(self):
         """Έργο ▸ Αρχείο ▸ Αποθήκευση· αν λέει «Ενεργή σχεδίαση», ο χρήστης πατά Esc δύο φορές και ξαναπατά."""
@@ -710,8 +725,7 @@ class Bot:
                     self.drag(hall['x0'] + 0.25, hall['y1'] - 0.7, hall['x0'] + 0.25 + L, hall['y1'] - 0.7)
                     self.esc(); self.select_tool()
                 self.do('σκάλα στο σαλόνι (σύρσιμο)', stair, 'more', ('stair',))
-            if 'deco' in s['order'][:2] or k == 0:
-                self.interiors(C, k)
+            self.interiors(C, k)                           # every storey is furnished and wired (not only the ground)
         self.do('επιλογή ισογείου', lambda: self.pick_floor(base))
         for part in s['order']:
             getattr(self, 'part_' + part)(all_cells)
@@ -747,10 +761,16 @@ class Bot:
         C = cells_[0]
         self.place(('Εγκαταστάσεις', 'Ύδρευση', 'Παροχή κρύου νερού'), [(C[0]['x0'] + 0.2, 0.2)])
         self.place(('Εγκαταστάσεις', 'Ασθενή (δίκτυο·TV)', 'Πρίζα TV / SAT'), [(C[0]['x1'] - 0.15, C[0]['cy'])])
-        if self.s['floors'] > 1 or self.s['basement']:
-            # The rule (owner 06/11): a sub-board on every storey — the program says so; the person runs the command.
+        # The rule (owner 06/11): a sub-board on every storey. The person reads it in the assistant and runs the command.
+        if self.assistant_says('Υποπίνακας ορόφου'):
             self.do('υποπίνακες ορόφων (αυτόματα)',
                     lambda: self.menu('Εγκαταστάσεις', 'Ηλεκτρολογικά', 'Υποπίνακες ορόφων (αυτόματα)'), 'more')
+            if self.assistant_says('Υποπίνακας ορόφου'):
+                self.find('κανόνας υποπινάκων', 'μετά την αυτόματη τοποθέτηση ο Βοηθός ζητά ακόμα υποπίνακα')
+        elif self.s['floors'] > 1 or self.s['basement']:
+            from archforge.mep.electrical import missing_subpanels
+            if missing_subpanels(self.w.doc):
+                self.find('κανόνας υποπινάκων', 'λείπει υποπίνακας αλλά ο Βοηθός δεν το λέει')
         self.do('ανάλυση ηλεκτρολογικών',
                 lambda: self.menu('Εγκαταστάσεις', 'Ηλεκτρολογικά', 'Ανάλυση ηλεκτρολογικών — σχέδιο & κόστος…'))
 
