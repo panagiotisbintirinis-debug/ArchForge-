@@ -183,12 +183,35 @@ def audit(doc):
         except Exception as exc:                                    # noqa: BLE001
             out.append(("έλεγχος ορθότητας κατέρρευσε", f"{name}: {type(exc).__name__}: {exc}", ""))
     try:
+        for kind, (n, o, inv) in sorted(mesh_report(doc).items()):
+            if o:
+                out.append(("3D στερεό ανοιχτό", f"{kind}: {o} από {n} με τρύπες (ακμές χωρίς δεύτερο τρίγωνο)", ""))
+            if inv:
+                out.append(("3D στερεό ανάποδα", f"{kind}: {inv} από {n} με τις όψεις προς τα μέσα", ""))
+    except Exception as exc:                                        # noqa: BLE001
+        out.append(("έλεγχος ορθότητας κατέρρευσε", f"3D στερεά: {type(exc).__name__}: {exc}", ""))
+    try:
         found, base = heat_linear(doc)
         out += found + heat_volume(doc, base)
     except Exception as exc:                                        # noqa: BLE001
         out.append(("έλεγχος ορθότητας κατέρρευσε", f"θερμικό φορτίο: {type(exc).__name__}: {exc}", ""))
     return out
 
+
+# -- 3D στερεά: κλειστά (κάθε ακμή σε δύο τρίγωνα) και με τις όψεις προς τα έξω (θετικός όγκος) ---------------
+def mesh_report(doc):
+    """``{kind: (πλήθος, ανοιχτά, ανάποδα)}`` για τα σώματα της 3D (τα ίδια που γράφουν IFC / STL), με τον ελεγκτή
+    του προγράμματος (``geometry/mesh_validation.validate_mesh``)."""
+    from archforge.exchange.ifc import _bodies
+    from archforge.geometry.mesh_validation import open_length, validate_mesh, welded
+    out = {}
+    for eid, m in _bodies(doc).items():
+        e = doc.entities.get(eid)
+        kind = e.kind if e is not None else "?"
+        n, o, inv = out.get(kind, (0, 0, 0))
+        r = validate_mesh(welded(m))
+        out[kind] = (n + 1, o + (r.boundary_edges > 0 and open_length(m) > 0.001), inv + r.inside_out)
+    return out
 
 # -- IFC: εξαγωγή → εισαγωγή σε νέο έργο (ό,τι διαβάζει η εισαγωγή: όροφοι, τοίχοι, κουφώματα) ------------------
 def _r(v):

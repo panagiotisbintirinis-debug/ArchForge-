@@ -69,13 +69,17 @@ def _structural_beam_mesh(p):
  )
  quads=((0,1,5,4,'side_a'),(1,2,6,5,'end'),(2,3,7,6,'side_b'),(3,0,4,7,'start'),(4,5,6,7,'top'),(3,2,1,0,'bottom'))
  tris=[];roles=[]
+ # The +n side first makes the ring clockwise from above: wound the other way so the faces point out (bot oracle
+ # 07/11: every beam was inside-out — IFC / STL viewers show it hollow).
  for a0,b0,c0,d0,role in quads:
-  tris.extend(((a0,b0,c0),(a0,c0,d0)));roles.extend((role,role))
+  tris.extend(((a0,c0,b0),(a0,d0,c0)));roles.extend((role,role))
  return MeshPayload(tuple(v),tuple(tris),tuple(roles))
 
 
 def _polygon_prism(points,z,thickness):
- pts=[(float(x),float(y)) for x,y in points];z=float(z);thickness=float(thickness);top=_triangulate(pts);n=len(pts);verts=tuple((x,y,z) for x,y in pts)+tuple((x,y,z+thickness) for x,y in pts);tris=[];roles=[]
+ pts=[(float(x),float(y)) for x,y in points]
+ if sum(pts[i][0]*pts[(i+1)%len(pts)][1]-pts[(i+1)%len(pts)][0]*pts[i][1] for i in range(len(pts)))<0:pts=pts[::-1]   # sides need CCW (07/11)
+ z=float(z);thickness=float(thickness);top=_triangulate(pts);n=len(pts);verts=tuple((x,y,z) for x,y in pts)+tuple((x,y,z+thickness) for x,y in pts);tris=[];roles=[]
  for a,b,c in top:tris.extend(((a+n,b+n,c+n),(c,b,a)));roles.extend(('top','bottom'))
  for i in range(n):j=(i+1)%n;tris.extend(((i,j,j+n),(i,j+n,i+n)));roles.extend(('edge','edge'))
  return MeshPayload(verts,tuple(tris),tuple(roles))
@@ -449,13 +453,39 @@ def _point_in_polygon_xy(point,polygon):
  return inside
 
 
-def _oriented_hole_side_mesh(opening,z0,z1):
+def _hole_side_segments(pts,slab_points,outline=None):
+ """The hole's edges that face the slab: where the hole runs past the slab's edge (a stair against a wall) the
+ part outside is not a side — bot oracle 07/11 found those sides hanging in the air and the slab open there."""
+ n=len(pts);whole=[(pts[i],pts[(i+1)%n]) for i in range(n)]
+ if (not slab_points or len(slab_points)<3) and outline is None:return whole
+ try:
+  from shapely.geometry import LineString,Polygon
+  if slab_points and len(slab_points)>=3:
+   slab=Polygon([(float(x),float(y)) for x,y,*_ in slab_points])
+   if not slab.is_valid:slab=slab.buffer(0)
+  else:slab=Polygon([(-1e9,-1e9),(1e9,-1e9),(1e9,1e9),(-1e9,1e9)])
+  inner=slab.buffer(-1e-7)
+ except Exception:return whole
+ out=[]
+ for a,b in whole:
+  piece=LineString([a,b]).intersection(slab)
+  for g in getattr(piece,'geoms',[piece]):
+   if g.geom_type!='LineString' or g.length<=1e-9:continue
+   c=list(g.coords)
+   for p,q in zip(c,c[1:]):
+    mid=LineString([p,q]).interpolate(0.5,normalized=True)
+    if not inner.contains(mid):continue          # along the slab's own edge: the slab's side is there already
+    if outline is not None and outline.distance(mid)>1e-6:continue   # inside another piece of the same hole
+    # keep the hole's direction (shapely may return the piece reversed)
+    if (q[0]-p[0])*(b[0]-a[0])+(q[1]-p[1])*(b[1]-a[1])<0:p,q=q,p
+    out.append(((float(p[0]),float(p[1])),(float(q[0]),float(q[1]))))
+ return out
+def _oriented_hole_side_mesh(opening,z0,z1,slab_points=None,outline=None):
  pts=[(float(x),float(y)) for x,y in opening]
  if len(pts)<3:
   return MeshPayload((),(),())
  verts=[];tris=[];roles=[]
- for i,a in enumerate(pts):
-  b=pts[(i+1)%len(pts)]
+ for a,b in _hole_side_segments(pts,slab_points,outline):
   base=len(verts)
   verts.extend((
    (a[0],a[1],float(z0)),
@@ -476,7 +506,7 @@ def _polygon_signed_area_xy(points):
  )
 
 
-def _subtract_convex_slab_hole(mesh,opening,z0,z1):
+def _subtract_convex_slab_hole(mesh,opening,z0,z1,slab_points=None,outline=None):
  """Subtract one convex XY polygon from a slab, preserving its orientation."""
  pts=[(float(x),float(y)) for x,y in opening]
  if len(pts)<3:return mesh
@@ -502,7 +532,7 @@ def _subtract_convex_slab_hole(mesh,opening,z0,z1):
    break
 
  # current is the inside prism portion, intentionally discarded.
- sides=_oriented_hole_side_mesh(pts,float(z0),float(z1))
+ sides=_oriented_hole_side_mesh(pts,float(z0),float(z1),slab_points,outline)
  return _combine_meshes(tuple(outside_parts)+(sides,),1e-8)
 
 
@@ -520,10 +550,10 @@ def _opening_overlaps_slab(opening,points):
   or any(_point_in_polygon_xy(point,opening) for point in points)
  )
 
-def _apply_vertical_openings_to_slab(doc,mesh,points,slab_z,thickness,match_z=None):
+def _apply_vertical_openings_to_slab(doc,mesh,points,slab_z,thickness,match_z=None,region=None):
  from archforge.architecture.stairs import candidate_from_params as stair_candidate,stair_opening_polygons
  from archforge.architecture.ramps import candidate_from_params as ramp_candidate,ramp_opening_polygon
- slab_z=float(slab_z);thickness=float(thickness)
+ slab_z=float(slab_z);thickness=float(thickness);holes=[]
  for entity in doc.entities.values():
   if entity.kind not in ('stair','ramp'):continue
   # Every slab the stair passes through (above its start, up to its landing) — not only the one
@@ -536,16 +566,67 @@ def _apply_vertical_openings_to_slab(doc,mesh,points,slab_z,thickness,match_z=No
   else:
    opening=ramp_opening_polygon(ramp_candidate(entity.params))
    openings=(opening,) if opening else ()
-  for opening in openings:
-   if _opening_overlaps_slab(opening,points):
-    mesh=_subtract_convex_slab_hole(mesh,opening,slab_z,slab_z+thickness)
+  holes.extend(o for o in openings if _opening_overlaps_slab(o,points))
+ # A stair's hole is several overlapping pieces (flights, landing): each piece is cut, but its sides are built only
+ # along the edge of the whole hole and inside the slab (bot oracle 07/11: sides hung inside the hole).
+ if not holes:return mesh
+ rebuilt=_slab_minus_holes(region if region is not None else points,holes,slab_z,thickness)
+ if rebuilt is not None:return rebuilt
+ outline=_holes_outline(holes)
+ for opening in holes:
+  mesh=_subtract_convex_slab_hole(mesh,opening,slab_z,slab_z+thickness,points,outline)
  return mesh
+def _slab_minus_holes(region,holes,z,thickness):
+ """The slab rebuilt as (its footprint − the union of the holes): one closed solid whose hole sides run only
+ along the hole's real edge (bot oracle 07/11 — cutting the overlapping pieces of a stair hole one by one left
+ slivers and sides hanging in the hole).  ``region``: the footprint's points, or a shapely geometry.  None when
+ shapely cannot (the old cut is used then)."""
+ try:
+  from shapely.geometry import Polygon
+  from shapely.ops import unary_union
+  from .regions import prism_with_holes
+  base=region if hasattr(region,'geom_type') else Polygon([(float(x),float(y)) for x,y,*_ in region]).buffer(0)
+  cut=unary_union([Polygon([(float(x),float(y)) for x,y,*_ in h]).buffer(0) for h in holes if len(h)>=3])
+  rest=base.difference(cut).buffer(0)
+  if rest.is_empty:return MeshPayload((),(),())
+  rest=rest.simplify(1e-6,preserve_topology=True)
+  polys=[g for g in getattr(rest,'geoms',[rest]) if g.geom_type=='Polygon' and g.area>1e-8]
+  islands=[(list(g.exterior.coords)[:-1],[list(r.coords)[:-1] for r in g.interiors]) for g in polys]
+  v,t,r=prism_with_holes(islands,z,thickness,hole_role='stair_opening_edge')
+  edge=base.boundary;roles=list(r)
+  for i,(tri,role) in enumerate(zip(t,r)):
+   if role in('edge','stair_opening_edge'):
+    from shapely.geometry import Point
+    cx=sum(v[k][0] for k in tri)/3;cy=sum(v[k][1] for k in tri)/3
+    roles[i]='edge' if edge.distance(Point(cx,cy))<1e-6 else 'stair_opening_edge'
+  return MeshPayload(tuple(v),tuple(t),tuple(roles))
+ except Exception:
+  return None
+def _holes_outline(holes):
+ if len(holes)<2:return None
+ try:
+  from shapely.geometry import Polygon
+  from shapely.ops import unary_union
+  return unary_union([Polygon([(float(x),float(y)) for x,y,*_ in h]).buffer(0) for h in holes if len(h)>=3]).boundary
+ except Exception:return None
 
 def _floor_slab(doc,node):
  p=node.params
  mesh=_polygon_prism(p['points'],p['z'],p['thickness'])
  return _apply_vertical_openings_to_slab(doc,mesh,p['points'],p['z'],p['thickness'])
 
+def _slab_region(g):
+ """The room slab's footprint as shapely geometry (islands with their holes, the extra pieces), or None."""
+ try:
+  from shapely.geometry import Polygon
+  from shapely.ops import unary_union
+  shapes=[]
+  if g.get('islands'):
+   shapes+=[Polygon([(float(x),float(y)) for x,y,*_ in o],[[(float(x),float(y)) for x,y,*_ in h] for h in hs]).buffer(0) for o,hs in g['islands']]
+  else:shapes.append(Polygon([(float(x),float(y)) for x,y,*_ in g['points']]).buffer(0))
+  shapes+=[Polygon([(float(x),float(y)) for x,y,*_ in extra]).buffer(0) for extra in g.get('parts',())[1:]]
+  return unary_union(shapes)
+ except Exception:return None
 def _room_slab(doc,node):
  from archforge.architecture.rooms import room_slab_geometry
  g=room_slab_geometry(doc,doc.get(node.entity_id))
@@ -561,7 +642,7 @@ def _room_slab(doc,node):
   m=_polygon_prism(extra,g['z'],g['thickness']);n=len(mesh.vertices)
   mesh=MeshPayload(mesh.vertices+m.vertices,mesh.triangles+tuple((a+n,b+n,c+n) for a,b,c in m.triangles),mesh.triangle_surfaces+m.triangle_surfaces)
  if node.semantic_kind in ('room_floor','room_ceiling','room_roof'):
-  mesh=_apply_vertical_openings_to_slab(doc,mesh,g['points'],g['z'],g['thickness'],match_z=level_z)
+  mesh=_apply_vertical_openings_to_slab(doc,mesh,g['points'],g['z'],g['thickness'],match_z=level_z,region=_slab_region(g))
  return mesh
 def _organic_junction_mesh(doc,node):
  from archforge.organic.biospectre import junction_plane,junction_section_polygon
@@ -607,7 +688,30 @@ def _organic_opening_patch_mesh(doc,node):
  add_rect(-inner_half,inner_half,max(open_z1,z0),z1)
  if not triangles:raise ValueError('organic opening patch has no planar frame area')
  return MeshPayload(tuple(vertices),tuple(triangles),tuple(roles))
+# Kinds whose builders (hand-written quad lists, imported models) were found inside-out by the bots' solid check
+# (07/11): IFC / STL / glTF get faces pointing in.  The 3D draws both sides, so the screen never showed it.
+OUTWARD_KINDS=frozenset(('electrical_point','ventilation_point','cabinet','pitched_roof','library_object','floor'))
+def outward(payload):
+ """Closed, consistently wound mesh with negative volume → every triangle reversed (faces out).  Open or mixed
+ meshes are left as they are (reversing them would not make them right)."""
+ tris=payload.triangles
+ if not tris:return payload
+ seen=set()
+ for a,b,c in tris:
+  for e in ((a,b),(b,c),(c,a)):
+   if e in seen:return payload                       # same direction twice: mixed winding
+   seen.add(e)
+ if any((q,p) not in seen for p,q in seen):return payload   # open
+ V=payload.vertices;vol=0.0
+ for a,b,c in tris:
+  (x1,y1,z1),(x2,y2,z2),(x3,y3,z3)=V[a],V[b],V[c]
+  vol+=x1*(y2*z3-y3*z2)-x2*(y1*z3-y3*z1)+x3*(y1*z2-y2*z1)
+ if vol>=0:return payload
+ return MeshPayload(payload.vertices,tuple((a,c,b) for a,b,c in tris),payload.triangle_surfaces)
 def _payload(doc,node):
+ out=_raw_payload(doc,node)
+ return outward(out) if node.semantic_kind in OUTWARD_KINDS and out is not None else out
+def _raw_payload(doc,node):
  k,p=node.semantic_kind,node.params
  if k=='wall':return _wall_mesh(p)
  if k=='structural_column':return _structural_column_mesh(p)
