@@ -554,7 +554,9 @@ def route_cables(doc):
         px, py = float(panel.params["x"]), float(panel.params["y"])
         panel_floor = _floor_of(doc, float(panel.params["z"]))
         members = [points[i] for i in circuit["points"]]
-        ckey = (geom, panel_key, tuple(sorted((k, str(v)) for k, v in panel.params.items())), circuit["id"],
+        floor = _floor_of(doc, float(members[0].params["z"])) if members else panel_floor
+        ckey = (_circuit_geometry(doc, geom, floor, panel_floor), panel_key,
+                tuple(sorted((k, str(v)) for k, v in panel.params.items())), circuit["id"],
                 circuit["group"], tuple((e.id, tuple(sorted((k, str(v)) for k, v in e.params.items()))) for e in members))
         hit = _CIRCUIT_MEMO.get(ckey)
         if hit is not None:
@@ -779,13 +781,36 @@ _CIRCUIT_MEMO = {}
 
 
 def _geometry_key(doc):
-    """What a circuit's runs read of the building besides its own points."""
-    items = []
+    """What a circuit's runs read of the building besides its own points: ``{storey: hash}`` of the walls, frame,
+    ceilings and room slabs of each storey, plus ``None`` for the rest (storeys, rooms) — bots 07/11: one wall
+    outside the house re-routed every circuit of every storey (4 s in a 750-element block of flats); a circuit now
+    depends only on the storeys it can touch (``_circuit_geometry``)."""
+    buckets, rest = {}, []
     for e in doc.entities.values():
         if e.kind in ("wall", "structural_column", "structural_beam", "drywall_ceiling", "room_floor", "room_roof"):
-            items.append((e.kind, e.id, e.visible, tuple(sorted((k, str(v)) for k, v in e.params.items()))))
-    return hash((tuple(sorted(items)), tuple(sorted((str(k), float(v)) for k, v in doc.levels.items())),
-                 repr(getattr(doc, "room_data", None)), repr(getattr(doc, "view_layers", None) and None)))
+            item = (e.kind, e.id, e.visible, tuple(sorted((k, str(v)) for k, v in e.params.items())))
+            z = e.params.get("z", e.params.get("level_z"))
+            try:
+                buckets.setdefault(_floor_of(doc, float(z)), []).append(item)
+            except (TypeError, ValueError):
+                rest.append(item)
+    out = {floor: hash(tuple(sorted(items))) for floor, items in buckets.items()}
+    out[None] = hash((tuple(sorted(rest)), tuple(sorted((str(k), float(v)) for k, v in doc.levels.items())),
+                      repr(getattr(doc, "room_data", None))))
+    return out
+
+
+def _circuit_geometry(doc, geom, floor, panel_floor):
+    """The part of ``_geometry_key`` a circuit reads: its storey, the panel's, every storey between (the riser),
+    the storey above (its slab is the ceiling the runs hang from) and the rest — checked against a full re-route
+    of every circuit after edits on every storey of the bots' buildings (tests/test_clash.py)."""
+    levels = _levels(doc)
+    lo, hi = min(floor, panel_floor), max(floor, panel_floor)
+    idx = [i for i, z in enumerate(levels) if lo - 1e-4 <= z <= hi + 1e-4]
+    if idx:
+        idx = list(range(idx[0], min(len(levels), idx[-1] + 2)))      # and the storey above (its slab = the ceiling)
+    used = [levels[i] for i in idx]
+    return (geom[None],) + tuple((z, geom.get(z)) for z in used)
 
 
 def route_cables_if_cached(doc):

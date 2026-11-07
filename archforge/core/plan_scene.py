@@ -1050,7 +1050,11 @@ def build_plan_frame(doc,preview=None,layers=True):
         for role,pts,closed in run_primitives(doc):
             f.primitives.append(Primitive2D('polyline',tuple(pts)+((pts[0],) if closed else ()),role=role))
     # Derived water pipes of the active storey (horizontal runs in the screed).
-    if any(e.kind=='plumbing_point' for e in doc.entities.values()):
+    # Like the wiring below: the pipes are on the «plumbing» layer — hidden (Αρχιτεκτονικό / Φέρων), not routed for
+    # nothing on every change (bots 07/11: a wall added in a 750-element house re-routed the water, 0,5 s).
+    from .layers import layers_active as _pla,layer_state as _pls
+    plumbing_shown=not (layers and _pla(doc)) or _pls(doc,'plumbing')['visible']
+    if plumbing_shown and any(e.kind=='plumbing_point' for e in doc.entities.values()):
         from archforge.mep.plumbing import POINT_TYPES,SCREED,route_plumbing_cached
         level=float(doc.work_plane.origin[2])
         network=route_plumbing_cached(doc)
