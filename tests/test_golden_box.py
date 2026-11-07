@@ -90,3 +90,46 @@ def test_doubling_only_the_walls_u_doubles_only_the_walls_part():
     assert a['Εξωτερικοί τοίχοι'] == round(51.0 * 0.5 * DT) == 510      # 51 m² × 0,5 × 20
     assert b['Εξωτερικοί τοίχοι'] == 2 * a['Εξωτερικοί τοίχοι']
     assert all(b[k] == a[k] for k in a if k != 'Εξωτερικοί τοίχοι')
+
+
+def test_the_box_of_the_review_with_roof_and_floor():
+    """Το «λυσάρι» της κριτικής 07/11: U τοίχων 0,50, δαπέδου και οροφής 0,40, παραθύρου 2,00, n = 0,5, ΔT 20 K →
+    τοίχοι 510 + δάπεδο/οροφή 320 + παράθυρο 120 + αερισμός 204 = 1154 W· διπλάσιο U τοίχων → 1664 W."""
+    from archforge.mep.heat_load import heat_load
+    doc = _box()
+    for e in doc.entities.values():
+        if e.kind == 'wall':
+            e.params['wall_type'] = 'generic'
+        if e.kind == 'window':
+            e.params['u_value'] = 2.0
+        if e.kind == 'design_climate':
+            e.params.update(heat_u_walls=0.5, heat_u_roof=0.4, heat_u_floor=0.4)
+    r = heat_load(doc)
+    parts = dict(r['parts'])
+    assert (r['roof_m2'], r['floor_m2']) == (20.0, 20.0)
+    assert parts['Εξωτερικοί τοίχοι'] == 510 and parts['Οροφή / δώμα'] == 160 and parts['Δάπεδο'] == 160
+    assert parts['Κουφώματα'] == 120 and parts['Αερισμός'] == 204
+    assert r['watts'] == 1154
+    next(e for e in doc.entities.values() if e.kind == 'design_climate').params['heat_u_walls'] = 1.0
+    assert heat_load(doc)['watts'] == 1664
+
+
+def test_a_storey_over_another_loses_only_where_it_overhangs():
+    from archforge.mep.heat_load import heat_load
+    doc = _box()
+    next(e for e in doc.entities.values() if e.kind == 'design_climate').params.update(heat_u_roof=0.4, heat_u_floor=0.4)
+    pts = [(0, 0), (L, 0), (L, W), (0, W)]
+    for a, b in zip(pts, pts[1:] + pts[:1]):                 # the same box again, one storey up
+        doc.add(Entity('wall', {'x1': a[0], 'y1': a[1], 'x2': b[0], 'y2': b[1], 'z': H, 'height': H,
+                                'thickness': T, 'wall_type': 'brick_double_insulated'}))
+    r = heat_load(doc)
+    assert (r['roof_m2'], r['floor_m2']) == (20.0, 20.0)       # only the top roof and the bottom floor
+
+
+def test_without_u_the_roof_and_floor_are_said_not_guessed():
+    from archforge.mep.heat_load import heat_load
+    r = heat_load(_box())
+    parts = dict(r['parts'])
+    assert parts['Οροφή / δώμα'] == 0 and parts['Δάπεδο'] == 0
+    assert any(x.startswith('οροφή / δώμα 20,0 m²') for x in r['not_counted'])
+    assert any(x.startswith('δάπεδο 20,0 m²') for x in r['not_counted'])

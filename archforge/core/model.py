@@ -824,7 +824,7 @@ def _u_value(v):
         return None
     v = float(v)
     if not math.isfinite(v) or v <= 0:
-        raise ValueError('U must be a positive number')
+        raise ValueError('Το U πρέπει να είναι θετικός αριθμός')
     return v
 
 
@@ -1087,6 +1087,7 @@ SCHEMAS = {
                        'wind_dir_winter': lambda v: _wind_dir(v), 'wind_dir_summer': lambda v: _wind_dir(v),
                        'heat_theta_int': _finite, 'heat_theta_ext_winter': _finite, 'heat_theta_ext_summer': _finite,
                        'heat_air_changes': _nonnegative, 'preset': str,
+                       'heat_u_walls': _u_value, 'heat_u_roof': _u_value, 'heat_u_floor': _u_value,
                        'zone': _choice(('', 'Α', 'Β', 'Γ', 'Δ'), 'climate zone')},
     # ψ of the thermal bridges, written by the user with detail code and source (mep/thermal_bridges.py).
     'thermal_bridge_psi': {'values': _thermal_bridge_values},

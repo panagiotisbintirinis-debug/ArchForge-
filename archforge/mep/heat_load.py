@@ -9,7 +9,9 @@ Not a heating study (EN 12831-1 / ΚΕΝΑΚ): an indication from what the model
   neither is not counted, said.
 * **Ventilation**: 0.34 Wh/(m³K) (ρ·c of air) × air changes per hour × room volume × ΔT.
 * **Thermal bridges**: Σ ψ·l × ΔT, lengths from the drawing, ψ from the project's catalogue (``mep/thermal_bridges``);
-  a kind without ψ is listed under «δεν μετρήθηκαν».  Roof and floor are not counted yet — said on the result.
+  a kind without ψ is listed under «δεν μετρήθηκαν».
+* **Roof and floor** (07/11): the rooms' area with no room above / below × the project's U × ΔT; without a U
+  the area is listed under «δεν μετρήθηκαν».
 
 Temperatures and air changes are the owner's assumptions (28/10: «υποθετικές θερμοκρασίες με περιθώριο αλλαγής…
 μέσα 20, έξω καλοκαίρι 28, χειμώνα 12»), stored on the project's heat source / connection point (its Properties),
@@ -31,6 +33,10 @@ ASSUMPTIONS = {key: (default, unit, label) for key, (default, unit, label, _src)
 ASSUMPTIONS.update({
     "heat_u_openings": (None, "W/m²K", "U κουφωμάτων (από τον κατασκευαστή)"),
     "heat_u_walls": (None, "W/m²K", "U εξωτερικών τοίχων χωρίς σύνθεση"),
+    # 07/11 (κουτί ελέγχου): roof / ceiling to outside and floor on the ground or over open space — the project's U
+    # (for the ground the equivalent U' of the floor, ΤΟΤΕΕ 20701-1), given by the user, never guessed.
+    "heat_u_roof": (None, "W/m²K", "U οροφής / δώματος προς τα έξω"),
+    "heat_u_floor": (None, "W/m²K", "U δαπέδου (ισοδύναμο U' προς έδαφος / πιλοτή)"),
 })
 PROVENANCE = ("DESIGN_DEFAULT — θερμοκρασίες σχεδιασμού του έργου (αλλάζουν ανά έργο, Εγκαταστάσεις › Θέρμανση › "
               "Θερμοκρασίες σχεδιασμού…)· όχι μελέτη θέρμανσης (EN 12831-1 / ΚΕΝΑΚ)")
@@ -42,6 +48,9 @@ def assumptions(doc):
     from archforge.mep.heating_layout import source_of
     e = source_of(doc)
     stored = dict(e.params) if e is not None else {}
+    from archforge.mep.design_climate import entity as climate
+    if climate(doc) is not None:                   # the project's design values (Θερμοκρασίες σχεδιασμού…) win
+        stored.update({k: v for k, v in climate(doc).params.items() if k.startswith("heat_u_") and v not in (None, "")})
     out = dict(values(doc))                     # temperatures / air changes: the project's design values
     for key, (default, _unit, _label) in ASSUMPTIONS.items():
         if key not in out:
@@ -113,6 +122,11 @@ def heat_load(doc, season="winter"):
                    if e.kind == "wall" and abs(float(e.params.get("z", 0.0)) - z) < 0.05]
         h = sum(heights) / len(heights) if heights else 0.0
         volume += sum(_polygon_area(f.polygon) for f in faces) * h
+    roof_w, floor_w, roof_a, floor_a, roof_missing, floor_missing = _roof_and_floor(doc, a, dt)
+    if roof_missing > 0:
+        not_counted.append(f"οροφή / δώμα {_gr(roof_missing)} m² (δώστε U οροφής: Θέρμανση › Θερμοκρασίες σχεδιασμού…)")
+    if floor_missing > 0:
+        not_counted.append(f"δάπεδο {_gr(floor_missing)} m² (δώστε U δαπέδου: Θέρμανση › Θερμοκρασίες σχεδιασμού…)")
     if no_u_walls:
         not_counted.append(f"{no_u_walls} εξωτερικοί τοίχοι χωρίς σύνθεση (δώστε τύπο τοίχου ή U τοίχων)")
     if opening_area > 0:                             # the area of openings with no U (their own or the project's)
@@ -125,14 +139,46 @@ def heat_load(doc, season="winter"):
     if tb["missing_n"]:
         not_counted.append(f"θερμογέφυρες: {tb['missing_n']} θέσεις, {_gr(tb['missing_m'])} m χωρίς ψ "
                            "(Θέρμανση › Θερμογέφυρες…)")
-    not_counted += ["οροφή / στέγη", "δάπεδο", f"θερμογέφυρες που δεν βρίσκει η γεωμετρία ({tb['not_found']})"]
-    parts = [("Εξωτερικοί τοίχοι", walls_w), ("Κουφώματα", openings_w), ("Θερμογέφυρες", bridges_w), ("Αερισμός", vent_w)]
-    watts = walls_w + openings_w + bridges_w + vent_w
+    not_counted += [f"θερμογέφυρες που δεν βρίσκει η γεωμετρία ({tb['not_found']})"]
+    parts = [("Εξωτερικοί τοίχοι", walls_w), ("Οροφή / δώμα", roof_w), ("Δάπεδο", floor_w), ("Κουφώματα", openings_w),
+             ("Θερμογέφυρες", bridges_w), ("Αερισμός", vent_w)]
+    watts = walls_w + roof_w + floor_w + openings_w + bridges_w + vent_w
     from archforge.mep.design_climate import source_text
     return {"watts": round(watts), "kw": round(watts / 1000.0, 1), "delta_t": dt, "season": season,
             "climate_source": source_text(doc),
-            "volume_m3": round(volume, 1), "parts": [(n, round(v)) for n, v in parts],
+            "volume_m3": round(volume, 1), "roof_m2": round(roof_a, 2), "floor_m2": round(floor_a, 2), "parts": [(n, round(v)) for n, v in parts],
             "not_counted": not_counted, "assumptions": a, "provenance": PROVENANCE}
+
+
+def _roof_and_floor(doc, a, dt):
+    """Losses through what is above and below the rooms: the part of each storey's rooms with no room of the storey
+    above over it (roof / terrace / ceiling to outside), and with no room of the storey below under it (the lowest
+    storey on the ground, or a floor over open space) — area × U × ΔT with the project's U (``heat_u_roof`` /
+    ``heat_u_floor``).  Without a U the area is said, not guessed."""
+    from shapely.geometry import Polygon
+    from shapely.ops import unary_union
+    zs = _storeys(doc)
+    shapes = {}
+    for z in zs:
+        try:
+            faces = doc.active_room_faces(z=z)
+        except Exception:                                  # noqa: BLE001 — said by the volume part already
+            faces = []
+        polys = [Polygon([(float(p[0]), float(p[1])) for p in f.polygon]).buffer(0) for f in faces]
+        shapes[z] = unary_union(polys) if polys else None
+    roof_a = floor_a = 0.0
+    for i, z in enumerate(zs):
+        here = shapes[z]
+        if here is None or here.is_empty:
+            continue
+        above = shapes[zs[i + 1]] if i + 1 < len(zs) else None
+        below = shapes[zs[i - 1]] if i > 0 else None
+        roof_a += here.area - (here.intersection(above).area if above is not None else 0.0)
+        floor_a += here.area - (here.intersection(below).area if below is not None else 0.0)
+    ur, uf = a.get("heat_u_roof"), a.get("heat_u_floor")
+    roof_w = roof_a * ur * dt if ur is not None else 0.0
+    floor_w = floor_a * uf * dt if uf is not None else 0.0
+    return roof_w, floor_w, roof_a, floor_a, (roof_a if ur is None else 0.0), (floor_a if uf is None else 0.0)
 
 
 def _gr(v, digits=1):

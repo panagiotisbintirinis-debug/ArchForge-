@@ -96,6 +96,39 @@ def test_dialog_from_the_heating_menu_changes_any_value_with_one_undo():
         w._mark_clean(); w.close()
 
 
+def test_dialog_gives_the_projects_u_of_roof_and_floor_with_one_undo():
+    """07/11: roof and floor counted with the project's U, typed in «Θερμοκρασίες σχεδιασμού…»; 0 = not given."""
+    import os
+    os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+    from PySide6.QtWidgets import QApplication
+    QApplication.instance() or QApplication([])
+    from archforge.core.commands import AddEntity
+    from archforge.core.model import Entity
+    from archforge.mep.heat_load import assumptions, heat_load
+    from archforge.ui.design_climate_dialog import DesignClimateDialog
+    from archforge.ui.main_window import MainWindow
+    w = MainWindow()
+    try:
+        pts = [(0, 0), (5, 0), (5, 4), (0, 4)]
+        for a, b in zip(pts, pts[1:] + pts[:1]):
+            w.stack.execute(AddEntity(Entity('wall', {'x1': a[0], 'y1': a[1], 'x2': b[0], 'y2': b[1], 'z': 0.0,
+                                                      'height': 3.0, 'thickness': 0.25})))
+        d = DesignClimateDialog(w)
+        assert d.u_fields['heat_u_roof'].text() == 'δεν δόθηκε'
+        d.u_fields['heat_u_roof'].setValue(0.40); d.u_fields['heat_u_floor'].setValue(0.45)
+        d.apply()
+        a = assumptions(w.doc)
+        assert a['heat_u_roof'] == 0.40 and a['heat_u_floor'] == 0.45 and a['heat_u_walls'] is None
+        parts = dict(heat_load(w.doc)['parts'])
+        dt = heat_load(w.doc)['delta_t']
+        assert parts['Οροφή / δώμα'] == round(20 * 0.40 * dt) and parts['Δάπεδο'] == round(20 * 0.45 * dt)
+        w.stack.undo()
+        assert assumptions(w.doc)['heat_u_roof'] is None
+        d.close()
+    finally:
+        w._mark_clean(); w.close()
+
+
 def _leaves(menu, path):
     for a in menu.actions():
         if a.isSeparator() or not a.text():

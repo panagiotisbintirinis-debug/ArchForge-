@@ -61,6 +61,19 @@ class DesignClimateDialog(QDialog):
         own_zone = (dict(C.entity(doc).params) if C.entity(doc) is not None else {}).get("zone", "")
         self.zone.setCurrentIndex(max(0, self.zone.findData(own_zone)))
         form.addRow("Κλιματική ζώνη", self.zone)
+        # U of the project for what has no build-up of its own (07/11: roof and floor counted, κουτί ελέγχου).
+        # 0 = not given: that area is listed under «δεν μετρήθηκαν», never guessed.
+        from archforge.mep.heat_load import assumptions
+        given = assumptions(doc)
+        self.u_fields = {}
+        for key, label in (("heat_u_walls", "U τοίχων χωρίς σύνθεση"), ("heat_u_roof", "U οροφής / δώματος"),
+                           ("heat_u_floor", "U δαπέδου (ισοδύναμο U' προς έδαφος / πιλοτή)")):
+            box = QDoubleSpinBox(self)
+            box.setRange(0.0, 6.0); box.setDecimals(2); box.setSingleStep(0.05); box.setSuffix(" W/m²K")
+            box.setSpecialValueText("δεν δόθηκε")
+            box.setValue(float(given.get(key) or 0.0))
+            form.addRow(label, box)
+            self.u_fields[key] = box
         root.addLayout(form)
         self.power = QLabel(self); self.power.setWordWrap(True)
         root.addWidget(self.power)
@@ -108,6 +121,8 @@ class DesignClimateDialog(QDialog):
         key = self.preset.currentData()
         out["preset"] = key if key in C.PRESETS else C.CUSTOM
         out["zone"] = self.zone.currentData() or ""
+        for key, box in self.u_fields.items():
+            out[key] = box.value() if box.value() > 0 else None
         return out
 
     def apply(self):
