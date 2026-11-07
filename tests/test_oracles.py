@@ -12,7 +12,10 @@ import oracles  # noqa: E402
 DATA = os.path.join(os.path.dirname(__file__), 'data')
 
 
-def _box(doc, t=0.25, wt='brick_double_insulated'):
+def _box(doc, t=None, wt='brick_double_insulated'):
+    if t is None:                                  # 07/11 rule: the thickness its layers give
+        from archforge.architecture.wall_types import total_thickness
+        t = total_thickness(wt)
     pts = [(0, 0), (6, 0), (6, 4), (0, 4)]
     ids = []
     for a, b in zip(pts, pts[1:] + pts[:1]):

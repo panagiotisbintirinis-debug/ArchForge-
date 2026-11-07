@@ -23,7 +23,7 @@ PROGRAM_CHECKS = ("Αποθήκευση → κλείσιμο → άνοιγμα"
 # Item prefix → the tool that adds what is missing.
 FIXES = (("Δάπεδο σε κάθε όροφο", "complete"), ("Στέγη πάνω από", "complete"), ("Κουζίνα:", "complete"),
          ("Μπάνιο:", "complete"), ("Ηλεκτρολογικά", "complete"), ("Θέρμανση", "complete"),
-         ("Κολόνες", "frame"), ("Δοκοί", "frame"), ("Θεμελίωση", "frame"), ("Συνέχεια κολονών", "frame"))
+         ("Πάχος κάθε τοίχου", "wall_thickness"), ("Κολόνες", "frame"), ("Δοκοί", "frame"), ("Θεμελίωση", "frame"), ("Συνέχεια κολονών", "frame"))
 
 
 @dataclass

@@ -210,7 +210,7 @@ def import_command(doc, data):
     """``(command, summary)``: everything read, as one undo step."""
     from archforge.core.commands import AddEntities, CompositeCommand, SetLevel
     from archforge.core.model import Entity
-    commands, made, by_guid, entities = [], {}, {}, []
+    commands, made, by_guid, entities, mismatched = [], {}, {}, [], []
     known = {round(float(z), 4): n for n, z in doc.levels.items()}
     for name, z in data["storeys"]:
         if round(z, 4) not in known and name not in doc.levels:
@@ -220,8 +220,15 @@ def import_command(doc, data):
         wall_type, cmd = _wall_type(doc, w["layers"], w["layer_set"], made)
         if cmd is not None:
             commands.append(cmd)
+        thickness = w["thickness"]
+        layered = sum(d for _n, d in w["layers"]) if w["layers"] else 0.0
+        if wall_type != "generic" and layered > 0 and abs(layered - thickness) > 0.005:
+            # Owner 07/11: «δεν μπορεί να υφίσταται διαφορετικό πάχος τοίχου εάν οι στρώσεις δεν το δικαιολογούν» —
+            # a wall whose body and build-up disagree takes its build-up's thickness, and the import says so.
+            mismatched.append((w["name"] or "Τοίχος", thickness, layered))
+            thickness = layered
         e = Entity("wall", {"x1": w["a"][0], "y1": w["a"][1], "x2": w["b"][0], "y2": w["b"][1], "z": round(w["z"], 6),
-                            "height": round(w["height"], 6), "thickness": round(w["thickness"], 6),
+                            "height": round(w["height"], 6), "thickness": round(thickness, 6),
                             "wall_type": wall_type}, name=w["name"] or "Τοίχος")
         by_guid[w["guid"]] = (e, w)
         entities.append(e)
@@ -252,7 +259,8 @@ def import_command(doc, data):
     if entities:
         commands.append(AddEntities(entities))
     summary = {"storeys": len(data["storeys"]), "walls": len(data["walls"]), "openings": placed,
-               "new_types": len(made), "not_imported": dict(data["not_imported"])}
+               "new_types": len(made), "not_imported": dict(data["not_imported"]),
+               "thickness_from_layers": [(n, round(t, 4), round(l, 4)) for n, t, l in mismatched]}
     return CompositeCommand(commands, "Εισαγωγή IFC"), summary
 
 

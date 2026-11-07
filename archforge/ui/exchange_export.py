@@ -79,6 +79,8 @@ def import_ifc(window, path=None):
     window.statusBar().showMessage(
         f"IFC: {result['walls']} τοίχοι · {result['openings']} κουφώματα · {result['storeys']} όροφοι"
         + (f" · {result['new_types']} νέες συνθέσεις" if result["new_types"] else "")
+        + (f" · {len(result['thickness_from_layers'])} τοίχοι με το πάχος των στρώσεών τους (το σχήμα στο IFC διέφερε)"
+           if result.get("thickness_from_layers") else "")
         + (f" — δεν εισήχθησαν: {rest}" if rest else "") + " · Ctrl+Z για αναίρεση", 15000)
     return result
 

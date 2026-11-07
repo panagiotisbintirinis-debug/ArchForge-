@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (QCheckBox, QDockWidget, QHBoxLayout, QLabel, QPus
 from archforge.scenarios.gate import FAIL, NA, PASS
 
 MARK = {PASS: "✔", FAIL: "✖", NA: "—"}
-FIX_LABELS = {"complete": "Ολοκλήρωση κτιρίου…", "frame": "Πρόταση φέροντος"}
+FIX_LABELS = {"complete": "Ολοκλήρωση κτιρίου…", "frame": "Πρόταση φέροντος", "wall_thickness": "Πάχος από τις στρώσεις"}
 DELAY_MS = 1500
 
 
@@ -43,6 +43,14 @@ def apply_fix(window, key):
         if action is not None:
             action.trigger()
             return True
+    if key == "wall_thickness":
+        from archforge.architecture.wall_types import thickness_fix_command
+        cmd = thickness_fix_command(window.doc)
+        if cmd is not None:
+            window.stack.execute(cmd)
+            window._redraw_views(all_views=True)
+            window.statusBar().showMessage("Πάχος τοίχων από τις στρώσεις — Ctrl+Z για αναίρεση", 6000)
+        return cmd is not None
     if key == "frame" and hasattr(window, "_propose_frame"):
         window._propose_frame()
         return True

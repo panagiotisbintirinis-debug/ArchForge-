@@ -11,7 +11,10 @@ os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 from archforge.core.model import Document, Entity  # noqa: E402
 
-L, W, H, T = 5.0, 4.0, 3.0, 0.25
+from archforge.architecture.wall_types import total_thickness  # noqa: E402
+
+L, W, H = 5.0, 4.0, 3.0
+T = total_thickness('brick_double_insulated')        # 07/11 rule: a wall is as thick as its layers
 WIN_W, WIN_H, UW = 2.0, 1.5, 1.8
 DT, N_AIR = 20.0, 0.5
 

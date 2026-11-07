@@ -134,6 +134,10 @@ class Gate:
         self.guard(1, "Έπιπλα/είδη μέσα σε χώρο, όχι πάνω σε τοίχο ή μεταξύ τους", self._collisions)
         self.guard(1, "Πόρτες ιδιωτικών χώρων ανοίγουν προς τα μέσα", self._door_swing_side)
         self.guard(1, "Τίποτα μέσα στη σάρωση των θυρόφυλλων", self._door_swing_clear)
+        from archforge.architecture.wall_types import thickness_mismatches
+        bad = thickness_mismatches(self.doc)
+        self.add(1, "Πάχος κάθε τοίχου = οι στρώσεις του", not bad, "όλοι" if not bad else "; ".join(
+            f"«{w.name or w.id[:8]}» {t * 100:.1f} cm, στρώσεις {total * 100:.1f} cm" for w, t, total in bad[:6]))
         english = sorted({e.name for e in self.ents("wall", "door", "window", "opening", "stair")
                           if e.name and all(ord(c) < 128 for c in e.name if c.isalpha())})
         self.add(1, "Ονόματα στοιχείων στα ελληνικά", not english, "όλα" if not english else "αγγλικά: " + ", ".join(english))

@@ -213,3 +213,27 @@ def layer_lines(params, wall_type, sign=1, doc=None):
         insulation = ls[k][4] or ls[k + 1][4]
         out.append(([(x1 + nx * offset, y1 + ny * offset), (x2 + nx * offset, y2 + ny * offset)], insulation))
     return out
+
+
+def thickness_mismatches(doc, tol=0.005):
+    """``[(wall, its thickness, the layers' total)]``: walls whose thickness the build-up does not justify — owner
+    07/11: «δεν μπορεί να υφίσταται διαφορετικό πάχος τοίχου εάν οι στρώσεις δεν το δικαιολογούν».  Walls without
+    layers (generic) have their own thickness and are not listed."""
+    out = []
+    for w in doc.entities.values():
+        if w.kind != "wall":
+            continue
+        total = total_thickness(w.params.get("wall_type", "generic"), doc)
+        if total > 0 and abs(float(w.params["thickness"]) - total) > tol:
+            out.append((w, float(w.params["thickness"]), total))
+    return out
+
+
+def thickness_fix_command(doc):
+    """One undo step: every listed wall gets the thickness of its layers (None when there is nothing to fix)."""
+    from archforge.core.commands import CompositeCommand, UpdateEntity
+    bad = thickness_mismatches(doc)
+    if not bad:
+        return None
+    return CompositeCommand([UpdateEntity(w.id, {"thickness": round(total, 4)}) for w, _t, total in bad],
+                            label="Πάχος τοίχων από τις στρώσεις")

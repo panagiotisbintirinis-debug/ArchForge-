@@ -201,6 +201,7 @@ class PlanView(QGraphicsView):
         q=self._scene_to_plane(pos)
         try:return any(point_in_polygon(float(q.a),float(q.b),f.polygon) for f in self.doc.active_room_faces())
         except (ValueError,KeyError):return False
+    ANNOTATION_KINDS=('dimension','auto_dimensions')
     def itemAt(self,*args):
         """Most specific pickable item under the cursor (handles first, then objects, then containers)."""
         items=self.items(*args)
@@ -209,16 +210,22 @@ class PlanView(QGraphicsView):
         for item in items:
             if item in getattr(self,'_handle_items',{}):
                 return item
-        containers=[]
+        containers=[];notes=[]
         for item in items:
             eid=self._entity_items.get(item)
             if not eid or eid not in self.doc.entities:
                 continue
-            if self.doc.get(eid).kind in self.CONTAINER_KINDS:
+            kind=self.doc.get(eid).kind
+            if kind in self.CONTAINER_KINDS:
                 containers.append(item)
                 continue
+            if kind in self.ANNOTATION_KINDS:
+                # Dimensions are drawn over everything: picked only where nothing else is (bots 07/11 — a double
+                # click on a wall selected «Διαστάσεις (αυτόματα)», so «Υλικό στο επιλεγμένο» said «no materials»).
+                notes.append(item)
+                continue
             return item
-        return containers[0] if containers else items[0]
+        return notes[0] if notes else (containers[0] if containers else items[0])
 
     def _scene_to_plane(self,pos):p=self.mapToScene(pos);return PointerEvent(p.x(),p.y())
     def _acquire_rotate_target(self,hit):
