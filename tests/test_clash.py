@@ -280,3 +280,26 @@ def test_remembered_circuits_route_exactly_as_from_scratch_and_follow_the_walls(
     moved = E.route_cables(doc)
     E._CIRCUIT_MEMO.clear()
     assert sorted(map(str, moved['runs'])) == sorted(map(str, E.route_cables(doc)['runs']))
+
+
+def test_a_wall_change_reroutes_only_the_circuits_of_its_storeys_and_the_result_is_the_full_reroute():
+    """Bots 07/11: one wall outside the house re-routed every circuit of every storey (4 s, 750 elements). A circuit
+    now depends on its storey, the panel's, those between and the one above — the result must stay a full re-route."""
+    import json
+    import os
+    import archforge.mep.electrical as E
+    from archforge.core.model import Document
+    doc = Document.load(os.path.join(os.path.dirname(__file__), 'data', 'bot16_three_storey_frame.archforge'))
+
+    def fresh():
+        E._CIRCUIT_MEMO.clear(); E._CACHE['key'] = None
+        return E.route_cables(doc)
+
+    def sig(r):
+        return json.dumps({k: r[k] for k in ('runs', 'boxes')}, sort_keys=True, default=str)
+    fresh()
+    walls = [e for e in doc.entities.values() if e.kind == 'wall']
+    for z in sorted({float(w.params['z']) for w in walls}):
+        w = next(w for w in walls if float(w.params['z']) == z)
+        doc.update(w.id, {'x1': float(w.params['x1']) + 0.03})
+        assert sig(E.route_cables(doc)) == sig(fresh()), z
