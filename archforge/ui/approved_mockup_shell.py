@@ -336,6 +336,8 @@ def install_approved_mockup_shell(window):
         ("Φυτό: Θάμνος",lambda: window._start_site_tool(
             "plant_shrub","Κλικ στην κάτοψη για θάμνο — Esc για τέλος")),
         (None,None),
+        # Owner 07/11: designed first (shape, section, a 3D miniature in place), then placed (ui/pool_designer.py).
+        ("Πισίνα (σχεδιασμός και τοποθέτηση)…",lambda: __import__('archforge.ui.pool_designer',fromlist=['x']).open_designer(window)),
         ("Πισίνα",lambda: window._start_site_tool(
             "pool_place","Κλικ στο κέντρο της πισίνας — διαστάσεις, βάθη, τύπος και εξοπλισμός στις Ιδιότητες, Esc για τέλος")),
         # Owner 30/10: the pool drawn as it is wanted — corners and curves clicked in the plan (ui/pool_shape.py).
