@@ -124,6 +124,26 @@ def _read_drawing(doc):
                   "columns": [e.id for e in entities if e.kind == "structural_column" and abs(float(e.params.get("z", 0.0)) - z) < 0.05],
                   "beams": [e.id for e in entities if e.kind == "structural_beam" and
                             abs(float(doc.levels.get(str(e.params.get("level")), -1e9)) - z) < 0.05]}
+        # What can be in this storey's rooms, found once per storey (not once per room — bots 07/11: rooms ×
+        # elements point tests, 0,15 s per click in a block of flats); each with the plan point(s) tested.
+        from archforge.mep.ventilation import _floor_of
+        cands = []
+        for e in entities:
+            p = e.params
+            if e.kind in ROOM_CONTENT_KINDS and level_of.get(e.id) == name:
+                at = _plan_point(e)
+                if at is not None:
+                    cands.append(("contents", e, [at]))
+            if e.kind in ("plumbing_point", "electrical_point", "ventilation_point"):
+                if abs(_floor_of(doc, float(p["z"])) - z) < 1e-6:
+                    cands.append((e.kind.split("_")[0], e, [(float(p["x"]), float(p["y"]))]))
+            elif e.kind in ("window", "door"):
+                host = doc.entities.get(e.parent_id) if e.parent_id else None
+                if host is not None and host.kind == "wall" and abs(float(host.params.get("z", 0.0)) - z) < 0.05:
+                    cands.append((e.kind + "s", e, list(_opening_sides(doc, e))))
+            elif e.kind == "ceiling_joists" and abs(float(p["z"]) - z) < 0.05:
+                cands.append(("joists", e, [centroid([(float(q[0]), float(q[1])) for q in p["points"]])]))
+        roofs = [e.params for e in entities if e.kind == "pitched_roof"] if top else []
         for i, face in enumerate(faces):
             poly = [(float(p[0]), float(p[1])) for p in face.polygon]
             meta = doc.room_metadata(face.signature) if hasattr(doc, "room_metadata") else {}
@@ -133,29 +153,16 @@ def _read_drawing(doc):
                                round(max(p[1] for p in poly) - min(p[1] for p in poly), 2)),
                     "plumbing": [], "electrical": [], "ventilation": [], "windows": [], "doors": [], "joists": [],
                     "contents": [], "under_pitched_roof": False}
-            for e in entities:
-                p = e.params
-                if e.kind in ROOM_CONTENT_KINDS and level_of.get(e.id) == name:
-                    at = _plan_point(e)
-                    if at is not None and inside(poly, *at):
-                        room["contents"].append(e.id)
-                if e.kind in ("plumbing_point", "electrical_point", "ventilation_point"):
-                    from archforge.mep.ventilation import _floor_of
-                    if abs(_floor_of(doc, float(p["z"])) - z) < 1e-6 and inside(poly, float(p["x"]), float(p["y"])):
-                        room[e.kind.split("_")[0]].append(e.id)
-                elif e.kind in ("window", "door"):
-                    host = doc.entities.get(e.parent_id) if e.parent_id else None
-                    if host is not None and host.kind == "wall" and abs(float(host.params.get("z", 0.0)) - z) < 0.05 \
-                            and any(inside(poly, sx, sy) for sx, sy in _opening_sides(doc, e)):
-                        room[e.kind + "s"].append(e.id)
-                elif e.kind == "ceiling_joists" and abs(float(p["z"]) - z) < 0.05 and \
-                        inside(poly, *centroid([(float(q[0]), float(q[1])) for q in p["points"]])):
-                    room["joists"].append(e.id)
-                elif e.kind == "pitched_roof" and top:
-                    cx, cy = room["centroid"]
-                    if min(float(p["x0"]), float(p["x1"])) <= cx <= max(float(p["x0"]), float(p["x1"])) and \
-                            min(float(p["y0"]), float(p["y1"])) <= cy <= max(float(p["y0"]), float(p["y1"])):
-                        room["under_pitched_roof"] = True
+            x0, x1 = min(q[0] for q in poly), max(q[0] for q in poly)
+            y0, y1 = min(q[1] for q in poly), max(q[1] for q in poly)
+            for key, e, pts in cands:
+                if any(x0 <= px <= x1 and y0 <= py <= y1 and inside(poly, px, py) for px, py in pts):
+                    room[key].append(e.id)
+            for p in roofs:
+                cx, cy = room["centroid"]
+                if min(float(p["x0"]), float(p["x1"])) <= cx <= max(float(p["x0"]), float(p["x1"])) and \
+                        min(float(p["y0"]), float(p["y1"])) <= cy <= max(float(p["y0"]), float(p["y1"])):
+                    room["under_pitched_roof"] = True
             use, source = _use_from_text(meta.get("use")) or _use_from_text(meta.get("name")), "όνομα/χρήση"
             if use is None:
                 use, source = _infer_use(doc, room), "εξοπλισμός"

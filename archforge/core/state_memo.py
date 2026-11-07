@@ -28,6 +28,34 @@ def state_key(doc):
             tuple(getattr(doc.work_plane, "origin", ()) or ()))
 
 
+# Kinds that never change a wall, a room or an opening: points of the installations, furniture, plants, notes.
+# (bots 07/11: each luminaire in a 120-wall block of flats re-cut the layers of every wall — 0,1 s per click.)
+NOT_ARCHITECTURE = frozenset(("electrical_point", "plumbing_point", "heating_point", "ventilation_point",
+                              "drainage_point", "library_object", "cabinet", "plant", "dimension", "auto_dimensions",
+                              "drafting", "camera", "light_probe", "section_line", "elevation_line", "sheet"))
+
+
+def architecture_key(doc):
+    """Like ``state_key`` for readers of the building only (walls, openings, rooms, slabs, materials): what an
+    installation point, a piece of furniture or a note changes does not change it.  The parameters themselves are
+    in the key (not revisions or the change serial, which undo / redo can bring back to a value already seen)."""
+    import json
+    quick = state_key(doc)
+    held = _STORE.get("_architecture_key")
+    if held is not None and held[0] == quick:
+        return held[1]                                  # same state: the key is not rebuilt per wall asked
+    parts = []
+    for e in doc.entities.values():
+        if e.kind in NOT_ARCHITECTURE:
+            continue
+        parts.append((e.id, e.kind, e.parent_id, e.visible, json.dumps(e.params, sort_keys=True, default=str)))
+    key = (doc_token(doc), hash(tuple(sorted(parts))), repr(getattr(doc, "constructions", None)),
+           repr(getattr(doc, "materials", None)), repr(getattr(doc, "room_data", None)),
+           tuple(sorted((str(k), float(v)) for k, v in doc.levels.items())))
+    _STORE["_architecture_key"] = (quick, key)
+    return key
+
+
 def remembered(name, doc, args, compute, copy_out=True):
     """``compute()`` once per project state and ``args``; a deep copy is handed out (callers may change theirs)."""
     key = state_key(doc)
