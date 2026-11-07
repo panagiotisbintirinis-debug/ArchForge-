@@ -1040,7 +1040,8 @@ SCHEMAS = {
                       'length': _positive, 'power_w': _nonnegative, 'loop_spacing': _loop_spacing,
                       'heating_system': _choice(('radiators', 'underfloor', 'fan_coil'), 'heating system'),
                       'distribution': _choice(('manifold', 'two_pipe'), 'heating distribution'),
-                      'pipe_type': str, 'pipe_length_m': _nonnegative},
+                      'pipe_type': str, 'pipe_length_m': _nonnegative,
+                      'flow_temp': _finite, 'return_temp': _finite},   # supply / return °C (heating_hydraulics)
     'ventilation_point': {'x': _finite, 'y': _finite, 'z': _finite, 'point_type': _vent_type, 'outlet': _vent_outlet,
                           'airflow': _nonnegative},
     'cabinet': {

@@ -500,6 +500,10 @@ def install_approved_mockup_shell(window):
     power=QAction("Ενδεικτική ισχύς θέρμανσης…",window)
     power.triggered.connect(lambda: __import__("archforge.ui.thermal_bridges_dialog",fromlist=["show_power"]).show_power(window))
     heating.addAction(power); window._heat_power_action=power
+    # 07/11: flows and pressure drops per circuit and manifold (mep/heating_hydraulics.py) — «δίκτυο Υ» of the review.
+    hydraulic=QAction("Υδραυλικός υπολογισμός…",window)
+    hydraulic.triggered.connect(lambda: __import__("archforge.ui.heating_hydraulics_dialog",fromlist=["show"]).show(window))
+    heating.addAction(hydraulic); window._heating_hydraulics_action=hydraulic
     supplies=QAction("Παροχές ρεύματος θέρμανσης (αυτόματα)",window); supplies.triggered.connect(lambda: window._heating_supplies())
     heating.addAction(supplies); heating.addSeparator()
     for key,label in HEAT.items():
